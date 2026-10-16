@@ -4,6 +4,245 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "The passwords do not match.": "两次输入的密码不一致。",
+  "Could not unlock this Space": "无法解锁此 Space",
+  "The sync password did not unlock this Space. Try the password used when Sync was enabled.":
+    "此密码未能解锁 Space。请使用启用同步时设置的密码重试。",
+  "Encrypted cloud sync is not available on this platform yet.":
+    "此平台暂不支持加密云同步。",
+  "Encrypted cloud sync is not available on this platform yet. Your local files remain available.":
+    "此平台暂不支持加密云同步，本地文件仍可正常使用。",
+  "Close Eidos Sync": "关闭同步",
+  "Sign in to use Sync": "登录以使用同步",
+  "Use your eidos.space account to check whether Sync is available.":
+    "登录 eidos.space 账户以查看同步服务。",
+  "Manage your Sync access on eidos.space, then check again here.":
+    "请前往 eidos.space 管理同步服务，再返回重试。",
+  "Apply for or review Sync access on eidos.space, then check again here.":
+    "请前往 eidos.space 开通或查看同步服务，再返回重试。",
+  "Waiting for your browser…": "正在等待浏览器登录…",
+  "Checking…": "正在检查…",
+  "Check again": "重新检查",
+  "Your synced Spaces": "已同步的 Space",
+  "Loading your synced Spaces…": "正在读取已同步的 Space…",
+  "Search synced Spaces": "搜索已同步的 Space",
+  "Enter the sync password to open this encrypted Space":
+    "输入同步密码以打开此加密 Space",
+  Encrypted: "已加密",
+  Created: "创建于",
+  "No Spaces match “{query}”.": "没有与「{query}」匹配的 Space。",
+  "No synced Spaces yet. Connect a local Space first, then it will appear here.":
+    "还没有已同步的 Space。为本地 Space 启用同步后，它会显示在这里。",
+  "Local files safe": "本地文件安全",
+  "Check queued": "已安排检查",
+  "Cloud updates will be checked in the background. Upload and receive versions when you are ready.":
+    "将在后台检查云端更新。准备好后，可手动上传或接收版本。",
+  "We’ll sync when you’re back online": "恢复网络后可继续同步",
+  "Showing the last known Sync status. You can keep working on this device and try again later.":
+    "当前显示上次同步状态。可以继续在此设备工作，稍后重试。",
+  "Sync could not be reached. You can keep working on this device and try again later.":
+    "暂时无法连接同步服务。可以继续在此设备工作，稍后重试。",
+  "Sync couldn’t be checked": "无法检查同步状态",
+  "Your local files are safe and remain available. Try checking your account and cloud status again.":
+    "本地文件安全且仍可使用。请重试检查账户与云端状态。",
+  "Could not unlock encrypted Sync": "无法解锁加密同步",
+  "Check your sync password and try again.": "请检查同步密码后重试。",
+  "Sync needs attention": "同步需要处理",
+  "Eidos Sync stopped without changing your local files. Work locally and retry after reviewing Space status.":
+    "同步已停止，本地文件未改变。可以继续在本地工作，检查 Space 状态后重试。",
+  "Enter your sync password in Sync details to unlock this session. Local files remain available.":
+    "输入同步密码以继续同步，本地文件仍可使用。",
+  "Eidos Sync is offline": "同步服务离线",
+  "The service could not be reached. Your local files and checkpoints remain safe.":
+    "无法连接同步服务，本地文件与已保存版本均安全。",
+  "Retry now": "立即重试",
+  "Sign in again to resume Sync": "重新登录以恢复同步",
+  "The account session is no longer authorized. Local editing remains available.":
+    "登录已失效，请重新登录。本地编辑仍可使用。",
+  "Sign in again": "重新登录",
+  "This device no longer has Sync access": "此设备的同步访问权限已失效",
+  "The device was revoked or its binding changed. Sign in again to register it.":
+    "此设备的同步授权已失效，请重新登录。",
+  "Register and sign in": "重新登录",
+  "Eidos Sync is paused": "同步已暂停",
+  "This account does not currently have Sync access. Local changes will remain on this device.":
+    "此账户当前无法使用同步，本地修改会保留在此设备上。",
+  "Cloud storage is full": "云端存储空间已满",
+  "Cloud storage": "云端存储空间",
+  "Your changes were not uploaded. Free some storage or increase your limit, then try again. Local work remains safe.":
+    "修改尚未上传。请释放云端空间或增加额度后重试，本地内容安全。",
+  "This upload is too large": "此次上传超出大小限制",
+  "Eidos Sync could not accept this upload yet. Keep working locally; your files and checkpoints remain safe.":
+    "同步服务暂时无法接收此次上传。可以继续在本地工作，文件与已保存版本均安全。",
+  "Eidos Lite needs an update": "需要更新 Eidos Lite",
+  "This version cannot connect to Eidos Sync. Update Eidos Lite and try again; no local files were replaced.":
+    "此版本无法连接同步服务，请更新 Eidos Lite 后重试。本地文件未被替换。",
+  "Get the latest Eidos Lite": "更新 Eidos Lite",
+  "Cloud Space is unavailable": "云端 Space 不可用",
+  "This Space is no longer available to the signed-in account. Open another synced Space or contact support.":
+    "当前账户无法访问此 Space。请选择其他已同步的 Space 或联系支持。",
+  "Open Hosted Spaces": "打开已同步的 Space",
+  "Cloud updates changed": "云端有新版本",
+  "Another device uploaded a newer version. Try again to get it; no local files were overwritten.":
+    "其他设备已上传新版本，请重试获取。本地文件未被覆盖。",
+  "Fetch again": "重新检查",
+  "Upload did not complete": "上传未完成",
+  "The cloud service did not confirm your changes. Your local work remains safe and can be retried.":
+    "云端尚未确认此次修改。请重试，本地内容安全。",
+  "Eidos Sync is busy": "同步服务繁忙",
+  "The service asked this device to slow down. Local files remain safe while you wait and retry.":
+    "请求过于频繁，请稍后重试。本地文件安全。",
+  "This Space needs attention": "此 Space 需要处理",
+  "Eidos Lite could not safely read this Space’s sync history. Keep working locally, then open a fresh cloud copy.":
+    "无法读取此 Space 的同步历史。可以继续在本地工作，并另行打开一份云端副本。",
+  "Open a fresh copy": "打开新的云端副本",
+  "Sync process stopped": "同步进程已停止",
+  "The isolated Sync process stopped unexpectedly. Local files were not discarded and the session can reopen.":
+    "同步意外停止，请重试。本地文件未丢失。",
+  "Reopen and retry": "重新打开并重试",
+  "Eidos Sync is temporarily unavailable": "同步服务暂时不可用",
+  "The service did not complete the request. Continue working locally and retry later.":
+    "服务未能完成请求。可以继续在本地工作，稍后重试。",
+  "Create a checkpoint first": "请先保存版本",
+  "The Space changed locally after the last checkpoint. Save a checkpoint before trying Sync again.":
+    "此 Space 有尚未保存为版本的修改。请先保存版本，再重试同步。",
+  "Checking Sync access…": "正在检查同步访问权限…",
+  "Encrypted Sync is locked": "加密同步已锁定",
+  "This Space already has a cloud connection": "此 Space 已有云端连接",
+  "Its existing connection and local history have been preserved. Use an independent copy to set up encrypted Sync.":
+    "原有连接和本地历史已保留。请使用独立副本启用加密同步。",
+  "Keep working locally": "继续在本地工作",
+  "Enable cloud sync": "启用云同步",
+  "Sync this Space's files and saved versions across your devices.":
+    "将此 Space 的文件与已保存版本同步到其他设备。",
+  "Sync encryption": "同步加密",
+  "Default sync password saved on this device":
+    "默认同步密码已在此设备安全保存",
+  "Use a separate password for this Space": "使用此 Space 的独立同步密码",
+  "Set up a password before enabling Sync": "启用前请设置同步密码",
+  Change: "更改",
+  "Manage default sync password": "管理默认同步密码",
+  "Files and saved versions are encrypted before upload. Local files remain unencrypted.":
+    "文件与已保存版本会在上传前加密，本地文件不加密。",
+  "Files to sync": "待同步文件",
+  "Already in version history ({count})": "已在版本历史中的文件（{count}）",
+  "These files remain included because they are already in version history. Ignore rules apply to untracked files.":
+    "这些文件已在版本历史中，仍会同步。忽略规则适用于尚未加入版本历史的文件。",
+  "{count} more files": "另有 {count} 个文件",
+  "Resolve blocked files before enabling Sync.": "请先处理无法同步的文件。",
+  "Set up a sync password to continue.": "请先设置同步密码。",
+  "Enter matching sync passwords to continue.": "请填写并确认一致的同步密码。",
+  "Local files stay available offline.": "本地文件始终可以离线使用。",
+  "Recheck files": "重新检查文件",
+  "Recheck files after changing .graftignore":
+    "修改 .graftignore 后重新检查文件",
+  "Fix these files before connecting": "启用前请先处理以下文件",
+  "No files are excluded.": "没有排除任何文件。",
+  "too large to sync": "超出同步大小限制",
+  "linked file": "链接文件",
+  "unsupported file type": "不支持的文件类型",
+  "already in version history; .graftignore does not exclude it from sync":
+    "已在版本历史中，忽略规则不会将其排除",
+  "version history data": "版本历史数据",
+  "ignored by Space settings": "由 Space 忽略规则排除",
+  "system file": "系统文件",
+  "temporary file": "临时文件",
+  "End-to-end encryption": "端到端加密",
+  "End-to-end encrypted": "端到端加密保护",
+  "One sync password for new Spaces. Each Space keeps its own encryption key.":
+    "为新 Space 设置一个默认同步密码。每个 Space 仍使用独立的加密密钥。",
+  "Replace default password": "更换默认密码",
+  "Manage password": "管理密码",
+  "Change for new Spaces": "更换新 Space 使用的密码",
+  "Could not save the sync password": "无法保存同步密码",
+  "Check this device's secure storage and try again.":
+    "请检查此设备的系统安全存储后重试。",
+  "New Spaces will use this password. Existing Spaces keep their current passwords.":
+    "新 Space 将使用此密码，已有 Space 的密码不变。",
+  "Use the same sync password on your other devices.":
+    "在其他设备上使用相同的同步密码。",
+  "Saved securely on this device. Keep a copy: Eidos cannot recover this password.":
+    "密码会安全保存在此设备。请妥善保管，Eidos 无法找回此密码。",
+  "Sync password saved for new Spaces.": "已保存，新 Space 将使用此同步密码。",
+  "Could not read the saved sync password status.":
+    "无法读取已保存密码的状态。",
+  "Refresh account status": "刷新账户状态",
+  "You can download synced Spaces. Renew Sync access to upload changes.":
+    "当前可以下载已同步的 Space。续订同步服务后可上传修改。",
+  "Sync is unavailable for this account. Open Manage Sync to restore access.":
+    "此账户暂时无法使用同步，请前往「管理同步」恢复。",
+  "Set up Sync access in Manage Sync to connect your Spaces.":
+    "前往「管理同步」开通服务后，即可连接 Space。",
+  "Set a sync password. Use it on your other devices.":
+    "设置同步密码，在其他设备上使用相同密码。",
+  "Enter the sync password used for this Space.":
+    "输入此 Space 使用的同步密码。",
+  "Enter a different sync password": "输入其他同步密码",
+  "Sync password required": "需要同步密码",
+  "Enter this Space's sync password to open it on this device.":
+    "输入此 Space 的同步密码，即可在此设备打开。",
+  "Choose another Space": "选择其他 Space",
+  "Set up LAN sync": "设置局域网同步",
+  "Connect your devices to sync this Space over the same local network.":
+    "连接设备，即可在同一局域网内同步此 Space。",
+  "Choose which Spaces to share in their Sync panels. Turning off LAN sync here stops sharing for all Spaces.":
+    "在各 Space 的同步面板中选择要共享的 Space。在此关闭局域网同步会停止所有 Space 的共享。",
+  "Checking this device…": "正在检查此设备…",
+  "Saved on this device · End-to-end encryption": "已保存在此设备 · 端到端加密",
+  "Set a default password for new encrypted Spaces.":
+    "为新 Space 设置默认同步密码。",
+  "Removing this default leaves existing Space passwords and remembered unlocks unchanged.":
+    "移除默认密码不会更改已有 Space 的密码或已记住的解锁。",
+  "Refresh Sync status": "刷新同步状态",
+  "Refresh Publish status": "刷新发布状态",
+  "Could not refresh Sync. Showing the last known status. Try again.":
+    "同步状态刷新失败，当前显示上次的状态。请重试。",
+  "Storage limit exceeded. Manage your published files or upgrade your plan.":
+    "存储空间已超出额度，请管理已发布文件或升级方案。",
+  "Set up sync password": "设置同步密码",
+  "Ready on this device. Enter the same password once on your other devices.":
+    "此设备已就绪。在其他设备上设置一次相同的密码即可。",
+  "Saved in this device's system secure storage, never sent to Eidos. Keep a copy: account password reset cannot recover encrypted data.":
+    "密码保存在此设备的系统安全存储中，不会发送给 Eidos。请妥善保管：重置账号密码无法恢复加密数据。",
+  "Replacing this default only affects new connections. Existing Spaces keep their passwords and remembered unlocks.":
+    "更换默认密码仅影响新连接，已有 Space 的密码和已记住的解锁不变。",
+  "Save password": "保存密码",
+  "Remove default from this device": "移除此设备的默认密码",
+  "Could not update the sync password. Check system secure storage and try again.":
+    "无法更新同步密码，请检查系统安全存储后重试。",
+  "Uses your default sync password. Remembered securely on this device.":
+    "使用默认同步密码，此设备已安全记住。",
+  "Set your sync password once in Settings to connect Spaces securely.":
+    "在设置中配置一次同步密码，即可安全连接 Space。",
+  "Password options": "密码选项",
+  "Use a different password for this Space": "为此 Space 使用独立密码",
+  "Keep this password: account password reset cannot recover encrypted data.":
+    "请保管此密码：重置账号密码无法恢复加密数据。",
+  "Cloud copy": "云端副本",
+  "Sync is off for this Space": "连接此 Space",
+  "Connect once to keep saved versions available on your other devices.":
+    "将文件与已保存的版本同步到其他设备。本地文件始终可以离线使用。",
+  "Connect this Space": "启用同步",
+  "Connecting this Space…": "正在连接…",
+  "{count} files · {size}": "{count} 个文件 · {size}",
+  "Not included ({count})": "不包含的文件（{count}）",
+  "End-to-end encrypted Sync (preview)": "端到端加密同步（预览）",
+  "Sync password": "同步密码",
+  "Confirm sync password": "确认同步密码",
+  "Unlock Sync": "解锁同步",
+  "Unlocking Sync…": "正在解锁…",
+  "Saved securely on this device so Sync can resume next time.":
+    "密码会安全保存在此设备，下次可自动恢复同步。",
+  "System secure storage is unavailable. Enter the password again after restarting.":
+    "系统安全存储不可用，重启后需要重新输入密码。",
+  "System secure storage is unavailable. Session-only unlock remains available.":
+    "系统安全存储不可用，仍可仅在当前会话内解锁。",
+  "Saved sync password is unavailable. Enter your sync password to continue.":
+    "无法读取已保存的同步密码，请重新输入密码以继续。",
+  "Could not update remembered unlock. Check this device's secure storage before restarting.":
+    "无法更新此设备的解锁凭据。请在重启前检查系统安全存储。",
+  "Used only for this session. Local files stay readable. Account password reset cannot recover encrypted data.":
+    "仅在本次会话中使用，本地文件仍可读取。重置账号密码无法恢复加密数据。",
   "Open in sidebar": "在侧边栏打开",
   "File preview": "文件预览",
   "Close file preview": "关闭文件预览",
@@ -326,7 +565,7 @@ const zh: Record<string, string> = {
   "Show as tree": "树形显示",
   "Toggle tables": "展开或折叠表格",
   "Include file": "选择文件",
-  "Sync operation in progress": "正在传输版本",
+  "Sync operation in progress": "正在同步…",
   "Checking remote updates…": "正在检查远端更新…",
   "Loading files…": "正在加载冲突文件…",
   "Local and remote both have updates": "本地与远端都有新版本",

@@ -3,6 +3,36 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { DevicesSettings, PeerSyncPanel } from "./peer-sync-panel"
 
+it("offers LAN setup instead of an unusable switch when the service is off", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const peerSync = vi.fn(async () => ({
+    running: false,
+    serviceRunning: false,
+    devices: [],
+  }))
+  const openSettingsDestination = vi.fn()
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { peerSync, openSettingsDestination },
+  })
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  try {
+    await act(async () => root.render(<PeerSyncPanel />))
+    expect(host.querySelector('[role="switch"]')).toBeNull()
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Set up LAN sync ↗")!
+        .click()
+    )
+    expect(openSettingsDestination).toHaveBeenCalledWith("devices")
+    expect(peerSync).toHaveBeenCalledOnce()
+    expect(peerSync).toHaveBeenCalledWith("status")
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("shows per-device payloads, stages and expandable failure details", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.useFakeTimers()

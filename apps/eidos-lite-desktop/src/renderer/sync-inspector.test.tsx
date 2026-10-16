@@ -2,6 +2,8 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import type { SpaceVersionCommit } from "../shared/contracts"
+import { EidosLiteI18nProvider } from "./i18n"
+import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import {
   SyncInspector,
   pendingVersionPreview,
@@ -19,6 +21,53 @@ const base: SyncInspectorState = {
   checking: false,
 }
 describe("Sync inspector B", () => {
+  it("localizes the failure title, explanation and recovery action", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getPreferences: async () => ({
+          ...DEFAULT_RENDERER_PREFERENCES,
+          language: "zh",
+        }),
+        onPreferencesChanged: () => () => {},
+      },
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <EidosLiteI18nProvider>
+          <SyncInspector
+            state={{
+              ...base,
+              failure: {
+                code: "offline",
+                state: "offline",
+                title: "Eidos Sync is offline",
+                message:
+                  "The service could not be reached. Your local files and checkpoints remain safe.",
+                action: "retry-now",
+                actionLabel: "Retry now",
+                retryable: true,
+                localSafe: true,
+              },
+            }}
+            spaceKey="translated-error"
+            onClose={() => {}}
+            onAction={() => {}}
+            onRetry={() => {}}
+            onAccount={() => {}}
+          />
+        </EidosLiteI18nProvider>
+      )
+    )
+    expect(host.querySelector("h2")?.textContent).toBe("同步服务离线")
+    expect(host.textContent).toContain("本地文件与已保存版本均安全")
+    expect(host.querySelector(".primary-action")?.textContent).toBe("立即重试")
+    expect(host.textContent).not.toContain("Eidos Sync is offline")
+    await act(async () => root.unmount())
+  })
   it("shows known conflicts during background checks without querying status again", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const getSyncMergeStatus = vi.fn()
@@ -68,7 +117,7 @@ describe("Sync inspector B", () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
-      value: {},
+      value: { openSettingsDestination: vi.fn() },
     })
     const host = document.createElement("div")
     document.body.append(host)
@@ -97,7 +146,10 @@ describe("Sync inspector B", () => {
     expect(onAccount).not.toHaveBeenCalled()
     expect(
       host.querySelector(".sync-inspector-settings")?.textContent
-    ).toContain("Open logs")
+    ).toContain("Sync settings")
+    expect(
+      host.querySelector(".sync-inspector-settings")?.textContent
+    ).not.toContain("Open logs")
     await act(async () =>
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
@@ -113,7 +165,10 @@ describe("Sync inspector B", () => {
         ) as HTMLButtonElement
       ).click()
     )
-    expect(onAccount).toHaveBeenCalledOnce()
+    expect(window.eidosLite.openSettingsDestination).toHaveBeenCalledWith(
+      "account-sync"
+    )
+    expect(onAccount).not.toHaveBeenCalled()
     expect(host.querySelector(".sync-inspector-settings")).toBeNull()
     await act(async () => root.unmount())
     host.remove()

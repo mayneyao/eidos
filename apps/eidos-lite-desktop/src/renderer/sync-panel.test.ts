@@ -13,9 +13,13 @@ import type {
   SpaceSnapshot,
 } from "../shared/contracts"
 import { SyncPanel } from "./sync-panel"
-import { writeSyncStatusSnapshot } from "./sync-status-cache"
+import {
+  readSyncStatusSnapshot,
+  writeSyncStatusSnapshot,
+} from "./sync-status-cache"
 
 const status: EidosSyncStatus = {
+  defaultPasswordConfigured: true,
   environment: "staging",
   account: {
     state: "signed-in",
@@ -99,9 +103,9 @@ const preflight: EidosSyncPreflight = {
   excluded: [{ relativePath: ".graft", reason: "graft-metadata" }],
   warnings: [
     {
-      relativePath: ".env.local",
+      relativePath: "generated/tracked.txt",
       size: 42,
-      concerns: ["hidden", "suspected-secret"],
+      concerns: ["tracked-ignored"],
     },
   ],
   blockers: [],
@@ -110,6 +114,638 @@ const preflight: EidosSyncPreflight = {
 describe("SyncPanel failure states", () => {
   let root: Root
   let host: HTMLDivElement
+
+  it.each([true, false])(
+    "unlocks a connected inspector without device choices (secure storage=%s)",
+    async (secureStorage) => {
+      const remembered = {
+        ...status,
+        deviceUnlockAvailable: secureStorage,
+        encryption: { state: "unlocked" as const, remembered: true },
+      }
+      let finish: ((value: EidosSyncStatus) => void) | undefined
+      const unlockSync = vi.fn(
+        (_input: Parameters<EidosLiteApi["unlockSync"]>[0]) =>
+          new Promise<EidosSyncStatus>((resolve) => {
+            finish = resolve
+          })
+      )
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi.fn().mockResolvedValue({
+            ...remembered,
+            encryption: { state: "locked", remembered: false },
+          }),
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+          onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+          unlockSync,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            variant: "inspector",
+            onClose() {},
+            syncHistory: {
+              state: "up_to_date",
+              ahead: 0,
+              behind: 0,
+              checkedAtMs: Date.now(),
+            },
+          })
+        )
+      )
+      expect(host.querySelector("[data-sync-unlock]")).not.toBeNull()
+      expect(host.querySelector("input[type=checkbox]")).toBeNull()
+      expect(host.textContent).toContain(
+        secureStorage
+          ? "Saved securely on this device"
+          : "Enter the password again after restarting."
+      )
+      expect(
+        host.querySelector(".sync-inspector-b-status h2")?.textContent
+      ).toBe("Encrypted Sync is locked")
+      expect(host.querySelector("[data-sync-next]")).toBeNull()
+      const password = host.querySelector<HTMLInputElement>(
+        "[data-sync-unlock] input[type=password]"
+      )!
+      expect(password).not.toBeNull()
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )!.set!.call(password, "synthetic test password")
+        password.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      await act(async () =>
+        [...host.querySelectorAll("button")]
+          .find((button) => button.textContent === "Unlock Sync")!
+          .click()
+      )
+      expect(unlockSync).toHaveBeenCalledOnce()
+      const request = unlockSync.mock.calls[0]![0]
+      expect(new TextDecoder().decode(request.password)).toBe(
+        "synthetic test password"
+      )
+      expect(request.remember === true).toBe(secureStorage)
+      expect(host.querySelector("progress")).toBeNull()
+      expect(host.querySelector("[data-sync-next]")).toBeNull()
+      expect(
+        [...host.querySelectorAll("button")].find(
+          (button) => button.textContent === "Unlocking Sync…"
+        )?.disabled
+      ).toBe(true)
+      await act(async () => finish?.(remembered))
+      expect(request.password.every((byte) => byte === 0)).toBe(true)
+      expect(host.querySelector("input[type=password]")).toBeNull()
+      expect(host.querySelector("[data-sync-unlock]")).toBeNull()
+      expect(host.querySelector("[data-sync-next]")).not.toBeNull()
+    }
+  )
+
+  it("preserves an existing connection without offering retries against it", async () => {
+    const onClose = vi.fn()
+    const enableSync = vi.fn().mockResolvedValue({
+      ...failureResponse,
+      failure: {
+        code: "remote-already-configured",
+        state: "needs-attention",
+        title: "This Space already has a cloud connection",
+        message:
+          "Its existing connection and local history have been preserved. Use an independent copy to set up encrypted Sync.",
+        action: "work-locally",
+        actionLabel: "Keep working locally",
+        retryable: false,
+        localSafe: true,
+      },
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPreflight: vi
+          .fn()
+          .mockResolvedValue({ ...preflight, warningCount: 0, warnings: [] }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        enableSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "enable",
+          onClose,
+        })
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.click()
+    )
+    expect(host.querySelector("[data-sync-failure]")?.textContent).toContain(
+      "independent copy"
+    )
+    expect(host.querySelector("[data-sync-failure-retry]")).toBeNull()
+    expect(host.querySelector("[data-sync-check-remote]")).toBeNull()
+    const continueLocally = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Keep working locally"
+    )!
+    await act(async () => continueLocally.click())
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(enableSync).toHaveBeenCalledOnce()
+  })
+
+  it("connects using the configured default without rendering or sending a password", async () => {
+    const enableSync = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status, telemetry: { phases: [] } })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPasswordSettings: vi
+          .fn()
+          .mockResolvedValue({ available: true, configured: true }),
+        getSyncPreflight: vi
+          .fn()
+          .mockResolvedValue({ ...preflight, warnings: [], warningCount: 0 }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        enableSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "enable",
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector("input[type=password]")).toBeNull()
+    expect(host.textContent).toContain("End-to-end encrypted")
+    expect(host.querySelector(".sync-password-options")).toBeNull()
+    expect(host.querySelector("input[type=checkbox]")).toBeNull()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.click()
+    )
+    expect(enableSync).toHaveBeenCalledWith({
+      manifestId: preflight.manifestId,
+    })
+  })
+
+  it("keeps a known configured password when the local status refresh fails", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: async () => ({
+          ...status,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPasswordSettings: async () => {
+          throw new Error("secure storage busy")
+        },
+        getSyncPreflight: async () => preflight,
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector('input[type="password"]')).toBeNull()
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.disabled
+    ).toBe(false)
+  })
+
+  it.each(["staging", "production"] as const)(
+    "offers first-time password setup in %s without encryption choices or a settings detour",
+    async (environment) => {
+      const openSettingsDestination = vi.fn()
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi.fn().mockResolvedValue({
+            ...status,
+            environment,
+            remote: { state: "not-connected" },
+            canEnable: true,
+          }),
+          getSyncPasswordSettings: vi
+            .fn()
+            .mockResolvedValue({ available: true, configured: false }),
+          getSyncPreflight: vi
+            .fn()
+            .mockResolvedValue({ ...preflight, warnings: [], warningCount: 0 }),
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+          onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+          openSettingsDestination,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            onClose() {},
+          })
+        )
+      )
+      expect(
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.disabled
+      ).toBe(true)
+      expect(host.querySelectorAll("input[type=password]")).toHaveLength(2)
+      expect(host.querySelector("input[type=checkbox]")).toBeNull()
+      expect(openSettingsDestination).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([false, true])(
+    "requires matching passwords and saves only with secure storage (available=%s)",
+    async (secureStorage) => {
+      const available = {
+        ...status,
+        defaultPasswordConfigured: false,
+        remote: { state: "not-connected" as const },
+        canEnable: true,
+        deviceUnlockAvailable: secureStorage,
+      }
+      let suppliedPassword = ""
+      let savedPassword: Uint8Array | undefined
+      const saveDefaultSyncPassword = vi.fn(
+        async (input: { password: Uint8Array }) => {
+          savedPassword = input.password
+          suppliedPassword = new TextDecoder().decode(input.password)
+        }
+      )
+      const enableSync = vi.fn(
+        async (_approval, encryption?: { password: Uint8Array }) => {
+          if (encryption)
+            suppliedPassword = new TextDecoder().decode(encryption.password)
+          return {
+            ok: true,
+            status: { ...status, encryption: { state: "unlocked" } },
+            telemetry: {
+              phases: [],
+              startedAtMs: 1,
+              completedAtMs: 2,
+              durationMs: 1,
+            },
+          }
+        }
+      )
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi.fn().mockResolvedValue(available),
+          getSyncPreflight: vi
+            .fn()
+            .mockResolvedValue({ ...preflight, warningCount: 0, warnings: [] }),
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+          onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+          enableSync,
+          saveDefaultSyncPassword,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            onClose() {},
+          })
+        )
+      )
+      expect(host.querySelector(".sync-setup-note")?.textContent).toContain(
+        "Enter matching sync passwords to continue."
+      )
+      expect(host.querySelectorAll("input[type=checkbox]")).toHaveLength(0)
+      expect(host.textContent).toContain(
+        secureStorage
+          ? "Saved securely on this device"
+          : "Enter the password again after restarting."
+      )
+      const passwords = host.querySelectorAll<HTMLInputElement>(
+        "[data-sync-password-setup] input[type=password]"
+      )
+      const enter = async (input: HTMLInputElement, value: string) =>
+        act(async () => {
+          Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )!.set!.call(input, value)
+          input.dispatchEvent(new Event("input", { bubbles: true }))
+        })
+      await enter(passwords[0]!, "synthetic sync password")
+      await enter(passwords[1]!, "different")
+      expect(
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.disabled
+      ).toBe(true)
+      await enter(passwords[1]!, "synthetic sync password")
+      const enable =
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!
+      expect(enable.disabled).toBe(false)
+      await act(async () => {
+        if (secureStorage)
+          passwords[1]!.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Enter",
+              bubbles: true,
+              cancelable: true,
+            })
+          )
+        else enable.click()
+      })
+      expect(suppliedPassword).toBe("synthetic sync password")
+      if (secureStorage) {
+        expect(saveDefaultSyncPassword).toHaveBeenCalledOnce()
+        expect(savedPassword?.every((byte) => byte === 0)).toBe(true)
+        expect(enableSync.mock.calls[0]![1]).toBeUndefined()
+      } else {
+        expect(saveDefaultSyncPassword).not.toHaveBeenCalled()
+        expect(
+          enableSync.mock.calls[0]![1]?.password.every((byte) => byte === 0)
+        ).toBe(true)
+      }
+      expect(passwords[0]!.value).toBe("")
+      expect(passwords[1]!.value).toBe("")
+    }
+  )
+
+  it("does not connect if the first sync password could not be saved", async () => {
+    const enableSync = vi.fn()
+    const saveDefaultSyncPassword = vi
+      .fn()
+      .mockRejectedValue(new Error("secure storage busy"))
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          defaultPasswordConfigured: false,
+          deviceUnlockAvailable: true,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        saveDefaultSyncPassword,
+        enableSync,
+      },
+    })
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            onClose() {},
+          })
+        )
+      )
+      await act(async () => {
+        for (const field of host.querySelectorAll<HTMLInputElement>(
+          "input[type=password]"
+        )) {
+          Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )!.set!.call(field, "synthetic setup password")
+          field.dispatchEvent(new Event("input", { bubbles: true }))
+        }
+      })
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.click()
+      )
+      expect(saveDefaultSyncPassword).toHaveBeenCalledOnce()
+      expect(enableSync).not.toHaveBeenCalled()
+      expect(host.textContent).toContain("Could not save the sync password")
+      expect(
+        host.querySelector<HTMLInputElement>("input[type=password]")?.value
+      ).toBe("")
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
+  it("opens an existing encrypted Space with its own password after the saved password fails", async () => {
+    const repository = {
+      name: "old-space",
+      displayName: "Old notes",
+      createdAtMs: 1,
+      remoteUrl: "https://sync-staging.eidos.space/person/old-space",
+      encryption: {
+        profile: "encrypted-remote-v1",
+        version: 1,
+        suite: 1,
+        uuid: "2f94f4c8-705b-4b5f-9808-84e0d1c394ee",
+      },
+    }
+    const cloneSyncRepository = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...failureResponse,
+        failure: {
+          ...failureResponse.failure,
+          code: "encryption-locked",
+          action: "work-locally",
+          actionLabel: "Keep working locally",
+        },
+      })
+      .mockResolvedValue({
+        ok: true,
+        snapshot: null,
+        telemetry: { phases: [] },
+      })
+    const unlockSync = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          deviceUnlockAvailable: true,
+          encryption: { state: "unlocked", remembered: true },
+        }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        listSyncRepositories: vi.fn().mockResolvedValue({
+          namespace: "person",
+          repositories: [repository],
+        }),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+        cloneSyncRepository,
+        unlockSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "clone",
+          onClose() {},
+        })
+      )
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[data-sync-open-space="Old notes"]')!
+        .click()
+    )
+    expect(host.textContent).toContain("Could not unlock this Space")
+    expect(host.textContent).toContain(
+      "Try the password used when Sync was enabled."
+    )
+    expect(host.querySelector("[data-sync-failure-retry]")).toBeNull()
+    expect(host.textContent).not.toContain("Unlock Sync")
+    const field = host.querySelector<HTMLInputElement>("input[type=password]")!
+    expect(document.activeElement).toBe(field)
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(field, "old synthetic password")
+      field.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Open Space")!
+        .click()
+    )
+    expect(cloneSyncRepository).toHaveBeenCalledTimes(2)
+    expect(cloneSyncRepository.mock.calls[1]![2].remember).toBe(true)
+    expect(
+      cloneSyncRepository.mock.calls[1]![2].password.every(
+        (byte: number) => byte === 0
+      )
+    ).toBe(true)
+    expect(field.value).toBe("")
+    expect(unlockSync).not.toHaveBeenCalled()
+  })
+
+  it("does not offer encrypted preview creation in production", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          environment: "production",
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "enable",
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector(".sync-encryption")).toBeNull()
+  })
+
+  it.each(["dialog", "inspector"] as const)(
+    "keeps ready Sync free of device management in the %s",
+    async (variant) => {
+      const remembered: EidosSyncStatus = {
+        ...status,
+        deviceUnlockAvailable: true,
+        encryption: { state: "unlocked", remembered: true },
+      }
+      const forgetSyncUnlock = vi.fn()
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi.fn().mockResolvedValue(remembered),
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+          onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+          forgetSyncUnlock,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            variant,
+            onClose() {},
+          })
+        )
+      )
+      expect(host.textContent).not.toMatch(
+        /Forget this device|Remember on this device|Encryption & device|Unlock Sync/
+      )
+      expect(host.querySelector("[data-sync-unlock]")).toBeNull()
+      expect(forgetSyncUnlock).not.toHaveBeenCalled()
+    }
+  )
+
+  it("keeps a failed password save visible while Sync is unlocked", async () => {
+    const rememberError =
+      "Could not update remembered unlock. Check this device's secure storage before restarting."
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          encryption: { state: "unlocked", remembered: false, rememberError },
+        }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "enable",
+          variant: "inspector",
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector("[role=alert]")?.textContent).toBe(rememberError)
+    expect(host.querySelector("input[type=password]")).toBeNull()
+    expect(host.querySelector("[data-sync-next]")).not.toBeNull()
+  })
 
   it("keeps remote checks and uploads available with unsaved local changes", async () => {
     const runSync = vi.fn().mockResolvedValue({
@@ -129,6 +765,7 @@ describe("SyncPanel failure states", () => {
     await act(async () =>
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           hasUncheckpointedChanges: true,
           syncHistory: {
@@ -206,7 +843,9 @@ describe("SyncPanel failure states", () => {
     expect(
       host.querySelector(".sync-dialog-backdrop")?.getAttribute("data-platform")
     ).toBe("win32")
-    expect(host.textContent).toContain("Sign in")
+    expect(host.textContent).toContain("Sync couldn’t be checked")
+    expect(host.textContent).toContain("Try again")
+    expect(host.querySelector("[data-sync-sign-in]")).toBeNull()
     expect(host.textContent).not.toContain("keychain denied")
   })
 
@@ -238,6 +877,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "space-1",
           onClose: () => undefined,
@@ -270,9 +910,516 @@ describe("SyncPanel failure states", () => {
     expect(getSyncStatus).toHaveBeenCalledOnce()
   })
 
-  it("shows the signed-out value state immediately on a first open", async () => {
+  it("retries a first-load network failure without claiming the user is signed out", async () => {
+    const getSyncStatus = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network offline"))
+      .mockResolvedValue({ ...status, account: { state: "signed-out" } })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus,
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            mode: "enable",
+            platform: "darwin",
+            onClose() {},
+          })
+        )
+      )
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+        "Sync could not be reached"
+      )
+      expect(host.textContent).not.toContain("Showing the last known")
+      expect(host.querySelector("[data-sync-sign-in]")).toBeNull()
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>("[data-sync-check-access]")!
+          .click()
+      )
+      expect(host.querySelector("[data-sync-sign-in]")).not.toBeNull()
+      expect(host.querySelector('[role="alert"]')).toBeNull()
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
+  it("discards a previous account's delayed Space list", async () => {
+    let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+    let finishOldList!: (value: EidosSyncRepositoryList) => void
+    const secondStatus: EidosSyncStatus = {
+      ...status,
+      account: {
+        state: "signed-in",
+        user: { id: "account-b", email: "b@example.com" },
+      },
+    }
+    const ownList: EidosSyncRepositoryList = {
+      namespace: "account-b",
+      repositories: [
+        {
+          name: "b-notes",
+          displayName: "B notes",
+          createdAtMs: 1,
+          remoteUrl: "https://sync-staging.eidos.space/account-b/b-notes",
+        },
+      ],
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi
+          .fn()
+          .mockResolvedValueOnce(status)
+          .mockResolvedValue(secondStatus),
+        listSyncRepositories: vi
+          .fn()
+          .mockImplementationOnce(
+            () =>
+              new Promise<EidosSyncRepositoryList>((resolve) => {
+                finishOldList = resolve
+              })
+          )
+          .mockResolvedValue(ownList),
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        onAccountChanged: (listener: typeof accountChanged) => {
+          accountChanged = listener
+          return () => {}
+        },
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          platform: "darwin",
+          onClose() {},
+        })
+      )
+    )
+    await act(async () => accountChanged(secondStatus.account))
+    expect(host.textContent).toContain("B notes")
+    await act(async () =>
+      finishOldList({
+        namespace: "account-a",
+        repositories: [
+          {
+            name: "a-private",
+            displayName: "A private Space",
+            createdAtMs: 1,
+            remoteUrl: "https://sync-staging.eidos.space/account-a/a-private",
+          },
+        ],
+      })
+    )
+    expect(host.textContent).toContain("B notes")
+    expect(host.textContent).not.toContain("A private Space")
+    expect(readSyncStatusSnapshot("welcome")?.repositories).toEqual(ownList)
+  })
+
+  it.each([false, true])(
+    "discards the sign-in Space list after another window switches account (panel closed=%s)",
+    async (closed) => {
+      let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+      let finishOldList!: (value: EidosSyncRepositoryList) => void
+      const secondStatus: EidosSyncStatus = {
+        ...status,
+        account: {
+          state: "signed-in",
+          user: { id: "account-b", email: "b@example.com" },
+        },
+      }
+      const ownList: EidosSyncRepositoryList = {
+        namespace: "account-b",
+        repositories: [
+          {
+            name: "b-notes",
+            displayName: "B notes",
+            createdAtMs: 1,
+            remoteUrl: "https://sync-staging.eidos.space/account-b/b-notes",
+          },
+        ],
+      }
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi
+            .fn()
+            .mockResolvedValueOnce({
+              ...status,
+              account: { state: "signed-out" },
+              canClone: false,
+            })
+            .mockResolvedValue(secondStatus),
+          beginSyncSignIn: vi.fn().mockResolvedValue(status),
+          listSyncRepositories: vi
+            .fn()
+            .mockImplementationOnce(
+              () =>
+                new Promise<EidosSyncRepositoryList>((resolve) => {
+                  finishOldList = resolve
+                })
+            )
+            .mockResolvedValue(ownList),
+          getSyncQueueStatus: async () => null,
+          onSyncProgress: () => () => {},
+          onSyncQueueChanged: () => () => {},
+          onAccountChanged: (listener: typeof accountChanged) => {
+            accountChanged = listener
+            return () => {}
+          },
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            mode: "clone",
+            platform: "darwin",
+            onClose() {},
+          })
+        )
+      )
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>("[data-sync-sign-in]")!.click()
+      )
+      if (closed) {
+        await act(async () => root.render(null))
+        writeSyncStatusSnapshot("welcome", {
+          version: 1,
+          status: secondStatus,
+          checkedAtMs: Date.now(),
+          repositories: ownList,
+        })
+      } else {
+        await act(async () => accountChanged(secondStatus.account))
+        expect(host.textContent).toContain("B notes")
+      }
+      await act(async () =>
+        finishOldList({
+          namespace: "account-a",
+          repositories: [
+            {
+              name: "a-private",
+              displayName: "A private Space",
+              createdAtMs: 1,
+              remoteUrl: "https://sync-staging.eidos.space/account-a/a-private",
+            },
+          ],
+        })
+      )
+      if (!closed) expect(host.textContent).toContain("B notes")
+      expect(host.textContent).not.toContain("A private Space")
+      expect(readSyncStatusSnapshot("welcome")?.repositories).toEqual(ownList)
+    }
+  )
+
+  it("uses the account broadcast when it arrives before the sign-in response", async () => {
+    let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+    let finishSignIn!: (value: EidosSyncStatus) => void
+    const listSyncRepositories = vi.fn().mockResolvedValue({
+      namespace: "person",
+      repositories: [
+        {
+          name: "notes",
+          displayName: "My notes",
+          createdAtMs: 1,
+          remoteUrl: "https://sync-staging.eidos.space/person/notes",
+        },
+      ],
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi
+          .fn()
+          .mockResolvedValueOnce({
+            ...status,
+            account: { state: "signed-out" },
+            canClone: false,
+          })
+          .mockResolvedValue(status),
+        beginSyncSignIn: () =>
+          new Promise<EidosSyncStatus>((resolve) => {
+            finishSignIn = resolve
+          }),
+        listSyncRepositories,
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        onAccountChanged: (listener: typeof accountChanged) => {
+          accountChanged = listener
+          return () => {}
+        },
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          platform: "darwin",
+          onClose() {},
+        })
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-sign-in]")!.click()
+    )
+    await act(async () => accountChanged(status.account))
+    await act(async () => finishSignIn(status))
+    expect(listSyncRepositories).toHaveBeenCalledOnce()
+    expect(host.textContent).toContain("My notes")
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        '[data-sync-open-space="My notes"]'
+      )!.disabled
+    ).toBe(false)
+  })
+
+  it("does not replace a new account with a delayed sign-out response", async () => {
+    let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+    let finishSignOut!: (value: EidosSyncStatus) => void
+    const secondStatus: EidosSyncStatus = {
+      ...status,
+      account: {
+        state: "signed-in",
+        user: { id: "account-b", email: "b@example.com" },
+      },
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi
+          .fn()
+          .mockResolvedValueOnce(status)
+          .mockResolvedValue(secondStatus),
+        signOutSync: () =>
+          new Promise<EidosSyncStatus>((resolve) => {
+            finishSignOut = resolve
+          }),
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        onAccountChanged: (listener: typeof accountChanged) => {
+          accountChanged = listener
+          return () => {}
+        },
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          onClose() {},
+        })
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-sign-out")!.click()
+    )
+    await act(async () => accountChanged(secondStatus.account))
+    await act(async () =>
+      finishSignOut({ ...status, account: { state: "signed-out" } })
+    )
+    expect(host.textContent).toContain("b@example.com")
+    expect(host.querySelector("[data-sync-sign-in]")).toBeNull()
+    expect(readSyncStatusSnapshot("current-space")?.status.account).toEqual(
+      secondStatus.account
+    )
+  })
+
+  it("keeps legacy cloud copies usable on Windows while explaining encrypted copies are unavailable", async () => {
+    const cloneSyncRepository = vi.fn().mockResolvedValue({
+      ok: true,
+      snapshot: null,
+      telemetry: { phases: [] },
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: async () => status,
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        listSyncRepositories: async () => ({
+          namespace: "person",
+          repositories: [
+            {
+              name: "legacy",
+              displayName: "Legacy notes",
+              createdAtMs: 1,
+              remoteUrl: "https://sync-staging.eidos.space/person/legacy",
+            },
+            {
+              name: "encrypted",
+              displayName: "Private notes",
+              createdAtMs: 1,
+              remoteUrl: "https://sync-staging.eidos.space/person/encrypted",
+              encryption: {
+                profile: "encrypted-remote-v1",
+                version: 1,
+                suite: 1,
+                uuid: "2f94f4c8-705b-4b5f-9808-84e0d1c394ee",
+              },
+            },
+          ],
+        }),
+        cloneSyncRepository,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          platform: "win32",
+          onClose() {},
+        })
+      )
+    )
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        '[data-sync-open-space="Private notes"]'
+      )!.disabled
+    ).toBe(true)
+    expect(host.textContent).toContain(
+      "Encrypted cloud sync is not available on this platform yet"
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          '[data-sync-open-space="Legacy notes"]'
+        )!
+        .click()
+    )
+    expect(cloneSyncRepository).toHaveBeenCalledWith(
+      "https://sync-staging.eidos.space/person/legacy",
+      "Legacy notes"
+    )
+  })
+
+  it("does not open a delayed clone result after signing out in another window", async () => {
+    let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
+    let finishClone!: (value: {
+      ok: true
+      snapshot: SpaceSnapshot
+      telemetry: { phases: [] }
+    }) => void
+    const onClone = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi
+          .fn()
+          .mockResolvedValueOnce(status)
+          .mockResolvedValue({ ...status, account: { state: "signed-out" } }),
+        getSyncQueueStatus: async () => null,
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        onAccountChanged: (listener: typeof accountChanged) => {
+          accountChanged = listener
+          return () => {}
+        },
+        listSyncRepositories: async () => ({
+          namespace: "person",
+          repositories: [
+            {
+              name: "notes",
+              displayName: "My notes",
+              createdAtMs: 1,
+              remoteUrl: "https://sync-staging.eidos.space/person/notes",
+            },
+          ],
+        }),
+        cloneSyncRepository: () =>
+          new Promise((resolve) => {
+            finishClone = resolve
+          }),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          platform: "darwin",
+          onClose() {},
+          onClone,
+        })
+      )
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[data-sync-open-space="My notes"]')!
+        .click()
+    )
+    await act(async () => accountChanged({ state: "signed-out" }))
+    await act(async () =>
+      finishClone({
+        ok: true,
+        snapshot: {} as SpaceSnapshot,
+        telemetry: { phases: [] },
+      })
+    )
+    expect(onClone).not.toHaveBeenCalled()
+    expect(host.querySelector("[data-sync-sign-in]")).not.toBeNull()
+    expect(host.textContent).not.toContain("My notes")
+  })
+
+  it.each(["win32", "unknown"])(
+    "does not create a plaintext connection on unsupported platform %s",
+    async (platform) => {
+      const enableSync = vi.fn()
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: async () => ({
+            ...status,
+            environment: "production",
+            remote: { state: "not-connected" },
+            canEnable: true,
+          }),
+          getSyncPreflight: async () => preflight,
+          getSyncQueueStatus: async () => null,
+          onSyncProgress: () => () => {},
+          onSyncQueueChanged: () => () => {},
+          enableSync,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, { mode: "enable", platform, onClose() {} })
+        )
+      )
+      expect(host.textContent).toContain(
+        "Encrypted cloud sync is not available on this platform yet"
+      )
+      const button =
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!
+      expect(button.disabled).toBe(true)
+      await act(async () => button.click())
+      expect(enableSync).not.toHaveBeenCalled()
+      expect(host.querySelector('input[type="password"]')).toBeNull()
+    }
+  )
+
+  it("does not show a signed-out state before the first account check completes", async () => {
+    let finishStatus: ((value: EidosSyncStatus) => void) | undefined
     const api = {
-      getSyncStatus: vi.fn(() => new Promise<EidosSyncStatus>(() => undefined)),
+      getSyncStatus: vi.fn(
+        () =>
+          new Promise<EidosSyncStatus>((resolve) => {
+            finishStatus = resolve
+          })
+      ),
       getSyncQueueStatus: vi.fn().mockResolvedValue(null),
       onSyncProgress: vi.fn().mockReturnValue(() => undefined),
       onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
@@ -285,6 +1432,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "first-open",
           onClose: () => undefined,
@@ -292,9 +1440,14 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    expect(host.textContent).toContain("Sign in")
-    expect(host.textContent).not.toContain("Checking Sync")
-    expect(host.querySelector(".sync-loading")).toBeNull()
+    expect(host.textContent).not.toContain("Sign in")
+    expect(host.textContent).toContain("Checking Sync access")
+    expect(host.querySelector("[data-sync-sign-in]")).toBeNull()
+    await act(async () =>
+      finishStatus?.({ ...status, account: { state: "signed-out" } })
+    )
+    expect(host.textContent).toContain("Sign in to use Sync")
+    expect(host.textContent).not.toContain("Checking Sync access")
   })
 
   it("reuses the global account identity while checking a new Space", async () => {
@@ -317,6 +1470,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "never-opened-space",
           onClose: () => undefined,
@@ -345,6 +1499,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           variant: "inspector",
           onClose: () => undefined,
@@ -396,6 +1551,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "space-expired",
           onClose: () => undefined,
@@ -452,6 +1608,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -501,6 +1658,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "space-offline",
           onClose: () => undefined,
@@ -541,6 +1699,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "connected-space",
           onClose: () => undefined,
@@ -627,6 +1786,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           cacheKey: "cached-size-space",
           onClose: () => undefined,
@@ -690,6 +1850,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "clone",
           cacheKey: "welcome",
           onClose: () => undefined,
@@ -748,6 +1909,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "clone",
           cacheKey: "repository-names",
           onClose: () => undefined,
@@ -784,6 +1946,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -825,6 +1988,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -868,6 +2032,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -908,6 +2073,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -966,6 +2132,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1008,6 +2175,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           hasUncheckpointedChanges: true,
           onClose: () => undefined,
@@ -1046,6 +2214,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1079,10 +2248,7 @@ describe("SyncPanel failure states", () => {
     expect(failure?.textContent).toContain("Hosted storage is full")
     expect(failure?.textContent).toContain("Local files safe")
     expect(host.querySelector("[data-sync-phase='push']")).not.toBeNull()
-    expect(
-      host.querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
-        ?.textContent
-    ).toContain("Try again")
+    expect(host.querySelector("[data-sync-failure-retry]")).toBeNull()
 
     const action = host.querySelector<HTMLButtonElement>(
       "[data-sync-failure-primary-action]"
@@ -1124,6 +2290,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1146,7 +2313,7 @@ describe("SyncPanel failure states", () => {
       host.querySelector<HTMLButtonElement>(
         "[data-sync-failure-primary-action]"
       )?.textContent
-    ).toContain("Try again")
+    ).toContain("Keep working locally")
     expect(
       host.querySelector("[data-sync-storage-used]")?.textContent
     ).toContain("2 GiB")
@@ -1156,7 +2323,7 @@ describe("SyncPanel failure states", () => {
         .querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
         ?.click()
     })
-    expect(runSync).toHaveBeenCalledTimes(2)
+    expect(runSync).toHaveBeenCalledOnce()
   })
 
   it("re-fetches instead of replaying an upload after a Remote conflict", async () => {
@@ -1208,6 +2375,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           syncHistory: {
             state: "ahead",
@@ -1272,6 +2440,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1315,6 +2484,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1358,7 +2528,7 @@ describe("SyncPanel failure states", () => {
   })
 
   it.each(["dialog", "inspector"] as const)(
-    "requires explicit review of the whole-Space manifest before first push (%s)",
+    "enables Sync without confirmation and keeps tracked ignored files informational (%s)",
     async (variant) => {
       const enableStatus: EidosSyncStatus = {
         ...status,
@@ -1391,6 +2561,7 @@ describe("SyncPanel failure states", () => {
       await act(async () => {
         root.render(
           createElement(SyncPanel, {
+            platform: "darwin",
             mode: "enable",
             variant,
             onClose: () => undefined,
@@ -1408,7 +2579,7 @@ describe("SyncPanel failure states", () => {
         await act(async () => account?.click())
         expect(
           host.querySelector(".sync-inspector-settings")?.textContent
-        ).toContain("Manage account")
+        ).toContain("Sync settings")
         await act(async () =>
           document.dispatchEvent(
             new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
@@ -1420,16 +2591,20 @@ describe("SyncPanel failure states", () => {
       const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
       expect(scope?.textContent).toContain("4 files")
       expect(scope?.textContent).toContain("120 MiB")
-      expect(scope?.textContent).toContain(".env.local")
-      expect(enable?.disabled).toBe(true)
-
-      const confirm = host.querySelector<HTMLInputElement>(
-        "[data-sync-preflight-confirm]"
-      )
-      await act(async () => {
-        confirm?.click()
-      })
+      expect(scope?.textContent).toContain("generated/tracked.txt")
       expect(enable?.disabled).toBe(false)
+      expect(
+        scope?.querySelector(".sync-review-details > summary")?.textContent
+      ).toContain("Already in version history")
+      if (variant === "inspector") {
+        expect(enable?.closest(".sync-setup-footer")).not.toBeNull()
+        expect(
+          host.querySelector(".sync-inspector-b-content")?.contains(enable)
+        ).toBe(false)
+      }
+
+      expect(host.querySelector("[data-sync-preflight-confirm]")).toBeNull()
+      expect(scope?.textContent).not.toContain("private information")
 
       let completeCheck: ((value: EidosSyncPreflight) => void) | undefined
       vi.mocked(api.getSyncPreflight).mockImplementationOnce(
@@ -1447,15 +2622,13 @@ describe("SyncPanel failure states", () => {
       expect(enable?.disabled).toBe(true)
       expect(scope?.textContent).toContain("4 files")
       await act(async () => completeCheck?.(preflight))
-      expect(confirm?.checked).toBe(false)
-      await act(async () => confirm?.click())
+      expect(enable?.disabled).toBe(false)
 
       await act(async () => {
         enable?.click()
       })
       expect(enableSync).toHaveBeenCalledWith({
         manifestId: preflight.manifestId,
-        confirmWarnings: true,
       })
       if (variant === "inspector") {
         expect(host.querySelector('[data-sync-design="b"]')).not.toBeNull()
@@ -1463,6 +2636,80 @@ describe("SyncPanel failure states", () => {
         expect(host.querySelector("[data-sync-preflight]")).toBeNull()
         expect(host.querySelector(".sync-account-meter")).not.toBeNull()
       }
+    }
+  )
+
+  it.each(["dialog", "inspector"] as const)(
+    "blocks only unsupported upload entries and becomes ready after rechecking (%s)",
+    async (variant) => {
+      const blocked: EidosSyncPreflight = {
+        ...preflight,
+        blockerCount: 3,
+        blockers: [
+          {
+            relativePath: "oversized.bin",
+            size: 1_073_741_825,
+            concerns: ["file-too-large"],
+          },
+          { relativePath: "linked-folder", size: 0, concerns: ["symlink"] },
+          {
+            relativePath: "named-pipe",
+            size: 0,
+            concerns: ["unsupported-entry"],
+          },
+        ],
+      }
+      const getSyncPreflight = vi.fn().mockResolvedValue(blocked)
+      const enableSync = vi.fn()
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: vi.fn().mockResolvedValue({
+            ...status,
+            remote: { state: "not-connected" },
+            canEnable: true,
+          }),
+          getSyncPreflight,
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+          onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+          enableSync,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            variant,
+            onClose: () => undefined,
+          })
+        )
+      )
+      const scope = host.querySelector<HTMLElement>("[data-sync-preflight]")!
+      const enable =
+        host.querySelector<HTMLButtonElement>("[data-sync-enable]")!
+      expect(scope.querySelector('[role="alert"]')?.textContent).toContain(
+        "oversized.bin"
+      )
+      expect(scope.querySelector('[role="alert"]')?.textContent).toContain(
+        "linked-folder"
+      )
+      expect(scope.querySelector('[role="alert"]')?.textContent).toContain(
+        "named-pipe"
+      )
+      expect(enable.disabled).toBe(true)
+      await act(async () => enable.click())
+      expect(enableSync).not.toHaveBeenCalled()
+      getSyncPreflight.mockResolvedValue(preflight)
+      await act(async () =>
+        scope
+          .querySelector<HTMLButtonElement>('[aria-label="Recheck files"]')!
+          .click()
+      )
+      expect(scope.querySelector('[role="alert"]')).toBeNull()
+      expect(enable.disabled).toBe(false)
+      expect(scope.querySelector("[data-sync-preflight-confirm]")).toBeNull()
     }
   )
 
@@ -1507,6 +2754,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1622,6 +2870,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "clone",
           onClose: () => undefined,
         })
@@ -1743,6 +2992,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1787,6 +3037,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -1885,6 +3136,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
           onSpaceChange,
@@ -1918,6 +3170,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           hasUncheckpointedChanges: true,
           syncHistory: {
@@ -1956,6 +3209,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           syncHistory: {
             state: "diverged",
@@ -1993,6 +3247,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           syncHistory: {
             state: "behind",
@@ -2028,6 +3283,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           syncHistory: {
             state: "up_to_date",
@@ -2084,7 +3340,11 @@ describe("SyncPanel failure states", () => {
     })
     await act(async () =>
       root.render(
-        createElement(SyncPanel, { mode: "enable", onClose: () => undefined })
+        createElement(SyncPanel, {
+          platform: "darwin",
+          mode: "enable",
+          onClose: () => undefined,
+        })
       )
     )
     expect(host.textContent).toContain("Sign in again to resume Sync")
@@ -2143,6 +3403,7 @@ describe("SyncPanel failure states", () => {
     await act(async () => {
       root.render(
         createElement(SyncPanel, {
+          platform: "darwin",
           mode: "enable",
           onClose: () => undefined,
         })
@@ -2151,17 +3412,9 @@ describe("SyncPanel failure states", () => {
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
       "Sign in again to resume Sync"
     )
-    expect(
-      host.querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
-        ?.textContent
-    ).toContain("Try again")
-
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>("[data-sync-failure-retry]")
-        ?.click()
-    })
-    expect(runSync).toHaveBeenCalledOnce()
+    expect(host.querySelector("[data-sync-failure-retry]")).toBeNull()
+    expect(host.querySelector("[data-sync-check-remote]")).toBeNull()
+    expect(runSync).not.toHaveBeenCalled()
 
     await act(async () => {
       host

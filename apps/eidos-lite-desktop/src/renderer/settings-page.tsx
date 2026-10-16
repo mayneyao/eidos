@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PluginListing } from "../shared/plugins"
 import { PluginManager } from "./plugin-manager"
 import { DevicesSettings } from "./peer-sync-panel"
+import { SyncPasswordSettings } from "./sync-password-settings"
+import { supportsEncryptedSync } from "../shared/sync-encryption"
 import {
   Blocks,
   Cloud,
@@ -174,8 +176,12 @@ export function SettingsPage() {
     null
   )
   const [syncAccount, setSyncAccount] = useState(() => readSyncAccountContext())
-  const [syncStatus, setSyncStatus] = useState<EidosSyncStatus | null>(null)
+  const syncAccountRef = useRef(syncAccount)
+  syncAccountRef.current = syncAccount
   const [syncStatusBusy, setSyncStatusBusy] = useState(false)
+  const [syncStatusFailed, setSyncStatusFailed] = useState(false)
+  const syncRequest = useRef<Promise<void> | null>(null)
+  const syncRequestGeneration = useRef(0)
   const publishAccountEnabled = syncAccount?.account.state === "signed-in"
   const {
     account: publishAccount,
@@ -187,6 +193,25 @@ export function SettingsPage() {
   const [updateStatus, setUpdateStatus] =
     useState<EidosLiteUpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const rememberSyncStatus = useCallback((status: EidosSyncStatus) => {
+    syncRequestGeneration.current += 1
+    syncRequest.current = null
+    setSyncStatusBusy(false)
+    setSyncStatusFailed(false)
+    writeSyncStatusSnapshot("settings", {
+      version: 1,
+      status,
+      checkedAtMs: Date.now(),
+    })
+    setSyncAccount({
+      version: 1,
+      environment: status.environment,
+      account: status.account,
+      device: status.device,
+      entitlement: status.entitlement,
+      checkedAtMs: Date.now(),
+    })
+  }, [])
   useEffect(() => {
     const previousTitle = document.title
     document.title = `${t("Settings")} — Eidos Lite`
@@ -441,13 +466,7 @@ export function SettingsPage() {
     setError(null)
     try {
       const status = await window.eidosLite.beginSyncSignIn()
-      const checkedAtMs = Date.now()
-      writeSyncStatusSnapshot("settings", {
-        version: 1,
-        status,
-        checkedAtMs,
-      })
-      setSyncAccount(readSyncAccountContext())
+      rememberSyncStatus(status)
     } catch (cause) {
       console.error(
         "Could not sign in to the Eidos account from Settings",
@@ -461,7 +480,7 @@ export function SettingsPage() {
     } finally {
       setAccountBusy(null)
     }
-  }, [t])
+  }, [rememberSyncStatus, t])
 
   const signOut = useCallback(async () => {
     setAccountBusy("sign-out")
@@ -469,12 +488,7 @@ export function SettingsPage() {
     try {
       const status = await window.eidosLite.signOutSync()
       clearSyncStatusSnapshots()
-      writeSyncStatusSnapshot("settings", {
-        version: 1,
-        status,
-        checkedAtMs: Date.now(),
-      })
-      setSyncAccount(readSyncAccountContext())
+      rememberSyncStatus(status)
     } catch (cause) {
       console.error(
         "Could not sign out of the Eidos account from Settings",
@@ -488,7 +502,7 @@ export function SettingsPage() {
     } finally {
       setAccountBusy(null)
     }
-  }, [t])
+  }, [rememberSyncStatus, t])
 
   const manageSyncAccount = useCallback(async () => {
     setError(null)
@@ -511,33 +525,109 @@ export function SettingsPage() {
   }, [t])
 
   const syncSignedIn = syncAccount?.account.state === "signed-in"
-  const refreshSyncStatus = useCallback(async () => {
-    if (!syncSignedIn) return
-    setSyncStatusBusy(true)
-    try {
-      const status = await window.eidosLite.getSyncStatus()
-      const checkedAtMs = Date.now()
-      setSyncStatus(status)
-      writeSyncStatusSnapshot("settings", {
-        version: 1,
-        status,
-        checkedAtMs,
-      })
-      setSyncAccount(readSyncAccountContext())
-    } catch (cause) {
-      console.error("Could not refresh the Sync status", cause)
-    } finally {
-      setSyncStatusBusy(false)
-    }
-  }, [syncSignedIn])
+  const syncSubject = syncAccount?.account.user?.id
+  const syncEnvironment = appInfo?.services.name ?? syncAccount?.environment
+  const refreshSyncStatus = useCallback(
+    ({ force = false }: { force?: boolean } = {}): Promise<void> => {
+      if (!syncSignedIn) return Promise.resolve()
+      if (syncRequest.current) return syncRequest.current
+      const cached = readSyncAccountContext()
+      if (
+        !force &&
+        cached &&
+        cached.environment === syncEnvironment &&
+        cached.account.state === "signed-in" &&
+        cached.account.user?.id === syncSubject &&
+        Date.now() - cached.checkedAtMs < 5 * 60_000
+      ) {
+        return Promise.resolve()
+      }
+      const generation = syncRequestGeneration.current
+      setSyncStatusBusy(true)
+      setSyncStatusFailed(false)
+      const request = (async () => {
+        try {
+          const status = await window.eidosLite.getSyncStatus()
+          if (generation !== syncRequestGeneration.current) return
+          if (syncEnvironment && status.environment !== syncEnvironment) return
+          rememberSyncStatus(status)
+        } catch (cause) {
+          if (generation !== syncRequestGeneration.current) return
+          console.error("Could not refresh the Sync status", cause)
+          setSyncStatusFailed(true)
+        } finally {
+          if (generation === syncRequestGeneration.current) {
+            syncRequest.current = null
+            setSyncStatusBusy(false)
+          }
+        }
+      })()
+      syncRequest.current = request
+      return request
+    },
+    [
+      syncSignedIn,
+      syncSubject,
+      syncEnvironment,
+      syncAccount?.environment,
+      rememberSyncStatus,
+    ]
+  )
 
   useEffect(() => {
-    if (!syncSignedIn) {
-      setSyncStatus(null)
-      return
-    }
+    if (activePage !== "account-sync") return
     void refreshSyncStatus()
-  }, [syncSignedIn, refreshSyncStatus])
+  }, [activePage, refreshSyncStatus])
+
+  useEffect(() => {
+    if (!appInfo) return
+    let active = true
+    const updateAccount = (account: EidosSyncStatus["account"]) => {
+      if (!active) return
+      const previous = syncAccountRef.current
+      if (
+        previous?.environment === appInfo.services.name &&
+        previous.account.state === account.state &&
+        previous.account.user?.id === account.user?.id
+      )
+        return
+      syncRequestGeneration.current += 1
+      syncRequest.current = null
+      setSyncStatusBusy(false)
+      setSyncStatusFailed(false)
+      clearSyncStatusSnapshots()
+      setSyncAccount({
+        version: 1,
+        environment: appInfo.services.name,
+        account,
+        device: { state: "not-registered" },
+        entitlement: { state: "not-checked", detail: "" },
+        checkedAtMs: 0,
+      })
+    }
+    const unsubscribe = window.eidosLite.onAccountChanged?.(updateAccount)
+    const accountReadGeneration = syncRequestGeneration.current
+    void window.eidosLite
+      .getAccountStatus?.()
+      .then((account) => {
+        if (!active || accountReadGeneration !== syncRequestGeneration.current)
+          return
+        const cached = readSyncAccountContext()
+        if (
+          cached?.environment !== appInfo.services.name ||
+          cached?.account.state !== account.state ||
+          cached?.account.user?.id !== account.user?.id
+        )
+          updateAccount(account)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+      unsubscribe?.()
+      syncRequestGeneration.current += 1
+      syncRequest.current = null
+    }
+  }, [appInfo])
 
   const checkForUpdates = useCallback(async () => {
     setError(null)
@@ -594,24 +684,21 @@ export function SettingsPage() {
     !terminalShells.some(
       (shell) => shell.executable === preferences.terminalShell
     )
-  const syncAccessLabel = !syncAccount
-    ? null
-    : syncAccount.account.state !== "signed-in"
-      ? t("Sign-in required")
-      : syncAccount.entitlement.state === "read-write"
-        ? t("Download and upload")
-        : syncAccount.entitlement.state === "read-only"
-          ? t("Download only")
-          : syncAccount.entitlement.state === "blocked"
-            ? t("Blocked")
-            : t("Sync access required")
-  const syncDeviceLabel = syncAccount
-    ? `${syncAccount.device.state === "active" ? t("Registered") : t("Not registered")} · ${
-        syncAccount.environment === "staging" ? t("Staging") : t("Production")
-      }`
-    : null
-  const syncEntitlement =
-    syncStatus?.entitlement ?? syncAccount?.entitlement ?? null
+  const syncAccessNotice =
+    !syncSignedIn || !syncAccount
+      ? null
+      : syncAccount.entitlement.state === "read-only"
+        ? t(
+            "You can download synced Spaces. Renew Sync access to upload changes."
+          )
+        : syncAccount.entitlement.state === "blocked"
+          ? t(
+              "Sync is unavailable for this account. Open Manage Sync to restore access."
+            )
+          : syncAccount.entitlement.state === "none"
+            ? t("Set up Sync access in Manage Sync to connect your Spaces.")
+            : null
+  const syncEntitlement = syncAccount?.entitlement ?? null
   const syncQuotaBytes = syncEntitlement?.quotaBytes
   const syncUsedBytes = syncEntitlement?.usedBytes
   const syncReservedBytes = syncEntitlement?.reservedBytes ?? 0
@@ -623,6 +710,10 @@ export function SettingsPage() {
   const publishQuotaBytes = publishAccount
     ? Number(publishAccount.maxStorageBytes)
     : null
+  const publishStorageExceeded =
+    publishUsedBytes !== null &&
+    publishQuotaBytes !== null &&
+    publishUsedBytes > publishQuotaBytes
   const publishPlanTitle = publishAccount
     ? publishAccount.plan === "free"
       ? t("Publish Free")
@@ -1128,6 +1219,7 @@ export function SettingsPage() {
 
             <section
               aria-labelledby="settings-account-sync"
+              className="settings-services"
               hidden={activePage !== "account-sync"}
             >
               <h2 id="settings-account-sync">{t("Account & Services")}</h2>
@@ -1169,6 +1261,23 @@ export function SettingsPage() {
                     <div className="settings-row-actions">
                       <button
                         type="button"
+                        className="settings-button settings-button-quiet settings-refresh"
+                        aria-label={t("Refresh account status")}
+                        title={t(
+                          syncStatusBusy || publishAccountRefreshing
+                            ? "Refreshing…"
+                            : "Refresh account status"
+                        )}
+                        aria-busy={syncStatusBusy || publishAccountRefreshing}
+                        onClick={() => {
+                          void refreshSyncStatus({ force: true })
+                          void refreshPublishAccount({ force: true })
+                        }}
+                      >
+                        <RefreshCw aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
                         className="settings-button settings-button-quiet"
                         onClick={() => void manageSyncAccount()}
                       >
@@ -1176,7 +1285,7 @@ export function SettingsPage() {
                       </button>
                       <button
                         type="button"
-                        className="settings-button"
+                        className="settings-button settings-button-quiet"
                         disabled={accountBusy !== null}
                         onClick={() => void signOut()}
                       >
@@ -1201,195 +1310,209 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
-              <h3 className="settings-subheading">
-                <Cloud aria-hidden="true" />
-                {t("Sync")}
-              </h3>
-              <div className="settings-group" data-settings-sync>
-                {syncAccount ? (
-                  <>
+              <div className="settings-service" data-settings-sync>
+                <div className="settings-service-heading">
+                  <h3 className="settings-subheading">
+                    <Cloud aria-hidden="true" />
+                    {t("Sync")}
+                  </h3>
+                  {syncSignedIn ? (
+                    <div className="settings-row-actions">
+                      <button
+                        type="button"
+                        className="settings-button settings-button-quiet"
+                        onClick={() => void manageSyncAccess()}
+                      >
+                        {t("Manage Sync")} <ExternalLink />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="settings-group">
+                  {syncAccount ? (
+                    <>
+                      {syncAccessNotice ? (
+                        <p className="settings-service-notice" role="status">
+                          {syncAccessNotice}
+                        </p>
+                      ) : null}
+                      {syncSignedIn &&
+                      supportsEncryptedSync(appInfo?.platform ?? "unknown") ? (
+                        <SyncPasswordSettings
+                          key={`${syncEnvironment}:${syncSubject ?? "signed-in"}`}
+                        />
+                      ) : null}
+                      {syncQuotaBytes !== undefined &&
+                      syncUsedBytes !== undefined ? (
+                        <UsageMeter
+                          title={t("Storage")}
+                          total={syncQuotaBytes}
+                          usedLabel={t("{used} of {total} used", {
+                            used: formatUsageBytes(syncUsedBytes),
+                            total: formatUsageBytes(syncQuotaBytes),
+                          })}
+                          freeLabel={t("Free")}
+                          segments={[
+                            {
+                              key: "used",
+                              label: t("Synced data"),
+                              value: syncUsedBytes,
+                              tone: "accent",
+                            },
+                            {
+                              key: "reserved",
+                              label: t("Reserved"),
+                              value: syncReservedBytes,
+                              tone: "muted",
+                            },
+                          ]}
+                        />
+                      ) : null}
+                      {syncStatusFailed ? (
+                        <p className="settings-service-notice" role="alert">
+                          {t(
+                            "Could not refresh Sync. Showing the last known status. Try again."
+                          )}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
                     <div className="settings-row">
                       <div className="settings-row-copy">
-                        <strong>{t("Access")}</strong>
-                        <small title={syncDeviceLabel ?? undefined}>
-                          {syncAccessLabel}
+                        <strong>{t("Sync")}</strong>
+                        <small>
+                          {t("Sync status has not been checked yet.")}
                         </small>
                       </div>
-                      <div className="settings-row-actions">
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="settings-service" data-settings-publish>
+                <div className="settings-service-heading">
+                  <h3 className="settings-subheading">
+                    <Upload aria-hidden="true" />
+                    {t("Publish")}
+                  </h3>
+                  {publishAccountEnabled ? (
+                    <div className="settings-row-actions">
+                      {publishAccount ? (
                         <button
                           type="button"
                           className="settings-button settings-button-quiet"
-                          onClick={() => void manageSyncAccess()}
-                        >
-                          {t("Manage Sync")} <ExternalLink />
-                        </button>
-                        <button
-                          type="button"
-                          className="settings-button"
-                          disabled={syncStatusBusy}
-                          onClick={() => void refreshSyncStatus()}
-                        >
-                          <RefreshCw />
-                          {syncStatusBusy ? t("Refreshing…") : t("Refresh")}
-                        </button>
-                      </div>
-                    </div>
-                    {syncSignedIn && syncAccount.device.state !== "active" ? (
-                      <div className="settings-row">
-                        <div className="settings-row-copy">
-                          <strong>{t("Device")}</strong>
-                          <small>{t("Not registered")}</small>
-                        </div>
-                      </div>
-                    ) : null}
-                    {syncQuotaBytes !== undefined &&
-                    syncUsedBytes !== undefined ? (
-                      <UsageMeter
-                        title={t("Storage")}
-                        total={syncQuotaBytes}
-                        usedLabel={t("{used} of {total} used", {
-                          used: formatUsageBytes(syncUsedBytes),
-                          total: formatUsageBytes(syncQuotaBytes),
-                        })}
-                        freeLabel={t("Free")}
-                        segments={[
-                          {
-                            key: "used",
-                            label: t("Synced data"),
-                            value: syncUsedBytes,
-                            tone: "accent",
-                          },
-                          {
-                            key: "reserved",
-                            label: t("Reserved"),
-                            value: syncReservedBytes,
-                            tone: "muted",
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="settings-row">
-                    <div className="settings-row-copy">
-                      <strong>{t("Sync")}</strong>
-                      <small>
-                        {t("Sync status has not been checked yet.")}
-                      </small>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <h3 className="settings-subheading">
-                <Upload aria-hidden="true" />
-                {t("Publish")}
-              </h3>
-              <div className="settings-group" data-settings-publish>
-                {publishAccountEnabled ? (
-                  <>
-                    <div className="settings-row settings-row-stacked settings-row-publish-plan">
-                      <div className="settings-row-copy">
-                        <strong>{publishPlanTitle}</strong>
-                        <small>{publishPlanSummary}</small>
-                        {publishRestriction ? (
-                          <small className="settings-publish-warning">
-                            {publishRestriction}
-                          </small>
-                        ) : null}
-                      </div>
-                      <div className="settings-row-actions">
-                        {publishAccount ? (
-                          <button
-                            type="button"
-                            className="settings-button settings-button-quiet"
-                            onClick={() =>
-                              void window.eidosLite.openExternalUrl(
-                                publishAccount.accountUrl
-                              )
-                            }
-                          >
-                            {t("Manage Publish")} <ExternalLink />
-                          </button>
-                        ) : null}
-                        {publishAccount?.plan === "free" ? (
-                          <button
-                            type="button"
-                            className="settings-button settings-button-quiet"
-                            onClick={() =>
-                              void window.eidosLite.openExternalUrl(
-                                publishAccount.pricingUrl
-                              )
-                            }
-                          >
-                            {t("View paid plans")} <ExternalLink />
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="settings-button"
-                          disabled={publishAccountRefreshing}
                           onClick={() =>
-                            void refreshPublishAccount({ force: true })
+                            void window.eidosLite.openExternalUrl(
+                              publishAccount.accountUrl
+                            )
                           }
                         >
-                          <RefreshCw />
-                          {publishAccountRefreshing
-                            ? t("Refreshing…")
-                            : t("Refresh")}
+                          {t("Manage Publish")} <ExternalLink />
                         </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="settings-group">
+                  {publishAccountEnabled ? (
+                    <>
+                      <div className="settings-row settings-row-publish-plan">
+                        <div className="settings-row-copy">
+                          <strong>{publishPlanTitle}</strong>
+                          <small>{publishPlanSummary}</small>
+                        </div>
+                        <div className="settings-row-actions">
+                          {publishAccount?.plan === "free" ? (
+                            <button
+                              type="button"
+                              className="settings-button settings-button-quiet"
+                              onClick={() =>
+                                void window.eidosLite.openExternalUrl(
+                                  publishAccount.pricingUrl
+                                )
+                              }
+                            >
+                              {t("View paid plans")} <ExternalLink />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                      {publishAccount &&
+                      publishUsedBytes !== null &&
+                      publishQuotaBytes ? (
+                        <UsageMeter
+                          title={t("Storage")}
+                          total={publishQuotaBytes}
+                          usedLabel={t("{used} of {total} used", {
+                            used: formatUsageBytes(publishUsedBytes),
+                            total: formatUsageBytes(publishQuotaBytes),
+                          })}
+                          freeLabel={t("Free")}
+                          segments={[
+                            {
+                              key: "used",
+                              label: t("Published files"),
+                              value: publishUsedBytes,
+                              tone: "accent",
+                            },
+                          ]}
+                        />
+                      ) : null}
+                      {publishAccount?.plan === "free" &&
+                      publishAccount.activeSlugs !== null ? (
+                        <UsageMeter
+                          title={t("Published pages")}
+                          total={10}
+                          usedLabel={t("{used} of {total} used", {
+                            used: String(publishAccount.activeSlugs.length),
+                            total: "10",
+                          })}
+                          freeLabel={t("Free")}
+                          formatValue={(value) => String(Math.round(value))}
+                          segments={[
+                            {
+                              key: "used",
+                              label: t("Published pages"),
+                              value: publishAccount.activeSlugs.length,
+                              tone: "accent",
+                            },
+                          ]}
+                        />
+                      ) : null}
+                      {publishStorageExceeded ||
+                      publishRestriction ||
+                      publishAccountFailed ? (
+                        <div className="settings-service-notice" role="status">
+                          {publishStorageExceeded ? (
+                            <p>
+                              {t(
+                                "Storage limit exceeded. Manage your published files or upgrade your plan."
+                              )}
+                            </p>
+                          ) : null}
+                          {publishRestriction &&
+                          (!publishStorageExceeded ||
+                            publishAccount?.state !== "active") ? (
+                            <p>{publishRestriction}</p>
+                          ) : null}
+                          {publishAccountFailed ? (
+                            <p>
+                              {t(
+                                "Publish plan could not be checked. Check your connection and retry."
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="settings-row">
+                      <div className="settings-row-copy">
+                        <strong>{t("Publish")}</strong>
+                        <small>{t("Sign in to manage Publish.")}</small>
                       </div>
                     </div>
-                    {publishAccount &&
-                    publishUsedBytes !== null &&
-                    publishQuotaBytes ? (
-                      <UsageMeter
-                        title={t("Storage")}
-                        total={publishQuotaBytes}
-                        usedLabel={t("{used} of {total} used", {
-                          used: formatUsageBytes(publishUsedBytes),
-                          total: formatUsageBytes(publishQuotaBytes),
-                        })}
-                        freeLabel={t("Free")}
-                        segments={[
-                          {
-                            key: "used",
-                            label: t("Published files"),
-                            value: publishUsedBytes,
-                            tone: "accent",
-                          },
-                        ]}
-                      />
-                    ) : null}
-                    {publishAccount?.plan === "free" &&
-                    publishAccount.activeSlugs !== null ? (
-                      <UsageMeter
-                        title={t("Published pages")}
-                        total={10}
-                        usedLabel={t("{used} of {total} used", {
-                          used: String(publishAccount.activeSlugs.length),
-                          total: "10",
-                        })}
-                        freeLabel={t("Free")}
-                        formatValue={(value) => String(Math.round(value))}
-                        segments={[
-                          {
-                            key: "used",
-                            label: t("Published pages"),
-                            value: publishAccount.activeSlugs.length,
-                            tone: "accent",
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="settings-row">
-                    <div className="settings-row-copy">
-                      <strong>{t("Publish")}</strong>
-                      <small>{t("Sign in to manage Publish.")}</small>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </section>
 

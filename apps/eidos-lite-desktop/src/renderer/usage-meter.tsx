@@ -45,9 +45,10 @@ export function UsageMeter({
     0
   )
   const remaining = Math.max(0, total - used)
+  const overLimit = used > total
   const visible = segments.filter((segment) => segment.value > 0)
   return (
-    <div className="usage-meter">
+    <div className="usage-meter" data-over-limit={overLimit}>
       <div className="usage-meter-head">
         <strong>{title}</strong>
         <span>{usedLabel}</span>
@@ -60,7 +61,7 @@ export function UsageMeter({
         {visible.map((segment) => (
           <span
             key={segment.key}
-            className={`usage-meter-segment is-${segment.tone}`}
+            className={`usage-meter-segment is-${overLimit && segment.tone === "accent" ? "warning" : segment.tone}`}
             style={{ flexGrow: segment.value }}
           />
         ))}
