@@ -11,6 +11,28 @@ export default defineConfig({
   build: {
     inlineStylesheets: "always",
   },
+  vite: {
+    plugins: [
+      {
+        name: "preserve-prerender-native-markdown-loader",
+        apply: "build",
+        enforce: "pre",
+        applyToEnvironment: (environment) => environment.name === "prerender",
+        async resolveId(source, importer) {
+          if (source !== "satteri") return
+          // Its native loader uses createRequire(import.meta.url). Keep it in
+          // its installed package so pnpm's platform dependency stays resolvable.
+          // Externalize the resolved entry, not a bare transitive dependency.
+          const resolved = await this.resolve(source, importer, {
+            skipSelf: true,
+          })
+          if (!resolved)
+            throw new Error("Cannot resolve the Markdown native loader")
+          return { ...resolved, external: true }
+        },
+      },
+    ],
+  },
   integrations: [
     starlight({
       title: "Eidos Docs",
