@@ -1,4 +1,8 @@
-import { SyncSessionLifecycle } from "./sync-session-lifecycle"
+import { EventEmitter } from "node:events"
+import {
+  bindSyncSessionLifecycle,
+  SyncSessionLifecycle,
+} from "./sync-session-lifecycle"
 
 function deferred() {
   let resolve = () => {}
@@ -17,6 +21,73 @@ function fixture() {
   }
   return { hooks, lifecycle: new SyncSessionLifecycle(hooks) }
 }
+
+it.each(["active", "idle", "unknown"] as const)(
+  "subscribes before checking initial %s state without suspending Sync",
+  async (initialState) => {
+    const { hooks, lifecycle } = fixture()
+    const events = ["lock-screen", "suspend", "unlock-screen", "resume"]
+    const powerMonitor = Object.assign(new EventEmitter(), {
+      getSystemIdleState: vi.fn((_threshold: number) => {
+        for (const event of events)
+          expect(powerMonitor.listenerCount(event)).toBe(1)
+        return initialState
+      }),
+    })
+    const unbind = bindSyncSessionLifecycle(powerMonitor, lifecycle, "darwin")
+    expect(powerMonitor.getSystemIdleState).toHaveBeenCalledWith(1)
+    expect(hooks.suspendAutomatic).not.toHaveBeenCalled()
+    expect(hooks.resumeAutomatic).not.toHaveBeenCalled()
+    expect(hooks.lockSessions).not.toHaveBeenCalled()
+    unbind()
+    for (const event of events)
+      expect(powerMonitor.listenerCount(event)).toBe(0)
+    await lifecycle.close()
+  }
+)
+
+it("does not resume an initially locked session when a second lock overtakes its drain", async () => {
+  const { hooks, lifecycle } = fixture()
+  const firstDrain = deferred()
+  const secondDrain = deferred()
+  hooks.lockSessions
+    .mockReturnValueOnce(firstDrain.promise)
+    .mockReturnValueOnce(secondDrain.promise)
+  const powerMonitor = Object.assign(new EventEmitter(), {
+    getSystemIdleState: () => "locked" as const,
+  })
+  const unbind = bindSyncSessionLifecycle(powerMonitor, lifecycle, "darwin")
+  expect(hooks.suspendAutomatic).toHaveBeenCalledOnce()
+  powerMonitor.emit("unlock-screen")
+  powerMonitor.emit("lock-screen")
+  firstDrain.resolve()
+  await vi.waitFor(() => expect(hooks.lockSessions).toHaveBeenCalledTimes(2))
+  expect(hooks.resumeAutomatic).not.toHaveBeenCalled()
+  powerMonitor.emit("resume")
+  secondDrain.resolve()
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  expect(hooks.resumeAutomatic).not.toHaveBeenCalled()
+  powerMonitor.emit("unlock-screen")
+  await vi.waitFor(() => expect(hooks.resumeAutomatic).toHaveBeenCalledOnce())
+  unbind()
+  await lifecycle.close()
+})
+
+it("does not seed a Linux screen lock that has no matching unlock event, but handles sleep", async () => {
+  const { hooks, lifecycle } = fixture()
+  const powerMonitor = Object.assign(new EventEmitter(), {
+    getSystemIdleState: vi.fn(() => "locked" as const),
+  })
+  const unbind = bindSyncSessionLifecycle(powerMonitor, lifecycle, "linux")
+  expect(powerMonitor.getSystemIdleState).not.toHaveBeenCalled()
+  expect(hooks.suspendAutomatic).not.toHaveBeenCalled()
+  powerMonitor.emit("suspend")
+  expect(hooks.suspendAutomatic).toHaveBeenCalledOnce()
+  powerMonitor.emit("resume")
+  await vi.waitFor(() => expect(hooks.resumeAutomatic).toHaveBeenCalledOnce())
+  unbind()
+  await lifecycle.close()
+})
 
 it("waits for in-flight lock before allowing remembered credentials after unlock", async () => {
   const { hooks, lifecycle } = fixture()

@@ -445,10 +445,12 @@ ciphertext is owner-only, outside the Space, and never part of Sync. Unsigned
 development builds do not prove production signing or Keychain access isolation.
 
 The Sync panel shows password entry only when the encrypted session needs to be
-unlocked. Manage the default Sync password in Settings. Screen lock and suspend
-drain active sessions and pause automatic unlocking. After wake and screen
-unlock, Lite resumes using securely saved passwords; session-only use needs
-password entry again. Sign-out clears live keys and blocks automatic loading;
+unlocked. Manage the default Sync password in Settings. System suspend, and
+screen lock on macOS, drain active sessions and pause automatic unlocking.
+After wake and, on macOS, screen unlock, Lite resumes using securely saved
+passwords; session-only use needs password entry again. Linux screen lock alone
+does not clear the Sync session; quit Lite or sign out to clear it. Sign-out
+clears live keys and blocks automatic loading;
 remembered entries remain account-bound and are usable again only after an
 explicit sign-in. Local files remain readable and editable while Sync is locked
 or signed out. The service cannot recover the sync password; resetting the

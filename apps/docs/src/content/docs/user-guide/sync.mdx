@@ -163,9 +163,11 @@ copy for you. If no usable local copy or password remains, resetting your accoun
 password will not recover the encrypted contents.
 
 Signing out stops cloud access and clears the active unlocked session. It does
-not delete local files. Screen lock or sleep pauses encrypted operations. After
-the computer wakes and the screen is unlocked, Lite can use the securely saved
-password to resume; session-only use requires entering it again. Encryption
+not delete local files. System sleep pauses encrypted operations; on macOS,
+screen lock also pauses them. After waking and, on macOS, unlocking the screen,
+Lite can use the securely saved password to resume; session-only use requires
+entering it again. On Linux, screen lock alone does not clear the Sync session;
+quit Lite or sign out to clear it. Encryption
 protects the cloud copy; it does not encrypt the local folder, SQLite files, or
 attachments. Use your operating system's disk encryption to protect a lost
 computer.

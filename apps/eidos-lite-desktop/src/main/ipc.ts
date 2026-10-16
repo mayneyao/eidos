@@ -91,7 +91,10 @@ import {
 import { SyncExecutor } from "./sync/sync-executor"
 import { SyncQueueStore } from "./sync/sync-queue-store"
 import { SyncRunTracker } from "./sync/sync-run-tracker"
-import { SyncSessionLifecycle } from "./sync/sync-session-lifecycle"
+import {
+  bindSyncSessionLifecycle,
+  SyncSessionLifecycle,
+} from "./sync/sync-session-lifecycle"
 import { SyncAccountAdmission } from "./sync/sync-account-admission"
 import type { WindowController } from "./window-controller"
 import { HtmlPreviewViewManager } from "./html-preview-view"
@@ -678,10 +681,10 @@ export function registerIpc(
     },
     onError: () => eidosLiteLogger()?.warn("sync.encryption.lock-failed", {}),
   })
-  powerMonitor.on("lock-screen", syncLifecycle.lockScreen)
-  powerMonitor.on("suspend", syncLifecycle.suspend)
-  powerMonitor.on("unlock-screen", syncLifecycle.unlockScreen)
-  powerMonitor.on("resume", syncLifecycle.wake)
+  const unbindSyncLifecycle = bindSyncSessionLifecycle(
+    powerMonitor,
+    syncLifecycle
+  )
   const readSyncPassword = (value: unknown): Buffer | undefined => {
     if (value === undefined) return undefined
     const input = value as { password?: unknown }
@@ -3087,10 +3090,7 @@ export function registerIpc(
       syncAccountAdmission.beginChange()
       cancelManualSyncOperations()
       rememberedUnlocks.blockAutomatic()
-      powerMonitor.removeListener("lock-screen", syncLifecycle.lockScreen)
-      powerMonitor.removeListener("suspend", syncLifecycle.suspend)
-      powerMonitor.removeListener("unlock-screen", syncLifecycle.unlockScreen)
-      powerMonitor.removeListener("resume", syncLifecycle.wake)
+      unbindSyncLifecycle()
       await syncLifecycle.close()
       await lockAndDrainSync(true)
       plugins.close()

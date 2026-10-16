@@ -193,8 +193,11 @@ For each supported platform, retain evidence of:
   rejection without a published partial ref, and retry after allowance changes;
 - old ordinary repository compatibility, history-preserving copy migration,
   independently restored history, and a rollback rehearsal;
-- screen lock, sleep, sign-out, account/device revocation, and app update without
-  exposing secrets or falsely reporting synced files;
+- macOS screen lock (including startup while already locked), system sleep,
+  sign-out, account/device revocation, and app update without exposing secrets
+  or falsely reporting synced files. Linux does not receive the screen-lock
+  events used by Lite; do not claim that locking its screen clears the Sync
+  session. Verify Linux quit/sign-out and supported sleep behavior separately;
 - plaintext/credential scans of server objects, logs, and reports; independent
   security review of the cryptographic implementation and trust boundary.
 

@@ -5,6 +5,45 @@ interface SyncSessionLifecycleHooks {
   onError(): void
 }
 
+interface SyncPowerMonitor {
+  on(
+    event: "lock-screen" | "unlock-screen" | "suspend" | "resume",
+    listener: () => void
+  ): void
+  removeListener(
+    event: "lock-screen" | "unlock-screen" | "suspend" | "resume",
+    listener: () => void
+  ): void
+  getSystemIdleState(
+    threshold: number
+  ): "active" | "idle" | "locked" | "unknown"
+}
+
+export function bindSyncSessionLifecycle(
+  powerMonitor: SyncPowerMonitor,
+  lifecycle: SyncSessionLifecycle,
+  platform: NodeJS.Platform = process.platform
+): () => void {
+  powerMonitor.on("lock-screen", lifecycle.lockScreen)
+  powerMonitor.on("suspend", lifecycle.suspend)
+  powerMonitor.on("unlock-screen", lifecycle.unlockScreen)
+  powerMonitor.on("resume", lifecycle.wake)
+  // A process started while locked will not receive the earlier lock event.
+  // Subscribe first so subsequent unlocks cannot be missed during initialization.
+  // Electron emits screen lock/unlock only on macOS and Windows.
+  if (
+    (platform === "darwin" || platform === "win32") &&
+    powerMonitor.getSystemIdleState(1) === "locked"
+  )
+    lifecycle.lockScreen()
+  return () => {
+    powerMonitor.removeListener("lock-screen", lifecycle.lockScreen)
+    powerMonitor.removeListener("suspend", lifecycle.suspend)
+    powerMonitor.removeListener("unlock-screen", lifecycle.unlockScreen)
+    powerMonitor.removeListener("resume", lifecycle.wake)
+  }
+}
+
 /** System sleep/lock is temporary; logout and explicit locking stay independent. */
 export class SyncSessionLifecycle {
   private screenLocked = false

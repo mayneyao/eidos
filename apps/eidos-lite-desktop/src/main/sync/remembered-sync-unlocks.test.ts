@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
+import { EventEmitter } from "node:events"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -8,6 +9,13 @@ import { SpaceOperationGate } from "../space/operation-gate"
 import { SpaceOperationJournal } from "../space/operation-journal"
 import type { SyncControlPlane } from "./sync-control-plane"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import { BackgroundSyncQueue } from "./background-sync-queue"
+import { SyncQueueStore } from "./sync-queue-store"
+import { classifySyncFailure } from "./sync-failure"
+import {
+  bindSyncSessionLifecycle,
+  SyncSessionLifecycle,
+} from "./sync-session-lifecycle"
 import {
   RememberedSyncUnlockStore,
   RememberedSyncUnlocks,
@@ -485,6 +493,104 @@ describe.skipIf(process.platform === "win32")(
       await host.autoUnlock(model.session, identity.remote, "synthetic-token")
       expect(model.unlock).not.toHaveBeenCalled()
     })
+
+    it.each(["pending", "retry-wait", "running"] as const)(
+      "blocks a restored %s queue from reading credentials while initially locked, until unlock and drain",
+      async (state) => {
+        const model = fixture()
+        const host = model.create()
+        await host.remember(
+          model.session,
+          identity.remote,
+          Buffer.from("synthetic password")
+        )
+        const read = vi.spyOn(store, "read")
+        let finishLock = () => {}
+        const lockDrain = new Promise<void>((resolve) => {
+          finishLock = resolve
+        })
+        const resumed = vi.fn(() => host.resumeAutomatic())
+        const lifecycle = new SyncSessionLifecycle({
+          suspendAutomatic: () => host.suspendAutomatic(),
+          resumeAutomatic: resumed,
+          lockSessions: async () => {
+            await lockDrain
+            await model.lock()
+          },
+          onError: vi.fn(),
+        })
+        const powerMonitor = Object.assign(new EventEmitter(), {
+          getSystemIdleState: () => "locked" as const,
+        })
+        const unbind = bindSyncSessionLifecycle(
+          powerMonitor,
+          lifecycle,
+          "darwin"
+        )
+        const spaceId = "initial-lock-queue"
+        const queueStore = new SyncQueueStore(path.join(root, "queue"))
+        await queueStore.write(spaceId, {
+          version: 1,
+          state,
+          trigger: "local-checkpoint",
+          attempt: 0,
+          queuedAtMs: 0,
+        })
+        const scheduled: Array<() => Promise<void>> = []
+        const queue = new BackgroundSyncQueue({
+          store: queueStore,
+          schedule: (task) => {
+            scheduled.push(task)
+            return scheduled.length
+          },
+          cancel: () => {},
+        })
+        const execute = vi.fn(async () => {
+          await host.autoUnlock(
+            model.session,
+            identity.remote,
+            "synthetic-token"
+          )
+          // Stop at the unlock boundary; this test does not send fixture data.
+          return {
+            ok: false as const,
+            runId: "initial-lock-test",
+            failure: classifySyncFailure(
+              new Error("Synthetic stop after automatic unlock")
+            ),
+            telemetry: {
+              startedAtMs: 0,
+              completedAtMs: 1,
+              durationMs: 1,
+              phases: [],
+            },
+          }
+        })
+        try {
+          await queue.attach({ spaceId, execute, emit: () => {} })
+          expect(scheduled).toHaveLength(1)
+          await scheduled[0]!()
+          expect(execute).toHaveBeenCalledOnce()
+          expect(read).not.toHaveBeenCalled()
+          expect(model.unlock).not.toHaveBeenCalled()
+          powerMonitor.emit("unlock-screen")
+          await queue.runNow(spaceId)
+          expect(resumed).not.toHaveBeenCalled()
+          expect(read).not.toHaveBeenCalled()
+          expect(model.unlock).not.toHaveBeenCalled()
+          finishLock()
+          await vi.waitFor(() => expect(resumed).toHaveBeenCalledOnce())
+          await queue.runNow(spaceId)
+          expect(read).toHaveBeenCalledOnce()
+          expect(model.unlock).toHaveBeenCalledOnce()
+        } finally {
+          finishLock()
+          unbind()
+          await lifecycle.close()
+          await queue.close()
+        }
+      }
+    )
 
     it.each(["logout", "sleep", "forget"] as const)(
       "never creates native authority when %s interrupts an automatic unlock queued behind the real repository gate",
