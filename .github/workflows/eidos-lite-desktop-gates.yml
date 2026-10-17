@@ -7,6 +7,10 @@ on:
         description: "Retain unsigned macOS staging apps for separate installed E2EE acceptance"
         type: boolean
         default: false
+      signed_mac_candidates:
+        description: "Verify signed production macOS candidates before an immutable release tag; never publish"
+        type: boolean
+        default: false
   push:
     branches:
       - dev
@@ -165,7 +169,7 @@ jobs:
   packaged-macos:
     name: Packaged smoke (${{ matrix.architecture }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -193,17 +197,85 @@ jobs:
 
       - name: Build unsigned staging package
         id: staging-package
+        if: ${{ !inputs.signed_mac_candidates }}
         run: pnpm build:eidos-lite:dev
+
+      - name: Build signed production candidate
+        id: signed-package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+        shell: bash
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+          pnpm build:eidos-lite:release
+          application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
+          test -n "$application"
+          codesign --verify --deep --strict "$application"
+          xcrun stapler validate "$application"
 
       - name: Observe fresh packaged smoke
         id: observed-smoke
         env:
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
         run: pnpm smoke:eidos-lite-packaged
 
       - name: Enforce packaged performance
         id: enforced-smoke
-        run: pnpm smoke:eidos-lite-packaged
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
+        shell: bash
+        run: |
+          for sample in 1 2 3; do
+            pnpm smoke:eidos-lite-packaged
+          done
+
+      - name: Verify signed candidate installation and rollback
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE: ${{ runner.temp }}/signed-candidate-installation
+        run: |
+          installer="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$installer"
+          installer="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$installer")"
+          version="$(node -p 'require("./apps/eidos-lite-desktop/package.json").version')"
+          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
+            --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+            "--version=$version" "--evidence=$EVIDENCE"
+
+      - name: Retain signed candidate for diagnosis
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates && steps.signed-package.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lite-signed-candidate-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/eidos-lite-desktop/dist-app/*.dmg
+            apps/eidos-lite-desktop/dist-app/*.zip
+            apps/eidos-lite-desktop/dist-app/*.blockmap
+            apps/eidos-lite-desktop/dist-app/latest*.yml
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Retain signed candidate installation evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-candidate-installation-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/signed-candidate-installation
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Archive staging app and exact build identity
         id: staging-archive
