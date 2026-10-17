@@ -92,12 +92,15 @@ For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#la
 
 ## Use cloud sync
 
+In **0.24.0-beta.1**, creating new end-to-end encrypted cloud Spaces is not yet
+available on the production service. Updating Lite does not enable it. Local
+files, local version history, and LAN sync remain available. The setup below
+applies to service environments where encrypted cloud connections are enabled.
+
 Cloud Sync connects separate local copies through your Eidos account. The
 encrypted workflow below applies to Eidos Lite builds that offer **Sync
 password** on macOS or Linux. Windows and mobile clients cannot open these
 encrypted cloud Spaces; mobile LAN sync is a separate connection method.
-Updating the desktop app does not change an existing ordinary cloud connection
-into an encrypted connection.
 
 ### Connect the first computer
 
@@ -187,20 +190,6 @@ immediately remove its historical copies or free the associated quota. Check
 your [account dashboard](https://eidos.space/account) for storage and access
 limits. If uploads are blocked by quota or account access, keep working locally
 and resolve the limit before retrying.
-
-### Keep an existing connection when moving to encryption
-
-An existing ordinary cloud connection is not converted in place. Keep its local
-folder, history, and cloud connection, and use a separate folder and new cloud
-Space for the encrypted copy. Do not delete `.graft` or replace `origin` in the
-original folder to get past a connection error: that can discard history or
-disconnect the source.
-
-Before switching devices to the new copy, verify its files and saved history
-through an independent download. Keep the original until every device has moved
-and the new copy has an independent backup. Copying ordinary files into a new
-folder preserves their current contents, but does not transfer version history;
-preserving the full history needs a supported migration procedure.
 
 ## Keep a separate backup
 

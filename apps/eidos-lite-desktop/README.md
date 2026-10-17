@@ -403,6 +403,11 @@ rollback procedure are documented in the
 
 ## Encrypted cloud Sync
 
+The `0.24.0-beta.1` release keeps new encrypted cloud connections disabled in
+production. Installing this beta does not enable them. The following describes
+the encrypted workflow in service environments where it is enabled; local files,
+local history, and LAN sync remain available independently.
+
 E2EE-capable macOS and Linux builds use end-to-end encryption for new cloud
 connections. The account and Sync service must belong to the same official
 environment. Windows, mobile, and browser clients do not implement this cloud
