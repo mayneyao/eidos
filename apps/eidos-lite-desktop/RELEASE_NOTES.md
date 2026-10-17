@@ -1,4 +1,4 @@
-Eidos Lite 0.24.1 is available on the stable channel. New end-to-end encrypted cloud connections remain disabled in production; installing this update does not enable them. Local files and local version history continue to work offline.
+Eidos Lite 0.24.2 is available on the stable channel. New end-to-end encrypted cloud connections remain disabled in production; installing this update does not enable them. Local files and local version history continue to work offline.
 
 ## What's new
 
@@ -18,5 +18,6 @@ Open a table's row menu, hold **Option** on macOS or **Alt** on Windows/Linux, a
 
 ## Bug fixes
 
+- **File browsing**: Expanded folders reload their contents after a background refresh invalidates the directory cache, so files remain accessible without closing and reopening the folder.
 - **Markdown editing**: Clicking below the final block moves the caret without marking the file as modified. Saving before you type leaves the original Markdown intact, without adding an empty line.
 - **Update checks**: An older release is no longer offered as an update to the version you are running. The floating update action also lines up with the other footer controls.
