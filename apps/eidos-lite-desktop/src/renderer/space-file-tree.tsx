@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -648,41 +649,61 @@ export function SpaceFileTree({
     activeRevealRef.current.revealed = true
   }, [activePath, model, treeSignature, revealToken])
 
+  const requestDirectoryLoad = useCallback(
+    (treePath: string, relativePath: string) => {
+      if (directoryLoadsRef.current[treePath]?.state === "loading") return
+      directoryLoadsRef.current = {
+        ...directoryLoadsRef.current,
+        [treePath]: { state: "loading" },
+      }
+      setDirectoryLoads(directoryLoadsRef.current)
+      void onLoadDirectoryRef
+        .current(relativePath)
+        .then(() => {
+          const next = { ...directoryLoadsRef.current }
+          delete next[treePath]
+          directoryLoadsRef.current = next
+          setDirectoryLoads(next)
+        })
+        .catch((cause) => {
+          const item = model.getItem(treePath)
+          if (item && "collapse" in item) item.collapse()
+          directoryLoadsRef.current = {
+            ...directoryLoadsRef.current,
+            [treePath]: {
+              state: "error",
+              message: cause instanceof Error ? cause.message : String(cause),
+            },
+          }
+          setDirectoryLoads(directoryLoadsRef.current)
+        })
+    },
+    [model]
+  )
+
+  useEffect(() => {
+    if (disabled) return
+    for (const [treePath, entry] of tree.entryByTreePath) {
+      if (
+        entry.kind !== "directory" ||
+        entry.childrenLoaded !== false ||
+        directoryLoadsRef.current[treePath]
+      )
+        continue
+      const item = model.getItem(treePath)
+      if (item && "isExpanded" in item && item.isExpanded())
+        requestDirectoryLoad(treePath, entry.relativePath)
+    }
+  }, [directoryLoads, disabled, model, requestDirectoryLoad, tree])
+
   const openTreePath = (treePath: string | null) => {
     if (!treePath || disabled) return
     const entry = treeRef.current.entryByTreePath.get(treePath)
     if (!entry) return
     onSelectRef.current(entry)
     if (entry.kind === "directory") {
-      if (
-        entry.childrenLoaded ||
-        directoryLoadsRef.current[treePath]?.state === "loading"
-      )
-        return
-      setDirectoryLoads((current) => ({
-        ...current,
-        [treePath]: { state: "loading" },
-      }))
-      void onLoadDirectoryRef
-        .current(entry.relativePath)
-        .then(() => {
-          setDirectoryLoads((current) => {
-            const next = { ...current }
-            delete next[treePath]
-            return next
-          })
-        })
-        .catch((cause) => {
-          const item = model.getItem(treePath)
-          if (item && "collapse" in item) item.collapse()
-          setDirectoryLoads((current) => ({
-            ...current,
-            [treePath]: {
-              state: "error",
-              message: cause instanceof Error ? cause.message : String(cause),
-            },
-          }))
-        })
+      if (!entry.childrenLoaded)
+        requestDirectoryLoad(treePath, entry.relativePath)
     } else {
       onOpenRef.current(entry)
     }

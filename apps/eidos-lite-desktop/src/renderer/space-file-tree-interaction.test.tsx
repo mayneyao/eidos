@@ -12,6 +12,96 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+it("rehydrates an expanded directory when a refresh invalidates its children", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const resets = vi.spyOn(FileTree.prototype, "resetPaths")
+  const loaded: SpaceTreeEntry[] = [
+    {
+      name: "docs",
+      relativePath: "docs",
+      kind: "directory",
+      size: 0,
+      modifiedAtMs: 1,
+      childrenLoaded: true,
+      children: [
+        {
+          name: "note.md",
+          relativePath: "docs/note.md",
+          kind: "file",
+          size: 1,
+          modifiedAtMs: 1,
+        },
+      ],
+    },
+  ]
+  const load = vi.fn(async () => {})
+  let invalidate!: () => void
+  function Harness() {
+    const [entries, setEntries] = useState(loaded)
+    invalidate = () =>
+      setEntries([
+        { ...loaded[0]!, childrenLoaded: false, children: undefined },
+      ])
+    return (
+      <SpaceFileTree
+        entries={entries}
+        activePath={null}
+        renameRequest={null}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onMove={vi.fn()}
+        onMoveError={vi.fn()}
+        onRename={vi.fn()}
+        onRenameError={vi.fn()}
+        onContextMenu={vi.fn()}
+        onLoadDirectory={async () => {
+          await load()
+          setEntries(loaded)
+        }}
+      />
+    )
+  }
+  try {
+    await act(async () => root.render(<Harness />))
+    const model = resets.mock.contexts[0]!
+    if (!(model instanceof FileTree)) throw new Error("Missing tree model")
+    const expanded = () => {
+      const item = model.getItem("docs/")
+      return item && "isExpanded" in item && item.isExpanded()
+    }
+    expect(expanded()).toBe(true)
+    await act(async () => invalidate())
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(expanded()).toBe(true)
+    expect(
+      host
+        .querySelector("[data-space-file-tree]")!
+        .shadowRoot!.querySelector('[data-item-path="docs/note.md"]')
+    ).not.toBeNull()
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 it.each(["single", "collapse-during-load"])(
   "preserves folder intent across hydration with descending sort: %s",
   async (interaction) => {
