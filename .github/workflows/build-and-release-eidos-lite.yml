@@ -79,7 +79,8 @@ jobs:
             --unpublished-tag lite-v0.15.1 \
             --unpublished-tag lite-v0.22.0 \
             --unpublished-tag lite-v0.24.0-beta.1 \
-            --unpublished-tag lite-v0.24.0
+            --unpublished-tag lite-v0.24.0 \
+            --unpublished-tag lite-v0.24.1
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck

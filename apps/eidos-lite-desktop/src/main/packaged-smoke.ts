@@ -746,7 +746,29 @@ const rendererProbe = `
       treeScroll.dispatchEvent(new Event("scroll"))
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    throw new Error("Timed out waiting for " + relativePath + " in Space Explorer")
+    const currentSpace = await window.eidosLite.getSpace()
+    const parents = relativePath.split("/").slice(0, -1)
+    let entries = currentSpace?.entries
+    const directories = parents.map((_, index) => {
+      const path = parents.slice(0, index + 1).join("/")
+      const entry = entries?.find((candidate) => candidate.relativePath === path)
+      entries = entry?.children
+      return { path, childrenLoaded: entry?.childrenLoaded, children: entry?.children?.length }
+    })
+    const diagnostics = {
+      hostConnected: treeHost.isConnected,
+      currentHost: document.querySelector("[data-space-file-tree]") === treeHost,
+      disabled: treeHost.getAttribute("aria-disabled"),
+      directories,
+      visibleRows: [...treeHost.shadowRoot.querySelectorAll('[data-type="item"]')]
+        .slice(0, 50)
+        .map((item) => ({
+          path: item.dataset.itemPath,
+          expanded: item.getAttribute("aria-expanded"),
+          sticky: item.dataset.fileTreeStickyRow,
+        })),
+    }
+    throw new Error("Timed out waiting for " + relativePath + " in Space Explorer: " + JSON.stringify(diagnostics))
   }
   const revealTreeItem = async (relativePath) => {
     const segments = relativePath.split("/")

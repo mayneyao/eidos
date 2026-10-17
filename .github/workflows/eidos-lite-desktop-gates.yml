@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
       signed_mac_candidates:
-        description: "Verify signed production macOS candidates before an immutable release tag; never publish"
+        description: "Verify production candidates, including signed macOS and Windows installers; never publish"
         type: boolean
         default: false
   push:
@@ -123,12 +123,51 @@ jobs:
           src/runtime/cross-platform-clone.test.ts
 
       - name: Build unsigned staging package
+        if: ${{ !inputs.signed_mac_candidates }}
         run: pnpm build:eidos-lite:dev
+
+      - name: Build unsigned production candidate
+        id: production-package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        run: pnpm build:eidos-lite:release
 
       - name: Observe fresh packaged smoke
         env:
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
         run: pnpm smoke:eidos-lite-packaged
+
+      - name: Verify production candidate installation and rollback
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = Get-ChildItem apps/eidos-lite-desktop/dist-app -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Production installer is missing' }
+          $version = node -p 'require("./apps/eidos-lite-desktop/package.json").version'
+          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs `
+            --previous-tag=lite-v0.23.1 "--candidate=$($installer.FullName)" `
+            "--version=$version" "--evidence=$env:RUNNER_TEMP/production-candidate-installation"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Retain Windows production candidate for diagnosis
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates && steps.production-package.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lite-production-candidate-windows-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/eidos-lite-desktop/dist-app/*.exe
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Retain Windows installation evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-candidate-installation-windows
+          path: ${{ runner.temp }}/production-candidate-installation
+          if-no-files-found: warn
+          retention-days: 7
 
   source-and-real-graft:
     name: Source and real Graft SDK
