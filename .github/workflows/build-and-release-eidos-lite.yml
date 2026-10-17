@@ -292,10 +292,46 @@ jobs:
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Enforce packaged macOS release performance
-        if: matrix.platform == 'mac' && matrix.architecture == 'arm64'
+        if: matrix.platform == 'mac'
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: pnpm smoke:eidos-lite-packaged
+
+      - name: Verify real installer upgrade and rollback
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          EVIDENCE: ${{ runner.temp }}/release-installation-evidence
+        run: |
+          set -euo pipefail
+          case '${{ matrix.platform }}' in
+            mac) extension=dmg ;;
+            win) extension=exe ;;
+            linux) extension=deb ;;
+          esac
+          installer="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name "*.$extension" -print -quit)"
+          test -n "$installer"
+          installer="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$installer")"
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            dbus-run-session -- xvfb-run --auto-servernum \
+              node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
+              --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+              "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
+          else
+            node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
+              --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+              "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
+          fi
+
+      - name: Retain installer upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installation-evidence-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/release-installation-evidence
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4
