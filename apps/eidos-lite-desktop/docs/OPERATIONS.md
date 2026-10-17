@@ -249,7 +249,7 @@ collision retry as a performance sample.
 The Lite release workflow runs packaged acceptance on every target without
 changing the performance budgets. The first fresh-package process observes
 timings while still enforcing every functional, environment, data-safety, and
-integration assertion. A second new process then enforces the 2,000 ms
+integration assertion. Three further new processes each enforce the 2,000 ms
 cold-start, 1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame
 budgets on both macOS architectures. Linux runs the complete functional pass
 inside a session D-Bus and Xvfb; Windows runs the same pass on the hosted runner.
@@ -257,6 +257,17 @@ Both record the contract timings, but their software or non-representative
 hosted graphics paths are not treated as end-user UI performance evidence. This
 beta gate does not replace the repeated clean-machine P95 evidence required for
 Public v1 on every supported platform.
+
+Before creating an immutable release tag, the Desktop Gates workflow can also
+build actual signed and notarized production candidates on both Mac
+architectures. Dispatch it on the intended source branch with
+`signed_mac_candidates=true`. This mode uses the normal release build, retains
+the original performance limits for all three samples, and verifies the signed
+DMG through installation, upgrade, rollback, and reinstallation. It retains
+candidate packages for diagnosis even if a later performance assertion fails.
+These artifacts do not create a tag, GitHub Release, deployment, or update-feed
+entry. An unsigned staging result is not a substitute for this signed-candidate
+check when investigating a production-package startup failure.
 
 The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
 actual signed DMG, NSIS installer, or Debian package. It verifies the published

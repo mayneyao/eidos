@@ -26,8 +26,11 @@ const chunkNames = [
   "packaged-startup-smoke",
   "plugin-file-mutations",
   "space-clone-coordinator",
+  "space-paths",
+  "space-session",
   "sync-encryption",
   "terminal-session-manager",
+  "text-draft-copy",
   "updater",
 ]
 

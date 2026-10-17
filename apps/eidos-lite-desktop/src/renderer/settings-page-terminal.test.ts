@@ -114,6 +114,7 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
       .find((button) => button.textContent?.includes("Terminal"))
       ?.click()
   })
+  await act(async () => vi.dynamicImportSettled())
   expect(host.textContent).not.toContain("Uninstall")
   expect(window.location.hash).toBe("#/settings/plugins")
 

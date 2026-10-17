@@ -1,4 +1,4 @@
-Eidos Lite 0.24.0 is available on the stable channel. New end-to-end encrypted cloud connections remain disabled in production; installing this update does not enable them. Local files and local version history continue to work offline.
+Eidos Lite 0.24.1 is available on the stable channel. New end-to-end encrypted cloud connections remain disabled in production; installing this update does not enable them. Local files and local version history continue to work offline.
 
 ## What's new
 
@@ -12,6 +12,7 @@ Open a table's row menu, hold **Option** on macOS or **Alt** on Windows/Linux, a
 
 ## Improvements
 
+- **Startup**: Lite opens its Welcome screen with less work in the background. Plugin details and embedded table editors load when you open them.
 - **Sync setup**: Review the upload's file count, size and exclusions in a simpler panel, with password settings and clear retry actions nearby. Supported hidden files, large files and filenames containing words such as “secret” no longer need an extra confirmation.
 - **Account settings**: Sync access, storage and password controls now follow the compact layout used by the other settings pages.
 

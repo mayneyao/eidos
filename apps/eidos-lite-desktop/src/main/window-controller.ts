@@ -67,7 +67,7 @@ import {
   listSpaceTree,
   normalizeRelativePath,
 } from "./space/space-paths"
-import { SpaceSession } from "./space/space-session"
+import type { SpaceSession } from "./space/space-session"
 import { RecentSpacesStore } from "./space/recent-spaces"
 import { SessionCloseTracker } from "./space/session-close-tracker"
 import { localNameForCloudSpace } from "./sync/cloud-space-name"
@@ -96,6 +96,13 @@ import {
 
 const SPACE_WINDOW_SIZE = { width: 1320, height: 860 }
 const SPACE_WINDOW_MINIMUM = { width: 900, height: 600 }
+
+async function createSpaceSession(
+  ...args: Parameters<(typeof SpaceSession)["createCanonical"]>
+): Promise<SpaceSession> {
+  const { SpaceSession } = await import("./space/space-session")
+  return SpaceSession.createCanonical(...args)
+}
 
 export class WindowController {
   readonly textDraftClose = new TextDraftCloseCoordinator()
@@ -169,14 +176,10 @@ export class WindowController {
         (session) => session.canonical.id === id
       )
     if (existing) return existing
-    const opening = SpaceSession.createCanonical(
-      canonical,
-      app.getPath("userData"),
-      {
-        graft: this.createGraftClient(),
-        workerPath: this.runtimeWorkerPath(),
-      }
-    )
+    const opening = createSpaceSession(canonical, app.getPath("userData"), {
+      graft: this.createGraftClient(),
+      workerPath: this.runtimeWorkerPath(),
+    })
     this.openingSessions.add(opening)
     try {
       const session = await opening
@@ -1044,7 +1047,7 @@ export class WindowController {
     let session: SpaceSession
     const opening = this.sharedSessions.has(canonical.id)
       ? Promise.resolve(this.sharedSessions.get(canonical.id)!)
-      : SpaceSession.createCanonical(canonical, app.getPath("userData"), {
+      : createSpaceSession(canonical, app.getPath("userData"), {
           graft: this.createGraftClient(),
           workerPath: this.runtimeWorkerPath(),
         })

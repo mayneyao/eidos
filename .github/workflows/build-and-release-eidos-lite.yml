@@ -78,7 +78,8 @@ jobs:
             --unpublished-tag lite-v0.13.3 \
             --unpublished-tag lite-v0.15.1 \
             --unpublished-tag lite-v0.22.0 \
-            --unpublished-tag lite-v0.24.0-beta.1
+            --unpublished-tag lite-v0.24.0-beta.1 \
+            --unpublished-tag lite-v0.24.0
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -295,7 +296,11 @@ jobs:
         if: matrix.platform == 'mac'
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
-        run: pnpm smoke:eidos-lite-packaged
+        shell: bash
+        run: |
+          for sample in 1 2 3; do
+            pnpm smoke:eidos-lite-packaged
+          done
 
       - name: Verify real installer upgrade and rollback
         shell: bash
