@@ -1,0 +1,88 @@
+name: Eidos Lite Installed Upgrade Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_tag:
+        description: "Published Lite release to install, upgrade to, roll back from, and reinstall"
+        type: string
+        default: "lite-v0.24.0-beta.2"
+  pull_request:
+    paths:
+      - ".github/workflows/eidos-lite-installed-upgrade.yml"
+      - "apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lite-installed-upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-upgrade:
+    name: Installed upgrade and rollback (${{ matrix.platform }} ${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: mac
+            architecture: arm64
+            runner: macos-15
+          - platform: mac
+            architecture: x64
+            runner: macos-15-intel
+          - platform: win
+            architecture: x64
+            runner: windows-latest
+          - platform: linux
+            architecture: x64
+            runner: ubuntu-latest
+          - platform: linux
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - name: Install Linux desktop test services
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus-x11 xvfb
+      - name: Accept published package installation, upgrade, and rollback
+        if: matrix.platform != 'linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_TAG: ${{ inputs.target_tag || 'lite-v0.24.0-beta.2' }}
+          EVIDENCE: ${{ runner.temp }}/installed-upgrade-evidence
+        run: >-
+          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs
+          --previous-tag=lite-v0.23.1
+          "--target-tag=$TARGET_TAG"
+          "--evidence=$EVIDENCE"
+      - name: Accept installed Debian package upgrade and rollback
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_TAG: ${{ inputs.target_tag || 'lite-v0.24.0-beta.2' }}
+          EVIDENCE: ${{ runner.temp }}/installed-upgrade-evidence
+        run: >-
+          dbus-run-session -- xvfb-run --auto-servernum
+          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs
+          --previous-tag=lite-v0.23.1
+          "--target-tag=$TARGET_TAG"
+          "--evidence=$EVIDENCE"
+      - name: Retain installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-upgrade-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/installed-upgrade-evidence
+          if-no-files-found: error
+          retention-days: 7

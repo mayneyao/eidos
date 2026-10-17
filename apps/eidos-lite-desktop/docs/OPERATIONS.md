@@ -258,6 +258,22 @@ hosted graphics paths are not treated as end-user UI performance evidence. This
 beta gate does not replace the repeated clean-machine P95 evidence required for
 Public v1 on every supported platform.
 
+The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
+actual signed DMG, NSIS installer, or Debian package. It verifies the published
+0.23.1 installer against its public SHA-256, installs it, opens root and nested
+Eidos Files, creates Local history, and records file hashes and preferences.
+The same ordinary Space and profile then pass candidate installation, a new
+candidate checkpoint, binary rollback to 0.23.1, and candidate reinstallation.
+Every replacement requires the prior application to exit cleanly. Version and
+environment assertions use the installed application's diagnostics over a
+loopback-only debugging connection; schema, history, preferences and ordinary
+file hashes must survive each step. Windows and Debian installation tests run
+only on disposable CI runners. macOS uses a dedicated temporary installation.
+The separate Installed Upgrade Gates workflow can exercise this driver against
+two published releases before a new immutable release tag is created. This
+manual installer chain remains distinct from the public in-app download and
+restart acceptance required by the release runbook.
+
 The smoke uses an isolated temporary Electron `userData` directory, opens the
 Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and
 system-browser login-action projection. It never clicks sign-in or calls an
