@@ -9,7 +9,18 @@ class FakeAutoUpdater implements EidosLiteAutoUpdater {
   autoDownload = true
   autoInstallOnAppQuit = false
   allowPrerelease = false
-  channel: string | null = null
+  allowDowngrade = false
+  private updateChannel: string | null = null
+
+  get channel() {
+    return this.updateChannel
+  }
+
+  set channel(value: string | null) {
+    this.updateChannel = value
+    // Mirror the native library's setter side effect.
+    this.allowDowngrade = true
+  }
   feed: Parameters<EidosLiteAutoUpdater["setFeedURL"]>[0] | null = null
   checks = 0
   downloads = 0
@@ -49,6 +60,31 @@ class FakeAutoUpdater implements EidosLiteAutoUpdater {
 }
 
 describe("Eidos Lite updater", () => {
+  it.each(["0.24.0", "0.24.0-beta.1"])(
+    "disables native channel downgrades for %s",
+    async (currentVersion) => {
+      const native = new FakeAutoUpdater()
+      const updater = new EidosLiteUpdater({
+        currentVersion,
+        platform: "darwin",
+        architecture: "arm64",
+        packaged: true,
+        production: true,
+        updatesEnabled: true,
+        loadAutoUpdater: async () => native,
+        prepareToInstall: async () => undefined,
+        broadcast: () => undefined,
+        logger: { info: () => undefined, warn: () => undefined },
+      })
+      await updater.start(false)
+      expect(native.channel).toBe(
+        currentVersion.includes("beta") ? "beta" : "latest"
+      )
+      expect(native.allowDowngrade).toBe(false)
+      expect(native.downloads).toBe(0)
+    }
+  )
+
   it.each([true, false])(
     "waits for an explicit download with startup checking set to %s",
     async (checkOnStartup) => {

@@ -14,6 +14,7 @@ export interface EidosLiteAutoUpdater {
   autoDownload: boolean
   autoInstallOnAppQuit: boolean
   allowPrerelease: boolean
+  allowDowngrade: boolean
   channel: string | null
   setFeedURL(options: {
     provider: "generic"
@@ -211,6 +212,9 @@ export class EidosLiteUpdater {
         updater.allowPrerelease = feed.channel === "beta"
         updater.channel = feed.channel
         updater.setFeedURL({ provider: "generic", ...feed })
+        // Setting electron-updater's channel implicitly enables downgrades.
+        // An update must never replace this release with an older feed entry.
+        updater.allowDowngrade = false
         this.bindEvents(updater)
         this.options.logger.info("update.initialized", {
           channel: feed.channel,

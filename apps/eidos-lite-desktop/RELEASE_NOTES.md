@@ -18,4 +18,4 @@ Hold **Option** on macOS or **Alt** on Windows/Linux while a table's row menu is
 ## Bug fixes
 
 - **Markdown**: Clicking below the last block places the caret without marking the document as edited. Saving before typing preserves the original Markdown without adding an empty line.
-- **Updates**: The floating update action aligns with the other footer controls.
+- **Updates**: Prerelease builds no longer offer older releases as updates. The floating update action aligns with the other footer controls.
