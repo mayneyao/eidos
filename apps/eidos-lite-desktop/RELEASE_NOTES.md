@@ -1,4 +1,4 @@
-New end-to-end encrypted cloud connections remain disabled in production in this beta. Updating Lite does not enable them. Local files and local version history remain available offline.
+New end-to-end encrypted cloud connections remain disabled in production in 0.24.0-beta.2. Updating Lite does not enable them. Local files and local version history remain available offline.
 
 ## What's new
 

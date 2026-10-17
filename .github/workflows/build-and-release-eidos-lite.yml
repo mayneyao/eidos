@@ -77,7 +77,8 @@ jobs:
             --unpublished-tag lite-v0.13.2 \
             --unpublished-tag lite-v0.13.3 \
             --unpublished-tag lite-v0.15.1 \
-            --unpublished-tag lite-v0.22.0
+            --unpublished-tag lite-v0.22.0 \
+            --unpublished-tag lite-v0.24.0-beta.1
 
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
@@ -215,7 +216,15 @@ jobs:
           application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
           test -n "$application"
           codesign --verify --deep --strict --verbose=2 "$application"
-          xcrun stapler validate "$application"
+          for attempt in 1 2 3; do
+            if xcrun stapler validate "$application"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep "$((attempt * 3))"
+          done
 
       - name: Verify Windows installer is unsigned by policy
         if: matrix.platform == 'win'
