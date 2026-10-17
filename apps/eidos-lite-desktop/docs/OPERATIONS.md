@@ -54,9 +54,34 @@ same packaged smoke independently on `macos-15` (Apple Silicon) and
 process, then starts a second isolated process that enforces the unchanged
 packaged performance budgets. This avoids treating one-time operating-system
 package discovery as a P95 sample while preserving the actual latency ceiling.
-The workflow has read-only repository permissions and no signing, artifact
-upload, release, or production-service step. A local ARM pass does not count as
-Intel evidence; Public v1 requires both remote jobs to pass.
+The workflow has read-only repository permissions and no signing, release, or
+production-service step. A manual run with `retain_staging_packages=true`
+retains both macOS staging apps for three days after verifying registry-only
+Graft dependencies. Each archive includes its checksum and build identity;
+ordinary packaged smoke results remain separate from E2EE acceptance. A local
+ARM pass does not count as Intel evidence; Public v1 requires both remote jobs
+to pass.
+
+For encrypted packaged acceptance, verify the retained `SHA256SUMS`, extract
+the app, and invoke its exact executable with a new evidence directory:
+
+```bash
+node apps/eidos-lite-desktop/scripts/packaged-encrypted-staging-smoke.mjs \
+  --app="/absolute/Eidos Lite.app/Contents/MacOS/Eidos Lite" \
+  --evidence=/absolute/new-evidence-directory \
+  --account-state=/absolute/owner-only/oauth-session.bin
+```
+
+Use an authorized staging account state protected by this Mac's system secure
+storage, or supply `--token-file` with an owner-only staging token file instead.
+The runner rejects production builds, source snapshots, and native overrides.
+It invokes the bundled canonical fixture engine, performs encrypted enrollment
+and clone, then starts a fresh process to verify remembered unlock and restored
+content. Private reports record the executable, ASAR, native addon, fixture
+engine hashes, and both process identities. Registry provenance additionally
+comes from the workflow's verified dependency graph and exact archive identity.
+This gate covers the retained staging package; signed production distribution
+and actual lock, sleep, and wake behavior require separate acceptance.
 
 The performance load gate measures the real Space tree walker, recursive
 watcher, native Eidos File validation/open path, and generated canonical
@@ -450,18 +475,18 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   output path. A confirmed export writes only the generated CSV bytes to the
   location selected by the native save dialog; it never changes the Space.
 
-- **First Sync scope contains hidden or secret-like paths:** display the local
-  paths and keep confirmation unchecked. Do not provision a Remote until the
-  user explicitly accepts the complete manifest. Classification uses names and
-  filesystem metadata only; it never reads or logs file contents.
-- **First Sync scope contains a file of at least 100 MiB:** show its size and
-  require the same explicit risk confirmation. Files over 1 GiB, symlinks, and
-  unsupported filesystem entries block Sync rather than relying on a later
-  HTTP 413 or following a link outside the Space.
-- **The Space changes after scope review:** recompute the SHA-256 manifest and
-  reject the stale approval. If Remote provisioning raced with the second
+- **First Sync scope:** show file count, total size, and exclusions. Hidden
+  paths, filename keywords, and files within the supported size limit do not
+  require an additional confirmation. An already tracked file that matches an
+  ignore rule remains included, with an informational explanation.
+- **First Sync scope contains an unsupported entry:** files over 1 GiB,
+  symlinks, and unsupported filesystem entries block activation. Show the
+  affected paths so the user can resolve the actual limitation before retrying.
+- **The Space changes while enabling Sync:** recompute the SHA-256 manifest
+  and reject the stale request. If Remote provisioning raced with the second
   check, leave the deterministic empty Remote unconnected and retry the same
-  repository after a fresh review; never configure or push the widened scope.
+  repository after refreshing the file list; never configure or push an
+  unchecked upload set.
 - **The same Space is opened through another path or symlink:** canonicalize
   and focus the reserved/existing window before opening Graft or SQLite. Never
   create a second repository session for the alias.

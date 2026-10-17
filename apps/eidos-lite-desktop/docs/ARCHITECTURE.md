@@ -438,14 +438,16 @@ not alter Local mode. The current activation flow is deliberately split:
    existing repository but cannot provision or push.
 7. Before Remote provisioning, main builds a whole-Space manifest from local
    filesystem metadata. The renderer receives file count, `.eidos` count, total
-   bytes, actual exclusions, and risk paths, but no file contents. `.graft`, OS
-   noise, and SQLite sidecars are excluded. Hidden and secret-like paths plus
-   files at least 100 MiB require an unchecked explicit confirmation. Symlinks,
-   unsupported filesystem entries, and files over 1 GiB block activation.
-8. The approval carries a SHA-256 manifest identity. Main recomputes and checks
+   bytes, actual exclusions, and unsupported paths, but no file contents.
+   `.graft`, OS noise, and SQLite sidecars are excluded. Hidden paths, filename
+   keywords, and supported file sizes require no additional confirmation.
+   Tracked files matching ignore rules remain included with an informational
+   explanation. Symlinks, unsupported filesystem entries, and files over 1 GiB
+   block activation.
+8. The activation request carries a SHA-256 manifest identity. Main recomputes and checks
    it before provisioning, then checks it again before configuring Graft or
-   pushing. A concurrent local change invalidates the approval and returns the
-   user to scope review instead of silently widening the upload.
+   pushing. A concurrent local change invalidates the request and asks the user
+   to refresh the file list before retrying.
 9. With `read_write`, main provisions one deterministic repository for the
    Space through the Hosted Remote control plane. It then closes `.eidos`
    handles, configures the exact official Remote with Graft, pushes the whole
