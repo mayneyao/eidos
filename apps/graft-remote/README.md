@@ -24,13 +24,12 @@ Wire behavior comes from the upstream `eidos-space/graft` packages:
 - @eidos.space/graft-remote-cloudflare owns the R2 and SQLite Durable Object
   backend.
 
-The package manifest names the three Remote packages at `0.2.4`. During source
-candidate development, workspace overrides resolve them to digest-verified
-archives in [`vendor/graft-e2ee`](../../vendor/graft-e2ee/README.md); check the
-lockfile and provenance rather than assuming the registry package with the same
-version contains E2EE. Eidos-specific code adapts account and quota policy and
+The package manifest pins all three Remote packages to registry version
+`0.2.5`. Production deployment checks reject local overrides and require the
+lockfile and installed dependency graph to resolve that exact cohort with
+registry integrity. Eidos-specific code adapts account and quota policy and
 does not reimplement the encrypted protocol. Release proof must identify the
-exact resolved dependency and its passed service/client compatibility checks.
+resolved packages and their passed service/client compatibility checks.
 
 The encrypted profile, server configuration, rollout controls, migration,
 recovery, and production acceptance are documented in

@@ -76,7 +76,7 @@ const staleSpace: SpaceSnapshot = {
   graft: {
     available: true,
     backend: "sdk",
-    expectedVersion: "0.3.30",
+    expectedVersion: "0.3.31",
     initialized: false,
   },
 }
