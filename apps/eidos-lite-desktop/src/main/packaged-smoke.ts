@@ -880,6 +880,7 @@ const rendererProbe = `
         : !candidateBadge
       return candidate?.dataset.syncAccountState === "signed-out" &&
         candidate.dataset.syncEnvironment === expectedServices.name &&
+        Boolean(candidate.querySelector("[data-sync-sign-in]")) &&
         badgeMatches
         ? candidate
         : null
