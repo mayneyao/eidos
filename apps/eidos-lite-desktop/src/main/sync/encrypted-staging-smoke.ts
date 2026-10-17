@@ -11,7 +11,15 @@ import { createRememberedSyncUnlocks } from "./create-remembered-sync-unlocks"
 import { RememberedSyncUnlockStore } from "./remembered-sync-unlocks"
 import { createSyncControlPlane } from "./create-sync-control-plane"
 import type { FileEntry } from "@eidos.space/eidos-file"
-import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
+import {
+  EIDOS_LITE_SERVICE_ENVIRONMENTS,
+  resolveEidosLiteServiceEnvironment,
+  runtimeEnvironmentOverride,
+} from "../../shared/service-environment"
+import {
+  assertPrivateStagingPath,
+  stagingFixtureCli,
+} from "./encrypted-staging-smoke-policy"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import { GraftClient } from "../graft/graft-client"
 import { assertSpaceRepositoryBoundary } from "../graft/space-repository-boundary"
@@ -24,8 +32,11 @@ import { SpaceCloneCoordinator } from "./space-clone-coordinator"
 import { classifySyncFailure } from "./sync-failure"
 
 const execute = promisify(execFile)
+function fixtureCli(): string {
+  return stagingFixtureCli(app.isPackaged, process.resourcesPath)
+}
 async function cli<Result>(args: string[]): Promise<Result> {
-  const { stdout } = await execute("eidos", ["--json", ...args], {
+  const { stdout } = await execute(fixtureCli(), ["--json", ...args], {
     maxBuffer: 4 * 1024 * 1024,
   })
   return JSON.parse(stdout) as Result
@@ -54,13 +65,17 @@ async function stagingCredentials(
   accountStatePath?: string
 ) {
   assert(
-    !app.isPackaged,
-    "Staging encrypted smoke requires a development build"
+    resolveEidosLiteServiceEnvironment(
+      runtimeEnvironmentOverride(
+        app.isPackaged,
+        process.env.EIDOS_LITE_ENVIRONMENT
+      )
+    ).name === "staging",
+    "Staging encrypted smoke requires a staging build"
   )
   const credentialPath = tokenPath ?? accountStatePath
   assert(credentialPath, "Staging credentials are required")
-  const tokenStat = await fs.stat(credentialPath)
-  assert((tokenStat.mode & 0o077) === 0, "Token file must be owner-only")
+  assertPrivateStagingPath(credentialPath, "file")
   const stored = tokenPath
     ? null
     : await new SecureAccountCredentialStore(credentialPath, {
@@ -210,13 +225,16 @@ export async function runEncryptedStagingSmoke(
     }))
   )
   let session: SpaceSession | null = null
+  let sdkVersion: string | undefined
   const checks: string[] = []
   try {
+    const graft = createGraft()
     session = await SpaceSession.create(source, path.join(root, "device-a"), {
-      graft: createGraft(),
+      graft,
       workerPath: runtimeWorker,
     })
     await session.enableVersioning()
+    sdkVersion = await graft.version()
     const preflight = await session.syncPreflight()
     assert(
       preflight.blockerCount === 0,
@@ -635,6 +653,11 @@ export async function runEncryptedStagingSmoke(
         {
           status: "passed",
           environment: "staging",
+          packaged: app.isPackaged,
+          appVersion: app.getVersion(),
+          executable: process.execPath,
+          fixtureCli: fixtureCli(),
+          sdkVersion,
           processId: process.pid,
           repository: repositoryName,
           remoteUrl: provisioned.remoteUrl,
@@ -799,8 +822,7 @@ export async function runRememberedStagingRestore(
     tokenPath,
     accountStatePath
   )
-  const metadata = await fs.stat(enrollmentPath)
-  assert((metadata.mode & 0o077) === 0, "Enrollment report must be owner-only")
+  assertPrivateStagingPath(enrollmentPath, "file")
   const enrollment = JSON.parse(await fs.readFile(enrollmentPath, "utf8")) as {
     status: string
     fixtureRoot: string
@@ -823,14 +845,15 @@ export async function runRememberedStagingRestore(
   const runtimeWorker = fileURLToPath(
     new URL("./runtime-worker.js", import.meta.url)
   )
+  const graft = new GraftClient({
+    syncRemoteOrigin: environment.syncRemoteOrigin,
+    sdkTransport: new GraftUtilityTransport(worker),
+  })
   const session = await SpaceSession.create(
     restored,
     path.join(enrollment.fixtureRoot, "device-b"),
     {
-      graft: new GraftClient({
-        syncRemoteOrigin: environment.syncRemoteOrigin,
-        sdkTransport: new GraftUtilityTransport(worker),
-      }),
+      graft,
       workerPath: runtimeWorker,
     }
   )
@@ -904,6 +927,7 @@ export async function runRememberedStagingRestore(
       "--limit",
       "10",
     ])
+    const sdkVersion = await graft.version()
     assert(
       digest(Buffer.from(JSON.stringify(recovered.rows))) ===
         enrollment.sqlite.rowContentSha256,
@@ -973,6 +997,11 @@ export async function runRememberedStagingRestore(
         {
           status: "passed",
           environment: "staging",
+          packaged: app.isPackaged,
+          appVersion: app.getVersion(),
+          executable: process.execPath,
+          fixtureCli: fixtureCli(),
+          sdkVersion,
           processId: process.pid,
           enrollmentProcessId: enrollment.processId,
           enrollmentReport: enrollmentPath,

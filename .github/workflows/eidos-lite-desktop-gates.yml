@@ -2,6 +2,11 @@ name: Eidos Lite Desktop Gates
 
 on:
   workflow_dispatch:
+    inputs:
+      retain_staging_packages:
+        description: "Retain unsigned macOS staging apps for separate installed E2EE acceptance"
+        type: boolean
+        default: false
   push:
     branches:
       - dev
@@ -187,12 +192,97 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build unsigned staging package
+        id: staging-package
         run: pnpm build:eidos-lite:dev
 
       - name: Observe fresh packaged smoke
+        id: observed-smoke
         env:
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
         run: pnpm smoke:eidos-lite-packaged
 
       - name: Enforce packaged performance
+        id: enforced-smoke
         run: pnpm smoke:eidos-lite-packaged
+
+      - name: Archive staging app and exact build identity
+        id: staging-archive
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-package.outcome == 'success' }}
+        env:
+          PACKAGE_ARCHITECTURE: ${{ matrix.architecture }}
+          OBSERVED_SMOKE_OUTCOME: ${{ steps.observed-smoke.outcome }}
+          ENFORCED_SMOKE_OUTCOME: ${{ steps.enforced-smoke.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/eidos-lite-desktop/scripts/verify-build-environment.mjs staging
+          node apps/eidos-lite-desktop/scripts/verify-graft-release.mjs
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import plistlib
+          import subprocess
+
+          root = pathlib.Path.cwd()
+          app_root = root / "apps/eidos-lite-desktop"
+          applications = list((app_root / "dist-app").glob("mac*/Eidos Lite.app"))
+          if len(applications) != 1:
+              raise RuntimeError(f"Expected one built staging app, found {len(applications)}")
+          application = applications[0]
+          resources = application / "Contents/Resources"
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "lite-staging-package"
+          output.mkdir()
+          archive = output / f"eidos-lite-staging-macos-{os.environ['PACKAGE_ARCHITECTURE']}.zip"
+          subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(application), str(archive)], check=True)
+
+          def digest(filename):
+              value = hashlib.sha256()
+              with filename.open("rb") as source:
+                  for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          native_files = sorted(resources.rglob("graft-sdk.*.node"))
+          if not native_files:
+              raise RuntimeError("Packaged Graft native addon is missing")
+          package = json.loads((app_root / "package.json").read_text())
+          with (application / "Contents/Info.plist").open("rb") as source:
+              bundle = plistlib.load(source)
+          identity = {
+              "sourceCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "architecture": os.environ["PACKAGE_ARCHITECTURE"],
+              "bundleIdentifier": bundle["CFBundleIdentifier"],
+              "bundleVersion": bundle["CFBundleShortVersionString"],
+              "signingPolicy": "unsigned staging; not a production release",
+              "buildEnvironment": json.loads((app_root / "dist-electron/eidos-lite-build-environment.json").read_text()),
+              "graftBuildPolicy": json.loads((app_root / "dist-electron/graft-sdk-build-policy.json").read_text()),
+              "registryDependenciesVerified": True,
+              "declaredGraftVersion": package["dependencies"]["@eidos.space/graft"],
+              "lockfileSha256": digest(root / "pnpm-lock.yaml"),
+              "appAsarSha256": digest(resources / "app.asar"),
+              "nativeSha256": {str(p.relative_to(application)): digest(p) for p in native_files},
+              "archive": {"name": archive.name, "sha256": digest(archive)},
+              "genericPackagedSmoke": {
+                  "observe": os.environ["OBSERVED_SMOKE_OUTCOME"],
+                  "enforce": os.environ["ENFORCED_SMOKE_OUTCOME"],
+              },
+              "e2eeAcceptance": "not run by this workflow; requires separate installed acceptance",
+          }
+          manifest = output / "identity.json"
+          manifest.write_text(json.dumps(identity, indent=2) + "\n")
+          (output / "SHA256SUMS").write_text("".join(f"{digest(p)}  {p.name}\n" for p in [archive, manifest]))
+          PY
+
+      - name: Retain staging app for installed acceptance
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-archive.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: eidos-lite-staging-macos-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lite-staging-package
+          if-no-files-found: error
+          retention-days: 3

@@ -21,6 +21,10 @@ import { launchFilePathsFromArguments } from "./launch-intent"
 import { pluginInstallIdsFromArguments } from "./plugin-install-link"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
+import {
+  encryptedStagingSmokeRequest,
+  prepareEncryptedStagingSmokeProfile,
+} from "./sync/encrypted-staging-smoke-policy"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
 import { EidosLiteUpdater, type EidosLiteAutoUpdater } from "./updater"
 import { WindowController } from "./window-controller"
@@ -67,6 +71,11 @@ const bootstrapStartedAtMs =
 
 app.setName("Eidos Lite")
 
+const services = resolveEidosLiteServiceEnvironment(
+  runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
+)
+declare const __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__: boolean | undefined
+
 // Keep plugin development and verification separate from everyday user data.
 const developmentUserData = process.env.EIDOS_LITE_DEV_USER_DATA
 if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL && developmentUserData) {
@@ -78,20 +87,25 @@ if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL && developmentUserData) {
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT
-const encryptedSmokeResult = !app.isPackaged
-  ? process.env.EIDOS_LITE_STAGING_E2EE_RESULT
-  : undefined
+const encryptedSmokeResult = encryptedStagingSmokeRequest({
+  packaged: app.isPackaged,
+  environment: services.name,
+  sourceSnapshot:
+    typeof __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__ === "boolean" &&
+    __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__,
+  variables: process.env,
+})
 if (encryptedSmokeResult) {
-  if (!path.isAbsolute(encryptedSmokeResult))
-    throw new Error("Staging smoke result path must be absolute")
-  const directory = path.join(
-    path.dirname(encryptedSmokeResult),
-    "app-user-data"
+  const directory = prepareEncryptedStagingSmokeProfile(
+    encryptedSmokeResult,
+    app.getPath("userData"),
+    process.env
   )
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
   app.setPath("userData", directory)
 }
-const isPackagedSmoke = Boolean(smokeSpace || smokeResult)
+const isPackagedSmoke = Boolean(
+  smokeSpace || smokeResult || encryptedSmokeResult
+)
 const smokeLaunchedAtMs = Number(process.env.EIDOS_LITE_SMOKE_LAUNCHED_AT_MS)
 let smokeUserData: string | null = null
 if (smokeResult) {
@@ -110,9 +124,6 @@ if (!hasSingleInstanceLock) {
   process.exit(isPackagedSmoke ? 2 : 0)
 }
 
-const services = resolveEidosLiteServiceEnvironment(
-  runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
-)
 if (encryptedSmokeResult) {
   app.setAppLogsPath(path.join(app.getPath("userData"), "logs"))
 } else if (smokeUserData) {
