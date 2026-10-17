@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import {
   parseRequest,
   PluginError,
@@ -10,7 +10,6 @@ import type { PluginOpenResult, PluginRpcResult } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { pluginTheme } from "./plugin-theme"
-import { PluginResource } from "./plugin-resource"
 import { resourceClipPath } from "./plugin-resource-clip"
 import type {
   PluginResourceContent,
@@ -18,6 +17,11 @@ import type {
 } from "../shared/plugins"
 
 type Instance = NonNullable<PluginOpenResult["instance"]>
+const PluginResource = lazy(async () => {
+  const module = await import("./plugin-resource")
+  return { default: module.PluginResource }
+})
+
 export function PluginEditor({
   instance,
   onDraft,
@@ -482,7 +486,15 @@ export function PluginEditor({
                     clipPath: r ? resourceClipPath(r) : undefined,
                   }}
                 >
-                  <PluginResource content={resource.content} />
+                  <Suspense
+                    fallback={
+                      <div className="editor-empty" role="status">
+                        {t("Loading…")}
+                      </div>
+                    }
+                  >
+                    <PluginResource content={resource.content} />
+                  </Suspense>
                 </div>
               )
             })}

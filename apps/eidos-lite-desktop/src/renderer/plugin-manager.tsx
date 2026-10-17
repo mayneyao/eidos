@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -29,12 +31,16 @@ import { useEidosLiteI18n } from "./i18n"
 import { PluginPage } from "./plugin-workspace"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginMarketplaceView } from "./plugin-marketplace"
-import { PluginDetailView } from "./plugin-detail-view"
 import { PluginDropZone } from "./plugin-drop-zone"
 import { isMarkdownTextFile } from "./text-editor-options"
 import { ExplorerPicker, explorerChoices } from "./plugin-explorer"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
+const PluginDetailView = lazy(async () => {
+  const module = await import("./plugin-detail-view")
+  return { default: module.PluginDetailView }
+})
+
 export function PluginManager({
   spaceAvailable = false,
   onOpenPage,
@@ -365,48 +371,56 @@ export function PluginManager({
     const manifest = plugin?.manifest
     return withDropZone(
       <div ref={surface}>
-        <PluginDetailView
-          plugin={plugin}
-          builtin={builtin}
-          marketplacePlugin={matchedMarketplacePlugin}
-          spaceAvailable={spaceAvailable}
-          busy={busy}
-          installTask={
-            matchedMarketplacePlugin
-              ? installTasks[matchedMarketplacePlugin.id]
-              : undefined
+        <Suspense
+          fallback={
+            <div className="plugin-manager-empty" role="status">
+              {t("Loading…")}
+            </div>
           }
-          installDisabled={Boolean(marketplace?.cached)}
-          error={error}
-          variant={variant}
-          onBack={() => setSelected(null)}
-          onOpenPage={onOpenPage}
-          onInstall={() => {
-            const id = plugin?.manifest.id ?? matchedMarketplacePlugin?.id
-            if (!id) return
-            installMarketplacePlugin(id)
-          }}
-          onToggleEnable={() => {
-            if (!plugin || !manifest) return
-            return run(() =>
-              window.eidosLite.setPluginEnabled(manifest.id, !plugin.enabled)
-            )
-          }}
-          onSelectTheme={() => {
-            if (!plugin?.manifest.theme) return
-            return run(() =>
-              window.eidosLite.selectPluginTheme(
-                listing?.activeThemeId === plugin.manifest.id
-                  ? null
-                  : plugin.manifest.id
+        >
+          <PluginDetailView
+            plugin={plugin}
+            builtin={builtin}
+            marketplacePlugin={matchedMarketplacePlugin}
+            spaceAvailable={spaceAvailable}
+            busy={busy}
+            installTask={
+              matchedMarketplacePlugin
+                ? installTasks[matchedMarketplacePlugin.id]
+                : undefined
+            }
+            installDisabled={Boolean(marketplace?.cached)}
+            error={error}
+            variant={variant}
+            onBack={() => setSelected(null)}
+            onOpenPage={onOpenPage}
+            onInstall={() => {
+              const id = plugin?.manifest.id ?? matchedMarketplacePlugin?.id
+              if (!id) return
+              installMarketplacePlugin(id)
+            }}
+            onToggleEnable={() => {
+              if (!plugin || !manifest) return
+              return run(() =>
+                window.eidosLite.setPluginEnabled(manifest.id, !plugin.enabled)
               )
-            )
-          }}
-          onUninstall={() => {
-            if (!plugin || !manifest) return
-            return run(() => window.eidosLite.uninstallPlugin(manifest.id))
-          }}
-        />
+            }}
+            onSelectTheme={() => {
+              if (!plugin?.manifest.theme) return
+              return run(() =>
+                window.eidosLite.selectPluginTheme(
+                  listing?.activeThemeId === plugin.manifest.id
+                    ? null
+                    : plugin.manifest.id
+                )
+              )
+            }}
+            onUninstall={() => {
+              if (!plugin || !manifest) return
+              return run(() => window.eidosLite.uninstallPlugin(manifest.id))
+            }}
+          />
+        </Suspense>
       </div>
     )
   }
