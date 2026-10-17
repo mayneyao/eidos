@@ -1,9 +1,56 @@
 import assert from "node:assert/strict"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import test from "node:test"
 import {
+  assertEncryptedRemote,
   assertEncryptedSdk,
   validateGraftReleaseInputs,
 } from "./verify-graft-release.mjs"
+
+test("checks import-only Remote exports from each consuming project's dependency", async (t) => {
+  const temporary = await fs.mkdtemp(
+    path.join(os.tmpdir(), "graft-release-import-")
+  )
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }))
+  const consumer = async (name, source) => {
+    const directory = path.join(temporary, name)
+    const dependency = path.join(
+      directory,
+      "node_modules/@eidos.space/graft-remote"
+    )
+    await fs.mkdir(path.join(dependency, "dist"), { recursive: true })
+    await fs.writeFile(
+      path.join(dependency, "package.json"),
+      JSON.stringify({
+        name: "@eidos.space/graft-remote",
+        type: "module",
+        exports: {
+          ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
+        },
+      })
+    )
+    await fs.writeFile(path.join(dependency, "dist/index.js"), source)
+    return directory
+  }
+  const lite = await consumer(
+    "lite",
+    "export function parseEncryptedRoutingHint() {}"
+  )
+  const remote = await consumer("remote", "export const legacyRemoteApi = true")
+
+  assert.doesNotThrow(() => assertEncryptedRemote(lite))
+  assert.throws(
+    () => assertEncryptedRemote(remote),
+    /Published Graft Remote does not provide the encrypted remote API/
+  )
+  await fs.writeFile(
+    path.join(remote, "node_modules/@eidos.space/graft-remote/dist/index.js"),
+    "export function parseEncryptedRoutingHint() {}"
+  )
+  assert.doesNotThrow(() => assertEncryptedRemote(remote))
+})
 
 function fixture() {
   const sdk = "0.3.31"

@@ -1,7 +1,8 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 import { parse } from "yaml"
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -138,6 +139,23 @@ export function assertEncryptedSdk(sdk, version) {
   )
 }
 
+export function assertEncryptedRemote(packageRoot) {
+  // Resolve with Node's import condition from the consuming project's directory.
+  // Remote intentionally has import-only exports; require.resolve rejects it.
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `import * as remote from "@eidos.space/graft-remote";
+if (typeof remote.parseEncryptedRoutingHint !== "function") {
+  throw new Error("Published Graft Remote does not provide the encrypted remote API");
+}`,
+    ],
+    { cwd: packageRoot, stdio: "pipe" }
+  )
+}
+
 async function verify(surface) {
   const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"))
   const [lite, remote, workspace, lock, installedLock] = await Promise.all([
@@ -177,17 +195,9 @@ async function verify(surface) {
       lite.dependencies["@eidos.space/graft"]
     )
   }
-  const packageRequire =
-    surface === "lite"
-      ? require
-      : createRequire(path.join(root, "apps/graft-remote/package.json"))
-  const remoteModule = await import(
-    pathToFileURL(packageRequire.resolve(remoteNames[0])).href
+  assertEncryptedRemote(
+    surface === "lite" ? appRoot : path.join(root, "apps/graft-remote")
   )
-  if (typeof remoteModule.parseEncryptedRoutingHint !== "function")
-    throw new Error(
-      "Published Graft Remote does not provide the encrypted remote API"
-    )
   console.log(
     `Verified registry-only Graft ${surface} dependencies and ${surface === "lite" ? "native/remote" : "remote"} E2EE APIs.`
   )
