@@ -470,14 +470,11 @@ names, and version messages are encrypted. Cloud quota includes historical
 objects and encryption overhead, so deleting a current file does not immediately
 reclaim its historical storage.
 
-Existing ordinary origins are not converted in place. Preserve the original
-folder, history, and connection and migrate a separate complete copy to a new
-encrypted repository. Lite has no one-click history-preserving migration UI;
-ordinary-file Recovery Spaces do not include the original history. The
-[operations runbook](../graft-remote/docs/ENCRYPTED-SYNC-OPERATIONS.md) describes
-the controlled full-history migration, independent verification, and rollback
-boundary. Never remove `.graft` or overwrite the original origin to bypass a
-profile conflict. The [English](https://docs.eidos.space/user-guide/sync/)
+Manage and delete cloud repositories in
+[Account → Sync → Repositories](https://eidos.space/account?tab=sync&view=repositories).
+Deletion permanently removes the selected cloud files and history after active
+requests drain; local files and local history remain available. Cloud storage
+usage updates after cleanup completes. The [English](https://docs.eidos.space/user-guide/sync/)
 and [Chinese](https://docs.eidos.space/zh-cn/user-guide/sync/) user guides describe
 normal connection, saved-version transfer, password, and recovery workflows.
 
