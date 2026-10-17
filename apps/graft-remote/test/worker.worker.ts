@@ -336,7 +336,7 @@ describe("eidos.space Graft Remote", () => {
     expect(calls).toBe(5)
   })
 
-  it("performs one identity and directory lookup for a protocol request burst", async () => {
+  it("caches identity and repository metadata while retaining live request admission", async () => {
     let now = 20_000
     let authCalls = 0
     let directoryCalls = 0
@@ -345,6 +345,12 @@ describe("eidos.space Graft Remote", () => {
       namespace: "u-burst",
       syncAccess: activeAccessGrant(),
     }
+    await env.GRAFT_DIRECTORY.getByName(principal.namespace).createRepository(
+      principal.namespace,
+      "space",
+      "Space",
+      principal.userId
+    )
     const worker = createGraftRemoteWorker({
       authenticate: createCachedEidosAuthenticator(
         async () => {
@@ -1464,6 +1470,12 @@ describe("eidos.space Graft Remote", () => {
     expect(await unavailable.text()).not.toContain("simulated")
 
     const failingBackend = throwingBackend()
+    await env.GRAFT_DIRECTORY.getByName("u-test").createRepository(
+      "u-test",
+      "repository",
+      "repository",
+      "test-user"
+    )
     const worker = createGraftRemoteWorker({
       async authenticate() {
         return {

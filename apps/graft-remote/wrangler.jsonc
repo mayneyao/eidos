@@ -74,6 +74,9 @@
     "SyncAdminEntrypoint": {
       "type": "worker",
     },
+    "SyncAccountEntrypoint": {
+      "type": "worker",
+    },
   },
   "observability": {
     "enabled": true,
