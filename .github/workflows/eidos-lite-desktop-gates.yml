@@ -150,8 +150,8 @@ jobs:
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 
-      - name: Test Graft release dependency guard
-        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs
+      - name: Test Graft release dependency and packaging guards
+        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs apps/eidos-lite-desktop/scripts/electron-builder-config.test.mjs
 
       - name: Test node:sqlite EA-Connection contract
         run: pnpm --filter @eidos.space/eidos-file test:node-sqlite

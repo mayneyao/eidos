@@ -1,18 +1,7 @@
 {
   "extends": "electron-builder.json",
   "extraResources": [
-    {
-      "from": "node_modules/typescript/lib",
-      "to": "app.asar.unpacked/node_modules/typescript/lib",
-      "filter": ["*.d.ts"]
-    },
-    { "from": "resources/graft-e2ee", "to": "graft-e2ee", "filter": ["**/*"] },
-    {
-      "from": "resources/publish-engine",
-      "to": "publish-engine",
-      "filter": ["**/*"]
-    },
-    { "from": "resources/vtab", "to": "vtab", "filter": ["**/*"] }
+    { "from": "resources/graft-e2ee", "to": "graft-e2ee", "filter": ["**/*"] }
   ],
   "mac": {
     "forceCodeSigning": false,
