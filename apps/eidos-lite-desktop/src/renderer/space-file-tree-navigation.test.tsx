@@ -40,7 +40,9 @@ const folder = (children: SpaceTreeEntry[]): SpaceTreeEntry => ({
   size: 0,
   modifiedAtMs: 1,
   children,
-  childrenLoaded: children.length > 0,
+  // This navigation fixture supplies complete directory snapshots, including
+  // empty folders. Loading behavior is covered by the interaction tests.
+  childrenLoaded: true,
 })
 
 it("reveals navigation once, preserves folder browsing, and retries when a missing document arrives", async () => {
