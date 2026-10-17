@@ -4,7 +4,6 @@ import {
   type GraftRepositoryBackend,
 } from "@eidos.space/graft-remote"
 import {
-  RepositoryDurableObject,
   openCloudflareRepository,
   createEncryptedCloudflareRepository,
 } from "@eidos.space/graft-remote-cloudflare"
@@ -39,6 +38,8 @@ import {
   quotaMode,
 } from "./quota-backend"
 import { SyncUsageDurableObject, type SyncUsageSummary } from "./usage"
+import { RepositoryDurableObject } from "./repository"
+export { SyncAccountEntrypoint } from "./account"
 
 export {
   RepositoryDurableObject,
@@ -58,6 +59,11 @@ type AppEnv = {
   Variables: {
     requestTiming: RequestTiming
     principal?: EidosPrincipal
+    repositoryLease?: {
+      stub: DurableObjectStub<RepositoryDirectoryDurableObject>
+      id: string
+      timer: ReturnType<typeof setInterval>
+    }
   }
 }
 
@@ -215,7 +221,23 @@ export function createGraftRemoteWorker(
       directoryMs: 0,
     }
     context.set("requestTiming", timing)
-    await next()
+    try {
+      await next()
+    } finally {
+      const lease = context.get("repositoryLease")
+      if (lease !== undefined) {
+        clearInterval(lease.timer)
+        try {
+          await lease.stub.finishRequest(lease.id)
+        } catch {
+          console.error(
+            JSON.stringify({
+              message: "Sync request admission cleanup will expire",
+            })
+          )
+        }
+      }
+    }
     const principal = context.get("principal")
     const kind = successfulActivityKind(context.req.raw, context.res.status)
     if (principal !== undefined && kind !== null) {
@@ -320,12 +342,24 @@ export function createGraftRemoteWorker(
       displayName
     )
     if (!result.ok) {
+      if (result.reason === "repository_deleted")
+        throw new GraftProtocolError(
+          410,
+          "repository_deleted",
+          "This cloud repository was deleted"
+        )
       throw new GraftProtocolError(
         403,
         "forbidden",
         "Repository namespace access denied"
       )
     }
+    if (!(await admitRepositoryRequest(context, principal, name)))
+      throw new GraftProtocolError(
+        404,
+        "repository_not_found",
+        "Repository not found"
+      )
     const retained = await encryptionDescriptor(
       context.env,
       result.repository.id
@@ -470,7 +504,12 @@ export function createGraftRemoteWorker(
             repository.name
           )
       )
-      return record === null
+      return record === null ||
+        !(await admitRepositoryRequest(
+          adapterContext,
+          principal,
+          repository.name
+        ))
         ? null
         : dependencies.createBackend(
             adapterContext.env,
@@ -504,6 +543,26 @@ export function createGraftRemoteWorker(
   })
 
   return app
+}
+
+async function admitRepositoryRequest(
+  context: Context<AppEnv>,
+  principal: EidosPrincipal,
+  name: string
+): Promise<boolean> {
+  if (context.get("repositoryLease") !== undefined) return true
+  const stub = directory(context.env, principal)
+  const id = crypto.randomUUID()
+  if (!(await stub.acquireRequest(name, principal.userId, id))) return false
+  const timer = setInterval(() => {
+    void stub.renewRequest(id).catch(() => {
+      console.error(
+        JSON.stringify({ message: "Sync request admission renewal failed" })
+      )
+    })
+  }, 20_000)
+  context.set("repositoryLease", { stub, id, timer })
+  return true
 }
 
 async function measureRequestPhase<T>(

@@ -276,7 +276,7 @@ function invalidAccessResponse(): GraftProtocolError {
   )
 }
 
-async function namespaceForUser(userId: string): Promise<string> {
+export async function namespaceForUser(userId: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(userId)

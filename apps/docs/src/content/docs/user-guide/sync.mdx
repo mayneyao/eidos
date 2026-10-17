@@ -92,8 +92,8 @@ For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#la
 
 ## Use cloud sync
 
-In **0.24.0-beta.1**, creating new end-to-end encrypted cloud Spaces is not yet
-available on the production service. Updating Lite does not enable it. Local
+Creating new end-to-end encrypted cloud Spaces is not yet available on the
+production service. Updating Lite does not enable it. Local
 files, local version history, and LAN sync remain available. The setup below
 applies to service environments where encrypted cloud connections are enabled.
 
@@ -190,6 +190,20 @@ immediately remove its historical copies or free the associated quota. Check
 your [account dashboard](https://eidos.space/account) for storage and access
 limits. If uploads are blocked by quota or account access, keep working locally
 and resolve the limit before retrying.
+
+### Delete a cloud repository
+
+Open [Account → Sync → Repositories](https://eidos.space/account?tab=sync&view=repositories).
+Check the repository name and creation date, select **Delete**, and confirm the
+permanent deletion. The page shows **Deleting…** until cloud cleanup finishes;
+refresh the page if cleanup continues in the background. Storage usage updates
+after cleanup completes.
+
+Deleting a repository permanently removes all of its cloud files and saved
+history. Local files and local history remain on each computer, including copies
+already downloaded on other devices. The deleted connection can no longer
+upload or download. Back up any local copy you want to keep before removing it
+from your computer. Deleting a repository does not cancel your subscription.
 
 ## Keep a separate backup
 
