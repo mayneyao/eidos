@@ -31,8 +31,33 @@ describe("Eidos Lite service environments", () => {
   })
 
   it("keeps packaged applications on their compiled environment", () => {
-    expect(runtimeEnvironmentOverride(true, "staging")).toBeUndefined()
-    expect(runtimeEnvironmentOverride(true, "production")).toBeUndefined()
+    expect(runtimeEnvironmentOverride(true, "staging")).toBeNull()
+    expect(runtimeEnvironmentOverride(true, "production")).toBeNull()
     expect(runtimeEnvironmentOverride(false, "production")).toBe("production")
   })
+
+  it.each(["staging", "production", "http://localhost:8787"])(
+    "does not re-read runtime override %s in a production package",
+    (override) => {
+      const previous = process.env.EIDOS_LITE_ENVIRONMENT
+      process.env.EIDOS_LITE_ENVIRONMENT = override
+      try {
+        expect(
+          resolveEidosLiteServiceEnvironment(
+            runtimeEnvironmentOverride(true, override),
+            "production"
+          )
+        ).toBe(EIDOS_LITE_SERVICE_ENVIRONMENTS.production)
+        expect(
+          resolveEidosLiteServiceEnvironment(
+            runtimeEnvironmentOverride(true, override),
+            "staging"
+          )
+        ).toBe(EIDOS_LITE_SERVICE_ENVIRONMENTS.staging)
+      } finally {
+        if (previous === undefined) delete process.env.EIDOS_LITE_ENVIRONMENT
+        else process.env.EIDOS_LITE_ENVIRONMENT = previous
+      }
+    }
+  )
 })

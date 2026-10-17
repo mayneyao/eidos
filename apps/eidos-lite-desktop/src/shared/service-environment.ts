@@ -50,12 +50,14 @@ export function isEidosLiteEnvironmentName(
 export function runtimeEnvironmentOverride(
   packaged: boolean,
   override: string | undefined
-): string | undefined {
-  return packaged ? undefined : override
+): string | null | undefined {
+  // undefined invokes the resolver's development default argument. Use null
+  // to explicitly select the compiled preset without re-reading process.env.
+  return packaged ? null : override
 }
 
 export function resolveEidosLiteServiceEnvironment(
-  override: string | undefined = typeof process === "undefined"
+  override: string | null | undefined = typeof process === "undefined"
     ? undefined
     : process.env.EIDOS_LITE_ENVIRONMENT,
   fallback = compiledDefaultEnvironment()
