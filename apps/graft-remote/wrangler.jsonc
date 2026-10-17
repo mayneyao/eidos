@@ -13,8 +13,8 @@
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/sync/userinfo",
     "PUBLIC_REMOTE_ORIGIN": "https://sync.eidos.space",
-    // Enable only after the production canary is ready; existing encrypted reads/writes stay available.
-    "SYNC_ENCRYPTED_CREATION": "disabled",
+    // Encrypted provisioning still requires the account's enforced Sync upload grant.
+    "SYNC_ENCRYPTED_CREATION": "enabled",
     // Keep production Sync behind the first-party versioned sync_access grant.
     // Waitlist, missing, blocked, and read-only accounts stay non-writable.
     "SYNC_ACCESS_ENFORCEMENT": "enforce",

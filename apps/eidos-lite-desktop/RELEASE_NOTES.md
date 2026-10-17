@@ -1,6 +1,12 @@
-Eidos Lite 0.24.2 is available on the stable channel. New end-to-end encrypted cloud connections remain disabled in production; installing this update does not enable them. Local files and local version history continue to work offline.
+Eidos Lite 0.24.2 brings end-to-end encrypted cloud Sync to macOS and Linux. Connect your Space across computers with a Sync password. Local files and local version history remain available offline.
 
 ## What's new
+
+### End-to-end encrypted cloud Sync
+
+Sign in with an account that has Sync access, open **Sync → Cloud Sync**, set a **Sync password**, and choose **Enable Sync**. Lite encrypts file contents, paths, saved version messages and branch names on your device before upload. Use the same password when opening the cloud Space on another supported computer.
+
+Your Sync password is separate from your account password. Keep it in your password manager: Eidos cannot recover it or decrypt your cloud copy for you. Encryption protects the cloud copy; local files remain readable. Windows and mobile clients cannot open these encrypted cloud Spaces.
 
 ### Keep a file open beside your table
 

@@ -24,11 +24,12 @@ equivalent clients. Existing ordinary remotes remain a separate supported
 profile. A missing encryption module or capability must stop the encrypted
 operation; it must not retry over plaintext transport.
 
-Use the lockfile and `vendor/graft-e2ee/provenance.json` to identify a source
-candidate. Package version strings alone do not distinguish a workspace archive
-from a public registry package with the same version. Final release proof must
-use the release workflow's published dependency artifacts without local native
-path overrides, as required by the Lite release runbook.
+Use the lockfile, `verify:graft-release`, and the immutable workflow source to
+identify the published registry dependencies and their integrity. Package
+version strings alone do not distinguish a workspace archive from a public
+registry package with the same version. Final release proof must use the release
+workflow's published dependency artifacts without local native path overrides,
+as required by the Lite release runbook.
 
 ## Environment configuration
 
@@ -46,9 +47,9 @@ The account origin and remote origin must be one matched environment:
 
 `SYNC_ENCRYPTED_CREATION=enabled` permits new encrypted provisioning.
 `disabled` pauses that provisioning without disabling reads or writes for
-existing encrypted repositories. The checked-in production configuration starts
-with `disabled`; staging uses `enabled`. Enable production creation only for the
-canary step below after the release gates pass. It is a rollout control, not permission to
+existing encrypted repositories. The checked-in production and staging
+configurations use `enabled`; account access enforcement remains required.
+Verify the production canary below for every rollout. It is a rollout control, not permission to
 turn encrypted repositories into ordinary ones. Keep account access enforcement
 enabled independently of this switch. Production quota enforcement moves from
 `shadow` to `enforce` only after R2 usage reconciliation and alert verification.

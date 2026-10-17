@@ -41,7 +41,8 @@ The account UI can roll back independently while keeping the deletion-aware
 Sync Worker running. Do not remove tombstones, manually recreate repository
 metadata or restore R2 objects as an incidental rollback operation.
 
-Production encrypted creation remains controlled separately by
-`SYNC_ENCRYPTED_CREATION=disabled`. Repository management must not enable it.
+Production encrypted creation is controlled separately by
+`SYNC_ENCRYPTED_CREATION`. Pausing creation with `disabled` does not stop
+repository deletion. Repository management must not change that rollout setting.
 When updating the pinned Graft Remote package, verify the multipart maintenance
 contract in `src/repository.ts` against that version before deployment.
