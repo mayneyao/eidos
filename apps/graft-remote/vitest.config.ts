@@ -6,6 +6,7 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         bindings: {
+          SYNC_ENCRYPTED_CREATION: "enabled",
           SYNC_ACCESS_ENFORCEMENT: "enforce",
           SYNC_QUOTA_ENFORCEMENT: "shadow",
         },

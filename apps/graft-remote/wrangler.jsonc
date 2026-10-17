@@ -13,6 +13,8 @@
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/sync/userinfo",
     "PUBLIC_REMOTE_ORIGIN": "https://sync.eidos.space",
+    // Enable only after the production canary is ready; existing encrypted reads/writes stay available.
+    "SYNC_ENCRYPTED_CREATION": "disabled",
     // Keep production Sync behind the first-party versioned sync_access grant.
     // Waitlist, missing, blocked, and read-only accounts stay non-writable.
     "SYNC_ACCESS_ENFORCEMENT": "enforce",
@@ -72,6 +74,9 @@
     "SyncAdminEntrypoint": {
       "type": "worker",
     },
+    "SyncAccountEntrypoint": {
+      "type": "worker",
+    },
   },
   "observability": {
     "enabled": true,
@@ -99,6 +104,7 @@
       "vars": {
         "AUTH_USERINFO_URL": "https://staging.eidos.space/api/sync/userinfo",
         "PUBLIC_REMOTE_ORIGIN": "https://sync-staging.eidos.space",
+        "SYNC_ENCRYPTED_CREATION": "enabled",
         "SYNC_ACCESS_ENFORCEMENT": "enforce",
         "SYNC_QUOTA_ENFORCEMENT": "enforce",
       },

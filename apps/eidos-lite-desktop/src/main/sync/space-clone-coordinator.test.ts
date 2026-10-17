@@ -5,9 +5,30 @@ import path from "node:path"
 import { canonicalizeSpaceRoot } from "../space/space-paths"
 import { SpaceSyncStateStore } from "../space/sync-state"
 import { SpaceCloneCoordinator } from "./space-clone-coordinator"
+import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 
 const origin = "https://sync-staging.eidos.space"
 const remoteUrl = `${origin}/u-alice/project-space`
+
+function deferred() {
+  let resolve = () => {}
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+const encryption = (): GraftEncryptedInput => ({
+  password: Buffer.from("synthetic-clone-password"),
+  connection: {
+    url: remoteUrl,
+    uuid: "00000000-0000-4000-8000-000000000001",
+    authenticationDomain: "https://staging.eidos.space",
+    accountSubject: "alice",
+    bearerToken: "memory-only-token",
+    stateDirectory: "/unused-test-state",
+  },
+})
 
 describe("SpaceCloneCoordinator", () => {
   let root = ""
@@ -116,6 +137,155 @@ describe("SpaceCloneCoordinator", () => {
       remoteUrl,
       establishedBy: "clone",
     })
+  })
+
+  it("cancels an active encrypted transfer and waits for its client to drain", async () => {
+    const started = deferred(),
+      closing = deferred(),
+      releaseClose = deferred()
+    const target = path.join(destinations, "Encrypted Space")
+    const subject = new SpaceCloneCoordinator({
+      stateDirectory: state,
+      remoteOrigin: origin,
+      createGraftClient: () => ({
+        clone: async (directory, _remote, _token, options) => {
+          await fs.writeFile(path.join(directory, "partial.bin"), "partial")
+          started.resolve()
+          await new Promise<void>((_resolve, reject) => {
+            options?.signal?.addEventListener(
+              "abort",
+              () => reject(new Error("aborted transfer")),
+              { once: true }
+            )
+          })
+        },
+        close: async () => {
+          closing.resolve()
+          await releaseClose.promise
+        },
+      }),
+      validateWorktree: vi.fn(),
+    })
+    const result = subject.clone(
+      target,
+      remoteUrl,
+      "memory-only-token",
+      undefined,
+      undefined,
+      encryption()
+    )
+    const rejected = expect(result).rejects.toThrow("aborted transfer")
+    await started.promise
+    let drained = false
+    const cancellation = subject.cancelEncryptedClones().then(() => {
+      drained = true
+    })
+    await closing.promise
+    expect(drained).toBe(false)
+    releaseClose.resolve()
+    await cancellation
+    await rejected
+    expect(await fs.readdir(destinations)).toEqual([])
+  })
+
+  it("invalidates a queued encrypted clone without stopping the ordinary clone ahead of it", async () => {
+    const started = deferred(),
+      release = deferred()
+    const clone = vi.fn(async (directory: string) => {
+      started.resolve()
+      await release.promise
+      await fs.writeFile(path.join(directory, "project.eidos"), "valid")
+    })
+    const subject = new SpaceCloneCoordinator({
+      stateDirectory: state,
+      remoteOrigin: origin,
+      createGraftClient: () => ({ clone, close: async () => {} }),
+      validateWorktree: async () => {},
+    })
+    const ordinaryTarget = path.join(destinations, "ordinary")
+    const ordinary = subject.clone(
+      ordinaryTarget,
+      remoteUrl,
+      "memory-only-token"
+    )
+    await started.promise
+    const encrypted = subject.clone(
+      path.join(destinations, "encrypted"),
+      remoteUrl,
+      "memory-only-token",
+      undefined,
+      undefined,
+      encryption()
+    )
+    const rejected = expect(encrypted).rejects.toMatchObject({
+      code: "GRAFT_SDK_E2EE_LOCKED",
+    })
+    await subject.cancelEncryptedClones()
+    await rejected
+    expect(clone).toHaveBeenCalledOnce()
+    release.resolve()
+    await expect(ordinary).resolves.toBe(ordinaryTarget)
+    expect(await fs.readdir(destinations)).toEqual(["ordinary"])
+    expect(clone).toHaveBeenCalledOnce()
+  })
+
+  it("checks cancellation immediately before publishing verified encrypted files", async () => {
+    const target = path.join(destinations, "not-published")
+    const subject = coordinator()
+    let cancelled: Promise<void> | undefined
+    const result = subject.clone(
+      target,
+      remoteUrl,
+      "memory-only-token",
+      (phase) => {
+        if (phase === "publishing") cancelled = subject.cancelEncryptedClones()
+      },
+      undefined,
+      encryption()
+    )
+    await expect(result).rejects.toMatchObject({
+      code: "GRAFT_SDK_E2EE_LOCKED",
+    })
+    await cancelled
+    expect(await fs.readdir(destinations)).toEqual([])
+  })
+
+  it("does not report successful draining if an encrypted client's close fails", async () => {
+    const started = deferred()
+    const subject = new SpaceCloneCoordinator({
+      stateDirectory: state,
+      remoteOrigin: origin,
+      createGraftClient: () => ({
+        clone: async (_directory, _remote, _token, options) => {
+          started.resolve()
+          await new Promise<void>((_resolve, reject) =>
+            options?.signal?.addEventListener(
+              "abort",
+              () => reject(new Error("cancelled")),
+              { once: true }
+            )
+          )
+        },
+        close: async () => {
+          throw new Error("close failed")
+        },
+      }),
+      validateWorktree: async () => {},
+    })
+    const result = subject.clone(
+      path.join(destinations, "close-failed"),
+      remoteUrl,
+      "memory-only-token",
+      undefined,
+      undefined,
+      encryption()
+    )
+    const rejected = expect(result).rejects.toThrow("close failed")
+    await started.promise
+    await expect(subject.cancelEncryptedClones()).rejects.toThrow(
+      "Could not drain"
+    )
+    await rejected
   })
 
   it("removes only its temporary sibling when validation fails", async () => {

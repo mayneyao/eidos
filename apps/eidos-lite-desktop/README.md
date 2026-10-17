@@ -79,7 +79,7 @@ must complete before enabling named resources across supported platforms.
 > architecture and verification contract.
 
 Local Spaces, editing, and version history require no account. Eidos Lite uses
-Graft SDK 0.3.30 for durable merge state,
+Graft SDK 0.3.31 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -295,7 +295,10 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.3.30` Node-API SDK.
+Graft runs through the `@eidos.space/graft@0.3.31` Node-API SDK contract.
+The SDK and its five native packages use exact registry versions recorded in
+the lockfile. Production and release builds reject local dependency overrides
+and require the installed native addon to provide the encrypted-session API.
 Opening a Space does not open or classify its repository. The root Explorer and
 local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
@@ -397,3 +400,117 @@ Production releases use the independent `lite-v*` tag namespace and
 signing prerequisites, architecture-specific update feeds, verification, and
 rollback procedure are documented in the
 [release runbook](./docs/RELEASE-RUNBOOK.md).
+
+## Encrypted cloud Sync
+
+The `0.24.0-beta.1` release keeps new encrypted cloud connections disabled in
+production. Installing this beta does not enable them. The following describes
+the encrypted workflow in service environments where it is enabled; local files,
+local history, and LAN sync remain available independently.
+
+E2EE-capable macOS and Linux builds use end-to-end encryption for new cloud
+connections. The account and Sync service must belong to the same official
+environment. Windows, mobile, and browser clients do not implement this cloud
+encryption flow. Missing native support, passwords, or encrypted service
+capabilities stop the operation instead of falling back to plaintext.
+Existing ordinary connections remain usable with their original profile.
+
+Set a **Sync password** when enabling Sync for the first time, or in
+**Settings → Account & Services → Sync**. First connection creates local version
+history and the initial checkpoint automatically. When system secure storage
+is available, Lite remembers the password on this device and reuses it for new
+Spaces. Each Space has an independently generated key and encrypted repository
+identity. On another computer, sign in to the same account, select a Space in
+**Open synced Space**, enter the same password, and choose a new destination
+folder. A saved default password can be used directly; a Space with a different
+password can be opened by entering its own password. A failed password attempt
+does not publish the incomplete destination and can be retried.
+
+When system secure storage is available, creating, restoring, or unlocking an
+encrypted Space automatically saves its password on this device, so Sync can
+resume after an application restart. If secure storage is unavailable, the
+password is used only for the current session and Sync explains that it must be
+entered again after restarting. Every Space retains independent
+encryption and a separate remembered entry, bound to the app, environment/account,
+remote identity, and local Space path. Changing the password in Settings affects
+new connections only; it does not rotate existing passwords or delete existing
+remembered Space entries. Before connecting, Sync shows the file count, total
+size, and exclusions. Hidden files, supported large files, and filenames do not
+require extra confirmation. Files larger than 1 GiB, symbolic links, and unsupported
+entries must be resolved before connecting. Files already in version history
+remain included even when they match ignore rules; the panel explains these
+entries without requiring confirmation. Sync rechecks the file manifest before
+connecting and asks for another check if the files have changed.
+
+The implementation stores an OS-protected copy of the Sync password,
+not a plaintext password or an exported native root key. Electron `safeStorage`
+uses the system credential store; unsupported or weak Linux `basic_text`
+backends disable remembering rather than falling back to plaintext. Credential
+ciphertext is owner-only, outside the Space, and never part of Sync. Unsigned
+development builds do not prove production signing or Keychain access isolation.
+
+The Sync panel shows password entry only when the encrypted session needs to be
+unlocked. Manage the default Sync password in Settings. System suspend, and
+screen lock on macOS, drain active sessions and pause automatic unlocking.
+After wake and, on macOS, screen unlock, Lite resumes using securely saved
+passwords; session-only use needs password entry again. Linux screen lock alone
+does not clear the Sync session; quit Lite or sign out to clear it. Sign-out
+clears live keys and blocks automatic loading;
+remembered entries remain account-bound and are usable again only after an
+explicit sign-in. Local files remain readable and editable while Sync is locked
+or signed out. The service cannot recover the sync password; resetting the
+account password does not recover encrypted contents. If the password is lost,
+preserve any readable local copy before reinstalling or clearing application
+data. Lite does not expose per-Space password rotation. Local SQLite files and
+attachments are not encrypted at rest by this feature.
+
+The service sees the account, cloud Space display name, opaque repository and
+version relationships, sizes, and request timing. File contents, paths, branch
+names, and version messages are encrypted. Cloud quota includes historical
+objects and encryption overhead, so deleting a current file does not immediately
+reclaim its historical storage.
+
+Manage and delete cloud repositories in
+[Account → Sync → Repositories](https://eidos.space/account?tab=sync&view=repositories).
+Deletion permanently removes the selected cloud files and history after active
+requests drain; local files and local history remain available. Cloud storage
+usage updates after cleanup completes. The [English](https://docs.eidos.space/user-guide/sync/)
+and [Chinese](https://docs.eidos.space/zh-cn/user-guide/sync/) user guides describe
+normal connection, saved-version transfer, password, and recovery workflows.
+
+Source-candidate development prepares a release-optimized native addon from the
+digest-verified snapshot in `vendor/graft-e2ee`; Rust and a native toolchain are
+required for that build. See its README for provenance. A production-targeted
+source build does not establish that the client dependency is published, the
+Worker deployed, or a signed app delivered. Use the release runbook and encrypted
+operations acceptance gates for those claims.
+
+For an isolated, real-service validation, place an authorized staging Sync token
+in an owner-only file, then launch from the repository root:
+
+```bash
+EIDOS_LITE_ENVIRONMENT=staging \
+EIDOS_LITE_STAGING_TOKEN_FILE=/absolute/owner-only/token-file \
+EIDOS_LITE_STAGING_E2EE_RESULT=/absolute/report.json \
+pnpm dev:eidos-lite
+```
+
+This development-only runner creates a new staging remote and temporary local
+fixtures. Independent Electron utility processes and private state directories
+exercise initial publication, a later encrypted checkpoint, wrong-password
+rejection, restored SQLite rows and attachment hashes, a second-device checkpoint
+pulled back to the original device, and session locking. It
+does not replace a two-physical-device compatibility test. Reports contain no
+passwords or account tokens; keep the token file out of the repository and remove
+it after testing. Test remotes and fixture directories are retained for inspection.
+
+To validate remembered unlock across two real Electron application launches,
+set `EIDOS_LITE_STAGING_REMEMBER_UNLOCK=1` for the enrollment run. For a second
+launch, set `EIDOS_LITE_STAGING_REMEMBER_ENROLLMENT` to its passed report and use a
+different result path in the same directory, keeping the private app data path
+stable. The second run receives no Sync password: it verifies automatic unlock,
+SQLite and attachment hashes, explicit-lock admission, and forgetting. Instead
+of a raw-token file, `EIDOS_LITE_STAGING_ACCOUNT_STATE` may point to the existing
+owner-only staging `oauth-session.bin`; the runner reads it through the system
+protector and does not export or refresh the account's credentials. Close the
+normal dev app and stop its Vite server before these isolated launches.

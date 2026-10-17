@@ -14,6 +14,7 @@ import {
   FileText,
   GitMerge,
   LoaderCircle,
+  LockKeyhole,
   UserRound,
   X,
 } from "lucide-react"
@@ -39,6 +40,7 @@ export interface SyncInspectorState {
   readOnly: boolean
   storageBlocked: boolean
   checking: boolean
+  encryptionLocked?: boolean
 }
 
 export function syncInspectorAction(
@@ -82,6 +84,8 @@ export function pendingVersionPreview(
 
 export function SyncInspector({
   setupContent,
+  setupFooter,
+  unlockContent,
   state,
   account,
   spaceKey,
@@ -99,6 +103,8 @@ export function SyncInspector({
   onRemoteRecovery,
 }: {
   setupContent?: ReactNode
+  setupFooter?: ReactNode
+  unlockContent?: ReactNode
   state: SyncInspectorState
   account?(props: {
     buttonRef: RefObject<HTMLButtonElement>
@@ -122,7 +128,7 @@ export function SyncInspector({
   onLocalRecovery?(): void
   onRemoteRecovery?(): void
 }) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const [commits, setCommits] = useState<SpaceVersionCommit[]>([])
   const [listState, setListState] = useState<"loading" | "ready" | "error">(
     "ready"
@@ -219,7 +225,11 @@ export function SyncInspector({
     state.failure,
   ])
   const title =
-    state.failure?.title ??
+    (state.encryptionLocked
+      ? t("Encrypted Sync is locked")
+      : state.failure
+        ? t(state.failure.title)
+        : undefined) ??
     (active
       ? t("Sync operation in progress")
       : merging
@@ -251,8 +261,9 @@ export function SyncInspector({
           : action === "account"
             ? t("Manage storage")
             : t("Check remote updates")
-  const Icon =
-    state.failure?.state === "offline"
+  const Icon = state.encryptionLocked
+    ? LockKeyhole
+    : state.failure?.state === "offline"
       ? CloudOff
       : active
         ? LoaderCircle
@@ -296,7 +307,9 @@ export function SyncInspector({
               <strong title={version.message}>
                 {version.message || version.id.slice(0, 8)}
               </strong>
-              <small>{new Date(version.timestampMs).toLocaleString()}</small>
+              <small>
+                {new Date(version.timestampMs).toLocaleString(locale)}
+              </small>
             </div>
           </div>
         ))}
@@ -325,19 +338,19 @@ export function SyncInspector({
             <strong>{t("Sync")}</strong>
             {!setupContent && !merging ? (
               <small
-                title={`${t("Last checked")}: ${history?.checkedAtMs ? new Date(history.checkedAtMs).toLocaleString() : t("Not checked")}`}
+                title={`${t("Last checked")}: ${history?.checkedAtMs ? new Date(history.checkedAtMs).toLocaleString(locale) : t("Not checked")}`}
               >
                 <span className="sync-checked-label">
                   {t("Last checked")}:{" "}
                 </span>
                 <span className="sync-checked-full">
                   {history?.checkedAtMs
-                    ? new Date(history.checkedAtMs).toLocaleTimeString()
+                    ? new Date(history.checkedAtMs).toLocaleTimeString(locale)
                     : t("Not checked")}
                 </span>
                 <span className="sync-checked-compact" aria-hidden="true">
                   {history?.checkedAtMs
-                    ? new Date(history.checkedAtMs).toLocaleTimeString([], {
+                    ? new Date(history.checkedAtMs).toLocaleTimeString(locale, {
                         hour: "2-digit",
                         minute: "2-digit",
                         hour12: false,
@@ -388,7 +401,7 @@ export function SyncInspector({
                 <p>
                   {t("{count} files remaining", { count: merge.unmergedCount })}
                 </p>
-              ) : history ? (
+              ) : history && (history.ahead || history.behind) ? (
                 <p className="sync-version-counts" data-sync-version-counts>
                   <span>
                     {t("Local to upload")}:{" "}
@@ -401,7 +414,7 @@ export function SyncInspector({
                 </p>
               ) : null}
               {state.failure ? (
-                <p>{state.failure.message}</p>
+                <p>{t(state.failure.message)}</p>
               ) : merging ? (
                 <p>
                   {t(
@@ -417,7 +430,7 @@ export function SyncInspector({
                   )}
                 </p>
               ) : null}
-              {active ? (
+              {active && !state.encryptionLocked ? (
                 <div className="sync-inspector-transfer" role="status">
                   <progress
                     max={transfer?.totalBytes || undefined}
@@ -433,9 +446,9 @@ export function SyncInspector({
                       : t("Working…")}
                   </small>
                 </div>
-              ) : state.failure ? (
+              ) : state.encryptionLocked ? null : state.failure ? (
                 <button className="primary-action" onClick={onRetry}>
-                  {state.failure.actionLabel || t("Retry")}
+                  {t(state.failure.actionLabel || "Retry")}
                 </button>
               ) : !merging ? (
                 <button
@@ -452,8 +465,13 @@ export function SyncInspector({
                 </button>
               ) : null}
               {!active &&
+              !state.encryptionLocked &&
               !merging &&
-              (state.failure || action !== "fetch" || state.readOnly) ? (
+              ((state.failure
+                ? state.failure.action === "manage-account" ||
+                  state.failure.code === "remote-persistence-failed"
+                : action !== "fetch") ||
+                state.readOnly) ? (
                 <button
                   className="sync-inspector-link"
                   data-sync-check-remote
@@ -493,7 +511,9 @@ export function SyncInspector({
                 ) : null}
                 {renderVersions("receive", history?.behind ?? 0)}
                 {renderVersions("upload", history?.ahead ?? 0)}
-                {!history?.ahead && !history?.behind ? (
+                {!history?.ahead &&
+                !history?.behind &&
+                history?.state !== "up_to_date" ? (
                   <p className="sync-inspector-empty">
                     {t(
                       history?.checkedAtMs
@@ -525,8 +545,15 @@ export function SyncInspector({
                   }
                 }}
               >
-                <button className="sync-inspector-link" onClick={onAccount}>
-                  {t("Manage account")}
+                <button
+                  className="sync-inspector-link"
+                  onClick={() =>
+                    void window.eidosLite.openSettingsDestination(
+                      "account-sync"
+                    )
+                  }
+                >
+                  {t("Sync settings")}
                 </button>
                 {merging ? (
                   <>
@@ -546,17 +573,27 @@ export function SyncInspector({
                     </button>
                   </>
                 ) : null}
-                <button
-                  className="sync-inspector-link"
-                  onClick={() =>
-                    void window.eidosLite.openSettingsDestination("logs")
-                  }
-                >
-                  {t("Open logs")}
-                </button>
+                {state.failure ? (
+                  <button
+                    className="sync-inspector-link"
+                    onClick={() =>
+                      void window.eidosLite.openSettingsDestination("logs")
+                    }
+                  >
+                    {t("Open logs")}
+                  </button>
+                ) : null}
               </section>
             ) : null}
           </div>
+          {!setupContent && unlockContent && !merging ? (
+            <footer className="sync-inspector-unlock" data-sync-unlock>
+              {unlockContent}
+            </footer>
+          ) : null}
+          {setupContent && setupFooter && !merging ? (
+            <footer className="sync-setup-footer">{setupFooter}</footer>
+          ) : null}
           {!setupContent && state.dirty && !merging ? (
             <footer>
               <div className="sync-inspector-local">

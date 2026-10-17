@@ -76,6 +76,142 @@ afterEach(() => {
 })
 
 describe("eidos.space Graft Remote", () => {
+  it.each([
+    "https://sync-staging.eidos.space",
+    "https://sync.eidos.space",
+  ] as const)(
+    "pins encrypted identities at %s and rejects plaintext downgrade",
+    async (origin) => {
+      const name = origin.includes("staging")
+        ? "encrypted-staging"
+        : "encrypted-production"
+      const stagingEnv = {
+        ...env,
+        PUBLIC_REMOTE_ORIGIN: origin,
+      }
+      const worker = createGraftRemoteWorker()
+      const provision = () =>
+        worker.request(
+          `${origin}/api/graft/repositories/${name}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: "Bearer alice-token",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              display_name: "Encrypted preview",
+              encryption: "encrypted-remote-v1",
+            }),
+          },
+          stagingEnv
+        )
+      const first = await provision()
+      expect(first.status).toBe(201)
+      const original = (await first.json()) as {
+        encryption: { uuid: string; profile: string }
+        remote_url: string
+      }
+      expect(original.encryption.profile).toBe("encrypted-remote-v1")
+      const retry = await provision()
+      expect(retry.status).toBe(200)
+      expect(await retry.json()).toMatchObject({
+        encryption: original.encryption,
+      })
+      const listed = await worker.request(
+        `${origin}/api/graft/repositories`,
+        { headers: { Authorization: "Bearer alice-token" } },
+        stagingEnv
+      )
+      expect(await listed.json()).toMatchObject({
+        repositories: expect.arrayContaining([
+          expect.objectContaining({ encryption: original.encryption }),
+        ]),
+      })
+      const descriptor = await worker.request(
+        original.remote_url,
+        {
+          headers: {
+            Authorization: "Bearer alice-token",
+            "Graft-Protocol": "1",
+          },
+        },
+        stagingEnv
+      )
+      expect(descriptor.status).toBe(200)
+      expect(await descriptor.json()).toMatchObject({
+        encryption: original.encryption,
+      })
+      const downgrade = await worker.request(
+        `${origin}/api/graft/repositories/${name}`,
+        { method: "PUT", headers: { Authorization: "Bearer alice-token" } },
+        stagingEnv
+      )
+      expect(downgrade.status).toBe(409)
+      const plaintext = await worker.request(
+        original.remote_url + "/raw/refs/heads/main",
+        {
+          headers: {
+            Authorization: "Bearer alice-token",
+            "Graft-Protocol": "1",
+          },
+        },
+        stagingEnv
+      )
+      expect(plaintext.ok).toBe(false)
+    }
+  )
+
+  it("can pause encrypted provisioning without removing existing encrypted identities", async () => {
+    const body = JSON.stringify({
+      display_name: "Preview",
+      encryption: "encrypted-remote-v1",
+    })
+    const worker = createGraftRemoteWorker()
+    const enabled = await serviceFetch(
+      "/api/graft/repositories/encrypted-before-pause",
+      { method: "PUT", headers: { Authorization: "Bearer alice-token" }, body }
+    )
+    expect(enabled.status).toBe(201)
+    const existing = (await enabled.json()) as {
+      remote_url: string
+      encryption: { uuid: string }
+    }
+    const paused = { ...env, SYNC_ENCRYPTED_CREATION: "disabled" }
+    const denied = await worker.request(
+      `${ORIGIN}/api/graft/repositories/encrypted-after-pause`,
+      { method: "PUT", headers: { Authorization: "Bearer alice-token" }, body },
+      paused
+    )
+    expect(denied.status).toBe(503)
+    const descriptor = await worker.request(
+      existing.remote_url,
+      {
+        headers: { Authorization: "Bearer alice-token", "Graft-Protocol": "1" },
+      },
+      paused
+    )
+    expect(descriptor.status).toBe(200)
+    expect(await descriptor.json()).toMatchObject({
+      encryption: existing.encryption,
+    })
+  })
+
+  it("rejects conversion of existing plain repositories", async () => {
+    const body = JSON.stringify({
+      display_name: "Encrypted",
+      encryption: "encrypted-remote-v1",
+    })
+    await createRepository("alice-token", "plain-stays-plain")
+    const worker = createGraftRemoteWorker()
+    const conflict = await worker.request(
+      "https://sync-staging.eidos.space/api/graft/repositories/plain-stays-plain",
+      { method: "PUT", headers: { Authorization: "Bearer alice-token" }, body },
+      { ...env, PUBLIC_REMOTE_ORIGIN: "https://sync-staging.eidos.space" }
+    )
+    expect(conflict.status).toBe(409)
+  })
+
   it("validates eidos.space bearer tokens and derives stable namespaces", async () => {
     const identityResponse = await fetch(AUTH_USERINFO_URL, {
       headers: { Authorization: "Bearer alice-token" },
@@ -200,7 +336,7 @@ describe("eidos.space Graft Remote", () => {
     expect(calls).toBe(5)
   })
 
-  it("performs one identity and directory lookup for a protocol request burst", async () => {
+  it("caches identity and repository metadata while retaining live request admission", async () => {
     let now = 20_000
     let authCalls = 0
     let directoryCalls = 0
@@ -209,6 +345,12 @@ describe("eidos.space Graft Remote", () => {
       namespace: "u-burst",
       syncAccess: activeAccessGrant(),
     }
+    await env.GRAFT_DIRECTORY.getByName(principal.namespace).createRepository(
+      principal.namespace,
+      "space",
+      "Space",
+      principal.userId
+    )
     const worker = createGraftRemoteWorker({
       authenticate: createCachedEidosAuthenticator(
         async () => {
@@ -1328,6 +1470,12 @@ describe("eidos.space Graft Remote", () => {
     expect(await unavailable.text()).not.toContain("simulated")
 
     const failingBackend = throwingBackend()
+    await env.GRAFT_DIRECTORY.getByName("u-test").createRepository(
+      "u-test",
+      "repository",
+      "repository",
+      "test-user"
+    )
     const worker = createGraftRemoteWorker({
       async authenticate() {
         return {

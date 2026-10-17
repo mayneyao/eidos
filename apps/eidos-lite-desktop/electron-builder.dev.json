@@ -1,5 +1,8 @@
 {
   "extends": "electron-builder.json",
+  "extraResources": [
+    { "from": "resources/graft-e2ee", "to": "graft-e2ee", "filter": ["**/*"] }
+  ],
   "mac": {
     "forceCodeSigning": false,
     "hardenedRuntime": false,

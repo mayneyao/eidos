@@ -51,6 +51,8 @@ import {
   type EidosGraftRepositorySession,
 } from "../main/graft/graft-sdk-module"
 import { readRevisionTextDiff } from "../main/graft/revision-text-reader"
+import { EncryptedGraftHost } from "../main/graft/encrypted-graft-host"
+import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 
 const { operationMaterializesWorktree, RepositorySession, sdkVersion } =
   loadEidosGraftSdk()
@@ -68,7 +70,9 @@ if (!parentPort) throw new Error("Graft SDK requires a utility parent")
 
 let session: EidosGraftRepositorySession | null = null
 let sessionRoot: string | null = null
+const encryptedHost = new EncryptedGraftHost()
 const operationControllers = new Map<number, AbortController>()
+let sessionTransition: Promise<unknown> | null = null
 
 type WorkerError = Extract<GraftSdkWorkerResponse, { ok: false }>["error"]
 
@@ -140,6 +144,36 @@ async function runCommand(
     )
   }
 
+  if (command === "encryptedSyncStatus") return { state: encryptedHost.state }
+  if (command === "lockEncryptedSync") {
+    await encryptedHost.lock()
+    return { locked: true }
+  }
+  if (
+    command === "initializeEncryptedSync" ||
+    command === "unlockEncryptedSync" ||
+    command === "cloneEncryptedSync"
+  ) {
+    if (!sessionRoot) throw new Error("Graft repository session is not open")
+    await session?.close()
+    session = null
+    try {
+      session = await encryptedHost.connect(
+        sessionRoot,
+        args[0] as GraftEncryptedInput,
+        command === "initializeEncryptedSync"
+          ? "initialize"
+          : command === "cloneEncryptedSync"
+            ? "clone"
+            : "unlock",
+        { signal }
+      )
+    } catch (error) {
+      session = await RepositorySession.open(sessionRoot)
+      throw error
+    }
+    return { unlocked: true }
+  }
   const repository = requireSession()
   switch (command) {
     case "init":
@@ -507,12 +541,18 @@ async function runCommand(
         onProgress,
       })
     case "setHttpBearerToken":
+      if (
+        args[0] === "origin" &&
+        encryptedHost.refresh(requireString(args[1], "Remote credential"))
+      )
+        return { configured: true }
       repository.setHttpBearerToken(
         requireString(args[0], "Remote name"),
         requireString(args[1], "Remote credential")
       )
       return { configured: true }
     case "clearHttpBearerToken":
+      await encryptedHost.disconnect()
       repository.clearHttpBearerToken(requireString(args[0], "Remote name"))
       return { cleared: true }
     default:
@@ -536,6 +576,7 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
         }
         await session.close()
       }
+      await encryptedHost.disconnect()
       session = await RepositorySession.open(target)
       sessionRoot = target
       return { target, lifecycle: session.lifecycle }
@@ -548,6 +589,7 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
       }
     }
     case "close": {
+      await encryptedHost.disconnect()
       const repository = session
       session = null
       sessionRoot = null
@@ -578,6 +620,48 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
   }
 }
 
+function schedule(request: GraftSdkWorkerRequest): Promise<unknown> {
+  const changesSession =
+    request.type === "open" ||
+    request.type === "reopen" ||
+    request.type === "close" ||
+    (request.type === "command" &&
+      [
+        "initializeEncryptedSync",
+        "unlockEncryptedSync",
+        "cloneEncryptedSync",
+      ].includes(request.command))
+  const immediate =
+    request.type === "command" &&
+    (request.command === "lockEncryptedSync" ||
+      request.command === "encryptedSyncStatus")
+  // Revoke authority before waiting for a transition; sign-out and close must
+  // still interrupt an unlock or an encrypted network operation immediately.
+  const revocation =
+    request.type === "close" ||
+    (request.type === "command" && request.command === "clearHttpBearerToken")
+      ? encryptedHost.disconnect().then(
+          () => null,
+          (error: unknown) => ({ error })
+        )
+      : null
+  const previous = sessionTransition
+  const operation = (async () => {
+    if (!immediate) await previous?.catch(() => undefined)
+    const revoked = await revocation
+    if (revoked) throw revoked.error
+    return handle(request)
+  })()
+  if (changesSession) {
+    sessionTransition = operation
+    const clear = () => {
+      if (sessionTransition === operation) sessionTransition = null
+    }
+    void operation.then(clear, clear)
+  }
+  return operation
+}
+
 parentPort.on("message", (event) => {
   const request = event.data as GraftSdkWorkerRequest
   if (request.type === "cancel") {
@@ -587,7 +671,7 @@ parentPort.on("message", (event) => {
   if (request.type === "command") {
     operationControllers.set(request.requestId, new AbortController())
   }
-  void handle(request).then(
+  void schedule(request).then(
     (result) => {
       parentPort.postMessage({ requestId: request.requestId, ok: true, result })
       operationControllers.delete(request.requestId)

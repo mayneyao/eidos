@@ -5,12 +5,11 @@ import path from "node:path"
 import {
   assertSyncPreflightApproval,
   createSyncPreflight,
-  LARGE_FILE_WARNING_BYTES,
   MAX_SYNC_FILE_BYTES,
 } from "./sync-preflight"
 
 describe("Eidos Sync preflight", () => {
-  it("reports whole-Space scope, exclusions, and explicit risk confirmation", async () => {
+  it("includes hidden files, filename keywords, credentials, and supported large files without confirmation", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-sync-scope-"))
     try {
       await fs.mkdir(path.join(root, ".graft"))
@@ -21,56 +20,32 @@ describe("Eidos Sync preflight", () => {
       await fs.writeFile(path.join(root, "notes.txt"), "notes")
       await fs.writeFile(path.join(root, ".env.local"), "TOKEN=local")
       await fs.writeFile(path.join(root, "backup.pem"), "private key")
+      await fs.writeFile(path.join(root, "secret-garden.jpg"), "cover image")
+      await fs.mkdir(path.join(root, ".agents"))
+      await fs.writeFile(path.join(root, ".agents", "SKILL.md"), "skill")
       await fs.writeFile(path.join(root, "archive.bin"), "")
-      await fs.truncate(
-        path.join(root, "archive.bin"),
-        LARGE_FILE_WARNING_BYTES
-      )
+      await fs.truncate(path.join(root, "archive.bin"), MAX_SYNC_FILE_BYTES)
 
       const preflight = await createSyncPreflight(root)
-      expect(preflight.fileCount).toBe(5)
+      expect(preflight.fileCount).toBe(7)
       expect(preflight.eidosFileCount).toBe(1)
-      expect(preflight.totalBytes).toBeGreaterThanOrEqual(
-        LARGE_FILE_WARNING_BYTES
-      )
+      expect(preflight.totalBytes).toBeGreaterThanOrEqual(MAX_SYNC_FILE_BYTES)
       expect(preflight.excluded).toEqual([
         { relativePath: ".DS_Store", reason: "os-noise" },
         { relativePath: ".graft", reason: "graft-metadata" },
         { relativePath: "tasks.eidos-wal", reason: "temporary-file" },
       ])
-      expect(preflight.warnings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            relativePath: ".env.local",
-            concerns: ["hidden", "suspected-secret"],
-          }),
-          expect.objectContaining({
-            relativePath: "backup.pem",
-            concerns: ["suspected-secret"],
-          }),
-          expect.objectContaining({
-            relativePath: "archive.bin",
-            concerns: ["large-file"],
-          }),
-        ])
-      )
+      expect(preflight.warnings).toEqual([])
+      expect(preflight.warningCount).toBe(0)
       expect(preflight.blockers).toEqual([])
       expect(() =>
         assertSyncPreflightApproval(preflight, {
           manifestId: preflight.manifestId,
-          confirmWarnings: false,
-        })
-      ).toThrow("Confirm")
-      expect(() =>
-        assertSyncPreflightApproval(preflight, {
-          manifestId: preflight.manifestId,
-          confirmWarnings: true,
         })
       ).not.toThrow()
       expect(() =>
         assertSyncPreflightApproval(preflight, {
           manifestId: "0".repeat(64),
-          confirmWarnings: true,
         })
       ).toThrow("changed")
     } finally {
@@ -88,13 +63,12 @@ describe("Eidos Sync preflight", () => {
       expect(preflight.blockers).toEqual([
         expect.objectContaining({
           relativePath: "oversized.bin",
-          concerns: ["large-file", "file-too-large"],
+          concerns: ["file-too-large"],
         }),
       ])
       expect(() =>
         assertSyncPreflightApproval(preflight, {
           manifestId: preflight.manifestId,
-          confirmWarnings: true,
         })
       ).toThrow("cannot upload safely")
     } finally {
@@ -150,6 +124,11 @@ describe("Eidos Sync preflight", () => {
         size: 4,
         concerns: ["tracked-ignored"],
       })
+      expect(() =>
+        assertSyncPreflightApproval(preflight, {
+          manifestId: preflight.manifestId,
+        })
+      ).not.toThrow()
       expect(ignoreBatches).toBe(2)
       expect(preflight.excluded).toContainEqual({
         relativePath: "node_modules",
@@ -165,7 +144,7 @@ describe("Eidos Sync preflight", () => {
     }
   })
 
-  it("returns bounded review samples while preserving exact totals", async () => {
+  it("bounds informational samples without requiring confirmation", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-sync-review-sample-")
     )
@@ -176,7 +155,20 @@ describe("Eidos Sync preflight", () => {
         )
       )
 
-      const preflight = await createSyncPreflight(root)
+      const preflight = await createSyncPreflight(root, {
+        inspectIgnores: async (relativePaths) =>
+          new Map(
+            relativePaths.map((relativePath) => [
+              relativePath,
+              {
+                isIgnored: true,
+                isTracked: true,
+                isDirectory: false,
+                hasTrackedDescendants: false,
+              },
+            ])
+          ),
+      })
       expect(preflight.warningCount).toBe(150)
       expect(preflight.warnings).toHaveLength(100)
       expect(preflight.blockerCount).toBe(0)
@@ -184,9 +176,8 @@ describe("Eidos Sync preflight", () => {
       expect(() =>
         assertSyncPreflightApproval(preflight, {
           manifestId: preflight.manifestId,
-          confirmWarnings: false,
         })
-      ).toThrow("Confirm")
+      ).not.toThrow()
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
@@ -209,6 +200,11 @@ describe("Eidos Sync preflight", () => {
             concerns: ["symlink"],
           }),
         ])
+        expect(() =>
+          assertSyncPreflightApproval(preflight, {
+            manifestId: preflight.manifestId,
+          })
+        ).toThrow("cannot upload safely")
       } finally {
         await Promise.all([
           fs.rm(root, { recursive: true, force: true }),

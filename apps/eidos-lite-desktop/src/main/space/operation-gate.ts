@@ -170,6 +170,7 @@ export class SpaceOperationGate {
         return await operation()
       } finally {
         this.acceptingMutations = !this.closing
+        this.acceptingRuntimeReads = !this.closing
       }
     })
   }
@@ -185,8 +186,9 @@ export class SpaceOperationGate {
   ): Promise<T> {
     return this.withRepositoryOperation(detail, async (signal) => {
       this.acceptingMutations = false
+      this.acceptingRuntimeReads = false
       this.transition("quiescing", detail)
-      await this.waitForMutationDrain()
+      await this.waitForRuntimeDrain()
       let runtimesClosed = false
       try {
         await this.hooks.closeRuntimes()

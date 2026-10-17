@@ -12,6 +12,26 @@ type FailureDefinition = Omit<
 }
 
 const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
+  "remote-already-configured": {
+    state: "needs-attention",
+    title: "This Space already has a cloud connection",
+    message:
+      "Its existing connection and local history have been preserved. Use an independent copy to set up encrypted Sync.",
+    action: "work-locally",
+    actionLabel: "Keep working locally",
+    retryable: false,
+    localSafe: true,
+  },
+  "encryption-locked": {
+    state: "needs-attention",
+    title: "Encrypted Sync is locked",
+    message:
+      "Enter your sync password in Sync details to unlock this session. Local files remain available.",
+    action: "work-locally",
+    actionLabel: "Keep working locally",
+    retryable: false,
+    localSafe: true,
+  },
   offline: {
     state: "offline",
     title: "Eidos Sync is offline",
@@ -247,6 +267,15 @@ export function classifySyncFailure(
   const message = errorMessage(error)
   const status = explicitStatus ?? statusFromMessage(message)
   const normalized = `${code} ${message}`.toLowerCase()
+  if (code === "GRAFT_SDK_E2EE_ORIGIN_CONFLICT")
+    return failure("remote-already-configured")
+  if (code === "GRAFT_SDK_E2EE_UNSUPPORTED_ENCRYPTED_PROFILE")
+    return failure("protocol-version-mismatch")
+  if (
+    code.startsWith("GRAFT_SDK_E2EE_") &&
+    /LOCKED|DISCONNECTED|UNLOCK_FAILED/.test(code)
+  )
+    return failure("encryption-locked")
 
   if (failureCodes.has(code as EidosSyncFailureCode)) {
     return failure(code as EidosSyncFailureCode, status, retryAfterMs)

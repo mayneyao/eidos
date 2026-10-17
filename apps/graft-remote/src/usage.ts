@@ -60,6 +60,9 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
       "CREATE INDEX IF NOT EXISTS idx_byte_reservations_expiry " +
         "ON byte_reservations(expires_at)"
     )
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS deleted_repositories (repository_id TEXT PRIMARY KEY)"
+    )
   }
 
   reserve(input: {
@@ -71,6 +74,8 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
     enforce: boolean
   }): SyncUsageReservationResult {
     validateInput(input)
+    if (this.repositoryDeleted(input.repositoryId))
+      throw new RangeError("Repository was deleted")
     const now = Date.now()
     this.removeExpired(now)
     if (this.objectExists(input.repositoryId, input.path)) {
@@ -163,6 +168,8 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
     validateObjectIdentity(input.repositoryId, input.path)
     validateBytes(input.actualBytes, "actualBytes")
     validateBytes(input.quotaBytes, "quotaBytes")
+    if (this.repositoryDeleted(input.repositoryId))
+      return this.readSummary(input.quotaBytes)
     this.removeExpired(Date.now())
     this.recordObject(input.repositoryId, input.path, input.actualBytes)
     this.removePathReservations(input.repositoryId, input.path)
@@ -215,6 +222,35 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
     validateBytes(quotaBytes, "quotaBytes")
     this.removeExpired(Date.now())
     return this.readSummary(quotaBytes)
+  }
+
+  purgeRepository(repositoryId: string): void {
+    validateIdentifier(repositoryId, "repositoryId")
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec(
+        "INSERT OR IGNORE INTO deleted_repositories(repository_id) VALUES (?)",
+        repositoryId
+      )
+      this.ctx.storage.sql.exec(
+        "DELETE FROM byte_reservations WHERE repository_id = ?",
+        repositoryId
+      )
+      this.ctx.storage.sql.exec(
+        "DELETE FROM immutable_objects WHERE repository_id = ?",
+        repositoryId
+      )
+    })
+  }
+
+  private repositoryDeleted(repositoryId: string): boolean {
+    return (
+      this.ctx.storage.sql
+        .exec(
+          "SELECT 1 FROM deleted_repositories WHERE repository_id = ?",
+          repositoryId
+        )
+        .toArray().length > 0
+    )
   }
 
   private recordObject(

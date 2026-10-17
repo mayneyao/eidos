@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto"
 import type { FileHistoryPage } from "../../shared/path-history"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { assertSpaceRepositoryBoundary } from "./space-repository-boundary"
+import type {
+  GraftEncryptedInput,
+  GraftCloneOptions,
+} from "../../shared/graft-sdk-contracts"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 
 import type {
@@ -44,8 +49,8 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.30"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.30"
+export const GRAFT_SDK_VERSION = "0.3.31"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.31"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -938,6 +943,48 @@ function mergeVersionDiffs(
 }
 
 export class GraftClient {
+  private originEncrypted = false
+  async encryptedSyncStatus(
+    root: string
+  ): Promise<{ state: "locked" | "unlocked" } | undefined> {
+    if (!(await this.isEncryptedRemote(root))) return undefined
+    const value = record(await this.runSdk(root, "encryptedSyncStatus"))
+    return { state: value.state === "unlocked" ? "unlocked" : "locked" }
+  }
+  lockEncryptedSync(root: string): Promise<unknown> {
+    return this.runSdk(root, "lockEncryptedSync")
+  }
+  async encryptedSync(
+    root: string,
+    mode: "initialize" | "unlock",
+    input: GraftEncryptedInput,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    try {
+      return await this.runSdk(
+        root,
+        mode === "initialize"
+          ? "initializeEncryptedSync"
+          : "unlockEncryptedSync",
+        [input],
+        options
+      )
+    } finally {
+      input.password.fill(0)
+    }
+  }
+
+  async isEncryptedRemote(root: string): Promise<boolean> {
+    const value = record(await this.runSdk(root, "listRemotes"))
+    return (
+      Array.isArray(value.remotes) &&
+      value.remotes.some(
+        (entry) =>
+          record(entry).name === "origin" &&
+          record(entry).kind === "encrypted_http"
+      )
+    )
+  }
   private verifiedVersion: Promise<string> | null = null
   private openedRoot: string | null = null
   private exactMergeWorktreePaths = false
@@ -1016,6 +1063,19 @@ export class GraftClient {
     options: GraftStatusOptions = {}
   ): Promise<GraftSpaceStatus> {
     options.signal?.throwIfAborted()
+    const initialized = await fs
+      .stat(path.join(root, ".graft"))
+      .then((stats) => stats.isDirectory())
+      .catch(() => false)
+    options.signal?.throwIfAborted()
+    if (!initialized) {
+      return {
+        available: true,
+        backend: this.backend,
+        expectedVersion: this.expectedVersion(),
+        initialized: false,
+      }
+    }
     let version: string
     try {
       await this.open(root)
@@ -1030,19 +1090,6 @@ export class GraftClient {
         expectedVersion: this.expectedVersion(),
         initialized: false,
         error: error instanceof Error ? error.message : String(error),
-      }
-    }
-    const initialized = await fs
-      .stat(path.join(root, ".graft"))
-      .then((stats) => stats.isDirectory())
-      .catch(() => false)
-    if (!initialized) {
-      return {
-        available: true,
-        backend: this.backend,
-        version,
-        expectedVersion: this.expectedVersion(),
-        initialized: false,
       }
     }
     try {
@@ -1087,6 +1134,7 @@ export class GraftClient {
   }
 
   async initialize(root: string): Promise<void> {
+    await assertSpaceRepositoryBoundary(root)
     const initialized = await fs
       .stat(path.join(root, ".graft"))
       .then((stats) => stats.isDirectory())
@@ -1973,6 +2021,8 @@ export class GraftClient {
     const remote = value.remotes
       .map(record)
       .find((entry) => entry.name === name)
+    if (name === "origin")
+      this.originEncrypted = remote?.kind === "encrypted_http"
     if (!remote) return null
     const url = stringValue(remote.url)
     if (!url) throw new Error("Graft returned an invalid Remote URL")
@@ -2512,18 +2562,22 @@ export class GraftClient {
     return mergeStatus(value.merge)
   }
 
-  clone(
+  async clone(
     targetDirectory: string,
     remoteUrl: string,
     token?: string,
-    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
+    options: GraftCloneOptions = {}
   ): Promise<unknown> {
-    return this.requireSdkTransport().clone(
-      path.resolve(targetDirectory),
-      remoteUrl,
-      token,
-      options
-    )
+    try {
+      return await this.requireSdkTransport().clone(
+        path.resolve(targetDirectory),
+        remoteUrl,
+        token,
+        options
+      )
+    } finally {
+      options.encryption?.password.fill(0)
+    }
   }
 
   async configureOfficialRemote(
@@ -2537,6 +2591,20 @@ export class GraftClient {
     }
     if (!token) throw new Error("An Eidos Sync access token is required")
     const existing = await this.remoteUrl(root, "origin", options)
+    if (
+      existing !== null &&
+      canonicalRemoteUrl(existing) === canonicalRemoteUrl(remoteUrl) &&
+      this.originEncrypted
+    ) {
+      const encryption = record(await this.runSdk(root, "encryptedSyncStatus"))
+      if (encryption.state !== "unlocked")
+        throw Object.assign(
+          new Error("Unlock encrypted Sync for this session"),
+          { code: "GRAFT_SDK_E2EE_LOCKED" }
+        )
+      await this.setHttpCredential(root, "origin", token, options)
+      return
+    }
     if (
       existing !== null &&
       canonicalRemoteUrl(existing) !== canonicalRemoteUrl(remoteUrl)

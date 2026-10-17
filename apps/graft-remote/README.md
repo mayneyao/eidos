@@ -14,11 +14,9 @@ credential in the URL; clients send either an eidos.space OAuth access token or
 a dedicated Sync CLI key as a bearer token, normally through
 GRAFT_REMOTE_TOKEN. CLI keys are independent of Desktop sessions and devices.
 
-## Upstream baseline
+## Dependency and protocol baseline
 
-Wire behavior comes exclusively from the official npm packages released from
-the `eidos-space/graft` repository at commit
-`6f3fcf58b889e467fcf0e7ddc6ed94d3ca96be63`:
+Wire behavior comes from the upstream `eidos-space/graft` packages:
 
 - @eidos.space/graft-remote owns Remote v1 validation, status codes, range
   reads, conditional operations, pagination, and the Graft-Protocol: 1 header.
@@ -26,11 +24,17 @@ the `eidos-space/graft` repository at commit
 - @eidos.space/graft-remote-cloudflare owns the R2 and SQLite Durable Object
   backend.
 
-The service pins the three public Remote packages to `0.2.4`; no upstream
-implementation is copied into the Eidos repository. Eidos-specific code does
-not duplicate or version-gate the protocol. A newer official Remote release
-becomes the tested baseline only after the service checks and current CLI
-end-to-end test pass.
+The package manifest pins all three Remote packages to registry version
+`0.2.5`. Production deployment checks reject local overrides and require the
+lockfile and installed dependency graph to resolve that exact cohort with
+registry integrity. Eidos-specific code adapts account and quota policy and
+does not reimplement the encrypted protocol. Release proof must identify the
+resolved packages and their passed service/client compatibility checks.
+
+The encrypted profile, server configuration, rollout controls, migration,
+recovery, and production acceptance are documented in
+[Encrypted Sync operations](./docs/ENCRYPTED-SYNC-OPERATIONS.md). This repository
+can contain production-targeted source before that source has been deployed.
 
 ## API boundaries
 
@@ -57,6 +61,13 @@ labels, so duplicates are allowed. Repository discovery lists newly created
 Spaces first, using the technical key only as a stable tie-breaker. Deletion,
 technical-key rename, sharing, and organization ACL management are
 deliberately outside this initial slice.
+
+Encrypted clients provision with
+`{"display_name":"Personal Space","encryption":"encrypted-remote-v1"}`.
+The server retains a fixed profile and UUID and returns the descriptor in
+provisioning and discovery. Passwords and keys are never management API inputs.
+An existing ordinary repository cannot be reclassified in place, and an
+encrypted repository cannot be downgraded by a bodyless provisioning request.
 
 Protocol traffic is rooted directly at the repository URL. A repository must
 be provisioned before its descriptor or objects are accessible; an authorized
@@ -145,7 +156,9 @@ request must never charge Credits, create a subscription, or trigger renewal.
   technical name. INSERT OR IGNORE makes concurrent provisioning idempotent.
 - One official SQLite RepositoryDurableObject per repository stores mutable
   HEAD and refs/\*\*. CAS and CAD are single conditional SQL statements, so only
-  one concurrent ref writer can win.
+  one concurrent ref writer can win. For encrypted repositories it also retains
+  the fixed profile, encrypted reference values, and opaque routing/visibility
+  state needed by the upstream adapter.
 - R2 stores immutable bytes below a repository-prefixed key. The official
   backend streams bodies and uses If-None-Match: \* for create-only writes.
 - One SQLite SyncUsageDurableObject per account namespace serializes byte
@@ -164,6 +177,9 @@ request must never charge Credits, create a subscription, or trigger renewal.
   non-leaking 500 protocol problem response; identity outages become 503.
   Every protocol response, including errors, carries Graft-Protocol: 1;
   unsupported versions return 426.
+- SyncActivityDurableObject retains bounded account-level read, write, and
+  management activity for the account service. It contains no decrypted file
+  contents or sync passwords.
 
 Failed final ref CAS operations can leave unreachable immutable objects in R2,
 which is safe for repository visibility but requires a future garbage
@@ -226,7 +242,7 @@ account:
    pnpm --filter @eidos.space/graft-remote-service exec wrangler r2 \
     bucket create eidos-graft-remote-objects-preview
 
-5. The account supports SQLite Durable Objects and all three exported classes
+5. The account supports SQLite Durable Objects and all four exported classes
    are present in the dry-run bundle.
 6. Workers logs/traces, R2 retention/backups, request-size limits, quotas, abuse
    controls, and alerts for auth 503, storage 500, CAS 409, and rate limiting
@@ -235,9 +251,13 @@ account:
    reconciled with R2. Set it to `enforce` only after alerts and rollback are
    ready. Verify both declared-length and multipart-staged Graft client uploads
    in the target environment.
+8. Set `SYNC_ENCRYPTED_CREATION` deliberately. `enabled` allows new encrypted
+   provisioning; `disabled` pauses it while existing encrypted reads and writes
+   remain available. Complete the encrypted delivery checks before enabling it
+   for released clients. Retain an E2EE-capable rollback version.
 
 No Cloudflare credential is stored in source or Wrangler vars. The production
-MVP is intended to run as the `eidos-graft-remote` Worker on
+configuration targets the `eidos-graft-remote` Worker on
 `sync.eidos.space`; run this checklist before the first deployment and every
 subsequent rollout.
 
@@ -276,7 +296,11 @@ configuration is production.
   to consume quota, matching the commercial definition.
 - A single upload is still subject to the Cloudflare plan's incoming
   request-body limit even though the Worker streams it.
-- Desktop must wire access-token refresh and GRAFT_REMOTE_TOKEN handoff to a
-  Graft client compatible with the advertised protocol. Pure CLI operation is
-  already covered by the dedicated-key smoke. The current tested client is
-  v0.8.1; Desktop integration remains intentionally isolated here.
+- Desktop performs account refresh and scoped credential handoff through its
+  trusted host. Validate the exact released native SDK and actual Desktop
+  flows; a dedicated-key CLI smoke does not prove OAuth refresh, secure storage,
+  UI recovery, or encrypted-client compatibility.
+- Encrypted repositories need both R2 bytes and Durable Object profile/ref/
+  visibility state. Do not expire objects based only on an adapter staging
+  prefix. Password reset, quota adjustment, or deployment rollback cannot
+  decrypt or convert existing encrypted data.

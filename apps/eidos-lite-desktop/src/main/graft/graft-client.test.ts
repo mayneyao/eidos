@@ -35,23 +35,48 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it("inspects an unversioned Space without opening the SDK or discovering a parent repository", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-unversioned-inspect-")
+    )
+    const root = path.join(directory, "Space")
+    await fs.mkdir(root)
+    await fs.mkdir(path.join(directory, ".graft"))
+    await fs.writeFile(path.join(directory, ".graft/sentinel"), "unchanged")
+    const transport = createUnusedTransport()
+    const client = new GraftClient({ sdkTransport: transport })
+    try {
+      await expect(client.inspectSpace(root)).resolves.toMatchObject({
+        available: true,
+        initialized: false,
+      })
+      expect(transport.open).not.toHaveBeenCalled()
+      expect(transport.command).not.toHaveBeenCalled()
+      expect(
+        await fs.readFile(path.join(directory, ".graft/sentinel"), "utf8")
+      ).toBe("unchanged")
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it.each(["", "/tmp/eidos-local-graft-sdk"])(
-    "accepts SDK 0.3.30 and rejects older builds (override=%s)",
+    "accepts SDK 0.3.31 and rejects older builds (override=%s)",
     async (sdkPath) => {
       vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
       const command = vi
         .fn()
-        .mockResolvedValueOnce("0.3.29")
-        .mockResolvedValue("0.3.30")
+        .mockResolvedValueOnce("0.3.30")
+        .mockResolvedValue("0.3.31")
       const client = new GraftClient({
         sdkTransport: { ...createUnusedTransport(), command },
       })
       try {
         await expect(client.version()).rejects.toThrow(
-          "Graft 0.3.30 is required; found 0.3.29"
+          "Graft 0.3.31 is required; found 0.3.30"
         )
-        await expect(client.version()).resolves.toBe("0.3.30")
-        await expect(client.version()).resolves.toBe("0.3.30")
+        await expect(client.version()).resolves.toBe("0.3.31")
+        await expect(client.version()).resolves.toBe("0.3.31")
         expect(command).toHaveBeenCalledTimes(2)
         expect(command).toHaveBeenCalledWith("sdkVersion")
       } finally {

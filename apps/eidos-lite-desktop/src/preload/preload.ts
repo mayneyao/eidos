@@ -169,8 +169,10 @@ const api: EidosLiteApi = {
   restartToInstallUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateInstall),
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsOpen),
   onSettingsNavigate: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, page: "devices") =>
-      listener(page)
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      page: "devices" | "account-sync"
+    ) => listener(page)
     ipcRenderer.on(IPC_CHANNELS.settingsNavigate, handler)
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.settingsNavigate, handler)
@@ -498,11 +500,25 @@ const api: EidosLiteApi = {
   beginSyncSignIn: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignIn),
   signOutSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignOut),
   getSyncPreflight: () => ipcRenderer.invoke(IPC_CHANNELS.syncPreflight),
-  enableSync: (approval) =>
-    ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval),
+  enableSync: (approval, encryption) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval, encryption),
+  unlockSync: (encryption) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncUnlock, encryption),
+  forgetSyncUnlock: () => ipcRenderer.invoke(IPC_CHANNELS.syncForgetUnlock),
+  getSyncPasswordSettings: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncPasswordSettings),
+  saveDefaultSyncPassword: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncPasswordSave, input),
+  forgetDefaultSyncPassword: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncPasswordForget),
   listSyncRepositories: () => ipcRenderer.invoke(IPC_CHANNELS.syncRepositories),
-  cloneSyncRepository: (remoteUrl, displayName) =>
-    ipcRenderer.invoke(IPC_CHANNELS.syncClone, remoteUrl, displayName),
+  cloneSyncRepository: (remoteUrl, displayName, encryption) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.syncClone,
+      remoteUrl,
+      displayName,
+      encryption
+    ),
   runSync: (action = "fetch") =>
     ipcRenderer.invoke(IPC_CHANNELS.syncRun, action),
   peerSync: (action, deviceId) =>

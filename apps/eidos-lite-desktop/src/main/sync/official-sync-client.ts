@@ -1,11 +1,39 @@
 import type { EidosLiteServiceEnvironment } from "../../shared/service-environment"
+import type { EidosSyncEncryption } from "../../shared/contracts"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
 import { normalizeCloudSpaceDisplayName } from "./cloud-space-name"
+
+export function syncEncryption(
+  value: unknown
+): EidosSyncEncryption | undefined {
+  if (value === null || value === undefined) return undefined
+  const encryption = object(value)
+  if (
+    encryption.profile !== "encrypted-remote-v1" ||
+    encryption.version !== 1 ||
+    encryption.suite !== 1 ||
+    typeof encryption.uuid !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      encryption.uuid
+    )
+  )
+    throw new OfficialSyncError(
+      "Unsupported encrypted Sync identity",
+      "invalid-response"
+    )
+  return {
+    profile: "encrypted-remote-v1",
+    version: 1,
+    suite: 1,
+    uuid: encryption.uuid,
+  }
+}
 
 const REQUEST_TIMEOUT_MS = 30_000
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 
 export interface OfficialSyncRepository {
+  encryption?: EidosSyncEncryption
   name: string
   displayName: string
   createdAtMs: number
@@ -18,6 +46,7 @@ export interface OfficialSyncRepositoryList {
 }
 
 export interface OfficialSyncProvisionResult {
+  encryption?: EidosSyncEncryption
   created: boolean
   namespace: string
   repository: string
@@ -193,6 +222,9 @@ export class OfficialSyncClient {
         displayName,
         createdAtMs: repository.created_at,
         remoteUrl: repository.remote_url,
+        ...(repository.encryption
+          ? { encryption: syncEncryption(repository.encryption) }
+          : {}),
       }
     })
     return { namespace: value.namespace, repositories }
@@ -201,7 +233,8 @@ export class OfficialSyncClient {
   async provisionRepository(
     repository: string,
     displayName: string,
-    token: string
+    token: string,
+    encrypted = false
   ): Promise<OfficialSyncProvisionResult> {
     if (!REPOSITORY_NAME.test(repository)) {
       throw new OfficialSyncError(
@@ -217,7 +250,10 @@ export class OfficialSyncClient {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ display_name: normalizedDisplayName }),
+          body: JSON.stringify({
+            display_name: normalizedDisplayName,
+            ...(encrypted ? { encryption: "encrypted-remote-v1" } : {}),
+          }),
         },
         token
       )
@@ -234,8 +270,15 @@ export class OfficialSyncClient {
         "invalid-response"
       )
     }
+    const encryption = syncEncryption(value.encryption)
+    if (encrypted !== Boolean(encryption))
+      throw new OfficialSyncError(
+        "Sync repository encryption profile mismatch",
+        "invalid-response"
+      )
     return {
       created: value.created,
+      ...(encryption ? { encryption } : {}),
       namespace: value.namespace,
       repository,
       remoteUrl: value.remote_url,

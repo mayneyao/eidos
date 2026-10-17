@@ -1,4 +1,5 @@
 import type {
+  EidosSyncEncryption,
   EidosSyncRepositoryList,
   EidosSyncStatus,
   SyncAccountStatus,
@@ -24,7 +25,17 @@ export class SyncPolicyError extends Error {
   }
 }
 
+export interface SyncOperationContext {
+  readonly subject: string
+  readonly accessToken: string
+  readonly access: "read_only" | "read_write"
+  assertCurrent(): void
+}
+
 export class SyncControlPlane {
+  private operationGeneration = 0
+  private accountChangeGeneration: number | null = null
+  private readonly operationContexts = new WeakSet<SyncOperationContext>()
   constructor(
     private readonly environment: EidosLiteServiceEnvironment,
     private readonly account: AccountSessionService,
@@ -37,88 +48,207 @@ export class SyncControlPlane {
   ) {}
 
   async status(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
+    const generation = this.operationGeneration
+    this.assertCurrent(generation)
     const account = await this.account.status()
+    this.assertCurrent(generation)
     return account.state === "signed-in"
       ? await this.projectSignedInStatus(
           account,
           await this.account.authorization(),
-          remoteUrl
+          remoteUrl,
+          () => this.assertCurrent(generation)
         )
       : this.projectStatus(account, undefined, remoteUrl)
   }
 
   async accountStatus(): Promise<SyncAccountStatus> {
-    return await this.account.status()
+    const generation = this.operationGeneration
+    this.assertCurrent(generation)
+    const status = await this.account.status()
+    this.assertCurrent(generation)
+    return status
   }
 
   async signIn(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
-    const account = await this.account.signIn()
-    return await this.projectSignedInStatus(
-      account,
-      account.authorization ?? (await this.account.authorization()),
-      remoteUrl
-    )
+    const generation = ++this.operationGeneration
+    this.accountChangeGeneration = generation
+    try {
+      const account = await this.account.signIn()
+      this.assertCurrent(generation, true)
+      return await this.projectSignedInStatus(
+        account,
+        account.authorization ?? (await this.account.authorization()),
+        remoteUrl,
+        () => this.assertCurrent(generation, true)
+      )
+    } finally {
+      this.finishAccountChange(generation)
+    }
   }
 
   async signOut(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
-    return this.projectStatus(
-      await this.account.signOut(),
-      undefined,
-      remoteUrl
-    )
+    const generation = ++this.operationGeneration
+    this.accountChangeGeneration = generation
+    try {
+      const account = await this.account.signOut()
+      this.assertCurrent(generation, true)
+      return this.projectStatus(account, undefined, remoteUrl)
+    } finally {
+      this.finishAccountChange(generation)
+    }
+  }
+
+  private finishAccountChange(generation: number): void {
+    if (generation !== this.operationGeneration) return
+    this.accountChangeGeneration = null
+    this.operationGeneration += 1
+  }
+
+  private assertCurrent(generation: number, allowAccountChange = false): void {
+    if (
+      generation !== this.operationGeneration ||
+      (!allowAccountChange && this.accountChangeGeneration !== null)
+    ) {
+      throw Object.assign(
+        new Error(
+          "The Sync account changed. Try again with the current account."
+        ),
+        { code: "authentication-required" }
+      )
+    }
   }
 
   /** First-party account credential for non-Sync services such as Publish. */
-  accountAccessToken(): Promise<string> {
-    return this.account.accessToken()
+  async accountAccessToken(): Promise<string> {
+    const generation = this.operationGeneration
+    this.assertCurrent(generation)
+    const token = await this.account.accessToken()
+    this.assertCurrent(generation)
+    return token
   }
 
   async accountSubject(): Promise<string> {
-    const status = await this.account.status()
+    const status = await this.accountStatus()
     if (status.state !== "signed-in" || !status.user?.id) {
       throw new Error("Sign in to Eidos first.")
     }
     return status.user.id
   }
 
+  async operationContext(): Promise<SyncOperationContext> {
+    const generation = this.operationGeneration
+    const assertCurrent = () => this.assertCurrent(generation)
+    assertCurrent()
+    const authorization = await this.account.authorization()
+    assertCurrent()
+    const access = this.forceReadOnly
+      ? "read_only"
+      : authorization.access?.access
+    if (access !== "read_only" && access !== "read_write") {
+      throw new SyncPolicyError(
+        "Eidos Sync access is required.",
+        "entitlement-inactive"
+      )
+    }
+    const accessToken = await this.account.accessToken()
+    assertCurrent()
+    const subject = await this.accountSubject()
+    assertCurrent()
+    if (subject !== authorization.subject) {
+      throw Object.assign(
+        new Error(
+          "The Sync account changed. Try again with the current account."
+        ),
+        { code: "authentication-required" }
+      )
+    }
+    const context = Object.freeze({
+      subject,
+      accessToken,
+      access,
+      assertCurrent,
+    })
+    this.operationContexts.add(context)
+    return context
+  }
+
+  private assertContext(context: SyncOperationContext): void {
+    if (!this.operationContexts.has(context))
+      throw new Error("Sync operation belongs to another account environment")
+    context.assertCurrent()
+  }
+
   async provisionRepository(
     repository: string,
-    displayName: string
+    displayName: string,
+    encrypted = false,
+    context?: SyncOperationContext
   ): Promise<{
     remoteUrl: string
     accessToken: string
+    encryption?: EidosSyncEncryption
   }> {
-    const authorization = await this.account.authorization()
-    if (authorization.access?.access !== "read_write") {
+    const operation = context ?? (await this.operationContext())
+    this.assertContext(operation)
+    if (operation.access !== "read_write") {
       throw new SyncPolicyError(
         "Eidos Sync write access is required.",
         "entitlement-inactive"
       )
     }
-    const accessToken = await this.account.accessToken()
-    const provisioned = await this.remote.provisionRepository(
-      repository,
-      displayName,
-      accessToken
-    )
-    return { remoteUrl: provisioned.remoteUrl, accessToken }
+    const { accessToken } = operation
+    const provisioned = encrypted
+      ? await this.remote.provisionRepository(
+          repository,
+          displayName,
+          accessToken,
+          true
+        )
+      : await this.remote.provisionRepository(
+          repository,
+          displayName,
+          accessToken
+        )
+    this.assertContext(operation)
+    return {
+      remoteUrl: provisioned.remoteUrl,
+      accessToken,
+      ...(provisioned.encryption ? { encryption: provisioned.encryption } : {}),
+    }
   }
 
-  async repositories(): Promise<EidosSyncRepositoryList> {
-    const { accessToken } = await this.repositoryAccess()
+  async repositories(
+    context?: SyncOperationContext
+  ): Promise<EidosSyncRepositoryList> {
+    const operation = context ?? (await this.operationContext())
+    this.assertContext(operation)
     await this.remote.discover()
-    return this.remote.listRepositories(accessToken)
+    this.assertContext(operation)
+    const repositories = await this.remote.listRepositories(
+      operation.accessToken
+    )
+    this.assertContext(operation)
+    return repositories
   }
 
   async repairLegacyRepositoryDisplayName(
     remoteUrl: string,
     displayName: string
   ): Promise<boolean> {
-    const authorization = await this.account.authorization()
-    if (authorization.access?.access !== "read_write") return false
-    const accessToken = await this.account.accessToken()
-    await this.remote.discover()
-    const listed = await this.remote.listRepositories(accessToken)
+    let operation: SyncOperationContext
+    try {
+      operation = await this.operationContext()
+    } catch (error) {
+      if (
+        error instanceof SyncPolicyError &&
+        error.code === "entitlement-inactive"
+      )
+        return false
+      throw error
+    }
+    if (operation.access !== "read_write") return false
+    const listed = await this.repositories(operation)
     const repository = listed.repositories.find(
       (entry) => entry.remoteUrl === remoteUrl
     )
@@ -129,30 +259,28 @@ export class SyncControlPlane {
     ) {
       return false
     }
+    this.assertContext(operation)
     await this.remote.renameRepository(
       repository.name,
       displayName,
-      accessToken
+      operation.accessToken
     )
+    this.assertContext(operation)
     return true
   }
 
-  async repositoryAccess(remoteUrl?: string): Promise<{
+  async repositoryAccess(
+    remoteUrl?: string,
+    context?: SyncOperationContext
+  ): Promise<{
     accessToken: string
     access: "read_only" | "read_write"
   }> {
-    const authorization = await this.account.authorization()
-    const access = authorization.access?.access
-    if (access !== "read_only" && access !== "read_write") {
-      throw new SyncPolicyError(
-        "Eidos Sync access is required.",
-        "entitlement-inactive"
-      )
-    }
-    const accessToken = await this.account.accessToken()
+    const operation = context ?? (await this.operationContext())
+    this.assertContext(operation)
+    const { access, accessToken } = operation
     if (remoteUrl) {
-      await this.remote.discover()
-      const listed = await this.remote.listRepositories(accessToken)
+      const listed = await this.repositories(operation)
       if (!listed.repositories.some((entry) => entry.remoteUrl === remoteUrl)) {
         throw new SyncPolicyError(
           "This Hosted Remote is not available to the signed-in account.",
@@ -160,23 +288,31 @@ export class SyncControlPlane {
         )
       }
     }
+    this.assertContext(operation)
     return { accessToken, access }
   }
 
   private async projectSignedInStatus(
     account: AccountSessionStatus,
     authorization: SyncAuthorization,
-    remoteUrl: string | null
+    remoteUrl: string | null,
+    assertCurrent: () => void
   ): Promise<EidosSyncStatus> {
+    assertCurrent()
+    if (account.user?.id !== authorization.subject)
+      throw new Error("The Sync account changed. Refresh account status.")
     const access = authorization.access?.access
     let usage: OfficialSyncUsage | undefined
     if (access === "read_only" || access === "read_write") {
       try {
-        usage = await this.remote.usage(await this.account.accessToken())
+        const accessToken = await this.account.accessToken()
+        assertCurrent()
+        usage = await this.remote.usage(accessToken)
       } catch (error) {
         console.warn("Could not load Eidos Sync storage usage", error)
       }
     }
+    assertCurrent()
     return this.projectStatus(account, authorization, remoteUrl, usage)
   }
 

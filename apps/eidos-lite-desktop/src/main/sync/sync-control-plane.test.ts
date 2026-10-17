@@ -35,6 +35,170 @@ const remote = {
 } as unknown as OfficialSyncClient
 
 describe("SyncControlPlane", () => {
+  function writableControl() {
+    const account = accountSession("signed-in")
+    vi.mocked(account.authorization).mockResolvedValue({
+      subject: "user-1",
+      access: {
+        version: 1,
+        revision: 1,
+        service: "eidos_sync",
+        access: "read_write",
+        quotaBytes: 1024,
+        deviceLimit: 0,
+      },
+    })
+    const operations = {
+      discover: vi.fn(async () => {}),
+      listRepositories: vi.fn(async () => ({
+        namespace: "u-alice",
+        repositories: [],
+      })),
+      provisionRepository: vi.fn(async () => ({
+        created: true,
+        namespace: "u-alice",
+        repository: "space",
+        remoteUrl: "https://sync-staging.eidos.space/u-alice/space",
+      })),
+      usage: vi.fn(async () => ({
+        usedBytes: 0,
+        reservedBytes: 0,
+        quotaBytes: 1024,
+        remainingBytes: 1024,
+      })),
+    }
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account,
+      operations as unknown as OfficialSyncClient
+    )
+    return { account, operations, control }
+  }
+
+  it("binds repository operations to one context without reading another token", async () => {
+    const { account, operations, control } = writableControl()
+    const context = await control.operationContext()
+    vi.mocked(account.accessToken).mockClear().mockResolvedValue("later-token")
+    await control.provisionRepository("space", "Notes", false, context)
+    await control.repositories(context)
+    expect(account.accessToken).not.toHaveBeenCalled()
+    expect(operations.provisionRepository).toHaveBeenCalledWith(
+      "space",
+      "Notes",
+      "oauth-access-token"
+    )
+    expect(operations.listRepositories).toHaveBeenCalledWith(
+      "oauth-access-token"
+    )
+    expect(context.subject).toBe("user-1")
+  })
+
+  it("invalidates a prepared operation after logout and login to the same account", async () => {
+    const { operations, control } = writableControl()
+    const context = await control.operationContext()
+    await control.signOut()
+    await control.signIn()
+    expect(() => context.assertCurrent()).toThrow("account changed")
+    await expect(
+      control.provisionRepository("space", "Notes", true, context)
+    ).rejects.toThrow("account changed")
+    expect(operations.provisionRepository).not.toHaveBeenCalled()
+    const current = await control.operationContext()
+    expect(() => current.assertCurrent()).not.toThrow()
+  })
+
+  it("rejects account changes while acquiring an operation context", async () => {
+    const { account, control } = writableControl()
+    let resolve!: (
+      value: Awaited<ReturnType<AccountSessionService["authorization"]>>
+    ) => void
+    const authorization = await account.authorization()
+    vi.mocked(account.authorization).mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    const context = control.operationContext()
+    const rejected = expect(context).rejects.toThrow("account changed")
+    await control.signOut()
+    resolve(authorization)
+    await rejected
+    expect(account.accessToken).not.toHaveBeenCalled()
+  })
+
+  it("does not let an obsolete sign-in block or invalidate a newer account", async () => {
+    const { account, control } = writableControl()
+    let finishOld!: (
+      value: Awaited<ReturnType<AccountSessionService["signIn"]>>
+    ) => void
+    vi.mocked(account.signIn).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve
+      })
+    )
+    const old = control.signIn()
+    const rejected = expect(old).rejects.toThrow("account changed")
+    await control.signOut()
+    await control.signIn()
+    const current = await control.operationContext()
+    finishOld({ state: "signed-in", user: { id: "user-1" } })
+    await rejected
+    expect(() => current.assertCurrent()).not.toThrow()
+  })
+
+  it("rejects a status read that finishes with another account's usage", async () => {
+    const { operations, control } = writableControl()
+    let finishUsage!: (
+      value: Awaited<ReturnType<typeof operations.usage>>
+    ) => void
+    operations.usage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishUsage = resolve
+      })
+    )
+    const status = control.status()
+    const rejected = expect(status).rejects.toThrow("account changed")
+    await vi.waitFor(() => expect(operations.usage).toHaveBeenCalledOnce())
+    await control.signOut()
+    finishUsage({
+      usedBytes: 0,
+      reservedBytes: 0,
+      quotaBytes: 1024,
+      remainingBytes: 1024,
+    })
+    await rejected
+  })
+
+  it("rejects delayed repository results after logout", async () => {
+    const { operations, control } = writableControl()
+    let resolve!: (value: { namespace: string; repositories: [] }) => void
+    operations.listRepositories.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    const context = await control.operationContext()
+    const listing = control.repositories(context)
+    const rejected = expect(listing).rejects.toThrow("account changed")
+    await vi.waitFor(() =>
+      expect(operations.listRepositories).toHaveBeenCalledOnce()
+    )
+    await control.signOut()
+    resolve({ namespace: "u-alice", repositories: [] })
+    await rejected
+  })
+
+  it("rejects a context from another service environment", async () => {
+    const first = writableControl()
+    const other = writableControl()
+    const context = await first.control.operationContext()
+    await expect(other.control.repositories(context)).rejects.toThrow(
+      "another account environment"
+    )
+    expect(other.operations.listRepositories).not.toHaveBeenCalled()
+  })
+
   it("keeps local use signed out and gates Remote provisioning", async () => {
     const control = new SyncControlPlane(
       EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,

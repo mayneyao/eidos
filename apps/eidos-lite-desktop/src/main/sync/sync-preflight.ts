@@ -10,32 +10,10 @@ import type {
   EidosSyncPreflightExclusion,
 } from "../../shared/contracts"
 
-export const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024
 export const MAX_SYNC_FILE_BYTES = 1024 * 1024 * 1024
 const MAX_SYNC_ENTRIES = 100_000
 const MAX_REVIEW_SAMPLE_ENTRIES = 100
 const OS_NOISE_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"])
-const SECRET_FILE_NAMES = new Set([
-  ".dockercfg",
-  ".netrc",
-  ".npmrc",
-  ".pypirc",
-  "credentials",
-  "credentials.json",
-  "id_dsa",
-  "id_ed25519",
-  "id_rsa",
-  "secrets.json",
-  "service-account.json",
-])
-const SECRET_FILE_EXTENSIONS = new Set([
-  ".jks",
-  ".key",
-  ".keystore",
-  ".p12",
-  ".pem",
-  ".pfx",
-])
 
 interface ManifestCandidate {
   trackedIgnored: boolean
@@ -48,27 +26,6 @@ interface ManifestCandidate {
 
 function portablePath(root: string, absolutePath: string): string {
   return path.relative(root, absolutePath).split(path.sep).join("/")
-}
-
-function isHiddenPath(relativePath: string): boolean {
-  return relativePath.split("/").some((component) => component.startsWith("."))
-}
-
-function isSuspectedSecret(relativePath: string): boolean {
-  const components = relativePath
-    .split("/")
-    .map((component) => component.toLowerCase())
-  const name = path.basename(relativePath).toLowerCase()
-  return (
-    name === ".env" ||
-    name.startsWith(".env.") ||
-    SECRET_FILE_NAMES.has(name) ||
-    SECRET_FILE_EXTENSIONS.has(path.extname(name)) ||
-    components.some((component) =>
-      ["credential", "credentials", "secret", "secrets"].includes(component)
-    ) ||
-    /(^|[._-])(secret|secrets|credential|credentials)([._-]|$)/.test(name)
-  )
 }
 
 function isTemporaryFile(name: string): boolean {
@@ -98,11 +55,6 @@ function classifyCandidate(candidate: ManifestCandidate): {
 } {
   const concerns: EidosSyncPreflightConcern[] = []
   if (candidate.trackedIgnored) concerns.push("tracked-ignored")
-  if (isHiddenPath(candidate.relativePath)) concerns.push("hidden")
-  if (isSuspectedSecret(candidate.relativePath)) {
-    concerns.push("suspected-secret")
-  }
-  if (candidate.size >= LARGE_FILE_WARNING_BYTES) concerns.push("large-file")
   if (candidate.size > MAX_SYNC_FILE_BYTES) concerns.push("file-too-large")
   if (candidate.kind === "symlink") concerns.push("symlink")
   if (candidate.kind === "unsupported") concerns.push("unsupported-entry")
@@ -275,7 +227,9 @@ export async function createSyncPreflight(
           modified: candidate.modifiedFingerprint,
           trackedIgnored: candidate.trackedIgnored,
         })),
-        excluded,
+        // Initializing local history creates .graft, but never changes the
+        // reviewed upload set. Repository metadata is never uploaded as files.
+        excluded: excluded.filter((entry) => entry.reason !== "graft-metadata"),
       })
     )
     .digest("hex")
@@ -306,17 +260,12 @@ export function assertSyncPreflightApproval(
 ): void {
   if (approval.manifestId !== preflight.manifestId) {
     throw new Error(
-      "The Space changed after Sync review. Review the updated upload scope before continuing."
+      "Files changed while preparing Sync. Recheck files and try again."
     )
   }
   if (preflight.blockerCount > 0) {
     throw new Error(
       "The Space contains entries that Eidos Sync cannot upload safely. Resolve the blocked entries and review again."
-    )
-  }
-  if (preflight.warningCount > 0 && !approval.confirmWarnings) {
-    throw new Error(
-      "Confirm the hidden, secret-like, and large files before Eidos Sync."
     )
   }
 }

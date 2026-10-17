@@ -15,6 +15,7 @@ import type {
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
+import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import { fileMetadataConfigPaths } from "../../shared/file-metadata-config"
 import {
   prepareMarkdownLinkMove,
@@ -2179,8 +2180,13 @@ export class SpaceSession {
     remoteUrl: string,
     accessToken: string,
     approval: EidosSyncPreflightApproval,
-    reportTransfer: SyncTransferProgressReporter = () => undefined
+    reportTransfer: SyncTransferProgressReporter = () => undefined,
+    encryption?: GraftEncryptedInput,
+    assertCurrent: () => void = () => undefined,
+    signal?: AbortSignal
   ): Promise<SpaceSnapshot> {
+    signal?.throwIfAborted()
+    assertCurrent()
     const existing = await this.syncState.read()
     if (existing) {
       if (existing.remoteUrl !== remoteUrl) {
@@ -2202,7 +2208,12 @@ export class SpaceSession {
     }
     await this.gate.withRepositoryOperation(
       "Connecting the whole Space to Eidos Sync",
-      async () => {
+      async (gateSignal) => {
+        const operationSignal = signal
+          ? AbortSignal.any([gateSignal, signal])
+          : gateSignal
+        operationSignal.throwIfAborted()
+        assertCurrent()
         await this.assertSyncPreflight(approval)
         const current = await this.graft.status(
           this.canonical.root,
@@ -2213,14 +2224,30 @@ export class SpaceSession {
             "Space changed during Sync review; create a checkpoint and review again"
           )
         }
-        await this.graft.configureOfficialRemote(
-          this.canonical.root,
-          remoteUrl,
-          accessToken
-        )
-        await this.graft.push(this.canonical.root, accessToken, {
-          onProgress: reportTransfer,
-        })
+        operationSignal.throwIfAborted()
+        assertCurrent()
+        if (encryption) {
+          await this.graft.encryptedSync(
+            this.canonical.root,
+            "initialize",
+            encryption,
+            { signal: operationSignal }
+          )
+        } else {
+          await this.graft.configureOfficialRemote(
+            this.canonical.root,
+            remoteUrl,
+            accessToken
+          )
+          operationSignal.throwIfAborted()
+          assertCurrent()
+          await this.graft.push(this.canonical.root, accessToken, {
+            onProgress: reportTransfer,
+            signal: operationSignal,
+          })
+        }
+        operationSignal.throwIfAborted()
+        assertCurrent()
         this.syncHistoryState = await this.syncState.markFirstPush(remoteUrl)
       }
     )
@@ -2743,6 +2770,11 @@ export class SpaceSession {
   }
 
   async getSyncMergeStatus(): Promise<EidosSyncMergeStatus> {
+    const initialized = await fs
+      .stat(path.join(this.canonical.root, ".graft"))
+      .then((stats) => stats.isDirectory())
+      .catch(() => false)
+    if (!initialized) return { state: "none" }
     const merge = await this.gate.withRepositoryOperation(
       "Reading merge recovery state",
       (signal) => this.graft.getMergeStatus(this.canonical.root, { signal }),
@@ -3320,7 +3352,51 @@ export class SpaceSession {
     })
   }
 
-  async assertHostedSyncReady(): Promise<void> {
+  async prepareHostedSync(
+    approval: EidosSyncPreflightApproval,
+    encrypted = false
+  ): Promise<void> {
+    await this.assertSyncPreflight(approval)
+    const before = await this.repository.runForeground((signal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
+    )
+    if (!before.available)
+      throw new Error(
+        before.error ?? "The bundled Graft runtime is unavailable"
+      )
+    // Reject an existing incompatible connection before changing local history.
+    if (encrypted && before.initialized)
+      await this.assertEncryptedOriginAvailable()
+    await this.enableVersioning()
+    const status = await this.repository.runForeground((signal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
+    )
+    if (status.clean !== true) await this.createCheckpoint("Enable Eidos Sync")
+    // Repository preparation must not publish files changed since the review.
+    await this.assertSyncPreflight(approval)
+    await this.assertHostedSyncReady(encrypted)
+  }
+
+  private async assertEncryptedOriginAvailable(): Promise<void> {
+    await this.repository.runForeground(async () => {
+      const origin = await this.graft.remoteUrl(this.canonical.root)
+      if (origin && !(await this.graft.isEncryptedRemote(this.canonical.root)))
+        throw Object.assign(
+          new Error("This Space already has an ordinary origin"),
+          {
+            code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT",
+          }
+        )
+    })
+  }
+
+  async assertHostedSyncReady(encrypted = false): Promise<void> {
     if (await this.syncState.read()) return
     const status = await this.repository.runForeground((signal) =>
       this.graft.inspectSpace(
@@ -3334,6 +3410,7 @@ export class SpaceSession {
     if (status.clean !== true) {
       throw new Error("Create a checkpoint for local changes before Eidos Sync")
     }
+    if (encrypted) await this.assertEncryptedOriginAvailable()
   }
 
   async getVersionChanges(
@@ -4001,6 +4078,36 @@ export class SpaceSession {
     )
   }
 
+  unlockEncryptedSync(
+    input: GraftEncryptedInput,
+    assertCurrent: () => void = () => undefined,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    return this.gate.withRepositoryOperation(
+      "Unlocking encrypted Sync",
+      (gateSignal) => {
+        const operationSignal = signal
+          ? AbortSignal.any([gateSignal, signal])
+          : gateSignal
+        operationSignal.throwIfAborted()
+        assertCurrent()
+        return this.graft.encryptedSync(this.canonical.root, "unlock", input, {
+          signal: operationSignal,
+        })
+      }
+    )
+  }
+
+  hasEncryptedSync(): Promise<boolean> {
+    return this.graft.isEncryptedRemote(this.canonical.root)
+  }
+  encryptedSyncStatus() {
+    return this.graft.encryptedSyncStatus(this.canonical.root)
+  }
+  lockEncryptedSync() {
+    return this.graft.lockEncryptedSync(this.canonical.root)
+  }
+
   verifyGraftCrashRecoveryForTesting(): Promise<boolean> {
     if (!process.env.EIDOS_LITE_SMOKE_RESULT) {
       throw new Error("Graft crash recovery probe is available only to smoke")
@@ -4264,7 +4371,7 @@ export class SpaceSession {
       version: this.graft.expectedVersion(),
       expectedVersion: this.graft.expectedVersion(),
       initialized: this.versioningEnabled,
-      checking: true,
+      checking: this.versioningEnabled,
     }
   }
 

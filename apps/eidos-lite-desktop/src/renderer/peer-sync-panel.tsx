@@ -108,21 +108,25 @@ export function PeerSyncPanel({
             {t("Share this Space with paired devices")}
           </p>
         </div>
-        <button
-          type="button"
-          className="settings-switch"
-          role="switch"
-          aria-label={t("Turn on LAN sync for this Space")}
-          aria-checked={status.running}
-          disabled={busy || !status.serviceRunning}
-          onClick={() => void run(status.running ? "stop" : "start")}
-        >
-          <span />
-        </button>
+        {status.serviceRunning ? (
+          <button
+            type="button"
+            className="settings-switch"
+            role="switch"
+            aria-label={t("Turn on LAN sync for this Space")}
+            aria-checked={status.running}
+            disabled={busy || !status.serviceRunning}
+            onClick={() => void run(status.running ? "stop" : "start")}
+          >
+            <span />
+          </button>
+        ) : null}
       </div>
       <p className="my-4 text-muted-foreground">
         {!status.serviceRunning
-          ? t("Turn on the LAN service in Settings → Devices first.")
+          ? t(
+              "Connect your devices to sync this Space over the same local network."
+            )
           : status.running
             ? t(
                 "Shared. Paired devices can still sync after you switch Spaces or close this window."
@@ -247,7 +251,12 @@ export function PeerSyncPanel({
         className="mt-2"
         onClick={() => void window.eidosLite.openSettingsDestination("devices")}
       >
-        {status.devices.length ? t("Manage devices") : t("Connect a device")} ↗
+        {!status.serviceRunning
+          ? t("Set up LAN sync")
+          : status.devices.length
+            ? t("Manage devices")
+            : t("Connect a device")}{" "}
+        ↗
       </button>
       {error && (
         <p role="alert" className="mt-3 text-destructive">
@@ -278,7 +287,7 @@ export function DevicesSettings() {
       <div className="settings-group">
         <div className="settings-row">
           <div className="settings-row-copy">
-            <strong>{t("LAN service")}</strong>
+            <strong>{t("LAN sync")}</strong>
             <p>
               {status.running
                 ? t("On · Available while Eidos Lite is running")
@@ -289,7 +298,7 @@ export function DevicesSettings() {
             type="button"
             className="settings-switch"
             role="switch"
-            aria-label={t("LAN service")}
+            aria-label={t("LAN sync")}
             aria-checked={status.running}
             disabled={busy}
             onClick={() =>
@@ -407,7 +416,7 @@ export function DevicesSettings() {
       <h3 className="mb-3 mt-8">{t("Spaces shared over LAN")}</h3>
       <p className="mb-3 text-muted-foreground">
         {t(
-          "Turn sharing on or off in each Space's Sync panel. Turning off the LAN service stops LAN sync for every Space."
+          "Choose which Spaces to share in their Sync panels. Turning off LAN sync here stops sharing for all Spaces."
         )}
       </p>
       {status.spaces?.length ? (

@@ -96,6 +96,67 @@ describe("SpaceOperationGate", () => {
     expect(await journal.read()).toBeNull()
   })
 
+  it.each([false, true])(
+    "resumes queued Runtime reads after quiesced operation (failure=%s)",
+    async (fail) => {
+      const { gate } = await gateWithHooks()
+      const started = deferred()
+      const release = deferred()
+      const operation = gate.withQuiescedRepositoryOperation(
+        "Checkpoint",
+        async () => {
+          started.resolve()
+          await release.promise
+          if (fail) throw new Error("checkpoint failed")
+        }
+      )
+      const outcome = operation.catch((error: Error) => error.message)
+      await started.promise
+      const read = vi.fn(async () => "ready")
+      const queued = gate.withRuntimeRead(read)
+      await Promise.resolve()
+      expect(read).not.toHaveBeenCalled()
+      release.resolve()
+      expect(await outcome).toBe(fail ? "checkpoint failed" : undefined)
+      await expect(queued).resolves.toBe("ready")
+    }
+  )
+
+  it("drains existing reads and defers new reads throughout a closed-runtime snapshot", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const reading = deferred()
+    const copying = deferred()
+    const startedCopy = deferred()
+    const existingRead = gate.withRuntimeRead(async () => {
+      calls.push("read-start")
+      await reading.promise
+      calls.push("read-end")
+    })
+    const snapshot = gate.withClosedRuntimes("Snapshot", async () => {
+      calls.push("snapshot")
+      startedCopy.resolve()
+      await copying.promise
+    })
+    await Promise.resolve()
+    const nextRead = gate.withRuntimeRead(async () => {
+      calls.push("next-read")
+    })
+    expect(calls).toEqual(["read-start"])
+    reading.resolve()
+    await startedCopy.promise
+    expect(calls).toEqual(["read-start", "read-end", "close", "snapshot"])
+    copying.resolve()
+    await Promise.all([existingRead, snapshot, nextRead])
+    expect(calls).toEqual([
+      "read-start",
+      "read-end",
+      "close",
+      "snapshot",
+      "reopen",
+      "next-read",
+    ])
+  })
+
   it("drains active Runtime reads before closing application handles", async () => {
     const { gate, calls } = await gateWithHooks()
     const read = deferred()

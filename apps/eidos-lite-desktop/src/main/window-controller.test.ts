@@ -2,11 +2,14 @@ import { EventEmitter } from "node:events"
 import type { WebContents, BrowserWindow } from "electron"
 import type { SpaceSnapshot } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
+import type { SpaceCloneCoordinator } from "./sync/space-clone-coordinator"
 
 const mocks = vi.hoisted(() => ({
   window: null as unknown,
   create: vi.fn(),
   record: vi.fn(async () => {}),
+  saveDialog: vi.fn(),
   canonical: vi.fn(async (root: string) => ({
     id: root,
     root,
@@ -26,7 +29,7 @@ vi.mock("electron", () => ({
   },
   nativeTheme: { on: vi.fn() },
   clipboard: {},
-  dialog: {},
+  dialog: { showSaveDialog: mocks.saveDialog },
   screen: {},
   shell: {},
   utilityProcess: {},
@@ -82,13 +85,190 @@ function fixture() {
 function session(id: string) {
   const snapshot = { id, name: id } as SpaceSnapshot
   return {
-    canonical: { id, name: id },
+    canonical: { id, name: id, root: id },
     snapshot: vi.fn(async () => snapshot),
     close: vi.fn(async () => {}),
     onChanged: vi.fn(() => vi.fn()),
+    lockEncryptedSync: vi.fn(async () => {}),
+    unlockEncryptedSync: vi.fn(
+      async (
+        _input: unknown,
+        _assertCurrent?: () => void,
+        _signal?: AbortSignal
+      ) => {}
+    ),
   }
 }
 beforeEach(() => vi.clearAllMocks())
+
+function encryptedCloneFixture() {
+  const setup = fixture()
+  vi.spyOn(setup.controller, "locale").mockResolvedValue("en")
+  const coordinator = {
+    clone: vi.fn(async () => "/downloaded"),
+    cancelEncryptedClones: vi.fn(async () => {}),
+  }
+  ;(
+    setup.controller as unknown as {
+      cloneCoordinatorInstance: SpaceCloneCoordinator
+    }
+  ).cloneCoordinatorInstance = coordinator as unknown as SpaceCloneCoordinator
+  mocks.saveDialog.mockResolvedValue({
+    canceled: false,
+    filePath: "/downloaded",
+  })
+  const encryption: GraftEncryptedInput = {
+    password: Buffer.from("synthetic-test-password"),
+    connection: {
+      url: "https://sync-staging.eidos.space/u-alice/project",
+      uuid: "00000000-0000-4000-8000-000000000001",
+      authenticationDomain: "https://staging.eidos.space",
+      accountSubject: "alice",
+      bearerToken: "synthetic-test-token",
+      stateDirectory: "/unused-test-state",
+    },
+  }
+  const clone = (ticket?: number) =>
+    setup.controller.cloneAndBindSpace(
+      setup.owner,
+      encryption.connection.url,
+      "synthetic-test-token",
+      "Downloaded",
+      undefined,
+      undefined,
+      encryption,
+      ticket
+    )
+  return { ...setup, coordinator, encryption, clone }
+}
+
+it("rejects an encrypted request captured before a lifecycle change, before opening the dialog", async () => {
+  const { controller, clone, coordinator } = encryptedCloneFixture()
+  const ticket = controller.captureEncryptedCloneTicket()
+  await controller.lockEncryptedSyncSessions()
+  await expect(clone(ticket)).rejects.toMatchObject({
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+  expect(mocks.saveDialog).not.toHaveBeenCalled()
+  expect(coordinator.clone).not.toHaveBeenCalled()
+})
+
+it("does not start a clone after locking while its destination dialog was open", async () => {
+  const { controller, clone, coordinator } = encryptedCloneFixture()
+  let choose!: (value: { canceled: boolean; filePath: string }) => void
+  mocks.saveDialog.mockReturnValueOnce(
+    new Promise((resolve) => {
+      choose = resolve
+    })
+  )
+  const result = clone()
+  const rejected = expect(result).rejects.toMatchObject({
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+  await vi.waitFor(() => expect(mocks.saveDialog).toHaveBeenCalledOnce())
+  await controller.lockEncryptedSyncSessions()
+  choose({ canceled: false, filePath: "/downloaded" })
+  await rejected
+  expect(coordinator.clone).not.toHaveBeenCalled()
+})
+
+it("does not unlock the source with clone credentials when draft review cancels the switch", async () => {
+  const { controller, owner, clone } = encryptedCloneFixture()
+  const source = session("source"),
+    downloaded = session("/downloaded")
+  mocks.create.mockResolvedValueOnce(source).mockResolvedValueOnce(downloaded)
+  await controller.openRecentSpace(owner, "source")
+  vi.mocked(controller.textDraftClose.prepare).mockResolvedValueOnce(false)
+  await expect(clone()).resolves.toBeNull()
+  expect(controller.sessionFor(owner)).toBe(source)
+  expect(source.unlockEncryptedSync).not.toHaveBeenCalled()
+  expect(source.close).not.toHaveBeenCalled()
+  expect(downloaded.close).toHaveBeenCalledOnce()
+})
+
+it("preserves the source when a lifecycle change invalidates a downloaded session before binding", async () => {
+  const { controller, owner, clone } = encryptedCloneFixture()
+  const source = session("source"),
+    downloaded = session("/downloaded")
+  let finish!: (snapshot: SpaceSnapshot) => void
+  downloaded.snapshot.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve
+    })
+  )
+  mocks.create.mockResolvedValueOnce(source).mockResolvedValueOnce(downloaded)
+  await controller.openRecentSpace(owner, "source")
+  const result = clone()
+  const rejected = expect(result).rejects.toMatchObject({
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+  await vi.waitFor(() => expect(downloaded.snapshot).toHaveBeenCalledOnce())
+  const locking = controller.lockEncryptedSyncSessions()
+  finish({ id: "/downloaded" } as SpaceSnapshot)
+  await locking
+  await rejected
+  expect(controller.sessionFor(owner)).toBe(source)
+  expect(source.close).not.toHaveBeenCalled()
+  expect(source.unlockEncryptedSync).not.toHaveBeenCalled()
+  expect(downloaded.close).toHaveBeenCalledOnce()
+  expect(downloaded.unlockEncryptedSync).not.toHaveBeenCalled()
+})
+
+it("waits for a newly bound clone to finish unlocking and lock again before lifecycle draining completes", async () => {
+  const { controller, clone } = encryptedCloneFixture()
+  const downloaded = session("/downloaded")
+  let finishUnlock!: () => void
+  downloaded.unlockEncryptedSync.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishUnlock = resolve
+    })
+  )
+  mocks.create.mockResolvedValueOnce(downloaded)
+  const result = clone()
+  const rejected = expect(result).rejects.toMatchObject({
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+  await vi.waitFor(() =>
+    expect(downloaded.unlockEncryptedSync).toHaveBeenCalledOnce()
+  )
+  let drained = false
+  const locking = controller.lockEncryptedSyncSessions().then(() => {
+    drained = true
+  })
+  expect(downloaded.unlockEncryptedSync.mock.calls[0]?.[2]?.aborted).toBe(true)
+  await vi.waitFor(() =>
+    expect(downloaded.lockEncryptedSync).toHaveBeenCalledOnce()
+  )
+  expect(drained).toBe(false)
+  finishUnlock()
+  await locking
+  await rejected
+  expect(downloaded.lockEncryptedSync).toHaveBeenCalledTimes(2)
+})
+
+it("invalidates pending clone requests and drains the coordinator when shutting down", async () => {
+  const { controller, coordinator, clone } = encryptedCloneFixture()
+  const ticket = controller.captureEncryptedCloneTicket()
+  let finish!: () => void
+  coordinator.cancelEncryptedClones.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve
+    })
+  )
+  let closed = false
+  const closing = controller.closeAll().then(() => {
+    closed = true
+  })
+  await vi.waitFor(() =>
+    expect(coordinator.cancelEncryptedClones).toHaveBeenCalledOnce()
+  )
+  expect(closed).toBe(false)
+  await expect(clone(ticket)).rejects.toMatchObject({
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+  finish()
+  await closing
+})
 
 it("opens Settings in its own window and reuses that window", () => {
   const { controller, window } = fixture()

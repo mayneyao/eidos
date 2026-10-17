@@ -51,7 +51,6 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain('t("Eidos account")')
     expect(settings).toContain("Sign in to use Sync and Publish.")
     expect(settings).toContain("data-settings-sync")
-    expect(settings).toContain('t("Access")')
     expect(settings).toContain('t("Manage Sync")')
     expect(settings).toContain("UsageMeter")
     expect(settings).toContain('t("Storage")')

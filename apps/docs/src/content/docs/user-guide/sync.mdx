@@ -1,16 +1,16 @@
 ---
 title: Use a Space on two devices
-description: Pair a phone with Eidos Lite over your local network, download a Space, and synchronize changes.
+description: Use local-network or encrypted cloud Sync, open a Space on another device, and manage passwords and conflicts.
 sidebar:
   order: 75
 ---
 
 Sync maintains a local copy of a Space on each device.
 
-| Connection | Requirements | Where changes travel |
-| --- | --- | --- |
-| LAN sync | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required |
-| Cloud sync | An account and an active subscription plan | Through the cloud service |
+| Connection | Requirements                                                        | Where changes travel                                       |
+| ---------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
+| LAN sync   | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required |
+| Cloud sync | An account and an active subscription plan                          | Through the cloud service                                  |
 
 Local files remain usable offline.
 This guide explains LAN sync first.
@@ -49,8 +49,9 @@ The phone preserves these files even when it cannot open or edit them.
 
 A shared Space remains available while Eidos Lite runs in the background.
 Closing the application stops sharing.
-When you restart Eidos Lite, turn the LAN service and Space sharing back on.
-The application preserves your authorized device list.
+When you restart Eidos Lite, it restores the enabled LAN service and available
+shared Spaces. Explicitly stopping the LAN service disables that restoration
+until you enable it again. The application preserves your authorized device list.
 
 ## Synchronize changes in both directions
 
@@ -91,14 +92,118 @@ For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#la
 
 ## Use cloud sync
 
-Cloud sync uses separate settings.
-Sign in to your account in Eidos Lite Settings.
-Open **Sync → Cloud Sync** and enable sync for your Space.
-On another supported device, sign in to the same account and select the cloud Space.
-Wait for the initial download to finish before you make changes.
+Creating new end-to-end encrypted cloud Spaces is not yet available on the
+production service. Updating Lite does not enable it. Local
+files, local version history, and LAN sync remain available. The setup below
+applies to service environments where encrypted cloud connections are enabled.
 
-Check your [account dashboard](https://eidos.space/account) for storage limits.
-Canceling cloud sync does not delete your local files.
+Cloud Sync connects separate local copies through your Eidos account. The
+encrypted workflow below applies to Eidos Lite builds that offer **Sync
+password** on macOS or Linux. Windows and mobile clients cannot open these
+encrypted cloud Spaces; mobile LAN sync is a separate connection method.
+
+### Connect the first computer
+
+1. Open the folder you want to sync in Eidos Lite. Sign in under **Settings → Account & Services** with an account that can upload to Sync.
+2. Open **Sync → Cloud Sync**. Check the file count, size, and excluded files.
+3. If asked, create and confirm a **Sync password**. Store it in your password manager: you will need the same password on another computer. This is separate from your Eidos account password.
+4. Select **Enable Sync** and wait for the first upload to finish. Lite creates the initial saved version automatically; a separate version-history setup is not required.
+
+If system secure storage is available, Lite remembers the password on this
+computer. Otherwise you can sync for this session and enter the password again
+after restarting. The password is never sent to the Sync service.
+
+Hidden files and filenames such as `secret-garden.jpg` are ordinary files.
+They do not require a separate confirmation. The file check blocks unsupported
+entries, symbolic links, and individual files larger than 1 GiB. Ignore rules
+exclude files that have not entered version history; adding an existing tracked
+file to `.graftignore` does not remove its saved history or stop its inclusion.
+
+### Open the Space on another computer
+
+1. In a compatible Eidos Lite build, sign in to the same Eidos account.
+2. Open the Space menu and choose **Open Synced Space**, then select the cloud Space.
+3. Enter that Space's sync password. If you have already saved the same password under **Settings → Account & Services → Sync**, Lite can use it. Choose **Enter a different sync password** for a Space with another password.
+4. Choose a new destination folder and wait for the download to finish.
+5. Open a known record and attachment to check the restored copy before editing.
+
+A wrong password does not publish an incomplete local Space. Retry with the
+password used when that Space was connected. Signing in again or resetting the
+account password does not change the sync password.
+
+### Send and receive changes
+
+Saving a file changes the local copy. Select **Review changes**, review and select
+the changed files, then choose **Save selected files** to record them in local
+history. **Upload versions** sends the saved versions to the cloud. Background
+checks look for remote updates and do not upload changes.
+
+On the other computer, select **Check remote updates**, then **Receive updates**
+when available. Save local changes as a version before receiving. Receiving
+does not upload changes afterward. An offline or unchecked Space is not proof
+that the two copies match; wait for the panel to report that the versions are up
+to date.
+
+If both computers have different saved changes, Sync asks you to review a merge.
+Review the text or record choices and save the result, then upload it. For a
+binary file, choose the version to keep or preserve separate copies. Do not
+delete one Space to dismiss a conflict. See [history and recovery](/user-guide/history-and-recovery/)
+for retaining local work.
+
+### Passwords and recovery
+
+The password in **Settings → Account & Services → Sync** is the default for new
+Spaces on this computer. Each Space has its own encryption key. Changing this
+setting affects new connections; it does **not** change the password of an
+existing cloud Space. Lite does not currently offer a per-Space password-change
+action. Keep the passwords used by existing Spaces when changing the default.
+
+If you forget a sync password, files already downloaded to a computer remain
+readable and can be backed up. A computer that still remembers the password may
+continue syncing. Preserve that computer's local files before reinstalling the
+app or removing its data. Eidos cannot recover the password or decrypt the cloud
+copy for you. If no usable local copy or password remains, resetting your account
+password will not recover the encrypted contents.
+
+Signing out stops cloud access and clears the active unlocked session. It does
+not delete local files. System sleep pauses encrypted operations; on macOS,
+screen lock also pauses them. After waking and, on macOS, unlocking the screen,
+Lite can use the securely saved password to resume; session-only use requires
+entering it again. On Linux, screen lock alone does not clear the Sync session;
+quit Lite or sign out to clear it. Encryption
+protects the cloud copy; it does not encrypt the local folder, SQLite files, or
+attachments. Use your operating system's disk encryption to protect a lost
+computer.
+
+### What the service can see
+
+File contents, file paths, saved version messages, and branch names are encrypted
+before upload. The service still knows the account and the cloud Space's display
+name, repository identity, stored byte counts, request times, and opaque
+relationships between saved versions. Avoid putting confidential information in
+the cloud display name. Encryption does not hide all activity or replace an
+independent backup.
+
+Cloud storage includes saved history and encrypted storage overhead, so it can
+exceed the size of the current local folder. Deleting a current file does not
+immediately remove its historical copies or free the associated quota. Check
+your [account dashboard](https://eidos.space/account) for storage and access
+limits. If uploads are blocked by quota or account access, keep working locally
+and resolve the limit before retrying.
+
+### Delete a cloud repository
+
+Open [Account → Sync → Repositories](https://eidos.space/account?tab=sync&view=repositories).
+Check the repository name and creation date, select **Delete**, and confirm the
+permanent deletion. The page shows **Deleting…** until cloud cleanup finishes;
+refresh the page if cleanup continues in the background. Storage usage updates
+after cleanup completes.
+
+Deleting a repository permanently removes all of its cloud files and saved
+history. Local files and local history remain on each computer, including copies
+already downloaded on other devices. The deleted connection can no longer
+upload or download. Back up any local copy you want to keep before removing it
+from your computer. Deleting a repository does not cancel your subscription.
 
 ## Keep a separate backup
 

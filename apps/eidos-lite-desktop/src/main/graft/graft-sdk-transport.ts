@@ -1,4 +1,5 @@
 import type {
+  GraftCloneOptions,
   GraftSdkCommand,
   GraftTransferProgress,
 } from "../../shared/graft-sdk-contracts"
@@ -27,7 +28,7 @@ export interface GraftSdkTransport {
     targetDirectory: string,
     remoteUrl: string,
     token?: string,
-    options?: { onProgress?: (progress: GraftTransferProgress) => void }
+    options?: GraftCloneOptions
   ): Promise<unknown>
   terminateForTesting?(): Promise<void>
 }

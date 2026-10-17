@@ -3,6 +3,10 @@ import fs from "node:fs/promises"
 import path from "node:path"
 
 import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftCloneOptions,
+  GraftEncryptedInput,
+} from "../../shared/graft-sdk-contracts"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
 import { canonicalizeSpaceRoot } from "../space/space-paths"
 import { SpaceSyncStateStore } from "../space/sync-state"
@@ -12,7 +16,7 @@ interface CloneGraftClient {
     targetDirectory: string,
     remoteUrl: string,
     token?: string,
-    options?: { onProgress?: (progress: GraftTransferProgress) => void }
+    options?: GraftCloneOptions
   ): Promise<unknown>
   close(): Promise<void>
 }
@@ -54,9 +58,25 @@ interface SpaceCloneCoordinatorOptions {
   validateWorktree(root: string): Promise<void>
 }
 
+interface EncryptedCloneOperation {
+  abort: AbortController
+  started: boolean
+  drained: Promise<void>
+  finish(): void
+  closeFailed: boolean
+}
+
+function cancelledClone(): Error {
+  return Object.assign(new Error("Encrypted Space download was interrupted"), {
+    name: "AbortError",
+    code: "GRAFT_SDK_E2EE_LOCKED",
+  })
+}
+
 export class SpaceCloneCoordinator {
   private readonly journalDirectory: string
   private operationTail: Promise<void> = Promise.resolve()
+  private readonly encryptedClones = new Set<EncryptedCloneOperation>()
 
   constructor(private readonly options: SpaceCloneCoordinatorOptions) {
     this.journalDirectory = path.join(
@@ -70,22 +90,75 @@ export class SpaceCloneCoordinator {
     remoteUrl: string,
     accessToken: string,
     reportProgress: CloneProgressReporter = () => undefined,
-    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined
+    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined,
+    encryption?: GraftEncryptedInput
   ): Promise<string> {
-    const scheduled = this.operationTail.then(() =>
-      this.cloneExclusive(
-        targetPath,
-        remoteUrl,
-        accessToken,
-        reportProgress,
-        reportTransfer
-      )
-    )
+    let encrypted: EncryptedCloneOperation | undefined
+    let queuedCancellation: Promise<never> | undefined
+    let rejectQueued: (() => void) | undefined
+    if (encryption) {
+      let finish = () => {}
+      encrypted = {
+        abort: new AbortController(),
+        started: false,
+        drained: new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+        finish: () => finish(),
+        closeFailed: false,
+      }
+      const operation = encrypted
+      queuedCancellation = new Promise<never>((_resolve, reject) => {
+        rejectQueued = () => {
+          if (!operation.started) reject(cancelledClone())
+        }
+        operation.abort.signal.addEventListener("abort", rejectQueued, {
+          once: true,
+        })
+      })
+      this.encryptedClones.add(operation)
+    }
+    const scheduled = this.operationTail.then(async () => {
+      try {
+        if (encrypted?.abort.signal.aborted) throw cancelledClone()
+        if (encrypted) encrypted.started = true
+        return await this.cloneExclusive(
+          targetPath,
+          remoteUrl,
+          accessToken,
+          reportProgress,
+          reportTransfer,
+          encryption,
+          encrypted
+        )
+      } finally {
+        if (encrypted) {
+          if (rejectQueued)
+            encrypted.abort.signal.removeEventListener("abort", rejectQueued)
+          this.encryptedClones.delete(encrypted)
+          encrypted.finish()
+        }
+      }
+    })
     this.operationTail = scheduled.then(
       () => undefined,
       () => undefined
     )
-    return scheduled
+    return queuedCancellation
+      ? Promise.race([scheduled, queuedCancellation])
+      : scheduled
+  }
+
+  async cancelEncryptedClones(): Promise<void> {
+    const operations = [...this.encryptedClones]
+    for (const operation of operations) operation.abort.abort()
+    await Promise.all(
+      operations
+        .filter((operation) => operation.started)
+        .map((operation) => operation.drained)
+    )
+    if (operations.some((operation) => operation.closeFailed))
+      throw new Error("Could not drain an encrypted Space download")
   }
 
   copyLocalRecovery(sourcePath: string, targetPath: string): Promise<string> {
@@ -153,13 +226,20 @@ export class SpaceCloneCoordinator {
     remoteUrl: string,
     accessToken: string,
     reportProgress: CloneProgressReporter,
-    reportTransfer: (progress: GraftTransferProgress) => void
+    reportTransfer: (progress: GraftTransferProgress) => void,
+    encryption?: GraftEncryptedInput,
+    encrypted?: EncryptedCloneOperation
   ): Promise<string> {
+    const assertActive = () => {
+      if (encrypted?.abort.signal.aborted) throw cancelledClone()
+    }
+    assertActive()
     if (!accessToken) throw new Error("An Eidos Sync access token is required")
     if (!isOfficialRemoteUrl(remoteUrl, this.options.remoteOrigin)) {
       throw new Error("Eidos Lite accepts only the official Eidos Sync Remote")
     }
     const targetPath = await this.validateTarget(requestedTarget)
+    assertActive()
 
     const operationId = randomUUID()
     const parent = path.dirname(targetPath)
@@ -184,22 +264,41 @@ export class SpaceCloneCoordinator {
     reportProgress("preparing")
     const client = this.options.createGraftClient()
     try {
+      assertActive()
       await fs.mkdir(stagingPath, { mode: 0o700 })
       entry = await this.advance(journalPath, entry, "cloning")
       reportProgress("cloning")
+      assertActive()
       await client.clone(stagingPath, remoteUrl, accessToken, {
         onProgress: reportTransfer,
+        ...(encrypted ? { signal: encrypted.abort.signal } : {}),
+        ...(encryption
+          ? {
+              encryption: {
+                ...encryption,
+                password: Buffer.from(encryption.password),
+                stateIdentity: targetPath,
+              },
+            }
+          : {}),
       })
+      assertActive()
       entry = await this.advance(journalPath, entry, "validating")
       reportProgress("validating")
       await this.options.validateWorktree(stagingPath)
+      assertActive()
       entry = await this.advance(journalPath, entry, "publishing")
       reportProgress("publishing")
+      // Publication is admitted only while the original request is current.
+      // Once rename starts, a completed copy is retained but never unlocked by
+      // a cancelled controller request.
+      assertActive()
       await fs.rename(stagingPath, targetPath)
       entry = await this.advance(journalPath, entry, "published")
       reportProgress("published")
       await this.finishPublishedClone(entry)
       await fs.unlink(journalPath)
+      assertActive()
       return targetPath
     } catch (error) {
       if (!(await this.pathExists(targetPath))) {
@@ -215,7 +314,14 @@ export class SpaceCloneCoordinator {
       }
       throw error
     } finally {
-      await client.close().catch(() => undefined)
+      try {
+        await client.close()
+      } catch (error) {
+        if (encrypted) {
+          encrypted.closeFailed = true
+          throw error
+        }
+      }
     }
   }
 

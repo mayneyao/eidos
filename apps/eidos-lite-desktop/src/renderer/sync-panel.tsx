@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { SyncInspector } from "./sync-inspector"
 import { SyncTransportTabs } from "./sync-transport-tabs"
 import { useEidosLiteI18n } from "./i18n"
@@ -54,6 +54,7 @@ import {
   writeSyncStatusSnapshot,
 } from "./sync-status-cache"
 import { SyncMergeWorkspace } from "./sync-merge-workspace"
+import { supportsEncryptedSync } from "../shared/sync-encryption"
 
 type BusyAction =
   | "sign-in"
@@ -61,6 +62,7 @@ type BusyAction =
   | "enable"
   | "repositories"
   | "clone"
+  | "unlock"
   | "sync"
   | "recover-local"
   | "recover-hosted"
@@ -159,6 +161,68 @@ export function SyncPanel({
     )
   const [selectedRepository, setSelectedRepository] =
     useState<EidosSyncRepository | null>(null)
+  const [defaultConfigured, setDefaultConfigured] = useState(
+    status.defaultPasswordConfigured === true
+  )
+  const rememberUnlock = status.deviceUnlockAvailable === true
+  const [syncPassword, setSyncPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const confirmationErrorId = useId()
+  const passwordsMismatch =
+    confirmPassword.length > 0 && syncPassword !== confirmPassword
+  const passwordFields = useRef<HTMLDivElement>(null)
+  const clearSyncPasswords = () => {
+    passwordFields.current
+      ?.querySelectorAll<HTMLInputElement>("input[type=password]")
+      .forEach((input) => {
+        input.value = ""
+      })
+    setSyncPassword("")
+    setConfirmPassword("")
+  }
+  useEffect(() => {
+    setSyncPassword("")
+    setConfirmPassword("")
+  }, [cacheKey])
+  const encryptionSupported = supportsEncryptedSync(platform)
+  const needsSetupPassword = encryptionSupported && !defaultConfigured
+  useEffect(() => {
+    let active = true
+    let request = 0
+    const refresh = () => {
+      if (!encryptionSupported) return
+      const current = ++request
+      if (!window.eidosLite.getSyncPasswordSettings) {
+        setDefaultConfigured(status.defaultPasswordConfigured === true)
+        return
+      }
+      void window.eidosLite
+        .getSyncPasswordSettings()
+        .then((value) => {
+          if (active && current === request)
+            setDefaultConfigured(value.configured)
+        })
+        .catch(() => {
+          if (active && current === request) {
+            setDefaultConfigured(
+              (configured) =>
+                configured || status.defaultPasswordConfigured === true
+            )
+          }
+        })
+    }
+    refresh()
+    window.addEventListener("focus", refresh)
+    return () => {
+      active = false
+      window.removeEventListener("focus", refresh)
+    }
+  }, [
+    encryptionSupported,
+    status.account.state,
+    status.account.user?.id,
+    status.defaultPasswordConfigured,
+  ])
   const [preflight, setPreflight] = useState<EidosSyncPreflight | null>(null)
   const [spaceBytes, setSpaceBytes] = useState(initialSnapshot?.spaceBytes)
   const [spaceSizeState, setSpaceSizeState] = useState<SpaceSizeState>(
@@ -166,9 +230,11 @@ export function SyncPanel({
   )
   const [preflightRefreshKey, setPreflightRefreshKey] = useState(0)
   const [preflightChecking, setPreflightChecking] = useState(false)
-  const [confirmWarnings, setConfirmWarnings] = useState(false)
   const [syncResult, setSyncResult] = useState<EidosSyncRunResult | null>(null)
   const [syncFailure, setSyncFailure] = useState<EidosSyncFailure | null>(null)
+  const encryptionLocked =
+    status.encryption?.state === "locked" ||
+    syncFailure?.code === "encryption-locked"
   const [failureContext, setFailureContext] = useState<FailureContext>("sync")
   const [syncFailureTelemetry, setSyncFailureTelemetry] =
     useState<EidosSyncTelemetry | null>(null)
@@ -186,6 +252,17 @@ export function SyncPanel({
   const [recoveryResult, setRecoveryResult] =
     useState<EidosSyncRecoveryResult | null>(null)
   const [busy, setBusy] = useState<BusyAction>(null)
+  useEffect(() => {
+    if (
+      mode === "clone" &&
+      syncFailure?.code === "encryption-locked" &&
+      busy === null
+    ) {
+      passwordFields.current
+        ?.querySelector<HTMLInputElement>('input[type="password"]')
+        ?.focus()
+    }
+  }, [mode, syncFailure, busy])
   const [checking, setChecking] = useState(true)
   const [, setCheckedAtMs] = useState(initialSnapshot?.checkedAtMs ?? 0)
   const [lastSyncedAtMs, setLastSyncedAtMs] = useState(
@@ -239,13 +316,19 @@ export function SyncPanel({
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const [mergeActive, setMergeActive] = useState(false)
   const [lastAction, setLastAction] = useState<EidosSyncAction>("fetch")
+  const accountRevision = useRef(0)
+  const accountIdentity = useRef(status.account.user?.id)
 
-  const loadResources = async (value: EidosSyncStatus) => {
+  const loadResources = async (
+    value: EidosSyncStatus,
+    isCurrent: () => boolean
+  ) => {
     if (mode === "clone" && value.canClone) {
       const cached = readSyncStatusSnapshot(cacheKey)
       if (!cached?.repositories) setBusy("repositories")
       try {
         const nextRepositories = await window.eidosLite.listSyncRepositories()
+        if (!isCurrent()) return
         setRepositories(nextRepositories)
         const repositoriesCheckedAt = Date.now()
         setRepositoriesCheckedAtMs(repositoriesCheckedAt)
@@ -258,29 +341,52 @@ export function SyncPanel({
           })
         }
       } catch (cause) {
+        if (!isCurrent()) return
         if (!cached?.repositories) throw cause
         console.error("Could not refresh synced Spaces", cause)
       }
     }
   }
 
-  useEffect(
-    () =>
-      window.eidosLite.onAccountChanged?.(() => {
-        setReloadKey((key) => key + 1)
-      }),
-    []
-  )
+  useEffect(() => {
+    const unsubscribe = window.eidosLite.onAccountChanged?.((account) => {
+      accountRevision.current += 1
+      clearSyncPasswords()
+      if (accountIdentity.current !== account.user?.id) {
+        clearSyncStatusSnapshots()
+        setRepositories(null)
+        setSelectedRepository(null)
+        setDefaultConfigured(false)
+        setPreflight(null)
+        setLastSyncedAtMs(undefined)
+        setSyncFailure(null)
+        setBusy(null)
+        setStatus((current) => ({
+          ...initialSyncStatus(),
+          environment: current.environment,
+          account,
+        }))
+      }
+      accountIdentity.current = account.user?.id
+      setReloadKey((key) => key + 1)
+    })
+    return () => {
+      accountRevision.current += 1
+      unsubscribe?.()
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
+    const revision = accountRevision.current
+    const isCurrent = () => active && revision === accountRevision.current
     const load = async () => {
       const snapshotBeforeCheck = readSyncStatusSnapshot(cacheKey)
       setChecking(true)
       setLoadError(null)
       try {
         const value = await window.eidosLite.getSyncStatus()
-        if (!active) return
+        if (!isCurrent()) return
         if (
           value.account.state === "signed-out" &&
           (snapshotBeforeCheck?.status.account.state === "signed-in" ||
@@ -295,6 +401,7 @@ export function SyncPanel({
           return
         }
         const checkedAt = Date.now()
+        accountIdentity.current = value.account.user?.id
         setStatus(value)
         setCheckedAtMs(checkedAt)
         writeSyncStatusSnapshot(cacheKey, {
@@ -304,11 +411,11 @@ export function SyncPanel({
           checkedAtMs: checkedAt,
           ...(lastSyncedAtMs ? { lastSyncedAtMs } : {}),
         })
-        await loadResources(value)
-        if (active) setBusy(null)
+        await loadResources(value, isCurrent)
+        if (isCurrent()) setBusy(null)
       } catch (cause) {
         console.error("Could not load Eidos Sync", cause)
-        if (!active) return
+        if (!isCurrent()) return
         const nextLoadError = syncStatusLoadError(
           cause,
           initialSnapshot !== null ||
@@ -332,7 +439,7 @@ export function SyncPanel({
         }
         setBusy(null)
       } finally {
-        if (active) setChecking(false)
+        if (isCurrent()) setChecking(false)
       }
     }
     void load()
@@ -371,7 +478,6 @@ export function SyncPanel({
         setPreflightChecking(false)
         setPreflight(value)
         setSpaceBytes(value.totalBytes)
-        setConfirmWarnings(false)
         setSpaceSizeState("available")
         const current = readSyncStatusSnapshot(cacheKey)
         if (current) {
@@ -509,56 +615,107 @@ export function SyncPanel({
   }
 
   const signIn = async () => {
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
     setBusy("sign-in")
     setLoadError(null)
     try {
       const signedIn = await window.eidosLite.beginSyncSignIn()
+      // Account broadcasts already trigger a fresh load, including our own
+      // successful sign-in. Never overwrite that load with an older response.
+      if (!isCurrent()) return
       rememberStatus(signedIn)
       setSyncFailure(null)
       setSyncFailureTelemetry(null)
-      await loadResources(signedIn)
+      await loadResources(signedIn, isCurrent)
     } catch (cause) {
+      if (!isCurrent()) return
       showUnexpectedError(
         cause,
         "Sign-in did not finish",
         "No local files were changed. Try signing in again."
       )
     } finally {
-      setBusy(null)
+      if (isCurrent()) setBusy(null)
     }
   }
 
   const signOut = async () => {
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
+    clearSyncPasswords()
     setBusy("sign-out")
     setLoadError(null)
     try {
       const signedOut = await window.eidosLite.signOutSync()
+      if (!isCurrent()) return
       clearSyncStatusSnapshots()
       setLastSyncedAtMs(undefined)
       rememberStatus(signedOut)
       setRepositories(null)
       setPreflight(null)
     } catch (cause) {
+      if (!isCurrent()) return
       showUnexpectedError(
         cause,
         "Could not sign out",
         "Your local files are unaffected. Try again from Sync details."
       )
     } finally {
-      setBusy(null)
+      if (isCurrent()) setBusy(null)
     }
   }
 
   const enableSync = async () => {
-    if (!preflight) return
+    if (
+      !preflight ||
+      !status.canEnable ||
+      !encryptionSupported ||
+      busy !== null ||
+      preflight.blockerCount > 0 ||
+      preflightChecking
+    )
+      return
+    if (
+      needsSetupPassword &&
+      (!syncPassword || syncPassword !== confirmPassword)
+    )
+      return
+    const password = needsSetupPassword
+      ? new TextEncoder().encode(syncPassword)
+      : undefined
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
+    clearSyncPasswords()
     resetOperation()
     setFailureContext("connect")
     setBusy("enable")
     try {
-      const response = await window.eidosLite.enableSync({
+      const approval = {
         manifestId: preflight.manifestId,
-        confirmWarnings,
-      })
+      }
+      if (password && rememberUnlock) {
+        try {
+          await window.eidosLite.saveDefaultSyncPassword({ password })
+        } catch (cause) {
+          if (!isCurrent()) return
+          showUnexpectedError(
+            cause,
+            "Could not save the sync password",
+            "Check this device's secure storage and try again."
+          )
+          return
+        }
+        if (!isCurrent()) return
+        setDefaultConfigured(true)
+      }
+      const response =
+        password && !rememberUnlock
+          ? await window.eidosLite.enableSync(approval, {
+              password,
+            })
+          : await window.eidosLite.enableSync(approval)
+      if (!isCurrent()) return
       setOperationTelemetry(response.telemetry)
       if (response.ok) {
         rememberStatus(response.status, { synced: true })
@@ -568,26 +725,44 @@ export function SyncPanel({
         setPreflightRefreshKey((current) => current + 1)
       }
     } catch (cause) {
+      if (!isCurrent()) return
       showUnexpectedError(
         cause,
         "Could not connect this Space",
-        "Nothing was removed locally. Review the flagged files and try again."
+        "Nothing was removed locally. Recheck files and try again."
       )
     } finally {
-      setBusy(null)
+      password?.fill(0)
+      if (isCurrent()) setBusy(null)
     }
   }
 
   const cloneRepository = async (repository: EidosSyncRepository) => {
+    if (busy !== null || (repository.encryption && !encryptionSupported)) return
+    if (repository.encryption && !syncPassword && !defaultConfigured) return
+    const password =
+      repository.encryption && syncPassword
+        ? new TextEncoder().encode(syncPassword)
+        : undefined
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
+    clearSyncPasswords()
     resetOperation()
     setSelectedRepository(repository)
     setFailureContext("clone")
     setBusy("clone")
     try {
-      const response = await window.eidosLite.cloneSyncRepository(
-        repository.remoteUrl,
-        repository.displayName
-      )
+      const response = password
+        ? await window.eidosLite.cloneSyncRepository(
+            repository.remoteUrl,
+            repository.displayName,
+            { password, ...(rememberUnlock ? { remember: true } : {}) }
+          )
+        : await window.eidosLite.cloneSyncRepository(
+            repository.remoteUrl,
+            repository.displayName
+          )
+      if (!isCurrent()) return
       setOperationTelemetry(response.telemetry)
       if (response.ok) {
         if (response.snapshot) {
@@ -595,27 +770,72 @@ export function SyncPanel({
           onClone?.(response.snapshot)
         }
       } else {
-        setSyncFailure(response.failure)
+        setSyncFailure(
+          response.failure.code === "encryption-locked"
+            ? {
+                ...response.failure,
+                title: "Could not unlock this Space",
+                message:
+                  "The sync password did not unlock this Space. Try the password used when Sync was enabled.",
+              }
+            : response.failure
+        )
         setSyncFailureTelemetry(response.telemetry)
       }
     } catch (cause) {
+      if (!isCurrent()) return
       showUnexpectedError(
         cause,
         "Could not open this synced Space",
         "No local Space was replaced. Choose the Space and try again."
       )
     } finally {
-      setBusy(null)
+      password?.fill(0)
+      if (isCurrent()) setBusy(null)
+    }
+  }
+
+  const unlockSync = async () => {
+    if (!syncPassword || busy !== null || !encryptionSupported) return
+    const password = new TextEncoder().encode(syncPassword)
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
+    clearSyncPasswords()
+    setLoadError(null)
+    setBusy("unlock")
+    try {
+      const unlocked = await window.eidosLite.unlockSync({
+        password,
+        ...(rememberUnlock ? { remember: true } : {}),
+      })
+      if (!isCurrent()) return
+      rememberStatus(unlocked)
+      setSyncFailure(null)
+      const queue = await window.eidosLite.getSyncQueueStatus()
+      if (isCurrent()) setSyncQueueStatus(queue)
+    } catch (cause) {
+      if (!isCurrent()) return
+      showUnexpectedError(
+        cause,
+        "Could not unlock encrypted Sync",
+        "Check your sync password and try again."
+      )
+    } finally {
+      password.fill(0)
+      if (isCurrent()) setBusy(null)
     }
   }
 
   const syncNow = async (action: EidosSyncAction = "fetch") => {
+    const revision = accountRevision.current
+    const isCurrent = () => revision === accountRevision.current
     setLastAction(action)
     resetOperation()
     setFailureContext("sync")
     setBusy("sync")
     try {
       const response = await window.eidosLite.runSync(action)
+      if (!isCurrent()) return
       if (response.ok) {
         setSyncResult(response.result)
         onSpaceChange?.(response.result.snapshot)
@@ -625,7 +845,9 @@ export function SyncPanel({
             response.result.materializedPaths ?? null
           )
         }
-        rememberStatus(await window.eidosLite.getSyncStatus(), {
+        const currentStatus = await window.eidosLite.getSyncStatus()
+        if (!isCurrent()) return
+        rememberStatus(currentStatus, {
           synced: response.result.state === "synced",
         })
         setPreflightRefreshKey((current) => current + 1)
@@ -634,13 +856,14 @@ export function SyncPanel({
         setSyncFailureTelemetry(response.telemetry)
       }
     } catch (cause) {
+      if (!isCurrent()) return
       showUnexpectedError(
         cause,
         "Sync did not finish",
         "Your local files are safe. Check your connection and try again."
       )
     } finally {
-      setBusy(null)
+      if (isCurrent()) setBusy(null)
     }
   }
 
@@ -766,7 +989,7 @@ export function SyncPanel({
     syncHistory,
   })
   const accountName =
-    status.account.user?.email ?? status.account.user?.name ?? "Signed in"
+    status.account.user?.email ?? status.account.user?.name ?? t("Signed in")
   const storage = syncStorageUsage(status)
   const storageState = storage ? syncStorageState(storage) : "normal"
   const storageNeedsAttention = storageState !== "normal"
@@ -780,11 +1003,81 @@ export function SyncPanel({
     loadError !== null || (checking && initialSnapshot === null)
   const spaceStatusPending =
     checking && initialSnapshot === null && status.account.state === "signed-in"
-  const renderInspector = (setupContent?: ReactNode) => {
+  const unlockControls =
+    encryptionSupported &&
+    status.account.state === "signed-in" &&
+    mode === "enable" &&
+    encryptionLocked ? (
+      <div ref={passwordFields} className="sync-password-form">
+        <label>
+          {t("Sync password")}
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={syncPassword}
+            onChange={(event) => setSyncPassword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && syncPassword && busy === null) {
+                event.preventDefault()
+                void unlockSync()
+              }
+            }}
+            disabled={busy !== null}
+          />
+        </label>
+        <p className="sync-password-note">
+          {t(
+            rememberUnlock
+              ? "Saved securely on this device so Sync can resume next time."
+              : "System secure storage is unavailable. Enter the password again after restarting."
+          )}
+        </p>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={busy !== null || !syncPassword}
+          onClick={() => void unlockSync()}
+        >
+          {t(busy === "unlock" ? "Unlocking Sync…" : "Unlock Sync")}
+        </button>
+      </div>
+    ) : null
+  const passwordError =
+    status.account.state === "signed-in" &&
+    status.encryption?.rememberError &&
+    mode === "enable" ? (
+      <p className="sync-caption" role="alert">
+        {t(status.encryption.rememberError)}
+      </p>
+    ) : null
+  const unsupportedEncryption =
+    !encryptionSupported && encryptionLocked ? (
+      <p className="sync-caption" role="status">
+        {t(
+          "Encrypted cloud sync is not available on this platform yet. Your local files remain available."
+        )}
+      </p>
+    ) : null
+  const renderInspector = (
+    setupContent?: ReactNode,
+    setupFooter?: ReactNode
+  ) => {
     return (
       <SyncInspector
         spaceKey={cacheKey}
         setupContent={setupContent}
+        setupFooter={setupFooter}
+        unlockContent={
+          !setupContent &&
+          (unlockControls || passwordError || unsupportedEncryption) ? (
+            <>
+              {unlockControls}
+              {passwordError}
+              {unsupportedEncryption}
+            </>
+          ) : undefined
+        }
         account={({ buttonRef, expanded, onToggle }) => (
           <button
             ref={buttonRef}
@@ -803,7 +1096,7 @@ export function SyncPanel({
               <span
                 className="sync-account-meter-fill"
                 role="meter"
-                aria-label="Cloud storage"
+                aria-label={t("Cloud storage")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.min(
@@ -855,6 +1148,7 @@ export function SyncPanel({
               : null),
           readOnly: status.entitlement.state !== "read-write",
           storageBlocked: storageBlocksCurrentUpload,
+          encryptionLocked,
         }}
         onClose={onClose}
         onAction={(action) => void syncNow(action)}
@@ -863,6 +1157,7 @@ export function SyncPanel({
         onRetry={() => {
           if (loadError) setReloadKey((key) => key + 1)
           else if (syncFailure?.action === "retry-now") void retryFailure()
+          else if (syncFailure?.action === "work-locally") onClose()
           else void runFailureAction()
         }}
         onMergeStatusChange={onMergeStatusChange}
@@ -894,6 +1189,13 @@ export function SyncPanel({
         entitlementState={status.entitlement.state}
         busy={busy}
         checking={checking}
+        accountPending={
+          checking &&
+          initialSnapshot === null &&
+          initialAccountContext === null &&
+          loadError === null
+        }
+        loadError={loadError}
         onClose={onClose}
         onSignIn={() => void signIn()}
         onManageAccess={() => void openHelp("sync-access")}
@@ -906,6 +1208,70 @@ export function SyncPanel({
   }
 
   const signedIn = status.account.state === "signed-in"
+  const connectionSetup =
+    mode === "enable" && signedIn && status.remote.state === "not-connected"
+  const setupIntroduction =
+    connectionSetup &&
+    !syncFailure &&
+    !loadError &&
+    !checking &&
+    busy !== "enable" &&
+    syncProgress?.state !== "active"
+  const connectionFooter =
+    connectionSetup && !syncFailure && !loadError && !spaceStatusPending ? (
+      <div className="sync-connection-actions">
+        <p className="sync-setup-note" role="status">
+          {t(
+            !encryptionSupported
+              ? "Encrypted cloud sync is not available on this platform yet. Your local files remain available."
+              : preflight?.blockerCount
+                ? "Resolve blocked files before enabling Sync."
+                : needsSetupPassword &&
+                    (!syncPassword || syncPassword !== confirmPassword)
+                  ? "Enter matching sync passwords to continue."
+                  : "Local files stay available offline."
+          )}
+        </p>
+        {status.canEnable || !encryptionSupported ? (
+          <button
+            type="button"
+            className="primary-action sync-enable"
+            data-sync-enable
+            disabled={
+              busy !== null ||
+              !encryptionSupported ||
+              operationsBlocked ||
+              !preflight ||
+              preflightChecking ||
+              preflight.blockerCount > 0 ||
+              (needsSetupPassword &&
+                (!syncPassword || syncPassword !== confirmPassword))
+            }
+            onClick={() => void enableSync()}
+          >
+            {busy === "enable" ? (
+              <LoaderCircle className="spin" />
+            ) : (
+              <CloudUpload />
+            )}
+            {t(
+              busy === "enable"
+                ? "Connecting this Space…"
+                : "Connect this Space"
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy !== null || operationsBlocked}
+            onClick={() => void openHelp("account")}
+          >
+            <UserRound /> {t("Manage account")}
+          </button>
+        )}
+      </div>
+    ) : null
   const heroMeta =
     signedIn &&
     (mode === "clone" ? repositoriesCheckedAtMs : syncHistory?.checkedAtMs) &&
@@ -925,8 +1291,125 @@ export function SyncPanel({
       ? syncDirection(syncHistory)
       : null
 
+  const setupPasswordFields = (
+    <div
+      ref={passwordFields}
+      className="sync-password-form"
+      data-sync-password-setup
+    >
+      <p className="sync-password-note">
+        {t(
+          mode === "enable"
+            ? "Set a sync password. Use it on your other devices."
+            : "Enter the sync password used for this Space."
+        )}
+      </p>
+      <label>
+        {t("Sync password")}
+        <input
+          type="password"
+          autoComplete={mode === "enable" ? "new-password" : "current-password"}
+          required
+          value={syncPassword}
+          onChange={(event) => setSyncPassword(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              mode === "clone" &&
+              event.key === "Enter" &&
+              syncPassword &&
+              selectedRepository &&
+              busy === null
+            ) {
+              event.preventDefault()
+              void cloneRepository(selectedRepository)
+            }
+          }}
+          disabled={busy !== null}
+        />
+      </label>
+      {mode === "enable" ? (
+        <label>
+          {t("Confirm sync password")}
+          <input
+            type="password"
+            autoComplete="new-password"
+            required
+            aria-invalid={passwordsMismatch || undefined}
+            aria-describedby={
+              passwordsMismatch ? confirmationErrorId : undefined
+            }
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                syncPassword &&
+                syncPassword === confirmPassword &&
+                busy === null &&
+                !operationsBlocked &&
+                preflight &&
+                !preflightChecking &&
+                preflight.blockerCount === 0
+              ) {
+                event.preventDefault()
+                void enableSync()
+              }
+            }}
+            disabled={busy !== null}
+          />
+        </label>
+      ) : null}
+      {mode === "enable" && passwordsMismatch ? (
+        <p
+          className="sync-password-note"
+          id={confirmationErrorId}
+          role="status"
+        >
+          {t("The passwords do not match.")}
+        </p>
+      ) : null}
+      <p className="sync-password-note">
+        {t(
+          rememberUnlock
+            ? "Saved securely on this device. Keep a copy: Eidos cannot recover this password."
+            : "System secure storage is unavailable. Enter the password again after restarting."
+        )}
+      </p>
+      {mode === "clone" &&
+      syncFailure?.code === "encryption-locked" &&
+      selectedRepository ? (
+        <div className="sync-actions">
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy !== null || !syncPassword}
+            onClick={() => void cloneRepository(selectedRepository)}
+          >
+            {t("Open Space")}
+          </button>
+          <button
+            type="button"
+            className="sync-text-action"
+            disabled={busy !== null}
+            onClick={() => {
+              resetOperation()
+              setSelectedRepository(null)
+              clearSyncPasswords()
+            }}
+          >
+            {t("Choose another Space")}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
   const setupContent = (
-    <div className="sync-dialog-body" data-sync-tone={overview.tone}>
+    <div
+      className="sync-dialog-body"
+      data-sync-tone={overview.tone}
+      data-sync-connection-setup={connectionSetup ? "true" : undefined}
+      data-sync-introduction={setupIntroduction ? "true" : undefined}
+    >
       <section
         className="sync-hero"
         data-sync-overview={overview.tone}
@@ -945,8 +1428,16 @@ export function SyncPanel({
           <overview.icon className={overview.spin ? "spin" : undefined} />
         </span>
         <div className="sync-hero-copy">
-          <h2>{overview.title}</h2>
-          {overview.message ? <p>{overview.message}</p> : null}
+          <h2>{t(setupIntroduction ? "Enable cloud sync" : overview.title)}</h2>
+          {overview.message ? (
+            <p>
+              {t(
+                setupIntroduction
+                  ? "Sync this Space's files and saved versions across your devices."
+                  : overview.message
+              )}
+            </p>
+          ) : null}
           {direction ? (
             <span className="sync-direction">
               {direction.upload > 0 ? (
@@ -972,7 +1463,7 @@ export function SyncPanel({
           ) : null}
           {syncFailure ? (
             <small className="sync-local-safe">
-              <HardDrive /> Local files safe
+              <HardDrive /> {t("Local files safe")}
             </small>
           ) : null}
         </div>
@@ -1019,72 +1510,95 @@ export function SyncPanel({
             ) : (
               <RefreshCw />
             )}
-            {loadError.kind === "session-expired"
-              ? "Sign in again"
-              : status.account.state === "signed-out"
-                ? "Sign in"
-                : "Try again"}
+            {t(
+              loadError.kind === "session-expired"
+                ? "Sign in again"
+                : status.account.state === "signed-out"
+                  ? "Sign in"
+                  : "Try again"
+            )}
           </button>
         </div>
       ) : null}
 
-      {syncFailure && !loadError ? (
+      {syncFailure && !loadError && syncFailure.code !== "encryption-locked" ? (
         <div className="sync-actions">
-          {syncFailure.action !== "retry-now" &&
-          syncFailure.action !== "work-locally" ? (
+          {syncFailure.code === "remote-already-configured" ? (
             <button
               type="button"
-              className="primary-action"
-              data-sync-failure-primary-action
-              disabled={
-                busy !== null ||
-                (syncFailure.action === "clone-hosted" &&
-                  mode !== "clone" &&
-                  !onRequestClone) ||
-                (syncFailure.action === "review-local" && !onReviewLocal)
-              }
-              onClick={() => void runFailureAction()}
+              className="secondary-action"
+              onClick={onClose}
             >
-              {busy === "help" ? (
-                <LoaderCircle className="spin" />
-              ) : (
-                <FailureActionIcon action={syncFailure.action} />
-              )}
-              {syncFailure.actionLabel}
+              {t(syncFailure.actionLabel)}
             </button>
-          ) : null}
-          <button
-            type="button"
-            className={
-              syncFailure.action !== "retry-now" &&
-              syncFailure.action !== "work-locally"
-                ? "secondary-action"
-                : "primary-action"
-            }
-            data-sync-failure-retry
-            {...(syncFailure.action === "retry-now" ||
-            syncFailure.action === "work-locally"
-              ? { "data-sync-failure-primary-action": "" }
-              : {})}
-            disabled={busy !== null}
-            onClick={() => void retryFailure()}
-          >
-            {busy === "sync" || busy === "enable" || busy === "clone" ? (
-              <LoaderCircle className="spin" />
-            ) : (
-              <RefreshCw />
-            )}
-            Try again
-          </button>
-          <button
-            type="button"
-            className="secondary-action"
-            data-sync-check-remote
-            disabled={busy !== null}
-            onClick={() => void syncNow("fetch")}
-          >
-            <RefreshCw /> Check remote updates
-          </button>
+          ) : (
+            <>
+              {syncFailure.action !== "retry-now" ? (
+                <button
+                  type="button"
+                  className="primary-action"
+                  data-sync-failure-primary-action
+                  disabled={
+                    busy !== null ||
+                    (syncFailure.action === "clone-hosted" &&
+                      mode !== "clone" &&
+                      !onRequestClone) ||
+                    (syncFailure.action === "review-local" && !onReviewLocal)
+                  }
+                  onClick={() =>
+                    syncFailure.action === "work-locally"
+                      ? onClose()
+                      : void runFailureAction()
+                  }
+                >
+                  {busy === "help" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <FailureActionIcon action={syncFailure.action} />
+                  )}
+                  {syncFailure.actionLabel}
+                </button>
+              ) : null}
+              {syncFailure.retryable ? (
+                <button
+                  type="button"
+                  className={
+                    syncFailure.action !== "retry-now" &&
+                    syncFailure.action !== "work-locally"
+                      ? "secondary-action"
+                      : "primary-action"
+                  }
+                  data-sync-failure-retry
+                  {...(syncFailure.action === "retry-now" ||
+                  syncFailure.action === "work-locally"
+                    ? { "data-sync-failure-primary-action": "" }
+                    : {})}
+                  disabled={busy !== null}
+                  onClick={() => void retryFailure()}
+                >
+                  {busy === "sync" || busy === "enable" || busy === "clone" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                  Try again
+                </button>
+              ) : null}
+              {mode === "enable" &&
+              (syncFailure.action === "manage-account" ||
+                syncFailure.code === "remote-persistence-failed") ? (
+                <button
+                  type="button"
+                  className="secondary-action"
+                  data-sync-check-remote
+                  disabled={busy !== null}
+                  onClick={() => void syncNow("fetch")}
+                >
+                  <RefreshCw /> Check remote updates
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1107,6 +1621,55 @@ export function SyncPanel({
         </>
       ) : null}
 
+      {unlockControls}
+      {encryptionSupported &&
+      signedIn &&
+      mode === "enable" &&
+      !status.encryption &&
+      status.remote.state === "not-connected" ? (
+        <div className="sync-setup-security">
+          <p>
+            <ShieldCheck aria-hidden="true" />
+            {t("End-to-end encrypted")}
+          </p>
+          {needsSetupPassword ? setupPasswordFields : null}
+        </div>
+      ) : null}
+      {encryptionSupported &&
+      signedIn &&
+      mode === "clone" &&
+      repositories?.repositories.some((repository) => repository.encryption) ? (
+        needsSetupPassword || syncFailure?.code === "encryption-locked" ? (
+          setupPasswordFields
+        ) : (
+          <details
+            className="sync-more sync-clone-password"
+            onToggle={(event) => {
+              if (!event.currentTarget.open) clearSyncPasswords()
+            }}
+          >
+            <summary>
+              <ChevronRight />
+              {t("Enter a different sync password")}
+            </summary>
+            {setupPasswordFields}
+          </details>
+        )
+      ) : null}
+      {passwordError}
+      {!encryptionSupported &&
+      signedIn &&
+      ((mode === "enable" && encryptionLocked) ||
+        (mode === "clone" &&
+          repositories?.repositories.some(
+            (repository) => repository.encryption
+          ))) ? (
+        <p className="sync-caption" role="status">
+          {t(
+            "Encrypted cloud sync is not available on this platform yet. Your local files remain available."
+          )}
+        </p>
+      ) : null}
       {!syncFailure && !loadError && !spaceStatusPending ? (
         <>
           {!signedIn ? (
@@ -1135,53 +1698,15 @@ export function SyncPanel({
           status.remote.state === "not-connected" ? (
             <>
               {status.canEnable ? (
-                <SyncSafetyReview
+                <SyncFileScope
                   preflight={preflight}
-                  confirmWarnings={confirmWarnings}
-                  onConfirmWarnings={setConfirmWarnings}
                   refreshing={preflightChecking}
                   onRefresh={() => {
-                    setConfirmWarnings(false)
                     setPreflightRefreshKey((current) => current + 1)
                   }}
                 />
               ) : null}
-              <div className="sync-actions">
-                {status.canEnable ? (
-                  <button
-                    type="button"
-                    className="primary-action sync-enable"
-                    data-sync-enable
-                    disabled={
-                      busy !== null ||
-                      operationsBlocked ||
-                      !preflight ||
-                      preflightChecking ||
-                      preflight.blockerCount > 0 ||
-                      (preflight.warningCount > 0 && !confirmWarnings)
-                    }
-                    onClick={() => void enableSync()}
-                  >
-                    {busy === "enable" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <CloudUpload />
-                    )}
-                    {busy === "enable"
-                      ? "Connecting this Space…"
-                      : "Connect this Space"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="primary-action"
-                    disabled={busy !== null || operationsBlocked}
-                    onClick={() => void openHelp("account")}
-                  >
-                    <UserRound /> Manage account
-                  </button>
-                )}
-              </div>
+              {variant === "dialog" ? connectionFooter : null}
             </>
           ) : null}
 
@@ -1281,6 +1806,11 @@ export function SyncPanel({
               repositories={repositories}
               busy={busy}
               disabled={operationsBlocked}
+              canUnlockEncrypted={
+                encryptionSupported &&
+                (Boolean(syncPassword) || defaultConfigured)
+              }
+              encryptionSupported={encryptionSupported}
               selectedRepository={selectedRepository}
               onSelect={(repository) => void cloneRepository(repository)}
             />
@@ -1562,7 +2092,8 @@ export function SyncPanel({
   )
   if (variant === "inspector" && mode === "enable") {
     return renderInspector(
-      status.remote.state === "connected" ? undefined : setupContent
+      status.remote.state === "connected" ? undefined : setupContent,
+      connectionFooter
     )
   }
 
@@ -1653,6 +2184,8 @@ function SyncAccessGate({
   entitlementState,
   busy,
   checking,
+  accountPending,
+  loadError,
   onClose,
   onSignIn,
   onManageAccess,
@@ -1666,11 +2199,14 @@ function SyncAccessGate({
   entitlementState: EidosSyncStatus["entitlement"]["state"]
   busy: BusyAction
   checking: boolean
+  accountPending: boolean
+  loadError: LoadError | null
   onClose(): void
   onSignIn(): void
   onManageAccess(): void
   onCheckAgain(): void
 }) {
+  const { t } = useEidosLiteI18n()
   const signedOut = accountState === "signed-out"
   const blocked = entitlementState === "blocked"
   return (
@@ -1690,13 +2226,19 @@ function SyncAccessGate({
         data-sync-environment={environment}
         data-sync-account-state={accountState}
         data-sync-can-enable="false"
-        data-sync-access-gate={signedOut ? "sign-in" : "access-required"}
+        data-sync-access-gate={
+          accountPending
+            ? "checking"
+            : signedOut
+              ? "sign-in"
+              : "access-required"
+        }
       >
         <header>
           <div>
             <Cloud />
             <span className="sync-dialog-title-line">
-              <strong id="sync-dialog-title">Sync</strong>
+              <strong id="sync-dialog-title">{t("Sync")}</strong>
               {environment === "staging" ? (
                 <span
                   className="environment-badge"
@@ -1711,70 +2253,102 @@ function SyncAccessGate({
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close Eidos Sync"
+            aria-label={t("Close Eidos Sync")}
           >
             <X />
           </button>
         </header>
         <SyncTransportTabs enabled={mode === "enable"}>
           <div className="sync-dialog-body sync-gate">
-            <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
-              {signedOut ? <LogIn /> : <ShieldCheck />}
-            </span>
-            <h2>
-              {signedOut ? "Sign in to use Sync" : "Sync access required"}
-            </h2>
-            <p>
-              {signedOut
-                ? "Use your eidos.space account to check whether Sync is available."
-                : blocked
-                  ? "Manage your Sync access on eidos.space, then check again here."
-                  : "Apply for or review Sync access on eidos.space, then check again here."}
-            </p>
-            <div className="sync-actions">
-              {signedOut ? (
+            {accountPending ? (
+              <p role="status">{t("Checking Sync access…")}</p>
+            ) : loadError ? (
+              <>
+                <h2>{t(loadError.title)}</h2>
+                <p role="alert">{t(loadError.message)}</p>
                 <button
                   type="button"
                   className="primary-action"
-                  data-sync-sign-in=""
-                  disabled={busy !== null}
-                  onClick={onSignIn}
+                  data-sync-check-access=""
+                  disabled={busy !== null || checking}
+                  onClick={onCheckAgain}
                 >
-                  {busy === "sign-in" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <LogIn />
-                  )}
-                  {busy === "sign-in" ? "Waiting for your browser…" : "Sign in"}
+                  <RefreshCw aria-hidden="true" />
+                  {t(checking ? "Checking…" : "Try again")}
                 </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="primary-action"
-                    data-sync-manage-access=""
-                    disabled={busy !== null}
-                    onClick={onManageAccess}
-                  >
-                    <UserRound /> Manage Sync access
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-action"
-                    data-sync-check-access=""
-                    disabled={busy !== null || checking}
-                    onClick={onCheckAgain}
-                  >
-                    {checking ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <RefreshCw />
-                    )}
-                    {checking ? "Checking…" : "Check again"}
-                  </button>
-                </>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                <span
+                  className="sync-hero-icon sync-gate-icon"
+                  aria-hidden="true"
+                >
+                  {signedOut ? <LogIn /> : <ShieldCheck />}
+                </span>
+                <h2>
+                  {t(
+                    signedOut ? "Sign in to use Sync" : "Sync access required"
+                  )}
+                </h2>
+                <p>
+                  {t(
+                    signedOut
+                      ? "Use your eidos.space account to check whether Sync is available."
+                      : blocked
+                        ? "Manage your Sync access on eidos.space, then check again here."
+                        : "Apply for or review Sync access on eidos.space, then check again here."
+                  )}
+                </p>
+                <div className="sync-actions">
+                  {signedOut ? (
+                    <button
+                      type="button"
+                      className="primary-action"
+                      data-sync-sign-in=""
+                      disabled={busy !== null}
+                      onClick={onSignIn}
+                    >
+                      {busy === "sign-in" ? (
+                        <LoaderCircle className="spin" />
+                      ) : (
+                        <LogIn />
+                      )}
+                      {t(
+                        busy === "sign-in"
+                          ? "Waiting for your browser…"
+                          : "Sign in"
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        data-sync-manage-access=""
+                        disabled={busy !== null}
+                        onClick={onManageAccess}
+                      >
+                        <UserRound /> {t("Manage Sync access")}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        data-sync-check-access=""
+                        disabled={busy !== null || checking}
+                        onClick={onCheckAgain}
+                      >
+                        {checking ? (
+                          <LoaderCircle className="spin" />
+                        ) : (
+                          <RefreshCw />
+                        )}
+                        {t(checking ? "Checking…" : "Check again")}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </SyncTransportTabs>
       </aside>
@@ -1997,8 +2571,9 @@ function syncOverview({
   if (queue?.state === "pending") {
     return {
       icon: Clock,
-      title: "Sync queued",
-      message: "Saved changes will upload in the background.",
+      title: "Check queued",
+      message:
+        "Cloud updates will be checked in the background. Upload and receive versions when you are ready.",
       tone: "active",
     }
   }
@@ -2136,8 +2711,10 @@ function SyncIdentityChip({
   user?: SyncAccountUser
   checking: boolean
 }) {
-  const label = user?.email ?? user?.name ?? "Signed in"
-  const initials = accountInitials(user?.name ?? user?.email ?? label)
+  const { t } = useEidosLiteI18n()
+  const label = user?.email ?? user?.name ?? t("Signed in")
+  const identity = user?.name || user?.email
+  const initials = identity ? accountInitials(identity) : null
   return (
     <span
       className="sync-identity-chip"
@@ -2146,7 +2723,7 @@ function SyncIdentityChip({
       title={label}
     >
       <span className="sync-account-avatar" aria-hidden="true">
-        <span>{initials}</span>
+        {initials ? <span>{initials}</span> : <UserRound size={12} />}
         {user?.avatarDataUrl || user?.avatarUrl ? (
           <img src={user.avatarDataUrl ?? user.avatarUrl} alt="" />
         ) : null}
@@ -2440,15 +3017,20 @@ function RepositoryPicker({
   repositories,
   busy,
   disabled,
+  canUnlockEncrypted = false,
+  encryptionSupported,
   selectedRepository,
   onSelect,
 }: {
   repositories: EidosSyncRepositoryList | null
   busy: BusyAction
   disabled: boolean
+  canUnlockEncrypted?: boolean
+  encryptionSupported: boolean
   selectedRepository: EidosSyncRepository | null
   onSelect(repository: EidosSyncRepository): void
 }) {
+  const { t } = useEidosLiteI18n()
   const [query, setQuery] = useState("")
   const visibleRepositories = [...(repositories?.repositories ?? [])]
     .sort((left, right) => {
@@ -2471,7 +3053,7 @@ function RepositoryPicker({
   return (
     <section className="sync-repositories" data-sync-repositories>
       <div className="sync-section-head">
-        <h3>Your synced Spaces</h3>
+        <h3>{t("Your synced Spaces")}</h3>
         {repositories ? (
           <span className="sync-section-flag sync-section-count">
             {repositories.repositories.length}{" "}
@@ -2481,16 +3063,16 @@ function RepositoryPicker({
       </div>
       {busy === "repositories" ? (
         <p className="sync-loading" role="status">
-          <LoaderCircle className="spin" /> Loading your synced Spaces…
+          <LoaderCircle className="spin" /> {t("Loading your synced Spaces…")}
         </p>
       ) : repositories?.repositories.length ? (
         <div className="sync-repository-list">
           {repositories.repositories.length > 8 ? (
             <label className="sync-repository-search">
-              <span className="sr-only">Search synced Spaces</span>
+              <span className="sr-only">{t("Search synced Spaces")}</span>
               <input
                 type="search"
-                placeholder="Search Spaces"
+                placeholder={t("Search Spaces")}
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
               />
@@ -2506,12 +3088,27 @@ function RepositoryPicker({
                 className="sync-repository"
                 data-sync-open-space={displayName}
                 key={repository.remoteUrl}
-                disabled={busy !== null || disabled}
+                disabled={
+                  busy !== null ||
+                  disabled ||
+                  (Boolean(repository.encryption) && !canUnlockEncrypted)
+                }
+                title={
+                  repository.encryption
+                    ? t(
+                        encryptionSupported
+                          ? "Enter the sync password to open this encrypted Space"
+                          : "Encrypted cloud sync is not available on this platform yet."
+                      )
+                    : undefined
+                }
                 onClick={() => onSelect(repository)}
               >
                 <span className="sync-repository-icon" aria-hidden="true">
                   {busy === "clone" && selected ? (
                     <LoaderCircle className="spin" />
+                  ) : repository.encryption ? (
+                    <ShieldCheck />
                   ) : (
                     <FolderDown />
                   )}
@@ -2519,7 +3116,8 @@ function RepositoryPicker({
                 <span className="sync-repository-copy">
                   <strong>{displayName}</strong>
                   <small>
-                    Created{" "}
+                    {repository.encryption ? `${t("Encrypted")} · ` : ""}
+                    {t("Created")}{" "}
                     {new Date(repository.createdAtMs).toLocaleDateString()}
                     {isOpaqueRepositoryName(repository)
                       ? ` · ${shortRepositoryId(repository.name)}`
@@ -2531,13 +3129,16 @@ function RepositoryPicker({
             )
           })}
           {visibleRepositories.length === 0 ? (
-            <p className="sync-empty">No Spaces match “{query}”.</p>
+            <p className="sync-empty">
+              {t("No Spaces match “{query}”.", { query })}
+            </p>
           ) : null}
         </div>
       ) : (
         <p className="sync-empty">
-          No synced Spaces yet. Connect a local Space first, then it will appear
-          here.
+          {t(
+            "No synced Spaces yet. Connect a local Space first, then it will appear here."
+          )}
         </p>
       )}
     </section>
@@ -2563,19 +3164,16 @@ function shortRepositoryId(value: string): string {
   return value.length > 10 ? `${value.slice(0, 8)}…` : value
 }
 
-function SyncSafetyReview({
+function SyncFileScope({
   preflight,
-  confirmWarnings,
-  onConfirmWarnings,
   refreshing,
   onRefresh,
 }: {
   preflight: EidosSyncPreflight | null
-  confirmWarnings: boolean
-  onConfirmWarnings(value: boolean): void
   refreshing: boolean
   onRefresh(): void
 }) {
+  const { t } = useEidosLiteI18n()
   return (
     <section
       className="sync-section sync-safety-review"
@@ -2583,23 +3181,30 @@ function SyncSafetyReview({
       data-sync-preflight-blocked={preflight?.blockerCount ? "true" : "false"}
     >
       <div className="sync-section-head">
-        <h3>First upload check</h3>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Recheck files"
-          title="Recheck files after changing .graftignore"
-          disabled={refreshing}
-          onClick={onRefresh}
-        >
-          <RefreshCw />
-        </button>
-        {preflight ? (
-          <span className="sync-section-count">
-            {preflight.fileCount} files · {formatBytes(preflight.totalBytes)} ·{" "}
-            {preflight.eidosFileCount} Eidos Files
-          </span>
-        ) : null}
+        <h3>{t("Files to sync")}</h3>
+        <div className="sync-section-tools">
+          {preflight ? (
+            <span className="sync-section-count">
+              {t("{count} files · {size}", {
+                count: preflight.fileCount.toLocaleString(),
+                size: formatBytes(preflight.totalBytes),
+              })}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("Recheck files")}
+            title={t("Recheck files after changing .graftignore")}
+            aria-disabled={refreshing}
+            aria-busy={refreshing}
+            onClick={() => {
+              if (!refreshing) onRefresh()
+            }}
+          >
+            <RefreshCw className={refreshing ? "spin" : undefined} />
+          </button>
+        </div>
       </div>
       {preflight ? (
         <>
@@ -2607,7 +3212,7 @@ function SyncSafetyReview({
             <div className="sync-flag-list" role="alert">
               <header>
                 <AlertTriangle />
-                <strong>Fix these files before connecting</strong>
+                <strong>{t("Fix these files before connecting")}</strong>
               </header>
               <PreflightEntries
                 entries={preflight.blockers}
@@ -2617,61 +3222,52 @@ function SyncSafetyReview({
           ) : null}
 
           {preflight.warningCount > 0 ? (
-            <div className="sync-flag-list">
-              <header>
-                <FileWarning />
-                <strong>Review files before upload</strong>
-              </header>
+            <details className="sync-more sync-review-details">
+              <summary>
+                <ChevronRight />
+                {t("Already in version history ({count})", {
+                  count: preflight.warningCount,
+                })}
+              </summary>
               <p>
-                These files may contain private information or use more cloud
-                storage than expected.
+                {t(
+                  "These files remain included because they are already in version history. Ignore rules apply to untracked files."
+                )}
               </p>
               <PreflightEntries
                 entries={preflight.warnings}
                 total={preflight.warningCount}
               />
-            </div>
-          ) : preflight.blockerCount === 0 ? (
-            <p className="sync-clear">
-              <CheckCircle2 /> No files need your review.
-            </p>
+            </details>
           ) : null}
 
-          {preflight.warningCount > 0 && preflight.blockerCount === 0 ? (
-            <label className="sync-preflight-confirm">
-              <input
-                type="checkbox"
-                data-sync-preflight-confirm
-                checked={confirmWarnings}
-                onChange={(event) => onConfirmWarnings(event.target.checked)}
-              />
-              <span>
-                I reviewed the flagged files and want to include them in the
-                cloud copy.
-              </span>
-            </label>
+          {preflight.excludedCount > 0 ? (
+            <details className="sync-more sync-scope-details">
+              <summary>
+                <ChevronRight />{" "}
+                {t("Not included ({count})", {
+                  count: preflight.excludedCount,
+                })}
+              </summary>
+              {preflight.excluded.length ? (
+                <ul>
+                  {preflight.excluded.map((entry) => (
+                    <li key={entry.relativePath}>
+                      <span>{entry.relativePath}</span>
+                      <small>{t(exclusionLabel(entry.reason))}</small>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{t("No files are excluded.")}</p>
+              )}
+              {preflight.excludedCount > preflight.excluded.length ? (
+                <p>
+                  +{preflight.excludedCount - preflight.excluded.length} more
+                </p>
+              ) : null}
+            </details>
           ) : null}
-
-          <details className="sync-more sync-scope-details">
-            <summary>
-              <ChevronRight /> Not included ({preflight.excludedCount})
-            </summary>
-            {preflight.excluded.length ? (
-              <ul>
-                {preflight.excluded.map((entry) => (
-                  <li key={entry.relativePath}>
-                    <span>{entry.relativePath}</span>
-                    <small>{exclusionLabel(entry.reason)}</small>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No files are excluded.</p>
-            )}
-            {preflight.excludedCount > preflight.excluded.length ? (
-              <p>+{preflight.excludedCount - preflight.excluded.length} more</p>
-            ) : null}
-          </details>
         </>
       ) : (
         <p className="sync-loading" role="status">
@@ -2689,6 +3285,7 @@ function PreflightEntries({
   entries: EidosSyncPreflight["warnings"]
   total: number
 }) {
+  const { t } = useEidosLiteI18n()
   return (
     <>
       <ul>
@@ -2696,13 +3293,17 @@ function PreflightEntries({
           <li key={entry.relativePath}>
             <span title={entry.relativePath}>{entry.relativePath}</span>
             <small>
-              {entry.concerns.map(concernLabel).join(" · ")}
+              {entry.concerns
+                .map((concern) => t(concernLabel(concern)))
+                .join(" · ")}
               {entry.size > 0 ? ` · ${formatBytes(entry.size)}` : ""}
             </small>
           </li>
         ))}
       </ul>
-      {total > 12 ? <p>+{total - 12} more files to review</p> : null}
+      {total > 12 ? (
+        <p>{t("{count} more files", { count: total - 12 })}</p>
+      ) : null}
     </>
   )
 }
@@ -2763,9 +3364,6 @@ function concernLabel(
   return {
     "tracked-ignored":
       "already in version history; .graftignore does not exclude it from sync",
-    hidden: "hidden file",
-    "suspected-secret": "may contain private data",
-    "large-file": "large file",
     "file-too-large": "too large to sync",
     symlink: "linked file",
     "unsupported-entry": "unsupported file type",
@@ -2879,8 +3477,9 @@ function syncStatusLoadError(
     return {
       kind: "offline",
       title: "We’ll sync when you’re back online",
-      message:
-        "Showing the last known Sync status. You can keep working on this device and try again later.",
+      message: hasCachedStatus
+        ? "Showing the last known Sync status. You can keep working on this device and try again later."
+        : "Sync could not be reached. You can keep working on this device and try again later.",
     }
   }
   return {

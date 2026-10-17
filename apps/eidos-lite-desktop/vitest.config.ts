@@ -4,10 +4,16 @@ import { defineConfig } from "vitest/config"
 
 import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
 import { markdownEditorSourceAliases } from "../../packages/markdown/vite-source-aliases"
+import { readGraftSourceSnapshotPolicy } from "./scripts/graft-snapshot-policy.mjs"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  define: {
+    __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__: JSON.stringify(
+      readGraftSourceSnapshotPolicy(path.resolve(appRoot, "../.."))
+    ),
+  },
   resolve: {
     alias: [
       {
