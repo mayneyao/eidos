@@ -29,9 +29,6 @@ import { TransformStream, type ReadableStream } from "node:stream/web"
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex")
 const secret = () => randomBytes(32).toString("base64url")
-const { generate } = createRequire(import.meta.url)(
-  "selfsigned"
-) as typeof Selfsigned
 type Device = {
   id: string
   name: string
@@ -191,6 +188,9 @@ export class PeerService {
       identity = JSON.parse(await fs.readFile(identityPath, "utf8"))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+      const { generate } = createRequire(import.meta.url)(
+        "selfsigned"
+      ) as typeof Selfsigned
       identity = await generate(
         [{ name: "commonName", value: "Eidos device sync" }],
         { keySize: 2048, algorithm: "sha256" }

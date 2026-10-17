@@ -6,6 +6,7 @@ import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { SpaceCloneCoordinator } from "./sync/space-clone-coordinator"
 
 const mocks = vi.hoisted(() => ({
+  sessionModuleLoads: 0,
   window: null as unknown,
   create: vi.fn(),
   record: vi.fn(async () => {}),
@@ -36,9 +37,10 @@ vi.mock("electron", () => ({
   session: {},
   WebContentsView: class {},
 }))
-vi.mock("./space/space-session", () => ({
-  SpaceSession: { createCanonical: mocks.create },
-}))
+vi.mock("./space/space-session", () => {
+  mocks.sessionModuleLoads++
+  return { SpaceSession: { createCanonical: mocks.create } }
+})
 vi.mock("./space/space-paths", async (original) => ({
   ...(await original<object>()),
   canonicalizeSpaceRoot: mocks.canonical,
@@ -100,6 +102,12 @@ function session(id: string) {
   }
 }
 beforeEach(() => vi.clearAllMocks())
+
+it("keeps Space runtime loading out of the Welcome controller", () => {
+  expect(mocks.sessionModuleLoads).toBe(0)
+  fixture()
+  expect(mocks.sessionModuleLoads).toBe(0)
+})
 
 function encryptedCloneFixture() {
   const setup = fixture()
