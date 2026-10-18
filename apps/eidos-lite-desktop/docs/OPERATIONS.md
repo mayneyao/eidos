@@ -174,6 +174,14 @@ startup arguments. The main process accepts only the install route with a
 valid plugin ID; Plugin settings then invokes the registry installer, which
 verifies the package and asks the user to confirm before installing.
 
+On Windows, the packaged application registers `eidos-lite` with
+`app.setAsDefaultProtocolClient` on normal startup. The NSIS target does not
+register electron-builder's `protocols` metadata, so that metadata alone is
+insufficient. Open the installed application once after installing or updating
+before testing a browser install link. Unpackaged development instances and
+packaged smoke runs must not change the system protocol handler. Verify both
+cold-start links and links clicked while the app is already running on Windows.
+
 macOS `open-file` events and Windows/Linux second-instance file arguments
 enter the same main-process file route. The route rejects missing,
 non-file, non-`.eidos`, and final-component symlink inputs. It prefers the
