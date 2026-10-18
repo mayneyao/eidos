@@ -1,5 +1,6 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
 import type { FileMetaPatch } from "@eidos.space/plugin-sdk"
+import type { EidosLiteMenuOrders } from "./menu-orders"
 import type {
   FileHistoryPage,
   RestoreTextVersionRequest,
@@ -174,6 +175,7 @@ export const IPC_CHANNELS = {
   syncSignOut: "eidos-lite:sync-sign-out",
   syncPreflight: "eidos-lite:sync-preflight",
   syncEnable: "eidos-lite:sync-enable",
+  syncDisconnect: "eidos-lite:sync-disconnect",
   syncUnlock: "eidos-lite:sync-unlock",
   syncForgetUnlock: "eidos-lite:sync-forget-unlock",
   syncPasswordSettings: "eidos-lite:sync-password-settings",
@@ -690,6 +692,8 @@ export interface SpaceVersionTextContentRequest {
 
 export interface SpaceSnapshot {
   id: string
+  /** Local connection or enrollment exists, even if the cloud is unavailable. */
+  cloudSyncConnection?: boolean
   name: string
   displayPath: string
   entries: SpaceTreeEntry[]
@@ -780,7 +784,7 @@ export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
   /** Personal action ordering; never stored in an Eidos File or Space. */
-  menuOrders?: import("./menu-orders").EidosLiteMenuOrders
+  menuOrders?: EidosLiteMenuOrders
   uiZoom: number
   appearance: EidosLiteAppearance
   language: EidosLiteLanguage
@@ -2005,6 +2009,7 @@ export interface EidosLiteApi extends PluginApi {
     approval: EidosSyncPreflightApproval,
     encryption?: EidosSyncPasswordInput
   ): Promise<EidosSyncConnectionResponse>
+  disconnectSync(): Promise<SpaceSnapshot | null>
   unlockSync(encryption: EidosSyncPasswordInput): Promise<EidosSyncStatus>
   forgetSyncUnlock(): Promise<EidosSyncStatus>
   getSyncPasswordSettings(): Promise<{

@@ -1,10 +1,14 @@
 import fs from "node:fs/promises"
+import { mkdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 
-const native = vi.hoisted(() => ({ construct: vi.fn(), open: vi.fn() }))
+const native = vi.hoisted(() => ({
+  construct: Object.assign(vi.fn(), { createPrivateDirectory: vi.fn() }),
+  open: vi.fn(),
+}))
 vi.mock("./graft-sdk-module", () => ({
   loadEidosGraftSdk: () => ({
     EncryptedRemoteSession: native.construct,
@@ -16,6 +20,10 @@ describe("trusted encrypted host admission", () => {
   let root: string
   beforeEach(async () => {
     native.construct.mockReset()
+    native.construct.createPrivateDirectory.mockReset()
+    native.construct.createPrivateDirectory.mockImplementation(
+      (directory: string) => mkdirSync(directory, { mode: 0o700 })
+    )
     native.open.mockReset()
     root = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), "eidos-encrypted-host-"))
@@ -216,7 +224,13 @@ describe("trusted encrypted host admission", () => {
       url: "https://sync-staging.eidos.space/u-test/backup",
     }
     let added = false
+    const source = { branch: "main", commit: "11".repeat(32) }
+    const initializeConfig = vi.fn().mockResolvedValue("config_published")
     const repository = {
+      repositoryMetadata: vi.fn().mockResolvedValue({
+        current_branch: source.branch,
+        current_head: source.commit,
+      }),
       listRemotes: vi.fn(async () => ({
         remotes: added
           ? [
@@ -239,7 +253,7 @@ describe("trusted encrypted host admission", () => {
     native.construct.mockImplementation(function () {
       return {
         state: "unlocked",
-        initializeConfig: vi.fn().mockResolvedValue("config_published"),
+        initializeConfig,
         disconnect: vi.fn().mockResolvedValue(undefined),
       }
     })
@@ -249,8 +263,95 @@ describe("trusted encrypted host admission", () => {
       host.connect(path.join(root, "source"), supplied, "initialize")
     ).resolves.toBe(repository)
     expect(repository.addEncryptedRemote).toHaveBeenCalledOnce()
+    expect(initializeConfig).toHaveBeenCalledWith(expect.any(Buffer), source)
+    expect(native.construct.createPrivateDirectory).toHaveBeenCalledTimes(4)
     expect((await repository.listRemotes()).remotes).toContain(backup)
     await host.disconnect()
+  })
+
+  it("rejects missing initial source before publishing config and wipes the password", async () => {
+    const supplied = input(root)
+    const repository = {
+      listRemotes: vi.fn().mockResolvedValue({ remotes: [] }),
+      repositoryMetadata: vi.fn().mockResolvedValue({
+        current_branch: "main",
+        current_head: null,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    }
+    native.open.mockResolvedValue(repository)
+    await expect(
+      new EncryptedGraftHost().connect(
+        path.join(root, "source"),
+        supplied,
+        "initialize"
+      )
+    ).rejects.toMatchObject({ code: "GRAFT_SDK_E2EE_STALE_OBSERVATION" })
+    expect(native.construct).not.toHaveBeenCalled()
+    expect(native.construct.createPrivateDirectory).not.toHaveBeenCalled()
+    expect(repository.close).toHaveBeenCalledOnce()
+    expect(supplied.password.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it("resumes retained initialization without replacing intent from a changed HEAD", async () => {
+    const supplied = input(root)
+    const initializeConfig = vi.fn().mockResolvedValue("unconfirmed")
+    const resumeInitialConfig = vi.fn().mockResolvedValue("config_published")
+    const repository = {
+      listRemotes: vi.fn().mockResolvedValue({
+        remotes: [
+          {
+            name: "origin",
+            kind: "encrypted_http",
+            url: supplied.connection.url,
+          },
+        ],
+      }),
+      repositoryMetadata: vi
+        .fn()
+        .mockResolvedValueOnce({
+          current_branch: "main",
+          current_head: "11".repeat(32),
+        })
+        .mockResolvedValue({
+          current_branch: "main",
+          current_head: "22".repeat(32),
+        }),
+      pushInitialBranch: vi.fn().mockRejectedValue(
+        Object.assign(new Error("retained source changed"), {
+          code: "GRAFT_SDK_E2EE_STALE_OBSERVATION",
+        })
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    }
+    native.open.mockResolvedValue(repository)
+    const authority = {
+      state: "unlocked",
+      initializeConfig,
+      resumeInitialConfig,
+      disconnect: vi.fn().mockResolvedValue(undefined),
+    }
+    native.construct.mockImplementation(function () {
+      return authority
+    })
+    const host = new EncryptedGraftHost()
+    // First attempt retains the native configuration; publication fails safely.
+    await expect(
+      host.connect(path.join(root, "source"), supplied, "initialize")
+    ).rejects.toMatchObject({
+      code: "GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED",
+    })
+    expect(initializeConfig).toHaveBeenCalledWith(expect.any(Buffer), {
+      branch: "main",
+      commit: "11".repeat(32),
+    })
+    initializeConfig.mockClear()
+    await expect(
+      host.connect(path.join(root, "source"), input(root), "initialize")
+    ).rejects.toMatchObject({ code: "GRAFT_SDK_E2EE_STALE_OBSERVATION" })
+    expect(initializeConfig).not.toHaveBeenCalled()
+    expect(resumeInitialConfig).toHaveBeenCalledOnce()
+    expect(native.construct.createPrivateDirectory).toHaveBeenCalledTimes(4)
   })
 
   it("cannot start native unlock after an explicit lock during private directory preparation", async () => {

@@ -30,7 +30,7 @@ assert.ok(
   process.platform === "darwin" || process.env.CI === "true",
   "Windows/Linux installation acceptance requires a disposable CI runner"
 )
-const previousTag = args["previous-tag"] ?? "lite-v0.23.1"
+const previousTag = args["previous-tag"] ?? "lite-v0.24.2"
 const tagVersion = (tag) => {
   assert.match(tag, /^lite-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u)
   return tag.slice("lite-v".length)
@@ -462,6 +462,27 @@ try {
     )
     assert.equal(snapshot.diagnostics.app.packaged, true)
     assert.equal(snapshot.diagnostics.environment, "production")
+    // Older published versions remain usable as diagnostic targets.
+    const [targetMajor, targetMinor] = targetVersion.split(".").map(Number)
+    const verifyPluginProtocol =
+      process.platform === "win32" &&
+      version === targetVersion &&
+      (targetMajor > 0 || targetMinor >= 25)
+    if (verifyPluginProtocol) {
+      const registration = command("reg", [
+        "query",
+        "HKCU\\Software\\Classes\\eidos-lite\\shell\\open\\command",
+        "/ve",
+      ])
+      assert.ok(
+        registration.toLowerCase().includes(executable.toLowerCase()),
+        "Plugin installation links must open this installed application"
+      )
+      assert.ok(
+        registration.includes("%1"),
+        "Plugin installation links must pass their URL to the application"
+      )
+    }
     assert.equal(snapshot.space.operation.phase, "ready")
     assert.equal(snapshot.space.eidosFileCount, 2)
     assert.ok(snapshot.tables.length > 0 && snapshot.nestedTables.length > 0)
@@ -530,6 +551,7 @@ try {
     report.phases.push({
       phase,
       version,
+      ...(verifyPluginProtocol ? { pluginProtocolRegistered: true } : {}),
       historyHead: expected.history.currentHead,
       commits: expected.history.commits.length,
       files: hashes,

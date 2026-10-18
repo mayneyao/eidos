@@ -49,8 +49,8 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.31"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.31"
+export const GRAFT_SDK_VERSION = "0.3.32"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.32"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -1984,6 +1984,11 @@ export class GraftClient {
         upstreamBranch: "main",
       },
     ])
+  }
+
+  async removeRemote(root: string, name = "origin"): Promise<void> {
+    await this.runSdk(root, "removeRemote", [name])
+    if (name === "origin") this.originEncrypted = false
   }
 
   async configurePeer(

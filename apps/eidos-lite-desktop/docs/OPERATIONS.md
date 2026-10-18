@@ -279,10 +279,10 @@ check when investigating a production-package startup failure.
 
 The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
 actual signed DMG, NSIS installer, or Debian package. It verifies the published
-0.23.1 installer against its public SHA-256, installs it, opens root and nested
+0.24.2 installer against its public SHA-256, installs it, opens root and nested
 Eidos Files, creates Local history, and records file hashes and preferences.
 The same ordinary Space and profile then pass candidate installation, a new
-candidate checkpoint, binary rollback to 0.23.1, and candidate reinstallation.
+candidate checkpoint, binary rollback to 0.24.2, and candidate reinstallation.
 Every replacement requires the prior application to exit cleanly. Version and
 environment assertions use the installed application's diagnostics over a
 loopback-only debugging connection; schema, history, preferences and ordinary
@@ -330,12 +330,34 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.31`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.32`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
 utility process. The package has no install script and unsupported
 platform/libc combinations fail explicitly.
+
+Encrypted cloud Sync is admitted on macOS, Windows, and Linux. The trusted host
+uses the SDK's native private-directory API for checkpoint, recovery and staging
+state, including protected Windows DACLs. It binds the intended branch and commit
+before publishing the initial encryption configuration; retry restores that
+retained intent rather than adopting a newer HEAD. Windows supports explicit
+password sessions; remembered/default sync passwords remain unavailable there.
+
+The release workflow runs the actual encrypted host against a loopback HTTP
+Remote on every build platform, covering enrollment, wrong-password rejection,
+independent clone, bidirectional changes, authority reopen and locked remote
+removal followed by encrypted reconnection in the same folder. Only this test's
+official-origin allowlist is replaced for the synthetic loopback address; the
+production allowlist, native encryption, filesystem policy and SDK are unchanged.
+
+To replace a deleted or inaccessible cloud repository, choose **Disconnect
+cloud sync** in the Space's Sync panel and confirm the local disconnection.
+This works offline, retains local files, unsaved edits and Graft history, and
+does not delete the cloud repository. Enable Sync again in the same folder to
+create a new encrypted repository. The private per-Space `sync-connection.json`
+keeps the new repository identity and resumable disconnect intent; users do
+not need to remove `.graft` or manually clear application state.
 
 Large repositories persist a derived classification snapshot beneath
 `.graft/cache/sdk-status`. The SDK validates repository format, HEAD/index,

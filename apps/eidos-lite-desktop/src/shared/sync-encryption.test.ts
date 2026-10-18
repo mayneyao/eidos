@@ -35,7 +35,7 @@ describe("encrypted Sync admission", () => {
   it("supports only platforms with the native private-file contract", () => {
     expect(supportsEncryptedSync("darwin")).toBe(true)
     expect(supportsEncryptedSync("linux")).toBe(true)
-    expect(supportsEncryptedSync("win32")).toBe(false)
+    expect(supportsEncryptedSync("win32")).toBe(true)
     expect(supportsEncryptedSync("unknown")).toBe(false)
   })
 })

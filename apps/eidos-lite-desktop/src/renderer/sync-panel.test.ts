@@ -115,6 +115,124 @@ describe("SyncPanel failure states", () => {
   let root: Root
   let host: HTMLDivElement
 
+  it("keeps setup and disconnect available for an unfinished enrollment", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          hasCloudConnection: true,
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
+    expect(host.querySelector("[data-sync-enable]")).not.toBeNull()
+  })
+
+  it("keeps local disconnect available when account and cloud services are offline", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi
+          .fn()
+          .mockRejectedValue(new Error("The service could not be reached")),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          onClose() {},
+          syncHistory: { state: "unknown", ahead: 0, behind: 0 },
+        })
+      )
+    )
+    expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-disconnect]")!.disabled
+    ).toBe(false)
+  })
+
+  it.each([true, false])(
+    "disconnects only after confirmation succeeds (%s), retaining the Space",
+    async (confirmed) => {
+      const disconnectedSnapshot = {
+        id: "same-space",
+        displayPath: "/same/folder",
+        graft: { initialized: true, clean: false },
+      } as SpaceSnapshot
+      const disconnectSync = vi
+        .fn()
+        .mockResolvedValue(confirmed ? disconnectedSnapshot : null)
+      const onSpaceChange = vi.fn()
+      const nextStatus = {
+        ...status,
+        remote: { state: "not-connected" as const },
+        canEnable: true,
+      }
+      const getSyncStatus = vi
+        .fn()
+        .mockResolvedValueOnce(status)
+        .mockResolvedValue(confirmed ? nextStatus : status)
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus,
+          disconnectSync,
+          getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+          getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+          onSyncProgress: () => () => {},
+          onSyncQueueChanged: () => () => {},
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            platform: "darwin",
+            mode: "enable",
+            variant: "inspector",
+            onClose() {},
+            onSpaceChange,
+            syncHistory: { state: "ahead", ahead: 2, behind: 0 },
+          })
+        )
+      )
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>("[data-sync-disconnect]")!.click()
+      )
+      expect(disconnectSync).toHaveBeenCalledOnce()
+      if (confirmed) {
+        expect(onSpaceChange).toHaveBeenCalledWith(disconnectedSnapshot)
+        expect(host.querySelector("[data-sync-disconnect]")).toBeNull()
+        expect(host.textContent).toContain("Connect this Space")
+      } else {
+        expect(onSpaceChange).not.toHaveBeenCalled()
+        expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
+      }
+    }
+  )
+
   it.each([true, false])(
     "unlocks a connected inspector without device choices (secure storage=%s)",
     async (secureStorage) => {
@@ -386,11 +504,16 @@ describe("SyncPanel failure states", () => {
     }
   )
 
-  it.each([false, true])(
-    "requires matching passwords and saves only with secure storage (available=%s)",
-    async (secureStorage) => {
+  it.each([
+    { platform: "darwin", secureStorage: false },
+    { platform: "darwin", secureStorage: true },
+    { platform: "win32", secureStorage: false },
+  ])(
+    "requires matching passwords on $platform and saves only with secure storage (available=$secureStorage)",
+    async ({ platform, secureStorage }) => {
       const available = {
         ...status,
+        environment: platform === "win32" ? "production" : status.environment,
         defaultPasswordConfigured: false,
         remote: { state: "not-connected" as const },
         canEnable: true,
@@ -437,7 +560,7 @@ describe("SyncPanel failure states", () => {
       await act(async () =>
         root.render(
           createElement(SyncPanel, {
-            platform: "darwin",
+            platform,
             mode: "enable",
             onClose() {},
           })
@@ -490,6 +613,10 @@ describe("SyncPanel failure states", () => {
         expect(enableSync.mock.calls[0]![1]).toBeUndefined()
       } else {
         expect(saveDefaultSyncPassword).not.toHaveBeenCalled()
+        expect(enableSync.mock.calls[0]![1]).not.toHaveProperty(
+          "remember",
+          true
+        )
         expect(
           enableSync.mock.calls[0]![1]?.password.every((byte) => byte === 0)
         ).toBe(true)
@@ -1238,74 +1365,118 @@ describe("SyncPanel failure states", () => {
     )
   })
 
-  it("keeps legacy cloud copies usable on Windows while explaining encrypted copies are unavailable", async () => {
-    const cloneSyncRepository = vi.fn().mockResolvedValue({
-      ok: true,
-      snapshot: null,
-      telemetry: { phases: [] },
-    })
-    Object.defineProperty(window, "eidosLite", {
-      configurable: true,
-      value: {
-        getSyncStatus: async () => status,
-        getSyncQueueStatus: async () => null,
-        onSyncProgress: () => () => {},
-        onSyncQueueChanged: () => () => {},
-        listSyncRepositories: async () => ({
-          namespace: "person",
-          repositories: [
-            {
-              name: "legacy",
-              displayName: "Legacy notes",
-              createdAtMs: 1,
-              remoteUrl: "https://sync-staging.eidos.space/person/legacy",
-            },
-            {
-              name: "encrypted",
-              displayName: "Private notes",
-              createdAtMs: 1,
-              remoteUrl: "https://sync-staging.eidos.space/person/encrypted",
-              encryption: {
-                profile: "encrypted-remote-v1",
-                version: 1,
-                suite: 1,
-                uuid: "2f94f4c8-705b-4b5f-9808-84e0d1c394ee",
-              },
-            },
-          ],
-        }),
-        cloneSyncRepository,
-      },
-    })
-    await act(async () =>
-      root.render(
-        createElement(SyncPanel, {
-          mode: "clone",
-          platform: "win32",
-          onClose() {},
-        })
+  it.each(["win32", "unknown"])(
+    "keeps legacy copies usable on %s and requires a password for supported encrypted copies",
+    async (platform) => {
+      let suppliedPassword = ""
+      const cloneSyncRepository = vi.fn(
+        async (
+          _remote: string,
+          _name: string,
+          encryption?: { password: Uint8Array; remember?: boolean }
+        ) => {
+          if (encryption)
+            suppliedPassword = new TextDecoder().decode(encryption.password)
+          return { ok: true, snapshot: null, telemetry: { phases: [] } }
+        }
       )
-    )
-    expect(
-      host.querySelector<HTMLButtonElement>(
-        '[data-sync-open-space="Private notes"]'
-      )!.disabled
-    ).toBe(true)
-    expect(host.textContent).toContain(
-      "Encrypted cloud sync is not available on this platform yet"
-    )
-    await act(async () =>
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-sync-open-space="Legacy notes"]'
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncStatus: async () => ({
+            ...status,
+            defaultPasswordConfigured: platform !== "win32",
+            deviceUnlockAvailable: false,
+          }),
+          getSyncQueueStatus: async () => null,
+          onSyncProgress: () => () => {},
+          onSyncQueueChanged: () => () => {},
+          listSyncRepositories: async () => ({
+            namespace: "person",
+            repositories: [
+              {
+                name: "legacy",
+                displayName: "Legacy notes",
+                createdAtMs: 1,
+                remoteUrl: "https://sync-staging.eidos.space/person/legacy",
+              },
+              {
+                name: "encrypted",
+                displayName: "Private notes",
+                createdAtMs: 1,
+                remoteUrl: "https://sync-staging.eidos.space/person/encrypted",
+                encryption: {
+                  profile: "encrypted-remote-v1",
+                  version: 1,
+                  suite: 1,
+                  uuid: "2f94f4c8-705b-4b5f-9808-84e0d1c394ee",
+                },
+              },
+            ],
+          }),
+          cloneSyncRepository,
+        },
+      })
+      await act(async () =>
+        root.render(
+          createElement(SyncPanel, {
+            mode: "clone",
+            platform,
+            onClose() {},
+          })
+        )
+      )
+      expect(
+        host.querySelector<HTMLButtonElement>(
+          '[data-sync-open-space="Private notes"]'
+        )!.disabled
+      ).toBe(true)
+      if (platform === "unknown")
+        expect(host.textContent).toContain(
+          "Encrypted cloud sync is not available on this platform yet"
+        )
+      else
+        expect(host.textContent).not.toContain(
+          "Encrypted cloud sync is not available on this platform yet"
+        )
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>(
+            '[data-sync-open-space="Legacy notes"]'
+          )!
+          .click()
+      )
+      expect(cloneSyncRepository).toHaveBeenCalledWith(
+        "https://sync-staging.eidos.space/person/legacy",
+        "Legacy notes"
+      )
+      if (platform === "win32") {
+        expect(cloneSyncRepository).toHaveBeenCalledOnce()
+        const field = host.querySelector<HTMLInputElement>(
+          "input[type=password]"
         )!
-        .click()
-    )
-    expect(cloneSyncRepository).toHaveBeenCalledWith(
-      "https://sync-staging.eidos.space/person/legacy",
-      "Legacy notes"
-    )
-  })
+        expect(field).not.toBeNull()
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )!.set!.call(field, "synthetic Windows clone password")
+          field.dispatchEvent(new Event("input", { bubbles: true }))
+        })
+        const open = host.querySelector<HTMLButtonElement>(
+          '[data-sync-open-space="Private notes"]'
+        )!
+        expect(open.disabled).toBe(false)
+        await act(async () => open.click())
+        expect(suppliedPassword).toBe("synthetic Windows clone password")
+        expect(cloneSyncRepository).toHaveBeenCalledTimes(2)
+        const request = cloneSyncRepository.mock.calls[1]![2]!
+        expect(request.remember).not.toBe(true)
+        expect(request.password.every((byte) => byte === 0)).toBe(true)
+        expect(field.value).toBe("")
+      }
+    }
+  )
 
   it("does not open a delayed clone result after signing out in another window", async () => {
     let accountChanged!: Parameters<EidosLiteApi["onAccountChanged"]>[0]
@@ -1374,7 +1545,7 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).not.toContain("My notes")
   })
 
-  it.each(["win32", "unknown"])(
+  it.each(["unknown"])(
     "does not create a plaintext connection on unsupported platform %s",
     async (platform) => {
       const enableSync = vi.fn()

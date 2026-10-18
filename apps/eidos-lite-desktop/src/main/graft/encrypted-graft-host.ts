@@ -60,6 +60,7 @@ export class EncryptedGraftHost {
       await this.releaseAuthority()
       active()
       const sdk = loadEidosGraftSdk()
+      let initialSource: { branch: string; commit: string } | undefined
       if (mode === "initialize") {
         const inspector = await sdk.RepositorySession.open(root)
         try {
@@ -72,10 +73,20 @@ export class EncryptedGraftHost {
           )
             throw Object.assign(
               new Error(
-                "This Space already has another origin. Preserve its connection and history; connect an independent copy to encrypted Sync."
+                "This Space already has another origin. Disconnect its cloud connection before enabling encrypted Sync again."
               ),
               { code: "GRAFT_SDK_E2EE_ORIGIN_CONFLICT" }
             )
+          const metadata = await inspector.repositoryMetadata()
+          if (!metadata.current_branch || !metadata.current_head)
+            throw Object.assign(
+              new Error("Save a local version before enabling encrypted Sync"),
+              { code: "GRAFT_SDK_E2EE_STALE_OBSERVATION" }
+            )
+          initialSource = {
+            branch: metadata.current_branch,
+            commit: metadata.current_head,
+          }
         } finally {
           await inspector.close()
         }
@@ -97,17 +108,18 @@ export class EncryptedGraftHost {
         mode: 0o700,
       })
       const directory = path.join(connection.stateDirectory, slot)
-      let created = false
-      try {
-        await fs.mkdir(directory, { mode: 0o700 })
-        created = true
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-      }
+      const existing = await fs.lstat(directory).catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
+        throw error
+      })
+      const created = existing === null
       const stagingDirectory = path.join(directory, "staging")
       if (created) {
+        sdk.EncryptedRemoteSession.createPrivateDirectory(directory)
         for (const child of ["staging", "checkpoint", "recovery"])
-          await fs.mkdir(path.join(directory, child), { mode: 0o700 })
+          sdk.EncryptedRemoteSession.createPrivateDirectory(
+            path.join(directory, child)
+          )
       }
       active()
       const authority = new sdk.EncryptedRemoteSession({
@@ -126,7 +138,7 @@ export class EncryptedGraftHost {
       this.binding = connection
       if (mode === "initialize") {
         const result = created
-          ? await authority.initializeConfig(password)
+          ? await authority.initializeConfig(password, initialSource)
           : await authority.resumeInitialConfig(password)
         if (result !== "config_published")
           throw Object.assign(

@@ -79,7 +79,7 @@ must complete before enabling named resources across supported platforms.
 > architecture and verification contract.
 
 Local Spaces, editing, and version history require no account. Eidos Lite uses
-Graft SDK 0.3.31 for durable merge state,
+Graft SDK 0.3.32 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -276,6 +276,12 @@ local environment file.
 Packaged production builds reject this development override and always resolve
 the pinned published SDK.
 
+**Disconnect cloud sync** removes the current Space's cloud connection while
+retaining its local files, unsaved edits and Graft history. It remains available
+when the cloud repository is missing or the network is unavailable. After
+confirming, enable Sync in the same folder to create a new encrypted cloud
+repository. Existing cloud copies and other devices keep their own connections.
+
 Expected Sync failures now cross preload as a typed result rather than an
 Electron exception string. Main classifies offline/service, sign-in or revoked
 device, entitlement, storage quota, protocol version, missing/conflicting
@@ -295,7 +301,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the `@eidos.space/graft@0.3.31` Node-API SDK contract.
+Graft runs through the `@eidos.space/graft@0.3.32` Node-API SDK contract.
 The SDK and its five native packages use exact registry versions recorded in
 the lockfile. Production and release builds reject local dependency overrides
 and require the installed native addon to provide the encrypted-session API.
@@ -403,34 +409,29 @@ rollback procedure are documented in the
 
 ## Encrypted cloud Sync
 
-The `0.24.0-beta.1` release keeps new encrypted cloud connections disabled in
-production. Installing this beta does not enable them. The following describes
-the encrypted workflow in service environments where it is enabled; local files,
-local history, and LAN sync remain available independently.
-
-E2EE-capable macOS and Linux builds use end-to-end encryption for new cloud
+macOS, Windows, and Linux builds use end-to-end encryption for new cloud
 connections. The account and Sync service must belong to the same official
-environment. Windows, mobile, and browser clients do not implement this cloud
+environment. Mobile and browser clients do not implement this cloud
 encryption flow. Missing native support, passwords, or encrypted service
 capabilities stop the operation instead of falling back to plaintext.
 Existing ordinary connections remain usable with their original profile.
 
 Set a **Sync password** when enabling Sync for the first time, or in
-**Settings → Account & Services → Sync**. First connection creates local version
-history and the initial checkpoint automatically. When system secure storage
-is available, Lite remembers the password on this device and reuses it for new
-Spaces. Each Space has an independently generated key and encrypted repository
-identity. On another computer, sign in to the same account, select a Space in
+**Settings → Account & Services → Sync** when password storage is supported.
+First connection creates local version history and the initial checkpoint
+automatically. Each Space has an independently generated key and encrypted
+repository identity. On another computer, sign in to the same account, select a
+Space in
 **Open synced Space**, enter the same password, and choose a new destination
 folder. A saved default password can be used directly; a Space with a different
 password can be opened by entering its own password. A failed password attempt
 does not publish the incomplete destination and can be retried.
 
-When system secure storage is available, creating, restoring, or unlocking an
-encrypted Space automatically saves its password on this device, so Sync can
-resume after an application restart. If secure storage is unavailable, the
-password is used only for the current session and Sync explains that it must be
-entered again after restarting. Every Space retains independent
+On macOS and Linux with a supported system keyring, creating, restoring, or
+unlocking an encrypted Space can save its password securely on this device, so
+Sync can resume after an application restart. Windows uses session-only passwords
+and does not persist a default sync password. When a password cannot be saved,
+enter it again after restarting. Every Space retains independent
 encryption and a separate remembered entry, bound to the app, environment/account,
 remote identity, and local Space path. Changing the password in Settings affects
 new connections only; it does not rotate existing passwords or delete existing
@@ -442,7 +443,8 @@ remain included even when they match ignore rules; the panel explains these
 entries without requiring confirmation. Sync rechecks the file manifest before
 connecting and asks for another check if the files have changed.
 
-The implementation stores an OS-protected copy of the Sync password,
+When remembering is available, Lite stores an OS-protected copy of the Sync
+password,
 not a plaintext password or an exported native root key. Electron `safeStorage`
 uses the system credential store; unsupported or weak Linux `basic_text`
 backends disable remembering rather than falling back to plaintext. Credential
@@ -451,8 +453,8 @@ development builds do not prove production signing or Keychain access isolation.
 
 The Sync panel shows password entry only when the encrypted session needs to be
 unlocked. Manage the default Sync password in Settings. System suspend, and
-screen lock on macOS, drain active sessions and pause automatic unlocking.
-After wake and, on macOS, screen unlock, Lite resumes using securely saved
+screen lock on macOS and Windows, drain active sessions and pause automatic
+unlocking. After wake and, on macOS and Windows, screen unlock, Lite resumes using securely saved
 passwords; session-only use needs password entry again. Linux screen lock alone
 does not clear the Sync session; quit Lite or sign out to clear it. Sign-out
 clears live keys and blocks automatic loading;
@@ -463,6 +465,11 @@ account password does not recover encrypted contents. If the password is lost,
 preserve any readable local copy before reinstalling or clearing application
 data. Lite does not expose per-Space password rotation. Local SQLite files and
 attachments are not encrypted at rest by this feature.
+
+Encrypted connection recovery state may be updated during unlock. After a
+binary downgrade, an older release may refuse to resume that connection.
+Preserve the private state and reinstall a compatible newer Lite version;
+do not clear encryption checkpoints or journals as a downgrade workaround.
 
 The service sees the account, cloud Space display name, opaque repository and
 version relationships, sizes, and request timing. File contents, paths, branch

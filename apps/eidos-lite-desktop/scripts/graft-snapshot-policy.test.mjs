@@ -19,7 +19,7 @@ test("only the explicit matching vendored SDK enables source preparation", () =>
   )
   for (const override of [
     undefined,
-    "0.3.31",
+    "0.3.32",
     "file:vendor/graft-e2ee/eidos.space-graft-0.3.29.tgz",
     "file:/tmp/graft.tgz",
     "link:../graft/packages/graft-sdk",

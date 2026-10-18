@@ -63,7 +63,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.31"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.32"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -360,7 +360,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.31`,
+The SDK adapter pins published `@eidos.space/graft@0.3.32`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
@@ -624,7 +624,7 @@ conflict is never by itself proof that an Eidos candidate is safe.
    Abort restores the pre-merge Local head and retains Hosted history.
 
 The merge surface is compiled against a type-only snapshot kept aligned with
-the published Graft 0.3.31 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
+the published Graft 0.3.32 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
 a compatible local package in source development and tests; production always
 resolves the pinned SDK and fails closed with a typed unavailable result if its
 runtime contract is incomplete.
@@ -742,6 +742,16 @@ every returned Remote URL against the selected preset. It separately maps
 projects those codes into product states. It is invoked only after a fresh
 device-bound authorization grants write access; Local open/edit and the
 signed-out UI never call it.
+
+Cloud connection identity is separate from the local folder identity. The
+private per-Space `sync-connection.json` stores a durable random repository
+name and provisioning/disconnect intent. Disconnect drains the old queue,
+revokes its remembered unlock and native authority, and uses SDK
+`removeRemote("origin")` to remove the connection without materializing or
+resetting local history. An interrupted disconnect resumes on reopen. A
+subsequent enrollment reuses the same local folder and history while creating
+a new encrypted cloud repository. Old queued operations must still match the
+current connection before they can unlock or synchronize it.
 
 The Sync slice preserves three independently testable responsibilities:
 

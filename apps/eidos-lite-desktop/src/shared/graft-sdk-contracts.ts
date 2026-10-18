@@ -82,6 +82,7 @@ export type GraftSdkCommand =
   | "restorePaths"
   | "untrackPaths"
   | "configureRemote"
+  | "removeRemote"
   | "push"
   | "fetch"
   | "pull"

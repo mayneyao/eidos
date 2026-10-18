@@ -143,6 +143,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test native encrypted Sync host on this platform
+        working-directory: apps/eidos-lite-desktop
+        run: node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/encrypted-graft-host.local.integration.test.ts
+
       - name: Apply full tag version to package
         shell: bash
         env:
@@ -322,11 +326,11 @@ jobs:
           if [[ '${{ matrix.platform }}' == linux ]]; then
             dbus-run-session -- xvfb-run --auto-servernum \
               node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-              --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+              --previous-tag=lite-v0.24.2 "--candidate=$installer" \
               "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
           else
             node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-              --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+              --previous-tag=lite-v0.24.2 "--candidate=$installer" \
               "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
           fi
 

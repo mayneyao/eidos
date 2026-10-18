@@ -70,13 +70,18 @@ export class SyncExecutor {
       if (!remoteUrl)
         throw new Error("This Space is not connected to Eidos Sync")
       const access = await this.syncControl.repositoryAccess(remoteUrl)
+      if ((await session.officialSyncRemoteUrl()) !== remoteUrl)
+        throw new Error(
+          "The cloud connection changed. Check its status before syncing again."
+        )
       await this.prepareEncryptedSync?.(session, remoteUrl, access.accessToken)
       const outcome = await session.syncHostedRemote(
         access.accessToken,
         access.access,
         transition,
         (progress) => tracker.transfer(progress),
-        action
+        action,
+        remoteUrl
       )
       const telemetry = tracker.complete(outcome.message)
       logger?.info("sync.run.completed", {

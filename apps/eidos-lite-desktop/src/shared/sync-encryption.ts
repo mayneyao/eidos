@@ -1,9 +1,8 @@
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "./service-environment"
 
-// The native encrypted-session implementation requires Unix private-file
-// permissions. Keep admission identical in the renderer and trusted host.
+// Keep renderer and trusted-host admission aligned with the published native SDK.
 export function supportsEncryptedSync(platform: string): boolean {
-  return platform === "darwin" || platform === "linux"
+  return platform === "darwin" || platform === "linux" || platform === "win32"
 }
 
 export function isSyncEncryptionAccountDomain(domain: string): boolean {
