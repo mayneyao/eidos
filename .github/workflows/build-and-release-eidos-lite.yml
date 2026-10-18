@@ -125,6 +125,18 @@ jobs:
             runner: ubuntu-24.04-arm
             artifact: lite-linux-arm64
     steps:
+      - name: Disable background indexing on the ephemeral macOS build runner
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mdutil -a -i off
+          index_status="$(mdutil -a -s)"
+          printf '%s\n' "$index_status"
+          if [[ "$index_status" == *"Indexing enabled."* || "$index_status" != *"disabled"* ]]; then
+            exit 1
+          fi
+
       - name: Checkout release tag
         uses: actions/checkout@v4
 

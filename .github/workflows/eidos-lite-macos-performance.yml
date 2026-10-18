@@ -27,6 +27,17 @@ jobs:
             candidate-name: intel
             runner: macos-15-intel
     steps:
+      - name: Disable background indexing on the ephemeral benchmark runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mdutil -a -i off
+          index_status="$(mdutil -a -s)"
+          printf '%s\n' "$index_status"
+          if [[ "$index_status" == *"Indexing enabled."* || "$index_status" != *"disabled"* ]]; then
+            exit 1
+          fi
+
       - name: Checkout tested source
         uses: actions/checkout@v4
 
