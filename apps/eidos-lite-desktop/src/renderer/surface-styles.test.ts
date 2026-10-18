@@ -124,7 +124,9 @@ describe("Eidos Lite surface hierarchy", () => {
 
   it("keeps Windows and Linux actions clear of overlaid system controls", () => {
     const overlayShells = ruleContaining("--window-controls-overlay-width")
-    const actionRules = rulesContaining("var(--window-controls-overlay-width)")
+    const actionRules = rulesContaining(
+      "var(--window-controls-overlay-width)"
+    ).filter((entry) => !entry.includes("--window-caption-width:"))
 
     expect(actionRules).toHaveLength(4)
     for (const overlayRule of [overlayShells, ...actionRules]) {
@@ -145,6 +147,7 @@ describe("Eidos Lite surface hierarchy", () => {
         (actionRule) =>
           actionRule.includes('[data-right-sidebar-open="true"]') &&
           actionRule.includes(".version-panel") &&
+          actionRule.includes(".file-sidebar") &&
           actionRule.includes(".sync-inspector-host") &&
           actionRule.includes(".sync-inspector-b")
       )
@@ -169,11 +172,57 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(shell).toContain("--window-caption-height")
     expect(shell).toContain("--window-caption-width")
     expect(shell).toContain("titlebar-area-height")
-    const captionButton = ruleContaining("var(--window-caption-width)")
+    const captionButton = ruleContaining("width: var(--window-caption-width)")
     expect(captionButton).toContain(".file-titlebar-actions")
-    expect(captionButton).toContain("> .icon-button")
+    expect(captionButton).toContain(".file-sidebar > header")
+    expect(captionButton).toContain(".version-panel > header")
+    expect(captionButton).toContain(".sync-dialog-inspector > header")
+    expect(captionButton).toContain(".sync-inspector-b > header")
+    expect(captionButton).toContain(".icon-button")
     expect(captionButton).toContain("width: var(--window-caption-width)")
     expect(captionButton).toContain("height: var(--window-caption-height)")
+    expect(captionButton).toContain("flex-shrink: 0")
+    expect(shell).not.toContain("2.25rem")
+    const captionGlyph = ruleContaining(
+      "calc(var(--window-caption-height) * 0.4)"
+    )
+    expect(captionGlyph).toContain(".file-sidebar > header")
+    expect(captionGlyph).toContain(".file-titlebar-actions")
+    const nativeChrome = ruleContaining("--window-titlebar-height: env(")
+    expect(nativeChrome).toContain('.workbench[data-platform="win32"]')
+    const narrowInspector = ruleContaining("var(--window-caption-width) * 5")
+    expect(narrowInspector).toContain("--right-sidebar-min-width: max(")
+    expect(narrowInspector).toContain('[data-platform="win32"]')
+  })
+
+  it("keeps file preview actions immediately after the title", () => {
+    const title = rule(".file-sidebar > header strong")
+    expect(title).toContain("flex: 0 1 auto")
+    expect(title).toContain("min-width: 0")
+    expect(title).toContain("text-overflow: ellipsis")
+    expect(rule(".file-sidebar > header")).not.toContain(
+      "justify-content: space-between"
+    )
+  })
+
+  it("keeps history and Sync actions beside their titles", () => {
+    expect(rule(".version-panel > header")).toContain(
+      "justify-content: flex-start"
+    )
+    expect(
+      rulesContaining("justify-content: flex-start").some((entry) =>
+        entry.includes(".sync-dialog-inspector > header")
+      )
+    ).toBe(true)
+    expect(
+      rule(".sync-dialog-inspector > header > .sync-dialog-header-side")
+    ).toContain("flex: 0 1 auto")
+    expect(rule(".sync-inspector-heading")).toContain("flex: 0 1 auto")
+    const narrowSync = ruleContaining(
+      "@container sync-panel (max-width: 24rem)"
+    )
+    expect(narrowSync).not.toContain("flex: none")
+    expect(styles).not.toMatch(/\.sync-account-meter\s*\{\s*margin-left: auto/)
   })
 
   it("aligns Linux title rows to the system window controls overlay", () => {

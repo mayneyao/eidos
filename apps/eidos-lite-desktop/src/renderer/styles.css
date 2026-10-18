@@ -1669,15 +1669,19 @@ body {
     titlebar-area-height,
     var(--chrome-header-height)
   );
-  --window-caption-width: max(
-    2.25rem,
-    calc(
-      (
-          100vw - env(titlebar-area-x, 0px) -
-            env(titlebar-area-width, calc(100vw - 8.625rem))
-        ) /
-        3
-    )
+  --window-caption-width: calc(var(--window-controls-overlay-width) / 3);
+}
+
+.workbench:is(
+  [data-platform="win32"],
+  [data-platform="linux"],
+  [data-platform="other"]
+) {
+  /* A narrow inspector still needs room for Refresh, Close, and all three
+     native caption buttons, including when the content is zoomed out. */
+  --right-sidebar-min-width: max(
+    18rem,
+    calc(var(--window-caption-width) * 5 + 4rem)
   );
 }
 
@@ -1686,9 +1690,15 @@ body {
     [data-platform="linux"],
     [data-platform="other"]
   )
-  .file-titlebar
-  .file-titlebar-actions
-  > .icon-button {
+  :is(
+    .file-titlebar-actions,
+    .file-sidebar > header,
+    .version-panel > header,
+    .sync-dialog-inspector > header,
+    .sync-inspector-b > header
+  )
+  .icon-button {
+  flex-shrink: 0;
   width: var(--window-caption-width);
   height: var(--window-caption-height);
   border-radius: 0;
@@ -1699,14 +1709,53 @@ body {
     [data-platform="linux"],
     [data-platform="other"]
   )
-  .file-titlebar
-  .file-titlebar-actions
-  > .icon-button
+  :is(
+    .file-titlebar-actions,
+    .file-sidebar > header,
+    .version-panel > header,
+    .sync-dialog-inspector > header,
+    .sync-inspector-b > header
+  )
+  .icon-button
   > svg {
-  width: 1rem;
-  height: 1rem;
+  /* Native captions do not grow with page zoom. Keep the application glyphs
+     proportional to the same zoom-adjusted overlay geometry. */
+  width: calc(var(--window-caption-height) * 0.4);
+  height: calc(var(--window-caption-height) * 0.4);
 }
 
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  :is(.file-titlebar-actions, .file-sidebar > header, .version-header-actions) {
+  gap: 0;
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  :is(.file-titlebar-actions, .version-header-actions) {
+  flex-shrink: 0;
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  :is(.file-sidebar, .version-panel, .sync-dialog-inspector, .sync-inspector-b)
+  > header {
+  min-width: 0;
+}
+
+.welcome-shell[data-platform="win32"],
+.settings-shell[data-platform="win32"],
+.workbench[data-platform="win32"],
+.sync-dialog-backdrop[data-platform="win32"],
 .welcome-shell[data-platform="linux"],
 .settings-shell[data-platform="linux"],
 .workbench[data-platform="linux"],
@@ -2644,6 +2693,13 @@ body {
     [data-platform="linux"],
     [data-platform="other"]
   )[data-right-sidebar-open="true"]
+  > .file-sidebar
+  > header,
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )[data-right-sidebar-open="true"]
   > .version-panel
   > header,
 .workbench:is(
@@ -2946,6 +3002,15 @@ body {
   flex: 1;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.sync-dialog-inspector > header {
+  justify-content: flex-start;
+}
+
+.sync-dialog-inspector > header > .sync-dialog-header-side {
+  flex: 0 1 auto;
+  justify-content: flex-start;
 }
 
 .sync-identity-chip {
@@ -3253,7 +3318,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 .sync-inspector-heading strong {
@@ -3535,7 +3600,6 @@ body {
 
 @container sync-panel (max-width: 24rem) {
   .sync-inspector-heading {
-    flex: none;
     gap: 0.4rem;
   }
   .sync-checked-label,
@@ -3547,7 +3611,7 @@ body {
     font-variant-numeric: tabular-nums;
   }
   .sync-account-meter {
-    margin-left: auto;
+    margin-left: 0;
     max-width: 40%;
   }
   .sync-inspector-b-status,
@@ -9040,7 +9104,7 @@ body {
 }
 
 .file-sidebar > header strong {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9096,7 +9160,8 @@ body {
 .version-panel > header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0.35rem;
   padding: 0 0.5rem 0 0.75rem;
   border-bottom: 1px solid var(--line);
 }
@@ -9135,6 +9200,10 @@ body {
 }
 
 .version-panel > header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
   font-weight: 650;
 }
