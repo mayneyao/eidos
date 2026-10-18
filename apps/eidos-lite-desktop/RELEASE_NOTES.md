@@ -1,29 +1,23 @@
-Eidos Lite 0.24.2 brings end-to-end encrypted cloud Sync to macOS and Linux. Connect your Space across computers with a Sync password. Local files and local version history remain available offline.
+Eidos Lite 0.25.0 adds encrypted cloud Sync on Windows and lets you replace a cloud connection while keeping your local files and version history.
+
+**Before downgrading:** After using encrypted Sync in this version, an older Lite release cannot resume that cloud connection on this computer. Reinstall 0.25.0 or later to resume Sync. Your local files and saved history are preserved.
 
 ## What's new
 
-### End-to-end encrypted cloud Sync
+### Encrypted cloud Sync on Windows
 
-Sign in with an account that has Sync access, open **Sync → Cloud Sync**, set a **Sync password**, and choose **Enable Sync**. Lite encrypts file contents, paths, saved version messages and branch names on your device before upload. Use the same password when opening the cloud Space on another supported computer.
+Windows can now connect to an encrypted cloud Space and exchange changes with macOS and Linux. Sign in with Sync access, then open **Sync → Cloud Sync** and enter the Space's sync password. Windows uses the password for the current session and asks again after you restart; saving a default sync password is not available on Windows yet.
 
-Your Sync password is separate from your account password. Keep it in your password manager: Eidos cannot recover it or decrypt your cloud copy for you. Encryption protects the cloud copy; local files remain readable. Windows and mobile clients cannot open these encrypted cloud Spaces.
+### Disconnect and reconnect in the same folder
 
-### Keep a file open beside your table
+Choose **Disconnect cloud sync** in the Sync panel to remove this computer's connection. The confirmation explains what is preserved: your local files, unsaved edits and Graft history stay in place, and the cloud copy is not deleted. This also works when the cloud repository has already been deleted or the service is unavailable.
 
-Choose **Open in sidebar** from a file row's menu to read or edit the file alongside the table. Lite opens the preview with your configured file editor or File View.
-
-### Reorder table row actions
-
-Open a table's row menu, hold **Option** on macOS or **Alt** on Windows/Linux, and drag its actions into the order you prefer. Lite keeps this order across tables. **Restore default order** returns to the original arrangement.
+Enable Sync again to create a new encrypted cloud repository from the same folder. You do not need to copy or rename your Space.
 
 ## Improvements
 
-- **Startup**: Lite opens its Welcome screen with less work in the background. Plugin details and embedded table editors load when you open them.
-- **Sync setup**: Review the upload's file count, size and exclusions in a simpler panel, with password settings and clear retry actions nearby. Supported hidden files, large files and filenames containing words such as “secret” no longer need an extra confirmation.
-- **Account settings**: Sync access, storage and password controls now follow the compact layout used by the other settings pages.
+- **Encrypted Sync reliability**: Initial encrypted uploads keep the saved version selected when the connection began, including on retry. Stalled transfers now stop within a bounded timeout.
 
 ## Bug fixes
 
-- **File browsing**: Expanded folders reload their contents after a background refresh invalidates the directory cache, so files remain accessible without closing and reopening the folder.
-- **Markdown editing**: Clicking below the final block moves the caret without marking the file as modified. Saving before you type leaves the original Markdown intact, without adding an empty line.
-- **Update checks**: An older release is no longer offered as an update to the version you are running. The floating update action also lines up with the other footer controls.
+- **Windows plugin links**: The installed app registers plugin installation links when it starts, so a browser can open the matching installation page in Lite. Launch Lite once after installing or updating to register the link handler.
