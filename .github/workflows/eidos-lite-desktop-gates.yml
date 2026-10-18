@@ -36,6 +36,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: eidos-lite-${{ github.workflow }}-${{ github.ref }}
@@ -264,7 +265,11 @@ jobs:
           application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
           test -n "$application"
           codesign --verify --deep --strict "$application"
-          xcrun stapler validate "$application"
+          for attempt in 1 2 3; do
+            if xcrun stapler validate "$application"; then break; fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep "$((attempt * 3))"
+          done
 
       - name: Observe fresh packaged smoke
         id: observed-smoke
@@ -275,6 +280,7 @@ jobs:
 
       - name: Enforce packaged performance
         id: enforced-smoke
+        if: ${{ !inputs.signed_mac_candidates }}
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
         shell: bash
@@ -401,3 +407,11 @@ jobs:
           path: ${{ runner.temp }}/lite-staging-package
           if-no-files-found: error
           retention-days: 3
+
+  signed-macos-performance:
+    name: Signed distribution performance
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+    needs: packaged-macos
+    uses: ./.github/workflows/eidos-lite-macos-performance.yml
+    with:
+      candidate-artifacts: true

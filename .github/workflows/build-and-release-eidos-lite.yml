@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: eidos-lite-release-${{ github.ref_name }}
@@ -297,16 +298,6 @@ jobs:
           test -n "$executable"
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
-      - name: Enforce packaged macOS release performance
-        if: matrix.platform == 'mac'
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
-        shell: bash
-        run: |
-          for sample in 1 2 3; do
-            pnpm smoke:eidos-lite-packaged
-          done
-
       - name: Verify real installer upgrade and rollback
         shell: bash
         env:
@@ -358,6 +349,11 @@ jobs:
             apps/eidos-lite-desktop/dist-app/*.blockmap
             apps/eidos-lite-desktop/dist-app/latest*.yml
 
+  macos-performance:
+    name: Signed distribution performance
+    needs: build
+    uses: ./.github/workflows/eidos-lite-macos-performance.yml
+
   deploy-update-router:
     name: Deploy Lite update router
     needs: verify
@@ -378,7 +374,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build, deploy-update-router]
+    needs: [build, macos-performance, deploy-update-router]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

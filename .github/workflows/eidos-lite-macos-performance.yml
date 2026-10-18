@@ -1,0 +1,139 @@
+name: Eidos Lite installed macOS performance
+
+on:
+  workflow_call:
+    inputs:
+      candidate-artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  installed-performance:
+    name: Installed macOS performance (${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: arm64
+            candidate-name: apple-silicon
+            runner: macos-15
+          - architecture: x64
+            candidate-name: intel
+            runner: macos-15-intel
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Install test dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve this run's signed candidate
+        id: candidate
+        if: inputs.candidate-artifacts
+        uses: actions/github-script@v7
+        env:
+          CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
+        with:
+          result-encoding: string
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            })
+            const prefix = `lite-signed-candidate-${process.env.CANDIDATE_ARCHITECTURE}-${context.runId}-`
+            const artifact = artifacts.filter(item => !item.expired && item.name.startsWith(prefix))
+              .sort((a, b) => b.id - a.id)[0]
+            if (!artifact) throw new Error(`Missing signed candidate for ${prefix}`)
+            return artifact.name
+
+      - name: Download the actual distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.candidate-artifacts && steps.candidate.outputs.result || format('lite-mac-{0}', matrix.architecture) }}
+          path: ${{ runner.temp }}/macos-distribution
+
+      - name: Extract and verify the signed distribution
+        shell: bash
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          set -euo pipefail
+          distribution="$RUNNER_TEMP/macos-distribution"
+          archive="$(find "$distribution" -maxdepth 1 -type f -name "*-mac-$ARCHITECTURE.zip" -print -quit)"
+          test -n "$archive"
+          mkdir "$RUNNER_TEMP/macos-performance-install"
+          ditto -x -k "$archive" "$RUNNER_TEMP/macos-performance-install"
+          application="$RUNNER_TEMP/macos-performance-install/Eidos Lite.app"
+          codesign --verify --deep --strict "$application"
+          for attempt in 1 2 3; do
+            if xcrun stapler validate "$application"; then break; fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep "$((attempt * 3))"
+          done
+          printf 'EIDOS_LITE_PACKAGED_APP=%s\n' "$application/Contents/MacOS/Eidos Lite" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/macos-performance-evidence"
+          shasum -a 256 "$archive" "$application/Contents/Resources/app.asar" \
+            > "$RUNNER_TEMP/macos-performance-evidence/SHA256SUMS"
+          git rev-parse HEAD > "$RUNNER_TEMP/macos-performance-evidence/source-commit.txt"
+
+      # Measuring on a separate runner keeps sustained Rust compilation and
+      # packaging pressure out of the existing end-to-end startup budget. The
+      # app is extracted from the signed artifact, never rebuilt for this test.
+      - name: Observe fresh installed launch
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        shell: bash
+        run: |
+          set -euo pipefail
+          sysctl vm.loadavg
+          memory_pressure -Q
+          pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/fresh-launch.log"
+
+      - name: Enforce all three existing performance samples
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for sample in 1 2 3; do
+            sysctl vm.loadavg
+            memory_pressure -Q
+            pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/sample-$sample.log"
+          done
+
+      - name: Retain measurements and runner load
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/macos-performance-evidence"
+          sysctl vm.loadavg > "$RUNNER_TEMP/macos-performance-evidence/final-load.txt"
+          memory_pressure -Q >> "$RUNNER_TEMP/macos-performance-evidence/final-load.txt"
+          ps -axo pid,ppid,%cpu,%mem,etime,comm | sort -k3 -nr | sed -n '1,25p' \
+            > "$RUNNER_TEMP/macos-performance-evidence/processes.txt"
+
+      - name: Upload installed performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-macos-performance-${{ matrix.architecture }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/macos-performance-evidence
+          if-no-files-found: error
+          retention-days: 7
