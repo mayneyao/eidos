@@ -1,6 +1,6 @@
 ---
 title: Use a Space on two devices
-description: Use local-network or encrypted cloud Sync, open a Space on another device, and manage passwords and conflicts.
+description: Use local-network or end-to-end encrypted cloud Sync, open a Space on another device, and manage passwords and conflicts.
 sidebar:
   order: 75
 ---
@@ -10,7 +10,7 @@ Sync maintains a local copy of a Space on each device.
 | Connection | Requirements                                                        | Where changes travel                                       |
 | ---------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
 | LAN sync   | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required |
-| Cloud sync | An account and an active subscription plan                          | Through the cloud service                                  |
+| Cloud sync | An account with Sync access                                       | Through the cloud service with end-to-end encryption       |
 
 Local files remain usable offline.
 This guide explains LAN sync first.
@@ -92,10 +92,11 @@ For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#la
 
 ## Use cloud sync
 
-Cloud Sync connects separate local copies through your Eidos account. The
-end-to-end encrypted workflow below is available in Eidos Lite 0.24.2 or later
-on macOS and Linux, with an account that has Sync access. Windows and mobile clients cannot open these
-encrypted cloud Spaces; mobile LAN sync is a separate connection method.
+Cloud Sync uses end-to-end encryption to connect separate local copies through
+your Eidos account. You need an account with Sync access. Your files remain
+available locally while offline.
+
+Cloud Sync is available in Eidos Lite on macOS, Windows, and Linux.
 
 ### Connect the first computer
 
@@ -104,9 +105,9 @@ encrypted cloud Spaces; mobile LAN sync is a separate connection method.
 3. If asked, create and confirm a **Sync password**. Store it in your password manager: you will need the same password on another computer. This is separate from your Eidos account password.
 4. Select **Enable Sync** and wait for the first upload to finish. Lite creates the initial saved version automatically; a separate version-history setup is not required.
 
-If system secure storage is available, Lite remembers the password on this
-computer. Otherwise you can sync for this session and enter the password again
-after restarting. The password is never sent to the Sync service.
+Lite can remember the password on macOS and on Linux with a supported system
+keyring. Windows, or an environment where the password cannot be saved, asks
+for it again after restarting. The password is never sent to the Sync service.
 
 Hidden files and filenames such as `secret-garden.jpg` are ordinary files.
 They do not require a separate confirmation. The file check blocks unsupported
@@ -116,7 +117,7 @@ file to `.graftignore` does not remove its saved history or stop its inclusion.
 
 ### Open the Space on another computer
 
-1. In a compatible Eidos Lite build, sign in to the same Eidos account.
+1. In Eidos Lite, sign in to the same Eidos account.
 2. Open the Space menu and choose **Open Synced Space**, then select the cloud Space.
 3. Enter that Space's sync password. If you have already saved the same password under **Settings → Account & Services → Sync**, Lite can use it. Choose **Enter a different sync password** for a Space with another password.
 4. Choose a new destination folder and wait for the download to finish.
@@ -145,6 +146,19 @@ binary file, choose the version to keep or preserve separate copies. Do not
 delete one Space to dismiss a conflict. See [history and recovery](/user-guide/history-and-recovery/)
 for retaining local work.
 
+### Disconnect cloud sync
+
+In the Space's **Sync → Cloud sync** panel, choose **Disconnect cloud sync** and confirm.
+This removes this computer's connection, including pending background checks. Local files,
+unsaved edits, and Graft history stay in the same folder. The cloud copy and connections
+on other computers are not deleted.
+
+You can disconnect while offline, signed out, or after deleting the cloud repository.
+To create another cloud copy, enable Sync again in the same folder. Lite
+uploads the locally saved history using your sync password.
+No folder copying or renaming is needed. Other computers must open the new cloud Space;
+they do not switch connections automatically.
+
 ### Passwords and recovery
 
 The password in **Settings → Account & Services → Sync** is the default for new
@@ -161,14 +175,11 @@ copy for you. If no usable local copy or password remains, resetting your accoun
 password will not recover the encrypted contents.
 
 Signing out stops cloud access and clears the active unlocked session. It does
-not delete local files. System sleep pauses encrypted operations; on macOS,
-screen lock also pauses them. After waking and, on macOS, unlocking the screen,
-Lite can use the securely saved password to resume; session-only use requires
-entering it again. On Linux, screen lock alone does not clear the Sync session;
-quit Lite or sign out to clear it. Encryption
-protects the cloud copy; it does not encrypt the local folder, SQLite files, or
-attachments. Use your operating system's disk encryption to protect a lost
-computer.
+not delete local files. To clear the active Sync session, quit Lite or sign out.
+When Sync needs to be unlocked again, Lite can use the securely saved password
+or ask you to enter it. End-to-end encryption protects the cloud copy; it does
+not encrypt the local folder, SQLite files, or attachments. Use your operating
+system's disk encryption to protect a lost computer.
 
 ### What the service can see
 
@@ -178,6 +189,10 @@ name, repository identity, stored byte counts, request times, and opaque
 relationships between saved versions. Avoid putting confidential information in
 the cloud display name. Encryption does not hide all activity or replace an
 independent backup.
+
+The Sync service does not receive your decryption keys and cannot read the
+encrypted contents. This protection does not extend to content you separately
+send to Eidos Publish.
 
 Cloud storage includes saved history and encrypted storage overhead, so it can
 exceed the size of the current local folder. Deleting a current file does not

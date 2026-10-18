@@ -144,6 +144,33 @@ describe("BackgroundSyncQueue", () => {
     })
   }
 
+  it("drains an in-flight failure without retaining retries after disconnect", async () => {
+    let finish!: (value: EidosSyncRunResponse) => void
+    const execute = vi.fn(
+      () =>
+        new Promise<EidosSyncRunResponse>((resolve) => {
+          finish = resolve
+        })
+    )
+    const syncQueue = queue()
+    await syncQueue.attach({
+      spaceId,
+      execute,
+      emit: (status) => statuses.push(status),
+    })
+    const running = syncQueue.runNow(spaceId)
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce())
+    const clearing = syncQueue.clear(spaceId)
+    finish(failed())
+    await running
+    await clearing
+    await scheduler.advanceBy(60_000)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(await store.read(spaceId)).toBeNull()
+    expect(syncQueue.status(spaceId).state).toBe("idle")
+    await syncQueue.close()
+  })
+
   it("clears durable queue state after a successful manual run", async () => {
     const execute = vi.fn().mockResolvedValue(succeeded())
     const syncQueue = queue()

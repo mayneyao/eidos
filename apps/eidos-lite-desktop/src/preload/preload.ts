@@ -502,6 +502,7 @@ const api: EidosLiteApi = {
   getSyncPreflight: () => ipcRenderer.invoke(IPC_CHANNELS.syncPreflight),
   enableSync: (approval, encryption) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval, encryption),
+  disconnectSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncDisconnect),
   unlockSync: (encryption) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncUnlock, encryption),
   forgetSyncUnlock: () => ipcRenderer.invoke(IPC_CHANNELS.syncForgetUnlock),

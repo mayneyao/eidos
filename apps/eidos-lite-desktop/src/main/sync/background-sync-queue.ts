@@ -57,6 +57,7 @@ export class BackgroundSyncQueue {
   ) => unknown
   private readonly cancelTimer: (timer: unknown) => void
   private closing = false
+  private readonly clearing = new Map<string, Promise<void>>()
 
   constructor(private readonly options: BackgroundSyncQueueOptions) {
     this.now = options.now ?? Date.now
@@ -73,6 +74,7 @@ export class BackgroundSyncQueue {
   }
 
   async attach(binding: SyncQueueBinding): Promise<EidosSyncQueueStatus> {
+    await this.clearing.get(binding.spaceId)
     if (this.closing) throw new Error("Eidos Sync queue is closing")
     const existing = this.entries.get(binding.spaceId)
     if (existing) {
@@ -122,6 +124,7 @@ export class BackgroundSyncQueue {
     trigger: Exclude<EidosSyncQueueTrigger, "manual">
   ): Promise<EidosSyncQueueStatus> {
     const entry = this.requireEntry(spaceId)
+    if (!entry.attached) return entry.status
     if (entry.status.state === "running") {
       entry.rerunRequested = true
       return entry.status
@@ -146,6 +149,8 @@ export class BackgroundSyncQueue {
   ): Promise<EidosSyncRunResponse> {
     const entry = this.requireEntry(spaceId)
     while (entry.inFlight) await entry.inFlight
+    if (!entry.attached)
+      throw new Error("This Space was disconnected from cloud sync")
     this.clearTimer(entry)
     entry.status = {
       spaceId,
@@ -229,6 +234,27 @@ export class BackgroundSyncQueue {
     if (!entry.inFlight) this.entries.delete(spaceId)
   }
 
+  /** Stop retries, drain the current transfer, and discard only this Space's queue. */
+  clear(spaceId: string): Promise<void> {
+    const current = this.clearing.get(spaceId)
+    if (current) return current
+    const task = (async () => {
+      const entry = this.entries.get(spaceId)
+      if (entry) {
+        entry.attached = false
+        entry.rerunRequested = false
+        this.clearTimer(entry)
+        await entry.inFlight?.catch(() => undefined)
+        this.clearTimer(entry)
+        this.entries.delete(spaceId)
+      }
+      await this.options.store.write(spaceId, null)
+      entry?.binding.emit(this.idle(spaceId))
+    })().finally(() => this.clearing.delete(spaceId))
+    this.clearing.set(spaceId, task)
+    return task
+  }
+
   async close(): Promise<void> {
     this.closing = true
     for (const entry of this.entries.values()) {
@@ -255,6 +281,10 @@ export class BackgroundSyncQueue {
     entry: QueueEntry,
     action: EidosSyncAction = "fetch"
   ): Promise<EidosSyncRunResponse> {
+    if (!entry.attached)
+      return Promise.reject(
+        new Error("This Space was disconnected from cloud sync")
+      )
     if (entry.inFlight) return entry.inFlight
     this.clearTimer(entry)
     entry.status = {
@@ -348,7 +378,7 @@ export class BackgroundSyncQueue {
   }
 
   private schedule(entry: QueueEntry): void {
-    if (this.closing || entry.timer) return
+    if (this.closing || !entry.attached || entry.timer) return
     const delay = Math.max(
       0,
       (entry.status.nextAttemptAtMs ?? this.now()) - this.now()

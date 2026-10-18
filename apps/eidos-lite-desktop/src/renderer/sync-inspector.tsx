@@ -86,6 +86,7 @@ export function SyncInspector({
   setupContent,
   setupFooter,
   unlockContent,
+  connectionActions,
   state,
   account,
   spaceKey,
@@ -105,6 +106,7 @@ export function SyncInspector({
   setupContent?: ReactNode
   setupFooter?: ReactNode
   unlockContent?: ReactNode
+  connectionActions?: ReactNode
   state: SyncInspectorState
   account?(props: {
     buttonRef: RefObject<HTMLButtonElement>
@@ -586,6 +588,11 @@ export function SyncInspector({
               </section>
             ) : null}
           </div>
+          {connectionActions ? (
+            <footer className="sync-inspector-connection-actions">
+              {connectionActions}
+            </footer>
+          ) : null}
           {!setupContent && unlockContent && !merging ? (
             <footer className="sync-inspector-unlock" data-sync-unlock>
               {unlockContent}

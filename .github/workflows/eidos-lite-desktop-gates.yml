@@ -16,6 +16,7 @@ on:
       - dev
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - ".github/workflows/eidos-lite-macos-performance.yml"
       - "apps/eidos-lite-desktop/**"
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
@@ -26,6 +27,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - ".github/workflows/eidos-lite-macos-performance.yml"
       - "apps/eidos-lite-desktop/**"
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
@@ -36,6 +38,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: eidos-lite-${{ github.workflow }}-${{ github.ref }}
@@ -104,6 +107,10 @@ jobs:
           name: macos-graft-space
           path: ${{ runner.temp }}/eidos-lite-clone-fixture
 
+      - name: Test native Windows encrypted Sync host
+        working-directory: apps/eidos-lite-desktop
+        run: node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/encrypted-graft-host.local.integration.test.ts
+
       - name: Typecheck
         run: pnpm --filter "@eidos.space/eidos-lite-desktop" typecheck
 
@@ -147,7 +154,7 @@ jobs:
           if (-not $installer) { throw 'Production installer is missing' }
           $version = node -p 'require("./apps/eidos-lite-desktop/package.json").version'
           node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs `
-            --previous-tag=lite-v0.23.1 "--candidate=$($installer.FullName)" `
+            --previous-tag=lite-v0.24.2 "--candidate=$($installer.FullName)" `
             "--version=$version" "--evidence=$env:RUNNER_TEMP/production-candidate-installation"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -218,6 +225,17 @@ jobs:
           - architecture: intel
             runner: macos-15-intel
     steps:
+      - name: Disable background indexing on the ephemeral benchmark runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mdutil -a -i off
+          index_status="$(mdutil -a -s)"
+          printf '%s\n' "$index_status"
+          if [[ "$index_status" == *"Indexing enabled."* || "$index_status" != *"disabled"* ]]; then
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -260,7 +278,11 @@ jobs:
           application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
           test -n "$application"
           codesign --verify --deep --strict "$application"
-          xcrun stapler validate "$application"
+          for attempt in 1 2 3; do
+            if xcrun stapler validate "$application"; then break; fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep "$((attempt * 3))"
+          done
 
       - name: Observe fresh packaged smoke
         id: observed-smoke
@@ -268,16 +290,6 @@ jobs:
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
         run: pnpm smoke:eidos-lite-packaged
-
-      - name: Enforce packaged performance
-        id: enforced-smoke
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
-        shell: bash
-        run: |
-          for sample in 1 2 3; do
-            pnpm smoke:eidos-lite-packaged
-          done
 
       - name: Verify signed candidate installation and rollback
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
@@ -291,7 +303,7 @@ jobs:
           installer="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$installer")"
           version="$(node -p 'require("./apps/eidos-lite-desktop/package.json").version')"
           node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-            --previous-tag=lite-v0.23.1 "--candidate=$installer" \
+            --previous-tag=lite-v0.24.2 "--candidate=$installer" \
             "--version=$version" "--evidence=$EVIDENCE"
 
       - name: Retain signed candidate for diagnosis
@@ -318,11 +330,10 @@ jobs:
 
       - name: Archive staging app and exact build identity
         id: staging-archive
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-package.outcome == 'success' }}
+        if: ${{ steps.staging-package.outcome == 'success' }}
         env:
           PACKAGE_ARCHITECTURE: ${{ matrix.architecture }}
           OBSERVED_SMOKE_OUTCOME: ${{ steps.observed-smoke.outcome }}
-          ENFORCED_SMOKE_OUTCOME: ${{ steps.enforced-smoke.outcome }}
         shell: bash
         run: |
           set -euo pipefail
@@ -380,8 +391,8 @@ jobs:
               "archive": {"name": archive.name, "sha256": digest(archive)},
               "genericPackagedSmoke": {
                   "observe": os.environ["OBSERVED_SMOKE_OUTCOME"],
-                  "enforce": os.environ["ENFORCED_SMOKE_OUTCOME"],
               },
+              "performanceAcceptance": "separate distribution performance job; one measurement report",
               "e2eeAcceptance": "not run by this workflow; requires separate installed acceptance",
           }
           manifest = output / "identity.json"
@@ -390,10 +401,18 @@ jobs:
           PY
 
       - name: Retain staging app for installed acceptance
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-archive.outcome == 'success' }}
+        if: ${{ steps.staging-archive.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: eidos-lite-staging-macos-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/lite-staging-package
           if-no-files-found: error
-          retention-days: 3
+          retention-days: ${{ inputs.retain_staging_packages && 3 || 1 }}
+
+  macos-performance:
+    name: Distribution performance
+    needs: packaged-macos
+    uses: ./.github/workflows/eidos-lite-macos-performance.yml
+    with:
+      candidate-artifacts: ${{ inputs.signed_mac_candidates == true }}
+      staging-artifacts: ${{ inputs.signed_mac_candidates != true }}

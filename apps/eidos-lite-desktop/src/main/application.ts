@@ -18,7 +18,10 @@ import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
 import { serveMediaPreview } from "./space/media-file-preview"
 import { launchFilePathsFromArguments } from "./launch-intent"
-import { pluginInstallIdsFromArguments } from "./plugin-install-link"
+import {
+  pluginInstallIdsFromArguments,
+  registerWindowsPluginInstallProtocol,
+} from "./plugin-install-link"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import {
@@ -464,6 +467,11 @@ void app.whenReady().then(async () => {
       app.exit(1)
     }
     return
+  }
+  const pluginInstallProtocolRegistered =
+    registerWindowsPluginInstallProtocol(app)
+  if (pluginInstallProtocolRegistered === false) {
+    logger.warn("plugins.install-protocol.registration-failed")
   }
   await controller.recoverCloneOperations()
   const registeredIpc = registerIpc(controller, services, syncControl, updater)

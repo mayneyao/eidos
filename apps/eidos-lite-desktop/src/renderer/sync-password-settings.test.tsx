@@ -101,7 +101,7 @@ describe("default sync password settings", () => {
     expect(document.activeElement).toBe(manage)
     expect(forgetDefaultSyncPassword).not.toHaveBeenCalled()
   })
-  it("disables default setup when secure storage is unavailable", async () => {
+  it("explains session-only passwords without offering unavailable default setup", async () => {
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
@@ -112,7 +112,10 @@ describe("default sync password settings", () => {
       },
     })
     await act(async () => root.render(createElement(SyncPasswordSettings)))
-    expect(button("Set up sync password").disabled).toBe(true)
+    expect(host.querySelector("button")).toBeNull()
+    expect(host.textContent).toContain(
+      "Enter the password again after restarting."
+    )
     expect(host.querySelector("input")).toBeNull()
   })
   it("offers a retry when local password status could not be read", async () => {

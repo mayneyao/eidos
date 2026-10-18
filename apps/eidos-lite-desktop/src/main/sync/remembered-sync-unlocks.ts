@@ -627,4 +627,23 @@ export class RememberedSyncUnlocks {
       this.errors.delete(session.canonical.id)
     })
   }
+
+  /** Local revocation must also work offline and after signing out. */
+  async disconnect(session: SpaceSession): Promise<void> {
+    this.blockedSpaces.add(session.canonical.id)
+    this.forgottenAt.set(session.canonical.id, ++this.generation)
+    this.automaticOperations.get(session.canonical.id)?.abort()
+    await this.serialize(session, async () => {
+      await this.pending.get(session.canonical.id)?.catch(() => undefined)
+      await session.clearHostedSyncCredentials()
+      const account = await this.control.accountSubject().catch(() => null)
+      if (account)
+        await this.store.forgetSpace({
+          domain: this.domain,
+          account,
+          space: session.canonical.root,
+        })
+      this.errors.delete(session.canonical.id)
+    })
+  }
 }

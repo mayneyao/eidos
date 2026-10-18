@@ -87,31 +87,33 @@ export function SyncPasswordSettings() {
               !status
                 ? "Checking this device…"
                 : !status.available
-                  ? "System secure storage is unavailable. Enter the password again after restarting."
+                  ? "Enter the password again after restarting."
                   : status.configured
                     ? "Saved on this device · End-to-end encryption"
                     : "Use the same sync password on your other devices."
             )}
           </small>
         </div>
-        <button
-          ref={trigger}
-          type="button"
-          className="settings-button settings-button-quiet"
-          disabled={!status?.available || busy}
-          aria-expanded={editing}
-          onClick={() => {
-            setSaved(false)
-            if (editing) clear()
-            else setEditing(true)
-          }}
-        >
-          {t(
-            status?.configured
-              ? "Change for new Spaces"
-              : "Set up sync password"
-          )}
-        </button>
+        {status?.available ? (
+          <button
+            ref={trigger}
+            type="button"
+            className="settings-button settings-button-quiet"
+            disabled={!status?.available || busy}
+            aria-expanded={editing}
+            onClick={() => {
+              setSaved(false)
+              if (editing) clear()
+              else setEditing(true)
+            }}
+          >
+            {t(
+              status?.configured
+                ? "Change for new Spaces"
+                : "Set up sync password"
+            )}
+          </button>
+        ) : null}
       </div>
       {editing ? (
         <form

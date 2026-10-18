@@ -110,6 +110,14 @@ export function assertEncryptedSdk(sdk, version) {
     )
   if (typeof sdk.EncryptedRemoteSession !== "function")
     throw new Error("Published Graft SDK does not expose encrypted sessions")
+  if (typeof sdk.RepositorySession?.prototype?.removeRemote !== "function")
+    throw new Error(
+      "Published Graft SDK lacks the required remote disconnect API"
+    )
+  if (typeof sdk.EncryptedRemoteSession.createPrivateDirectory !== "function")
+    throw new Error(
+      "Published Graft SDK lacks the required native private directory API"
+    )
   // Invalid binding is rejected before disk access or network. The plain native
   // addon throws UNSUPPORTED_ENCRYPTED_PROFILE instead, even with an E2EE wrapper.
   try {

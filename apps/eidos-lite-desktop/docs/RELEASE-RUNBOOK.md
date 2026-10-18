@@ -165,6 +165,14 @@ their CI runners and real installers.
 6. Recover historical user data only through Eidos Lite History or the explicit
    Local/Hosted recovery-copy flows. Binary rollback is not data rollback.
 
+Encrypted Sync can update private recovery state during unlock. An older SDK
+may reject that newer state after a binary rollback. Keep the recovery files
+intact and reinstall a compatible newer Lite release to resume cloud Sync;
+never delete trusted checkpoints or journals to make an older version connect.
+Acceptance must distinguish preserved local files/history from an older
+binary's ability to resume the encrypted connection, and verify that reinstalling
+the candidate restores that connection.
+
 ## Diagnostics and support handoff
 
 Use **Copy diagnostics** from Welcome or the Space titlebar. The generated JSON

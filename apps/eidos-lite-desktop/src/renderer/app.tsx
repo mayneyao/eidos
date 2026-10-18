@@ -4933,6 +4933,7 @@ function WorkspaceApp({
               space.graft.clean === false
             }
             syncHistory={space.graft.sync}
+            hasCloudConnection={space.cloudSyncConnection}
             onClose={() => setSyncPanelMode(null)}
             onRequestClone={() => setSyncPanelMode("clone")}
             onReviewLocal={() => {

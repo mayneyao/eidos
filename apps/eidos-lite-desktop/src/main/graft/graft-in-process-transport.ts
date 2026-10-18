@@ -272,6 +272,12 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           ...(this.object(args[0]) as unknown as RemoteConfigureOptions),
           signal,
         })
+      case "removeRemote": {
+        await this.encryptedHost.disconnect()
+        return session.removeRemote(this.string(args[0], "remote name"), {
+          signal,
+        })
+      }
       case "push":
         return session.push({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),

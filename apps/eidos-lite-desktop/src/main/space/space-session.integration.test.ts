@@ -177,7 +177,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const getMergeStatus = vi.fn(async () => ({ state: "none" }))
     const graft = {
       backend: "sdk",
-      expectedVersion: () => "0.3.31",
+      expectedVersion: () => "0.3.32",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
       close: async () => undefined,
       inspectSpace: async () => ({ available: true, initialized: false }),
@@ -1558,8 +1558,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const cleanStatus: GraftSpaceStatus = {
       available: true,
       backend: "sdk",
-      version: "0.3.31",
-      expectedVersion: "0.3.31",
+      version: "0.3.32",
+      expectedVersion: "0.3.32",
       initialized: true,
       clean: true,
     }
@@ -1568,7 +1568,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.31",
+      expectedVersion: () => "0.3.32",
       close: async () => undefined,
       inspectSpace: (_root: string, options: { signal?: AbortSignal } = {}) => {
         calls += 1

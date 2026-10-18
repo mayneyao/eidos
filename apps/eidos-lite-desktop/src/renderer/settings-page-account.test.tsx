@@ -149,7 +149,7 @@ describe("Settings account continuity", () => {
     expect(refreshButton().getAttribute("aria-busy")).toBe("false")
   })
 
-  it.each(["darwin", "linux", "win32"])(
+  it.each(["darwin", "linux", "win32", "unknown"])(
     "shows production password settings only on supported platform %s",
     async (platform) => {
       const appInfo = await window.eidosLite.getAppInfo()
@@ -163,6 +163,11 @@ describe("Settings account continuity", () => {
         environment: "production",
       }
       getSyncStatus.mockResolvedValue(production)
+      if (platform === "win32")
+        getSyncPasswordSettings.mockResolvedValueOnce({
+          available: false,
+          configured: false,
+        })
       writeSyncStatusSnapshot("settings", {
         version: 1,
         status: production,
@@ -171,7 +176,14 @@ describe("Settings account continuity", () => {
       await mount()
       expect(
         Boolean(syncSection().querySelector(".sync-password-settings"))
-      ).toBe(platform !== "win32")
+      ).toBe(platform !== "unknown")
+      if (platform === "win32") {
+        const password = syncSection().querySelector(".sync-password-settings")!
+        expect(password.textContent).toContain(
+          "Enter the password again after restarting."
+        )
+        expect(password.querySelector("button")).toBeNull()
+      }
       expect(syncSection().textContent).toContain("1.0 KiB")
     }
   )

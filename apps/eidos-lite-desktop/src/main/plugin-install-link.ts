@@ -1,4 +1,16 @@
+import type { App } from "electron"
+
 const PLUGIN_ID = /^[a-z][a-z0-9.-]{1,127}$/
+
+/** NSIS does not register electron-builder's `protocols` metadata on Windows. */
+export function registerWindowsPluginInstallProtocol(
+  app: Pick<App, "isPackaged" | "setAsDefaultProtocolClient">,
+  platform: NodeJS.Platform = process.platform
+): boolean | null {
+  // Never associate browser links with a generic Electron development binary.
+  if (platform !== "win32" || !app.isPackaged) return null
+  return app.setAsDefaultProtocolClient("eidos-lite")
+}
 
 export function pluginInstallIdFromUrl(value: string): string | null {
   try {

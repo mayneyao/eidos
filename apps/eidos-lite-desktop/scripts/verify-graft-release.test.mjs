@@ -53,7 +53,7 @@ test("checks import-only Remote exports from each consuming project's dependency
 })
 
 function fixture() {
-  const sdk = "0.3.31"
+  const sdk = "0.3.32"
   const remote = "0.2.5"
   const native = [
     "darwin-arm64",
@@ -145,7 +145,7 @@ test("rejects native overrides, mismatched platform pins, and non-registry tarba
   const input = fixture()
   input.environment = { GRAFT_SDK_NATIVE_PATH: "/tmp/local.node" }
   input.lite.optionalDependencies["@eidos.space/graft-darwin-arm64"] = "0.3.30"
-  input.lock.packages["@eidos.space/graft@0.3.31"].resolution.tarball =
+  input.lock.packages["@eidos.space/graft@0.3.32"].resolution.tarball =
     "https://untrusted.invalid/package.tgz"
   const errors = validateGraftReleaseInputs(input).join("\n")
   assert.match(errors, /GRAFT_SDK_NATIVE_PATH must be unset/)
@@ -179,6 +179,7 @@ test("Worker release checks do not depend on an unrelated local Node SDK", () =>
 
 test("requires the native E2EE profile, not only the JavaScript export", () => {
   class PlainBinding {
+    static createPrivateDirectory() {}
     constructor() {
       throw Object.assign(new Error("feature off"), {
         code: "GRAFT_SDK_E2EE_UNSUPPORTED_ENCRYPTED_PROFILE",
@@ -188,12 +189,19 @@ test("requires the native E2EE profile, not only the JavaScript export", () => {
   assert.throws(
     () =>
       assertEncryptedSdk(
-        { sdkVersion: () => "0.3.31", EncryptedRemoteSession: PlainBinding },
-        "0.3.31"
+        {
+          sdkVersion: () => "0.3.32",
+          EncryptedRemoteSession: PlainBinding,
+          RepositorySession: class {
+            removeRemote() {}
+          },
+        },
+        "0.3.32"
       ),
     /lacks the required E2EE profile/
   )
   class EncryptedBinding {
+    static createPrivateDirectory() {}
     constructor() {
       throw Object.assign(new Error("invalid UUID"), {
         code: "GRAFT_SDK_E2EE_INVALID_SESSION_BINDING",
@@ -202,8 +210,46 @@ test("requires the native E2EE profile, not only the JavaScript export", () => {
   }
   assert.doesNotThrow(() =>
     assertEncryptedSdk(
-      { sdkVersion: () => "0.3.31", EncryptedRemoteSession: EncryptedBinding },
-      "0.3.31"
+      {
+        sdkVersion: () => "0.3.32",
+        EncryptedRemoteSession: EncryptedBinding,
+        RepositorySession: class {
+          removeRemote() {}
+        },
+      },
+      "0.3.32"
     )
+  )
+  assert.throws(
+    () =>
+      assertEncryptedSdk(
+        {
+          sdkVersion: () => "0.3.32",
+          EncryptedRemoteSession: EncryptedBinding,
+          RepositorySession: class {},
+        },
+        "0.3.32"
+      ),
+    /remote disconnect API/
+  )
+  assert.throws(
+    () =>
+      assertEncryptedSdk(
+        {
+          sdkVersion: () => "0.3.32",
+          EncryptedRemoteSession: class {
+            constructor() {
+              throw Object.assign(new Error("invalid UUID"), {
+                code: "GRAFT_SDK_E2EE_INVALID_SESSION_BINDING",
+              })
+            }
+          },
+          RepositorySession: class {
+            removeRemote() {}
+          },
+        },
+        "0.3.32"
+      ),
+    /native private directory API/
   )
 })

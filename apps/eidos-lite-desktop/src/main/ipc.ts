@@ -645,6 +645,11 @@ export function registerIpc(
   const rememberedUnlocks = createRememberedSyncUnlocks(syncControl, services)
   const syncAccountAdmission = new SyncAccountAdmission()
   const manualSyncOperations = new Set<AbortController>()
+  const disconnectingSpaces = new Set<string>()
+  const assertCloudConnectionAvailable = (session: SpaceSession) => {
+    if (disconnectingSpaces.has(session.canonical.id))
+      throw new Error("This Space is disconnecting from cloud sync")
+  }
   const cancelManualSyncOperations = () => {
     for (const operation of manualSyncOperations) operation.abort()
   }
@@ -698,7 +703,7 @@ export function registerIpc(
     input.password.fill(0)
     try {
       if (!supportsEncryptedSync(process.platform))
-        throw new Error("Encrypted Sync requires macOS or Linux")
+        throw new Error("Encrypted Sync requires macOS, Windows or Linux")
       const remember = (value as { remember?: unknown }).remember
       if (remember !== undefined && typeof remember !== "boolean")
         throw new Error("Invalid remember-unlock choice")
@@ -1052,6 +1057,7 @@ export function registerIpc(
   }
   const attachSyncQueue = async (event: Electron.IpcMainInvokeEvent) => {
     const session = controller.requireSession(event.sender)
+    assertCloudConnectionAvailable(session)
     const emitStatus = (status: EidosSyncQueueStatus) => {
       if (!event.sender.isDestroyed()) {
         event.sender.send(IPC_CHANNELS.syncQueueChanged, status)
@@ -2251,7 +2257,7 @@ export function registerIpc(
     const assertAccountCurrent = syncAccountAdmission.capture()
     const generation = rememberedUnlocks.captureGeneration()
     const session = controller.sessionFor(event.sender)
-    const remoteUrl = await currentRemoteUrl(event)
+    const remoteUrl = (await session?.storedHostedSyncRemoteUrl()) ?? null
     const status = await syncControl.status(remoteUrl)
     if (
       session &&
@@ -2368,6 +2374,33 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncPreflight, (event) =>
     controller.requireSession(event.sender).syncPreflight()
   )
+  ipcMain.handle(IPC_CHANNELS.syncDisconnect, async (event) => {
+    const session = controller.requireSession(event.sender)
+    assertCloudConnectionAvailable(session)
+    disconnectingSpaces.add(session.canonical.id)
+    try {
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      if (!parent || parent.isDestroyed())
+        throw new Error("The Space window is closed")
+      const confirmation = await dialog.showMessageBox(parent, {
+        type: "question",
+        message: mainText("Disconnect cloud sync?"),
+        detail: mainText(
+          "Local files and Graft history will stay on this computer. The cloud copy will not be deleted. Enabling sync again will create a new encrypted cloud copy."
+        ),
+        buttons: [mainText("Cancel"), mainText("Disconnect cloud sync")],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (confirmation.response !== 1) return null
+      await rememberedUnlocks.disconnect(session)
+      await syncQueue.clear(session.canonical.id)
+      return await session.disconnectHostedSync()
+    } finally {
+      disconnectingSpaces.delete(session.canonical.id)
+    }
+  })
   ipcMain.handle(IPC_CHANNELS.syncUnlock, async (event, value: unknown) => {
     const generation = rememberedUnlocks.captureGeneration()
     let password: Buffer | undefined
@@ -2377,6 +2410,7 @@ export function registerIpc(
       password = readSyncPassword(value)
       if (!password) throw new Error("Sync password is required")
       const session = controller.requireSession(event.sender)
+      assertCloudConnectionAvailable(session)
       const context = await syncControl.operationContext()
       const assertCurrent = () => {
         operation.assertCurrent()
@@ -2448,6 +2482,7 @@ export function registerIpc(
     async (event, value: unknown, encryptionValue: unknown) => {
       const generation = rememberedUnlocks.captureGeneration()
       const session = controller.requireSession(event.sender)
+      assertCloudConnectionAvailable(session)
       const spaceKey = logCorrelationKey(session.canonical.id)
       const tracker = new SyncRunTracker(
         randomUUID(),
@@ -2469,132 +2504,136 @@ export function registerIpc(
       let encryptionRequest: GraftEncryptedInput | undefined
       const operation = beginManualSyncOperation()
       eidosLiteLogger()?.info("sync.enable.started", { spaceKey })
-      try {
-        password = readSyncPassword(encryptionValue)
-        transition("authorization", "Checking account access")
-        const context = await syncControl.operationContext()
-        const assertCurrent = () => {
-          operation.assertCurrent()
-          context.assertCurrent()
-          rememberedUnlocks.assertCurrent(session, generation)
-        }
-        assertCurrent()
-        const existing = await session.officialSyncRemoteUrl()
-        if (existing) {
-          if (password && !(await session.hasEncryptedSync()))
-            throw new Error(
-              "Encrypted Sync requires a new Space; existing remote migration is not enabled"
-            )
-          eidosLiteLogger()?.info("sync.enable.already-connected", { spaceKey })
-          const status = await syncControl.status(existing)
+      return session.withHostedSyncConnectionChange(async () => {
+        try {
+          password = readSyncPassword(encryptionValue)
+          transition("authorization", "Checking account access")
+          const context = await syncControl.operationContext()
+          const assertCurrent = () => {
+            operation.assertCurrent()
+            context.assertCurrent()
+            rememberedUnlocks.assertCurrent(session, generation)
+          }
           assertCurrent()
-          const telemetry = tracker.complete("Space is connected")
-          return { ok: true as const, status, telemetry }
-        }
-        if (!supportsEncryptedSync(process.platform))
-          throw new Error(
-            "New cloud connections require encrypted Sync on macOS or Linux"
-          )
-        if (!password) {
-          password = await rememberedUnlocks.readDefaultPassword(
-            generation,
-            context.subject
-          )
-          if (!password)
-            throw new Error(
-              "Set up your sync password in Settings before connecting this Space"
-            )
-        }
-        stage = "preflight"
-        transition("analyze", "Preparing this Space")
-        const approval = syncPreflightApproval(value)
-        await session.prepareHostedSync(approval, Boolean(password))
-        assertCurrent()
-        stage = "provision"
-        transition("authorization", "Creating secure cloud access")
-        const provisioned = await syncControl.provisionRepository(
-          session.canonical.id,
-          cloudDisplayNameForLocalSpace(session.canonical.name),
-          Boolean(password),
-          context
-        )
-        assertCurrent()
-        if (!provisioned.encryption)
-          throw new Error(
-            "The Sync service did not provide an encrypted repository"
-          )
-        eidosLiteLogger()?.info("sync.enable.remote-ready", { spaceKey })
-        stage = "initial-push"
-        transition("push", "Uploading this Space")
-        encryptionRequest =
-          password && provisioned.encryption
-            ? encryptedInput(
-                provisioned.remoteUrl,
-                provisioned.encryption,
-                provisioned.accessToken,
-                password,
-                context.subject
+          const existing = await session.officialSyncRemoteUrl()
+          if (existing) {
+            if (password && !(await session.hasEncryptedSync()))
+              throw new Error(
+                "Encrypted Sync requires a new Space; existing remote migration is not enabled"
               )
-            : undefined
-        await session.enableHostedSync(
-          provisioned.remoteUrl,
-          provisioned.accessToken,
-          approval,
-          (progress) => tracker.transfer(progress),
-          encryptionRequest,
-          assertCurrent,
-          operation.signal
-        )
-        if (password && encryptionRequest)
-          await rememberedUnlocks.finishManual(
+            eidosLiteLogger()?.info("sync.enable.already-connected", {
+              spaceKey,
+            })
+            const status = await syncControl.status(existing)
+            assertCurrent()
+            const telemetry = tracker.complete("Space is connected")
+            return { ok: true as const, status, telemetry }
+          }
+          if (!supportsEncryptedSync(process.platform))
+            throw new Error(
+              "New cloud connections require encrypted Sync on macOS, Windows or Linux"
+            )
+          if (!password) {
+            password = await rememberedUnlocks.readDefaultPassword(
+              generation,
+              context.subject
+            )
+            if (!password)
+              throw new Error(
+                "Set up your sync password in Settings before connecting this Space"
+              )
+          }
+          stage = "preflight"
+          transition("analyze", "Preparing this Space")
+          const approval = syncPreflightApproval(value)
+          await session.prepareHostedSync(approval, Boolean(password))
+          assertCurrent()
+          stage = "provision"
+          transition("authorization", "Creating secure cloud access")
+          const provisioned = await syncControl.provisionRepository(
+            await session.hostedSyncRepositoryName(),
+            cloudDisplayNameForLocalSpace(session.canonical.name),
+            Boolean(password),
+            context
+          )
+          assertCurrent()
+          if (!provisioned.encryption)
+            throw new Error(
+              "The Sync service did not provide an encrypted repository"
+            )
+          eidosLiteLogger()?.info("sync.enable.remote-ready", { spaceKey })
+          stage = "initial-push"
+          transition("push", "Uploading this Space")
+          encryptionRequest =
+            password && provisioned.encryption
+              ? encryptedInput(
+                  provisioned.remoteUrl,
+                  provisioned.encryption,
+                  provisioned.accessToken,
+                  password,
+                  context.subject
+                )
+              : undefined
+          await session.enableHostedSync(
+            provisioned.remoteUrl,
+            provisioned.accessToken,
+            approval,
+            (progress) => tracker.transfer(progress),
+            encryptionRequest,
+            assertCurrent,
+            operation.signal
+          )
+          if (password && encryptionRequest)
+            await rememberedUnlocks.finishManual(
+              session,
+              provisioned.remoteUrl,
+              password,
+              encryptionValue === undefined ||
+                (encryptionValue as { remember?: boolean }).remember === true,
+              generation
+            )
+          stage = "status"
+          transition("validate", "Finishing the connection")
+          const status = await syncControl.status(provisioned.remoteUrl)
+          const projected = await projectEncryptedStatus(
             session,
             provisioned.remoteUrl,
-            password,
-            encryptionValue === undefined ||
-              (encryptionValue as { remember?: boolean }).remember === true,
-            generation
+            status
           )
-        stage = "status"
-        transition("validate", "Finishing the connection")
-        const status = await syncControl.status(provisioned.remoteUrl)
-        const projected = await projectEncryptedStatus(
-          session,
-          provisioned.remoteUrl,
-          status
-        )
-        assertCurrent()
-        const telemetry = tracker.complete("Space is connected")
-        eidosLiteLogger()?.info("sync.enable.completed", { spaceKey })
-        return {
-          ok: true as const,
-          status: projected,
-          telemetry,
+          assertCurrent()
+          const telemetry = tracker.complete("Space is connected")
+          eidosLiteLogger()?.info("sync.enable.completed", { spaceKey })
+          return {
+            ok: true as const,
+            status: projected,
+            telemetry,
+          }
+        } catch (error) {
+          const failure = classifySyncFailure(error, currentPhase)
+          const telemetry = tracker.fail(failure.message)
+          eidosLiteLogger()?.error(
+            "sync.enable.failed",
+            {
+              spaceKey,
+              stage,
+              failureCode: failure.code,
+              status: failure.status,
+              retryable: failure.retryable,
+            },
+            error
+          )
+          return {
+            ok: false as const,
+            runId: tracker.runId,
+            failure,
+            telemetry,
+          }
+        } finally {
+          operation.finish()
+          password?.fill(0)
+          encryptionRequest?.password.fill(0)
         }
-      } catch (error) {
-        const failure = classifySyncFailure(error, currentPhase)
-        const telemetry = tracker.fail(failure.message)
-        eidosLiteLogger()?.error(
-          "sync.enable.failed",
-          {
-            spaceKey,
-            stage,
-            failureCode: failure.code,
-            status: failure.status,
-            retryable: failure.retryable,
-          },
-          error
-        )
-        return {
-          ok: false as const,
-          runId: tracker.runId,
-          failure,
-          telemetry,
-        }
-      } finally {
-        operation.finish()
-        password?.fill(0)
-        encryptionRequest?.password.fill(0)
-      }
+      })
     }
   )
   ipcMain.handle(IPC_CHANNELS.syncRepositories, async () => {

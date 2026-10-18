@@ -83,6 +83,7 @@ import type {
   GraftIgnoreInspection,
   GraftRepositoryStatus,
 } from "../graft/graft-client"
+import { isOfficialRemoteUrl } from "../graft/graft-client"
 import type { GraftMergePolicy } from "../../shared/graft-merge-contracts"
 import {
   normalizeEidosTableDiff,
@@ -131,6 +132,7 @@ import {
 import { SpacePathIndex } from "./path-search"
 import { SpaceWatcher } from "./space-watcher"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
+import { SpaceSyncConnectionStore } from "./sync-connection"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
 import {
   decodeText,
@@ -384,6 +386,8 @@ export class SpaceSession {
   private readonly pathIndex: SpacePathIndex
   private readonly repository: SpaceRepositoryCoordinator
   private readonly syncState: SpaceSyncStateStore
+  private readonly syncConnection: SpaceSyncConnectionStore
+  private cloudSyncConnection = false
   private readonly changeListeners = new Set<
     (snapshot: SpaceSnapshot) => void
   >()
@@ -495,6 +499,7 @@ export class SpaceSession {
       stateDirectory,
       graft.syncRemoteOrigin
     )
+    this.syncConnection = new SpaceSyncConnectionStore(stateDirectory)
     this.gate = new SpaceOperationGate(
       new SpaceOperationJournal(stateDirectory),
       {
@@ -557,6 +562,14 @@ export class SpaceSession {
     )
     try {
       await session.gate.recoverInterruptedOperation()
+      if ((await session.syncConnection.read())?.disconnecting) {
+        await session.finishHostedSyncDisconnect().catch((error) => {
+          console.warn(
+            "Cloud disconnect is pending; local files remain available",
+            error
+          )
+        })
+      }
       session.versioningEnabled = await fs
         .stat(path.join(canonical.root, ".graft"))
         .then((stats) => stats.isDirectory())
@@ -564,6 +577,12 @@ export class SpaceSession {
       session.syncHistoryState = await session.syncState
         .read()
         .catch(() => null)
+      const connection = await session.syncConnection.read()
+      session.cloudSyncConnection = Boolean(
+        session.syncHistoryState ||
+        connection?.provisioning ||
+        connection?.disconnecting
+      )
       session.watcher.start()
       void session.pathIndex.ensureScanned().catch(() => undefined)
       return session
@@ -2162,6 +2181,69 @@ export class SpaceSession {
     return state.remoteUrl
   }
 
+  async hostedSyncRepositoryName(): Promise<string> {
+    const name = await this.syncConnection.repository()
+    this.cloudSyncConnection = true
+    this.emitCachedOperationSnapshot()
+    return name
+  }
+
+  async storedHostedSyncRemoteUrl(): Promise<string | null> {
+    return (await this.syncState.read())?.remoteUrl ?? null
+  }
+
+  /** Includes a connection whose origin was removed manually. Never contacts the server. */
+  async hasHostedSyncConnection(): Promise<boolean> {
+    return Boolean(await this.syncState.read()) || this.cloudSyncConnection
+  }
+
+  async disconnectHostedSync(): Promise<SpaceSnapshot> {
+    return this.withSyncTask(async () => {
+      await this.gate.withRepositoryOperation(
+        "Disconnecting cloud sync",
+        async () => {
+          const current = await this.syncState.read()
+          const origin = await this.graft.remoteUrl(this.canonical.root)
+          if (!current && !origin && !(await this.syncConnection.read())) return
+          if (
+            origin &&
+            (!isOfficialRemoteUrl(origin, this.graft.syncRemoteOrigin) ||
+              (current && current.remoteUrl !== origin))
+          )
+            throw new Error(
+              "The configured origin belongs to another connection and will not be removed"
+            )
+          await this.syncConnection.beginDisconnect(origin)
+          await this.finishHostedSyncDisconnect()
+        }
+      )
+      return this.freshSnapshotAndEmit(true)
+    })
+  }
+
+  private async finishHostedSyncDisconnect(): Promise<void> {
+    const intent = await this.syncConnection.read()
+    if (!intent?.disconnecting) return
+    const origin = await this.graft.remoteUrl(this.canonical.root)
+    if (origin && origin !== intent.previousRemote)
+      throw new Error(
+        "The cloud connection changed while disconnecting; its origin was preserved"
+      )
+    await this.graft.removeRemote(this.canonical.root)
+    await this.syncState.clear()
+    await fs.rm(path.join(this.stateDirectory, "sync-queue.json"), {
+      force: true,
+    })
+    this.syncHistoryState = null
+    await this.syncConnection.finishDisconnect()
+    this.cloudSyncConnection = false
+    this.invalidateGraftStatusCache()
+  }
+
+  withHostedSyncConnectionChange<T>(action: () => Promise<T>): Promise<T> {
+    return this.withSyncTask(action)
+  }
+
   syncPreflight(): Promise<EidosSyncPreflight> {
     return createSyncPreflight(this.canonical.root, {
       inspectIgnores: (relativePaths) => this.inspectIgnores(relativePaths),
@@ -2259,7 +2341,8 @@ export class SpaceSession {
     access: "read_only" | "read_write",
     reportProgress: SyncProgressReporter = () => undefined,
     reportTransfer: SyncTransferProgressReporter = () => undefined,
-    action: EidosSyncAction = "fetch"
+    action: EidosSyncAction = "fetch",
+    expectedRemoteUrl?: string
   ): Promise<EidosSyncOutcome> {
     return this.withSyncTask(() =>
       this.syncHostedRemoteInternal(
@@ -2267,7 +2350,8 @@ export class SpaceSession {
         access,
         reportProgress,
         reportTransfer,
-        action
+        action,
+        expectedRemoteUrl
       )
     )
   }
@@ -2391,10 +2475,15 @@ export class SpaceSession {
     access: "read_only" | "read_write",
     reportProgress: SyncProgressReporter,
     reportTransfer: SyncTransferProgressReporter,
-    action: EidosSyncAction
+    action: EidosSyncAction,
+    expectedRemoteUrl?: string
   ): Promise<EidosSyncOutcome> {
     const remoteUrl = await this.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
+    if (expectedRemoteUrl && remoteUrl !== expectedRemoteUrl)
+      throw new Error(
+        "The cloud connection changed. Check its status before syncing again."
+      )
     await this.gate.withRepositoryOperation(
       "Authenticating Eidos Sync",
       async (signal) => {
@@ -4085,12 +4174,14 @@ export class SpaceSession {
   ): Promise<unknown> {
     return this.gate.withRepositoryOperation(
       "Unlocking encrypted Sync",
-      (gateSignal) => {
+      async (gateSignal) => {
         const operationSignal = signal
           ? AbortSignal.any([gateSignal, signal])
           : gateSignal
         operationSignal.throwIfAborted()
         assertCurrent()
+        if ((await this.officialSyncRemoteUrl()) !== input.connection.url)
+          throw new Error("The cloud connection changed before unlocking")
         return this.graft.encryptedSync(this.canonical.root, "unlock", input, {
           signal: operationSignal,
         })
@@ -4658,6 +4749,8 @@ export class SpaceSession {
       : undefined
     return {
       id: this.canonical.id,
+      cloudSyncConnection:
+        this.cloudSyncConnection || Boolean(this.syncHistoryState),
       name: this.canonical.name,
       displayPath: this.canonical.displayPath,
       entries,

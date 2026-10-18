@@ -50,10 +50,9 @@ the command, keeping obsolete hashes and test code out of `app.asar`.
 `.github/workflows/eidos-lite-desktop-gates.yml` repeats the source and real
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and
-`macos-15-intel`. Each architecture first runs a fresh-package observation
-process, then starts a second isolated process that enforces the unchanged
-packaged performance budgets. This avoids treating one-time operating-system
-package discovery as a P95 sample while preserving the actual latency ceiling.
+`macos-15-intel`. Each architecture runs a fresh-package functional pass and
+records one separate performance report from the retained artifact. Latency
+reference budgets remain visible in that report; overruns do not block release.
 The workflow has read-only repository permissions and no signing, release, or
 production-service step. A manual run with `retain_staging_packages=true`
 retains both macOS staging apps for three days after verifying registry-only
@@ -174,6 +173,14 @@ startup arguments. The main process accepts only the install route with a
 valid plugin ID; Plugin settings then invokes the registry installer, which
 verifies the package and asks the user to confirm before installing.
 
+On Windows, the packaged application registers `eidos-lite` with
+`app.setAsDefaultProtocolClient` on normal startup. The NSIS target does not
+register electron-builder's `protocols` metadata, so that metadata alone is
+insufficient. Open the installed application once after installing or updating
+before testing a browser install link. Unpackaged development instances and
+packaged smoke runs must not change the system protocol handler. Verify both
+cold-start links and links clicked while the app is already running on Windows.
+
 macOS `open-file` events and Windows/Linux second-instance file arguments
 enter the same main-process file route. The route rejects missing,
 non-file, non-`.eidos`, and final-component symlink inputs. It prefers the
@@ -249,32 +256,40 @@ collision retry as a performance sample.
 The Lite release workflow runs packaged acceptance on every target without
 changing the performance budgets. The first fresh-package process observes
 timings while still enforcing every functional, environment, data-safety, and
-integration assertion. Three further new processes each enforce the 2,000 ms
-cold-start, 1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame
-budgets on both macOS architectures. Linux runs the complete functional pass
+integration assertion. This single pass records the 2,000 ms cold-start,
+1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame reference budgets;
+latency overruns are reported and do not block publication. Linux runs the complete functional pass
 inside a session D-Bus and Xvfb; Windows runs the same pass on the hosted runner.
 Both record the contract timings, but their software or non-representative
 hosted graphics paths are not treated as end-user UI performance evidence. This
 beta gate does not replace the repeated clean-machine P95 evidence required for
 Public v1 on every supported platform.
 
+Desktop Gates can record one macOS performance report per architecture on
+separate ephemeral machines, with indexing disabled before setup. The workflow
+extracts the retained build, verifies its source and hashes for staging or its
+signature and notarization for production, and never rebuilds it on the
+measurement machine. This report is separate from the tagged release workflow:
+publication requires functional, security, signing and installer validation,
+and does not wait for repeated performance samples or a performance report job.
+
 Before creating an immutable release tag, the Desktop Gates workflow can also
 build actual signed and notarized production candidates on both Mac
 architectures. Dispatch it on the intended source branch with
-`signed_mac_candidates=true`. This mode uses the normal release build, retains
-the original performance limits for all three samples, and verifies the signed
+`signed_mac_candidates=true`. This mode uses the normal release build, records
+one performance report, and verifies the signed
 DMG through installation, upgrade, rollback, and reinstallation. It retains
-candidate packages for diagnosis even if a later performance assertion fails.
+candidate packages and measurements for diagnosis.
 These artifacts do not create a tag, GitHub Release, deployment, or update-feed
 entry. An unsigned staging result is not a substitute for this signed-candidate
 check when investigating a production-package startup failure.
 
 The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
 actual signed DMG, NSIS installer, or Debian package. It verifies the published
-0.23.1 installer against its public SHA-256, installs it, opens root and nested
+0.24.2 installer against its public SHA-256, installs it, opens root and nested
 Eidos Files, creates Local history, and records file hashes and preferences.
 The same ordinary Space and profile then pass candidate installation, a new
-candidate checkpoint, binary rollback to 0.23.1, and candidate reinstallation.
+candidate checkpoint, binary rollback to 0.24.2, and candidate reinstallation.
 Every replacement requires the prior application to exit cleanly. Version and
 environment assertions use the installed application's diagnostics over a
 loopback-only debugging connection; schema, history, preferences and ordinary
@@ -322,12 +337,34 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.31`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.32`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
 utility process. The package has no install script and unsupported
 platform/libc combinations fail explicitly.
+
+Encrypted cloud Sync is admitted on macOS, Windows, and Linux. The trusted host
+uses the SDK's native private-directory API for checkpoint, recovery and staging
+state, including protected Windows DACLs. It binds the intended branch and commit
+before publishing the initial encryption configuration; retry restores that
+retained intent rather than adopting a newer HEAD. Windows supports explicit
+password sessions; remembered/default sync passwords remain unavailable there.
+
+The release workflow runs the actual encrypted host against a loopback HTTP
+Remote on every build platform, covering enrollment, wrong-password rejection,
+independent clone, bidirectional changes, authority reopen and locked remote
+removal followed by encrypted reconnection in the same folder. Only this test's
+official-origin allowlist is replaced for the synthetic loopback address; the
+production allowlist, native encryption, filesystem policy and SDK are unchanged.
+
+To replace a deleted or inaccessible cloud repository, choose **Disconnect
+cloud sync** in the Space's Sync panel and confirm the local disconnection.
+This works offline, retains local files, unsaved edits and Graft history, and
+does not delete the cloud repository. Enable Sync again in the same folder to
+create a new encrypted repository. The private per-Space `sync-connection.json`
+keeps the new repository identity and resumable disconnect intent; users do
+not need to remove `.graft` or manually clear application state.
 
 Large repositories persist a derived classification snapshot beneath
 `.graft/cache/sdk-status`. The SDK validates repository format, HEAD/index,

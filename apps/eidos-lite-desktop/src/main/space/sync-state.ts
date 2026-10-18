@@ -82,6 +82,10 @@ export class SpaceSyncStateStore {
     }
   }
 
+  async clear(): Promise<void> {
+    await fs.rm(this.filePath, { force: true })
+  }
+
   async markFirstPush(
     remoteUrl: string,
     now = new Date()

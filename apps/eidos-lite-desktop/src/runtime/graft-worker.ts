@@ -321,6 +321,11 @@ async function runCommand(
         ) as unknown as RemoteConfigureOptions),
         signal,
       })
+    case "removeRemote":
+      await encryptedHost.disconnect()
+      return repository.removeRemote(requireString(args[0], "Remote name"), {
+        signal,
+      })
     case "push":
       return repository.push({
         ...(objectValue(

@@ -1,0 +1,178 @@
+name: Eidos Lite installed macOS performance
+
+on:
+  workflow_call:
+    inputs:
+      candidate-artifacts:
+        type: boolean
+        default: false
+      staging-artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  installed-performance:
+    name: Installed macOS performance (${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: arm64
+            candidate-name: apple-silicon
+            runner: macos-15
+          - architecture: x64
+            candidate-name: intel
+            runner: macos-15-intel
+    steps:
+      - name: Disable background indexing on the ephemeral benchmark runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mdutil -a -i off
+          index_status="$(mdutil -a -s)"
+          printf '%s\n' "$index_status"
+          if [[ "$index_status" == *"Indexing enabled."* || "$index_status" != *"disabled"* ]]; then
+            exit 1
+          fi
+
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Install test dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve this run's candidate
+        id: candidate
+        if: inputs.candidate-artifacts || inputs.staging-artifacts
+        uses: actions/github-script@v7
+        env:
+          CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
+          STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
+          SIGNED_CANDIDATE_ARTIFACTS: ${{ inputs.candidate-artifacts }}
+        with:
+          result-encoding: string
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            })
+            if (process.env.STAGING_ARTIFACTS === 'true' && process.env.SIGNED_CANDIDATE_ARTIFACTS === 'true') {
+              throw new Error('Signed and staging candidates are mutually exclusive')
+            }
+            const kind = process.env.STAGING_ARTIFACTS === 'true' ? 'eidos-lite-staging-macos' : 'lite-signed-candidate'
+            const prefix = `${kind}-${process.env.CANDIDATE_ARCHITECTURE}-${context.runId}-`
+            const artifact = artifacts.filter(item => !item.expired && item.name.startsWith(prefix))
+              .sort((a, b) => b.id - a.id)[0]
+            if (!artifact) throw new Error(`Missing candidate for ${prefix}`)
+            return artifact.name
+
+      - name: Download the actual distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ (inputs.candidate-artifacts || inputs.staging-artifacts) && steps.candidate.outputs.result || format('lite-mac-{0}', matrix.architecture) }}
+          path: ${{ runner.temp }}/macos-distribution
+
+      - name: Extract and verify the distribution
+        shell: bash
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
+          STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
+        run: |
+          set -euo pipefail
+          distribution="$RUNNER_TEMP/macos-distribution"
+          if [ "$STAGING_ARTIFACTS" = true ]; then
+            archive="$distribution/eidos-lite-staging-macos-$CANDIDATE_ARCHITECTURE.zip"
+            test -f "$archive"
+            (cd "$distribution" && shasum -a 256 -c SHA256SUMS)
+          else
+            archive="$(find "$distribution" -maxdepth 1 -type f -name "*-mac-$ARCHITECTURE.zip" -print -quit)"
+          fi
+          test -n "$archive"
+          mkdir "$RUNNER_TEMP/macos-performance-install"
+          ditto -x -k "$archive" "$RUNNER_TEMP/macos-performance-install"
+          application="$RUNNER_TEMP/macos-performance-install/Eidos Lite.app"
+          if [ "$STAGING_ARTIFACTS" = true ]; then
+            python3 - "$distribution/identity.json" "$archive" "$application" <<'PY'
+          import hashlib, json, os, pathlib, subprocess, sys
+          identity = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          archive, application = map(pathlib.Path, sys.argv[2:])
+          def digest(filename):
+              value = hashlib.sha256()
+              with filename.open("rb") as source:
+                  for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+          assert identity["sourceCommit"] == subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          assert identity["architecture"] == os.environ["CANDIDATE_ARCHITECTURE"]
+          assert identity["registryDependenciesVerified"] is True
+          package = json.loads(pathlib.Path("apps/eidos-lite-desktop/package.json").read_text())
+          assert identity["declaredGraftVersion"] == package["dependencies"]["@eidos.space/graft"]
+          assert identity["archive"]["sha256"] == digest(archive)
+          assert identity["appAsarSha256"] == digest(application / "Contents/Resources/app.asar")
+          for name, expected in identity["nativeSha256"].items():
+              assert digest(application / name) == expected
+          PY
+          else
+            codesign --verify --deep --strict "$application"
+            for attempt in 1 2 3; do
+              if xcrun stapler validate "$application"; then break; fi
+              if [ "$attempt" -eq 3 ]; then exit 1; fi
+              sleep "$((attempt * 3))"
+            done
+          fi
+          printf 'EIDOS_LITE_PACKAGED_APP=%s\n' "$application/Contents/MacOS/Eidos Lite" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/macos-performance-evidence"
+          shasum -a 256 "$archive" "$application/Contents/Resources/app.asar" \
+            > "$RUNNER_TEMP/macos-performance-evidence/SHA256SUMS"
+          git rev-parse HEAD > "$RUNNER_TEMP/macos-performance-evidence/source-commit.txt"
+
+      # Measuring on a separate runner keeps sustained Rust compilation and
+      # packaging pressure out of the existing end-to-end startup budget. The
+      # app is extracted from the exact build artifact, never rebuilt here.
+      - name: Record one installed performance report
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        shell: bash
+        run: |
+          set -euo pipefail
+          sysctl vm.loadavg
+          memory_pressure -Q
+          pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/fresh-launch.log"
+
+      - name: Retain measurements and runner load
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/macos-performance-evidence"
+          sysctl vm.loadavg > "$RUNNER_TEMP/macos-performance-evidence/final-load.txt"
+          memory_pressure -Q >> "$RUNNER_TEMP/macos-performance-evidence/final-load.txt"
+          ps -axo pid,ppid,%cpu,%mem,etime,comm | sort -k3 -nr | sed -n '1,25p' \
+            > "$RUNNER_TEMP/macos-performance-evidence/processes.txt"
+
+      - name: Upload installed performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-macos-performance-${{ matrix.architecture }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/macos-performance-evidence
+          if-no-files-found: error
+          retention-days: 7

@@ -59,6 +59,7 @@ import { supportsEncryptedSync } from "../shared/sync-encryption"
 type BusyAction =
   | "sign-in"
   | "sign-out"
+  | "disconnect"
   | "enable"
   | "repositories"
   | "clone"
@@ -118,6 +119,7 @@ export function SyncPanel({
   cacheKey = mode === "clone" ? "welcome" : "current-space",
   hasUncheckpointedChanges = false,
   syncHistory: initialSyncHistory,
+  hasCloudConnection = false,
   onClose,
   onClone,
   onRequestClone,
@@ -134,6 +136,7 @@ export function SyncPanel({
   cacheKey?: string
   hasUncheckpointedChanges?: boolean
   syncHistory?: SpaceSyncHistoryStatus
+  hasCloudConnection?: boolean
   onClose(): void
   onClone?(snapshot: SpaceSnapshot): void
   onRequestClone?(): void
@@ -252,6 +255,8 @@ export function SyncPanel({
   const [recoveryResult, setRecoveryResult] =
     useState<EidosSyncRecoveryResult | null>(null)
   const [busy, setBusy] = useState<BusyAction>(null)
+  const [disconnected, setDisconnected] = useState(false)
+  useEffect(() => setDisconnected(false), [cacheKey])
   useEffect(() => {
     if (
       mode === "clone" &&
@@ -269,11 +274,13 @@ export function SyncPanel({
     initialSnapshot?.lastSyncedAtMs
   )
   const resultHistory = syncResult?.snapshot.graft?.sync
-  const syncHistory =
-    resultHistory &&
-    (!initialSyncHistory?.localHead ||
-      initialSyncHistory.localHead === resultHistory.localHead) &&
-    (resultHistory.checkedAtMs ?? 0) >= (initialSyncHistory?.checkedAtMs ?? 0)
+  const syncHistory = disconnected
+    ? undefined
+    : resultHistory &&
+        (!initialSyncHistory?.localHead ||
+          initialSyncHistory.localHead === resultHistory.localHead) &&
+        (resultHistory.checkedAtMs ?? 0) >=
+          (initialSyncHistory?.checkedAtMs ?? 0)
       ? resultHistory
       : initialSyncHistory
   const [refreshingSpace, setRefreshingSpace] = useState(false)
@@ -666,6 +673,45 @@ export function SyncPanel({
     }
   }
 
+  const disconnectCloud = async () => {
+    if (busy !== null) return
+    setBusy("disconnect")
+    try {
+      const snapshot = await window.eidosLite.disconnectSync()
+      if (!snapshot) return
+      accountRevision.current += 1
+      resetOperation()
+      clearSyncPasswords()
+      setDisconnected(true)
+      setLastSyncedAtMs(undefined)
+      setSyncQueueStatus(null)
+      const next: EidosSyncStatus = {
+        ...status,
+        remote: { state: "not-connected" },
+        encryption: undefined,
+        canEnable:
+          status.account.state === "signed-in" &&
+          status.entitlement.state === "read-write",
+      }
+      setStatus(next)
+      writeSyncStatusSnapshot(cacheKey, {
+        version: 1,
+        status: next,
+        checkedAtMs: Date.now(),
+      })
+      onSpaceChange?.(snapshot)
+      setReloadKey((key) => key + 1)
+    } catch (cause) {
+      showUnexpectedError(
+        cause,
+        "Could not disconnect cloud sync",
+        "Local files and Graft history are safe. Try disconnecting again."
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const enableSync = async () => {
     if (
       !preflight ||
@@ -718,6 +764,7 @@ export function SyncPanel({
       if (!isCurrent()) return
       setOperationTelemetry(response.telemetry)
       if (response.ok) {
+        setDisconnected(false)
         rememberStatus(response.status, { synced: true })
       } else {
         setSyncFailure(response.failure)
@@ -1030,7 +1077,7 @@ export function SyncPanel({
           {t(
             rememberUnlock
               ? "Saved securely on this device so Sync can resume next time."
-              : "System secure storage is unavailable. Enter the password again after restarting."
+              : "Enter the password again after restarting."
           )}
         </p>
         <button
@@ -1059,6 +1106,23 @@ export function SyncPanel({
         )}
       </p>
     ) : null
+  const disconnectControl =
+    mode === "enable" &&
+    !disconnected &&
+    (hasCloudConnection ||
+      status.remote.state === "connected" ||
+      initialSyncHistory ||
+      syncFailure?.code === "remote-already-configured") ? (
+      <button
+        type="button"
+        className="sync-inspector-link"
+        data-sync-disconnect
+        disabled={busy !== null || mergeActive}
+        onClick={() => void disconnectCloud()}
+      >
+        {t(busy === "disconnect" ? "Disconnecting…" : "Disconnect cloud sync")}
+      </button>
+    ) : null
   const renderInspector = (
     setupContent?: ReactNode,
     setupFooter?: ReactNode
@@ -1078,6 +1142,7 @@ export function SyncPanel({
             </>
           ) : undefined
         }
+        connectionActions={disconnectControl}
         account={({ buttonRef, expanded, onToggle }) => (
           <button
             ref={buttonRef}
@@ -1173,7 +1238,9 @@ export function SyncPanel({
   if (
     variant === "inspector" &&
     mode === "enable" &&
-    (status.remote.state === "connected" || mergeStatus?.state === "merging")
+    (status.remote.state === "connected" ||
+      (!disconnected && initialSyncHistory) ||
+      mergeStatus?.state === "merging")
   ) {
     return renderInspector()
   }
@@ -1196,6 +1263,7 @@ export function SyncPanel({
           loadError === null
         }
         loadError={loadError}
+        connectionActions={disconnectControl}
         onClose={onClose}
         onSignIn={() => void signIn()}
         onManageAccess={() => void openHelp("sync-access")}
@@ -1372,7 +1440,7 @@ export function SyncPanel({
         {t(
           rememberUnlock
             ? "Saved securely on this device. Keep a copy: Eidos cannot recover this password."
-            : "System secure storage is unavailable. Enter the password again after restarting."
+            : "Enter the password again after restarting."
         )}
       </p>
       {mode === "clone" &&
@@ -1960,6 +2028,9 @@ export function SyncPanel({
         </section>
       ) : null}
 
+      {variant !== "inspector" && disconnectControl ? (
+        <div className="sync-ghost-row">{disconnectControl}</div>
+      ) : null}
       {signedIn && variant !== "inspector" ? (
         <details
           className="sync-more sync-account-details"
@@ -2190,6 +2261,7 @@ function SyncAccessGate({
   onSignIn,
   onManageAccess,
   onCheckAgain,
+  connectionActions,
 }: {
   mode: "enable" | "clone"
   variant: "dialog" | "inspector"
@@ -2205,6 +2277,7 @@ function SyncAccessGate({
   onSignIn(): void
   onManageAccess(): void
   onCheckAgain(): void
+  connectionActions?: ReactNode
 }) {
   const { t } = useEidosLiteI18n()
   const signedOut = accountState === "signed-out"
@@ -2260,6 +2333,9 @@ function SyncAccessGate({
         </header>
         <SyncTransportTabs enabled={mode === "enable"}>
           <div className="sync-dialog-body sync-gate">
+            {connectionActions ? (
+              <div className="sync-ghost-row">{connectionActions}</div>
+            ) : null}
             {accountPending ? (
               <p role="status">{t("Checking Sync access…")}</p>
             ) : loadError ? (

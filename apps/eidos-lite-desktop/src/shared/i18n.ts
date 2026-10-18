@@ -4,6 +4,14 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Disconnect cloud sync": "断开云端连接",
+  "Disconnect cloud sync?": "断开云端连接？",
+  "Disconnecting…": "正在断开…",
+  "Local files and Graft history will stay on this computer. The cloud copy will not be deleted. Enabling sync again will create a new encrypted cloud copy.":
+    "本地文件和 Graft 历史将保留在这台电脑上，云端副本不会被删除。再次启用同步时，将创建新的加密云端副本。",
+  "Could not disconnect cloud sync": "无法断开云端连接",
+  "Local files and Graft history are safe. Try disconnecting again.":
+    "本地文件和 Graft 历史均安全，请重试断开连接。",
   "The passwords do not match.": "两次输入的密码不一致。",
   "Could not unlock this Space": "无法解锁此 Space",
   "The sync password did not unlock this Space. Try the password used when Sync was enabled.":
@@ -233,8 +241,7 @@ const zh: Record<string, string> = {
   "Unlocking Sync…": "正在解锁…",
   "Saved securely on this device so Sync can resume next time.":
     "密码会安全保存在此设备，下次可自动恢复同步。",
-  "System secure storage is unavailable. Enter the password again after restarting.":
-    "系统安全存储不可用，重启后需要重新输入密码。",
+  "Enter the password again after restarting.": "重启后需要重新输入同步密码。",
   "System secure storage is unavailable. Session-only unlock remains available.":
     "系统安全存储不可用，仍可仅在当前会话内解锁。",
   "Saved sync password is unavailable. Enter your sync password to continue.":
