@@ -10,7 +10,7 @@ Sync maintains a local copy of a Space on each device.
 | Connection | Requirements                                                        | Where changes travel                                       |
 | ---------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
 | LAN sync   | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required |
-| Cloud sync | An account with Sync access                                       | Through the cloud service with end-to-end encryption       |
+| Cloud sync | An account with Sync access                                         | Through the cloud service with end-to-end encryption       |
 
 Local files remain usable offline.
 This guide explains LAN sync first.
@@ -128,6 +128,13 @@ password used when that Space was connected. Signing in again or resetting the
 account password does not change the sync password.
 
 ### Send and receive changes
+
+During cloud uploads and downloads, Lite shows transferred bytes and transfer
+speed. Encrypted transfers discover their total size as they run, so the bar
+stays indeterminate instead of showing a percentage or time estimate. Password
+unlocking, local encryption, and preparing the downloaded files can take time
+without increasing the transferred byte count. Wait for Sync to finish before
+closing the app.
 
 Saving a file changes the local copy. Select **Review changes**, review and select
 the changed files, then choose **Save selected files** to record them in local

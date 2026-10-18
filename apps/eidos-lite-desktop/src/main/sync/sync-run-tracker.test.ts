@@ -218,4 +218,50 @@ describe("SyncRunTracker", () => {
     })
     expect(events.at(-1)?.transfer?.transferredBytes).toBe(100)
   })
+
+  it("keeps incremental E2EE totals indeterminate until the whole transfer is planned", () => {
+    let now = 1_000
+    const events: Array<{
+      transfer?: {
+        totalBytes: number | null
+        estimatedRemainingMs: number | null
+        transferredBytes: number
+      }
+    }> = []
+    const tracker = new SyncRunTracker(
+      "encrypted-transfer",
+      (event) => events.push(event),
+      () => now
+    )
+    tracker.transition("fetch", "Downloading")
+    tracker.transfer({
+      direction: "download",
+      transferredBytes: 100,
+      totalBytes: 100,
+      totalIsFinal: false,
+    })
+    now += 200
+    tracker.transfer({
+      direction: "download",
+      transferredBytes: 200,
+      totalBytes: 200,
+      totalIsFinal: false,
+    })
+    expect(events.at(-1)?.transfer).toMatchObject({
+      transferredBytes: 200,
+      totalBytes: null,
+      estimatedRemainingMs: null,
+    })
+    now += 200
+    tracker.transfer({
+      direction: "download",
+      transferredBytes: 250,
+      totalBytes: 500,
+      totalIsFinal: true,
+    })
+    expect(events.at(-1)?.transfer).toMatchObject({
+      totalBytes: 500,
+      estimatedRemainingMs: 667,
+    })
+  })
 })

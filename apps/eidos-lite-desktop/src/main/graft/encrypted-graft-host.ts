@@ -2,7 +2,10 @@ import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 import type { EncryptedRemoteSession } from "@eidos.space/graft"
-import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftEncryptedInput,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import {
   loadEidosGraftSdk,
   type EidosGraftRepositorySession,
@@ -23,7 +26,10 @@ export class EncryptedGraftHost {
     root: string,
     input: GraftEncryptedInput,
     mode: "initialize" | "unlock" | "clone",
-    options: { signal?: AbortSignal } = {}
+    options: {
+      signal?: AbortSignal
+      onProgress?: (progress: GraftTransferProgress) => void
+    } = {}
   ): Promise<EidosGraftRepositorySession> {
     const password = Buffer.from(input.password)
     input.password.fill(0)
@@ -40,6 +46,12 @@ export class EncryptedGraftHost {
           code: "GRAFT_SDK_E2EE_LOCKED",
         })
     }
+    const onProgress = options.onProgress
+      ? (progress: GraftTransferProgress) => {
+          if (!options.signal?.aborted && generation === this.generation)
+            options.onProgress?.(progress)
+        }
+      : undefined
     let revocation: Promise<void> | undefined
     const abort = () => {
       revocation ??= this.lock()
@@ -166,6 +178,7 @@ export class EncryptedGraftHost {
         const result = await repository.pushInitialBranch({
           verificationDirectory,
           signal: options.signal,
+          onProgress,
         })
         active()
         if (result.state !== "connected")
@@ -177,6 +190,7 @@ export class EncryptedGraftHost {
         await repository.cloneEncryptedRemote({
           branch: "main",
           signal: options.signal,
+          onProgress,
         })
         active()
       }

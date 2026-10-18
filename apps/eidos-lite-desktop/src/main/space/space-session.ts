@@ -2313,7 +2313,7 @@ export class SpaceSession {
             this.canonical.root,
             "initialize",
             encryption,
-            { signal: operationSignal }
+            { signal: operationSignal, onProgress: reportTransfer }
           )
         } else {
           await this.graft.configureOfficialRemote(

@@ -3076,14 +3076,16 @@ describe("SyncPanel failure states", () => {
 
     const pendingTotal = host.querySelector<HTMLElement>("[data-sync-progress]")
     expect(pendingTotal?.textContent).toContain("Downloaded 1 MiB")
-    expect(pendingTotal?.textContent).toContain("Calculating total size…")
+    expect(pendingTotal?.querySelector("[data-sync-transfer-total]")).toBeNull()
     expect(pendingTotal?.textContent).toContain("2 MiB/s")
-    expect(pendingTotal?.textContent).toContain("Calculating time left…")
+    expect(
+      pendingTotal?.querySelector("[data-sync-transfer-remaining]")
+    ).toBeNull()
     expect(
       pendingTotal
         ?.querySelector<HTMLElement>("[role='progressbar']")
         ?.getAttribute("aria-valuetext")
-    ).toBe("Downloaded 1 MiB; calculating total size")
+    ).toBe("Downloaded 1 MiB")
 
     await act(async () => {
       progressListener?.({

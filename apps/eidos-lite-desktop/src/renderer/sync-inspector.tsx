@@ -444,7 +444,7 @@ export function SyncInspector({
                   />
                   <small>
                     {transfer
-                      ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MB` : ""}`
+                      ? `${(transfer.transferredBytes / 1048576).toFixed(1)} MiB${transfer.totalBytes ? ` / ${(transfer.totalBytes / 1048576).toFixed(1)} MiB` : ""}${transfer.bytesPerSecond > 0 ? ` · ${(transfer.bytesPerSecond / 1048576).toFixed(1)} MiB/s` : ""}`
                       : t("Working…")}
                   </small>
                 </div>

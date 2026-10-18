@@ -22,7 +22,12 @@ interface TransferProgressOptions {
 
 export type EidosGraftRepositorySession = Omit<
   PublishedRepositorySession,
-  "push" | "fetch" | "pull" | "cloneRepository"
+  | "push"
+  | "fetch"
+  | "pull"
+  | "cloneRepository"
+  | "cloneEncryptedRemote"
+  | "pushInitialBranch"
 > &
   GraftMergeRepositorySession & {
     push(
@@ -37,6 +42,16 @@ export type EidosGraftRepositorySession = Omit<
     cloneRepository(
       options: CloneOptions & TransferProgressOptions
     ): Promise<unknown>
+    cloneEncryptedRemote(
+      options?: Parameters<
+        PublishedRepositorySession["cloneEncryptedRemote"]
+      >[0] &
+        TransferProgressOptions
+    ): ReturnType<PublishedRepositorySession["cloneEncryptedRemote"]>
+    pushInitialBranch(
+      options?: Parameters<PublishedRepositorySession["pushInitialBranch"]>[0] &
+        TransferProgressOptions
+    ): ReturnType<PublishedRepositorySession["pushInitialBranch"]>
   }
 
 export interface EidosGraftSdkModule extends Omit<

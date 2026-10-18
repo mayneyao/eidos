@@ -725,11 +725,32 @@ describe("GraftClient", () => {
         signal: controller.signal,
         onProgress,
       })
+      const input = {
+        connection: {
+          url: "https://sync-staging.eidos.space/u-test/space",
+          uuid: "00010203-0405-4607-8809-0a0b0c0d0e0f",
+          authenticationDomain: "https://staging.eidos.space",
+          accountSubject: "synthetic-user",
+          bearerToken: "synthetic-token",
+          stateDirectory: path.join(root, "private"),
+        },
+        password: Buffer.from("synthetic sync password"),
+      }
+      await client.encryptedSync(root, "initialize", input, {
+        signal: controller.signal,
+        onProgress,
+      })
+      expect(input.password.every((byte) => byte === 0)).toBe(true)
 
       expect(requests).toEqual([
         { command: "fetch", signal: controller.signal, onProgress },
         { command: "pull", signal: controller.signal, onProgress },
         { command: "push", signal: controller.signal, onProgress },
+        {
+          command: "initializeEncryptedSync",
+          signal: controller.signal,
+          onProgress,
+        },
       ])
     } finally {
       await fs.rm(root, { recursive: true, force: true })

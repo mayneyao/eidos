@@ -958,7 +958,7 @@ export class GraftClient {
     root: string,
     mode: "initialize" | "unlock",
     input: GraftEncryptedInput,
-    options: { signal?: AbortSignal } = {}
+    options: GraftRemoteOperationOptions = {}
   ): Promise<unknown> {
     try {
       return await this.runSdk(

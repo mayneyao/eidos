@@ -3,7 +3,10 @@ import { mkdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
-import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftEncryptedInput,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 
 const native = vi.hoisted(() => ({
   construct: Object.assign(vi.fn(), { createPrivateDirectory: vi.fn() }),
@@ -135,6 +138,13 @@ describe("trusted encrypted host admission", () => {
   it("passes cancellation to native clone and disconnects even if lock acknowledgement fails", async () => {
     const supplied = input(root)
     const abort = new AbortController()
+    const onProgress = vi.fn()
+    const transfer: GraftTransferProgress = {
+      direction: "download",
+      transferredBytes: 1024,
+      totalIsFinal: false,
+    }
+    let nativeProgress: ((event: GraftTransferProgress) => void) | undefined
     const authority = {
       state: "unlocked",
       unlock: vi.fn(async () => {}),
@@ -144,16 +154,23 @@ describe("trusted encrypted host admission", () => {
       disconnect: vi.fn(async () => {}),
     }
     const repository = {
-      cloneEncryptedRemote: vi.fn(async (options: { signal: AbortSignal }) => {
-        expect(options.signal).toBe(abort.signal)
-        await new Promise<void>((_resolve, reject) =>
-          options.signal.addEventListener(
-            "abort",
-            () => reject(new Error("native clone aborted")),
-            { once: true }
+      cloneEncryptedRemote: vi.fn(
+        async (options: {
+          signal: AbortSignal
+          onProgress?: (event: GraftTransferProgress) => void
+        }) => {
+          expect(options.signal).toBe(abort.signal)
+          nativeProgress = options.onProgress
+          nativeProgress?.(transfer)
+          await new Promise<void>((_resolve, reject) =>
+            options.signal.addEventListener(
+              "abort",
+              () => reject(new Error("native clone aborted")),
+              { once: true }
+            )
           )
-        )
-      }),
+        }
+      ),
       close: vi.fn(async () => {}),
     }
     native.construct.mockImplementation(function () {
@@ -164,14 +181,16 @@ describe("trusted encrypted host admission", () => {
       path.join(root, "source"),
       supplied,
       "clone",
-      { signal: abort.signal }
+      { signal: abort.signal, onProgress }
     )
     const rejected = expect(operation).rejects.toThrow("native lock failed")
     await vi.waitFor(() =>
       expect(repository.cloneEncryptedRemote).toHaveBeenCalledOnce()
     )
     abort.abort()
+    nativeProgress?.({ ...transfer, transferredBytes: 2048 })
     await rejected
+    expect(onProgress).toHaveBeenCalledExactlyOnceWith(transfer)
     expect(repository.close).toHaveBeenCalledOnce()
     expect(authority.disconnect).toHaveBeenCalledOnce()
     expect(supplied.password.every((byte) => byte === 0)).toBe(true)
@@ -259,9 +278,19 @@ describe("trusted encrypted host admission", () => {
     })
     native.open.mockResolvedValue(repository)
     const host = new EncryptedGraftHost()
+    const onProgress = vi.fn()
     await expect(
-      host.connect(path.join(root, "source"), supplied, "initialize")
+      host.connect(path.join(root, "source"), supplied, "initialize", {
+        onProgress,
+      })
     ).resolves.toBe(repository)
+    const transfer: GraftTransferProgress = {
+      direction: "upload",
+      transferredBytes: 1024,
+      totalIsFinal: false,
+    }
+    repository.pushInitialBranch.mock.calls[0][0].onProgress(transfer)
+    expect(onProgress).toHaveBeenCalledExactlyOnceWith(transfer)
     expect(repository.addEncryptedRemote).toHaveBeenCalledOnce()
     expect(initializeConfig).toHaveBeenCalledWith(expect.any(Buffer), source)
     expect(native.construct.createPrivateDirectory).toHaveBeenCalledTimes(4)

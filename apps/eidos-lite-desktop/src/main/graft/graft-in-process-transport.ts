@@ -154,7 +154,7 @@ export class GraftInProcessTransport implements GraftSdkTransport {
             : command === "cloneEncryptedSync"
               ? "clone"
               : "unlock",
-          { signal: options.signal }
+          { signal: options.signal, onProgress: options.onProgress }
         )
       } catch (error) {
         this.session = await RepositorySession.open(this.target)

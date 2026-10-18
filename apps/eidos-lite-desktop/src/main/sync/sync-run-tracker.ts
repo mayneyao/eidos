@@ -53,7 +53,7 @@ export class SyncRunTracker {
     const now = this.now()
     const transferredBytes = Math.max(0, progress.transferredBytes)
     const totalBytes =
-      progress.totalBytes === undefined
+      !progress.totalIsFinal || progress.totalBytes === undefined
         ? null
         : Math.max(transferredBytes, progress.totalBytes)
     const directionChanged =

@@ -3017,7 +3017,7 @@ function OperationProgress({
     transfer?.direction === "upload" ? "Uploaded" : "Downloaded"
   const transferValueText = transfer
     ? transfer.totalBytes === null
-      ? `${transferVerb} ${formatBytes(transfer.transferredBytes)}; calculating total size`
+      ? `${transferVerb} ${formatBytes(transfer.transferredBytes)}`
       : `${transferVerb} ${formatBytes(transfer.transferredBytes)} of ${formatBytes(transfer.totalBytes)}`
     : undefined
   return (
@@ -3066,23 +3066,20 @@ function OperationProgress({
               ? ""
               : ` of ${formatBytes(transfer.totalBytes)}`}
           </span>
-          {transfer.totalBytes === null ? (
-            <span data-sync-transfer-total>Calculating total size…</span>
-          ) : null}
           <span data-sync-transfer-speed>
             {transfer.bytesPerSecond > 0
               ? `${formatBytes(transfer.bytesPerSecond)}/s`
               : "Measuring speed…"}
           </span>
-          <span data-sync-transfer-remaining>
-            {transfer.totalBytes === null
-              ? "Calculating time left…"
-              : transfer.estimatedRemainingMs === null
+          {transfer.totalBytes !== null ? (
+            <span data-sync-transfer-remaining>
+              {transfer.estimatedRemainingMs === null
                 ? "Estimating time left…"
                 : transfer.estimatedRemainingMs <= 0
                   ? "Finishing…"
                   : `${formatDuration(transfer.estimatedRemainingMs)} left`}
-          </span>
+            </span>
+          ) : null}
         </div>
       ) : null}
     </section>
