@@ -322,7 +322,26 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("run: pnpm build:eidos-lite:dev")
     expect(workflow).toContain("name: Observe fresh packaged smoke")
     expect(workflow).toContain("EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe")
-    expect(workflow).toContain("name: Enforce packaged performance")
+    const jobs = (
+      parse(workflow) as {
+        jobs: Record<
+          string,
+          { needs?: string; uses?: string; with?: Record<string, unknown> }
+        >
+      }
+    ).jobs
+    expect(jobs["macos-performance"]).toMatchObject({
+      needs: "packaged-macos",
+      uses: "./.github/workflows/eidos-lite-macos-performance.yml",
+      with: {
+        "candidate-artifacts": "${{ inputs.signed_mac_candidates == true }}",
+        "staging-artifacts": "${{ inputs.signed_mac_candidates != true }}",
+      },
+    })
+    expect(workflow).not.toContain("name: Enforce packaged performance")
+    expect(workflow).toContain(
+      "if: ${{ steps.staging-archive.outcome == 'success' }}"
+    )
     expect(workflow).toContain("test:performance")
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
@@ -485,7 +504,8 @@ describe("Eidos Lite package identity", () => {
     expect(enforcement?.run).toContain("for sample in 1 2 3; do")
     expect(enforcement?.run).toContain("pnpm smoke:eidos-lite-packaged")
     expect(enforcement?.env).toEqual({
-      EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: "production",
+      EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT:
+        "${{ inputs.staging-artifacts && 'staging' || 'production' }}",
       EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: "enforce",
     })
     expect(enforcement?.if).toBeUndefined()

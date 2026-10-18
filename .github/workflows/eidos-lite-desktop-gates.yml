@@ -16,6 +16,7 @@ on:
       - dev
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - ".github/workflows/eidos-lite-macos-performance.yml"
       - "apps/eidos-lite-desktop/**"
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
@@ -26,6 +27,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - ".github/workflows/eidos-lite-macos-performance.yml"
       - "apps/eidos-lite-desktop/**"
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
@@ -289,17 +291,6 @@ jobs:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
         run: pnpm smoke:eidos-lite-packaged
 
-      - name: Enforce packaged performance
-        id: enforced-smoke
-        if: ${{ !inputs.signed_mac_candidates }}
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
-        shell: bash
-        run: |
-          for sample in 1 2 3; do
-            pnpm smoke:eidos-lite-packaged
-          done
-
       - name: Verify signed candidate installation and rollback
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
         shell: bash
@@ -339,11 +330,10 @@ jobs:
 
       - name: Archive staging app and exact build identity
         id: staging-archive
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-package.outcome == 'success' }}
+        if: ${{ steps.staging-package.outcome == 'success' }}
         env:
           PACKAGE_ARCHITECTURE: ${{ matrix.architecture }}
           OBSERVED_SMOKE_OUTCOME: ${{ steps.observed-smoke.outcome }}
-          ENFORCED_SMOKE_OUTCOME: ${{ steps.enforced-smoke.outcome }}
         shell: bash
         run: |
           set -euo pipefail
@@ -401,8 +391,8 @@ jobs:
               "archive": {"name": archive.name, "sha256": digest(archive)},
               "genericPackagedSmoke": {
                   "observe": os.environ["OBSERVED_SMOKE_OUTCOME"],
-                  "enforce": os.environ["ENFORCED_SMOKE_OUTCOME"],
               },
+              "performanceAcceptance": "separate distribution performance job; three enforced samples required",
               "e2eeAcceptance": "not run by this workflow; requires separate installed acceptance",
           }
           manifest = output / "identity.json"
@@ -411,18 +401,18 @@ jobs:
           PY
 
       - name: Retain staging app for installed acceptance
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retain_staging_packages && steps.staging-archive.outcome == 'success' }}
+        if: ${{ steps.staging-archive.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: eidos-lite-staging-macos-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/lite-staging-package
           if-no-files-found: error
-          retention-days: 3
+          retention-days: ${{ inputs.retain_staging_packages && 3 || 1 }}
 
-  signed-macos-performance:
-    name: Signed distribution performance
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+  macos-performance:
+    name: Distribution performance
     needs: packaged-macos
     uses: ./.github/workflows/eidos-lite-macos-performance.yml
     with:
-      candidate-artifacts: true
+      candidate-artifacts: ${{ inputs.signed_mac_candidates == true }}
+      staging-artifacts: ${{ inputs.signed_mac_candidates != true }}

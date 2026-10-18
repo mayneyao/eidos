@@ -266,6 +266,14 @@ hosted graphics paths are not treated as end-user UI performance evidence. This
 beta gate does not replace the repeated clean-machine P95 evidence required for
 Public v1 on every supported platform.
 
+The three macOS performance samples run on separate ephemeral machines after
+the build jobs finish. Both ordinary PR staging apps and signed production
+distributions use this same measurement workflow, with indexing disabled before
+setup. The workflow extracts the exact retained build, verifies its source and
+hashes for staging or its signature and notarization for production, and never
+rebuilds it on the measurement machine. This keeps compilation pressure out of
+the startup measurement without changing the functional assertions or budgets.
+
 Before creating an immutable release tag, the Desktop Gates workflow can also
 build actual signed and notarized production candidates on both Mac
 architectures. Dispatch it on the intended source branch with

@@ -6,6 +6,9 @@ on:
       candidate-artifacts:
         type: boolean
         default: false
+      staging-artifacts:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -54,12 +57,14 @@ jobs:
       - name: Install test dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Resolve this run's signed candidate
+      - name: Resolve this run's candidate
         id: candidate
-        if: inputs.candidate-artifacts
+        if: inputs.candidate-artifacts || inputs.staging-artifacts
         uses: actions/github-script@v7
         env:
           CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
+          STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
+          SIGNED_CANDIDATE_ARTIFACTS: ${{ inputs.candidate-artifacts }}
         with:
           result-encoding: string
           script: |
@@ -68,36 +73,71 @@ jobs:
               repo: context.repo.repo,
               run_id: context.runId,
             })
-            const prefix = `lite-signed-candidate-${process.env.CANDIDATE_ARCHITECTURE}-${context.runId}-`
+            if (process.env.STAGING_ARTIFACTS === 'true' && process.env.SIGNED_CANDIDATE_ARTIFACTS === 'true') {
+              throw new Error('Signed and staging candidates are mutually exclusive')
+            }
+            const kind = process.env.STAGING_ARTIFACTS === 'true' ? 'eidos-lite-staging-macos' : 'lite-signed-candidate'
+            const prefix = `${kind}-${process.env.CANDIDATE_ARCHITECTURE}-${context.runId}-`
             const artifact = artifacts.filter(item => !item.expired && item.name.startsWith(prefix))
               .sort((a, b) => b.id - a.id)[0]
-            if (!artifact) throw new Error(`Missing signed candidate for ${prefix}`)
+            if (!artifact) throw new Error(`Missing candidate for ${prefix}`)
             return artifact.name
 
       - name: Download the actual distribution artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.candidate-artifacts && steps.candidate.outputs.result || format('lite-mac-{0}', matrix.architecture) }}
+          name: ${{ (inputs.candidate-artifacts || inputs.staging-artifacts) && steps.candidate.outputs.result || format('lite-mac-{0}', matrix.architecture) }}
           path: ${{ runner.temp }}/macos-distribution
 
-      - name: Extract and verify the signed distribution
+      - name: Extract and verify the distribution
         shell: bash
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
+          CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
+          STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
         run: |
           set -euo pipefail
           distribution="$RUNNER_TEMP/macos-distribution"
-          archive="$(find "$distribution" -maxdepth 1 -type f -name "*-mac-$ARCHITECTURE.zip" -print -quit)"
+          if [ "$STAGING_ARTIFACTS" = true ]; then
+            archive="$distribution/eidos-lite-staging-macos-$CANDIDATE_ARCHITECTURE.zip"
+            test -f "$archive"
+            (cd "$distribution" && shasum -a 256 -c SHA256SUMS)
+          else
+            archive="$(find "$distribution" -maxdepth 1 -type f -name "*-mac-$ARCHITECTURE.zip" -print -quit)"
+          fi
           test -n "$archive"
           mkdir "$RUNNER_TEMP/macos-performance-install"
           ditto -x -k "$archive" "$RUNNER_TEMP/macos-performance-install"
           application="$RUNNER_TEMP/macos-performance-install/Eidos Lite.app"
-          codesign --verify --deep --strict "$application"
-          for attempt in 1 2 3; do
-            if xcrun stapler validate "$application"; then break; fi
-            if [ "$attempt" -eq 3 ]; then exit 1; fi
-            sleep "$((attempt * 3))"
-          done
+          if [ "$STAGING_ARTIFACTS" = true ]; then
+            python3 - "$distribution/identity.json" "$archive" "$application" <<'PY'
+          import hashlib, json, os, pathlib, subprocess, sys
+          identity = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          archive, application = map(pathlib.Path, sys.argv[2:])
+          def digest(filename):
+              value = hashlib.sha256()
+              with filename.open("rb") as source:
+                  for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                      value.update(chunk)
+              return value.hexdigest()
+          assert identity["sourceCommit"] == subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          assert identity["architecture"] == os.environ["CANDIDATE_ARCHITECTURE"]
+          assert identity["registryDependenciesVerified"] is True
+          package = json.loads(pathlib.Path("apps/eidos-lite-desktop/package.json").read_text())
+          assert identity["declaredGraftVersion"] == package["dependencies"]["@eidos.space/graft"]
+          assert identity["archive"]["sha256"] == digest(archive)
+          assert identity["appAsarSha256"] == digest(application / "Contents/Resources/app.asar")
+          for name, expected in identity["nativeSha256"].items():
+              assert digest(application / name) == expected
+          PY
+          else
+            codesign --verify --deep --strict "$application"
+            for attempt in 1 2 3; do
+              if xcrun stapler validate "$application"; then break; fi
+              if [ "$attempt" -eq 3 ]; then exit 1; fi
+              sleep "$((attempt * 3))"
+            done
+          fi
           printf 'EIDOS_LITE_PACKAGED_APP=%s\n' "$application/Contents/MacOS/Eidos Lite" >> "$GITHUB_ENV"
           mkdir "$RUNNER_TEMP/macos-performance-evidence"
           shasum -a 256 "$archive" "$application/Contents/Resources/app.asar" \
@@ -106,10 +146,10 @@ jobs:
 
       # Measuring on a separate runner keeps sustained Rust compilation and
       # packaging pressure out of the existing end-to-end startup budget. The
-      # app is extracted from the signed artifact, never rebuilt for this test.
+      # app is extracted from the exact build artifact, never rebuilt here.
       - name: Observe fresh installed launch
         env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
         shell: bash
         run: |
@@ -120,7 +160,7 @@ jobs:
 
       - name: Enforce all three existing performance samples
         env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: enforce
         shell: bash
         run: |
