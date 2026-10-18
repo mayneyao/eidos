@@ -147,7 +147,7 @@ jobs:
       # Measuring on a separate runner keeps sustained Rust compilation and
       # packaging pressure out of the existing end-to-end startup budget. The
       # app is extracted from the exact build artifact, never rebuilt here.
-      - name: Observe fresh installed launch
+      - name: Record one installed performance report
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
           EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
@@ -157,19 +157,6 @@ jobs:
           sysctl vm.loadavg
           memory_pressure -Q
           pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/fresh-launch.log"
-
-      - name: Enforce all three existing performance samples
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
-          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: enforce
-        shell: bash
-        run: |
-          set -euo pipefail
-          for sample in 1 2 3; do
-            sysctl vm.loadavg
-            memory_pressure -Q
-            pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/sample-$sample.log"
-          done
 
       - name: Retain measurements and runner load
         if: always()

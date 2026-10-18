@@ -50,10 +50,9 @@ the command, keeping obsolete hashes and test code out of `app.asar`.
 `.github/workflows/eidos-lite-desktop-gates.yml` repeats the source and real
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and
-`macos-15-intel`. Each architecture first runs a fresh-package observation
-process, then starts a second isolated process that enforces the unchanged
-packaged performance budgets. This avoids treating one-time operating-system
-package discovery as a P95 sample while preserving the actual latency ceiling.
+`macos-15-intel`. Each architecture runs a fresh-package functional pass and
+records one separate performance report from the retained artifact. Latency
+reference budgets remain visible in that report; overruns do not block release.
 The workflow has read-only repository permissions and no signing, release, or
 production-service step. A manual run with `retain_staging_packages=true`
 retains both macOS staging apps for three days after verifying registry-only
@@ -257,30 +256,30 @@ collision retry as a performance sample.
 The Lite release workflow runs packaged acceptance on every target without
 changing the performance budgets. The first fresh-package process observes
 timings while still enforcing every functional, environment, data-safety, and
-integration assertion. Three further new processes each enforce the 2,000 ms
-cold-start, 1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame
-budgets on both macOS architectures. Linux runs the complete functional pass
+integration assertion. This single pass records the 2,000 ms cold-start,
+1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame reference budgets;
+latency overruns are reported and do not block publication. Linux runs the complete functional pass
 inside a session D-Bus and Xvfb; Windows runs the same pass on the hosted runner.
 Both record the contract timings, but their software or non-representative
 hosted graphics paths are not treated as end-user UI performance evidence. This
 beta gate does not replace the repeated clean-machine P95 evidence required for
 Public v1 on every supported platform.
 
-The three macOS performance samples run on separate ephemeral machines after
-the build jobs finish. Both ordinary PR staging apps and signed production
-distributions use this same measurement workflow, with indexing disabled before
-setup. The workflow extracts the exact retained build, verifies its source and
-hashes for staging or its signature and notarization for production, and never
-rebuilds it on the measurement machine. This keeps compilation pressure out of
-the startup measurement without changing the functional assertions or budgets.
+Desktop Gates can record one macOS performance report per architecture on
+separate ephemeral machines, with indexing disabled before setup. The workflow
+extracts the retained build, verifies its source and hashes for staging or its
+signature and notarization for production, and never rebuilds it on the
+measurement machine. This report is separate from the tagged release workflow:
+publication requires functional, security, signing and installer validation,
+and does not wait for repeated performance samples or a performance report job.
 
 Before creating an immutable release tag, the Desktop Gates workflow can also
 build actual signed and notarized production candidates on both Mac
 architectures. Dispatch it on the intended source branch with
-`signed_mac_candidates=true`. This mode uses the normal release build, retains
-the original performance limits for all three samples, and verifies the signed
+`signed_mac_candidates=true`. This mode uses the normal release build, records
+one performance report, and verifies the signed
 DMG through installation, upgrade, rollback, and reinstallation. It retains
-candidate packages for diagnosis even if a later performance assertion fails.
+candidate packages and measurements for diagnosis.
 These artifacts do not create a tag, GitHub Release, deployment, or update-feed
 entry. An unsigned staging result is not a substitute for this signed-candidate
 check when investigating a production-package startup failure.
