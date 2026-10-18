@@ -51,7 +51,9 @@ export function compareMeasurements(current, previous = []) {
       .map(validateMeasurement)
       .find(
         (old) =>
-          old.architecture === item.architecture && old.runner === item.runner
+          old.architecture === item.architecture &&
+          old.runner === item.runner &&
+          old.variant === item.variant
       )
     for (const [metric, limits] of Object.entries(policy)) {
       const value = item.metrics[metric]
@@ -131,6 +133,7 @@ export function releaseDecision(sha, pr, data) {
 }
 
 export function renderComment(data, comparison) {
+  const hasBaseline = comparison.rows.some((row) => row.before !== null)
   const number = (value) => (value === null ? "—" : value.toFixed(0) + " ms")
   const rows = comparison.rows.map(
     (row) =>
@@ -141,13 +144,14 @@ export function renderComment(data, comparison) {
     "### Lite 性能记录",
     "",
     `提交：\`${data.headSha}\` · 基线：${data.baselineTag ?? "无可比的已发布基线"}`,
-    `结论：${data.majorRegression ? "**发现重大性能退化，阻塞发布。**" : data.measurements.length ? "未发现达到阻塞标准的退化。" : "测量不可用；不据此宣称性能通过。"}`,
+    `结论：${data.majorRegression ? "**发现重大性能退化，阻塞发布。**" : data.measurements.length ? (hasBaseline ? "未发现达到阻塞标准的退化。" : "缺少同配置的可比数据；本次建立基线。") : "测量不可用；不据此宣称性能通过。"}`,
+    `本次构建类型：${[...new Set(data.measurements.map((item) => item.variant))].join("、") || "不可用"}。`,
     "",
     "| 架构 | 指标 | 本次 | 上次发布 | 增加 | 判定 |",
     "| --- | --- | ---: | ---: | ---: | --- |",
     ...rows,
     "",
-    "每个平台只测一次。只有耗时至少翻倍，且启动增加 ≥1000 ms、文件打开 P95 或首帧增加 ≥500 ms，才判为重大退化。只比较相同架构和 runner；缺少兼容基线时仅记录。单次测量不代表性能 SLA。",
+    "每个平台只测一次。只有耗时至少翻倍，且启动增加 ≥1000 ms、文件打开 P95 或首帧增加 ≥500 ms，才判为重大退化。只比较相同构建类型、架构和 runner；production 与 staging 分别留底，缺少兼容基线时仅记录。单次测量不代表性能 SLA。",
     `源码负载观测：${data.sourceLoad ?? "未执行"}。 [CI 与原始测量](${data.runUrl})`,
     "",
     "<details><summary>可供下次发布读取的数据</summary>",
