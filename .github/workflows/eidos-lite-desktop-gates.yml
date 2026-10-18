@@ -141,7 +141,7 @@ jobs:
           if (-not $installer) { throw 'Production installer is missing' }
           $version = node -p 'require("./apps/eidos-lite-desktop/package.json").version'
           node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs `
-            --previous-tag=lite-v0.24.2 "--candidate=$($installer.FullName)" `
+            --previous-tag=lite-v0.25.0 "--candidate=$($installer.FullName)" `
             "--version=$version" "--evidence=$env:RUNNER_TEMP/production-candidate-installation"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -287,7 +287,7 @@ jobs:
           installer="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$installer")"
           version="$(node -p 'require("./apps/eidos-lite-desktop/package.json").version')"
           node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-            --previous-tag=lite-v0.24.2 "--candidate=$installer" \
+            --previous-tag=lite-v0.25.0 "--candidate=$installer" \
             "--version=$version" "--evidence=$EVIDENCE"
 
       - name: Retain signed candidate for diagnosis

@@ -9,7 +9,10 @@ import {
   type EidosGraftRepositorySession,
 } from "./graft-sdk-module"
 import { startEncryptedSyncTestServer } from "./encrypted-sync-test-server"
-import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftEncryptedInput,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import type * as SyncEncryption from "../../shared/sync-encryption"
 
 // Only the official-origin allowlist is replaced for this loopback fixture.
@@ -80,7 +83,7 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     return result
   }
   try {
-    expect(sdk.sdkVersion()).toBe("0.3.32")
+    expect(sdk.sdkVersion()).toBe("0.3.33")
     await fs.mkdir(spaceA)
     await fs.mkdir(spaceB)
     const fixture = path.resolve(
@@ -106,7 +109,20 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     await initial.close()
     const aHost = host()
     const aInput = credentials("device-A")
-    const a = await aHost.connect(spaceA, aInput, "initialize")
+    const uploadProgress: GraftTransferProgress[] = []
+    const a = await aHost.connect(spaceA, aInput, "initialize", {
+      onProgress: (event) => uploadProgress.push(event),
+    })
+    expect(
+      uploadProgress.some(
+        (event) => event.direction === "upload" && event.transferredBytes > 0
+      )
+    ).toBe(true)
+    expect(
+      uploadProgress.every(
+        (event) => !event.totalIsFinal && event.totalBytes === undefined
+      )
+    ).toBe(true)
     sessions.push(a)
     expect(aInput.password.every((byte) => byte === 0)).toBe(true)
     const bHost = host()
@@ -116,7 +132,20 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     })
     expect(wrong.password.every((byte) => byte === 0)).toBe(true)
     expect(await fs.readdir(spaceB)).toEqual([])
-    const b = await bHost.connect(spaceB, credentials("device-B"), "clone")
+    const downloadProgress: GraftTransferProgress[] = []
+    const b = await bHost.connect(spaceB, credentials("device-B"), "clone", {
+      onProgress: (event) => downloadProgress.push(event),
+    })
+    expect(
+      downloadProgress.some(
+        (event) => event.direction === "download" && event.transferredBytes > 0
+      )
+    ).toBe(true)
+    expect(
+      downloadProgress.every(
+        (event) => !event.totalIsFinal && event.totalBytes === undefined
+      )
+    ).toBe(true)
     sessions.push(b)
     for (const name of ["notes.txt", "attachment.bin"])
       expect(await fs.readFile(path.join(spaceB, name))).toEqual(
