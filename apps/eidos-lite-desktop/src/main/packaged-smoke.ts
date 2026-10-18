@@ -1694,51 +1694,55 @@ const rendererProbe = `
     )
   }
   window.__eidosLiteSmokeStep = "text file editor"
-  await window.eidosLite.updatePreferences({ markdownFileEditingMode: "source" })
+  // Preference IPC completion does not acknowledge a React render. Open each
+  // fixture explicitly in Source mode instead of racing its default mode.
+  const openSourceFile = async (relativePath) => {
+    const item = await revealTreeItem(relativePath)
+    const rect = item.getBoundingClientRect()
+    item.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      composed: true,
+      button: 2,
+      clientX: rect.left + 4,
+      clientY: rect.top + 4,
+    }))
+    const openWith = await waitFor(
+      () => [...document.querySelectorAll('.space-context-menu [role="menuitem"]')]
+        .find((candidate) => candidate.textContent?.trim().startsWith("Open with")),
+      relativePath + " Open with menu"
+    )
+    openWith.click()
+    const source = await waitFor(
+      () => [...document.querySelectorAll('.space-context-menu-submenu [role="menuitem"]')]
+        .find((candidate) => candidate.textContent?.trim() === "Source"),
+      relativePath + " Source action"
+    )
+    source.click()
+    return waitFor(
+      () => [...document.querySelectorAll("[data-text-file-editor]")]
+        .find((candidate) => candidate.getAttribute("data-text-file-editor") === relativePath)
+        ?.querySelector('[data-markdown-editing-mode="source"]'),
+      relativePath + " selected Source mode"
+    )
+  }
   const readmePreview = await window.eidosLite.previewTextFile("README.md")
   if (readmePreview.type !== "text" || readmePreview.truncated) {
     throw new Error("README text preview is not editable")
   }
-  const readmeItem = await revealTreeItem("README.md")
-  readmeItem.click()
-  const readmeSurface = await waitFor(
-    () =>
-      document.querySelector('[data-text-file-editor="README.md"]') ??
-      document.querySelector('[data-document-file-preview="README.md"]'),
-    "README text surface"
-  )
-  if (readmeSurface.hasAttribute("data-document-file-preview")) {
-    const editMode = await waitFor(
-      () =>
-        document.querySelector(
-          '[data-document-file-preview="README.md"] [data-document-preview-mode="edit"]'
-        ),
-      "README edit action"
-    )
-    editMode.click()
-  }
-  const textEditorSurface = await waitFor(
-    () => document.querySelector('[data-text-file-editor="README.md"]'),
-    "README text editor"
-  )
+  const textEditorSurface = await openSourceFile("README.md")
   const pierreEditor = await waitFor(() => {
-    const surface = textEditorSurface.querySelector(
-      ".text-file-editor-virtualizer"
+    const surface = document.querySelector(
+      '[data-text-file-editor="README.md"] [data-markdown-editing-mode="source"] .text-file-editor-virtualizer'
     )
     if (!surface) return false
     return [...surface.querySelectorAll("*")].some((candidate) =>
       candidate.shadowRoot?.querySelector('[contenteditable="true"]')
     )
   }, "Pierre editable text surface")
-  const emptyItem = await revealTreeItem("Empty.md")
-  emptyItem.click()
-  const emptyEditorSurface = await waitFor(
-    () => document.querySelector('[data-text-file-editor="Empty.md"]'),
-    "empty Markdown editor"
-  )
+  await openSourceFile("Empty.md")
   const emptyEditable = await waitFor(() => {
-    const surface = emptyEditorSurface.querySelector(
-      ".text-file-editor-virtualizer"
+    const surface = document.querySelector(
+      '[data-text-file-editor="Empty.md"] [data-markdown-editing-mode="source"] .text-file-editor-virtualizer'
     )
     if (!surface) return false
     for (const candidate of surface.querySelectorAll("*")) {
