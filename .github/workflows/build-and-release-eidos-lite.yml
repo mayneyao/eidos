@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   actions: read
+  pull-requests: read
 
 concurrency:
   group: eidos-lite-release-${{ github.ref_name }}
@@ -23,6 +24,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Require a merged release PR and check major regressions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/eidos-lite-desktop/scripts/lite-performance-report.mjs guard
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -387,6 +393,11 @@ jobs:
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
+
+      - name: Recheck the release PR before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/eidos-lite-desktop/scripts/lite-performance-report.mjs guard
 
       - name: Download platform assets
         uses: actions/download-artifact@v4

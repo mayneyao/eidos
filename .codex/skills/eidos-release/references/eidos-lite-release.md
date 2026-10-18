@@ -40,6 +40,23 @@ Before changing the version, read
 
 ## Prepare and validate
 
+Use a release PR for every Lite version. Include the version, exact published
+dependencies and both release-note languages in that PR. Run focused tests for
+the changes and rely on Desktop Gates for the full functional matrix. Do not
+manually repeat the same full suite or build signed candidates for each CI-only
+iteration. Use signed candidates only to investigate a concrete package issue.
+
+Performance is independent of publishing. `eidos-lite-performance.yml` consumes
+the PR's retained apps, measures each architecture once, and comments the
+metrics and comparison on that PR. It reads the previous published Lite
+release's merged PR for the baseline. Only a same-runner, same-architecture
+regression of at least 2× plus 1000 ms startup or 500 ms utility-open P95 / first
+frame blocks release. Missing or incompatible baselines establish a new one;
+missing measurements are reported as unavailable. Preserve failures and do not
+rerun to obtain a better number. Small or absolute-budget-only overruns belong
+in the report, not on the release critical path. An unavailable rerun must not
+clear a known major regression for the same commit.
+
 Require a clean worktree for version preparation. Update the exact base version
 in `apps/eidos-lite-desktop/package.json`, refresh `pnpm-lock.yaml`, rewrite the
 Lite release notes, and commit the preparation coherently.
@@ -131,14 +148,16 @@ stale-version, duplicated, or unsupported notes as a release blocker. The
 script detects structural and near-copy duplication; the human review must
 also reject semantic restatements.
 
-Run the focused gates:
+The commands below are the validation surfaces, not a requirement to execute
+all of them locally and again in CI. Run the subset relevant to the changes;
+reuse the PR's successful source/native/packaged results. Performance runs once
+in its independent workflow and is retained in the PR comments.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm --filter @eidos.space/eidos-file test:node-sqlite
 pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 pnpm test:eidos-lite
-pnpm test:eidos-lite:performance
 node --test apps/download/src/release-routing.test.mjs
 pnpm --filter @eidos.space/eidos-lite-desktop build:release
 pnpm build:eidos-lite:dev
@@ -164,8 +183,9 @@ its own release history.
 
 ## Tag and monitor
 
-Require the version commit on the intended remote and prove the tag is absent,
-then create one lightweight tag:
+Read the PR performance comment; address an actual major regression without
+repeated sampling. Merge the release PR, check out its exact merge commit on the
+intended remote, prove the tag is absent, then create one lightweight tag:
 
 ```bash
 git tag lite-v<version>
@@ -175,7 +195,8 @@ gh run watch <run-id> --exit-status
 ```
 
 Do not manually create a duplicate GitHub Release. The workflow verifies the
-tag/base-version contract, builds signed and notarized macOS packages plus
+merged-PR association, major-regression result and tag/base-version contract,
+builds signed and notarized macOS packages plus
 explicitly unsigned Windows/Linux packages, deploys the update router,
 normalizes update metadata, writes `SHA256SUMS`, audits the notes against recent
 Lite tags, and publishes the Release with the committed curated body in the

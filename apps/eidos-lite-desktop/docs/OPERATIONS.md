@@ -51,8 +51,8 @@ the command, keeping obsolete hashes and test code out of `app.asar`.
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and
 `macos-15-intel`. Each architecture runs a fresh-package functional pass and
-records one separate performance report from the retained artifact. Latency
-reference budgets remain visible in that report; overruns do not block release.
+retains its exact artifact. The separate `eidos-lite-performance.yml` workflow
+measures it once and comments on the PR; ordinary latency overruns do not block release.
 The workflow has read-only repository permissions and no signing, release, or
 production-service step. A manual run with `retain_staging_packages=true`
 retains both macOS staging apps for three days after verifying registry-only
@@ -262,27 +262,36 @@ latency overruns are reported and do not block publication. Linux runs the compl
 inside a session D-Bus and Xvfb; Windows runs the same pass on the hosted runner.
 Both record the contract timings, but their software or non-representative
 hosted graphics paths are not treated as end-user UI performance evidence. This
-beta gate does not replace the repeated clean-machine P95 evidence required for
-Public v1 on every supported platform.
+single measurement is engineering evidence, not a performance SLA.
 
-Desktop Gates can record one macOS performance report per architecture on
-separate ephemeral machines, with indexing disabled before setup. The workflow
+The independent performance workflow records one macOS report per architecture
+on separate ephemeral machines, with indexing disabled before setup. It
 extracts the retained build, verifies its source and hashes for staging or its
 signature and notarization for production, and never rebuilds it on the
 measurement machine. This report is separate from the tagged release workflow:
-publication requires functional, security, signing and installer validation,
-and does not wait for repeated performance samples or a performance report job.
+publication requires functional, security, signing and installer validation.
+It checks the merged PR's performance comment before building and again before
+publishing. Only a recorded major regression blocks publication: the same
+architecture and runner must show at least a 2× increase and at least 1000 ms
+additional startup time, or 500 ms for utility-open P95 or first frame. The
+previous published Lite release's merged PR provides the baseline. Missing or
+incompatible baseline data is explicitly reported and establishes a new baseline.
+Missing measurements are marked unavailable; they do not erase an existing
+major-regression result for the same commit. Source workload checks run in the
+performance workflow too, with their outcomes retained as reference observations.
 
 Before creating an immutable release tag, the Desktop Gates workflow can also
 build actual signed and notarized production candidates on both Mac
 architectures. Dispatch it on the intended source branch with
-`signed_mac_candidates=true`. This mode uses the normal release build, records
-one performance report, and verifies the signed
+`signed_mac_candidates=true`. This diagnostic mode uses the normal release build
+and verifies the signed
 DMG through installation, upgrade, rollback, and reinstallation. It retains
 candidate packages and measurements for diagnosis.
 These artifacts do not create a tag, GitHub Release, deployment, or update-feed
 entry. An unsigned staging result is not a substitute for this signed-candidate
 check when investigating a production-package startup failure.
+Do not rebuild signed candidates for every release or for CI-only edits; the
+tagged publisher performs the actual signature and installer checks once.
 
 The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
 actual signed DMG, NSIS installer, or Debian package. It verifies the published

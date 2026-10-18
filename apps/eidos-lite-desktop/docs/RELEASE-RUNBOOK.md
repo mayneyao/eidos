@@ -1,7 +1,7 @@
 # Eidos Lite install, upgrade, and rollback runbook
 
 This runbook describes the public-release procedure but does not authorize a
-release. The current local artifact is unsigned and staging-bound. A pushed
+release. Unpublished local artifacts are verification evidence only. A pushed
 `lite-v*` tag is the explicit production release action: it runs the isolated
 Lite workflow, deploys the update router, builds the update-enabled production
 application, signs and notarizes macOS, publishes explicitly unsigned Windows
@@ -47,10 +47,19 @@ must pass `codesign` verification and stapler validation. Windows and Linux are
 published unsigned; the Windows job requires Authenticode status `NotSigned`
 before its artifacts can reach the Release job.
 
-Before tagging, use a clean branch whose complete intended commits are pushed,
-then run the Lite source/type gates, download routing tests, and the unsigned
-packaged smoke. Confirm the target tag is absent locally and remotely. After
-approval, create one lightweight tag and push the branch plus tag. Monitor
+Prepare every Lite release through a PR containing the version, dependency
+changes and both release-note languages. Reuse that PR's functional CI results;
+run focused local tests for the changed code instead of repeating the full CI
+matrix locally. The independent performance workflow comments one measurement
+per architecture and compares it with the previous release's PR. Ordinary
+absolute-budget overruns are observations; only the documented major relative
+regression blocks release. Do not rerun measurements to chase a green result.
+
+After merging the PR, require a clean checkout of its exact merge commit and
+confirm the target tag is absent locally and remotely. With existing release
+authorization, create one lightweight tag on that merge commit and push it. The
+publisher rejects tags without an associated merged PR and rechecks its major
+regression result immediately before publication. Monitor
 `build-and-release-eidos-lite.yml` through all five platform/architecture jobs,
 the Worker deployment, and the final Release job.
 

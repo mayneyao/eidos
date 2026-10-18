@@ -9,6 +9,12 @@ on:
       staging-artifacts:
         type: boolean
         default: false
+      artifact-run-id:
+        type: number
+        default: 0
+      source-head:
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -43,6 +49,9 @@ jobs:
 
       - name: Checkout tested source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source-head || github.sha }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,9 +63,6 @@ jobs:
         with:
           install: false
 
-      - name: Install test dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Resolve this run's candidate
         id: candidate
         if: inputs.candidate-artifacts || inputs.staging-artifacts
@@ -65,19 +71,20 @@ jobs:
           CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
           STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
           SIGNED_CANDIDATE_ARTIFACTS: ${{ inputs.candidate-artifacts }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact-run-id || github.run_id }}
         with:
           result-encoding: string
           script: |
             const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              run_id: context.runId,
+              run_id: Number(process.env.ARTIFACT_RUN_ID),
             })
             if (process.env.STAGING_ARTIFACTS === 'true' && process.env.SIGNED_CANDIDATE_ARTIFACTS === 'true') {
               throw new Error('Signed and staging candidates are mutually exclusive')
             }
             const kind = process.env.STAGING_ARTIFACTS === 'true' ? 'eidos-lite-staging-macos' : 'lite-signed-candidate'
-            const prefix = `${kind}-${process.env.CANDIDATE_ARCHITECTURE}-${context.runId}-`
+            const prefix = `${kind}-${process.env.CANDIDATE_ARCHITECTURE}-${process.env.ARTIFACT_RUN_ID}-`
             const artifact = artifacts.filter(item => !item.expired && item.name.startsWith(prefix))
               .sort((a, b) => b.id - a.id)[0]
             if (!artifact) throw new Error(`Missing candidate for ${prefix}`)
@@ -88,6 +95,8 @@ jobs:
         with:
           name: ${{ (inputs.candidate-artifacts || inputs.staging-artifacts) && steps.candidate.outputs.result || format('lite-mac-{0}', matrix.architecture) }}
           path: ${{ runner.temp }}/macos-distribution
+          run-id: ${{ inputs.artifact-run-id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Extract and verify the distribution
         shell: bash
@@ -95,6 +104,7 @@ jobs:
           ARCHITECTURE: ${{ matrix.architecture }}
           CANDIDATE_ARCHITECTURE: ${{ matrix.candidate-name }}
           STAGING_ARTIFACTS: ${{ inputs.staging-artifacts }}
+          EXPECTED_SOURCE_HEAD: ${{ inputs.source-head || github.sha }}
         run: |
           set -euo pipefail
           distribution="$RUNNER_TEMP/macos-distribution"
@@ -111,8 +121,16 @@ jobs:
           application="$RUNNER_TEMP/macos-performance-install/Eidos Lite.app"
           if [ "$STAGING_ARTIFACTS" = true ]; then
             python3 - "$distribution/identity.json" "$archive" "$application" <<'PY'
-          import hashlib, json, os, pathlib, subprocess, sys
+          import hashlib, json, os, pathlib, re, subprocess, sys
           identity = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          source = identity["sourceCommit"]
+          expected_head = os.environ["EXPECTED_SOURCE_HEAD"]
+          assert re.fullmatch(r"[a-f0-9]{40}", source)
+          if source != subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip():
+              subprocess.run(["git", "fetch", "--no-tags", "--depth=2", "origin", source], check=True)
+              parents = subprocess.check_output(["git", "show", "-s", "--format=%P", source], text=True).split()
+              assert source == expected_head or expected_head in parents
+              subprocess.run(["git", "checkout", "--detach", source], check=True)
           archive, application = map(pathlib.Path, sys.argv[2:])
           def digest(filename):
               value = hashlib.sha256()
@@ -144,6 +162,9 @@ jobs:
             > "$RUNNER_TEMP/macos-performance-evidence/SHA256SUMS"
           git rev-parse HEAD > "$RUNNER_TEMP/macos-performance-evidence/source-commit.txt"
 
+      - name: Install measurement dependencies
+        run: pnpm install --frozen-lockfile
+
       # Measuring on a separate runner keeps sustained Rust compilation and
       # packaging pressure out of the existing end-to-end startup budget. The
       # app is extracted from the exact build artifact, never rebuilt here.
@@ -157,6 +178,17 @@ jobs:
           sysctl vm.loadavg
           memory_pressure -Q
           pnpm smoke:eidos-lite-packaged | tee "$RUNNER_TEMP/macos-performance-evidence/fresh-launch.log"
+
+      - name: Extract measurement data
+        env:
+          PERF_HEAD_SHA: ${{ inputs.source-head || github.sha }}
+          PERF_RUNNER: ${{ matrix.runner }}
+          PERF_ARCH: ${{ matrix.architecture }}
+          PERF_VARIANT: ${{ inputs.staging-artifacts && 'staging' || 'production' }}
+        run: >-
+          node apps/eidos-lite-desktop/scripts/lite-performance-report.mjs extract
+          "${{ runner.temp }}/macos-performance-evidence/fresh-launch.log"
+          "${{ runner.temp }}/macos-performance-evidence/result.json"
 
       - name: Retain measurements and runner load
         if: always()
