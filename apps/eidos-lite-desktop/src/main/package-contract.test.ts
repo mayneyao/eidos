@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
+import { parse } from "yaml"
 
 const appRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -434,9 +435,61 @@ describe("Eidos Lite package identity", () => {
     expect(packagedSmoke).toContain('"publish-engine"')
     expect(packagedSmoke).toContain('["publish", "collect"]')
     expect(workflow).toContain("EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe")
-    expect(workflow).toMatch(
-      /name: Enforce packaged macOS release performance\n\s+if: matrix\.platform == 'mac'/
+    const releaseJobs = (
+      parse(workflow) as {
+        jobs: Record<string, { needs?: string | string[]; uses?: string }>
+      }
+    ).jobs
+    expect(releaseJobs["macos-performance"]).toMatchObject({
+      needs: "build",
+      uses: "./.github/workflows/eidos-lite-macos-performance.yml",
+    })
+    expect(releaseJobs.release.needs).toContain("macos-performance")
+    const installedPerformance = parse(
+      await fs.readFile(
+        path.resolve(
+          appRoot,
+          "../../.github/workflows/eidos-lite-macos-performance.yml"
+        ),
+        "utf8"
+      )
+    ) as {
+      jobs: Record<
+        string,
+        {
+          strategy: {
+            matrix: { include: { architecture: string; runner: string }[] }
+          }
+          steps: {
+            name: string
+            if?: string
+            run?: string
+            env?: Record<string, string>
+            "continue-on-error"?: boolean
+          }[]
+        }
+      >
+    }
+    const performanceJob = installedPerformance.jobs["installed-performance"]
+    expect(performanceJob.strategy.matrix.include).toEqual([
+      expect.objectContaining({ architecture: "arm64", runner: "macos-15" }),
+      expect.objectContaining({
+        architecture: "x64",
+        runner: "macos-15-intel",
+      }),
+    ])
+    const enforcement = performanceJob.steps.find(
+      (step) => step.name === "Enforce all three existing performance samples"
     )
+    expect(enforcement?.run).toContain("set -euo pipefail")
+    expect(enforcement?.run).toContain("for sample in 1 2 3; do")
+    expect(enforcement?.run).toContain("pnpm smoke:eidos-lite-packaged")
+    expect(enforcement?.env).toEqual({
+      EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: "production",
+      EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: "enforce",
+    })
+    expect(enforcement?.if).toBeUndefined()
+    expect(enforcement?.["continue-on-error"]).toBeUndefined()
     expect(workflow).not.toContain("Enforce packaged release performance")
     expect(workflow).not.toContain("Enforce packaged Linux release performance")
     expect(workflow).toContain("dbus-run-session -- xvfb-run")

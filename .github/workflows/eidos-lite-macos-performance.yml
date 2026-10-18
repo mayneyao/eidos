@@ -110,6 +110,7 @@ jobs:
       - name: Enforce all three existing performance samples
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: enforce
         shell: bash
         run: |
           set -euo pipefail
