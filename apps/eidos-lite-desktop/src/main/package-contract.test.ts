@@ -330,19 +330,30 @@ describe("Eidos Lite package identity", () => {
         >
       }
     ).jobs
-    expect(jobs["macos-performance"]).toMatchObject({
-      needs: "packaged-macos",
-      uses: "./.github/workflows/eidos-lite-macos-performance.yml",
-      with: {
-        "candidate-artifacts": "${{ inputs.signed_mac_candidates == true }}",
-        "staging-artifacts": "${{ inputs.signed_mac_candidates != true }}",
-      },
-    })
+    expect(jobs["macos-performance"]).toBeUndefined()
     expect(workflow).not.toContain("name: Enforce packaged performance")
     expect(workflow).toContain(
       "if: ${{ steps.staging-archive.outcome == 'success' }}"
     )
-    expect(workflow).toContain("test:performance")
+    expect(workflow).not.toContain("test:performance")
+    const performanceWorkflow = await fs.readFile(
+      path.resolve(
+        appRoot,
+        "../../.github/workflows/eidos-lite-performance.yml"
+      ),
+      "utf8"
+    )
+    expect(performanceWorkflow).toContain(
+      'workflows: ["Eidos Lite Desktop Gates"]'
+    )
+    expect(performanceWorkflow).toContain("test:performance")
+    expect(performanceWorkflow).toContain("lite-performance-report.mjs comment")
+    expect(performanceWorkflow).toContain(
+      "ref: ${{ github.event.repository.default_branch }}"
+    )
+    expect(performanceWorkflow).toContain(
+      "run.head_repository.id !== context.payload.repository.id"
+    )
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
 
@@ -461,6 +472,7 @@ describe("Eidos Lite package identity", () => {
     ).jobs
     expect(releaseJobs["macos-performance"]).toBeUndefined()
     expect(releaseJobs.release.needs).toEqual(["build", "deploy-update-router"])
+    expect(workflow.match(/lite-performance-report.mjs guard/g)).toHaveLength(2)
     const installedPerformance = parse(
       await fs.readFile(
         path.resolve(

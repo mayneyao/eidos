@@ -11,19 +11,6 @@ on:
         description: "Verify production candidates, including signed macOS and Windows installers; never publish"
         type: boolean
         default: false
-  push:
-    branches:
-      - dev
-    paths:
-      - ".github/workflows/eidos-lite-desktop-gates.yml"
-      - ".github/workflows/eidos-lite-macos-performance.yml"
-      - "apps/eidos-lite-desktop/**"
-      - "apps/eidos-file-web/fixtures/**"
-      - "packages/eidos-file/**"
-      - "packages/eidos-file-ui/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
@@ -201,16 +188,13 @@ jobs:
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 
       - name: Test Graft release dependency and packaging guards
-        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs apps/eidos-lite-desktop/scripts/electron-builder-config.test.mjs
+        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs apps/eidos-lite-desktop/scripts/electron-builder-config.test.mjs apps/eidos-lite-desktop/scripts/lite-performance-report.test.mjs
 
       - name: Test node:sqlite EA-Connection contract
         run: pnpm --filter @eidos.space/eidos-file test:node-sqlite
 
       - name: Test source and real Graft SDK
         run: pnpm test:eidos-lite
-
-      - name: Run explicit performance load gate
-        run: pnpm --filter @eidos.space/eidos-lite-desktop test:performance
 
   packaged-macos:
     name: Packaged smoke (${{ matrix.architecture }})
@@ -408,11 +392,3 @@ jobs:
           path: ${{ runner.temp }}/lite-staging-package
           if-no-files-found: error
           retention-days: ${{ inputs.retain_staging_packages && 3 || 1 }}
-
-  macos-performance:
-    name: Distribution performance
-    needs: packaged-macos
-    uses: ./.github/workflows/eidos-lite-macos-performance.yml
-    with:
-      candidate-artifacts: ${{ inputs.signed_mac_candidates == true }}
-      staging-artifacts: ${{ inputs.signed_mac_candidates != true }}

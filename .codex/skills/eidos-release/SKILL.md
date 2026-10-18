@@ -88,7 +88,14 @@ Do not conflate version namespaces or publishers:
 - Read root and applicable nested `AGENTS.md` files first.
 - Preserve unrelated user changes. Do not stage, format, stash, revert, or
   commit them.
-- Never weaken tests or compatibility assertions to make a release green.
+- Keep functional, security, data-preservation and compatibility checks required.
+  Lite performance follows its documented PR comparison policy: measure once,
+  record the result on the PR, and block only a major relative regression.
+  Do not chase an absolute-budget fluctuation through repeated builds or reruns.
+- Release Lite through a merged PR. Reuse its completed CI evidence; avoid
+  repeating the same source suite, candidate build and final release build
+  locally. CI-only or documentation edits do not invalidate unchanged runtime
+  acceptance. The tagged publisher still verifies the final distributed package.
 - Require the intended branch commit to exist on the remote before tagging.
 - Use lightweight tags and never move a distributed tag.
 - For tagged releases, require a curated, non-empty, surface-specific release
