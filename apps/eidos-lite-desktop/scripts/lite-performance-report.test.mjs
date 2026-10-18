@@ -102,6 +102,23 @@ test("first measurements and different runners establish a new baseline", () => 
   )
 })
 
+test("unsigned staging and signed production establish separate baselines", () => {
+  const current = measurement({ denseGridFirstFrameMs: 1247 })
+  const previous = {
+    ...measurement({ denseGridFirstFrameMs: 487.8 }),
+    variant: "production",
+  }
+  const result = compareMeasurements([current], [previous])
+  assert.equal(result.major.length, 0)
+  assert.ok(result.rows.every((row) => row.before === null))
+  const sameVariant = compareMeasurements(
+    [current],
+    [{ ...previous, variant: "staging" }]
+  )
+  assert.equal(sameVariant.major.length, 1)
+  assert.equal(sameVariant.major[0].metric, "denseGridFirstFrameMs")
+})
+
 test("untrusted artifacts cannot inject fields or non-finite measurements", () => {
   assert.throws(() => validateMeasurement(measurement({ coldStartMs: -1 })))
   assert.throws(() =>

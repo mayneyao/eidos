@@ -49,7 +49,9 @@ iteration. Use signed candidates only to investigate a concrete package issue.
 Performance is independent of publishing. `eidos-lite-performance.yml` consumes
 the PR's retained apps, measures each architecture once, and comments the
 metrics and comparison on that PR. It reads the previous published Lite
-release's merged PR for the baseline. Only a same-runner, same-architecture
+release's merged PR for the baseline. Compare the same build variant: unsigned
+staging and signed production packages establish separate baselines. Only a
+same-variant, same-runner, same-architecture
 regression of at least 2× plus 1000 ms startup or 500 ms utility-open P95 / first
 frame blocks release. Missing or incompatible baselines establish a new one;
 missing measurements are reported as unavailable. Preserve failures and do not
