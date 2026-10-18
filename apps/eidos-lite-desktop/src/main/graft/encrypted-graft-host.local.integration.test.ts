@@ -2,6 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
 import {
   loadEidosGraftSdk,
@@ -29,6 +30,16 @@ vi.mock("../../shared/sync-encryption", async (importOriginal) => {
     },
   }
 })
+
+function stableDatabaseContent(bytes: Buffer): Buffer {
+  expect(bytes.subarray(0, 16).toString()).toBe("SQLite format 3\0")
+  const content = Buffer.from(bytes)
+  // Match Graft's sqlite_page_bytes_equal: online backup may rewrite the
+  // change counter, schema cookie, version-valid-for counter and writer version.
+  // Every other header byte and every database page must remain identical.
+  for (const offset of [24, 40, 92, 96]) content.fill(0, offset, offset + 4)
+  return content
+}
 
 it("runs native encrypted enrollment, wrong password, two-way sync, restart and same-folder reconnection", async () => {
   const root = await fs.realpath(
@@ -107,10 +118,28 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     expect(await fs.readdir(spaceB)).toEqual([])
     const b = await bHost.connect(spaceB, credentials("device-B"), "clone")
     sessions.push(b)
-    for (const name of ["records.eidos", "notes.txt", "attachment.bin"])
+    for (const name of ["notes.txt", "attachment.bin"])
       expect(await fs.readFile(path.join(spaceB, name))).toEqual(
         await fs.readFile(path.join(spaceA, name))
       )
+    expect(
+      stableDatabaseContent(
+        await fs.readFile(path.join(spaceB, "records.eidos"))
+      )
+    ).toEqual(
+      stableDatabaseContent(
+        await fs.readFile(path.join(spaceA, "records.eidos"))
+      )
+    )
+    const clonedFile = openEidosFile(path.join(spaceB, "records.eidos"), {
+      readonly: true,
+    })
+    try {
+      expect(clonedFile.info().formatVersion).toBe("1.0")
+      expect(clonedFile.listTables().length).toBeGreaterThan(0)
+    } finally {
+      clonedFile.close()
+    }
     expect(
       (await b.historySummaries()).commits.map((commit) => commit.id)
     ).toEqual(originalHistory)
