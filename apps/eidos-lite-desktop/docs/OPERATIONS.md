@@ -295,10 +295,10 @@ tagged publisher performs the actual signature and installer checks once.
 
 The release additionally runs `scripts/installed-upgrade-smoke.mjs` with the
 actual signed DMG, NSIS installer, or Debian package. It verifies the published
-0.24.2 installer against its public SHA-256, installs it, opens root and nested
+0.25.0 installer against its public SHA-256, installs it, opens root and nested
 Eidos Files, creates Local history, and records file hashes and preferences.
 The same ordinary Space and profile then pass candidate installation, a new
-candidate checkpoint, binary rollback to 0.24.2, and candidate reinstallation.
+candidate checkpoint, binary rollback to 0.25.0, and candidate reinstallation.
 Every replacement requires the prior application to exit cleanly. Version and
 environment assertions use the installed application's diagnostics over a
 loopback-only debugging connection; schema, history, preferences and ordinary
@@ -346,7 +346,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.32`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.33`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -359,6 +359,13 @@ state, including protected Windows DACLs. It binds the intended branch and commi
 before publishing the initial encryption configuration; retry restores that
 retained intent rather than adopting a newer HEAD. Windows supports explicit
 password sessions; remembered/default sync passwords remain unavailable there.
+
+Encrypted initial upload, clone and later transfers report actual body-byte
+progress and transfer speed. Aggregate bundles and multipart parts use the same
+callback. Encrypted totals remain indeterminate: plaintext checkout budgets do
+not establish a ciphertext denominator. Do not display a percentage or estimated
+remaining time until the SDK provides a final total. New operations reset their
+counters, and cancellation suppresses late progress from a revoked host session.
 
 The release workflow runs the actual encrypted host against a loopback HTTP
 Remote on every build platform, covering enrollment, wrong-password rejection,

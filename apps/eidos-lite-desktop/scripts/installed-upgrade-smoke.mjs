@@ -30,7 +30,7 @@ assert.ok(
   process.platform === "darwin" || process.env.CI === "true",
   "Windows/Linux installation acceptance requires a disposable CI runner"
 )
-const previousTag = args["previous-tag"] ?? "lite-v0.24.2"
+const previousTag = args["previous-tag"] ?? "lite-v0.25.0"
 const tagVersion = (tag) => {
   assert.match(tag, /^lite-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/u)
   return tag.slice("lite-v".length)

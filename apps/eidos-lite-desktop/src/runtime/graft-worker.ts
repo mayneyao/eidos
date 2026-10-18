@@ -166,7 +166,7 @@ async function runCommand(
           : command === "cloneEncryptedSync"
             ? "clone"
             : "unlock",
-        { signal }
+        { signal, onProgress }
       )
     } catch (error) {
       session = await RepositorySession.open(sessionRoot)

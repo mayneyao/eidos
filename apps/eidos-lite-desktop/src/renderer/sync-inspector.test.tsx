@@ -21,6 +21,52 @@ const base: SyncInspectorState = {
   checking: false,
 }
 describe("Sync inspector B", () => {
+  it("shows encrypted transfer bytes and speed without implying a final total", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            busy: true,
+            progress: {
+              runId: "encrypted-upload",
+              operation: "sync",
+              state: "active",
+              phase: "push",
+              detail: "Uploading",
+              startedAtMs: 0,
+              phaseStartedAtMs: 0,
+              elapsedMs: 500,
+              transfer: {
+                direction: "upload",
+                transferredBytes: 2097152,
+                totalBytes: null,
+                bytesPerSecond: 1048576,
+                estimatedRemainingMs: null,
+              },
+            },
+          }}
+          spaceKey="encrypted-progress"
+          onClose={() => {}}
+          onAction={() => {}}
+          onRetry={() => {}}
+          onAccount={() => {}}
+        />
+      )
+    )
+    expect(host.querySelector("progress")?.hasAttribute("value")).toBe(false)
+    expect(
+      host.querySelector(".sync-inspector-transfer")?.textContent
+    ).toContain("2.0 MiB · 1.0 MiB/s")
+    await act(async () => root.unmount())
+  })
   it("localizes the failure title, explanation and recovery action", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     Object.defineProperty(window, "eidosLite", {

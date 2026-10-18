@@ -101,6 +101,27 @@ describe("Graft worker encrypted session transitions", () => {
     else Reflect.deleteProperty(process, "parentPort")
   })
 
+  it.each(["initializeEncryptedSync", "cloneEncryptedSync"])(
+    "forwards real transfer samples for %s with the active request ID",
+    async (operation) => {
+      const id = command(operation)
+      await vi.waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce())
+      const transfer = {
+        direction: "download",
+        transferredBytes: 4096,
+        totalIsFinal: false,
+      }
+      mocks.connect.mock.calls[0][3].onProgress(transfer)
+      expect(responses).toContainEqual({
+        type: "progress",
+        requestId: id,
+        progress: transfer,
+      })
+      finish(newRepository)
+      await vi.waitFor(() => expect(response(id)?.ok).toBe(true))
+    }
+  )
+
   it("waits for encrypted session replacement before servicing concurrent metadata reads", async () => {
     const unlock = command("unlockEncryptedSync")
     await vi.waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce())

@@ -61,22 +61,22 @@ describe("GraftClient", () => {
   })
 
   it.each(["", "/tmp/eidos-local-graft-sdk"])(
-    "accepts SDK 0.3.32 and rejects older builds (override=%s)",
+    "accepts SDK 0.3.33 and rejects older builds (override=%s)",
     async (sdkPath) => {
       vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
       const command = vi
         .fn()
         .mockResolvedValueOnce("0.3.31")
-        .mockResolvedValue("0.3.32")
+        .mockResolvedValue("0.3.33")
       const client = new GraftClient({
         sdkTransport: { ...createUnusedTransport(), command },
       })
       try {
         await expect(client.version()).rejects.toThrow(
-          "Graft 0.3.32 is required; found 0.3.31"
+          "Graft 0.3.33 is required; found 0.3.31"
         )
-        await expect(client.version()).resolves.toBe("0.3.32")
-        await expect(client.version()).resolves.toBe("0.3.32")
+        await expect(client.version()).resolves.toBe("0.3.33")
+        await expect(client.version()).resolves.toBe("0.3.33")
         expect(command).toHaveBeenCalledTimes(2)
         expect(command).toHaveBeenCalledWith("sdkVersion")
       } finally {
@@ -725,11 +725,32 @@ describe("GraftClient", () => {
         signal: controller.signal,
         onProgress,
       })
+      const input = {
+        connection: {
+          url: "https://sync-staging.eidos.space/u-test/space",
+          uuid: "00010203-0405-4607-8809-0a0b0c0d0e0f",
+          authenticationDomain: "https://staging.eidos.space",
+          accountSubject: "synthetic-user",
+          bearerToken: "synthetic-token",
+          stateDirectory: path.join(root, "private"),
+        },
+        password: Buffer.from("synthetic sync password"),
+      }
+      await client.encryptedSync(root, "initialize", input, {
+        signal: controller.signal,
+        onProgress,
+      })
+      expect(input.password.every((byte) => byte === 0)).toBe(true)
 
       expect(requests).toEqual([
         { command: "fetch", signal: controller.signal, onProgress },
         { command: "pull", signal: controller.signal, onProgress },
         { command: "push", signal: controller.signal, onProgress },
+        {
+          command: "initializeEncryptedSync",
+          signal: controller.signal,
+          onProgress,
+        },
       ])
     } finally {
       await fs.rm(root, { recursive: true, force: true })

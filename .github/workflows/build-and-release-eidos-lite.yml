@@ -335,11 +335,11 @@ jobs:
           if [[ '${{ matrix.platform }}' == linux ]]; then
             dbus-run-session -- xvfb-run --auto-servernum \
               node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-              --previous-tag=lite-v0.24.2 "--candidate=$installer" \
+              --previous-tag=lite-v0.25.0 "--candidate=$installer" \
               "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
           else
             node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-              --previous-tag=lite-v0.24.2 "--candidate=$installer" \
+              --previous-tag=lite-v0.25.0 "--candidate=$installer" \
               "--version=${TAG#lite-v}" "--evidence=$EVIDENCE"
           fi
 
