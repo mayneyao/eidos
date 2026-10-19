@@ -122,6 +122,7 @@ import {
   listSpaceDirectory,
   listSpaceTree,
   normalizeMutableRelativePath,
+  normalizeVersionRelativePath,
   normalizeSpaceEntryName,
   resolveSpaceDirectory,
   resolveSpacePath,
@@ -2188,7 +2189,7 @@ export class SpaceSession {
     message?: string,
     paths?: string[]
   ): Promise<SpaceSnapshot> {
-    const selected = paths?.map((path) => normalizeMutableRelativePath(path))
+    const selected = paths?.map(normalizeVersionRelativePath)
     if (selected && selected.length === 0)
       throw new Error("Select at least one file")
     const normalizedMessage = message?.trim() || "Eidos Lite local checkpoint"
@@ -3555,7 +3556,7 @@ export class SpaceSession {
 
   async getFileHistory(relativePath: string, cursor?: string) {
     await this.requireInitializedVersioning()
-    const safePath = normalizeMutableRelativePath(relativePath)
+    const safePath = normalizeVersionRelativePath(relativePath)
     return this.withVersionRead(
       "file-history",
       "Reading file history",
@@ -3637,7 +3638,7 @@ export class SpaceSession {
     rowAfter?: string
   ): Promise<SpaceVersionDiff> {
     await this.requireInitializedVersioning()
-    const normalizedPath = normalizeMutableRelativePath(relativePath)
+    const normalizedPath = normalizeVersionRelativePath(relativePath)
     if (commitId) this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
     if (tableName !== undefined && !tableName.trim()) {
@@ -3848,7 +3849,10 @@ export class SpaceSession {
             ...request,
             target: {
               ...request.target,
-              path: normalizeMutableRelativePath(request.target.path),
+              path:
+                request.target.kind === "folder"
+                  ? normalizeMutableRelativePath(request.target.path)
+                  : normalizeVersionRelativePath(request.target.path),
             },
           }
     const restoreMaterializes = await this.repository.runForeground(() =>
@@ -3902,7 +3906,7 @@ export class SpaceSession {
         }
         const addedPaths = selectedChanges
           .filter(isAddedWorkingChange)
-          .map((change) => normalizeMutableRelativePath(change.path))
+          .map((change) => normalizeVersionRelativePath(change.path))
         for (const relativePath of addedPaths) {
           try {
             const stats = await fs.lstat(
@@ -3937,7 +3941,7 @@ export class SpaceSession {
             )
           ),
         ]
-          .map(normalizeMutableRelativePath)
+          .map(normalizeVersionRelativePath)
           .sort()
         plan = {
           previousStatus: status,
@@ -3977,8 +3981,8 @@ export class SpaceSession {
           }
           await this.graft.recordPathMove(
             this.canonical.root,
-            normalizeMutableRelativePath(change.path),
-            normalizeMutableRelativePath(change.previousPath)
+            normalizeVersionRelativePath(change.path),
+            normalizeVersionRelativePath(change.previousPath)
           )
         }
         await Promise.all(
@@ -5259,7 +5263,7 @@ export class SpaceSession {
     const requestedEidosPaths = relativePaths
       ? new Set(
           relativePaths
-            .map(normalizeMutableRelativePath)
+            .map(normalizeVersionRelativePath)
             .filter((relativePath) =>
               relativePath.toLowerCase().endsWith(".eidos")
             )

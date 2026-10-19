@@ -9,6 +9,7 @@ import {
   listSpaceDirectory,
   listSpaceTree,
   normalizeMutableRelativePath,
+  normalizeVersionRelativePath,
   normalizeRelativePath,
   normalizeSpaceEntryName,
   resolveSpaceDirectory,
@@ -16,6 +17,26 @@ import {
 } from "./space-paths"
 
 describe("Space paths", () => {
+  it("allows only the exact managed catalog through versioning's private-path boundary", () => {
+    expect(normalizeVersionRelativePath(".eidos/files.eidos")).toBe(
+      ".eidos/files.eidos"
+    )
+    expect(normalizeVersionRelativePath("docs/note.md")).toBe("docs/note.md")
+    for (const candidate of [
+      ".eidos",
+      ".eidos/settings.json",
+      ".eidos/files.eidos-wal",
+      "other/.eidos/files.eidos",
+      ".graft/config",
+      "../outside.eidos",
+    ]) {
+      expect(() => normalizeVersionRelativePath(candidate)).toThrow()
+    }
+    expect(() => normalizeMutableRelativePath(".eidos/files.eidos")).toThrow(
+      "protected"
+    )
+  })
+
   it("opens a normal folder, hides implementation state, and keeps user files", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-space-"))
     await fs.mkdir(path.join(root, ".graft"))
