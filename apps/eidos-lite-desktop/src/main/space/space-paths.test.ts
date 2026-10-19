@@ -19,6 +19,8 @@ describe("Space paths", () => {
   it("opens a normal folder, hides implementation state, and keeps user files", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-space-"))
     await fs.mkdir(path.join(root, ".graft"))
+    await fs.mkdir(path.join(root, ".eidos"))
+    await fs.writeFile(path.join(root, ".eidos/files.eidos"), "private")
     await fs.mkdir(path.join(root, "assets"))
     await fs.writeFile(path.join(root, ".DS_Store"), "noise")
     await fs.writeFile(path.join(root, ".env"), "user-owned")
@@ -29,6 +31,9 @@ describe("Space paths", () => {
     const entries = flattenSpaceTree(await listSpaceTree(canonical.root))
 
     expect(canonical.id).toHaveLength(24)
+    expect(() => normalizeMutableRelativePath(".eidos/files.eidos")).toThrow(
+      "protected"
+    )
     expect(entries.map((entry) => entry.relativePath)).toEqual([
       "assets",
       "assets/avatar.txt",

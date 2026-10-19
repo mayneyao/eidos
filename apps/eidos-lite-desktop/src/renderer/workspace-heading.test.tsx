@@ -46,6 +46,65 @@ it("navigates each folder breadcrumb and marks the current location", async () =
   }
 })
 
+it("opens root file management from its heading action and context menu", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const manage = vi.fn()
+  const props = {
+    name: "Space",
+    path: "/Space",
+    searching: false,
+    searchRef: createRef<HTMLButtonElement>(),
+    shortcut: "",
+    onSearch: vi.fn(),
+    onBack: vi.fn(),
+    query: "",
+    onQueryChange: vi.fn(),
+    focusToken: 0,
+    actions: [],
+    onManageFiles: manage,
+  }
+  try {
+    await act(async () => root.render(<WorkspaceHeading {...props} />))
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
+        .click()
+    )
+    expect(manage).toHaveBeenCalledOnce()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Create"]')!.click()
+    )
+    expect(host.querySelector('[role="group"]')?.textContent).not.toContain(
+      "Manage files"
+    )
+    await act(async () =>
+      host
+        .querySelector(".space-heading")!
+        .dispatchEvent(
+          new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+        )
+    )
+    const item = host.querySelector<HTMLButtonElement>('[role="group"] button')!
+    expect(item.textContent).toBe("Manage files")
+    await act(async () => item.click())
+    expect(manage).toHaveBeenCalledTimes(2)
+    expect(host.querySelector('[role="group"]')).toBeNull()
+    await act(async () =>
+      root.render(<WorkspaceHeading {...props} navigationDisabled />)
+    )
+    expect(
+      host.querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
+        .disabled
+    ).toBe(true)
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 it("opens heading actions, dismisses outside or with Escape, and switches to a back entry", async () => {
   ;(
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

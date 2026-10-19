@@ -2792,6 +2792,20 @@ body {
   text-underline-offset: 3px;
 }
 
+.file-titlebar-breadcrumbs[data-file-metadata-breadcrumbs] {
+  overflow: hidden;
+}
+
+[data-file-metadata-breadcrumbs] > .file-titlebar-breadcrumb-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-file-metadata-breadcrumbs] > .file-titlebar-breadcrumb-separator {
+  flex: none;
+}
+
 .file-titlebar-breadcrumb-separator {
   color: var(--ink-faint);
   font: inherit;
@@ -11586,6 +11600,12 @@ body {
   border-radius: 0.5rem;
   background: var(--surface);
   box-shadow: var(--elevation-shadow);
+}
+
+.space-context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--hairline);
 }
 
 .space-context-menu-selection {

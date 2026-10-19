@@ -12,6 +12,7 @@ import {
   pushNavigationLocation,
   readNavigationHistory,
   replaceNavigationLocation,
+  remapFileMetadataLocation,
 } from "./navigation-history"
 
 describe("Eidos Lite browser navigation history", () => {
@@ -133,6 +134,55 @@ describe("Eidos Lite browser navigation history", () => {
       location: "notes/road map.md",
     })
     expect(parseNavigationHash("#invalid")).toBeNull()
+  })
+
+  it("restores the catalog folder, view and record without storing folder scope in a view", () => {
+    const location = {
+      type: "record" as const,
+      path: ".eidos/files.eidos",
+      tableId: "files",
+      rowId: "资料/a.txt",
+      viewId: "gallery",
+      directory: "资料",
+    }
+    const hash = navigationHash("space", location)
+    expect(parseNavigationHash(hash)).toEqual({ spaceId: "space", location })
+    const snapshot = initializeNavigationHistory("space")
+    const next = pushNavigationLocation(snapshot, "space", location)
+    expect(readNavigationHistory("space")).toEqual(next)
+    expect(initializeNavigationHistory("space").location).toEqual(location)
+    expect(
+      parseNavigationHash(
+        hash.replace("folder=%E8%B5%84%E6%96%99", "folder=..%2Foutside")
+      )
+    ).toBeNull()
+  })
+
+  it("keeps folder scope and row identity aligned with local rename, move and trash", () => {
+    const location = {
+      type: "record" as const,
+      path: ".eidos/files.eidos",
+      tableId: "files",
+      rowId: "assets/nested/a.txt",
+      viewId: "grid",
+      directory: "assets/nested",
+    }
+    expect(remapFileMetadataLocation(location, "assets", "renamed")).toEqual({
+      ...location,
+      directory: "renamed/nested",
+      rowId: "renamed/nested/a.txt",
+    })
+    expect(
+      remapFileMetadataLocation(location, "assets/nested/a.txt", "other/a.txt")
+    ).toEqual({ ...location, rowId: null })
+    expect(remapFileMetadataLocation(location, "assets/nested", null)).toEqual({
+      ...location,
+      directory: "assets",
+      rowId: null,
+    })
+    expect(remapFileMetadataLocation(location, "assets-other", null)).toBe(
+      location
+    )
   })
 
   it("round-trips table and record locations and restores them through browser history", async () => {

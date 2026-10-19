@@ -292,14 +292,14 @@ describe("create file templates", () => {
           .click()
       )
       await act(async () => submit.click())
-      expect(onSubmit).toHaveBeenLastCalledWith("files.eidos", "files-index")
+      expect(onSubmit).toHaveBeenLastCalledWith("Untitled.eidos", "eidos")
     } finally {
       await act(async () => root.unmount())
       container.remove()
     }
   })
 
-  it("renders 2 file types and toggles file metadata inside advanced options for Eidos files", async () => {
+  it("keeps ordinary file creation separate from Space metadata management", async () => {
     const container = document.createElement("div")
     document.body.append(container)
     const root = createRoot(container)
@@ -350,36 +350,32 @@ describe("create file templates", () => {
       expect(switchBtn).toBeDefined()
       expect(switchBtn.checked).toBe(false)
 
-      // Toggle File Table switch ON
+      expect(container.textContent).not.toContain("Manage folder file metadata")
+      // The remaining option creates an ordinary table's Markdown content field.
       await act(async () => switchBtn.click())
       expect(switchBtn.checked).toBe(true)
-      expect(input.value).toBe("files.eidos")
-
-      // Check help icon button
-      const helpBtn = container.querySelector<HTMLButtonElement>(
-        ".path-dialog-hint-help-btn"
-      )!
-      expect(helpBtn).toBeDefined()
-      await act(async () => helpBtn.click())
-      expect(openExternalUrl).toHaveBeenCalledWith(
-        expect.stringContaining("user-guide/file-metadata")
-      )
+      expect(input.value).toBe("Untitled.eidos")
+      expect(container.querySelector(".path-dialog-hint-help-btn")).toBeNull()
 
       // Submit form with File Table
       const submit =
         container.querySelector<HTMLButtonElement>('[type="submit"]')!
       await act(async () => submit.click())
-      expect(onSubmit).toHaveBeenCalledWith("files.eidos", "files-index")
+      expect(onSubmit).toHaveBeenCalledWith(
+        "Untitled.eidos",
+        "eidos",
+        "Content"
+      )
 
       // Switch to Note
       await act(async () => templateButtons[1]!.click())
-      expect(input.value).toBe("files.md")
+      expect(input.value).toBe("Untitled.md")
       expect(container.querySelector(".path-dialog-options")).toBeNull()
       expect(container.querySelector('input[type="checkbox"]')).toBeNull()
 
       // Submit form with Note
       await act(async () => submit.click())
-      expect(onSubmit).toHaveBeenCalledWith("files.md", "text")
+      expect(onSubmit).toHaveBeenCalledWith("Untitled.md", "text")
       await act(async () => {
         Object.getOwnPropertyDescriptor(
           HTMLInputElement.prototype,
@@ -388,7 +384,7 @@ describe("create file templates", () => {
         input.dispatchEvent(new Event("input", { bubbles: true }))
       })
       await act(async () => templateButtons[0]!.click())
-      expect(input.value).toBe("files.eidos")
+      expect(input.value).toBe("Travel notes.eidos")
       await act(async () => templateButtons[1]!.click())
       expect(input.value).toBe("Travel notes.md")
     } finally {

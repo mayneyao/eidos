@@ -133,6 +133,7 @@ export const IPC_CHANNELS = {
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
+  openFileMetadata: "eidos-lite:file-metadata-open",
   createTextFile: "eidos-lite:path-create-text",
   createFolder: "eidos-lite:path-create-folder",
   renamePath: "eidos-lite:path-rename",
@@ -1866,6 +1867,7 @@ export interface EidosLiteApi extends PluginApi {
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
+  openFileMetadata(directory: string | null): Promise<OpenEidosFileResult>
   previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
   openHtmlPreview(request: HtmlPreviewOpenRequest): Promise<string>
   onHtmlPreviewPointerDown(listener: () => void): () => void

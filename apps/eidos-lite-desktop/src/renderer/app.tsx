@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -41,6 +42,8 @@ import {
   X,
 } from "lucide-react"
 import { WorkspaceTextSearch } from "./workspace-text-search"
+import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
+import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { WorkspaceHeading } from "./workspace-heading"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
@@ -106,6 +109,7 @@ import {
   initializeNavigationHistory,
   isVersionDiffNavigationLocation,
   pathMatchesPrefix,
+  remapFileMetadataLocation,
   pushNavigationLocation,
   readNavigationHistory,
   replaceNavigationLocation,
@@ -226,25 +230,7 @@ interface CachedFile {
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
   tableId: string
-}
-
-function externalChangeAffectsEidosFile(
-  relativePath: string,
-  changedPaths: readonly string[]
-): boolean {
-  const filePath = relativePath.split("\\").join("/")
-  return (
-    changedPaths.length === 0 ||
-    changedPaths.some((candidate) => {
-      const changedPath = candidate.split("\\").join("/").replace(/\/+$/u, "")
-      if (!changedPath) return true
-      if (changedPath === filePath) return true
-      if (filePath.startsWith(`${changedPath}/`)) return true
-      return ["-wal", "-shm", "-journal"].some(
-        (suffix) => changedPath === `${filePath}${suffix}`
-      )
-    })
-  )
+  refreshToken?: number
 }
 
 interface RecentFileState {
@@ -1396,8 +1382,19 @@ function WorkspaceApp({
       updateRecentFiles((files) =>
         remapRecentFiles(files, sourcePath, destinationPath)
       )
+      const current = navigationSnapshotRef.current
+      if (!current || !space) return
+      const location = remapFileMetadataLocation(
+        current.location,
+        sourcePath,
+        destinationPath
+      )
+      if (location === current.location) return
+      const next = replaceNavigationLocation(current, space.id, location)
+      navigationSnapshotRef.current = next
+      setNavigationSnapshot(next)
     },
-    [updateRecentFiles]
+    [updateRecentFiles, space?.id]
   )
 
   const invalidateCachedSessions = useCallback((sessionIds: string[]) => {
@@ -1456,6 +1453,7 @@ function WorkspaceApp({
             {
               ...file,
               snapshot: next.snapshot,
+              refreshToken: (file.refreshToken ?? 0) + 1,
               tableId: next.snapshot.tables.some(
                 (table) => table.table.id === file.tableId
               )
@@ -1491,7 +1489,8 @@ function WorkspaceApp({
           (materializedPaths.length > 0 &&
             externalChangeAffectsEidosFile(
               file.relativePath,
-              materializedPaths
+              materializedPaths,
+              file.snapshot
             ))
       )
       if (refreshed) setFileMaterializationKey((current) => current + 1)
@@ -1526,10 +1525,13 @@ function WorkspaceApp({
 
   const refreshExternallyChangedEidosFiles = useCallback(
     async (snapshot: SpaceSnapshot, changedPaths: readonly string[]) => {
-      const refreshed = await refreshCachedEidosFiles(snapshot, (file) =>
-        externalChangeAffectsEidosFile(file.relativePath, changedPaths)
+      await refreshCachedEidosFiles(snapshot, (file) =>
+        externalChangeAffectsEidosFile(
+          file.relativePath,
+          changedPaths,
+          file.snapshot
+        )
       )
-      if (refreshed) setExternalFileRefreshToken((current) => current + 1)
     },
     [refreshCachedEidosFiles]
   )
@@ -2185,6 +2187,7 @@ function WorkspaceApp({
         tableId?: string
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
         pluginEditor?: string
+        metadataDirectory?: string
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
@@ -2194,7 +2197,9 @@ function WorkspaceApp({
       // History navigation inside an open Eidos File only changes the table
       // or record. Reuse its live session instead of reopening the file.
       const historyFile =
-        options.recordHistory === false && entry.kind === "eidos"
+        (options.recordHistory === false ||
+          entry.relativePath === SPACE_FILE_METADATA_PATH) &&
+        entry.kind === "eidos"
           ? cachedFiles.find((file) => file.relativePath === entry.relativePath)
           : undefined
       if (historyFile) {
@@ -2220,6 +2225,28 @@ function WorkspaceApp({
         setFileIssue(null)
         setTextPreview(null)
         setActiveSession(historyFile.sessionId)
+        if (
+          entry.relativePath === SPACE_FILE_METADATA_PATH &&
+          options.recordHistory !== false
+        ) {
+          const current = navigationSnapshotRef.current?.location
+          recordNavigationLocation(
+            {
+              type: "record",
+              path: SPACE_FILE_METADATA_PATH,
+              tableId: historyFile.tableId,
+              rowId: null,
+              directory: options.metadataDirectory ?? "",
+              ...(typeof current === "object" &&
+              current?.type === "record" &&
+              current.path === SPACE_FILE_METADATA_PATH &&
+              current.viewId
+                ? { viewId: current.viewId }
+                : {}),
+            },
+            false
+          )
+        }
         return true
       }
       if (entry.kind !== "eidos") {
@@ -2306,7 +2333,12 @@ function WorkspaceApp({
             )
           }
         }
-        const opened = await window.eidosLite.openEidosFile(entry.relativePath)
+        const opened =
+          entry.relativePath === SPACE_FILE_METADATA_PATH
+            ? await window.eidosLite.openFileMetadata(
+                options.metadataDirectory || null
+              )
+            : await window.eidosLite.openEidosFile(entry.relativePath)
         const tableId =
           options.tableId ?? opened.snapshot.tables[0]?.table.id ?? ""
         if (
@@ -2315,10 +2347,15 @@ function WorkspaceApp({
         )
           throw new Error("This table is no longer available in the file.")
         await loadEidosFileWorkbench()
-        const filePlugin = await window.eidosLite.openPluginEditor(
-          entry.relativePath,
-          options.pluginEditor
-        )
+        // The host-owned catalog is opened by openFileMetadata, never by the
+        // plugin service, whose private-directory guard also applies to builtin.
+        const filePlugin: PluginOpenResult =
+          entry.relativePath === SPACE_FILE_METADATA_PATH
+            ? { instance: null }
+            : await window.eidosLite.openPluginEditor(
+                entry.relativePath,
+                options.pluginEditor
+              )
         if (!tableId && !filePlugin.instance)
           throw new Error("This Eidos File has no tables")
         if (filePlugin.warning) setError(filePlugin.warning)
@@ -2349,7 +2386,18 @@ function WorkspaceApp({
           setActiveSession(opened.sessionId)
           rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
-            recordNavigationLocation(entry.relativePath, false)
+            recordNavigationLocation(
+              entry.relativePath === SPACE_FILE_METADATA_PATH
+                ? {
+                    type: "record",
+                    path: SPACE_FILE_METADATA_PATH,
+                    tableId,
+                    rowId: null,
+                    directory: options.metadataDirectory ?? "",
+                  }
+                : entry.relativePath,
+              false
+            )
           }
           return true
         }
@@ -2390,7 +2438,18 @@ function WorkspaceApp({
         setActiveSession(opened.sessionId)
         rememberOpenedEntry(entry)
         if (options.recordHistory !== false) {
-          recordNavigationLocation(entry.relativePath, false)
+          recordNavigationLocation(
+            entry.relativePath === SPACE_FILE_METADATA_PATH
+              ? {
+                  type: "record",
+                  path: SPACE_FILE_METADATA_PATH,
+                  tableId,
+                  rowId: null,
+                  directory: options.metadataDirectory ?? "",
+                }
+              : entry.relativePath,
+            false
+          )
         }
         return true
       } catch (cause) {
@@ -2412,6 +2471,21 @@ function WorkspaceApp({
       recordNavigationLocation,
       rememberOpenedEntry,
     ]
+  )
+
+  const openFileMetadata = useCallback(
+    (directory: string | null) =>
+      openEntry(
+        {
+          kind: "eidos",
+          relativePath: SPACE_FILE_METADATA_PATH,
+          name: "Files",
+          size: 0,
+          modifiedAtMs: 0,
+        },
+        { metadataDirectory: directory ?? "", pluginEditor: "builtin" }
+      ),
+    [openEntry]
   )
 
   const openMarkdownInternalLink = useCallback(
@@ -2731,7 +2805,16 @@ function WorkspaceApp({
               launchAcceptSpaceSnapshot.current(currentSpace)
             }
 
-            const entry = findSpaceEntry(currentSpace.entries, targetPath)
+            const entry =
+              targetPath === SPACE_FILE_METADATA_PATH
+                ? {
+                    kind: "eidos" as const,
+                    relativePath: SPACE_FILE_METADATA_PATH,
+                    name: "Files",
+                    size: 0,
+                    modifiedAtMs: 0,
+                  }
+                : findSpaceEntry(currentSpace.entries, targetPath)
             if (!entry || entry.kind === "directory") {
               setError(`${target} is no longer available in this Space.`)
               const current = navigationSnapshotRef.current
@@ -2756,7 +2839,10 @@ function WorkspaceApp({
             await launchOpenEntry.current(entry, {
               recordHistory: false,
               ...(typeof target !== "string" && target.type === "record"
-                ? { tableId: target.tableId }
+                ? {
+                    tableId: target.tableId,
+                    metadataDirectory: target.directory,
+                  }
                 : {}),
               ...(typeof target !== "string" && target.type === "file"
                 ? { fileOpenMode: target.openWith }
@@ -3030,13 +3116,17 @@ function WorkspaceApp({
 
   const retryFileIssue = useCallback(async () => {
     if (!fileIssue || !space) return
+    if (fileIssue.relativePath === SPACE_FILE_METADATA_PATH) {
+      await openFileMetadata(recordLocation?.directory || null)
+      return
+    }
     const entry = findSpaceEntry(space.entries, fileIssue.relativePath)
     if (!entry || entry.kind !== "eidos") {
       setError("The Eidos File is not currently available at this path.")
       return
     }
     await openEntry(entry)
-  }, [fileIssue, openEntry, space])
+  }, [fileIssue, openEntry, openFileMetadata, recordLocation?.directory, space])
 
   const closeFile = useCallback(
     async (sessionId: string) => {
@@ -3571,6 +3661,7 @@ function WorkspaceApp({
         path={space.displayPath}
         directory={explorerDirectory}
         onNavigateDirectory={(path) => void navigateExplorerDirectory(path)}
+        onManageFiles={() => void openFileMetadata(explorerDirectory)}
         navigationDisabled={
           pathMutationBusy || localInteractionBlocked || busyFile !== null
         }
@@ -3949,6 +4040,57 @@ function WorkspaceApp({
                 </strong>
               ) : whatsNew.open ? (
                 <strong>RELEASE_NOTES.md</strong>
+              ) : activeDocumentPath === SPACE_FILE_METADATA_PATH &&
+                !titlebarPresentation.pending ? (
+                <nav
+                  className="file-titlebar-breadcrumbs"
+                  data-file-metadata-breadcrumbs
+                  aria-label={t("File management folder")}
+                >
+                  {[
+                    space.name,
+                    ...(recordLocation?.directory ?? "")
+                      .split("/")
+                      .filter(Boolean),
+                  ].map((segment, index, segments) => (
+                    <Fragment key={index}>
+                      {index > 0 ? (
+                        <span
+                          className="file-titlebar-breadcrumb-separator"
+                          aria-hidden="true"
+                        >
+                          /
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="file-titlebar-breadcrumb-link"
+                        title={
+                          index === 0
+                            ? space.displayPath
+                            : (recordLocation?.directory ?? "")
+                                .split("/")
+                                .slice(0, index)
+                                .join("/")
+                        }
+                        disabled={localInteractionBlocked || busyFile !== null}
+                        aria-current={
+                          index === segments.length - 1 ? "location" : undefined
+                        }
+                        onClick={() =>
+                          void openFileMetadata(
+                            (recordLocation?.directory ?? "")
+                              .split("/")
+                              .slice(0, index)
+                              .join("/")
+                          )
+                        }
+                      >
+                        <strong>{segment}</strong>
+                      </button>
+                    </Fragment>
+                  ))}
+                </nav>
               ) : activeDocumentPath && !titlebarPresentation.pending ? (
                 <button
                   type="button"
@@ -4590,11 +4732,19 @@ function WorkspaceApp({
                       }}
                       key={`${activeFile.sessionId}:${fileMaterializationKey}`}
                       relativePath={activeFile.relativePath}
+                      metadataDirectory={
+                        activeFile.relativePath === SPACE_FILE_METADATA_PATH
+                          ? (recordLocation?.directory ?? "")
+                          : undefined
+                      }
                       recordOpenMode={recordOpenMode}
                       onRecordOpenModeChange={setRecordOpenMode}
                       snapshot={activeFile.snapshot}
                       source={activeFile.source}
-                      refreshToken={externalFileRefreshToken}
+                      refreshToken={
+                        externalFileRefreshToken +
+                        (activeFile.refreshToken ?? 0)
+                      }
                       focusRequestToken={fileSurfaceFocusRequestToken}
                       activeTableId={activeFile.tableId}
                       activeViewId={
@@ -4610,6 +4760,10 @@ function WorkspaceApp({
                           tableId: activeFile.tableId,
                           rowId: null,
                           viewId,
+                          ...(activeFile.relativePath ===
+                          SPACE_FILE_METADATA_PATH
+                            ? { directory: recordLocation?.directory ?? "" }
+                            : {}),
                         })
                       }
                       onRecordNavigate={(tableId, rowId) =>
@@ -4618,6 +4772,10 @@ function WorkspaceApp({
                           path: activeFile.relativePath,
                           tableId,
                           rowId,
+                          ...(activeFile.relativePath ===
+                          SPACE_FILE_METADATA_PATH
+                            ? { directory: recordLocation?.directory ?? "" }
+                            : {}),
                         })
                       }
                       inspectedRowId={
@@ -4641,6 +4799,10 @@ function WorkspaceApp({
                           rowId,
                           ...(recordLocation?.viewId
                             ? { viewId: recordLocation.viewId }
+                            : {}),
+                          ...(activeFile.relativePath ===
+                          SPACE_FILE_METADATA_PATH
+                            ? { directory: recordLocation?.directory ?? "" }
                             : {}),
                         }
                         if (rowId === null) {
@@ -4683,6 +4845,10 @@ function WorkspaceApp({
                             path: activeFile.relativePath,
                             tableId,
                             rowId: null,
+                            ...(activeFile.relativePath ===
+                            SPACE_FILE_METADATA_PATH
+                              ? { directory: recordLocation?.directory ?? "" }
+                              : {}),
                           },
                           false
                         )
@@ -5160,42 +5326,48 @@ function WorkspaceApp({
                 }}
               />
               {isPublishableEntry(contextMenu.entry) ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={publishMenu.disabled}
-                  onClick={() => {
-                    if (publishMenu.disabled) return
-                    if (publishTask?.status === "running") {
-                      setPublishTaskExpanded(true)
-                    } else {
-                      setPublishTask(null)
-                      setPublishPanel({
-                        entry: contextMenu.entry,
-                        x: contextMenu.x,
-                        y: contextMenu.y,
-                      })
-                    }
-                    setContextMenu(null)
-                  }}
-                >
-                  {publishTask?.status === "running" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <Upload />
-                  )}{" "}
-                  {publishMenu.label
-                    ? t(publishMenu.label)
-                    : publishTask?.status === "running"
-                      ? t("View Publish progress")
-                      : publicationBindings.some(
-                            (binding) =>
-                              binding.relativePath ===
-                              contextMenu.entry.relativePath
-                          )
-                        ? t("Manage Publish…")
-                        : t("Publish…")}
-                </button>
+                <>
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={publishMenu.disabled}
+                    onClick={() => {
+                      if (publishMenu.disabled) return
+                      if (publishTask?.status === "running") {
+                        setPublishTaskExpanded(true)
+                      } else {
+                        setPublishTask(null)
+                        setPublishPanel({
+                          entry: contextMenu.entry,
+                          x: contextMenu.x,
+                          y: contextMenu.y,
+                        })
+                      }
+                      setContextMenu(null)
+                    }}
+                  >
+                    {publishTask?.status === "running" ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <Upload />
+                    )}{" "}
+                    {publishMenu.label
+                      ? t(publishMenu.label)
+                      : publishTask?.status === "running"
+                        ? t("View Publish progress")
+                        : publicationBindings.some(
+                              (binding) =>
+                                binding.relativePath ===
+                                contextMenu.entry.relativePath
+                            )
+                          ? t("Manage Publish…")
+                          : t("Publish…")}
+                  </button>
+                </>
               ) : null}
               {contextMenu.entry.kind === "directory" ? (
                 <>
@@ -5216,6 +5388,25 @@ function WorkspaceApp({
                   >
                     <FolderOpen /> {t("Show this folder")}
                   </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void openFileMetadata(contextMenu.entry.relativePath)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <Database /> {t("Manage files")}
+                  </button>
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
                   <button
                     type="button"
                     role="menuitem"
@@ -5246,6 +5437,7 @@ function WorkspaceApp({
                   </button>
                 </>
               ) : null}
+              <div role="separator" className="space-context-menu-separator" />
               <button
                 type="button"
                 role="menuitem"
@@ -5271,14 +5463,13 @@ function WorkspaceApp({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  void window.eidosLite.copyPathText(
-                    contextMenu.entry.relativePath,
-                    "absolute"
+                  void window.eidosLite.revealPath(
+                    contextMenu.entry.relativePath
                   )
                   setContextMenu(null)
                 }}
               >
-                <Copy /> {t("Copy Path")}
+                <FolderOpen /> {t(fileManagerMessage(platform))}
               </button>
               <button
                 type="button"
@@ -5297,14 +5488,16 @@ function WorkspaceApp({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  void window.eidosLite.revealPath(
-                    contextMenu.entry.relativePath
+                  void window.eidosLite.copyPathText(
+                    contextMenu.entry.relativePath,
+                    "absolute"
                   )
                   setContextMenu(null)
                 }}
               >
-                <FolderOpen /> {t(fileManagerMessage(platform))}
+                <Copy /> {t("Copy Path")}
               </button>
+              <div role="separator" className="space-context-menu-separator" />
               <button
                 type="button"
                 role="menuitem"

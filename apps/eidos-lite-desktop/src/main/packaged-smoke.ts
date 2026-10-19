@@ -2140,6 +2140,10 @@ export async function runPackagedSmoke(
     const metadataRuntime = await session.openEidosFile(
       metadataFile.relativePath!
     )
+    if (metadataFile.relativePath !== ".eidos/files.eidos")
+      throw new Error(
+        "Packaged file management did not reuse the Space catalog"
+      )
     const metadataTable = metadataRuntime.snapshot.tables[0]!
     const rating = metadataTable.fields.find(
       (field) => field.name === "rating"
@@ -2148,13 +2152,13 @@ export async function runPackagedSmoke(
       throw new Error("Packaged fs_meta table unavailable")
     await session.callRuntime(metadataRuntime.sessionId, "updateRow", [
       metadataTable.table.id,
-      "proof.txt",
+      "VTab Smoke/proof.txt",
       { [rating.id!]: 4 },
     ])
     const metadataRow = await session.callRuntime(
       metadataRuntime.sessionId,
       "getRow",
-      [metadataTable.table.id, "proof.txt"]
+      [metadataTable.table.id, "VTab Smoke/proof.txt"]
     )
     if (metadataRow?.[rating.id!] !== "4")
       throw new Error("Packaged fs_meta update lost metadata")

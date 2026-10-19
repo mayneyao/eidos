@@ -4,6 +4,7 @@ import path from "node:path"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 import { resolveSpacePath } from "./space-paths"
+import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
 
 export const EIDOS_LITE_ASSET_BYTES_MAX = 256 * 1024 * 1024
 export const EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX = 64 * 1024 * 1024
@@ -723,11 +724,20 @@ export async function resolveEidosFileAttachment(
   if ((await fs.realpath(sourceRoot)) !== path.resolve(sourceRoot)) {
     throw new Error("The Eidos File attachment root cannot be a symlink")
   }
+  const spaceCatalog = eidosRelativePath === SPACE_FILE_METADATA_PATH
   const absolutePath = path.resolve(
-    sourceRoot,
+    spaceCatalog ? spaceRoot : sourceRoot,
     decodeRelativeAssetUri(entry.uri)
   )
-  await assertNoSymlinkPath(sourceRoot, absolutePath)
+  await assertNoSymlinkPath(spaceCatalog ? spaceRoot : sourceRoot, absolutePath)
+  if (
+    spaceCatalog &&
+    path
+      .relative(spaceRoot, absolutePath)
+      .split(path.sep)
+      .some((part) => [".eidos", ".graft"].includes(part.toLowerCase()))
+  )
+    throw new Error("Attachment points into a private Space directory")
   const stats = await fs.stat(absolutePath)
   if (!stats.isFile()) throw new Error("Attachment is not an ordinary file")
   const declaredSize = Number(entry.size)

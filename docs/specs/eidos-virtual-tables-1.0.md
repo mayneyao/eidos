@@ -244,6 +244,22 @@ For filesystem virtual tables (`fs_meta`), a built-in field with `type: "file"` 
 5. In Gallery View, setting `layout_json.coverField` to this field ID enables automatic card cover rendering for image files directly from the local disk.
 6. The host Runtime resolves `uri` relative to the containing directory of `files.eidos` using the existing `resolveEidosFileAttachment` protocol.
 
+### 5.2. Lite Space Catalog Host Profile
+
+Lite's managed Space catalog lives at `.eidos/files.eidos`, with scan root `..`.
+It excludes `.eidos` from scans. Folder management opens this single catalog;
+custom fields and saved views are shared. A folder scope includes descendants
+and is combined with saved filters through the canonical Runtime query API.
+It is navigation state and MUST NOT be persisted into the shared View filter.
+Existing catalogs MUST NOT be automatically merged, moved, or removed.
+
+For this host-owned catalog only, the Lite SQLite adapter converts the native
+system File column's `../<path>` URI to a contained Space-relative `<path>`
+before passing values to the Runtime. Ordinary File values retain canonical
+URI validation. Lite resolves these catalog attachments against the Space root,
+rejecting traversal, symlinks, and private implementation directories. This
+adapter mapping does not change stored field values or ordinary File semantics.
+
 ## 6. Runtime Semantics (`ER-VTab-1.0`)
 
 A conforming `ER-VTab-1.0` Runtime implementation MUST satisfy the following execution

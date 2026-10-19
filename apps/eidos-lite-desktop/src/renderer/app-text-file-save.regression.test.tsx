@@ -5,8 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type {
   EidosLiteApi,
   SpaceSnapshot,
+  SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import {
   navigateCurrentWindow,
@@ -31,7 +33,39 @@ vi.mock("./markdown-editor-surface", () => ({
     return <div data-test-markdown={props.documentKey}>{props.content}</div>
   },
 }))
-vi.mock("./space-file-tree", () => ({ SpaceFileTree: () => null }))
+vi.mock("./space-file-tree", () => ({
+  SpaceFileTree: ({
+    onContextMenu,
+  }: {
+    onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
+  }) => (
+    <button
+      data-test-folder-menu
+      onClick={() =>
+        onContextMenu(
+          {
+            kind: "directory",
+            name: "business",
+            relativePath: "business",
+            size: 0,
+            modifiedAtMs: 0,
+          },
+          20,
+          30
+        )
+      }
+    >
+      Folder menu
+    </button>
+  ),
+}))
+vi.mock("./eidos-file-workbench", () => ({
+  EidosFileWorkbench: ({
+    metadataDirectory,
+  }: {
+    metadataDirectory?: string
+  }) => <div data-test-metadata-scope={metadataDirectory}>Managed files</div>,
+}))
 
 import { App } from "./app"
 
@@ -152,6 +186,133 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+it.each(["root", "folder", "restore"])(
+  "opens Space metadata through the built-in editor from %s",
+  async (mode) => {
+    const snapshot = {
+      path: ".eidos/files.eidos",
+      metadata: {
+        fileId: "catalog",
+        title: "Files",
+        revision: 0,
+        defaultTableId: "files",
+      },
+      tables: [
+        {
+          table: {
+            id: "files",
+            name: "files",
+            settings: { vtabModule: "fs_meta" },
+          },
+          fields: [],
+          views: [],
+          rowCount: 0,
+        },
+      ],
+    } as unknown as EidosFileSnapshot
+    const open = vi.fn(async () => ({
+      sessionId: "catalog",
+      relativePath: ".eidos/files.eidos",
+      readOnly: false,
+      snapshot,
+    }))
+    const plugins = vi.fn(async () => {
+      throw new Error("The .eidos implementation directory is protected")
+    })
+    installHost({
+      openFileMetadata: open,
+      openPluginEditor: plugins,
+      inspectEidosFileIssue: async () => null,
+    })
+    window.history.replaceState(
+      null,
+      "",
+      navigationHash(
+        "s",
+        mode === "restore"
+          ? {
+              type: "record",
+              path: ".eidos/files.eidos",
+              tableId: "files",
+              rowId: null,
+              directory: "business",
+            }
+          : null
+      )
+    )
+    await act(async () => root!.render(<App />))
+    if (mode !== "restore") {
+      await vi.waitFor(() =>
+        expect(host.querySelector('[aria-label="Manage files"]')).not.toBeNull()
+      )
+      if (mode === "root") {
+        await act(async () =>
+          host
+            .querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
+            .click()
+        )
+      } else {
+        await act(async () =>
+          host
+            .querySelector<HTMLButtonElement>("[data-test-folder-menu]")!
+            .click()
+        )
+        const item = Array.from(
+          host.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+        ).find((button) => button.textContent?.includes("Manage files"))!
+        expect(
+          Array.from(host.querySelectorAll('[role="menuitem"]'), (button) =>
+            button.textContent?.trim()
+          )
+        ).toEqual([
+          "Show this folder",
+          "Manage files",
+          "New File",
+          "New folder",
+          "Rename",
+          "Reveal in Finder",
+          "Copy Relative Path",
+          "Copy Path",
+          "Move to Trash",
+        ])
+        expect(
+          host.querySelectorAll('.space-context-menu > [role="separator"]')
+        ).toHaveLength(3)
+        await act(async () => item.click())
+      }
+    }
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-test-metadata-scope]")).not.toBeNull()
+    )
+    expect(
+      host
+        .querySelector("[data-test-metadata-scope]")!
+        .getAttribute("data-test-metadata-scope")
+    ).toBe(mode === "root" ? "" : "business")
+    expect(open).toHaveBeenCalledOnce()
+    expect(open).toHaveBeenCalledWith(mode === "root" ? null : "business")
+    expect(plugins).not.toHaveBeenCalled()
+    expect(host.textContent).not.toContain("Could not open")
+    const breadcrumb = host.querySelector<HTMLElement>(
+      'nav[aria-label="File management folder"]'
+    )!
+    expect(breadcrumb).not.toBeNull()
+    expect(breadcrumb.closest(".file-titlebar")).not.toBeNull()
+    expect(
+      breadcrumb.querySelector('[aria-current="location"]')?.textContent
+    ).toBe(mode === "root" ? staleSpace.name : "business")
+    await act(async () =>
+      breadcrumb.querySelector<HTMLButtonElement>("button")!.click()
+    )
+    expect(
+      host
+        .querySelector("[data-test-metadata-scope]")!
+        .getAttribute("data-test-metadata-scope")
+    ).toBe("")
+    expect(open).toHaveBeenCalledOnce()
+  }
+)
 
 it("follows the saved hook rename without reopening against a stale file list", async () => {
   let complete!: (result: unknown) => void

@@ -320,6 +320,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.closeFile, sessionId),
+  openFileMetadata: (directory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openFileMetadata, directory),
   createEidosFile: (parentRelativePath, name, template, contentFieldName) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.createEidosFile,

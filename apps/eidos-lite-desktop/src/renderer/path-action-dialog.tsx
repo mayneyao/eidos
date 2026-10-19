@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react"
-import { ChevronRight, CircleHelp, LoaderCircle, X } from "lucide-react"
+import { ChevronRight, LoaderCircle, X } from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -43,7 +43,7 @@ export function PathActionDialog({
     contentFieldName?: string
   ): void
 }) {
-  const { t, locale } = useEidosLiteI18n()
+  const { t } = useEidosLiteI18n()
   const config = {
     "create-linked-note": {
       title: t("Create linked note?"),
@@ -79,7 +79,6 @@ export function PathActionDialog({
   }[state.action]
   const [value, setValue] = useState(config.initial)
   const [selectedKind, setSelectedKind] = useState<FileKind>("eidos")
-  const [isFileTable, setIsFileTable] = useState(false)
   const [includeContent, setIncludeContent] = useState(false)
   const contentHintId = useId()
   const [templates, setTemplates] = useState<
@@ -137,23 +136,10 @@ export function PathActionDialog({
     },
   ]
 
-  const trimmed = value.trim().toLowerCase()
-  const isFilesEidosName =
-    trimmed === "files.eidos" ||
-    trimmed === "_files.eidos" ||
-    trimmed === "_fs_meta.eidos" ||
-    trimmed.endsWith("._files.eidos") ||
-    trimmed.endsWith(".files.eidos")
-
-  const effectiveIsFileTable =
-    !pluginTemplate &&
-    selectedKind === "eidos" &&
-    (isFileTable || isFilesEidosName)
-
   const currentTemplateId: FileTemplateId = (() => {
     if (pluginTemplate) return `plugin:${pluginTemplate}`
     if (selectedKind === "eidos") {
-      return effectiveIsFileTable ? "files-index" : "eidos"
+      return "eidos"
     }
     return "text"
   })()
@@ -196,20 +182,6 @@ export function PathActionDialog({
     ? `plugin:${pluginTemplate}`
     : selectedKind
 
-  const handleToggleFileTable = () => {
-    if (effectiveIsFileTable) {
-      setIsFileTable(false)
-      if (isFilesEidosName || value.trim() === "files.eidos") {
-        setValue("Untitled.eidos")
-      }
-    } else {
-      setIsFileTable(true)
-      if (value.trim() === "Untitled.eidos") {
-        setValue("files.eidos")
-      }
-    }
-  }
-
   return (
     <div className="path-dialog-backdrop" role="presentation">
       <form
@@ -223,10 +195,7 @@ export function PathActionDialog({
             if (currentTemplateId === "eidos" && includeContent) {
               onSubmit(value, currentTemplateId, t("Content"))
             } else {
-              onSubmit(
-                effectiveIsFileTable ? "files.eidos" : value,
-                currentTemplateId
-              )
+              onSubmit(value, currentTemplateId)
             }
           } else {
             onSubmit(value)
@@ -322,17 +291,10 @@ export function PathActionDialog({
               <input
                 ref={nameInput}
                 autoFocus
-                value={
-                  state.action === "create-file" && effectiveIsFileTable
-                    ? "files.eidos"
-                    : value
-                }
+                value={value}
                 onChange={(event) => setValue(event.target.value)}
                 disabled={busy}
-                readOnly={
-                  state.action === "create-linked-note" ||
-                  (state.action === "create-file" && effectiveIsFileTable)
-                }
+                readOnly={state.action === "create-linked-note"}
               />
             </label>
             {state.action === "create-file" ? (
@@ -343,60 +305,25 @@ export function PathActionDialog({
                     {t("Advanced options")}
                   </summary>
                   <div className="path-dialog-options-fields">
-                    <div className="path-dialog-metadata">
+                    <div>
                       <label className="path-dialog-option-label">
                         <input
                           type="checkbox"
-                          checked={effectiveIsFileTable}
-                          onChange={handleToggleFileTable}
+                          checked={includeContent}
+                          onChange={(event) =>
+                            setIncludeContent(event.target.checked)
+                          }
                           disabled={busy}
+                          aria-describedby={contentHintId}
                         />
-                        <span>{t("Manage folder file metadata")}</span>
+                        <span>{t("Include Markdown content")}</span>
                       </label>
-                      <button
-                        type="button"
-                        className="path-dialog-hint-help-btn"
-                        disabled={busy}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          const docUrl = locale.startsWith("zh")
-                            ? "https://docs.eidos.space/zh-cn/user-guide/file-metadata/"
-                            : "https://docs.eidos.space/user-guide/file-metadata/"
-                          void window.eidosLite?.openExternalUrl(docUrl)
-                        }}
-                        title={t(
-                          "Manage file metadata directly in the current folder with custom fields and visual views."
+                      <p id={contentHintId} className="path-dialog-option-hint">
+                        {t(
+                          "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field."
                         )}
-                        aria-label={t("Learn more in documentation")}
-                      >
-                        <CircleHelp className="path-dialog-hint-help-icon" />
-                      </button>
+                      </p>
                     </div>
-                    {!effectiveIsFileTable ? (
-                      <div>
-                        <label className="path-dialog-option-label">
-                          <input
-                            type="checkbox"
-                            checked={includeContent}
-                            onChange={(event) =>
-                              setIncludeContent(event.target.checked)
-                            }
-                            disabled={busy}
-                            aria-describedby={contentHintId}
-                          />
-                          <span>{t("Include Markdown content")}</span>
-                        </label>
-                        <p
-                          id={contentHintId}
-                          className="path-dialog-option-hint"
-                        >
-                          {t(
-                            "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field."
-                          )}
-                        </p>
-                      </div>
-                    ) : null}
                   </div>
                 </details>
               ) : (

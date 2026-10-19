@@ -362,6 +362,31 @@ describe("Eidos Lite Eidos File search navigation", () => {
     ).toBe("0")
   })
 
+  it("leaves directory breadcrumbs to the host title bar without adding a content row", () => {
+    act(() =>
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: ".eidos/files.eidos",
+          metadataDirectory: "business",
+          snapshot,
+          source: {} as IpcEidosFileDataSource,
+          activeTableId: "tasks",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot: vi.fn(),
+          onError: vi.fn(),
+        })
+      )
+    )
+    const shell = host.querySelector("[data-eidos-file-editor-shell]")!
+    expect(shell).not.toBeNull()
+    expect(
+      shell.querySelector('nav[aria-label="File management folder"]')
+    ).toBeNull()
+    expect(shell.children[1]?.classList.contains("flex-1")).toBe(true)
+  })
+
   it("connects shared table-tab sorting to the Lite data source", async () => {
     const callRuntime = vi.fn(
       async (_sessionId: string, method: string): Promise<unknown> => {

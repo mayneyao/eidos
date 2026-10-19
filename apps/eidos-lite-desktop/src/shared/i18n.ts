@@ -964,6 +964,15 @@ const zh: Record<string, string> = {
   "New Eidos File": "新建 Eidos File",
   "New folder": "新建文件夹",
   "This folder already contains files.eidos.": "此目录已存在 files.eidos。",
+  "Manage files": "管理文件",
+  "File management folder": "文件管理目录",
+  "Invalid file metadata directory": "文件管理目录无效。",
+  "The file metadata directory must be a local folder without symlinks.":
+    "文件管理私有目录必须是本地文件夹，不能包含符号链接。",
+  "The file metadata configuration must be an ordinary file.":
+    "文件管理配置必须是普通文件。",
+  "The Space file metadata configuration must contain one file table scanning the Space root.":
+    "Space 文件管理配置必须包含一张扫描 Space 根目录的文件表格。",
   "Parent files.eidos must contain one file metadata table.":
     "父目录的 files.eidos 必须包含一张文件元数据表。",
   "Show this folder": "显示此文件夹",

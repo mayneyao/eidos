@@ -21,6 +21,7 @@ const chunkNames = [
   "encrypted-staging-smoke",
   "node-sqlite",
   "logging",
+  "manifest",
   "package",
   "packaged-smoke",
   "packaged-startup-smoke",

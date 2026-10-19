@@ -16,7 +16,6 @@ import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
-import { fileMetadataConfigPaths } from "../../shared/file-metadata-config"
 import {
   prepareMarkdownLinkMove,
   applyMarkdownLinkMove,
@@ -50,7 +49,6 @@ import type {
   GraftTrackedIgnoredPaths,
   GraftSpaceStatus,
   OpenEidosFileResult,
-  FileMetadataSchema,
   RuntimeCalls,
   RuntimeMethod,
   SpaceSyncHistoryStatus,
@@ -131,6 +129,10 @@ import {
 } from "./space-paths"
 import { SpacePathIndex } from "./path-search"
 import { SpaceWatcher } from "./space-watcher"
+import {
+  normalizeFileMetadataDirectory,
+  SPACE_FILE_METADATA_PATH,
+} from "../../shared/file-metadata"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
 import { SpaceSyncConnectionStore } from "./sync-connection"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
@@ -416,6 +418,7 @@ export class SpaceSession {
     RuntimeExternalChangeState
   >()
   private readonly runtimeSessionByPath = new Map<string, string>()
+  private fileMetadataOpen: Promise<OpenEidosFileResult> | null = null
 
   private async closeAndEvictRuntimeSessions(
     source: string
@@ -686,7 +689,8 @@ export class SpaceSession {
     this.assertRuntimeAvailable()
     this.prioritizeLocalWork()
     try {
-      await this.ensureAncestorDirectoriesLoaded(relativePath)
+      if (relativePath !== SPACE_FILE_METADATA_PATH)
+        await this.ensureAncestorDirectoriesLoaded(relativePath)
       const opened = await this.runtimePool.open(relativePath)
       this.runtimeSessionByPath.set(relativePath, opened.sessionId)
       await this.rememberRuntimeExternalChangeState(
@@ -708,6 +712,80 @@ export class SpaceSession {
       this.scheduleGraftStatusRefresh()
       throw new EidosFileRuntimeError(issue, { cause: error })
     }
+  }
+
+  async openFileMetadata(
+    directory: string | null
+  ): Promise<OpenEidosFileResult> {
+    this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
+    const scope = normalizeFileMetadataDirectory(directory ?? "")
+    await resolveSpaceDirectory(this.canonical.root, scope || null)
+    if (!this.fileMetadataOpen) {
+      this.fileMetadataOpen = this.openSpaceFileMetadata().finally(() => {
+        this.fileMetadataOpen = null
+      })
+    }
+    return this.fileMetadataOpen
+  }
+
+  private async openSpaceFileMetadata(): Promise<OpenEidosFileResult> {
+    const opened = await this.gate.withMutation(async () => {
+      const privateDirectory = path.join(this.canonical.root, ".eidos")
+      await fs.mkdir(privateDirectory).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "EEXIST") throw error
+      })
+      const stats = await fs.lstat(privateDirectory)
+      if (
+        !stats.isDirectory() ||
+        stats.isSymbolicLink() ||
+        (await fs.realpath(privateDirectory)) !== privateDirectory
+      )
+        throw new Error(
+          "The file metadata directory must be a local folder without symlinks."
+        )
+      const filePath = path.join(this.canonical.root, SPACE_FILE_METADATA_PATH)
+      const existing = await fs
+        .lstat(filePath)
+        .catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return null
+          throw error
+        })
+      if (existing) {
+        if (!existing.isFile() || existing.isSymbolicLink())
+          throw new Error(
+            "The file metadata configuration must be an ordinary file."
+          )
+        return this.runtimePool.open(SPACE_FILE_METADATA_PATH)
+      }
+      const created = await this.runtimePool.create(
+        SPACE_FILE_METADATA_PATH,
+        "Files",
+        { template: "files-index" }
+      )
+      this.noteLocalChange()
+      return created
+    })
+    const tables = opened.snapshot.tables.filter(
+      ({ table }) => table.settings?.vtabModule === "fs_meta"
+    )
+    const config = tables[0]?.table.settings?.vtabConfig as
+      | { root?: unknown }
+      | undefined
+    if (tables.length !== 1 || config?.root !== "..")
+      throw new Error(
+        "The Space file metadata configuration must contain one file table scanning the Space root."
+      )
+    this.runtimeSessionByPath.set(SPACE_FILE_METADATA_PATH, opened.sessionId)
+    this.fileIssuesByPath.delete(SPACE_FILE_METADATA_PATH)
+    await this.rememberRuntimeExternalChangeState(
+      opened.sessionId,
+      opened.snapshot.metadata.revision
+    ).catch(() => {
+      this.runtimeExternalChangeState.delete(opened.sessionId)
+    })
+    this.scheduleGraftStatusRefresh()
+    return opened
   }
 
   async previewTextFile(relativePath: string): Promise<TextFilePreviewResult> {
@@ -1343,76 +1421,31 @@ export class SpaceSession {
     contentFieldName?: string
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
+    if (template === "files-index") {
+      await this.openFileMetadata(parentRelativePath)
+      return {
+        snapshot: await this.freshSnapshotAndEmit(),
+        relativePath: SPACE_FILE_METADATA_PATH,
+        invalidatedSessionIds: [],
+      }
+    }
     const safeName = normalizeSpaceEntryName(requestedName)
     const requestedFileName = safeName.toLowerCase().endsWith(".eidos")
       ? safeName
       : `${safeName}.eidos`
-    const metadataFile =
-      template === "files-index" ||
-      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(
-        requestedFileName.toLowerCase()
-      )
-    const name = metadataFile ? "files.eidos" : requestedFileName
+    const name = requestedFileName
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
     const created = await this.gate.withMutation(async () => {
       // Recheck inside the mutation gate so concurrent creates cannot overwrite.
       await this.requireMissingPath(relativePath)
-      let metadataSchema: FileMetadataSchema | undefined
-      if (metadataFile) {
-        const siblings = await listSpaceDirectory(
-          this.canonical.root,
-          parentRelativePath,
-          { maxEntries: 100_000 }
-        )
-        if (
-          siblings.some((entry) => entry.name.toLowerCase() === "files.eidos")
-        )
-          throw new Error("This folder already contains files.eidos.")
-        await this.loadDirectoryEntries("", false)
-        await this.ensureAncestorDirectoriesLoaded(relativePath)
-        const parentPath = fileMetadataConfigPaths(
-          this.buildCachedTree(),
-          relativePath
-        ).find(
-          (candidate) =>
-            path.basename(candidate).toLowerCase() === "files.eidos"
-        )
-        if (parentPath) {
-          const parent = await this.runtimePool.open(parentPath)
-          const tables = parent.snapshot.tables.filter(
-            ({ table }) => table.settings?.vtabModule === "fs_meta"
-          )
-          if (tables.length !== 1)
-            throw new Error(
-              "Parent files.eidos must contain one file metadata table."
-            )
-          const table = tables[0]!
-          const config = table.table.settings?.vtabConfig as
-            | { namespace?: unknown }
-            | undefined
-          metadataSchema = {
-            namespace:
-              typeof config?.namespace === "string"
-                ? config.namespace
-                : "space.eidos.meta",
-            fields: table.fields.filter(
-              (field) =>
-                field.systemRole == null &&
-                field.settings?.isSystem !== true &&
-                !field.isDerived
-            ),
-          }
-        }
-      }
       return await this.runtimePool.create(
         relativePath,
         path.basename(name, ".eidos"),
         {
-          template: metadataFile ? "files-index" : template,
-          metadataSchema,
-          contentFieldName: metadataFile ? undefined : contentFieldName,
+          template: "blank",
+          contentFieldName,
         }
       )
     })
@@ -4958,10 +4991,17 @@ export class SpaceSession {
       normalizedPaths.length === 0 || explorerPaths.length > 0
         ? this.invalidateDirectoryCaches(explorerPaths)
         : []
+    // fs_meta rows live on physical files, so database data_version alone
+    // cannot detect additions, renames, removals or external attribute edits.
+    const changedPaths = [
+      ...new Set([...explorerPaths, ...externalChangePaths]),
+    ]
     await this.refreshAndEmit(
       true,
       directoriesToRefresh,
-      externalChangePaths.length > 0 ? externalChangePaths : undefined
+      normalizedPaths.length === 0 || changedPaths.length > 0
+        ? changedPaths
+        : undefined
     )
   }
 

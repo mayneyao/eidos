@@ -1488,6 +1488,11 @@ export function registerIpc(
             : requiredString(contentFieldName, "content field name")
         )
   )
+  ipcMain.handle(IPC_CHANNELS.openFileMetadata, (event, directory: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .openFileMetadata(optionalRelativePath(directory))
+  )
   ipcMain.handle(
     IPC_CHANNELS.createTextFile,
     (event, parentRelativePath: unknown, name: unknown) =>

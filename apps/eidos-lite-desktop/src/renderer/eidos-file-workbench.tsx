@@ -69,6 +69,7 @@ import type { IpcEidosFileDataSource } from "./ipc-data-source"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { usePluginTableViews } from "./plugin-table-view"
 import { PluginTableActions } from "./plugin-table-actions"
+import { fileMetadataScopedView } from "./file-metadata-actions"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
@@ -88,6 +89,7 @@ export interface EidosFileWorkbenchProps {
   onOpenSpaceFile?(path: string): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
   relativePath: string
+  metadataDirectory?: string
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
   refreshToken?: number
@@ -121,6 +123,7 @@ export function EidosFileWorkbench({
   onOpenSpaceFile,
   onOpenFileInSidebar,
   relativePath,
+  metadataDirectory,
   snapshot,
   source,
   refreshToken = 0,
@@ -379,10 +382,17 @@ export function EidosFileWorkbench({
       activeTable.views[0]
     )
   }, [activeTable, activeViews, activeViewId, onViewSelect])
+  const scopedView = useMemo(
+    () =>
+      activeTable
+        ? fileMetadataScopedView(activeTable, activeView, metadataDirectory)
+        : activeView,
+    [activeTable, activeView, metadataDirectory]
+  )
   const recordNavigationQuery = useMemo(() => {
-    if (!activeView) return undefined
-    const base = eidosFileViewRowQuery(activeView, search)
-    if (activeView.type !== "feed" || (base.sorts && base.sorts.length > 0)) {
+    if (!scopedView) return undefined
+    const base = eidosFileViewRowQuery(scopedView, search)
+    if (scopedView.type !== "feed" || (base.sorts && base.sorts.length > 0)) {
       return base
     }
     const created = eidosFileFeedCreatedField(activeTable?.fields ?? [])
@@ -392,7 +402,7 @@ export function EidosFileWorkbench({
           sorts: [{ field: created.id, direction: "desc" as const }],
         }
       : base
-  }, [activeTable, activeView, search])
+  }, [activeTable, activeView, scopedView, search])
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
@@ -569,7 +579,7 @@ export function EidosFileWorkbench({
     const result = await exportEidosFileViewCsv({
       source,
       table,
-      view,
+      view: fileMetadataScopedView(table, view, metadataDirectory),
       search: scopedSearch,
     })
     const fileBase = relativePath
@@ -605,7 +615,7 @@ export function EidosFileWorkbench({
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
         searchNavigation={{
           search,
-          scopeKey: `${relativePath}:${activeTable.table.id}:${activeView?.id ?? "default"}`,
+          scopeKey: `${relativePath}:${activeTable.table.id}:${activeView?.id ?? "default"}:${metadataDirectory ?? ""}`,
         }}
         viewTabs={
           <EidosFileViewTabs
@@ -854,7 +864,7 @@ export function EidosFileWorkbench({
               source={source}
               table={activeTable}
               tables={snapshot.tables}
-              view={activeView}
+              view={scopedView}
               search={search}
               state={{ formMode: activeFormMode }}
               disabled={disabled}
