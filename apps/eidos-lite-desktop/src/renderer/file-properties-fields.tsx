@@ -67,6 +67,7 @@ export function FilePropertiesFields({
   row,
   view,
   disabled,
+  readOnly = false,
   onEdit,
   onSnapshot,
   onCreateOption,
@@ -77,6 +78,7 @@ export function FilePropertiesFields({
   row: EidosFileRow
   view: EidosFileViewInfo
   disabled: boolean
+  readOnly?: boolean
   onEdit(field: EidosFileFieldInfo, value: EidosFileSqlPrimitive): Promise<void>
   onSnapshot(snapshot: EidosFileSnapshot): void
   onCreateOption(field: EidosFileFieldInfo, name: string): Promise<void>
@@ -103,7 +105,8 @@ export function FilePropertiesFields({
             <span>{field.name}:</span>
           </span>
           <div className="min-w-0">
-            {isEidosFileFieldWritable(field) &&
+            {!readOnly &&
+            isEidosFileFieldWritable(field) &&
             [
               "text",
               "number",
@@ -125,38 +128,40 @@ export function FilePropertiesFields({
                 registerCommit={registerCommit}
               />
             ) : (
-              <span className="text-xs text-muted-foreground">
-                {eidosFileRecordFieldText(row, field, timeZone)}
+              <span className="file-properties-readonly-value">
+                {eidosFileRecordFieldText(row, field, timeZone) || "—"}
               </span>
             )}
           </div>
         </div>
       ))}
-      <div className="file-properties-controls">
-        <Popover open={create} onOpenChange={setCreate}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={t("Add property")}
-              title={t("Add property")}
-              disabled={disabled}
-            >
-              <Plus />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80 p-0">
-            <FilePropertiesCreate
-              disabled={disabled}
-              onCancel={() => setCreate(false)}
-              onCreate={async (input) => {
-                onSnapshot(await source.addField(table.table.id, input))
-                setCreate(false)
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+      {!readOnly && (
+        <div className="file-properties-controls">
+          <Popover open={create} onOpenChange={setCreate}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t("Add property")}
+                title={t("Add property")}
+                disabled={disabled}
+              >
+                <Plus />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80 p-0">
+              <FilePropertiesCreate
+                disabled={disabled}
+                onCancel={() => setCreate(false)}
+                onCreate={async (input) => {
+                  onSnapshot(await source.addField(table.table.id, input))
+                  setCreate(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
     </FilePropertiesSection>
   )
 }

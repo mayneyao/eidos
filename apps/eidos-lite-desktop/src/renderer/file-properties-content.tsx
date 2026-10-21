@@ -138,6 +138,7 @@ export interface FilePropertiesContentHandle {
 interface FilePropertiesContentProps {
   relativePath: string
   disabled: boolean
+  readOnly?: boolean
   theme: ResolvedAppearance
   refreshToken: number | string
   iconUrl?: string
@@ -278,14 +279,18 @@ export const FilePropertiesContent = forwardRef<
     return () => {
       active = false
     }
-  }, [props.relativePath, props.refreshToken, refresh, t])
+  }, [props.relativePath, props.readOnly, props.refreshToken, refresh, t])
 
   const table = model?.snapshot.tables.find(
     ({ table }) => table.settings?.vtabModule === "fs_meta"
   )
   const current = model?.path === props.relativePath
   const displayPath = model?.path ?? props.relativePath
-  const blocked = props.disabled || !current
+  const activationRequired =
+    props.readOnly === true ||
+    (error ?? "").includes(SPARK_ACTIVATION_REQUIRED) ||
+    (failedEdit?.message ?? "").includes(SPARK_ACTIVATION_REQUIRED)
+  const blocked = props.disabled || !current || activationRequired
   useLayoutEffect(() => {
     const element = contentRef.current
     if (
@@ -482,6 +487,23 @@ export const FilePropertiesContent = forwardRef<
     edits.current = next.catch(() => {})
     return next
   }
+  const activationNotice = (
+    <div className="file-properties-activation" role="status">
+      <p>
+        {t(
+          "File properties are read-only until Spark is activated on this computer."
+        )}
+      </p>
+      <button
+        type="button"
+        onClick={() =>
+          void window.eidosLite.openSettingsDestination("account-sync")
+        }
+      >
+        {t("Activate Spark")}
+      </button>
+    </div>
+  )
   return (
     <EidosFileUIProvider
       locale={locale}
@@ -517,31 +539,25 @@ export const FilePropertiesContent = forwardRef<
             })}
           </p>
         )}
-        {(error || failedEdit) && (
-          <div className="file-sidebar-error" role="alert">
-            {error ?? failedEdit?.message}
-            <button
-              type="button"
-              disabled={pending > 0}
-              onClick={() => {
-                if (failedEdit) void failedEdit.retry()
-                else setRefresh((n) => n + 1)
-              }}
-            >
-              {t("Retry")}
-            </button>
-            {(error ?? failedEdit?.message ?? "").includes(
-              SPARK_ACTIVATION_REQUIRED
-            ) && (
+        {activationRequired && !(model && table) && activationNotice}
+        {!activationRequired && (error || failedEdit) && (
+          <div
+            className="file-sidebar-error file-properties-error"
+            role="alert"
+          >
+            <span>{error ?? failedEdit?.message}</span>
+            <div className="file-properties-error-actions">
               <button
                 type="button"
-                onClick={() =>
-                  void window.eidosLite.openSettingsDestination("account-sync")
-                }
+                disabled={pending > 0}
+                onClick={() => {
+                  if (failedEdit) void failedEdit.retry()
+                  else setRefresh((n) => n + 1)
+                }}
               >
-                {t("Activate Spark")}
+                {t("Retry")}
               </button>
-            )}
+            </div>
           </div>
         )}
         {model && table && (
@@ -614,11 +630,13 @@ export const FilePropertiesContent = forwardRef<
               row={model.row}
               view={filePropertiesView(table.table.id, model.config)}
               disabled={blocked}
+              readOnly={activationRequired}
               onEdit={edit}
               onCreateOption={createOption}
               onSnapshot={updateSnapshot}
               registerCommit={registerCommit}
             />
+            {activationRequired && activationNotice}
             <p className="sr-only" role="status">
               {pending > 0
                 ? t("Saving…")

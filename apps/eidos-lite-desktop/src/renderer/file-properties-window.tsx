@@ -9,6 +9,7 @@ import { FilePropertiesContent } from "./file-properties-content"
 import type { FilePropertiesContentHandle } from "./file-properties-content"
 import { useEidosLiteI18n } from "./i18n"
 import type { ResolvedAppearance } from "./app-appearance"
+import { hasSparkFeature } from "../shared/spark"
 
 export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
   const { t } = useEidosLiteI18n()
@@ -17,8 +18,36 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
   const [error, setError] = useState<string | null>(null)
   const [spacePath, setSpacePath] = useState<string | null>(null)
   const [targetLoaded, setTargetLoaded] = useState(false)
+  const [sparkActive, setSparkActive] = useState(false)
   const windowContent = useRef<HTMLElement>(null)
   const contentRef = useRef<FilePropertiesContentHandle | null>(null)
+  useEffect(() => {
+    let active = true
+    const refreshSpark = () => {
+      try {
+        const request = window.eidosLite.getSparkStatus?.(false)
+        if (!request) {
+          if (active) setSparkActive(false)
+          return
+        }
+        void request
+          .then((status) => {
+            if (active) setSparkActive(hasSparkFeature(status, "file-metadata"))
+          })
+          .catch(() => {
+            if (active) setSparkActive(false)
+          })
+      } catch {
+        if (active) setSparkActive(false)
+      }
+    }
+    refreshSpark()
+    window.addEventListener("focus", refreshSpark)
+    return () => {
+      active = false
+      window.removeEventListener("focus", refreshSpark)
+    }
+  }, [])
   useEffect(() => {
     let active = true
     void window.eidosLite
@@ -128,6 +157,7 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
           relativePath={path}
           theme={theme}
           disabled={false}
+          readOnly={!sparkActive}
           refreshToken={revision}
           spacePath={spacePath}
           iconUrl={icon?.path === path ? icon.url : undefined}

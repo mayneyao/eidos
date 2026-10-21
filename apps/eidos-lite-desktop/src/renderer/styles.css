@@ -9217,6 +9217,55 @@ body {
   height: auto;
   min-height: 0;
 }
+.file-properties-activation {
+  display: grid;
+  gap: 6px;
+  margin: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--canvas));
+}
+.file-properties-activation p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.file-properties-activation button {
+  justify-self: start;
+  width: auto;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+}
+.file-properties-activation button:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--canvas));
+}
+.file-properties-error {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+.file-properties-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.file-properties-readonly-value {
+  display: block;
+  min-height: 22px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 .file-properties-identity {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) auto;

@@ -13,6 +13,8 @@ const zh: Record<string, string> = {
   "New properties are shared across this Space.":
     "新建属性供整个 Space 的文件使用。",
   "File properties": "文件属性",
+  "File properties are read-only until Spark is activated on this computer.":
+    "Spark 未激活时，文件属性为只读。",
   "General file information": "通用",
   "More Info": "更多信息",
   Where: "位置",

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import type { EidosLiteApi } from "../shared/contracts"
+import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import type { FilePropertiesFields } from "./file-properties-fields"
 
 const surface = vi.hoisted(() => ({
@@ -138,6 +139,24 @@ it("refuses to close while a draft cannot be committed", async () => {
     allowed = await content.current!.flushDrafts()
   })
   expect(allowed).toBe(false)
+})
+
+it("shows activation guidance instead of the raw Runtime error", async () => {
+  vi.mocked(window.eidosLite.openFileMetadata).mockRejectedValueOnce(
+    new Error(SPARK_ACTIVATION_REQUIRED)
+  )
+  await render()
+  expect(element.querySelector(".file-properties-activation")).not.toBeNull()
+  expect(element.querySelector(".file-sidebar-error")).toBeNull()
+  expect(element.textContent).toContain("Activate Spark")
+})
+
+it("renders loaded properties read-only without Spark", async () => {
+  props = { ...props, readOnly: true }
+  await render()
+  expect(element.querySelector(".file-properties-activation")).not.toBeNull()
+  expect(surface.current?.disabled).toBe(true)
+  expect(surface.current?.readOnly).toBe(true)
 })
 
 it("coalesces form layout measurements before reporting a native window height", async () => {
