@@ -18,6 +18,7 @@ import {
   Copy,
   FileWarning,
   FolderDown,
+  GitBranch,
   HardDrive,
   LoaderCircle,
   LogIn,
@@ -2243,6 +2244,76 @@ function shouldRenderSyncAccessGate(status: EidosSyncStatus): boolean {
     status.account.state === "signed-out" ||
     (status.entitlement.state !== "read-only" &&
       status.entitlement.state !== "read-write")
+  )
+}
+
+export function SyncLocalVersionGate({
+  variant = "inspector",
+  platform = "unknown",
+  onClose,
+  onOpenVersions,
+}: {
+  variant?: "dialog" | "inspector"
+  platform?: string
+  onClose(): void
+  onOpenVersions(): void
+}) {
+  const { t } = useEidosLiteI18n()
+  return (
+    <div
+      className={
+        variant === "dialog" ? "sync-dialog-backdrop" : "sync-inspector-host"
+      }
+      role="presentation"
+      data-platform={platform}
+    >
+      <aside
+        className={`sync-dialog${variant === "inspector" ? " sync-dialog-inspector" : ""}`}
+        role={variant === "dialog" ? "dialog" : "complementary"}
+        aria-modal={variant === "dialog" ? "true" : undefined}
+        aria-labelledby="sync-dialog-title"
+        data-sync-mode="enable"
+        data-sync-local-versions="required"
+      >
+        <header>
+          <div>
+            <Cloud />
+            <span className="sync-dialog-title-line">
+              <strong id="sync-dialog-title">{t("Sync")}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label={t("Close Eidos Sync")}
+          >
+            <X />
+          </button>
+        </header>
+        <div className="sync-dialog-body sync-gate">
+          <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
+            <GitBranch />
+          </span>
+          <h2>{t("Enable local versions first")}</h2>
+          <p>
+            {t(
+              "Cloud sync uses this Space's local version history. Enable versioning before connecting to Sync."
+            )}
+          </p>
+          <div className="sync-actions">
+            <button
+              type="button"
+              className="primary-action"
+              data-sync-open-versions
+              onClick={onOpenVersions}
+            >
+              <GitBranch /> {t("Open Versions")}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
   )
 }
 

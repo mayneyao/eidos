@@ -28,3 +28,5 @@ Grid views have a new **Show vertical lines** setting. Turn it off to hide colum
 
 - **Help menu**: Feedback and Release notes are now available from one sidebar menu.
 - **Version history**: The managed file catalog appears in checkpoints, file history and safe restore.
+- **Cloud Sync**: A Space must enable local versioning before connecting. Sync now links directly to Versions instead of showing an unusable setup.
+- **Spark**: A device-bound certificate for another computer now shows activation and device-management actions instead of a generic unavailable message.

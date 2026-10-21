@@ -2,6 +2,7 @@
 
 import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import { renderToStaticMarkup } from "react-dom/server"
 
 import type {
   EidosLiteApi,
@@ -12,7 +13,7 @@ import type {
   EidosSyncStatus,
   SpaceSnapshot,
 } from "../shared/contracts"
-import { SyncPanel } from "./sync-panel"
+import { SyncLocalVersionGate, SyncPanel } from "./sync-panel"
 import {
   readSyncStatusSnapshot,
   writeSyncStatusSnapshot,
@@ -112,6 +113,21 @@ const preflight: EidosSyncPreflight = {
 }
 
 describe("SyncPanel failure states", () => {
+  it("requires local versioning before cloud sync", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SyncLocalVersionGate, {
+        variant: "inspector",
+        platform: "darwin",
+        onClose: () => undefined,
+        onOpenVersions: () => undefined,
+      })
+    )
+    expect(markup).toContain('data-sync-local-versions="required"')
+    expect(markup).toContain("Enable local versions first")
+    expect(markup).toContain("data-sync-open-versions")
+    expect(markup).toContain("Open Versions")
+    expect(markup).not.toContain("Connect this Space")
+  })
   let root: Root
   let host: HTMLDivElement
 

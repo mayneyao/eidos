@@ -207,6 +207,10 @@ const SyncPanel = lazy(async () => {
   const module = await import("./sync-panel")
   return { default: module.SyncPanel }
 })
+const SyncLocalVersionGate = lazy(async () => {
+  const module = await import("./sync-panel")
+  return { default: module.SyncLocalVersionGate }
+})
 const VersionPanel = lazy(async () => {
   const module = await import("./version-panel")
   return { default: module.VersionPanel }
@@ -5159,51 +5163,63 @@ function WorkspaceApp({
       ) : null}
       {workbenchSurfaces.right === "sync" && syncPanelMode ? (
         <Suspense fallback={null}>
-          <SyncPanel
-            mode={syncPanelMode}
-            variant="inspector"
-            platform={platform}
-            cacheKey={space.id}
-            onClone={() => {
-              setSyncPanelMode(null)
-              onSpaceReplaced()
-            }}
-            hasUncheckpointedChanges={
-              syncMergeStatus.state !== "merging" &&
-              space.graft.initialized &&
-              space.graft.clean === false
-            }
-            syncHistory={space.graft.sync}
-            hasCloudConnection={space.cloudSyncConnection}
-            onClose={() => setSyncPanelMode(null)}
-            onRequestClone={() => setSyncPanelMode("clone")}
-            onReviewLocal={() => {
-              setSyncPanelMode(null)
-              setVersionPanelOpen(true)
-            }}
-            onMergeStatusChange={(merge) => {
-              setSyncMergeStatus(merge)
-              if (merge.state === "none" && mergeInitialPath !== undefined) {
-                setVersionRefreshKey((current) => current + 1)
-                reloadVersionDiffRoute()
-                setVersionPanelOpen(false)
-                recordNavigationLocation(activeDocumentPath)
-                setSyncPanelMode("enable")
+          {space.graft.initialized ? (
+            <SyncPanel
+              mode={syncPanelMode}
+              variant="inspector"
+              platform={platform}
+              cacheKey={space.id}
+              onClone={() => {
+                setSyncPanelMode(null)
+                onSpaceReplaced()
+              }}
+              hasUncheckpointedChanges={
+                syncMergeStatus.state !== "merging" &&
+                space.graft.initialized &&
+                space.graft.clean === false
               }
-            }}
-            mergeStatus={syncMergeStatus}
-            onReviewMerge={(path, table) => {
-              recordNavigationLocation({
-                type: "merge",
-                path: path ?? "",
-                tableName: table,
-              })
-              setSyncPanelMode("enable")
-              setVersionPanelOpen(false)
-            }}
-            onSpaceChange={acceptSpaceSnapshot}
-            onFilesMaterialized={refreshMaterializedFiles}
-          />
+              syncHistory={space.graft.sync}
+              hasCloudConnection={space.cloudSyncConnection}
+              onClose={() => setSyncPanelMode(null)}
+              onRequestClone={() => setSyncPanelMode("clone")}
+              onReviewLocal={() => {
+                setSyncPanelMode(null)
+                setVersionPanelOpen(true)
+              }}
+              onMergeStatusChange={(merge) => {
+                setSyncMergeStatus(merge)
+                if (merge.state === "none" && mergeInitialPath !== undefined) {
+                  setVersionRefreshKey((current) => current + 1)
+                  reloadVersionDiffRoute()
+                  setVersionPanelOpen(false)
+                  recordNavigationLocation(activeDocumentPath)
+                  setSyncPanelMode("enable")
+                }
+              }}
+              mergeStatus={syncMergeStatus}
+              onReviewMerge={(path, table) => {
+                recordNavigationLocation({
+                  type: "merge",
+                  path: path ?? "",
+                  tableName: table,
+                })
+                setSyncPanelMode("enable")
+                setVersionPanelOpen(false)
+              }}
+              onSpaceChange={acceptSpaceSnapshot}
+              onFilesMaterialized={refreshMaterializedFiles}
+            />
+          ) : (
+            <SyncLocalVersionGate
+              variant="inspector"
+              platform={platform}
+              onClose={() => setSyncPanelMode(null)}
+              onOpenVersions={() => {
+                setSyncPanelMode(null)
+                setVersionPanelOpen(true)
+              }}
+            />
+          )}
         </Suspense>
       ) : null}
       <div
