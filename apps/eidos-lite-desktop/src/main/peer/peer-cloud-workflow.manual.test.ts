@@ -38,6 +38,20 @@ it.skipIf(!process.env.EIDOS_PEER_CLOUD_WORKFLOW)(
     await windowsGraft.initialize(windows)
     await windowsGraft.stageAll(windows)
     await windowsGraft.commit(windows, "Workflow baseline")
+    if (process.env.EIDOS_PEER_HISTORY_EXPORT) {
+      // Reintroducing a file creates a separate SQLite volume. The latest
+      // snapshot no longer needs the old volume, but exporting full history
+      // still must obtain its segments from the cloud source after cloning.
+      // All operations affect this disposable fixture copy only.
+      const file = path.join(windows, "eidos-project.eidos")
+      const retained = path.join(directory, "retained.eidos")
+      await fs.rename(file, retained)
+      await windowsGraft.stageAll(windows)
+      await windowsGraft.commit(windows, "Remove fixture database")
+      await fs.rename(retained, file)
+      await windowsGraft.stageAll(windows)
+      await windowsGraft.commit(windows, "Restore fixture database")
+    }
     await windowsGraft.addRemote(windows, "origin", `fs://${cloud}`)
     await windowsGraft.push(windows)
     await macGraft.clone(mac, `fs://${cloud}`)

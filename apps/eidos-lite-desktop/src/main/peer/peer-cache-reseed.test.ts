@@ -80,3 +80,114 @@ it("exports SQLite snapshots to a fresh device cache despite previous remote tra
     await fs.rm(directory, { recursive: true, force: true })
   }
 }, 120_000)
+
+it("shares exported SQLite segments when a downloaded device publishes its history", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "peer-history-"))
+  const root = path.join(directory, "space")
+  const authorRoot = path.join(directory, "author")
+  const cloud = path.join(directory, "cloud")
+  await fs.mkdir(root)
+  await fs.mkdir(authorRoot)
+  await fs.mkdir(cloud)
+  const authorPath = path.join(authorRoot, "history.eidos")
+  const databasePath = path.join(root, "history.eidos")
+  const database = new DatabaseSync(authorPath)
+  database.exec(
+    "CREATE TABLE notes (body TEXT); INSERT INTO notes VALUES ('first')"
+  )
+  database.close()
+  const author = await RepositorySession.open(authorRoot)
+  await author.init()
+  await author.addAll()
+  await author.commit("first")
+  const initial = (await author.historySummaries({ limit: 1 })).commits[0]!
+  const changed = new DatabaseSync(authorPath)
+  changed.exec("PRAGMA user_version=2; UPDATE notes SET body = 'second'")
+  changed.close()
+  await author.addAll()
+  await author.commit("replace every page")
+  await author.configureRemote({ name: "origin", url: `fs://${cloud}` })
+  await author.push({ remote: "origin", branch: "main" })
+  const clone = await RepositorySession.open(root)
+  await clone.cloneRepository({ remoteUrl: `fs://${cloud}`, branch: "main" })
+  await clone.close()
+  await author.close()
+  const graft = new GraftClient({
+    sdkTransport: new GraftInProcessTransport(),
+  })
+  const session = await SpaceSession.create(
+    root,
+    path.join(directory, "state"),
+    {
+      graft,
+    }
+  )
+  const peer = new PeerService(session, path.join(directory, "state"))
+  let mobile: RepositorySession | undefined
+  try {
+    await session.enableVersioning()
+    await peer.start(false)
+    await peer["synchronize"]()
+    // Historical pages must now be served by the exported peer cache alone.
+    await fs.rename(cloud, cloud + "-offline")
+    const phone = path.join(directory, "phone")
+    await fs.mkdir(phone)
+    mobile = await RepositorySession.open(phone)
+    await mobile.cloneRepository({
+      remoteUrl: peer["localUrl"],
+      branch: "main",
+      bearerToken: peer["localToken"],
+    })
+    // The current snapshot is materialized, but earlier storage segments may
+    // remain lazy. A new incoming remote needs those segments when publishing
+    // the complete history, even when the phone has no local edits.
+    peer["host"].devices.push({
+      id: "test-phone",
+      name: "Phone",
+      tokenHash: "unused",
+    })
+    await mobile.close()
+    mobile = await RepositorySession.open(phone)
+    const segment = peer["store"]!.list({ prefix: "segments/", limit: 1 })
+      .paths[0]
+    expect(segment).toBeDefined()
+    expect(peer["incomingStore"]("test-phone").head(segment!)).toEqual(
+      peer["store"]!.head(segment!)
+    )
+    const incomingUrl = peer["localUrl"].replace(
+      "/peer/space",
+      "/incoming/test-phone"
+    )
+    await mobile.configureRemote({
+      name: "incoming",
+      url: incomingUrl,
+      bearerToken: peer["localToken"],
+    })
+    await mobile.push({ remote: "incoming", branch: "main" })
+    expect(
+      await sqliteSnapshotContent(path.join(phone, "history.eidos"))
+    ).toEqual(await sqliteSnapshotContent(databasePath))
+    await mobile.restorePaths({
+      source: initial.id,
+      paths: ["history.eidos"],
+    })
+    const restored = new DatabaseSync(path.join(phone, "history.eidos"), {
+      readOnly: true,
+    })
+    try {
+      expect(restored.prepare("SELECT body FROM notes").get()).toEqual({
+        body: "first",
+      })
+      expect(restored.prepare("PRAGMA integrity_check").all()).toEqual([
+        { integrity_check: "ok" },
+      ])
+    } finally {
+      restored.close()
+    }
+  } finally {
+    await mobile?.close()
+    await peer.close()
+    await session.close()
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+}, 120_000)

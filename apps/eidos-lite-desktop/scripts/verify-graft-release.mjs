@@ -31,6 +31,9 @@ export function validateGraftReleaseInputs({
   lock,
   environment = {},
   surface = "lite",
+  installed = false,
+  platform = process.platform,
+  arch = process.arch,
 }) {
   const errors = []
   const isLite = surface === "lite"
@@ -68,6 +71,10 @@ export function validateGraftReleaseInputs({
       continue
     }
     const entry = importer?.[section]?.[name]
+    // pnpm's installed lockfile omits optional packages for other platforms.
+    // The root lockfile still validates every native package unconditionally.
+    const hostNative = `@eidos.space/graft-${platform}-${arch}${platform === "linux" ? "-gnu" : platform === "win32" ? "-msvc" : ""}`
+    if (installed && optional && name !== hostNative && !entry) continue
     if (
       entry?.specifier !== version ||
       entry?.version?.split("(")[0] !== version
@@ -191,6 +198,7 @@ async function verify(surface) {
       lock: installedLock,
       environment: {},
       surface,
+      installed: true,
     }).map((error) => `installed dependencies: ${error}`)
   )
   if (errors.length)

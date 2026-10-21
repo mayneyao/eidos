@@ -38,7 +38,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
-    "@eidos.space/graft": "0.3.33",
+    "@eidos.space/graft": "0.3.34",
     "@eidos.space/graft-remote": "0.2.5",
     "@eidos.space/markdown": "workspace:*",
     "@eidos.space/plugin-runtime": "workspace:*",
@@ -67,11 +67,11 @@
     "yaml": "2.9.0"
   },
   "optionalDependencies": {
-    "@eidos.space/graft-darwin-arm64": "0.3.33",
-    "@eidos.space/graft-darwin-x64": "0.3.33",
-    "@eidos.space/graft-linux-arm64-gnu": "0.3.33",
-    "@eidos.space/graft-linux-x64-gnu": "0.3.33",
-    "@eidos.space/graft-win32-x64-msvc": "0.3.33"
+    "@eidos.space/graft-darwin-arm64": "0.3.34",
+    "@eidos.space/graft-darwin-x64": "0.3.34",
+    "@eidos.space/graft-linux-arm64-gnu": "0.3.34",
+    "@eidos.space/graft-linux-x64-gnu": "0.3.34",
+    "@eidos.space/graft-win32-x64-msvc": "0.3.34"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
