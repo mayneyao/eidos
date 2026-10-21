@@ -242,28 +242,6 @@ it("edits the physical file record and follows file changes without carrying val
   expect(props.onReleaseEidosFile).not.toHaveBeenCalled()
 })
 
-it("persists panel visibility independently of Grid views", async () => {
-  await render()
-  await act(async () => {
-    await surface.current!.onConfigure({
-      hiddenFields: ["rating"],
-      orderMap: { rating: 0 },
-    })
-  })
-  expect(call).toHaveBeenCalledWith("catalog", "writeTablePluginConfig", [
-    "files",
-    "eidos.file-properties",
-    {
-      value: { hiddenFields: ["rating"], orderMap: { rating: 0 } },
-      expectedVersion: "null",
-    },
-  ])
-  expect(surface.current?.view.hiddenFields).toEqual(["rating"])
-  expect(call.mock.calls.some(([, method]) => method === "updateView")).toBe(
-    false
-  )
-})
-
 it.each(["select", "multi-select"])(
   "creates %s options through Runtime without duplicate names on retry",
   async (type) => {

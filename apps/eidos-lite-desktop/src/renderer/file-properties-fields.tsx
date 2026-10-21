@@ -6,14 +6,12 @@ import type {
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
-  UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { Plus } from "lucide-react"
 import {
   useEidosFileUI,
   type EidosFileEditorDataSource,
   EidosFileRecordFieldEditor,
-  EidosFileViewFieldsPopover,
   isEidosFileFieldWritable,
   eidosFileRecordFieldText,
   Button,
@@ -73,7 +71,6 @@ export function FilePropertiesFields({
   onSnapshot,
   onCreateOption,
   registerCommit,
-  onConfigure,
 }: {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
@@ -81,7 +78,6 @@ export function FilePropertiesFields({
   view: EidosFileViewInfo
   disabled: boolean
   onEdit(field: EidosFileFieldInfo, value: EidosFileSqlPrimitive): Promise<void>
-  onConfigure(changes: UpdateEidosFileViewInput): Promise<void>
   onSnapshot(snapshot: EidosFileSnapshot): void
   onCreateOption(field: EidosFileFieldInfo, name: string): Promise<void>
   registerCommit?: (fieldId: string, commit: () => boolean) => () => void
@@ -137,14 +133,6 @@ export function FilePropertiesFields({
         </div>
       ))}
       <div className="file-properties-controls">
-        <EidosFileViewFieldsPopover
-          fields={configurableFields}
-          view={view}
-          disabled={disabled}
-          title={t("Properties shown in this window")}
-          onUpdate={onConfigure}
-          className="file-properties-fields-trigger"
-        />
         <Popover open={create} onOpenChange={setCreate}>
           <PopoverTrigger asChild>
             <Button

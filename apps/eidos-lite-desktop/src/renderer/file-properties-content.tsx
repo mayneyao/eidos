@@ -15,7 +15,6 @@ import type {
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
   EidosFileViewInfo,
-  UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui"
 import {
@@ -483,27 +482,6 @@ export const FilePropertiesContent = forwardRef<
     edits.current = next.catch(() => {})
     return next
   }
-  const configure = async (changes: UpdateEidosFileViewInput) => {
-    if (!model || !table || blocked) return
-    const config = await model.source.writeTablePluginConfig(
-      table.table.id,
-      CONFIG_ID,
-      {
-        value: {
-          ...(model.config.value ?? {}),
-          ...(changes.hiddenFields
-            ? { hiddenFields: changes.hiddenFields }
-            : {}),
-          ...(changes.orderMap ? { orderMap: changes.orderMap } : {}),
-        },
-        expectedVersion: model.config.version,
-      }
-    )
-    setModel((value) =>
-      value?.source === model.source ? { ...value, config } : value
-    )
-    props.onChanged(await model.source.getSnapshot())
-  }
   return (
     <EidosFileUIProvider
       locale={locale}
@@ -638,7 +616,6 @@ export const FilePropertiesContent = forwardRef<
               disabled={blocked}
               onEdit={edit}
               onCreateOption={createOption}
-              onConfigure={configure}
               onSnapshot={updateSnapshot}
               registerCommit={registerCommit}
             />
