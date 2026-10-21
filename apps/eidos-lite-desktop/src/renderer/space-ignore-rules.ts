@@ -1,4 +1,4 @@
-import type { SpaceTreeEntry } from "../shared/contracts"
+import type { SpaceIgnoreRules, SpaceTreeEntry } from "../shared/contracts"
 
 export const VIDEO_IGNORE_PATTERNS = [
   "*.mp4",
@@ -170,20 +170,109 @@ export interface SpaceIgnorePreflight {
   largeFiles: Array<{ path: string; size: number }>
 }
 
+interface CompiledIgnoreRule {
+  negate: boolean
+  directory: boolean
+  regex: RegExp
+}
+
+function globToRegex(pattern: string): string {
+  return pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*\//g, "(?:.*/)?")
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\?/g, "[^/]")
+}
+
+function compileIgnoreRules(content: string): CompiledIgnoreRule[] {
+  const rules: CompiledIgnoreRule[] = []
+  for (const raw of content.split(/\r?\n/)) {
+    let value = raw.trim()
+    if (!value || value.startsWith("#")) continue
+    let negate = false
+    if (value.startsWith("!")) {
+      negate = true
+      value = value.slice(1)
+    }
+    if (!value) continue
+    const directory = value.endsWith("/")
+    if (directory) value = value.slice(0, -1)
+    const anchored = value.startsWith("/")
+    if (anchored) value = value.slice(1)
+    if (!value) continue
+    const body = globToRegex(value)
+    const regex =
+      anchored || value.includes("/")
+        ? new RegExp(`^${body}$`)
+        : new RegExp(`(^|/)${body}$`)
+    rules.push({ negate, directory, regex })
+  }
+  return rules
+}
+
+export function isPathIgnored(
+  relativePath: string,
+  isDirectory: boolean,
+  rules: SpaceIgnoreRules | null | undefined
+): boolean {
+  return isIgnoredByRules(relativePath, isDirectory, compiledIgnoreRules(rules))
+}
+
+function compiledIgnoreRules(
+  rules: SpaceIgnoreRules | null | undefined
+): CompiledIgnoreRule[] {
+  if (!rules) return []
+  return [
+    ...compileIgnoreRules(rules.graftignore),
+    ...compileIgnoreRules(rules.gitignore),
+  ]
+}
+
+function isIgnoredByRules(
+  relativePath: string,
+  isDirectory: boolean,
+  compiled: readonly CompiledIgnoreRule[]
+): boolean {
+  if (compiled.length === 0) return false
+  const segments = relativePath.split("/").filter(Boolean)
+  for (let index = 1; index <= segments.length; index += 1) {
+    const candidate = segments.slice(0, index).join("/")
+    const candidateIsDirectory = index < segments.length || isDirectory
+    let ignored = false
+    for (const rule of compiled) {
+      if (rule.directory && !candidateIsDirectory) continue
+      if (rule.regex.test(candidate)) ignored = !rule.negate
+    }
+    if (ignored) return true
+  }
+  return false
+}
+
 export function spaceIgnorePreflight(
   entries: readonly SpaceTreeEntry[],
-  largeFileBytes = LARGE_FILE_BYTES,
-  limit = 5
+  options: {
+    rules?: SpaceIgnoreRules | null
+    largeFileBytes?: number
+    limit?: number
+  } = {}
 ): SpaceIgnorePreflight {
+  const largeFileBytes = options.largeFileBytes ?? LARGE_FILE_BYTES
+  const limit = options.limit ?? 5
   let totalFiles = 0
   let totalBytes = 0
   let videoCount = 0
   let videoBytes = 0
   let symlinkCount = 0
   const largeFiles: Array<{ path: string; size: number }> = []
+  const compiled = compiledIgnoreRules(options.rules)
   const stack = [...entries]
   while (stack.length > 0) {
     const entry = stack.pop()!
+    if (
+      isIgnoredByRules(entry.relativePath, entry.kind === "directory", compiled)
+    )
+      continue
     if (entry.kind === "symlink") symlinkCount += 1
     if (entry.kind !== "directory") {
       totalFiles += 1

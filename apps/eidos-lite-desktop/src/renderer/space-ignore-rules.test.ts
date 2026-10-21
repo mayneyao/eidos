@@ -4,6 +4,7 @@ import {
   appendVideoIgnorePatterns,
   IGNORE_TEMPLATES,
   ignorePathPattern,
+  isPathIgnored,
   removeIgnorePatterns,
   spaceIgnorePreflight,
   templateApplied,
@@ -69,8 +70,7 @@ it("reports large files and symlinks in the preflight summary", () => {
         entry("link", "symlink", 10),
       ]),
     ],
-    1000,
-    1
+    { largeFileBytes: 1000, limit: 1 }
   )
   expect(summary).toMatchObject({
     totalFiles: 4,
@@ -81,6 +81,45 @@ it("reports large files and symlinks in the preflight summary", () => {
     largeFileCount: 2,
   })
   expect(summary.largeFiles).toEqual([{ path: "clip.mp4", size: 2000 }])
+})
+
+it("excludes files matched by ignore rules from the preflight", () => {
+  const summary = spaceIgnorePreflight(
+    [
+      entry("media", "directory", 0, [
+        entry("clip.mp4", "file", 2000),
+        entry("notes.md", "file", 20),
+      ]),
+      entry("node_modules", "directory", 0, [
+        entry("dependency.js", "file", 400),
+      ]),
+      entry("big.zip", "file", 1500),
+    ],
+    {
+      rules: { graftignore: "*.mp4\nnode_modules/\n", gitignore: "" },
+      largeFileBytes: 1000,
+    }
+  )
+  expect(summary).toMatchObject({
+    totalFiles: 2,
+    totalBytes: 1520,
+    videoCount: 0,
+    videoBytes: 0,
+    largeFileCount: 1,
+  })
+  expect(summary.largeFiles).toEqual([{ path: "big.zip", size: 1500 }])
+})
+
+it("matches nested directories and honors negated patterns", () => {
+  expect(
+    isPathIgnored("app/node_modules/pkg/index.js", false, {
+      graftignore: "node_modules/\n",
+      gitignore: "",
+    })
+  ).toBe(true)
+  const rules = { graftignore: "*.mp4\n!/keep.mp4\n", gitignore: "" }
+  expect(isPathIgnored("keep.mp4", false, rules)).toBe(false)
+  expect(isPathIgnored("drop.mp4", false, rules)).toBe(true)
 })
 
 it("anchors and escapes exact paths, and applies templates once", () => {

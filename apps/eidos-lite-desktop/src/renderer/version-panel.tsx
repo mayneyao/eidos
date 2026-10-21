@@ -1205,13 +1205,38 @@ export function VersionPanel({
 }) {
   const { t } = useEidosLiteI18n()
   const [ignoreRules, setIgnoreRules] = useState<SpaceIgnoreRules | null>(null)
+  const [ignoreBuilderOpen, setIgnoreBuilderOpen] = useState(false)
   const [ignoreBusy, setIgnoreBusy] = useState(false)
   const [ignoreError, setIgnoreError] = useState("")
   const [ignoreNotice, setIgnoreNotice] = useState("")
   const preflight = useMemo(
-    () => spaceIgnorePreflight(space.entries),
-    [space.entries]
+    () => spaceIgnorePreflight(space.entries, { rules: ignoreRules }),
+    [ignoreRules, space.entries]
   )
+  useEffect(() => {
+    setIgnoreRules(null)
+    setIgnoreBuilderOpen(false)
+    setIgnoreError("")
+    setIgnoreNotice("")
+    if (space.graft.initialized) return
+    let active = true
+    try {
+      const request = window.eidosLite.getSpaceIgnoreRules?.()
+      if (!request) return
+      void request
+        .then((rules) => {
+          if (active) setIgnoreRules(rules)
+        })
+        .catch((cause) => {
+          if (active) setIgnoreError(errorMessage(cause))
+        })
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    }
+    return () => {
+      active = false
+    }
+  }, [space.id, space.graft.initialized])
   const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
   const [changesLayout, setChangesLayout] = useState<"tree" | "list">(() => {
     try {
@@ -1790,10 +1815,15 @@ export function VersionPanel({
   }
 
   const openIgnoreRules = async () => {
+    if (ignoreRules) {
+      setIgnoreBuilderOpen(true)
+      return
+    }
     setIgnoreBusy(true)
     setIgnoreError("")
     try {
       setIgnoreRules(await window.eidosLite.getSpaceIgnoreRules())
+      setIgnoreBuilderOpen(true)
     } catch (cause) {
       setIgnoreError(errorMessage(cause))
     } finally {
@@ -1803,7 +1833,8 @@ export function VersionPanel({
 
   const saveIgnoreRules = async (rules: SpaceIgnoreRules) => {
     const snapshot = await window.eidosLite.saveSpaceIgnoreRules(rules)
-    setIgnoreRules(null)
+    setIgnoreRules(rules)
+    setIgnoreBuilderOpen(false)
     setIgnoreNotice(t("Ignore rules saved."))
     onSpaceChange(snapshot)
     onRefresh()
@@ -2172,11 +2203,11 @@ export function VersionPanel({
             {busy === "enable" ? "Enabling…" : "Enable versioning"}
           </button>
         </section>
-        {ignoreRules ? (
+        {ignoreBuilderOpen && ignoreRules ? (
           <SpaceIgnoreBuilderDialog
             rules={ignoreRules}
             largeFiles={preflight.largeFiles}
-            onCancel={() => setIgnoreRules(null)}
+            onCancel={() => setIgnoreBuilderOpen(false)}
             onSave={saveIgnoreRules}
           />
         ) : null}
