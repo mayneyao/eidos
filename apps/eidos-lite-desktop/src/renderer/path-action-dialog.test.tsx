@@ -177,7 +177,7 @@ describe("create file templates", () => {
           expect(choices[1]!.getAttribute("aria-checked")).toBe("true")
           expect(choices[0]!.getAttribute("aria-checked")).toBe("false")
           expect(submit.disabled).toBe(!value)
-          expect(container.querySelector(".path-dialog-options")).toBeNull()
+          expect(container.querySelector(".path-dialog-advanced")).toBeNull()
         }
         // Clicking the active type must not rewrite a custom filename either.
         await act(async () => choices[1]!.click())
@@ -274,7 +274,7 @@ describe("create file templates", () => {
     }
   })
 
-  it("keeps optional Eidos configuration collapsed and creates a table with record content when selected", async () => {
+  it("shows the optional Eidos content field compactly and remembers it across type switches", async () => {
     const container = document.createElement("div")
     document.body.append(container)
     const root = createRoot(container)
@@ -290,17 +290,12 @@ describe("create file templates", () => {
           />
         )
       )
-      const details = container.querySelector("details")!
-      const summary = details.querySelector("summary")!
       const submit =
         container.querySelector<HTMLButtonElement>('[type="submit"]')!
-      expect(details.open).toBe(false)
       await act(async () => submit.click())
       expect(onSubmit).toHaveBeenLastCalledWith("Untitled.eidos", "eidos")
 
-      await act(async () => summary.click())
-      expect(details.open).toBe(true)
-      const content = details.querySelector<HTMLInputElement>(
+      const content = container.querySelector<HTMLInputElement>(
         "input[aria-describedby]"
       )!
       expect(content.checked).toBe(false)
@@ -314,8 +309,6 @@ describe("create file templates", () => {
         container.querySelector(".path-dialog-option-hint")?.textContent
       ).not.toContain("Feed")
       await act(async () => content.click())
-      await act(async () => summary.click())
-      expect(details.open).toBe(false)
       await act(async () => submit.click())
       expect(onSubmit).toHaveBeenLastCalledWith(
         "Untitled.eidos",
@@ -326,23 +319,16 @@ describe("create file templates", () => {
       const types =
         container.querySelectorAll<HTMLButtonElement>('[role="radio"]')
       await act(async () => types[1]!.click())
-      expect(container.querySelector("details")).toBeNull()
+      expect(container.querySelector(".path-dialog-advanced")).toBeNull()
       await act(async () => submit.click())
       expect(onSubmit).toHaveBeenLastCalledWith("Untitled.md", "text")
 
       await act(async () => types[0]!.click())
-      const restored = container.querySelector("details")!
-      expect(restored.open).toBe(false)
-      expect(
-        restored.querySelector<HTMLInputElement>("input[aria-describedby]")
-          ?.checked
-      ).toBe(true)
-      await act(async () => restored.querySelector("summary")!.click())
-      await act(async () =>
-        restored
-          .querySelector<HTMLInputElement>('input[type="checkbox"]')!
-          .click()
-      )
+      const restored = container.querySelector<HTMLInputElement>(
+        "input[aria-describedby]"
+      )!
+      expect(restored.checked).toBe(true)
+      await act(async () => restored.click())
       await act(async () => submit.click())
       expect(onSubmit).toHaveBeenLastCalledWith("Untitled.eidos", "eidos")
     } finally {
@@ -392,10 +378,6 @@ describe("create file templates", () => {
       expect(templateButtons[0]?.textContent).toBe("Eidos")
       expect(templateButtons[1]?.textContent).toBe("Text")
 
-      const details = container.querySelector("details")!
-      expect(details.open).toBe(false)
-      await act(async () => details.querySelector("summary")!.click())
-
       const switchBtn = container.querySelector<HTMLInputElement>(
         'input[type="checkbox"]'
       )!
@@ -422,7 +404,7 @@ describe("create file templates", () => {
       // Switch to Note
       await act(async () => templateButtons[1]!.click())
       expect(input.value).toBe("Untitled.md")
-      expect(container.querySelector(".path-dialog-options")).toBeNull()
+      expect(container.querySelector(".path-dialog-advanced")).toBeNull()
       expect(container.querySelector('input[type="checkbox"]')).toBeNull()
 
       // Submit form with Note
@@ -439,6 +421,42 @@ describe("create file templates", () => {
       expect(input.value).toBe("Travel notes.eidos")
       await act(async () => templateButtons[1]!.click())
       expect(input.value).toBe("Travel notes.md")
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
+
+  it("exposes a modal dialog and cancels from Escape or the backdrop", async () => {
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    const onCancel = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <PathActionDialog
+            state={{ action: "create-file", entry: null }}
+            busy={false}
+            onSubmit={vi.fn()}
+            onCancel={onCancel}
+          />
+        )
+      )
+      const form = container.querySelector("form")!
+      expect(form.getAttribute("role")).toBe("dialog")
+      expect(form.getAttribute("aria-modal")).toBe("true")
+      await act(async () =>
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+      )
+      expect(onCancel).toHaveBeenCalledTimes(1)
+      const backdrop = container.querySelector(".path-dialog-backdrop")!
+      await act(async () =>
+        backdrop.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+      )
+      expect(onCancel).toHaveBeenCalledTimes(2)
     } finally {
       await act(async () => root.unmount())
       container.remove()

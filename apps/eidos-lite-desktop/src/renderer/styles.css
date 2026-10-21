@@ -12953,10 +12953,10 @@ body:has(.file-properties-window)
 }
 
 .path-dialog {
-  width: min(26rem, calc(100vw - 2rem));
+  width: min(23.5rem, calc(100vw - 2rem));
   overflow: hidden;
   border: 1px solid var(--hairline);
-  border-radius: 0.75rem;
+  border-radius: 0.6rem;
   color: var(--ink);
   background: var(--canvas);
   box-shadow: var(--elevation-shadow-strong);
@@ -12969,22 +12969,22 @@ body:has(.file-properties-window)
 }
 
 .path-dialog header {
-  min-height: var(--chrome-header-height);
+  min-height: 2rem;
   justify-content: space-between;
-  padding: 0.35rem 0.5rem 0.35rem 0.8rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.75rem;
   border-bottom: 1px solid var(--hairline);
   background: transparent;
 }
 
 .path-dialog header strong {
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   font-weight: 650;
 }
 
 .path-dialog label {
   display: grid;
-  gap: 0.4rem;
-  padding: 0.65rem 0.8rem 0.85rem;
+  gap: 0.3rem;
+  padding: 0.5rem 0.75rem 0.6rem;
 }
 
 .path-dialog label span,
@@ -13020,36 +13020,51 @@ body:has(.file-properties-window)
 }
 
 .path-dialog-types {
-  padding: 0.5rem 0.8rem 0.25rem;
+  padding: 0.5rem 0.75rem 0.1rem;
+}
+
+.path-dialog-section-label {
+  margin: 0 0 0.3rem;
+  padding: 0;
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .path-dialog-templates {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: 0.3rem;
   max-height: 9rem;
   overflow-y: auto;
   margin: 0;
-  padding: 0.125rem;
+  padding: 0;
 }
 
 .path-dialog-template-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  min-width: 4.5rem;
+  gap: 0.3rem;
+  min-width: 0;
   max-width: 100%;
-  min-height: 2rem;
-  padding: 0.35rem 0.75rem;
+  min-height: 1.75rem;
+  padding: 0.3rem 0.6rem;
   border: 1px solid var(--hairline);
-  border-radius: 0.375rem;
+  border-radius: 0.35rem;
   color: var(--ink-muted);
   background: transparent;
   cursor: pointer;
   font: inherit;
   font-weight: 500;
   line-height: 1;
+}
+
+.path-dialog-template-btn > svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
 }
 
 .path-dialog-template-btn:hover:not(:disabled) {
@@ -13059,8 +13074,8 @@ body:has(.file-properties-window)
 
 .path-dialog-template-btn[aria-checked="true"] {
   color: var(--ink);
-  border-color: var(--ink-muted);
-  background: var(--canvas-subtle);
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--hairline));
+  background: color-mix(in oklab, var(--accent) 8%, var(--canvas));
   font-weight: 600;
 }
 
@@ -13147,10 +13162,10 @@ body:has(.file-properties-window)
 
 .path-dialog input {
   width: 100%;
-  height: 2.1rem;
-  padding: 0 0.55rem;
+  height: 1.9rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--control-border);
-  border-radius: 0.4rem;
+  border-radius: 0.35rem;
   color: var(--ink);
   background: var(--control-fill);
   box-shadow: var(--control-shadow);
@@ -13166,75 +13181,26 @@ body:has(.file-properties-window)
 
 .path-dialog footer {
   justify-content: flex-end;
-  gap: 0.45rem;
-  padding: 0.55rem 0.8rem;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
   border-top: 1px solid var(--hairline);
   background: transparent;
 }
 
-.path-dialog[data-action="create-file"] header,
-.path-dialog[data-action="create-file"] footer {
-  border: 0;
+.path-dialog-advanced {
+  margin: 0 0.75rem 0.55rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.4rem;
+  background: var(--canvas-subtle);
 }
 
-.path-dialog-metadata {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.375rem;
+.path-dialog-advanced .path-dialog-option-label {
+  padding: 0;
 }
 
-.path-dialog-metadata .path-dialog-option-label {
-  flex: 1;
-  min-width: 0;
-}
-
-.path-dialog-options .path-dialog-hint-help-btn {
-  width: 1.5rem;
-  height: 1.5rem;
-  margin: 0;
-}
-
-.path-dialog-options,
-.path-dialog-options-placeholder {
-  min-height: 1.75rem;
-  margin: 0 0.8rem 0.5rem;
-}
-
-.path-dialog-options summary {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 1.75rem;
-  color: var(--ink-muted);
-  font-size: 0.6875rem;
-  list-style: none;
-  cursor: pointer;
-}
-
-.path-dialog-options summary:hover {
-  color: var(--ink);
-}
-
-.path-dialog-options summary::-webkit-details-marker {
-  display: none;
-}
-
-.path-dialog-options summary > svg {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex: none;
-}
-
-.path-dialog-options[open] summary > svg {
-  transform: rotate(90deg);
-}
-
-.path-dialog-options-fields {
-  display: grid;
-  gap: 0.5rem;
-  margin: 0.25rem 0 0.25rem 0.4375rem;
-  padding: 0.125rem 0 0.125rem 0.6875rem;
-  border-left: 1px solid var(--hairline);
+.path-dialog-advanced .path-dialog-option-hint {
+  padding-left: 1.3rem;
 }
 
 .path-dialog .path-dialog-option-label {
@@ -13253,7 +13219,7 @@ body:has(.file-properties-window)
   line-height: 1.5;
 }
 
-.path-dialog-options input[type="checkbox"] {
+.path-dialog-advanced input[type="checkbox"] {
   width: 0.8125rem;
   height: 0.8125rem;
   margin: 0.125rem 0 0;
@@ -13269,25 +13235,24 @@ body:has(.file-properties-window)
 }
 
 .path-dialog-template-btn:focus-visible,
-.path-dialog-hint-help-btn:focus-visible,
-.path-dialog-options summary:focus-visible {
+.path-dialog-hint-help-btn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 .path-dialog footer button {
   display: inline-flex;
-  min-height: 1.95rem;
+  min-height: 1.8rem;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   margin: 0;
-  padding: 0.3rem 0.65rem;
+  padding: 0.25rem 0.6rem;
   border: 1px solid var(--control-border);
-  border-radius: 0.375rem;
+  border-radius: 0.35rem;
   color: var(--ink);
   background: var(--control-fill);
   box-shadow: var(--control-shadow);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   cursor: pointer;
 }
 
