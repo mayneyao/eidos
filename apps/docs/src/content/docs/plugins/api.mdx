@@ -89,13 +89,13 @@ FileRef members such as path, name, and size depend on the environment. Its id i
 
 Declare `capabilities: ["document"]` and use ctx.capabilities.document. Writing also requires `access: "write"`.
 
-| Method | Purpose |
-| --- | --- |
-| `read()` | Read a snapshot including text, version, and dirty |
-| `observe(listener, onError?)` | Get an initial snapshot and subscribe to changes |
-| `edit({ text, expectedVersion })` | Update unsaved content. Returns applied or stale |
-| `save()` | Save the file. Returns saved or conflict |
-| `undo()` / `redo()` | Undo or redo an edit and return a snapshot |
+| Method                            | Purpose                                            |
+| --------------------------------- | -------------------------------------------------- |
+| `read()`                          | Read a snapshot including text, version, and dirty |
+| `observe(listener, onError?)`     | Get an initial snapshot and subscribe to changes   |
+| `edit({ text, expectedVersion })` | Update unsaved content. Returns applied or stale   |
+| `save()`                          | Save the file. Returns saved or conflict           |
+| `undo()` / `redo()`               | Undo or redo an edit and return a snapshot         |
 
 This function body converts the current text to uppercase and saves it:
 

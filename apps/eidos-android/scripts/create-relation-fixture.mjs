@@ -6,16 +6,32 @@ import { createEidosFile } from "../../../packages/eidos-file/dist/node-sqlite.m
 
 const directory = new URL("../app/src/androidTest/assets/", import.meta.url)
 mkdirSync(directory, { recursive: true })
-const runtime = createEidosFile(fileURLToPath(new URL("relation-labels.eidos", directory)), {
-  defaultTable: { name: "记录", fields: [{ name: "标题", type: "text", isRecordLabel: true }] },
-})
+const runtime = createEidosFile(
+  fileURLToPath(new URL("relation-labels.eidos", directory)),
+  {
+    defaultTable: {
+      name: "记录",
+      fields: [{ name: "标题", type: "text", isRecordLabel: true }],
+    },
+  }
+)
 try {
   const table = runtime.schema()[0].table
-  runtime.addField(table.id, { name: "关联", type: "relation", property: {
-    targetTableId: table.id, direction: "forward", cardinality: "many", onDelete: "detach",
-  } })
+  runtime.addField(table.id, {
+    name: "关联",
+    type: "relation",
+    property: {
+      targetTableId: table.id,
+      direction: "forward",
+      cardinality: "many",
+      onDelete: "detach",
+    },
+  })
   const target = runtime.insertRow(table.id, { 标题: "目标标题" })
-  runtime.insertRow(table.id, { 标题: "来源记录", 关联: JSON.stringify([target._id]) })
+  runtime.insertRow(table.id, {
+    标题: "来源记录",
+    关联: JSON.stringify([target._id]),
+  })
 } finally {
   runtime.close()
 }

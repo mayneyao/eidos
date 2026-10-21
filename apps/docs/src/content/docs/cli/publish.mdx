@@ -215,11 +215,11 @@ limit.
 
 Access belongs to each resource slug, not to the whole account.
 
-| Access | Publish option | Who can open it |
-| --- | --- | --- |
-| Public | No access option | Anyone with the URL |
-| Password protected | `--password` | Anyone with the password. No Eidos account required. |
-| Account private | `--visibility private` | The publisher while signed in to the owning eidos.space account |
+| Access             | Publish option         | Who can open it                                                 |
+| ------------------ | ---------------------- | --------------------------------------------------------------- |
+| Public             | No access option       | Anyone with the URL                                             |
+| Password protected | `--password`           | Anyone with the password. No Eidos account required.            |
+| Account private    | `--visibility private` | The publisher while signed in to the owning eidos.space account |
 
 Publishing the same slug again without an access option preserves its current
 access mode.
@@ -293,22 +293,22 @@ keeping its URL stable. Publishing the same bytes and attachment references is
 a no-op for Version history. Resource count is not a commercial quota. Storage
 and the history policy form the quota. Current standard Publish limits are:
 
-| Limit | Publish |
-| --- | --- |
-| Deduplicated account storage | 10 GiB |
-| One `.eidos` entrypoint | 256 MiB |
-| One source attachment | 1 GiB |
-| Markdown document | 16 MiB |
-| Inactive Version history | 30 days |
-| Resources | No quota |
-| Access modes | Public, password, account-private |
-| Canonical hostname | One independent Publish handle |
-| Delete Built with Eidos badge | Yes |
-| Form responses per month | 5,000 |
-| Collect Inbox | 5 GiB |
-| Attachments per response | 20 |
-| One submitted attachment | 100 MiB |
-| Imported response retention | 30 days |
+| Limit                         | Publish                           |
+| ----------------------------- | --------------------------------- |
+| Deduplicated account storage  | 10 GiB                            |
+| One `.eidos` entrypoint       | 256 MiB                           |
+| One source attachment         | 1 GiB                             |
+| Markdown document             | 16 MiB                            |
+| Inactive Version history      | 30 days                           |
+| Resources                     | No quota                          |
+| Access modes                  | Public, password, account-private |
+| Canonical hostname            | One independent Publish handle    |
+| Delete Built with Eidos badge | Yes                               |
+| Form responses per month      | 5,000                             |
+| Collect Inbox                 | 5 GiB                             |
+| Attachments per response      | 20                                |
+| One submitted attachment      | 100 MiB                           |
+| Imported response retention   | 30 days                           |
 
 Contact Eidos for a Custom plan when an `.eidos` file needs a higher limit or
 dedicated Runtime capacity. These limits apply to paid Publish. Local build and

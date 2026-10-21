@@ -44,14 +44,14 @@ Formula 不能执行任意 SQL 语句。
 
 ## 受支持的 SQLite 函数
 
-| 分类 | 函数列表 |
-| --- | --- |
-| 空值与分支 | `COALESCE`、`IFNULL`、`IIF`、`NULLIF` |
-| 数值计算 | `ABS`、`CEIL`、`CEILING`、`FLOOR`、`ROUND`、`SIGN`、标量 `MAX`、标量 `MIN` |
-| 文本处理 | `CHAR`、`CONCAT`、`CONCAT_WS`、`FORMAT`、`PRINTF`、`INSTR`、`LENGTH`、`OCTET_LENGTH`、`LOWER`、`UPPER`、`LTRIM`、`RTRIM`、`TRIM`、`REPLACE`、`SUBSTR`、`SUBSTRING`、`UNICODE` |
-| 模式匹配 | `GLOB`、`LIKE` |
-| 类型检查 | `HEX`、`QUOTE`、`TYPEOF` |
-| 日期时间 | `DATE`、`DATETIME`、`TIME`、`JULIANDAY`、`UNIXEPOCH`、`STRFTIME`、`TIMEDIFF` |
+| 分类       | 函数列表                                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 空值与分支 | `COALESCE`、`IFNULL`、`IIF`、`NULLIF`                                                                                                                                         |
+| 数值计算   | `ABS`、`CEIL`、`CEILING`、`FLOOR`、`ROUND`、`SIGN`、标量 `MAX`、标量 `MIN`                                                                                                    |
+| 文本处理   | `CHAR`、`CONCAT`、`CONCAT_WS`、`FORMAT`、`PRINTF`、`INSTR`、`LENGTH`、`OCTET_LENGTH`、`LOWER`、`UPPER`、`LTRIM`、`RTRIM`、`TRIM`、`REPLACE`、`SUBSTR`、`SUBSTRING`、`UNICODE` |
+| 模式匹配   | `GLOB`、`LIKE`                                                                                                                                                                |
+| 类型检查   | `HEX`、`QUOTE`、`TYPEOF`                                                                                                                                                      |
+| 日期时间   | `DATE`、`DATETIME`、`TIME`、`JULIANDAY`、`UNIXEPOCH`、`STRFTIME`、`TIMEDIFF`                                                                                                  |
 
 函数名大小写不敏感。
 所有函数均遵循 SQLite 3.45 标准行为：
@@ -90,12 +90,12 @@ Formula 不支持完整 SQL 语句、子查询与窗口函数。
 它不支持扩展加载与 JSON 函数。
 旧版自定义函数名（如 `IF`、`IS_NULL`、`DATE_ADD_DAYS`）已废弃，请使用标准 SQLite 函数：
 
-| 旧版拼写 | 标准 SQLite 拼写 |
-| --- | --- |
-| `IF(C, A, B)` | `IIF(C, A, B)` |
-| `IS_NULL(X)` | `X IS NULL` |
-| `LOWER_ASCII(X)` / `UPPER_ASCII(X)` | `LOWER(X)` / `UPPER(X)` |
-| `DATE_ADD_DAYS(D, 7)` | `DATE(D, '+7 days')` |
-| `DATE_DIFF_DAYS(A, B)` | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)` |
-| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')` |
-| `DATETIME_DIFF_MILLISECONDS(A, B)` | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |
+| 旧版拼写                             | 标准 SQLite 拼写                                            |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `IF(C, A, B)`                        | `IIF(C, A, B)`                                              |
+| `IS_NULL(X)`                         | `X IS NULL`                                                 |
+| `LOWER_ASCII(X)` / `UPPER_ASCII(X)`  | `LOWER(X)` / `UPPER(X)`                                     |
+| `DATE_ADD_DAYS(D, 7)`                | `DATE(D, '+7 days')`                                        |
+| `DATE_DIFF_DAYS(A, B)`               | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)`              |
+| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')`                        |
+| `DATETIME_DIFF_MILLISECONDS(A, B)`   | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |

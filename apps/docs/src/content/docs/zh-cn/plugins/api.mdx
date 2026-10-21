@@ -64,13 +64,13 @@ FileRef 的 path、name、size 等成员按运行环境提供。id 用于识别�
 
 声明 `capabilities: ["document"]` 后，通过 `ctx.capabilities.document` 使用以下方法。写入还需要 `access: "write"`。
 
-| 方法 | 用途 |
-| --- | --- |
-| `read()` | 获取包含 text、version、dirty 等信息的快照 |
-| `observe(listener, onError?)` | 获取初始快照并订阅后续变化 |
-| `edit({ text, expectedVersion })` | 修改未保存内容。返回 applied 或 stale |
-| `save()` | 保存到文件。返回 saved 或 conflict |
-| `undo()` / `redo()` | 撤销或重做编辑并返回快照 |
+| 方法                              | 用途                                       |
+| --------------------------------- | ------------------------------------------ |
+| `read()`                          | 获取包含 text、version、dirty 等信息的快照 |
+| `observe(listener, onError?)`     | 获取初始快照并订阅后续变化                 |
+| `edit({ text, expectedVersion })` | 修改未保存内容。返回 applied 或 stale      |
+| `save()`                          | 保存到文件。返回 saved 或 conflict         |
+| `undo()` / `redo()`               | 撤销或重做编辑并返回快照                   |
 
 下面的函数体将当前文本转成大写并保存：
 
