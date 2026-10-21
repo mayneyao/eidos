@@ -90,6 +90,29 @@ it.each([
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
   }
 )
+it("hides Grid column dividers from the mobile layout sheet", async () => {
+  const update = vi.fn().mockResolvedValue(undefined)
+  await act(async () =>
+    root.render(
+      <EidosFileUIProvider interactionMode="mobile" locale="zh">
+        <MobileViewLayout
+          table={table}
+          view={view}
+          busy={false}
+          error=""
+          update={update}
+        />
+      </EidosFileUIProvider>
+    )
+  )
+  await click("布局设置")
+  const toggle = document.querySelector<HTMLElement>(
+    '[role="switch"][aria-label="显示竖线"]'
+  )
+  expect(toggle).not.toBeNull()
+  await act(async () => toggle!.click())
+  expect(update).toHaveBeenCalledWith({ showVerticalLines: false })
+})
 it("keeps a failed choice visible with an error and allows retry", async () => {
   const update = vi
     .fn()

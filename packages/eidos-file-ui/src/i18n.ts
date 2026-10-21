@@ -210,6 +210,7 @@ const zh: EidosFileUIMessageOverrides = {
   Comfortable: "宽松",
   Huge: "巨大",
   "Wrap text": "自动换行",
+  "Show vertical lines": "显示竖线",
   Plugins: "插件",
   Extensions: "扩展",
   Grid: "表格",
