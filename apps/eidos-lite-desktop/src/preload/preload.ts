@@ -472,6 +472,10 @@ const api: EidosLiteApi = {
     args: RuntimeCalls[M]["args"]
   ) => ipcRenderer.invoke(IPC_CHANNELS.runtimeCall, sessionId, method, args),
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
+  getSpaceIgnoreRules: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesGet),
+  saveSpaceIgnoreRules: (rules) =>
+    ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesSave, rules),
   createCheckpoint: (message, paths) =>
     ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message, paths),
   getVersionChanges: (limit, after) =>

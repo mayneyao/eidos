@@ -547,7 +547,44 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain('data-version-initialized="false"')
     expect(markup).toContain("Start local versions")
     expect(markup).toContain("data-enable-versioning")
+    expect(markup).toContain("data-edit-ignore")
     expect(markup).not.toContain('role="tab"')
+  })
+
+  it("offers to exclude videos before the first version", () => {
+    const markup = renderToStaticMarkup(
+      createElement(VersionPanel, {
+        space: {
+          ...unversionedSpace,
+          entries: [
+            {
+              name: "clip.mp4",
+              relativePath: "clip.mp4",
+              kind: "file",
+              size: 2048,
+              modifiedAtMs: 1,
+            },
+            {
+              name: "notes.md",
+              relativePath: "notes.md",
+              kind: "file",
+              size: 128,
+              modifiedAtMs: 1,
+            },
+          ],
+        },
+        refreshKey: 0,
+        onClose: () => undefined,
+        onSpaceChange: () => undefined,
+        onFilesMaterialized: () => undefined,
+        onRefresh: () => undefined,
+        onInspectionChange: () => undefined,
+      })
+    )
+    expect(markup).toContain("Ignore video files")
+    expect(markup).toContain("data-ignore-videos")
+    expect(markup).toContain("1 video")
+    expect(markup).toContain("Edit ignore rules")
   })
 
   it("defaults to all history and automatically crosses sparse document pages in StrictMode", async () => {

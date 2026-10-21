@@ -45,14 +45,20 @@ Keep an independent backup for protection against drive failures.
 
 ## Exclude temporary files
 
-Create a `.gitignore` or `.graftignore` file in the Space root folder.
-List temporary directories and files to exclude them from history tracking:
+Open **Versions** and use **Edit ignore rules** before enabling versioning for
+the first time. The editor writes `.graftignore` or `.gitignore` in the Space
+root. Both files use one pattern per line, and either can exclude files from
+tracking:
 
 ```text
 node_modules/
 *.tmp
 cache/
 ```
+
+If the Space contains videos, **Ignore video files** adds common video
+extensions to `.graftignore` in one step. You can edit the result before
+creating the first version.
 
 History cannot restore files that you excluded from tracking.
 File attributes used by File Metadata Management require separate backup tools.

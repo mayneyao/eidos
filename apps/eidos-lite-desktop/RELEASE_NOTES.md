@@ -12,6 +12,10 @@ Creating the Space file-metadata catalog and editing managed properties requires
 
 Explorer and folder **Manage files** now open the same Space-wide catalog at `.eidos/files.eidos` instead of a separate catalog for each folder. Folder entry points open the catalog scoped to that folder. The managed catalog participates in version history, checkpoints and restore, and the Fields control now supports ordering, hiding and showing properties.
 
+### Ignore rules before versioning
+
+The Versions setup panel counts video files in the Space and can add common video patterns to `.graftignore` in one click. **Edit ignore rules** opens `.graftignore` and `.gitignore` for review before the first version is created, so large media does not enter history by accident.
+
 ### Spark device authorization
 
 Licensed accounts can activate this computer and release it later from **Settings → Account & Services**. Device authorization is bound to the machine, is verified locally from signed certificates, and keeps working offline until its authorization expires. When another account signs in, the original account's device certificate is preserved for its owner.

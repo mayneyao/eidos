@@ -247,6 +247,25 @@ const zh: Record<string, string> = {
     "已在版本历史中，忽略规则不会将其排除",
   "version history data": "版本历史数据",
   "ignored by Space settings": "由 Space 忽略规则排除",
+  "Large files": "大文件",
+  "{count} videos · {size}": "{count} 个视频 · {size}",
+  "1 video · {size}": "1 个视频 · {size}",
+  "Version history stores every tracked file. Exclude these videos before the first version if you do not need them in history.":
+    "版本历史会记录所有跟踪的文件。如果不需要这些视频进入历史，请在创建首个版本前排除它们。",
+  "Version history stores every tracked file. Add ignore rules before the first version if needed.":
+    "版本历史会记录所有跟踪的文件。如有需要，请在创建首个版本前添加忽略规则。",
+  "Ignore video files": "忽略视频文件",
+  "Edit ignore rules": "编辑忽略规则",
+  "Ignore rules": "忽略规则",
+  "Files matching these patterns are excluded from version history. Use one pattern per line.":
+    "匹配这些规则的文件不会进入版本历史。每行一个规则。",
+  "Graft reads .graftignore first. .gitignore is also respected, so either file can exclude files.":
+    "Graft 优先读取 .graftignore，同时也会遵循 .gitignore，因此两个文件都可以排除文件。",
+  "One pattern per line": "每行一个规则",
+  "Ignore rules saved.": "忽略规则已保存。",
+  "Video ignore rules are already present.": "视频忽略规则已存在。",
+  "Added {count} video patterns to .graftignore.":
+    "已将 {count} 条视频规则添加到 .graftignore。",
   "system file": "系统文件",
   "temporary file": "临时文件",
   "End-to-end encryption": "端到端加密",

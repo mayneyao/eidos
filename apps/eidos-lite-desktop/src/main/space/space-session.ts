@@ -54,6 +54,7 @@ import type {
   RuntimeMethod,
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
+  SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
   SpaceVersionDiff,
@@ -2193,6 +2194,71 @@ export class SpaceSession {
     this.assertRuntimeAvailable()
     this.runtimePool.relativePathForSession(sessionId)
     return resolveEidosFileUrlImage(uri, purpose)
+  }
+
+  async readSpaceIgnoreRules(): Promise<SpaceIgnoreRules> {
+    const read = async (name: ".graftignore" | ".gitignore") => {
+      try {
+        const content = await fs.readFile(
+          path.join(this.canonical.root, name),
+          "utf8"
+        )
+        if (Buffer.byteLength(content, "utf8") > 64 * 1024)
+          throw new Error(`${name} is larger than 64 KB`)
+        return content
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return ""
+        throw error
+      }
+    }
+    return {
+      graftignore: await read(".graftignore"),
+      gitignore: await read(".gitignore"),
+    }
+  }
+
+  async saveSpaceIgnoreRules(value: unknown): Promise<SpaceSnapshot> {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Invalid ignore rules")
+    const rules = value as Partial<SpaceIgnoreRules>
+    for (const content of [rules.graftignore, rules.gitignore]) {
+      if (
+        typeof content !== "string" ||
+        content.includes("\0") ||
+        Buffer.byteLength(content, "utf8") > 64 * 1024
+      )
+        throw new Error("Ignore rules must be text no larger than 64 KB")
+    }
+    await this.gate.withMutation(async () => {
+      for (const name of [".graftignore", ".gitignore"] as const) {
+        const content =
+          name === ".graftignore" ? rules.graftignore! : rules.gitignore!
+        const target = path.join(this.canonical.root, name)
+        const exists = await fs
+          .lstat(target)
+          .then(() => true)
+          .catch(() => false)
+        if (!content && !exists) continue
+        const temporaryPath = path.join(
+          this.canonical.root,
+          `.${name}.${randomUUID()}.tmp`
+        )
+        try {
+          await fs.writeFile(temporaryPath, content, {
+            encoding: "utf8",
+            mode: 0o644,
+            flag: "wx",
+          })
+          await fs.rename(temporaryPath, target)
+        } finally {
+          await fs.rm(temporaryPath, { force: true }).catch(() => undefined)
+        }
+      }
+    })
+    this.noteLocalChange()
+    this.ignoreInspectionCache.clear()
+    this.scheduleGraftStatusRefresh()
+    return this.freshSnapshotAndEmit(true)
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {

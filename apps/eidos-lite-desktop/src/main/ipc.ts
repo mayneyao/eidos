@@ -2054,6 +2054,12 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.enableVersioning, (event) =>
     controller.requireSession(event.sender).enableVersioning()
   )
+  ipcMain.handle(IPC_CHANNELS.spaceIgnoreRulesGet, (event) =>
+    controller.requireSession(event.sender).readSpaceIgnoreRules()
+  )
+  ipcMain.handle(IPC_CHANNELS.spaceIgnoreRulesSave, (event, value: unknown) =>
+    controller.requireSession(event.sender).saveSpaceIgnoreRules(value)
+  )
   ipcMain.handle(
     IPC_CHANNELS.createCheckpoint,
     async (event, message: unknown, paths: unknown) => {

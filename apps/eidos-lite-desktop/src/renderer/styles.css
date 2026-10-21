@@ -9763,6 +9763,80 @@ body:has(.file-properties-window)
   user-select: text;
 }
 
+.version-setup-ignore {
+  display: grid;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+.version-setup-ignore-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.version-setup-ignore-heading strong {
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.version-setup-ignore-heading span {
+  color: var(--ink-faint);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.version-setup-ignore p {
+  max-width: none;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.63rem;
+  line-height: 1.45;
+  user-select: text;
+}
+
+.version-setup-ignore-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+
+.version-setup-ignore-actions button {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.version-setup-ignore-actions button:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.version-setup-ignore-actions button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.version-setup-ignore-status {
+  color: var(--ink-muted);
+}
+
+.version-setup-ignore-error {
+  color: var(--danger);
+}
+
 .version-summary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -13295,6 +13369,84 @@ body:has(.file-properties-window)
 .path-dialog footer svg {
   width: 0.75rem;
   height: 0.75rem;
+}
+
+.space-ignore-dialog {
+  width: min(38rem, calc(100vw - 2rem));
+}
+
+.space-ignore-dialog .space-ignore-body {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem 0.35rem;
+}
+
+.space-ignore-dialog .space-ignore-body > p {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  line-height: 1.5;
+  user-select: text;
+}
+
+.path-dialog .space-ignore-field {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0;
+}
+
+.space-ignore-field > span {
+  color: var(--ink);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.space-ignore-field textarea {
+  width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: 11px/1.5 var(--font-code, monospace);
+  outline: none;
+  user-select: text;
+}
+
+.space-ignore-field textarea:focus {
+  border-color: var(--focus);
+  outline: 2px solid color-mix(in oklab, var(--focus) 32%, transparent);
+  outline-offset: 0;
+}
+
+.space-ignore-field textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+.space-ignore-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.space-ignore-dialog .space-ignore-hint {
+  color: var(--ink-faint);
+  font-size: 0.62rem;
+}
+
+.space-ignore-dialog .space-ignore-error {
+  color: var(--danger);
+}
+
+@media (max-width: 40rem) {
+  .space-ignore-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 43rem) {

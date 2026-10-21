@@ -34,6 +34,7 @@ import {
 
 import type {
   SpaceSnapshot,
+  SpaceIgnoreRules,
   SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionFileDiff,
@@ -56,6 +57,12 @@ import {
 } from "./version-table-diff"
 import { VersionWorkingMediaPreview } from "./version-media-preview"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
+import { SpaceIgnoreDialog } from "./space-ignore-dialog"
+import {
+  appendVideoIgnorePatterns,
+  videoFileSummary,
+} from "./space-ignore-rules"
+import { formatUsageBytes } from "./usage-meter"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
 
@@ -1200,6 +1207,14 @@ export function VersionPanel({
   onInspectionChange(inspection: VersionInspection | null): void
 }) {
   const { t } = useEidosLiteI18n()
+  const [ignoreRules, setIgnoreRules] = useState<SpaceIgnoreRules | null>(null)
+  const [ignoreBusy, setIgnoreBusy] = useState(false)
+  const [ignoreError, setIgnoreError] = useState("")
+  const [ignoreNotice, setIgnoreNotice] = useState("")
+  const videoSummary = useMemo(
+    () => videoFileSummary(space.entries),
+    [space.entries]
+  )
   const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
   const [changesLayout, setChangesLayout] = useState<"tree" | "list">(() => {
     try {
@@ -1777,6 +1792,55 @@ export function VersionPanel({
     }
   }
 
+  const openIgnoreRules = async () => {
+    setIgnoreBusy(true)
+    setIgnoreError("")
+    try {
+      setIgnoreRules(await window.eidosLite.getSpaceIgnoreRules())
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    } finally {
+      setIgnoreBusy(false)
+    }
+  }
+
+  const saveIgnoreRules = async (rules: SpaceIgnoreRules) => {
+    const snapshot = await window.eidosLite.saveSpaceIgnoreRules(rules)
+    setIgnoreRules(null)
+    setIgnoreNotice(t("Ignore rules saved."))
+    onSpaceChange(snapshot)
+    onRefresh()
+  }
+
+  const ignoreVideoFiles = async () => {
+    setIgnoreBusy(true)
+    setIgnoreError("")
+    setIgnoreNotice("")
+    try {
+      const current = await window.eidosLite.getSpaceIgnoreRules()
+      const merged = appendVideoIgnorePatterns(current.graftignore)
+      if (merged.added.length === 0) {
+        setIgnoreNotice(t("Video ignore rules are already present."))
+        return
+      }
+      const snapshot = await window.eidosLite.saveSpaceIgnoreRules({
+        ...current,
+        graftignore: merged.content,
+      })
+      setIgnoreNotice(
+        t("Added {count} video patterns to .graftignore.", {
+          count: merged.added.length,
+        })
+      )
+      onSpaceChange(snapshot)
+      onRefresh()
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    } finally {
+      setIgnoreBusy(false)
+    }
+  }
+
   const restore = async () => {
     if (!selectedCommit || !historyHead) return
     setBusy("restore")
@@ -2045,11 +2109,77 @@ export function VersionPanel({
             Save the first version of this Space. This stays local and does not
             require an account.
           </p>
+          <div className="version-setup-ignore" aria-busy={ignoreBusy}>
+            <div className="version-setup-ignore-heading">
+              <strong>{t("Large files")}</strong>
+              {videoSummary.count > 0 ? (
+                <span>
+                  {videoSummary.count === 1
+                    ? t("1 video · {size}", {
+                        size: formatUsageBytes(videoSummary.bytes),
+                      })
+                    : t("{count} videos · {size}", {
+                        count: videoSummary.count.toLocaleString(),
+                        size: formatUsageBytes(videoSummary.bytes),
+                      })}
+                </span>
+              ) : null}
+            </div>
+            <p>
+              {videoSummary.count > 0
+                ? t(
+                    "Version history stores every tracked file. Exclude these videos before the first version if you do not need them in history."
+                  )
+                : t(
+                    "Version history stores every tracked file. Add ignore rules before the first version if needed."
+                  )}
+            </p>
+            <div className="version-setup-ignore-actions">
+              {videoSummary.count > 0 ? (
+                <button
+                  type="button"
+                  data-ignore-videos
+                  disabled={
+                    ignoreBusy ||
+                    busy !== null ||
+                    space.operation.phase !== "ready"
+                  }
+                  onClick={() => void ignoreVideoFiles()}
+                >
+                  {t("Ignore video files")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                data-edit-ignore
+                disabled={
+                  ignoreBusy ||
+                  busy !== null ||
+                  space.operation.phase !== "ready"
+                }
+                onClick={() => void openIgnoreRules()}
+              >
+                {t("Edit ignore rules")}
+              </button>
+            </div>
+            {ignoreNotice ? (
+              <p className="version-setup-ignore-status" role="status">
+                {ignoreNotice}
+              </p>
+            ) : null}
+            {ignoreError ? (
+              <p className="version-setup-ignore-error" role="alert">
+                {ignoreError}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             className="panel-primary-action"
             data-enable-versioning
-            disabled={busy !== null || space.operation.phase !== "ready"}
+            disabled={
+              busy !== null || ignoreBusy || space.operation.phase !== "ready"
+            }
             onClick={() => void enableVersioning()}
           >
             {busy === "enable" ? (
@@ -2060,6 +2190,13 @@ export function VersionPanel({
             {busy === "enable" ? "Enabling…" : "Enable versioning"}
           </button>
         </section>
+        {ignoreRules ? (
+          <SpaceIgnoreDialog
+            rules={ignoreRules}
+            onCancel={() => setIgnoreRules(null)}
+            onSave={saveIgnoreRules}
+          />
+        ) : null}
       </aside>
     )
   }

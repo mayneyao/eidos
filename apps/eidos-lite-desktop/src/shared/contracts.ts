@@ -164,6 +164,8 @@ export const IPC_CHANNELS = {
   saveCsv: "eidos-lite:csv-save",
   runtimeCall: "eidos-lite:runtime-call",
   enableVersioning: "eidos-lite:versioning-enable",
+  spaceIgnoreRulesGet: "eidos-lite:space-ignore-rules-get",
+  spaceIgnoreRulesSave: "eidos-lite:space-ignore-rules-save",
   createCheckpoint: "eidos-lite:checkpoint-create",
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
@@ -702,6 +704,11 @@ export interface SpaceVersionTextContentRequest {
   path: string
   previousPath?: string
   maxBytes: number
+}
+
+export interface SpaceIgnoreRules {
+  graftignore: string
+  gitignore: string
 }
 
 export interface SpaceSnapshot {
@@ -1979,6 +1986,8 @@ export interface EidosLiteApi extends PluginApi {
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
+  getSpaceIgnoreRules(): Promise<SpaceIgnoreRules>
+  saveSpaceIgnoreRules(rules: SpaceIgnoreRules): Promise<SpaceSnapshot>
   createCheckpoint(message?: string, paths?: string[]): Promise<SpaceSnapshot>
   getVersionChanges(limit?: number, after?: string): Promise<SpaceVersionDiff>
   getVersionHistory(
