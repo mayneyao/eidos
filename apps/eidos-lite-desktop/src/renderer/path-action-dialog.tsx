@@ -364,7 +364,12 @@ export function PathActionDialog({
           </div>
         )}
         <footer>
-          <button type="button" onClick={onCancel} disabled={busy}>
+          <button
+            type="button"
+            className="quiet-action"
+            onClick={onCancel}
+            disabled={busy}
+          >
             {t("Cancel")}
           </button>
           <button
