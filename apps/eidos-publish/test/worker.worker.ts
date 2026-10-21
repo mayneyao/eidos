@@ -39,6 +39,7 @@ import {
   validateMarkdownVersion,
 } from "../src/markdown"
 import {
+  parsePublishedFormDefinition,
   prepareFormVersion,
   probeFormTarget,
   validateFormVersion,
@@ -1314,9 +1315,9 @@ describe("Eidos Publish control plane", () => {
       },
       presentation: {
         title: "Product feedback",
-        description: "Tell us what should improve.",
+        description: "欢迎反馈问题和建议。\r\nTell us\twhat should improve.",
         submitLabel: "Send feedback",
-        successMessage: "Thank you. Your response was received.",
+        successMessage: "感谢反馈！\nThank you. Your response was received.",
       },
       fields: [
         {
@@ -1324,8 +1325,9 @@ describe("Eidos Publish control plane", () => {
           inputKey: "input_email_00000001",
           type: "text",
           label: "Email",
-          description: null,
-          placeholder: "you@example.com",
+          description: "方便我们回复。\nFor follow-up.",
+          placeholder:
+            "you@example.com\n或其他联系方式 / Other contact details",
           multiline: true,
           required: true,
           nullable: false,
@@ -1379,6 +1381,24 @@ describe("Eidos Publish control plane", () => {
         },
       ],
     }
+    expect(parsePublishedFormDefinition(definition)).toEqual(definition)
+    for (const control of ["\u0000", "\u000b", "\u001b", "\u007f"]) {
+      expect(() =>
+        parsePublishedFormDefinition({
+          ...definition,
+          presentation: {
+            ...definition.presentation,
+            description: `Invalid${control}copy`,
+          },
+        })
+      ).toThrow("Invalid Form description")
+    }
+    expect(() =>
+      parsePublishedFormDefinition({
+        ...definition,
+        presentation: { ...definition.presentation, title: "Invalid\ntitle" },
+      })
+    ).toThrow("Invalid Form title")
     const bytes = new TextEncoder().encode(canonicalJson(definition))
     const sha256 = await digestHex(bytes)
     const begun = await authenticatedFetch(
