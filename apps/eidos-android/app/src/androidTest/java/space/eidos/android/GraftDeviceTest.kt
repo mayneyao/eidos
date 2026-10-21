@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class GraftDeviceTest {
     @Test
-    fun peerMergeCombinesDifferentFilesAndRetainsRealConflicts() {
+    fun peerDivergenceRequiresDesktopReviewAndPreservesLocalEdits() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext
         val root = File(app.cacheDir, "peer-merge-${UUID.randomUUID()}").apply { mkdirs() }
         val desktop = File(root, "desktop").apply { mkdir() }
@@ -36,23 +36,22 @@ class GraftDeviceTest {
             call(desktop, "peerPush")
             call(phone, "checkpoint")
             call(phone, "peerFetch")
-            assertEquals("updated", call(phone, "peerFastForward").getString("outcome"))
+            // Native fast-forward delegates divergent histories to the desktop
+            // semantic merge workflow, including edits to different files.
+            assertEquals("needs_merge", call(phone, "peerFastForward").getString("outcome"))
             assertEquals("none", call(phone, "mergeStatus").getString("state"))
-            assertEquals("desktop edit\n", File(phone, "a.md").readText())
+            assertEquals("base a\n", File(phone, "a.md").readText())
             assertEquals("phone edit\n", File(phone, "b.md").readText())
-            call(phone, "peerPush")
-            call(desktop, "peerFetch")
-            call(desktop, "peerFastForward")
-            assertEquals("phone edit\n", File(desktop, "b.md").readText())
-            File(desktop, "a.md").writeText("desktop conflict\n")
+            assertTrue(runCatching { call(phone, "peerPush") }.isFailure)
+            assertEquals("desktop edit\n", File(desktop, "a.md").readText())
+            assertEquals("base b\n", File(desktop, "b.md").readText())
             File(phone, "a.md").writeText("phone conflict\n")
-            call(desktop, "checkpoint")
-            call(desktop, "peerPush")
             call(phone, "checkpoint")
             call(phone, "peerFetch")
             assertEquals("needs_merge", call(phone, "peerFastForward").getString("outcome"))
-            assertEquals("merging", call(phone, "mergeStatus").getString("state"))
+            assertEquals("none", call(phone, "mergeStatus").getString("state"))
             assertEquals("phone conflict\n", File(phone, "a.md").readText())
+            assertEquals("phone edit\n", File(phone, "b.md").readText())
         } finally {
             call(phone, "close")
             call(desktop, "close")
