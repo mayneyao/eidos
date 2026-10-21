@@ -4,7 +4,9 @@ import {
   appendVideoIgnorePatterns,
   IGNORE_TEMPLATES,
   ignorePathPattern,
+  removeIgnorePatterns,
   spaceIgnorePreflight,
+  templateApplied,
   videoFileSummary,
   VIDEO_IGNORE_PATTERNS,
 } from "./space-ignore-rules"
@@ -87,8 +89,16 @@ it("anchors and escapes exact paths, and applies templates once", () => {
   const first = appendIgnorePatterns("", template.patterns, template.header)
   expect(first.content).toContain("# Node and build outputs")
   expect(first.added).toEqual(template.patterns)
+  expect(templateApplied(first.content, template)).toBe(true)
   expect(
     appendIgnorePatterns(first.content, template.patterns, template.header)
       .added
   ).toEqual([])
+  const removed = removeIgnorePatterns(
+    first.content,
+    template.patterns,
+    template.header
+  )
+  expect(removed).toBe("")
+  expect(templateApplied(removed, template)).toBe(false)
 })

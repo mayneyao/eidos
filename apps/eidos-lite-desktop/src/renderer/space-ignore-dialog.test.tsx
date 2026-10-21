@@ -2,7 +2,7 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 
-import { SpaceIgnoreDialog } from "./space-ignore-dialog"
+import { SpaceIgnoreBuilderDialog } from "./space-ignore-dialog"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -16,7 +16,15 @@ function inputValue(element: HTMLTextAreaElement, value: string) {
   element.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
-it("edits both ignore files and saves the changed rules", async () => {
+function option(container: HTMLElement, label: string) {
+  return Array.from(
+    container.querySelectorAll<HTMLLabelElement>("label.space-ignore-option")
+  )
+    .find((item) => item.textContent?.includes(label))!
+    .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+}
+
+it("builds graftignore rules locally and saves both files once", async () => {
   const container = document.createElement("div")
   document.body.append(container)
   const root = createRoot(container)
@@ -24,32 +32,42 @@ it("edits both ignore files and saves the changed rules", async () => {
   try {
     await act(async () =>
       root.render(
-        <SpaceIgnoreDialog
-          rules={{ graftignore: "*.mp4\n", gitignore: "" }}
+        <SpaceIgnoreBuilderDialog
+          rules={{ graftignore: "", gitignore: "" }}
+          largeFiles={[{ path: "clip.mp4", size: 30 * 1024 * 1024 }]}
           onCancel={vi.fn()}
           onSave={onSave}
         />
       )
     )
-    const graft = container.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label=".graftignore"]'
-    )!
-    const git = container.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label=".gitignore"]'
-    )!
-    expect(graft.value).toBe("*.mp4\n")
     const save = container.querySelector<HTMLButtonElement>(
       'button[type="submit"]'
     )!
+    const editor = container.querySelector<HTMLTextAreaElement>(
+      "textarea.space-ignore-editor"
+    )!
     expect(save.disabled).toBe(true)
-    await act(async () => {
-      inputValue(graft, "*.mp4\n*.mov\n")
-      inputValue(git, "node_modules/\n")
-    })
+
+    await act(async () => option(container, "Videos").click())
+    expect(editor.value).toContain("*.mp4")
+    expect(editor.value).toContain("# Video files")
     expect(save.disabled).toBe(false)
+
+    await act(async () => option(container, "clip.mp4").click())
+    expect(editor.value).toContain("/clip.mp4")
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[role="tab"]:last-child')!
+        .click()
+    )
+    const gitEditor = container.querySelector<HTMLTextAreaElement>(
+      "textarea.space-ignore-editor"
+    )!
+    await act(async () => inputValue(gitEditor, "node_modules/\n"))
     await act(async () => save.click())
     expect(onSave).toHaveBeenCalledWith({
-      graftignore: "*.mp4\n*.mov\n",
+      graftignore: expect.stringContaining("/clip.mp4"),
       gitignore: "node_modules/\n",
     })
   } finally {
@@ -58,7 +76,7 @@ it("edits both ignore files and saves the changed rules", async () => {
   }
 })
 
-it("cancels on Escape and keeps a save error visible", async () => {
+it("keeps a save error visible and cancels on Escape", async () => {
   const container = document.createElement("div")
   document.body.append(container)
   const root = createRoot(container)
@@ -69,17 +87,15 @@ it("cancels on Escape and keeps a save error visible", async () => {
   try {
     await act(async () =>
       root.render(
-        <SpaceIgnoreDialog
+        <SpaceIgnoreBuilderDialog
           rules={{ graftignore: "", gitignore: "" }}
+          largeFiles={[]}
           onCancel={onCancel}
           onSave={onSave}
         />
       )
     )
-    const graft = container.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label=".graftignore"]'
-    )!
-    await act(async () => inputValue(graft, "*.mp4\n"))
+    await act(async () => option(container, "Temporary files").click())
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[type="submit"]')!.click()
     )

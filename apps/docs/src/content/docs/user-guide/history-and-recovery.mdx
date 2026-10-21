@@ -45,10 +45,10 @@ Keep an independent backup for protection against drive failures.
 
 ## Exclude temporary files
 
-Open **Versions** and use **Edit ignore rules** before enabling versioning for
-the first time. The editor writes `.graftignore` or `.gitignore` in the Space
-root. Both files use one pattern per line, and either can exclude files from
-tracking:
+Open **Versions** and select **Build ignore rules** before enabling versioning
+for the first time. The builder writes `.graftignore` or `.gitignore` in the
+Space root. Both files use one pattern per line, and either can exclude files
+from tracking:
 
 ```text
 node_modules/
@@ -56,10 +56,10 @@ node_modules/
 cache/
 ```
 
-If the Space contains videos or other large files, the preflight section shows
-their count and size. Apply a rule template for videos, Node and build output,
-design files, archives, system files or temporary files, or ignore an individual
-large file. You can edit the result before creating the first version.
+The builder combines rule templates, per-file exclusions for large files, and a
+raw editor for both files. Templates cover videos, Node and build output, design
+files, archives, system files and temporary files. Review the generated rules,
+save once, then create the first version.
 
 History cannot restore files that you excluded from tracking.
 File attributes used by File Metadata Management require separate backup tools.

@@ -584,8 +584,9 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("Preflight")
     expect(markup).toContain("Videos: 1")
     expect(markup).toContain("Large files: 1")
-    expect(markup).toContain('data-ignore-template="videos"')
-    expect(markup).toContain(">Ignore</button>")
+    expect(markup).toContain("clip.mp4")
+    expect(markup).toContain("Build ignore rules")
+    expect(markup).not.toContain("data-ignore-template")
     expect(markup).toContain("data-edit-ignore")
   })
 

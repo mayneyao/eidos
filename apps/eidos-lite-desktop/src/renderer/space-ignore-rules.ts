@@ -120,6 +120,38 @@ export function ignorePathPattern(relativePath: string): string {
   return `/${escaped}`
 }
 
+export function hasIgnorePattern(content: string, pattern: string): boolean {
+  return content.split(/\r?\n/).some((line) => line.trim() === pattern)
+}
+
+export function templateApplied(
+  content: string,
+  template: IgnoreTemplate
+): boolean {
+  return template.patterns.every((pattern) =>
+    hasIgnorePattern(content, pattern)
+  )
+}
+
+export function removeIgnorePatterns(
+  content: string,
+  patterns: readonly string[],
+  header?: string
+): string {
+  const remove = new Set(patterns)
+  const headerLine = header?.trim() ? `# ${header.trim()}` : null
+  const result = content
+    .split(/\r?\n/)
+    .filter(
+      (line) =>
+        !remove.has(line.trim()) && (!headerLine || line.trim() !== headerLine)
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s+$/, "")
+  return result ? `${result}\n` : ""
+}
+
 export function videoFileSummary(entries: readonly SpaceTreeEntry[]): {
   count: number
   bytes: number

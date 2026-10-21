@@ -57,14 +57,8 @@ import {
 } from "./version-table-diff"
 import { VersionWorkingMediaPreview } from "./version-media-preview"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
-import { SpaceIgnoreDialog } from "./space-ignore-dialog"
-import {
-  appendIgnorePatterns,
-  IGNORE_TEMPLATES,
-  ignorePathPattern,
-  spaceIgnorePreflight,
-  type IgnoreTemplate,
-} from "./space-ignore-rules"
+import { SpaceIgnoreBuilderDialog } from "./space-ignore-dialog"
+import { spaceIgnorePreflight } from "./space-ignore-rules"
 import { formatUsageBytes } from "./usage-meter"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
@@ -1815,67 +1809,6 @@ export function VersionPanel({
     onRefresh()
   }
 
-  const applyIgnoreTemplate = async (template: IgnoreTemplate) => {
-    setIgnoreBusy(true)
-    setIgnoreError("")
-    setIgnoreNotice("")
-    try {
-      const current = await window.eidosLite.getSpaceIgnoreRules()
-      const merged = appendIgnorePatterns(
-        current.graftignore,
-        template.patterns,
-        template.header
-      )
-      if (merged.added.length === 0) {
-        setIgnoreNotice(t("Those ignore rules are already present."))
-        return
-      }
-      const snapshot = await window.eidosLite.saveSpaceIgnoreRules({
-        ...current,
-        graftignore: merged.content,
-      })
-      setIgnoreNotice(
-        t("Added {count} rules from {template}.", {
-          count: merged.added.length,
-          template: t(template.label),
-        })
-      )
-      onSpaceChange(snapshot)
-      onRefresh()
-    } catch (cause) {
-      setIgnoreError(errorMessage(cause))
-    } finally {
-      setIgnoreBusy(false)
-    }
-  }
-
-  const ignoreLargeFile = async (path: string) => {
-    setIgnoreBusy(true)
-    setIgnoreError("")
-    setIgnoreNotice("")
-    try {
-      const current = await window.eidosLite.getSpaceIgnoreRules()
-      const merged = appendIgnorePatterns(current.graftignore, [
-        ignorePathPattern(path),
-      ])
-      if (merged.added.length === 0) {
-        setIgnoreNotice(t("That ignore rule is already present."))
-        return
-      }
-      const snapshot = await window.eidosLite.saveSpaceIgnoreRules({
-        ...current,
-        graftignore: merged.content,
-      })
-      setIgnoreNotice(t("Added ignore rule for {path}.", { path }))
-      onSpaceChange(snapshot)
-      onRefresh()
-    } catch (cause) {
-      setIgnoreError(errorMessage(cause))
-    } finally {
-      setIgnoreBusy(false)
-    }
-  }
-
   const restore = async () => {
     if (!selectedCommit || !historyHead) return
     setBusy("restore")
@@ -2177,17 +2110,6 @@ export function VersionPanel({
                   <li key={file.path}>
                     <span title={file.path}>{file.path}</span>
                     <small>{formatUsageBytes(file.size)}</small>
-                    <button
-                      type="button"
-                      disabled={
-                        ignoreBusy ||
-                        busy !== null ||
-                        space.operation.phase !== "ready"
-                      }
-                      onClick={() => void ignoreLargeFile(file.path)}
-                    >
-                      {t("Ignore")}
-                    </button>
                   </li>
                 ))}
               </ul>
@@ -2201,24 +2123,6 @@ export function VersionPanel({
                 })}
               </p>
             ) : null}
-            <p className="version-setup-group-label">{t("Templates")}</p>
-            <div className="version-setup-ignore-actions">
-              {IGNORE_TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  data-ignore-template={template.id}
-                  disabled={
-                    ignoreBusy ||
-                    busy !== null ||
-                    space.operation.phase !== "ready"
-                  }
-                  onClick={() => void applyIgnoreTemplate(template)}
-                >
-                  {t(template.label)}
-                </button>
-              ))}
-            </div>
             <div className="version-setup-ignore-actions">
               <button
                 type="button"
@@ -2230,7 +2134,14 @@ export function VersionPanel({
                 }
                 onClick={() => void openIgnoreRules()}
               >
-                {t("Edit ignore rules")}
+                {ignoreBusy ? (
+                  <>
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                    {t("Loading…")}
+                  </>
+                ) : (
+                  t("Build ignore rules")
+                )}
               </button>
             </div>
             {ignoreNotice ? (
@@ -2262,8 +2173,9 @@ export function VersionPanel({
           </button>
         </section>
         {ignoreRules ? (
-          <SpaceIgnoreDialog
+          <SpaceIgnoreBuilderDialog
             rules={ignoreRules}
+            largeFiles={preflight.largeFiles}
             onCancel={() => setIgnoreRules(null)}
             onSave={saveIgnoreRules}
           />

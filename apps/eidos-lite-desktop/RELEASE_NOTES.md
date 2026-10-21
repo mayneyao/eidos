@@ -14,7 +14,7 @@ Explorer and folder **Manage files** now open the same Space-wide catalog at `.e
 
 ### Ignore rules before versioning
 
-The Versions setup panel now shows a preflight summary of files, videos, large files and symlinks. Apply common rule templates for videos, Node and build output, design files, archives, system files and temporary files; exclude an individual large file; or edit `.graftignore` and `.gitignore` directly before creating the first version. Large media no longer enters history by accident.
+The Versions setup panel shows a preflight summary of files, videos, large files and symlinks. **Build ignore rules** opens one builder for rule templates (videos, Node and build output, design files, archives, system files, temporary files), per-file exclusions for large files, and a raw `.graftignore`/`.gitignore` editor. Save once, then create the first version.
 
 ### Spark device authorization
 
