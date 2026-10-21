@@ -118,7 +118,7 @@ it("offers activation when the certificate belongs to another device", async () 
   await act(async () =>
     root.render(<SparkSettings signedIn subject="recipient" />)
   )
-  expect(host.textContent).toContain("active on another device")
+  expect(host.textContent).toContain("different device identity")
   expect(button("Activate on this device")).toBeDefined()
 })
 

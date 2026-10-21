@@ -25,7 +25,7 @@ export function SparkSettings({
     "All Spark device slots are in use. Release an old device on your Spark account page and try again."
   )
   const deviceMismatchMessage = t(
-    "This Spark license is active on another device. Release that device's slot, or activate this device if a slot is available."
+    "This Spark license is bound to a different device identity. Activate this device again; if all slots are in use, release the old device first."
   )
   const run = async (operation: () => Promise<SparkStatus>) => {
     setBusy(true)
