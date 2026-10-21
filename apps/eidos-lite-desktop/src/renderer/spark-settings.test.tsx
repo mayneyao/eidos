@@ -103,6 +103,25 @@ it("explains a device limit returned as status rather than a rejected request", 
   expect(button("Redeem code / manage devices")).toBeDefined()
 })
 
+it("offers activation when the certificate belongs to another device", async () => {
+  Object.assign(window, {
+    eidosLite: {
+      getSparkStatus: vi.fn().mockResolvedValue({
+        state: "inactive",
+        source: "online",
+        features: [],
+        licenses: [license],
+        error: "spark_device_mismatch",
+      } satisfies SparkStatus),
+    },
+  })
+  await act(async () =>
+    root.render(<SparkSettings signedIn subject="recipient" />)
+  )
+  expect(host.textContent).toContain("active on another device")
+  expect(button("Activate on this device")).toBeDefined()
+})
+
 it("keeps other licenses out of the active device overview", async () => {
   Object.assign(window, {
     eidosLite: {

@@ -24,6 +24,9 @@ export function SparkSettings({
   const deviceLimitMessage = t(
     "All Spark device slots are in use. Release an old device on your Spark account page and try again."
   )
+  const deviceMismatchMessage = t(
+    "This Spark license is active on another device. Release that device's slot, or activate this device if a slot is available."
+  )
   const run = async (operation: () => Promise<SparkStatus>) => {
     setBusy(true)
     setError("")
@@ -271,17 +274,19 @@ export function SparkSettings({
         {(error || status?.error) && (
           <p className="settings-service-notice" role="status">
             {error ||
-              (status?.error?.includes("spark_device_limit_reached")
-                ? deviceLimitMessage
-                : status?.error?.includes("System clock changed")
-                  ? t("System clock changed; refresh Spark while online.")
-                  : status?.state === "active"
-                    ? t(
-                        "Spark could not be refreshed. Cached offline authorization is still available."
-                      )
-                    : t(
-                        "Spark status is unavailable. Your local files are unaffected."
-                      ))}
+              (status?.error === "spark_device_mismatch"
+                ? deviceMismatchMessage
+                : status?.error?.includes("spark_device_limit_reached")
+                  ? deviceLimitMessage
+                  : status?.error?.includes("System clock changed")
+                    ? t("System clock changed; refresh Spark while online.")
+                    : status?.state === "active"
+                      ? t(
+                          "Spark could not be refreshed. Cached offline authorization is still available."
+                        )
+                      : t(
+                          "Spark status is unavailable. Your local files are unaffected."
+                        ))}
           </p>
         )}
       </div>

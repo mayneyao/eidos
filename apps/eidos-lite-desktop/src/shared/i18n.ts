@@ -96,6 +96,8 @@ const zh: Record<string, string> = {
     "无法更新 Spark。请检查网络并登录购买时使用的账户，然后重试。",
   "Spark status is unavailable. Your local files are unaffected.":
     "暂时无法查询 Spark 状态，本地文件不受影响。",
+  "This Spark license is active on another device. Release that device's slot, or activate this device if a slot is available.":
+    "此 Spark 许可证已在另一台设备上激活。请释放那台设备的授权名额，或在有空余名额时激活本机。",
   "Spark could not be refreshed. Cached offline authorization is still available.":
     "无法刷新 Spark，缓存的离线授权仍然有效。",
   "Disconnect cloud sync": "断开云端连接",
@@ -115,6 +117,10 @@ const zh: Record<string, string> = {
   "Encrypted cloud sync is not available on this platform yet. Your local files remain available.":
     "此平台暂不支持加密云同步，本地文件仍可正常使用。",
   "Close Eidos Sync": "关闭同步",
+  "Enable local versions first": "请先开启本地版本管理",
+  "Cloud sync uses this Space's local version history. Enable versioning before connecting to Sync.":
+    "云同步依赖此 Space 的本地版本历史。请先开启版本管理，再连接云同步。",
+  "Open Versions": "打开版本管理",
   "Sign in to use Sync": "登录以使用同步",
   "Use your eidos.space account to check whether Sync is available.":
     "登录 eidos.space 账户以查看同步服务。",

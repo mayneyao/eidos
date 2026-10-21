@@ -158,6 +158,32 @@ describe("Spark device grants", () => {
       await f.close()
     }
   })
+  it("keeps licenses available when the certificate belongs to another device", async () => {
+    const f = await fixture()
+    try {
+      f.request.mockResolvedValue(
+        Response.json({
+          certificate: certificate({ hardwareId: "other-device" }),
+          licenses: [
+            {
+              id: 1,
+              status: "active",
+              activation_count: 1,
+              max_activations: 2,
+            },
+          ],
+        })
+      )
+      const status = await f.service.status(true)
+      expect(status).toMatchObject({
+        state: "inactive",
+        error: "spark_device_mismatch",
+        licenses: [{ id: 1, activation_count: 1, max_activations: 2 }],
+      })
+    } finally {
+      await f.close()
+    }
+  })
   it("expired, copied and tampered caches cannot enable the feature", async () => {
     const f = await fixture()
     try {

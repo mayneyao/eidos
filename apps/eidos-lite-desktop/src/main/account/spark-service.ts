@@ -26,8 +26,13 @@ export function verifySparkCertificate(
   issuer: string,
   hardwareId: string,
   now = Date.now(),
-  allowExpired = false
+  allowExpired = false,
+  onInvalid?: (reason: string) => void
 ): CertificatePayload | null {
+  const invalid = (reason: string) => {
+    onInvalid?.(reason)
+    return null
+  }
   try {
     const { payload: p, signature } = JSON.parse(certificate) as {
       payload: CertificatePayload
@@ -46,12 +51,12 @@ export function verifySparkCertificate(
         Buffer.from(signature, "base64")
       )
     )
-      return null
+      return invalid("signature")
+    if (![1, 2].includes(p.version)) return invalid("version")
+    if (p.audience !== "eidos-lite-spark") return invalid("audience")
+    if (p.issuer !== issuer) return invalid("issuer")
+    if (p.hardwareId !== hardwareId) return invalid("hardware")
     if (
-      ![1, 2].includes(p.version) ||
-      p.audience !== "eidos-lite-spark" ||
-      p.issuer !== issuer ||
-      p.hardwareId !== hardwareId ||
       typeof p.subject !== "string" ||
       !p.subject ||
       !Number.isSafeInteger(p.licenseId) ||
@@ -59,7 +64,10 @@ export function verifySparkCertificate(
       !Array.isArray(p.features) ||
       !p.features.every((f) => typeof f === "string" && f.length <= 100) ||
       !Number.isFinite(Date.parse(p.issuedAt)) ||
-      Date.parse(p.issuedAt) > now + 300000 ||
+      Date.parse(p.issuedAt) > now + 300000
+    )
+      return invalid("fields")
+    if (
       !(
         (p.version === 2 &&
           p.expiresAt === null &&
@@ -72,13 +80,13 @@ export function verifySparkCertificate(
           Date.parse(p.expiresAt) - Date.parse(p.issuedAt) <= 2592000000)
       )
     )
-      return null
+      return invalid("expiry")
     return {
       ...p,
       features: p.features.filter((f) => SPARK_FEATURES.includes(f)),
     }
   } catch {
-    return null
+    return invalid("payload")
   }
 }
 
@@ -334,16 +342,46 @@ export class SparkService {
     }
     if (typeof data.certificate !== "string")
       throw new Error("Invalid Spark certificate")
+    let rejection = ""
     const p = verifySparkCertificate(
       data.certificate,
       this.options.publicKey,
       this.options.origin,
-      await this.options.hardwareId()
+      await this.options.hardwareId(),
+      Date.now(),
+      false,
+      (reason) => {
+        rejection = reason
+        console.warn("Spark certificate rejected:", reason)
+      }
     )
-    if (!p || p.subject !== subject)
-      throw new Error(
-        "Spark certificate could not be verified. Check the app configuration."
-      )
+    if (!p || p.subject !== subject) {
+      if (this.current.state === "active") {
+        this.current = {
+          ...this.current,
+          error: "Spark certificate could not be refreshed.",
+        }
+        return
+      }
+      this.current =
+        rejection === "hardware"
+          ? {
+              state: "inactive",
+              source: "online",
+              features: [],
+              licenses: data.licenses,
+              error: "spark_device_mismatch",
+            }
+          : {
+              state: "unavailable",
+              source: "online",
+              features: [],
+              licenses: data.licenses,
+              error:
+                "Spark certificate could not be verified. Check the app configuration.",
+            }
+      return
+    }
     await fs.mkdir(path.dirname(this.options.cachePath), {
       recursive: true,
       mode: 0o700,
