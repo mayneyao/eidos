@@ -1,4 +1,12 @@
 export * from "./eidos-file-field-properties"
+export { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+export {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/primitives"
 export * from "./eidos-file-schema-settings"
 export * from "./eidos-file-data-grid"
 export * from "./eidos-file-editor-view"
@@ -34,6 +42,7 @@ export * from "./eidos-file-number-properties-editor"
 export * from "./eidos-file-query-toolbar"
 export * from "./eidos-file-search-navigation"
 export * from "./eidos-file-record-field-editor"
+export * from "./eidos-file-renderer-field-property-panel"
 export * from "./eidos-file-record-attachment-editor"
 export * from "./eidos-file-record-format"
 export * from "./eidos-file-record-card"
@@ -75,6 +84,12 @@ export * from "./use-eidos-file-record-inspector-row"
 export * from "./ui/alert-dialog"
 export * from "./ui/dropdown-menu"
 export * from "./ui/kanban"
+export {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./ui/primitives"
 
 export { default as DatePickerCell } from "./cells/date-picker-cell"
 export type { DatePickerCell as DatePickerCellType } from "./cells/date-picker-cell"

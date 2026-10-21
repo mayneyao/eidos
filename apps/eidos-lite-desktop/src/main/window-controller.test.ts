@@ -31,7 +31,11 @@ vi.mock("electron", () => ({
   nativeTheme: { on: vi.fn() },
   clipboard: {},
   dialog: { showSaveDialog: mocks.saveDialog },
-  screen: {},
+  screen: {
+    getDisplayMatching: () => ({
+      workArea: { x: 0, y: 0, width: 1440, height: 900 },
+    }),
+  },
   shell: {},
   utilityProcess: {},
   session: {},
@@ -54,6 +58,7 @@ vi.mock("./space/recent-spaces", () => ({
   },
 }))
 import { WindowController } from "./window-controller"
+import { DEFAULT_EIDOS_LITE_PREFERENCES } from "./app-preferences"
 
 function fixture() {
   const contents = Object.assign(new EventEmitter(), {
@@ -90,7 +95,11 @@ function session(id: string) {
     canonical: { id, name: id, root: id },
     snapshot: vi.fn(async () => snapshot),
     close: vi.fn(async () => {}),
+    closeEidosFile: vi.fn(async () => {}),
     onChanged: vi.fn(() => vi.fn()),
+    relativePathForRuntime: vi.fn((sessionId: string) =>
+      sessionId === "catalog" ? ".eidos/files.eidos" : "b.md"
+    ),
     lockEncryptedSync: vi.fn(async () => {}),
     unlockEncryptedSync: vi.fn(
       async (
@@ -304,6 +313,199 @@ it("opens Settings in its own window and reuses that window", () => {
   expect(load).toHaveBeenCalledWith(settingsWindow, "/settings/preferences")
   expect(controller.showSettingsWindow()).toBe(settingsWindow)
   expect(create).toHaveBeenCalledOnce()
+})
+
+it("reuses a separate property window without registering it as a Space owner", async () => {
+  const { controller, owner } = fixture()
+  const current = session("properties-space")
+  mocks.create.mockResolvedValueOnce(current)
+  await controller.openRecentSpace(owner, "properties-space")
+  const childContents = Object.assign(new EventEmitter(), {
+    id: 22,
+    send: vi.fn(),
+    isDestroyed: () => false,
+    setZoomFactor: vi.fn(),
+    getZoomFactor: vi.fn(() => 1),
+  })
+  const child = Object.assign(new EventEmitter(), {
+    webContents: childContents,
+    isDestroyed: () => false,
+    isMinimized: () => false,
+    show: vi.fn(),
+    focus: vi.fn(),
+    setTitle: vi.fn(),
+    close: vi.fn(),
+    getBounds: () => ({ x: 50, y: 50, width: 400, height: 500 }),
+    getContentBounds: () => ({ x: 50, y: 78, width: 400, height: 472 }),
+    setBounds: vi.fn(),
+  })
+  const internals = controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+  }
+  const create = vi
+    .spyOn(internals, "createWindow")
+    .mockReturnValue(child as unknown as BrowserWindow)
+  vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  vi.spyOn(controller, "locale").mockResolvedValue("en")
+  vi.spyOn(controller, "getPreferences").mockResolvedValue(
+    DEFAULT_EIDOS_LITE_PREFERENCES
+  )
+  controller.showFileProperties(owner, "a.md")
+  expect(create).toHaveBeenCalledWith(false, "properties")
+  expect(child.show).not.toHaveBeenCalled()
+  expect(
+    controller.filePropertiesTarget(childContents as unknown as WebContents)
+  ).toBe("a.md")
+  expect(controller.sessionFor(childContents as unknown as WebContents)).toBe(
+    current
+  )
+  controller.showFileProperties(owner, "b.md")
+  expect(child.show).not.toHaveBeenCalled()
+  expect(create).toHaveBeenCalledOnce()
+  expect(childContents.send).toHaveBeenCalledWith(
+    "eidos-lite:file-properties-changed",
+    "b.md"
+  )
+  controller.pinFilePropertiesRuntime(
+    childContents as unknown as WebContents,
+    "catalog"
+  )
+  childContents.send.mockClear()
+  controller.notifyFilePropertiesChanged(
+    childContents as unknown as WebContents,
+    "catalog"
+  )
+  expect(childContents.send).not.toHaveBeenCalled()
+  expect(
+    (owner as unknown as { send: ReturnType<typeof vi.fn> }).send
+  ).toHaveBeenCalledWith("eidos-lite:file-properties-changed", "b.md")
+  expect(controller.filePropertiesRuntimePinned(owner, "catalog")).toBe(true)
+  controller.resizeFileProperties(childContents as unknown as WebContents, 126)
+  expect(child.setBounds).toHaveBeenLastCalledWith(
+    {
+      x: 50,
+      y: 50,
+      width: 400,
+      height: 154,
+    },
+    false
+  )
+  expect(child.show).toHaveBeenCalledOnce()
+  expect(child.setBounds.mock.invocationCallOrder[0]).toBeLessThan(
+    child.show.mock.invocationCallOrder[0]!
+  )
+  childContents.getZoomFactor.mockReturnValue(1.5)
+  controller.resizeFileProperties(childContents as unknown as WebContents, 200)
+  expect(child.setBounds).toHaveBeenLastCalledWith(
+    { x: 50, y: 50, width: 400, height: 328 },
+    true
+  )
+  controller.resizeFileProperties(childContents as unknown as WebContents, 2000)
+  expect(child.setBounds).toHaveBeenLastCalledWith(
+    {
+      x: 50,
+      y: 0,
+      width: 400,
+      height: 900,
+    },
+    true
+  )
+  expect(child.show).toHaveBeenCalledOnce()
+  const closeEvent = { preventDefault: vi.fn() }
+  child.emit("close", closeEvent)
+  expect(closeEvent.preventDefault).toHaveBeenCalledOnce()
+  expect(childContents.send).toHaveBeenCalledWith(
+    "eidos-lite:file-properties-prepare-close",
+    expect.any(String)
+  )
+  const token = childContents.send.mock.calls.at(-1)![1] as string
+  controller.replyFilePropertiesClose(
+    childContents as unknown as WebContents,
+    token,
+    true
+  )
+  await Promise.resolve()
+  expect(child.close).toHaveBeenCalledOnce()
+  child.emit("closed")
+  expect(current.close).not.toHaveBeenCalled()
+  expect(controller.sessionFor(owner)).toBe(current)
+  expect(
+    controller.sessionFor(childContents as unknown as WebContents)
+  ).toBeNull()
+  expect(controller.filePropertiesRuntimePinned(owner, "catalog")).toBe(false)
+})
+
+it("revokes property window access after its owner changes Space", async () => {
+  const { controller, owner } = fixture()
+  mocks.create.mockResolvedValueOnce(session("first-properties"))
+  await controller.openRecentSpace(owner, "first-properties")
+  const contents = Object.assign(new EventEmitter(), {
+    id: 23,
+    send: vi.fn(),
+    isDestroyed: () => false,
+    setZoomFactor: vi.fn(),
+  })
+  const child = Object.assign(new EventEmitter(), {
+    webContents: contents,
+    isDestroyed: () => false,
+    setTitle: vi.fn(),
+    close: vi.fn(),
+  })
+  const internals = controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+  }
+  vi.spyOn(internals, "createWindow").mockReturnValue(
+    child as unknown as BrowserWindow
+  )
+  vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  vi.spyOn(controller, "locale").mockResolvedValue("en")
+  vi.spyOn(controller, "getPreferences").mockResolvedValue(
+    DEFAULT_EIDOS_LITE_PREFERENCES
+  )
+  controller.showFileProperties(owner, "a.md")
+  mocks.create.mockResolvedValueOnce(session("second-properties"))
+  await controller.openRecentSpace(owner, "second-properties")
+  expect(controller.sessionFor(contents as unknown as WebContents)).toBeNull()
+  controller.selectFileProperties(owner, "b.md")
+  expect(child.close).toHaveBeenCalledOnce()
+})
+
+it("presents a property window even when the renderer load fails", async () => {
+  const { controller, owner } = fixture()
+  mocks.create.mockResolvedValueOnce(session("properties-space"))
+  await controller.openRecentSpace(owner, "properties-space")
+  const contents = Object.assign(new EventEmitter(), {
+    id: 24,
+    send: vi.fn(),
+    isDestroyed: () => false,
+    setZoomFactor: vi.fn(),
+  })
+  const child = Object.assign(new EventEmitter(), {
+    webContents: contents,
+    isDestroyed: () => false,
+    isMinimized: () => false,
+    restore: vi.fn(),
+    show: vi.fn(),
+    focus: vi.fn(),
+    setTitle: vi.fn(),
+    close: vi.fn(),
+  })
+  const internals = controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+  }
+  vi.spyOn(internals, "createWindow").mockReturnValue(
+    child as unknown as BrowserWindow
+  )
+  vi.spyOn(internals, "loadRenderer").mockRejectedValue(new Error("load"))
+  vi.spyOn(controller, "locale").mockResolvedValue("en")
+  vi.spyOn(controller, "getPreferences").mockResolvedValue(
+    DEFAULT_EIDOS_LITE_PREFERENCES
+  )
+  controller.showFileProperties(owner, "a.md")
+  await vi.waitFor(() => expect(child.show).toHaveBeenCalledOnce())
 })
 
 it("keeps the old Space alive on cancel and failed opens, then releases it once on a successful switch", async () => {

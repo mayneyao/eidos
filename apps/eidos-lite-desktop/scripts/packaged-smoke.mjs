@@ -163,6 +163,34 @@ try {
   ])
   const executable = await executablePath()
   const packagedResources = await resourcesPath(executable)
+  const sparkTestCertificate =
+    process.env.EIDOS_LITE_SPARK_TEST_CERTIFICATE?.trim() ?? ""
+  if (
+    process.env.EIDOS_LITE_SPARK_REQUIRE_SIGNED_TEST_CERTIFICATE === "1" &&
+    !sparkTestCertificate
+  )
+    throw new Error(
+      "Production packaged smoke requires EIDOS_LITE_SPARK_TEST_CERTIFICATE signed by the production key"
+    )
+  const sparkCertificatePath = sparkTestCertificate
+    ? path.join(temporaryRoot, "spark-test-certificate.json")
+    : undefined
+  if (sparkCertificatePath)
+    await fs.writeFile(sparkCertificatePath, sparkTestCertificate)
+  const sparkKeyCheck = spawnSync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "scripts/run-electron-node.mjs"),
+      path.join(appRoot, "scripts/spark-key-packaged-smoke.mjs"),
+      path.join(packagedResources, "app.asar"),
+      expectedEnvironmentName,
+      ...(sparkCertificatePath ? [sparkCertificatePath] : []),
+    ],
+    { stdio: "inherit", timeout: 30_000 }
+  )
+  if (sparkKeyCheck.error) throw sparkKeyCheck.error
+  if (sparkKeyCheck.status !== 0)
+    throw new Error("Packaged Spark public key validation failed")
   const pluginCompiler = spawnSync(
     process.execPath,
     [
@@ -327,7 +355,7 @@ try {
     ) ||
     !report.graft?.available ||
     report.graft?.backend !== "sdk" ||
-    report.graft?.version !== "0.3.33" ||
+    report.graft?.version !== "0.3.34" ||
     report.mutation?.afterInsertCount !== report.mutation?.beforeCount + 1 ||
     report.mutation?.afterDeleteCount !== report.mutation?.beforeCount ||
     report.mutation?.checkpointCount !== report.mutation?.beforeCount + 1 ||

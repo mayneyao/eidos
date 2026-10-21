@@ -16,6 +16,7 @@ import {
   readNavigationHistory,
 } from "./navigation-history"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
+import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 
 const surface = vi.hoisted(() =>
   vi.fn<
@@ -175,6 +176,7 @@ function installHost(overrides: Record<string, unknown>) {
     getSyncQueueStatus: async () => null,
     getSyncMergeStatus: async () => ({ ok: true, value: { state: "none" } }),
     takeLaunchEidosFile: async () => null,
+    selectFileProperties: async () => {},
     openPluginEditor: async () => ({ instance: null }),
     ...overrides,
   }
@@ -186,6 +188,45 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+it("shows Spark activation guidance instead of missing-file recovery when catalog creation is denied", async () => {
+  const openSettingsDestination = vi.fn(async () => {})
+  const inspect = vi.fn(async () => {
+    throw new Error("Should not inspect a catalog that has not been created")
+  })
+  installHost({
+    openFileMetadata: async () => {
+      throw new Error(
+        `Error invoking remote method: ${SPARK_ACTIVATION_REQUIRED}`
+      )
+    },
+    inspectEidosFileIssue: inspect,
+    openSettingsDestination,
+  })
+  window.history.replaceState(null, "", navigationHash("s", null))
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector('[aria-label="Manage files"]')).not.toBeNull()
+  )
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
+      .click()
+  )
+  await vi.waitFor(() =>
+    expect(host.textContent).toContain(SPARK_ACTIVATION_REQUIRED)
+  )
+  expect(inspect).not.toHaveBeenCalled()
+  expect(host.textContent).not.toContain("Eidos File is missing")
+  const activate = Array.from(
+    host.querySelectorAll<HTMLButtonElement>("button")
+  ).find(
+    (button) => button.textContent === "Activate Spark in Account & Services"
+  )!
+  expect(activate).toBeDefined()
+  await act(async () => activate.click())
+  expect(openSettingsDestination).toHaveBeenCalledWith("account-sync")
+})
 
 it.each(["root", "folder", "restore"])(
   "opens Space metadata through the built-in editor from %s",

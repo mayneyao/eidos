@@ -149,6 +149,7 @@ export function EidosFileViewFieldsPopover({
   onFieldOpen,
   onFieldAdd,
   embedded = false,
+  title,
 }: {
   fields: EidosFileFieldInfo[]
   view: EidosFileViewInfo
@@ -158,6 +159,7 @@ export function EidosFileViewFieldsPopover({
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   /** Render the same field list inside a host-owned mobile sheet. */
   embedded?: boolean
+  title?: string
   onFieldAdd?: (
     allowedTypes?: readonly CreateEidosFileFieldInput["type"][]
   ) => void
@@ -289,7 +291,9 @@ export function EidosFileViewFieldsPopover({
     <>
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5">
         <div>
-          <p className="text-xs font-medium">{t("Fields in this view")}</p>
+          <p className="text-xs font-medium">
+            {title ?? t("Fields in this view")}
+          </p>
           <p className="text-[11px] text-muted-foreground">
             {t("{visible} of {total} visible", {
               visible: visibleCount,

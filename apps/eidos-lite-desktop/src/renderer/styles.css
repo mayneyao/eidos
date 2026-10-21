@@ -1158,6 +1158,36 @@ body {
   margin: 0;
 }
 
+.settings-spark-overview,
+.settings-spark-confirmation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.settings-spark .settings-row-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.settings-spark .settings-button {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+.settings-spark-license-choice > summary {
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.settings-spark-license-choice .settings-row {
+  flex-wrap: wrap;
+}
+
 .settings-service-access > strong {
   font-size: 0.75rem;
   font-weight: 600;
@@ -2237,6 +2267,25 @@ body {
   flex: 1;
   min-width: 0;
   container-type: inline-size;
+}
+.sidebar-help {
+  position: relative;
+  flex: 0 0 2rem;
+}
+.sidebar-help > .sidebar-settings-button {
+  width: 2rem;
+  justify-content: center;
+}
+.sidebar-help-menu.space-context-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.375rem);
+  min-width: 10rem;
+}
+.sidebar-help-menu button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  background: var(--surface-selected);
 }
 .sidebar-pages {
   position: relative;
@@ -6336,6 +6385,15 @@ body {
   background: transparent;
 }
 
+.inline-error .inline-error-action {
+  display: inline;
+  width: auto;
+  height: auto;
+  margin-left: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .file-recovery-notice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -9142,6 +9200,302 @@ body {
   overflow-wrap: anywhere;
 }
 
+.file-properties-window {
+  width: 100%;
+  max-height: 100vh;
+  overflow: auto;
+  background: var(--canvas);
+  color: var(--ink);
+  font:
+    12px/14px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+.file-properties-content {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+.file-properties-identity {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 10px 8px 4px;
+  min-height: 46px;
+}
+.file-properties-identity > img,
+.file-properties-identity > svg {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+.file-properties-identity > div {
+  min-width: 0;
+}
+.file-properties-identity strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.file-properties-identity small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-muted);
+}
+.file-properties-size {
+  font-size: 13px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.file-properties-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.file-properties-body {
+  padding: 0;
+  overflow: visible;
+}
+.file-properties-section {
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+.file-properties-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  height: 20px;
+  min-height: 20px;
+  line-height: 20px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: default;
+  user-select: none;
+  list-style: none;
+}
+.file-properties-section > summary::-webkit-details-marker {
+  display: none;
+}
+.file-properties-section > summary::marker {
+  content: "";
+}
+.file-properties-section > summary > svg {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  color: var(--ink-muted);
+  opacity: 0.5;
+  stroke-width: 2.5;
+}
+.file-properties-section[open] > summary > svg {
+  transform: rotate(90deg);
+}
+.file-properties-section-body {
+  padding: 4px 8px 10px;
+}
+.file-properties-section-body dl {
+  margin: 0;
+}
+.file-properties-section-body dl > div {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  line-height: 14px;
+}
+.file-properties-section-body dt {
+  margin: 0;
+  text-align: right;
+  font-weight: 400;
+  color: inherit;
+}
+.file-properties-section-body dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.file-properties-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px;
+}
+.file-properties-path > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.file-properties-path > button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -3px;
+  border-radius: 3px;
+  color: var(--ink-muted);
+}
+.file-properties-path > button:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.file-properties-path > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.file-properties-field {
+  display: grid;
+  grid-template-columns: minmax(60px, 28%) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 3px 0;
+}
+.file-properties-field-label {
+  min-width: 0;
+  min-height: 24px;
+  padding: 4px 0;
+  text-align: right;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  color: inherit;
+}
+.file-properties-field-label span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.file-properties-controls {
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  gap: 0;
+  margin-top: 5px;
+  padding: 0 2px;
+  background: color-mix(in srgb, var(--ink) 6%, var(--canvas));
+  border-radius: 6px;
+}
+.file-properties-controls > button {
+  margin: 0;
+  width: 23px;
+  height: 21px;
+  min-height: 21px;
+  padding: 3px;
+  border-radius: 0;
+}
+.file-properties-controls > button + button {
+  border-right: 1px solid var(--line);
+}
+.file-properties-controls > button svg {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+
+.file-properties-create {
+  padding: 12px;
+  font:
+    12px/16px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: var(--ink);
+}
+.file-properties-create h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.file-properties-create-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.file-properties-create label {
+  padding-top: 4px;
+  text-align: right;
+}
+.file-properties-create :is(input, textarea, button[role="combobox"]) {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  min-height: 24px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  box-shadow: none;
+}
+.file-properties-create textarea[rows] {
+  height: auto;
+  min-height: 56px;
+  resize: vertical;
+}
+.file-properties-create :is(input, textarea, button):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.file-properties-create footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+.file-properties-create footer button {
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-hover);
+  font: inherit;
+}
+.file-properties-create button:disabled {
+  opacity: 0.5;
+}
+.file-properties-create p[role="alert"] {
+  color: var(--destructive);
+  margin-top: 8px;
+}
+.file-properties-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.file-properties-type svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.file-properties-type-menu [role="option"] {
+  min-height: 26px;
+  padding-block: 4px;
+}
+
+body:has(.file-properties-window)
+  [data-radix-popper-content-wrapper]
+  > [data-eidos-file-root] {
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+}
+
 .file-sidebar-body {
   display: flex;
   flex: 1;
@@ -9203,6 +9557,19 @@ body {
   display: flex;
   align-items: center;
   gap: 0.15rem;
+}
+
+/* macOS traffic lights are on the left; only Windows/Linux need actions
+   beside the title to avoid the native caption controls on the right. */
+.workbench[data-platform="darwin"]
+  :is(.file-sidebar, .version-panel, .sync-dialog-inspector, .sync-inspector-b)
+  > header
+  > :first-child {
+  margin-right: auto;
+}
+
+.workbench[data-platform="darwin"] .version-header-actions {
+  flex-shrink: 0;
 }
 
 .version-panel > header svg,

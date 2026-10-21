@@ -9,6 +9,7 @@ import {
 } from "../shared/contracts"
 import {
   resolveEidosLiteServiceEnvironment,
+  developmentAccountEnvironment,
   runtimeEnvironmentOverride,
 } from "../shared/service-environment"
 import { resolveEidosLiteLocale } from "../shared/i18n"
@@ -74,8 +75,15 @@ const bootstrapStartedAtMs =
 
 app.setName("Eidos Lite")
 
-const services = resolveEidosLiteServiceEnvironment(
-  runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
+const services = developmentAccountEnvironment(
+  resolveEidosLiteServiceEnvironment(
+    runtimeEnvironmentOverride(
+      app.isPackaged,
+      process.env.EIDOS_LITE_ENVIRONMENT
+    )
+  ),
+  app.isPackaged,
+  process.env.EIDOS_LITE_ACCOUNT_ORIGIN
 )
 declare const __EIDOS_LITE_GRAFT_SOURCE_SNAPSHOT__: boolean | undefined
 

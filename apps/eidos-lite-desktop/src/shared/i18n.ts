@@ -4,6 +4,98 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Custom properties": "自定义属性",
+  "Configure properties": "配置属性",
+  "Configure {field}": "配置 {field}",
+  "Add property": "添加属性",
+  "New property": "新建属性",
+  "One option per line": "每行一个选项",
+  "New properties are shared across this Space.":
+    "新建属性供整个 Space 的文件使用。",
+  "File properties": "文件属性",
+  "General file information": "通用",
+  "More Info": "更多信息",
+  Where: "位置",
+  "Add Tags…": "添加标签…",
+  "{count} bytes": "{count} 字节",
+  "Modified: {date}": "修改时间：{date}",
+  Today: "今天",
+  "Markdown document": "Markdown 文稿",
+  "Select a file to view its properties.": "选择文件以查看属性。",
+  "Close file properties": "关闭文件属性",
+  "Copy path": "复制路径",
+  "Could not copy. Try again.": "复制失败，请重试。",
+  "Loading properties…": "正在读取属性…",
+  "Loading properties for {name}…": "正在读取 {name} 的属性…",
+  "Basic information": "基本信息",
+  "File size": "文件大小",
+  "Created time": "创建时间",
+  "Properties shown in this window": "此窗口显示的属性",
+  "Changes save automatically": "更改自动保存",
+  "Changes not saved": "更改尚未保存",
+  "This file is no longer available": "此文件已不可用",
+  "File properties are unavailable": "文件属性不可用",
+  "File properties cannot open a Space": "文件属性窗口无法打开 Space",
+  "System clock changed; refresh Spark while online.":
+    "系统时间发生变化，请联网刷新 Spark。",
+  "Activate this device using a license on your account.":
+    "使用账号内的许可证激活此设备。",
+  "Refresh to check your Spark access, or redeem a code.":
+    "刷新以检查账号的 Spark 权益，或前往兑换授权。",
+  "Advanced Spark features are available on this device.":
+    "此设备已解锁 Spark 高级功能。",
+  "Redeem a Spark code to your account, then activate this device.":
+    "将 Spark 兑换码兑换到你的账号，再激活此设备。",
+  "Choose a license to activate this device": "选择用于激活此设备的许可证",
+  "Legacy Spark gift": "老 Spark 用户赠送",
+  "Redeemed Spark code": "Spark 兑换码授权",
+  "Issued on {date}": "授权时间：{date}",
+  "Checking Spark…": "正在查询 Spark…",
+  "Buy a Spark code for yourself or as a gift. The license belongs to the account that redeems it.":
+    "购买 Spark 兑换码，自用或赠送。许可证归兑换此码的账号所有。",
+  "Sign in above with the account that redeemed your Spark code.":
+    "请在上方登录兑换 Spark 兑换码的账号。",
+  "Release this device's slot? Spark features will stop on this computer. Your files and account license will remain. You can activate this device again manually.":
+    "释放此设备名额后，这台电脑将停止使用 Spark 功能，文件和账号许可证会保留。之后可手动重新激活此设备。",
+  "Confirm release": "确认释放",
+  "Redeem code / manage devices": "兑换 / 管理设备",
+  "Activated for offline use without a renewal deadline.":
+    "已激活，可长期离线使用，无需定期续期。",
+  "Redeem a Spark code to your account. New devices activate automatically when signed in. Released devices can be activated again below.":
+    "将兑换码兑换到你的账号后，新设备登录即可自动激活。已释放的设备可在下方手动重新激活。",
+  "All Spark device slots are in use. Release an old device on your Spark account page and try again.":
+    "Spark 设备名额已用完，请在账号的 Spark 页面释放旧设备后重试。",
+  "Spark could not be updated. Check your connection and sign in to the license owner's account, then retry.":
+    "无法更新 Spark。请检查网络并登录许可证所属账号后重试。",
+  "Redeem a Spark code": "兑换 Spark 兑换码",
+  "Redeem a Spark code to your account, then refresh to activate this device.":
+    "先将 Spark 兑换码兑换到你的账号，再刷新并激活此设备。",
+  "Activate Spark in Settings → Account & Services to use this feature. Existing files remain available.":
+    "请前往设置 → 账户与服务激活 Spark，以使用此功能。已有文件仍可访问。",
+  "Activate Spark in Account & Services": "在账户与服务中激活 Spark",
+  "Spark is active on this device": "Spark 已在此设备激活",
+  "Activate Spark": "激活 Spark",
+  "A one-time purchase for early access to advanced Eidos features and to support Eidos development.":
+    "一次性买断，提前体验 Eidos 高级特性，支持 Eidos 开发。",
+  "Sync and Publish have separate plans.": "Sync 和 Publish 使用独立方案。",
+  "Offline authorization valid until {date}": "离线授权有效期至 {date}",
+  "Connect and refresh Spark to renew this device's offline authorization.":
+    "联网并刷新 Spark，以更新此设备的离线授权。",
+  "Sign in above to activate a purchased Spark license.":
+    "请先登录账户，再激活已购买的 Spark 许可证。",
+  "Learn about Spark": "了解 Spark",
+  "Release this Spark device": "释放此 Spark 设备",
+  "Spark license": "Spark 许可证",
+  "{used} of {total} devices activated": "已激活 {used} / {total} 台设备",
+  "Activate on this device": "在此设备激活",
+  "All Spark device slots are in use. Release a device from that installation and try again.":
+    "Spark 设备名额已用完。请在已激活的设备上解除绑定后重试。",
+  "Spark could not be updated. Check your connection and sign in to the purchasing account, then retry.":
+    "无法更新 Spark。请检查网络并登录购买时使用的账户，然后重试。",
+  "Spark status is unavailable. Your local files are unaffected.":
+    "暂时无法查询 Spark 状态，本地文件不受影响。",
+  "Spark could not be refreshed. Cached offline authorization is still available.":
+    "无法刷新 Spark，缓存的离线授权仍然有效。",
   "Disconnect cloud sync": "断开云端连接",
   "Disconnect cloud sync?": "断开云端连接？",
   "Disconnecting…": "正在断开…",
@@ -748,6 +840,8 @@ const zh: Record<string, string> = {
   View: "视图",
   Window: "窗口",
   Help: "帮助",
+  "Send feedback": "反馈",
+  "Release notes": "版本更新日志",
   "Eidos Documentation": "Eidos 文档",
   "Eidos Website": "Eidos 官网",
   Settings: "设置",

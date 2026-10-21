@@ -7,6 +7,7 @@ import {
 } from "./plugin-file-mutations"
 import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
+import type { SparkFeature } from "../../shared/spark"
 import { searchSpaceText } from "./text-search"
 import type {
   TextSearchProgress,
@@ -383,6 +384,10 @@ interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
 }
 
 export class SpaceSession {
+  private readonly sparkRuntimePolicies = new Map<
+    string,
+    { connectionId: string; dataVersion: string; metadata: boolean }
+  >()
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
@@ -494,7 +499,10 @@ export class SpaceSession {
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
     private readonly stateDirectory: string,
-    workerPath?: string
+    workerPath?: string,
+    private readonly requireSparkFeature?: (
+      feature: SparkFeature
+    ) => Promise<void>
   ) {
     this.runtimePool = new RuntimePool(canonical.root, workerPath)
     this.pathIndex = new SpacePathIndex(canonical.root)
@@ -544,6 +552,7 @@ export class SpaceSession {
     options: {
       graft: GraftClient
       workerPath?: string
+      requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root)
@@ -556,13 +565,15 @@ export class SpaceSession {
     options: {
       graft: GraftClient
       workerPath?: string
+      requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
     const session = new SpaceSession(
       canonical,
       options.graft,
       path.join(userDataDirectory, "spaces", canonical.id),
-      options.workerPath
+      options.workerPath,
+      options.requireSparkFeature
     )
     try {
       await session.gate.recoverInterruptedOperation()
@@ -759,6 +770,7 @@ export class SpaceSession {
           )
         return this.runtimePool.open(SPACE_FILE_METADATA_PATH)
       }
+      await this.requireSparkFeature?.("file-metadata")
       const created = await this.runtimePool.create(
         SPACE_FILE_METADATA_PATH,
         "Files",
@@ -1115,6 +1127,7 @@ export class SpaceSession {
     namespace: string,
     patch: FileMetaPatch
   ): Promise<FileMetaValues> {
+    await this.requireSparkFeature?.("file-metadata")
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
     const result = await this.gate.withMutation(() =>
@@ -1943,6 +1956,33 @@ export class SpaceSession {
     }
   }
 
+  private async requireSparkRuntimeAccess(sessionId: string): Promise<void> {
+    if (!this.requireSparkFeature) return
+    const probe = await this.runtimePool.call(
+      sessionId,
+      "getExternalChangeProbe",
+      []
+    )
+    let policy = this.sparkRuntimePolicies.get(sessionId)
+    if (
+      !policy ||
+      policy.connectionId !== probe.connectionId ||
+      policy.dataVersion !== probe.dataVersion
+    ) {
+      const snapshot = await this.runtimePool.call(sessionId, "getSnapshot", [])
+      policy = {
+        ...probe,
+        metadata: snapshot.tables.some(
+          (table) => table.table.settings?.vtabModule === "fs_meta"
+        ),
+      }
+      this.sparkRuntimePolicies.set(sessionId, policy)
+    }
+    if (policy.metadata) {
+      await this.requireSparkFeature("file-metadata")
+    }
+  }
+
   async callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
@@ -1951,6 +1991,10 @@ export class SpaceSession {
     const isMutation = mutationMethods.has(method)
     const isCsvOperationControl = csvOperationControlMethods.has(method)
     if (isMutation) this.prioritizeLocalWork()
+    // Authorization may need a network refresh when an offline lease expired.
+    // Resolve it before taking the Space mutation gate so other edits are not
+    // blocked behind a Spark timeout.
+    if (isMutation) await this.requireSparkRuntimeAccess(sessionId)
     let result: RuntimeCalls[M]["result"]
     try {
       result = isMutation
@@ -4085,8 +4129,17 @@ export class SpaceSession {
   }
 
   closeEidosFile(sessionId: string): Promise<void> {
+    this.sparkRuntimePolicies.delete(sessionId)
     this.pendingEidosFileAssets.delete(sessionId)
     return this.runtimePool.closeSession(sessionId)
+  }
+
+  /** The Space-relative path currently bound to a Runtime session, if any. */
+  relativePathForRuntime(sessionId: string): string | null {
+    for (const [relativePath, current] of this.runtimeSessionByPath) {
+      if (current === sessionId) return relativePath
+    }
+    return null
   }
 
   resolveUserPath(relativePath: string): string {

@@ -195,7 +195,7 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(narrowInspector).toContain('[data-platform="win32"]')
   })
 
-  it("keeps file preview actions immediately after the title", () => {
+  it("keeps file preview actions beside the title by default for Windows/Linux", () => {
     const title = rule(".file-sidebar > header strong")
     expect(title).toContain("flex: 0 1 auto")
     expect(title).toContain("min-width: 0")
@@ -205,7 +205,7 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
-  it("keeps history and Sync actions beside their titles", () => {
+  it("keeps history and Sync actions beside their titles by default for Windows/Linux", () => {
     expect(rule(".version-panel > header")).toContain(
       "justify-content: flex-start"
     )
@@ -223,6 +223,28 @@ describe("Eidos Lite surface hierarchy", () => {
     )
     expect(narrowSync).not.toContain("flex: none")
     expect(styles).not.toMatch(/\.sync-account-meter\s*\{\s*margin-left: auto/)
+  })
+
+  it("aligns macOS sidebar actions to the right without changing caption-platform defaults", () => {
+    const macHeader = ruleContaining(
+      "margin-right: auto;\n}",
+      styles.slice(styles.indexOf("/* macOS traffic lights"))
+    )
+    expect(macHeader).toContain('.workbench[data-platform="darwin"]')
+    for (const sidebar of [
+      ".file-sidebar",
+      ".version-panel",
+      ".sync-dialog-inspector",
+      ".sync-inspector-b",
+    ]) {
+      expect(macHeader).toContain(sidebar)
+    }
+    expect(macHeader).toContain("> :first-child")
+    expect(macHeader).not.toContain('[data-platform="win32"]')
+    expect(macHeader).not.toContain('[data-platform="linux"]')
+    expect(
+      rule('.workbench[data-platform="darwin"] .version-header-actions')
+    ).toContain("flex-shrink: 0")
   })
 
   it("aligns Linux title rows to the system window controls overlay", () => {

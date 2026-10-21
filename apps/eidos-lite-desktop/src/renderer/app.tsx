@@ -31,6 +31,7 @@ import {
   FolderPlus,
   GitMerge,
   History,
+  Info,
   LoaderCircle,
   PanelLeft,
   Pencil,
@@ -44,6 +45,7 @@ import {
 import { WorkspaceTextSearch } from "./workspace-text-search"
 import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
+import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { WorkspaceHeading } from "./workspace-heading"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
@@ -160,6 +162,7 @@ import {
 } from "./text-file-preview"
 import { SettingsPage } from "./settings-page"
 import { useWhatsNew, WhatsNewPage, releaseVersion } from "./whats-new"
+import { SidebarHelp } from "./sidebar-help"
 import type { VersionInspection } from "./version-change-tree"
 import {
   workspaceShortcutAriaKeyShortcuts,
@@ -167,6 +170,7 @@ import {
 } from "./workspace-shortcuts"
 import { resolveWorkbenchSurfaces } from "./workbench-layout"
 
+const FEEDBACK_URL = "https://eidos.eidos.ink/feedback"
 const pluginNameCache = new Map<string, string>()
 
 let eidosFileWorkbenchModule:
@@ -222,6 +226,10 @@ const TerminalPanel = lazy(async () => {
 const FileSidebar = lazy(async () => {
   const module = await import("./file-sidebar")
   return { default: module.FileSidebar }
+})
+const FilePropertiesWindow = lazy(async () => {
+  const module = await import("./file-properties-window")
+  return { default: module.FilePropertiesWindow }
 })
 
 interface CachedFile {
@@ -958,6 +966,11 @@ function WorkspaceApp({
   const [busyFile, setBusyFile] = useState<string | null>(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [sidebarFilePath, setSidebarFilePath] = useState<string | null>(null)
+  const openFileProperties = useCallback((path: string) => {
+    void window.eidosLite
+      .openFileProperties(path)
+      .catch((cause) => setError(errorMessage(cause)))
+  }, [])
   useEffect(() => setSidebarFilePath(null), [space?.id])
   const openFileInSidebar = useCallback((path: string) => {
     setVersionPanelOpen(false)
@@ -1596,6 +1609,38 @@ function WorkspaceApp({
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  useEffect(() => {
+    const path =
+      activeDocumentPath === SPACE_FILE_METADATA_PATH
+        ? null
+        : activeDocumentPath
+    void window.eidosLite
+      .selectFileProperties?.(path)
+      .catch((cause) => setError(errorMessage(cause)))
+  }, [activeDocumentPath, space?.id])
+  useEffect(
+    () =>
+      window.eidosLite.onFilePropertiesChanged?.(() => {
+        setExternalFileRefreshToken((token) => token + 1)
+        const cached = cachedFilesRef.current.find(
+          (file) => file.relativePath === SPACE_FILE_METADATA_PATH
+        )
+        if (cached)
+          void cached.source
+            .getSnapshot()
+            .then((snapshot) =>
+              setCachedFiles((files) =>
+                files.map((file) =>
+                  file.sessionId === cached.sessionId
+                    ? { ...file, snapshot }
+                    : file
+                )
+              )
+            )
+            .catch((cause) => setError(errorMessage(cause)))
+      }),
+    []
+  )
 
   useEffect(() => {
     if (!space || typeof window.eidosLite.getSyncMergeStatus !== "function") {
@@ -2453,6 +2498,12 @@ function WorkspaceApp({
         }
         return true
       } catch (cause) {
+        // The managed catalog can be absent until Spark authorizes creation.
+        // Preserve that actionable host error instead of offering file recovery.
+        if (errorMessage(cause).includes(SPARK_ACTIVATION_REQUIRED)) {
+          setError(t(SPARK_ACTIVATION_REQUIRED))
+          return false
+        }
         const issue = await window.eidosLite
           .inspectEidosFileIssue(entry.relativePath)
           .catch(() => null)
@@ -2470,6 +2521,7 @@ function WorkspaceApp({
       htmlFileOpenMode,
       recordNavigationLocation,
       rememberOpenedEntry,
+      t,
     ]
   )
 
@@ -3933,6 +3985,14 @@ function WorkspaceApp({
               <Blocks aria-hidden="true" />
             </button>
             <div className="sidebar-pages-target" ref={setSidebarPagesTarget} />
+            <SidebarHelp
+              onFeedback={() => {
+                void window.eidosLite
+                  .openExternalUrl(FEEDBACK_URL)
+                  .catch((cause: unknown) => setError(errorMessage(cause)))
+              }}
+              onReleaseNotes={whatsNew.show}
+            />
           </div>
           {isSidebarUpdateVisible(updateStatus) ? (
             <SidebarUpdateAction
@@ -4295,7 +4355,22 @@ function WorkspaceApp({
         {error ? (
           <div className="inline-error" role="alert">
             <CircleAlert />
-            <span>{error}</span>
+            <span>
+              {error}
+              {error.includes(t(SPARK_ACTIVATION_REQUIRED)) && (
+                <button
+                  className="inline-error-action"
+                  type="button"
+                  onClick={() =>
+                    void window.eidosLite.openSettingsDestination(
+                      "account-sync"
+                    )
+                  }
+                >
+                  {t("Activate Spark in Account & Services")}
+                </button>
+              )}
+            </span>
             <button
               type="button"
               onClick={() => setError(null)}
@@ -5325,6 +5400,19 @@ function WorkspaceApp({
                   setContextMenu(null)
                 }}
               />
+              {contextMenu.entry.kind !== "directory" ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={pathMutationBusy || localInteractionBlocked}
+                  onClick={() => {
+                    openFileProperties(contextMenu.entry.relativePath)
+                    setContextMenu(null)
+                  }}
+                >
+                  <Info /> {t("File properties")}
+                </button>
+              ) : null}
               {isPublishableEntry(contextMenu.entry) ? (
                 <>
                   <div
@@ -5626,7 +5714,11 @@ export function App() {
     window.history.replaceState(null, "", window.location.pathname)
     setWorkspaceGeneration((generation) => generation + 1)
   }, [])
-  return /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
+  return window.location.hash === "#/file-properties" ? (
+    <Suspense fallback={null}>
+      <FilePropertiesWindow theme={theme} />
+    </Suspense>
+  ) : /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
     <SettingsPage />
   ) : (
     <WorkspaceApp

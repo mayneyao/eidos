@@ -48,9 +48,16 @@ export class DeviceIdentityStore {
         mode: 0o600,
         flag: "wx",
       })
-      await fs.rename(temporaryPath, this.filePath)
+      try {
+        // Hard-link creation is atomic and fails when another first-run caller
+        // already installed an identity, so every caller reads the same ID.
+        await fs.link(temporaryPath, this.filePath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+      }
+      await fs.unlink(temporaryPath).catch(() => undefined)
       await fs.chmod(this.filePath, 0o600)
-      return identity
+      return (await this.read()) ?? identity
     } catch (error) {
       await fs.unlink(temporaryPath).catch(() => undefined)
       const raced = await this.read()

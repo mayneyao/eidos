@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
   type MutableRefObject,
 } from "react"
@@ -13,7 +14,7 @@ import {
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
 } from "@eidos.space/eidos-file"
-import { Check, ExternalLink, Star, X } from "lucide-react"
+import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { Button, Input } from "./ui/primitives"
@@ -47,25 +48,41 @@ function dateTimeInputValue(
   return eidosFileDateTimeInputValue(date, timeZone)
 }
 
-export function EidosFileRecordFieldEditor({
+type FieldEditorProps = {
+  field: EidosFileFieldInfo
+  row: EidosFileRow
+  placeholder?: string
+  appearance?: "field" | "record-title" | "record-property" | "compact"
+  disabled: boolean
+  onChange: (value: EidosFileSqlPrimitive) => Promise<void>
+  /** The host creates the catalog option and selects it for this record. */
+  onCreateOption?: (name: string) => Promise<void>
+  onEnter?: () => void
+  commitRef?: MutableRefObject<(() => boolean) | null>
+}
+
+/** Compact is a shared form presentation, independent of host or feature. */
+export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
+  return props.appearance === "compact" ? (
+    <div className="eidos-field-compact" data-field-type={props.field.type}>
+      <FieldEditorControl {...props} />
+    </div>
+  ) : (
+    <FieldEditorControl {...props} />
+  )
+}
+
+function FieldEditorControl({
   field,
   row,
   placeholder,
   appearance = "field",
   disabled,
   onChange,
+  onCreateOption,
   onEnter,
   commitRef,
-}: {
-  field: EidosFileFieldInfo
-  row: EidosFileRow
-  placeholder?: string
-  appearance?: "field" | "record-title" | "record-property"
-  disabled: boolean
-  onChange: (value: EidosFileSqlPrimitive) => Promise<void>
-  onEnter?: () => void
-  commitRef?: MutableRefObject<(() => boolean) | null>
-}) {
+}: FieldEditorProps) {
   const {
     activateUrl,
     timeZone,
@@ -85,15 +102,24 @@ export function EidosFileRecordFieldEditor({
   const [datetimeError, setDatetimeError] = useState<string | null>(null)
   const [numberError, setNumberError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState(false)
+  const [optionQuery, setOptionQuery] = useState("")
+  const [optionError, setOptionError] = useState<string | null>(null)
+  const [optionBusy, setOptionBusy] = useState(false)
+  const [optionOpen, setOptionOpen] = useState(false)
+  const optionSaving = useRef(false)
+  const optionInput = useRef<HTMLInputElement>(null)
+  const discardNextBlur = useRef(false)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
     text: draft,
     maxLines: mobileTitle
       ? 6
       : appearance === "record-title"
         ? 1
-        : field.isRecordLabel
-          ? 3
-          : 12,
+        : appearance === "compact"
+          ? 6
+          : field.isRecordLabel
+            ? 3
+            : 12,
     whiteSpace: appearance === "record-title" ? "normal" : undefined,
   })
 
@@ -155,6 +181,13 @@ export function EidosFileRecordFieldEditor({
     if (!Object.is(value, next)) void onChange(next)
     return true
   }
+  const commitOnBlur = () => {
+    if (discardNextBlur.current) {
+      discardNextBlur.current = false
+      return
+    }
+    commitDraft()
+  }
   useLayoutEffect(() => {
     if (!commitRef) return
     commitRef.current = [
@@ -180,7 +213,7 @@ export function EidosFileRecordFieldEditor({
         : value === true || value === 1 || value === "1"
           ? "checked"
           : "unchecked"
-    if (appearance === "record-property")
+    if (appearance === "record-property" || appearance === "compact")
       return (
         <div className="flex min-h-11 items-center gap-2">
           <button
@@ -191,7 +224,7 @@ export function EidosFileRecordFieldEditor({
               checkboxValue === "empty" ? "mixed" : checkboxValue === "checked"
             }
             disabled={disabled}
-            className="flex h-11 min-w-11 items-center justify-start"
+            className="eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
             onClick={() => void onChange(checkboxValue === "checked" ? 0 : 1)}
           >
             <span className="flex h-5 w-5 items-center justify-center rounded border border-input">
@@ -202,17 +235,19 @@ export function EidosFileRecordFieldEditor({
               ) : null}
             </span>
           </button>
-          {field.nullable !== false && checkboxValue !== "empty" && (
-            <button
-              type="button"
-              disabled={disabled}
-              className="flex h-11 w-11 items-center justify-center text-muted-foreground"
-              aria-label={t("Clear")}
-              onClick={() => void onChange(null)}
-            >
-              <X size={16} />
-            </button>
-          )}
+          {appearance !== "compact" &&
+            field.nullable !== false &&
+            checkboxValue !== "empty" && (
+              <button
+                type="button"
+                disabled={disabled}
+                className="eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
+                aria-label={t("Clear")}
+                onClick={() => void onChange(null)}
+              >
+                <X size={16} />
+              </button>
+            )}
         </div>
       )
     return (
@@ -237,7 +272,7 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "select") {
+  if (field.type === "select" && !onCreateOption) {
     const options = eidosFileSelectOptions(field)
     const rawValue = typeof value === "string" && value ? value : null
     const hasUnconfiguredValue =
@@ -270,21 +305,56 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "multi-select") {
-    const selected = decodeEidosFileMultiSelectValues(
-      typeof value === "string" ? value : null
-    )
+  if (field.type === "multi-select" || field.type === "select") {
+    const single = field.type === "select"
+    const selected = single
+      ? typeof value === "string" && value
+        ? [value]
+        : []
+      : decodeEidosFileMultiSelectValues(
+          typeof value === "string" ? value : null
+        )
     const selectedSet = new Set(selected)
     const options = eidosFileSelectOptions(field)
+    const query = optionQuery.trim()
+    const filtered = options.filter((option) =>
+      option.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+    )
+    const existing = options.find((option) => option.name === query)
+    const createOption = async () => {
+      if (!onCreateOption || !query || disabled || optionSaving.current) return
+      optionSaving.current = true
+      setOptionBusy(true)
+      setOptionError(null)
+      try {
+        await onCreateOption(query)
+        setOptionQuery("")
+        if (single) setOptionOpen(false)
+        else optionInput.current?.focus()
+      } catch (cause) {
+        setOptionError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        optionSaving.current = false
+        setOptionBusy(false)
+      }
+    }
     return (
-      <Popover>
+      <Popover
+        open={optionOpen}
+        onOpenChange={(open) => {
+          setOptionOpen(open)
+          setOptionQuery("")
+          setOptionError(null)
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs font-normal"
+            className="eidos-field-multi h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs font-normal"
             aria-label={field.name}
+            aria-haspopup="dialog"
             disabled={disabled}
           >
             {selected.length > 0 ? (
@@ -305,23 +375,117 @@ export function EidosFileRecordFieldEditor({
             ) : (
               (placeholder ?? t("Empty"))
             )}
+            {single && (
+              <ChevronDown
+                className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50"
+                aria-hidden="true"
+              />
+            )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-1">
-          <div className="grid gap-0.5">
-            {options.map((option) => (
+        <PopoverContent align="start" className="eidos-multi-options w-64 p-1">
+          {onCreateOption && (
+            <div
+              className={
+                appearance === "compact" ? "eidos-field-compact mb-1" : "mb-1"
+              }
+            >
+              <Input
+                ref={optionInput}
+                value={optionQuery}
+                aria-label={t("Search or create an option…")}
+                placeholder={t("Search or create an option…")}
+                className="h-7 text-xs"
+                disabled={disabled}
+                readOnly={optionBusy}
+                aria-busy={optionBusy}
+                onChange={(event) => {
+                  setOptionQuery(event.target.value)
+                  setOptionError(null)
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    event.nativeEvent.isComposing ||
+                    event.keyCode === 229
+                  )
+                    return
+                  event.preventDefault()
+                  if (disabled || optionSaving.current) return
+                  if (existing) {
+                    if (!selectedSet.has(existing.value))
+                      void onChange(
+                        single
+                          ? existing.value
+                          : encodeEidosFileMultiSelectValues([
+                              ...selected,
+                              existing.value,
+                            ])
+                      )
+                    setOptionQuery("")
+                    if (single) setOptionOpen(false)
+                  } else void createOption()
+                }}
+              />
+            </div>
+          )}
+          <div
+            className="grid gap-0.5"
+            role={single ? "radiogroup" : undefined}
+            aria-label={single ? field.name : undefined}
+          >
+            {single && !query && (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selected.length === 0}
+                className="flex min-h-7 items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                disabled={disabled || optionBusy}
+                onClick={() => {
+                  void onChange(null)
+                  setOptionOpen(false)
+                }}
+              >
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center"
+                  aria-hidden="true"
+                >
+                  {selected.length === 0 ? <Check className="h-3 w-3" /> : null}
+                </span>
+                {t("Empty")}
+              </button>
+            )}
+            {filtered.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                className="flex h-8 items-center gap-2 rounded px-2 text-left text-xs hover:bg-accent"
+                className={
+                  appearance === "compact"
+                    ? "flex min-h-7 items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    : "flex h-8 items-center gap-2 rounded px-2 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                }
+                role={single ? "radio" : "checkbox"}
+                aria-checked={selectedSet.has(option.value)}
+                disabled={disabled || optionBusy}
                 onClick={() => {
+                  if (single) {
+                    void onChange(option.value)
+                    setOptionOpen(false)
+                    return
+                  }
                   const next = selectedSet.has(option.value)
                     ? selected.filter((value) => value !== option.value)
                     : [...selected, option.value]
                   void onChange(encodeEidosFileMultiSelectValues(next))
                 }}
               >
-                <span className="flex h-4 w-4 items-center justify-center rounded border">
+                <span
+                  className={
+                    single
+                      ? "flex h-4 w-4 items-center justify-center"
+                      : "flex h-4 w-4 items-center justify-center rounded border"
+                  }
+                >
                   {selectedSet.has(option.value) ? (
                     <Check className="h-3 w-3" />
                   ) : null}
@@ -330,6 +494,31 @@ export function EidosFileRecordFieldEditor({
               </button>
             ))}
           </div>
+          {!filtered.length && !query && (
+            <p className="px-2 py-2 text-xs text-muted-foreground">
+              {t("No options")}
+            </p>
+          )}
+          {onCreateOption && query && !existing && (
+            <button
+              type="button"
+              disabled={disabled || optionBusy}
+              className="eidos-multi-option-create"
+              onClick={() => void createOption()}
+            >
+              <Plus size={13} aria-hidden="true" />
+              <span>
+                {t(optionBusy ? "Creating…" : "Create option: {name}", {
+                  name: query,
+                })}
+              </span>
+            </button>
+          )}
+          {optionError && (
+            <p role="alert" className="px-2 py-1 text-xs text-destructive">
+              {optionError}
+            </p>
+          )}
         </PopoverContent>
       </Popover>
     )
@@ -374,9 +563,15 @@ export function EidosFileRecordFieldEditor({
             : undefined
         }
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={commitDraft}
+        onBlur={commitOnBlur}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
+          if (event.key === "Escape" && appearance === "compact") {
+            discardNextBlur.current = true
+            setDraft(value == null ? "" : String(value))
+            event.currentTarget.blur()
+            return
+          }
           if (
             event.key === "Enter" &&
             (appearance === "record-title" ||
@@ -399,7 +594,10 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "rating" && appearance === "record-property") {
+  if (
+    field.type === "rating" &&
+    (appearance === "record-property" || appearance === "compact")
+  ) {
     const maximum =
       typeof field.settings?.max === "number" ? field.settings.max : 5
     return (
@@ -418,7 +616,15 @@ export function EidosFileRecordFieldEditor({
                 disabled={disabled}
                 aria-label={t("Rate {value}", { value: rating })}
                 aria-pressed={Number(value) === rating && value != null}
-                onClick={() => void onChange(rating)}
+                onClick={() =>
+                  void onChange(
+                    value != null && Number(value) === rating
+                      ? field.nullable === false
+                        ? 0
+                        : null
+                      : rating
+                  )
+                }
               >
                 <Star
                   size={22}
@@ -427,27 +633,31 @@ export function EidosFileRecordFieldEditor({
               </button>
             )
           )}
-          <button
-            type="button"
-            disabled={disabled}
-            className="h-11 min-w-8 text-sm text-muted-foreground"
-            aria-label={t("Rate {value}", { value: 0 })}
-            aria-pressed={value === 0}
-            onClick={() => void onChange(0)}
-          >
-            0
-          </button>
-          {field.nullable !== false && value != null && (
+          {appearance !== "compact" && (
             <button
               type="button"
               disabled={disabled}
-              className="flex h-11 min-w-8 items-center justify-center text-muted-foreground"
-              aria-label={t("Clear")}
-              onClick={() => void onChange(null)}
+              className="h-11 min-w-8 text-sm text-muted-foreground"
+              aria-label={t("Rate {value}", { value: 0 })}
+              aria-pressed={value === 0}
+              onClick={() => void onChange(0)}
             >
-              <X size={16} />
+              0
             </button>
           )}
+          {appearance !== "compact" &&
+            field.nullable !== false &&
+            value != null && (
+              <button
+                type="button"
+                disabled={disabled}
+                className="eidos-field-clear flex h-11 min-w-8 items-center justify-center text-muted-foreground"
+                aria-label={t("Clear")}
+                onClick={() => void onChange(null)}
+              >
+                <X size={16} />
+              </button>
+            )}
         </div>
       </div>
     )
@@ -505,10 +715,11 @@ export function EidosFileRecordFieldEditor({
             setNumberError(null)
           }
         }}
-        onBlur={commitDraft}
+        onBlur={commitOnBlur}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
+            discardNextBlur.current = true
             setDraft(
               field.type === "datetime"
                 ? dateTimeInputValue(value, timeZone)
@@ -531,7 +742,7 @@ export function EidosFileRecordFieldEditor({
             {activateUrl && eidosFileUrlIsActivatable(draft) ? (
               <button
                 type="button"
-                className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                className="eidos-field-url-action absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                 aria-label={t("Open URL")}
                 title={t("Open URL")}
                 disabled={disabled}

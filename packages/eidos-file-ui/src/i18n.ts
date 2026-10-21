@@ -4,6 +4,9 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
+  "Search or create an option…": "搜索或新建选项…",
+  "Create option: {name}": "创建选项：{name}",
+  "Creating…": "正在创建…",
   "From {plugin}": "来自 {plugin}",
   "Reorder: {name}": "拖动排序：{name}",
   "Switch view: {name}": "切换视图：{name}",
@@ -358,7 +361,6 @@ const zh: EidosFileUIMessageOverrides = {
   "Back to table options": "返回数据表选项",
   Name: "名称",
   Projects: "项目",
-  "Creating…": "正在创建…",
   Create: "创建",
   "Unable to create table": "无法创建数据表",
   "Rename table": "重命名数据表",

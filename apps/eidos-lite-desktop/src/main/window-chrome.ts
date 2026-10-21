@@ -2,7 +2,7 @@ import type { BrowserWindow } from "electron"
 
 import type { EidosLiteResolvedAppearance } from "../shared/appearance"
 
-export type LiteWindowKind = "welcome" | "space" | "settings"
+export type LiteWindowKind = "welcome" | "space" | "settings" | "properties"
 export type LiteCompactWindowKind = Exclude<LiteWindowKind, "space">
 
 export interface LiteWindowSize {
@@ -36,12 +36,14 @@ const WINDOW_CONTROLS_SYMBOL_COLOR = {
 const COMPACT_WINDOW_DEFAULT_SIZE = {
   welcome: { width: 920, height: 620 },
   settings: { width: 960, height: 680 },
+  properties: { width: 400, height: 400 },
 } satisfies Record<LiteCompactWindowKind, LiteWindowSize>
 
 const MACOS_TRAFFIC_LIGHT_POSITION = {
   welcome: { x: 16, y: 15 },
   space: { x: 16, y: 12 },
   settings: { x: 16, y: 15 },
+  properties: { x: 16, y: 15 },
 } satisfies Record<LiteWindowKind, { x: number; y: number }>
 
 export function macosTrafficLightPosition(kind: LiteWindowKind): {

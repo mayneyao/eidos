@@ -5,6 +5,8 @@ import path from "node:path"
 import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import { installWindowZoom } from "./window-zoom"
+import { filePropertiesIconDataUrl } from "./file-properties-icon"
+import { FilePropertiesCloseCoordinator } from "./file-properties-close"
 import {
   app,
   BrowserWindow,
@@ -30,6 +32,8 @@ import {
 } from "../shared/contracts"
 import { resolveEidosLiteAppearance } from "../shared/appearance"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import type { SparkFeature } from "../shared/spark"
+import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
 import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
 import {
@@ -65,7 +69,9 @@ import {
   canonicalizeSpaceRoot,
   flattenSpaceTree,
   listSpaceTree,
+  normalizeMutableRelativePath,
   normalizeRelativePath,
+  resolveSpacePath,
 } from "./space/space-paths"
 import type { SpaceSession } from "./space/space-session"
 import { RecentSpacesStore } from "./space/recent-spaces"
@@ -96,6 +102,8 @@ import {
 
 const SPACE_WINDOW_SIZE = { width: 1320, height: 860 }
 const SPACE_WINDOW_MINIMUM = { width: 900, height: 600 }
+const absoluteFilePropertiesPath = (root: string, relative: string) =>
+  path.join(root, relative)
 
 async function createSpaceSession(
   ...args: Parameters<(typeof SpaceSession)["createCanonical"]>
@@ -105,8 +113,263 @@ async function createSpaceSession(
 }
 
 export class WindowController {
+  private sparkFeatureGuard?: (feature: SparkFeature) => Promise<void>
+  setSparkFeatureGuard(guard: (feature: SparkFeature) => Promise<void>) {
+    this.sparkFeatureGuard = guard
+  }
   readonly textDraftClose = new TextDraftCloseCoordinator()
+  readonly filePropertiesClose = new FilePropertiesCloseCoordinator()
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
+  private readonly propertiesWindows = new Map<
+    number,
+    {
+      window: BrowserWindow
+      owner: WebContents
+      session: SpaceSession
+      path: string | null
+      runtimeIds: Set<string>
+      deferredRuntimeIds: Set<string>
+      presented: boolean
+    }
+  >()
+
+  showFileProperties(owner: WebContents, relativePath: string): void {
+    const session = this.requireSession(owner)
+    const path = normalizeMutableRelativePath(relativePath)
+    const existing = this.propertiesWindows.get(owner.id)
+    if (
+      existing &&
+      existing.session === session &&
+      !existing.window.isDestroyed()
+    ) {
+      existing.path = path
+      if (
+        process.platform === "darwin" &&
+        existing.window.setRepresentedFilename
+      )
+        existing.window.setRepresentedFilename(
+          absoluteFilePropertiesPath(session.canonical.root, path)
+        )
+      existing.window.webContents.send(IPC_CHANNELS.filePropertiesChanged, path)
+      if (existing.presented) this.focusWindow(existing.window)
+      return
+    }
+    existing?.window.close()
+    // The inspector's first paint is not its ready layout. Present it only
+    // after the renderer has measured the loaded form at the persisted zoom.
+    const window = this.createWindow(false, "properties")
+    if (process.platform === "darwin" && window.setRepresentedFilename)
+      window.setRepresentedFilename(
+        absoluteFilePropertiesPath(session.canonical.root, path)
+      )
+    let closeApproved = false
+    window.on("close", (event) => {
+      if (closeApproved || window.isDestroyed()) return
+      event.preventDefault()
+      void this.filePropertiesClose
+        .prepare(window.webContents)
+        .then((allowed) => {
+          if (!allowed || window.isDestroyed()) return
+          closeApproved = true
+          window.close()
+        })
+    })
+    const entry = {
+      window,
+      owner,
+      session,
+      path: path as string | null,
+      runtimeIds: new Set<string>(),
+      deferredRuntimeIds: new Set<string>(),
+      presented: false,
+    }
+    this.propertiesWindows.set(owner.id, entry)
+    void this.locale().then((locale) => {
+      if (!window.isDestroyed())
+        window.setTitle(translateEidosLite(locale, "File properties"))
+    })
+    const stop = session.onChanged((snapshot) => {
+      if (
+        !window.isDestroyed() &&
+        snapshot.externalChangePaths?.some(
+          (changed) =>
+            changed === entry.path || changed === SPACE_FILE_METADATA_PATH
+        )
+      )
+        window.webContents.send(IPC_CHANNELS.filePropertiesChanged, entry.path)
+    })
+    const ownerClosed = () => {
+      if (!window.isDestroyed()) window.close()
+    }
+    owner.once("destroyed", ownerClosed)
+    // A renderer that never reports a height (load failure, crash, or an
+    // uncaught render error) must not leave a hidden window registered as the
+    // inspector. Present the loading shell after a short fallback.
+    const presentFallback = setTimeout(() => {
+      if (entry.presented || window.isDestroyed()) return
+      entry.presented = true
+      this.focusWindow(window)
+    }, 1_500)
+    presentFallback.unref?.()
+    window.once("closed", () => {
+      clearTimeout(presentFallback)
+      stop()
+      owner.removeListener("destroyed", ownerClosed)
+      if (this.propertiesWindows.get(owner.id) === entry)
+        this.propertiesWindows.delete(owner.id)
+      for (const runtimeId of entry.deferredRuntimeIds) {
+        const stillPinned = [...this.propertiesWindows.values()].some(
+          (other) =>
+            other !== entry &&
+            other.session === entry.session &&
+            other.runtimeIds.has(runtimeId)
+        )
+        if (!stillPinned)
+          void entry.session.closeEidosFile(runtimeId).catch(() => undefined)
+      }
+    })
+    window.webContents.once("render-process-gone", () => {
+      if (!window.isDestroyed()) window.destroy()
+    })
+    void this.getPreferences()
+      .then(async (preferences) => {
+        if (window.isDestroyed()) return
+        window.webContents.setZoomFactor(preferences.uiZoom)
+        this.updateWindowControls(window, preferences.appearance)
+        await this.loadRenderer(window, "/file-properties")
+      })
+      .catch(() => {
+        if (entry.presented || window.isDestroyed()) return
+        entry.presented = true
+        this.focusWindow(window)
+      })
+  }
+
+  selectFileProperties(owner: WebContents, path: string | null): void {
+    const entry = this.propertiesWindows.get(owner.id)
+    if (!entry || entry.window.isDestroyed()) return
+    if (this.sessionFor(owner) !== entry.session) {
+      entry.window.close()
+      return
+    }
+    entry.path = path ? normalizeMutableRelativePath(path) : null
+    if (process.platform === "darwin" && entry.window.setRepresentedFilename)
+      entry.window.setRepresentedFilename(
+        entry.path
+          ? absoluteFilePropertiesPath(entry.session.canonical.root, entry.path)
+          : ""
+      )
+    entry.window.webContents.send(
+      IPC_CHANNELS.filePropertiesChanged,
+      entry.path
+    )
+  }
+
+  filePropertiesTarget(sender: WebContents): string | null {
+    for (const entry of this.propertiesWindows.values())
+      if (
+        entry.window.webContents === sender &&
+        this.sessionByWebContents.get(entry.owner.id) === entry.session
+      )
+        return entry.path
+    return null
+  }
+
+  replyFilePropertiesClose(
+    sender: WebContents,
+    token: unknown,
+    allowed: unknown
+  ): void {
+    this.filePropertiesClose.reply(sender.id, token, allowed)
+  }
+
+  pinFilePropertiesRuntime(sender: WebContents, sessionId: string): void {
+    for (const entry of this.propertiesWindows.values())
+      if (entry.window.webContents === sender) entry.runtimeIds.add(sessionId)
+  }
+
+  resizeFileProperties(sender: WebContents, height: number): void {
+    if (!Number.isFinite(height) || height <= 0) return
+    const entry = [...this.propertiesWindows.values()].find(
+      (entry) => entry.window.webContents === sender
+    )
+    if (!entry || entry.window.isDestroyed() || !this.sessionFor(sender)) return
+    const window = entry.window
+    const bounds = window.getBounds()
+    const chromeHeight = bounds.height - window.getContentBounds().height
+    const area = screen.getDisplayMatching(bounds).workArea
+    const next = fitWindowBounds(
+      {
+        ...bounds,
+        height: Math.ceil(height * sender.getZoomFactor()) + chromeHeight,
+      },
+      area,
+      { width: 340, height: 120 }
+    )
+    if (Math.abs(next.height - bounds.height) > 1)
+      window.setBounds(next, entry.presented)
+    if (!entry.presented) {
+      entry.presented = true
+      this.focusWindow(window)
+    }
+  }
+
+  async filePropertiesIcon(sender: WebContents): Promise<string | null> {
+    const relativePath = this.filePropertiesTarget(sender)
+    const session = this.sessionFor(sender)
+    if (!relativePath || !session) return null
+    const absolutePath = resolveSpacePath(session.canonical.root, relativePath)
+    const realPath = await fs.realpath(absolutePath).catch(() => null)
+    if (!realPath) return null
+    const inside = path.relative(session.canonical.root, realPath)
+    if (
+      inside === ".." ||
+      inside.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(inside)
+    )
+      return null
+    return filePropertiesIconDataUrl(realPath)
+  }
+
+  filePropertiesRuntimePinned(sender: WebContents, sessionId: string): boolean {
+    let pinned = false
+    for (const entry of this.propertiesWindows.values()) {
+      if (
+        entry.session === this.sessionFor(sender) &&
+        entry.runtimeIds.has(sessionId)
+      ) {
+        pinned = true
+        entry.deferredRuntimeIds.add(sessionId)
+      }
+    }
+    return pinned
+  }
+
+  notifyFilePropertiesChanged(sender: WebContents, sessionId: string): void {
+    const session = this.sessionFor(sender)
+    const relativePath = session?.relativePathForRuntime(sessionId)
+    if (!session || !relativePath) return
+    const metadataCatalogChanged = relativePath === SPACE_FILE_METADATA_PATH
+    for (const entry of this.propertiesWindows.values()) {
+      if (entry.session !== session || entry.window.isDestroyed()) continue
+      // The editing inspector already applies its Runtime result. Echoing it
+      // back reloads the form during blur/Tab and discards keyboard focus.
+      if (
+        entry.window.webContents !== sender &&
+        (metadataCatalogChanged || entry.path === relativePath)
+      )
+        entry.window.webContents.send(
+          IPC_CHANNELS.filePropertiesChanged,
+          entry.path
+        )
+      if (
+        entry.owner.id !== sender.id &&
+        !entry.owner.isDestroyed() &&
+        metadataCatalogChanged
+      )
+        entry.owner.send(IPC_CHANNELS.filePropertiesChanged, entry.path)
+    }
+  }
   private readonly windowBySpaceId = new Map<string, BrowserWindow>()
   private readonly pendingLaunchFilesByWebContents = new Map<number, string[]>()
   private readonly launchNotificationRetriesByWebContents = new Map<
@@ -178,6 +441,9 @@ export class WindowController {
     if (existing) return existing
     const opening = createSpaceSession(canonical, app.getPath("userData"), {
       graft: this.createGraftClient(),
+      requireSparkFeature: (feature) =>
+        this.sparkFeatureGuard?.(feature) ??
+        Promise.reject(new Error("Spark authorization is unavailable")),
       workerPath: this.runtimeWorkerPath(),
     })
     this.openingSessions.add(opening)
@@ -625,7 +891,15 @@ export class WindowController {
   }
 
   sessionFor(webContents: WebContents): SpaceSession | null {
-    return this.sessionByWebContents.get(webContents.id) ?? null
+    const own = this.sessionByWebContents.get(webContents.id)
+    if (own) return own
+    for (const entry of this.propertiesWindows.values())
+      if (
+        entry.window.webContents === webContents &&
+        this.sessionByWebContents.get(entry.owner.id) === entry.session
+      )
+        return entry.session
+    return null
   }
 
   requireSession(webContents: WebContents): SpaceSession {
@@ -1012,6 +1286,9 @@ export class WindowController {
     root: string,
     assertAdmission?: () => void
   ): Promise<SpaceSnapshot | null> {
+    const ownerWindow = BrowserWindow.fromWebContents(webContents)
+    if (ownerWindow && this.windowKind.get(ownerWindow) === "properties")
+      throw new Error("File properties cannot open a Space")
     if (this.bindingOwners.has(webContents.id))
       throw new Error("A Space is already opening")
     this.bindingOwners.add(webContents.id)
@@ -1049,6 +1326,9 @@ export class WindowController {
       ? Promise.resolve(this.sharedSessions.get(canonical.id)!)
       : createSpaceSession(canonical, app.getPath("userData"), {
           graft: this.createGraftClient(),
+          requireSparkFeature: (feature) =>
+            this.sparkFeatureGuard?.(feature) ??
+            Promise.reject(new Error("Spark authorization is unavailable")),
           workerPath: this.runtimeWorkerPath(),
         })
     this.openingSessions.add(opening)
@@ -1195,6 +1475,11 @@ export class WindowController {
     window: BrowserWindow,
     appearance: EidosLiteAppearance
   ): void {
+    // Native inspector title bars and system date pickers must follow the same
+    // preference as the renderer, including an explicit app-only dark theme.
+    if (process.platform === "darwin" && nativeTheme.themeSource !== appearance)
+      nativeTheme.themeSource = appearance
+    if (this.windowKind.get(window) === "properties") return
     applyWindowsTitleBarOverlay(
       window,
       resolveEidosLiteAppearance(appearance, nativeTheme.shouldUseDarkColors)
@@ -1358,11 +1643,17 @@ export class WindowController {
       kind === "space"
         ? this.resolveSpaceWindowBounds()
         : liteCompactWindowDefaultSize(kind)
-    const chrome = liteWindowChromeOptions()
+    const chrome =
+      kind === "properties"
+        ? { titleBarStyle: "default" as const, autoHideMenuBar: true }
+        : liteWindowChromeOptions()
     const window = new BrowserWindow({
       ...bounds,
-      minWidth: compact ? 680 : 900,
-      minHeight: compact ? 520 : 600,
+      minWidth: kind === "properties" ? 340 : compact ? 680 : 900,
+      minHeight: kind === "properties" ? 120 : compact ? 520 : 600,
+      ...(kind === "properties"
+        ? { maximizable: false, fullscreenable: false }
+        : {}),
       show: false,
       title: "Eidos Lite",
       titleBarStyle: chrome.titleBarStyle,
@@ -1370,7 +1661,7 @@ export class WindowController {
       ...(chrome.titleBarOverlay
         ? { titleBarOverlay: chrome.titleBarOverlay }
         : {}),
-      ...(process.platform === "darwin"
+      ...(process.platform === "darwin" && kind !== "properties"
         ? {
             trafficLightPosition: macosTrafficLightPosition(kind),
             vibrancy: "under-window" as const,
@@ -1386,6 +1677,7 @@ export class WindowController {
         webviewTag: true,
       },
     })
+    this.windowKind.set(window, kind)
     this.updateWindowControls(window, DEFAULT_EIDOS_LITE_PREFERENCES.appearance)
     installHtmlPreviewGuestGuard(window.webContents)
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
@@ -1491,7 +1783,9 @@ export class WindowController {
     if (developmentUrl) {
       const url = new URL(developmentUrl)
       if (route) url.hash = route
-      return window.loadURL(url.toString())
+      return window.loadURL(url.toString()).then(() => {
+        console.info("[lite:dev] Renderer loaded:", window.webContents.getURL())
+      })
     }
     return window.loadFile(
       path.join(

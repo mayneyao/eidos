@@ -38,4 +38,18 @@ describe("DeviceIdentityStore", () => {
       new DeviceIdentityStore(filePath).getOrCreate()
     ).rejects.toThrow("must be repaired")
   })
+
+  it("returns the same identity when first-run callers race", async () => {
+    const stores = [
+      new DeviceIdentityStore(filePath, () => crypto.randomUUID()),
+      new DeviceIdentityStore(filePath, () => crypto.randomUUID()),
+    ]
+    const [left, right] = await Promise.all(
+      stores.map((store) => store.getOrCreate())
+    )
+    expect(left.stableDeviceId).toBe(right.stableDeviceId)
+    expect(
+      (await new DeviceIdentityStore(filePath).getOrCreate()).stableDeviceId
+    ).toBe(left.stableDeviceId)
+  })
 })

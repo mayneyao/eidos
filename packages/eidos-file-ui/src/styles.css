@@ -1,3 +1,171 @@
+/* A single dense desktop form presentation. Hosts own the label/value layout. */
+.eidos-field-compact {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  --eidos-compact-height: 24px;
+}
+.eidos-field-compact
+  :is(input, textarea, button[role="combobox"], .eidos-field-multi) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--eidos-compact-height);
+  height: var(--eidos-compact-height);
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 3px 6px;
+  font: inherit;
+  box-shadow: none;
+  outline: none;
+}
+.eidos-field-compact textarea {
+  resize: none;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+.eidos-field-compact textarea[rows],
+.eidos-field-compact button.eidos-field-multi {
+  height: auto;
+}
+.eidos-field-compact :is(input, textarea)::placeholder,
+.eidos-field-compact [data-placeholder] {
+  color: var(--muted-foreground);
+}
+.eidos-field-compact :is(input, textarea, button):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.eidos-field-compact :is(input, textarea)[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+.eidos-field-compact :is(input, textarea, button):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.eidos-field-compact [data-eidos-file-option-color] {
+  max-width: 100%;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
+}
+.eidos-field-compact [role="combobox"] > span {
+  min-width: 0;
+  overflow: hidden;
+}
+.eidos-field-compact [role="combobox"] > svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.eidos-field-compact .eidos-field-multi {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+.eidos-field-compact[data-field-type="checkbox"] > div,
+.eidos-field-compact [role="group"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-height: var(--eidos-compact-height);
+}
+.eidos-field-compact .eidos-field-checkbox {
+  height: var(--eidos-compact-height);
+  min-width: 24px;
+  padding: 0;
+}
+.eidos-field-compact .eidos-field-checkbox > span {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.eidos-field-compact .eidos-field-checkbox[aria-checked="true"] > span {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.eidos-field-compact .eidos-field-checkbox svg {
+  width: 12px;
+  height: 12px;
+}
+.eidos-field-compact [role="group"] > button,
+.eidos-field-compact .eidos-field-clear {
+  flex: 0 0 22px;
+  width: 22px;
+  min-width: 22px;
+  height: var(--eidos-compact-height);
+  border-radius: 3px;
+  font: inherit;
+}
+.eidos-field-compact [role="group"] > button svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+}
+.eidos-field-compact [role="group"] > button svg[fill="currentColor"] {
+  color: var(--primary);
+}
+.eidos-field-compact
+  :is([role="group"] > button, .eidos-field-clear):hover:not(:disabled) {
+  background: var(--accent);
+}
+.eidos-field-compact .eidos-field-clear svg {
+  width: 12px;
+  height: 12px;
+}
+.eidos-field-compact input[type="url"] {
+  padding-right: 28px;
+}
+.eidos-field-compact .eidos-field-url-action {
+  width: 20px;
+  height: 20px;
+}
+.eidos-field-compact p {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.eidos-multi-options {
+  max-height: min(20rem, var(--radix-popover-content-available-height));
+  overflow-y: auto;
+}
+.eidos-multi-option-create {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 16px;
+}
+.eidos-multi-option-create > svg {
+  flex-shrink: 0;
+}
+.eidos-multi-option-create > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.eidos-multi-option-create:hover:not(:disabled) {
+  background: var(--accent);
+}
+.eidos-multi-option-create:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.eidos-multi-option-create:disabled {
+  opacity: 0.5;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

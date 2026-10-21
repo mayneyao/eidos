@@ -2,9 +2,38 @@ import {
   EIDOS_LITE_SERVICE_ENVIRONMENTS,
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
+  accountStorageKey,
+  developmentAccountEnvironment,
 } from "./service-environment"
 
 describe("Eidos Lite service environments", () => {
+  it("isolates explicit local account fixtures and ignores them in packaged apps", () => {
+    const staging = EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
+    const local = developmentAccountEnvironment(
+      staging,
+      false,
+      "https://fixture.example.test"
+    )
+    expect(local.accountOrigin).toBe("https://fixture.example.test")
+    expect(accountStorageKey(local)).not.toBe(accountStorageKey(staging))
+    expect(
+      developmentAccountEnvironment(
+        staging,
+        true,
+        "https://fixture.example.test"
+      )
+    ).toBe(staging)
+    expect(() =>
+      developmentAccountEnvironment(staging, false, "http://example.test")
+    ).toThrow()
+    expect(() =>
+      developmentAccountEnvironment(
+        staging,
+        false,
+        "https://user:password@example.test"
+      )
+    ).toThrow()
+  })
   it("defaults development and unsigned builds to the fixed staging preset", () => {
     expect(resolveEidosLiteServiceEnvironment(undefined, "staging")).toEqual({
       name: "staging",

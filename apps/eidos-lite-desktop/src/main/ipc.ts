@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createPublicKey, randomUUID } from "node:crypto"
 import { createRememberedSyncUnlocks } from "./sync/create-remembered-sync-unlocks"
 import type { SpaceSession } from "./space/space-session"
 import type { EidosSyncStatus } from "../shared/contracts"
@@ -9,6 +9,10 @@ import { PeerService } from "./peer/peer-service"
 import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
+import { SparkService } from "./account/spark-service"
+import { resolveSparkHardwareId } from "./account/spark-hardware-id"
+import { DeviceIdentityStore } from "./account/device-identity"
+import { accountStorageKey } from "../shared/service-environment"
 import {
   resolveEidosLiteLocale,
   translateEidosLite,
@@ -34,6 +38,7 @@ import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
   IPC_CHANNELS,
   RUNTIME_METHODS,
+  RUNTIME_MUTATION_METHODS,
   type EidosLiteCsvSelection,
   type EidosLiteMarkdownImageImportRequest,
   type EidosLitePathClipboardMode,
@@ -626,6 +631,31 @@ function syncPreflightApproval(value: unknown): EidosSyncPreflightApproval {
   }
 }
 
+declare const __EIDOS_LITE_SPARK_PUBLIC_KEY__: string | undefined
+function validateSparkPublicKey(value: string): string {
+  const key = createPublicKey({
+    key: Buffer.from(value, "base64"),
+    format: "der",
+    type: "spki",
+  })
+  if (key.asymmetricKeyType !== "ed25519")
+    throw new Error("Spark public key must use Ed25519")
+  return value
+}
+function sparkPublicKey(environment: string): string {
+  const name = `EIDOS_LITE_SPARK_PUBLIC_KEY_${environment.toUpperCase()}`
+  const developmentKey = app.isPackaged ? undefined : process.env[name]
+  if (developmentKey !== undefined) {
+    if (!developmentKey) throw new Error("Spark public key override is empty")
+    return validateSparkPublicKey(developmentKey)
+  }
+  const compiled =
+    typeof __EIDOS_LITE_SPARK_PUBLIC_KEY__ === "string"
+      ? __EIDOS_LITE_SPARK_PUBLIC_KEY__
+      : ""
+  return compiled ? validateSparkPublicKey(compiled) : ""
+}
+
 export function registerIpc(
   controller: WindowController,
   services: EidosLiteServiceEnvironment,
@@ -641,6 +671,62 @@ export function registerIpc(
   openPluginPackage(filePath: string): Promise<boolean>
 } {
   const plugins = registerPluginIpc(controller)
+  const deviceIdentity = new DeviceIdentityStore(
+    path.join(app.getPath("userData"), "device-identity.json")
+  )
+  let hardwareIdPromise: Promise<string> | null = null
+  const sparkHardwareId = () =>
+    (hardwareIdPromise ??= resolveSparkHardwareId(
+      async () => (await deviceIdentity.getOrCreate()).stableDeviceId
+    ))
+  const spark = new SparkService({
+    origin: services.accountOrigin,
+    publicKey: sparkPublicKey(services.name),
+    cachePath: path.join(
+      app.getPath("userData"),
+      "accounts",
+      accountStorageKey(services),
+      "spark-certificate.json"
+    ),
+    hardwareId: sparkHardwareId,
+    account: async () => {
+      const account = await syncControl.accountStatus()
+      return account.state === "signed-in" && account.user
+        ? {
+            subject: account.user.id,
+            token: await syncControl.accountAccessToken(),
+          }
+        : null
+    },
+  })
+  controller.setSparkFeatureGuard((feature) => spark.require(feature))
+  void spark.status(true).catch(() => undefined)
+  const sparkRefreshTimer = setInterval(() => {
+    void spark.status(true).catch(() => undefined)
+  }, 30 * 60_000)
+  sparkRefreshTimer.unref()
+  let lastSparkRefreshAt = 0
+  ipcMain.handle(IPC_CHANNELS.sparkStatus, (_event, refresh: unknown) => {
+    const now = Date.now()
+    const shouldRefresh = refresh === true && now - lastSparkRefreshAt >= 5_000
+    if (shouldRefresh) lastSparkRefreshAt = now
+    return spark.status(shouldRefresh)
+  })
+  ipcMain.handle(IPC_CHANNELS.sparkActivate, (_event, id: unknown) => {
+    if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)
+      throw new Error("Invalid Spark license")
+    return spark.activate(id)
+  })
+  ipcMain.handle(IPC_CHANNELS.sparkDeactivate, () => spark.deactivate())
+  ipcMain.handle(IPC_CHANNELS.sparkOpen, async () => {
+    const locale = await controller.locale()
+    return shell.openExternal(
+      new URL(
+        locale === "zh" ? "/zh/account/spark" : "/account/spark",
+        services.accountOrigin
+      ).href
+    )
+  })
   const peers = new Map<string, PeerService>()
   const rememberedUnlocks = createRememberedSyncUnlocks(syncControl, services)
   const syncAccountAdmission = new SyncAccountAdmission()
@@ -913,6 +999,8 @@ export function registerIpc(
   )
   const publishEngine = new EidosPublishEngine(services, syncControl)
   const broadcastAccountStatus = (status: SyncAccountStatus) => {
+    if (status.state === "signed-in")
+      void spark.status(true).catch(() => undefined)
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.webContents.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.accountChanged, status)
@@ -1466,6 +1554,7 @@ export function registerIpc(
     if (typeof sessionId !== "string")
       throw new Error("Invalid runtime session")
     releaseAssetLeases(event.sender.id, sessionId)
+    if (controller.filePropertiesRuntimePinned(event.sender, sessionId)) return
     return controller.requireSession(event.sender).closeEidosFile(sessionId)
   })
   ipcMain.handle(
@@ -1488,10 +1577,48 @@ export function registerIpc(
             : requiredString(contentFieldName, "content field name")
         )
   )
-  ipcMain.handle(IPC_CHANNELS.openFileMetadata, (event, directory: unknown) =>
-    controller
-      .requireSession(event.sender)
-      .openFileMetadata(optionalRelativePath(directory))
+  ipcMain.handle(
+    IPC_CHANNELS.openFileMetadata,
+    async (event, directory: unknown) => {
+      const opened = await controller
+        .requireSession(event.sender)
+        .openFileMetadata(optionalRelativePath(directory))
+      controller.pinFilePropertiesRuntime(event.sender, opened.sessionId)
+      return opened
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.filePropertiesOpen, (event, value: unknown) => {
+    if (typeof value !== "string") throw new Error("Invalid file path")
+    controller.showFileProperties(event.sender, value)
+  })
+  ipcMain.handle(IPC_CHANNELS.filePropertiesSelect, (event, value: unknown) => {
+    if (value !== null && typeof value !== "string")
+      throw new Error("Invalid file path")
+    controller.selectFileProperties(event.sender, value)
+  })
+  ipcMain.handle(IPC_CHANNELS.filePropertiesTarget, (event) =>
+    controller.filePropertiesTarget(event.sender)
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.filePropertiesResize,
+    (event, height: unknown) => {
+      if (
+        typeof height !== "number" ||
+        !Number.isFinite(height) ||
+        height < 0 ||
+        height > 100000
+      )
+        throw new Error("Invalid inspector height")
+      controller.resizeFileProperties(event.sender, height)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.filePropertiesIcon, (event) =>
+    controller.filePropertiesIcon(event.sender)
+  )
+  ipcMain.on(
+    IPC_CHANNELS.filePropertiesCloseReply,
+    (event, token: unknown, allowed: unknown) =>
+      controller.replyFilePropertiesClose(event.sender, token, allowed)
   )
   ipcMain.handle(
     IPC_CHANNELS.createTextFile,
@@ -1910,13 +2037,18 @@ export function registerIpc(
         runtimeMethod === "previewCsvFile" || runtimeMethod === "importCsvFile"
           ? [requireCsvSource(event.sender, args[0]), ...args.slice(1)]
           : args
-      return controller
+      const result = await controller
         .requireSession(event.sender)
         .callRuntime(
           sessionId,
           runtimeMethod,
           runtimeArgs as RuntimeCalls[RuntimeMethod]["args"]
         )
+      if (
+        (RUNTIME_MUTATION_METHODS as readonly string[]).includes(runtimeMethod)
+      )
+        controller.notifyFilePropertiesChanged(event.sender, sessionId)
+      return result
     }
   )
   ipcMain.handle(IPC_CHANNELS.enableVersioning, (event) =>
@@ -3131,6 +3263,7 @@ export function registerIpc(
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
+      clearInterval(sparkRefreshTimer)
       syncAccountAdmission.beginChange()
       cancelManualSyncOperations()
       rememberedUnlocks.blockAutomatic()

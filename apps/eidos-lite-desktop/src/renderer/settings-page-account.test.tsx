@@ -234,6 +234,7 @@ describe("Settings account continuity", () => {
       host.querySelector(".settings-account-summary")?.textContent
     ).not.toContain("test@example.com")
     expect(syncSection().querySelector(".sync-password-settings")).toBeNull()
+    expect(syncSection().textContent).toContain("Sign in to use Sync")
   })
 
   it("marks over-quota Publish usage visibly and accessibly", async () => {

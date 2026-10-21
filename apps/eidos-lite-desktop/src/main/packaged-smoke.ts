@@ -12,6 +12,7 @@ import {
   type PackagedStartupTimings,
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
+import { RuntimePool } from "./runtime/runtime-pool"
 
 const EMPTY_MARKDOWN_SMOKE_CONTENT = "# Empty Markdown is editable"
 
@@ -2132,15 +2133,42 @@ export async function runPackagedSmoke(
       path.join(spaceRoot, "VTab Smoke/proof.txt"),
       "metadata smoke"
     )
-    const metadataFile = await session.createEidosFile(
-      "VTab Smoke",
-      "files.eidos",
-      "files-index"
-    )
-    const metadataRuntime = await session.openEidosFile(
-      metadataFile.relativePath!
-    )
-    if (metadataFile.relativePath !== ".eidos/files.eidos")
+    let metadataCreationBlocked = false
+    try {
+      await session.createEidosFile("VTab Smoke", "files.eidos", "files-index")
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("Activate Spark")
+      )
+        throw error
+      metadataCreationBlocked = true
+    }
+    if (!metadataCreationBlocked)
+      throw new Error("Unlicensed Spark metadata creation was allowed")
+    // Fixture setup verifies the packaged Runtime independently of the host's
+    // commercial guard. Existing files must remain readable without a grant.
+    await fs.mkdir(path.join(spaceRoot, ".eidos"), { recursive: true })
+    // Host watchers may invalidate their own pool when this catalog appears.
+    // Prepare the fixture in a separate pool so that lifecycle cannot close
+    // the fixture session before its metadata is written.
+    const fixturePool = new RuntimePool(await fs.realpath(spaceRoot))
+    const fixture = await fixturePool.create(".eidos/files.eidos", "Files", {
+      template: "files-index",
+    })
+    try {
+      const table = fixture.snapshot.tables[0]!
+      const field = table.fields.find((field) => field.name === "rating")!
+      await fixturePool.call(fixture.sessionId, "updateRow", [
+        table.table.id,
+        "VTab Smoke/proof.txt",
+        { [field.id!]: 4 },
+      ])
+    } finally {
+      await fixturePool.closeSession(fixture.sessionId)
+    }
+    const metadataRuntime = await session.openFileMetadata("VTab Smoke")
+    if (metadataRuntime.relativePath !== ".eidos/files.eidos")
       throw new Error(
         "Packaged file management did not reuse the Space catalog"
       )
@@ -2150,11 +2178,23 @@ export async function runPackagedSmoke(
     )!
     if (metadataTable.table.settings?.tableType !== "virtual" || !rating)
       throw new Error("Packaged fs_meta table unavailable")
-    await session.callRuntime(metadataRuntime.sessionId, "updateRow", [
-      metadataTable.table.id,
-      "VTab Smoke/proof.txt",
-      { [rating.id!]: 4 },
-    ])
+    let metadataMutationBlocked = false
+    try {
+      await session.callRuntime(metadataRuntime.sessionId, "updateRow", [
+        metadataTable.table.id,
+        "VTab Smoke/proof.txt",
+        { [rating.id!]: 5 },
+      ])
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("Activate Spark")
+      )
+        throw error
+      metadataMutationBlocked = true
+    }
+    if (!metadataMutationBlocked)
+      throw new Error("Unlicensed Spark metadata editing was allowed")
     const metadataRow = await session.callRuntime(
       metadataRuntime.sessionId,
       "getRow",

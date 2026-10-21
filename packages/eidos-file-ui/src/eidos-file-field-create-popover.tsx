@@ -83,6 +83,8 @@ function columnNameFor(
 }
 
 export interface EidosFileFieldCreatePopoverProps {
+  title?: string
+  description?: string
   open: boolean
   embedded?: boolean
   onOpenChange: (open: boolean) => void
@@ -97,6 +99,8 @@ export interface EidosFileFieldCreatePopoverProps {
 }
 
 export function EidosFileFieldCreatePopover({
+  title,
+  description,
   open,
   embedded = false,
   onOpenChange,
@@ -301,11 +305,12 @@ export function EidosFileFieldCreatePopover({
   const content = (
     <>
       <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold">{t("New field")}</h2>
+        <h2 className="text-sm font-semibold">{title ?? t("New field")}</h2>
         <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-          {t("Add a stored, related, or computed field to {table}.", {
-            table: table.table.name,
-          })}
+          {description ??
+            t("Add a stored, related, or computed field to {table}.", {
+              table: table.table.name,
+            })}
         </p>
       </div>
       <form ref={formRef} onSubmit={(event) => void submit(event)}>

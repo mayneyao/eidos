@@ -21,6 +21,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
+import type { SparkStatus } from "./spark"
 import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type { PluginApi } from "./plugins"
 import type {
@@ -88,6 +89,14 @@ export const IPC_CHANNELS = {
   whatsNewShow: "eidos-lite:whats-new-show",
   whatsNewRelease: "eidos-lite:whats-new-release",
   settingsOpenDestination: "eidos-lite:settings-open-destination",
+  filePropertiesOpen: "eidos-lite:file-properties-open",
+  filePropertiesSelect: "eidos-lite:file-properties-select",
+  filePropertiesTarget: "eidos-lite:file-properties-target",
+  filePropertiesChanged: "eidos-lite:file-properties-changed",
+  filePropertiesPrepareClose: "eidos-lite:file-properties-prepare-close",
+  filePropertiesCloseReply: "eidos-lite:file-properties-close-reply",
+  filePropertiesResize: "eidos-lite:file-properties-resize",
+  filePropertiesIcon: "eidos-lite:file-properties-icon",
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
   clipboardReadText: "eidos-lite:clipboard-read-text",
@@ -170,6 +179,10 @@ export const IPC_CHANNELS = {
   discardWorkingChanges: "eidos-lite:working-changes-discard",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   accountStatus: "eidos-lite:account-status",
+  sparkStatus: "eidos-lite:spark-status",
+  sparkActivate: "eidos-lite:spark-activate",
+  sparkDeactivate: "eidos-lite:spark-deactivate",
+  sparkOpen: "eidos-lite:spark-open",
   accountChanged: "eidos-lite:account-changed",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -1787,6 +1800,10 @@ export interface PeerTransferDetail {
 }
 
 export interface EidosLiteApi extends PluginApi {
+  getSparkStatus(refresh?: boolean): Promise<SparkStatus>
+  activateSpark(licenseId: number): Promise<SparkStatus>
+  deactivateSpark(): Promise<SparkStatus>
+  openSpark(): Promise<void>
   onTextDraftPrepareClose(listener: (token: string) => void): () => void
   onTextDraftReleaseClose(listener: () => void): () => void
   replyTextDraftClose(token: string, allowed: boolean): void
@@ -1809,6 +1826,14 @@ export interface EidosLiteApi extends PluginApi {
   downloadUpdate(): Promise<EidosLiteUpdateStatus>
   restartToInstallUpdate(): Promise<void>
   openSettings(): Promise<void>
+  openFileProperties(path: string): Promise<void>
+  selectFileProperties(path: string | null): Promise<void>
+  getFilePropertiesTarget(): Promise<string | null>
+  resizeFileProperties(height: number): Promise<void>
+  getFilePropertiesIcon(): Promise<string | null>
+  onFilePropertiesChanged(listener: (path: string | null) => void): () => void
+  onFilePropertiesPrepareClose(listener: (token: string) => void): () => void
+  replyFilePropertiesClose(token: string, allowed: boolean): void
   onSettingsNavigate?(
     listener: (page: "devices" | "account-sync") => void
   ): () => void

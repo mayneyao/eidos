@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PathActionDialog } from "./path-action-dialog"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
+
+beforeEach(() => {
+  Object.assign(window, {
+    eidosLite: {
+      getSparkStatus: vi.fn().mockResolvedValue({
+        state: "active",
+        source: "offline",
+        features: ["file-metadata"],
+        licenses: [],
+      }),
+      openSettingsDestination: vi.fn().mockResolvedValue(undefined),
+    },
+  })
+})
 
 describe("linked note confirmation", () => {
   it.each([false, true])(
@@ -85,6 +99,44 @@ it("confirms the count for a batch Trash action", async () => {
 })
 
 describe("create file templates", () => {
+  it("retains ordinary file creation without Spark or the removed metadata option", async () => {
+    vi.mocked(window.eidosLite.getSparkStatus).mockResolvedValue({
+      state: "inactive",
+      source: "none",
+      features: [],
+      licenses: [],
+    })
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    const onCancel = vi.fn()
+    const onSubmit = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <PathActionDialog
+            state={{ action: "create-file", entry: null }}
+            busy={false}
+            onCancel={onCancel}
+            onSubmit={onSubmit}
+          />
+        )
+      )
+      const checkbox = container.querySelector<HTMLInputElement>(
+        'input[type="checkbox"]'
+      )!
+      expect(checkbox.disabled).toBe(false)
+      expect(container.textContent).not.toContain("Manage folder file metadata")
+      expect(container.textContent).not.toContain("Activate Spark")
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('[type="submit"]')!.click()
+      )
+      expect(onSubmit).toHaveBeenCalledWith("Untitled.eidos", "eidos")
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
   it.each(["Untitled", ".graftignore", "config.json"])(
     "keeps Text selected and submits the exact name after renaming to %s",
     async (filename) => {

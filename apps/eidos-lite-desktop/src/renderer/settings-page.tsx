@@ -40,6 +40,7 @@ import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
 import { KeyboardShortcutSettings } from "./keyboard-shortcut-settings"
 import { usePublishAccount } from "./publish-account"
+import { SparkSettings } from "./spark-settings"
 import { rendererPlatform } from "./renderer-platform"
 import {
   clearSyncStatusSnapshots,
@@ -1310,6 +1311,12 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
+              {activePage === "account-sync" && (
+                <SparkSettings
+                  signedIn={Boolean(syncSignedIn)}
+                  subject={syncSubject}
+                />
+              )}
               <div className="settings-service" data-settings-sync>
                 <div className="settings-service-heading">
                   <h3 className="settings-subheading">
@@ -1329,7 +1336,7 @@ export function SettingsPage() {
                   ) : null}
                 </div>
                 <div className="settings-group">
-                  {syncAccount ? (
+                  {syncAccount && syncSignedIn ? (
                     <>
                       {syncAccessNotice ? (
                         <p className="settings-service-notice" role="status">
@@ -1381,7 +1388,9 @@ export function SettingsPage() {
                       <div className="settings-row-copy">
                         <strong>{t("Sync")}</strong>
                         <small>
-                          {t("Sync status has not been checked yet.")}
+                          {syncAccount?.account.state === "signed-out"
+                            ? t("Sign in to use Sync")
+                            : t("Sync status has not been checked yet.")}
                         </small>
                       </div>
                     </div>
