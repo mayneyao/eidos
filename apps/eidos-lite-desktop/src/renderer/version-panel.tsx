@@ -59,8 +59,11 @@ import { VersionWorkingMediaPreview } from "./version-media-preview"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
 import { SpaceIgnoreDialog } from "./space-ignore-dialog"
 import {
-  appendVideoIgnorePatterns,
-  videoFileSummary,
+  appendIgnorePatterns,
+  IGNORE_TEMPLATES,
+  ignorePathPattern,
+  spaceIgnorePreflight,
+  type IgnoreTemplate,
 } from "./space-ignore-rules"
 import { formatUsageBytes } from "./usage-meter"
 
@@ -1211,8 +1214,8 @@ export function VersionPanel({
   const [ignoreBusy, setIgnoreBusy] = useState(false)
   const [ignoreError, setIgnoreError] = useState("")
   const [ignoreNotice, setIgnoreNotice] = useState("")
-  const videoSummary = useMemo(
-    () => videoFileSummary(space.entries),
+  const preflight = useMemo(
+    () => spaceIgnorePreflight(space.entries),
     [space.entries]
   )
   const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
@@ -1812,15 +1815,19 @@ export function VersionPanel({
     onRefresh()
   }
 
-  const ignoreVideoFiles = async () => {
+  const applyIgnoreTemplate = async (template: IgnoreTemplate) => {
     setIgnoreBusy(true)
     setIgnoreError("")
     setIgnoreNotice("")
     try {
       const current = await window.eidosLite.getSpaceIgnoreRules()
-      const merged = appendVideoIgnorePatterns(current.graftignore)
+      const merged = appendIgnorePatterns(
+        current.graftignore,
+        template.patterns,
+        template.header
+      )
       if (merged.added.length === 0) {
-        setIgnoreNotice(t("Video ignore rules are already present."))
+        setIgnoreNotice(t("Those ignore rules are already present."))
         return
       }
       const snapshot = await window.eidosLite.saveSpaceIgnoreRules({
@@ -1828,10 +1835,38 @@ export function VersionPanel({
         graftignore: merged.content,
       })
       setIgnoreNotice(
-        t("Added {count} video patterns to .graftignore.", {
+        t("Added {count} rules from {template}.", {
           count: merged.added.length,
+          template: t(template.label),
         })
       )
+      onSpaceChange(snapshot)
+      onRefresh()
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    } finally {
+      setIgnoreBusy(false)
+    }
+  }
+
+  const ignoreLargeFile = async (path: string) => {
+    setIgnoreBusy(true)
+    setIgnoreError("")
+    setIgnoreNotice("")
+    try {
+      const current = await window.eidosLite.getSpaceIgnoreRules()
+      const merged = appendIgnorePatterns(current.graftignore, [
+        ignorePathPattern(path),
+      ])
+      if (merged.added.length === 0) {
+        setIgnoreNotice(t("That ignore rule is already present."))
+        return
+      }
+      const snapshot = await window.eidosLite.saveSpaceIgnoreRules({
+        ...current,
+        graftignore: merged.content,
+      })
+      setIgnoreNotice(t("Added ignore rule for {path}.", { path }))
       onSpaceChange(snapshot)
       onRefresh()
     } catch (cause) {
@@ -2111,44 +2146,80 @@ export function VersionPanel({
           </p>
           <div className="version-setup-ignore" aria-busy={ignoreBusy}>
             <div className="version-setup-ignore-heading">
-              <strong>{t("Large files")}</strong>
-              {videoSummary.count > 0 ? (
-                <span>
-                  {videoSummary.count === 1
-                    ? t("1 video · {size}", {
-                        size: formatUsageBytes(videoSummary.bytes),
-                      })
-                    : t("{count} videos · {size}", {
-                        count: videoSummary.count.toLocaleString(),
-                        size: formatUsageBytes(videoSummary.bytes),
-                      })}
-                </span>
-              ) : null}
+              <strong>{t("Preflight")}</strong>
+              <span>
+                {t("{files} files · {size}", {
+                  files: preflight.totalFiles.toLocaleString(),
+                  size: formatUsageBytes(preflight.totalBytes),
+                })}
+              </span>
+            </div>
+            <div className="version-setup-preflight">
+              <span>
+                {t("Videos")}: {preflight.videoCount.toLocaleString()} ·{" "}
+                {formatUsageBytes(preflight.videoBytes)}
+              </span>
+              <span>
+                {t("Large files")}: {preflight.largeFileCount.toLocaleString()}
+              </span>
+              <span>
+                {t("Symlinks")}: {preflight.symlinkCount.toLocaleString()}
+              </span>
             </div>
             <p>
-              {videoSummary.count > 0
-                ? t(
-                    "Version history stores every tracked file. Exclude these videos before the first version if you do not need them in history."
-                  )
-                : t(
-                    "Version history stores every tracked file. Add ignore rules before the first version if needed."
-                  )}
+              {t(
+                "Version history stores every tracked file. Review these before the first version."
+              )}
             </p>
+            {preflight.largeFiles.length > 0 ? (
+              <ul className="version-setup-large-files">
+                {preflight.largeFiles.map((file) => (
+                  <li key={file.path}>
+                    <span title={file.path}>{file.path}</span>
+                    <small>{formatUsageBytes(file.size)}</small>
+                    <button
+                      type="button"
+                      disabled={
+                        ignoreBusy ||
+                        busy !== null ||
+                        space.operation.phase !== "ready"
+                      }
+                      onClick={() => void ignoreLargeFile(file.path)}
+                    >
+                      {t("Ignore")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {preflight.largeFileCount > preflight.largeFiles.length ? (
+              <p className="version-setup-ignore-status">
+                {t("{count} more large files are not shown.", {
+                  count: (
+                    preflight.largeFileCount - preflight.largeFiles.length
+                  ).toLocaleString(),
+                })}
+              </p>
+            ) : null}
+            <p className="version-setup-group-label">{t("Templates")}</p>
             <div className="version-setup-ignore-actions">
-              {videoSummary.count > 0 ? (
+              {IGNORE_TEMPLATES.map((template) => (
                 <button
+                  key={template.id}
                   type="button"
-                  data-ignore-videos
+                  data-ignore-template={template.id}
                   disabled={
                     ignoreBusy ||
                     busy !== null ||
                     space.operation.phase !== "ready"
                   }
-                  onClick={() => void ignoreVideoFiles()}
+                  onClick={() => void applyIgnoreTemplate(template)}
                 >
-                  {t("Ignore video files")}
+                  {t(template.label)}
                 </button>
-              ) : null}
+              ))}
+            </div>
+            <div className="version-setup-ignore-actions">
               <button
                 type="button"
                 data-edit-ignore

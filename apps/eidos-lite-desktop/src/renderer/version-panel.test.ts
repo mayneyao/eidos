@@ -561,7 +561,7 @@ describe("VersionPanel table diff", () => {
               name: "clip.mp4",
               relativePath: "clip.mp4",
               kind: "file",
-              size: 2048,
+              size: 30 * 1024 * 1024,
               modifiedAtMs: 1,
             },
             {
@@ -581,10 +581,12 @@ describe("VersionPanel table diff", () => {
         onInspectionChange: () => undefined,
       })
     )
-    expect(markup).toContain("Ignore video files")
-    expect(markup).toContain("data-ignore-videos")
-    expect(markup).toContain("1 video")
-    expect(markup).toContain("Edit ignore rules")
+    expect(markup).toContain("Preflight")
+    expect(markup).toContain("Videos: 1")
+    expect(markup).toContain("Large files: 1")
+    expect(markup).toContain('data-ignore-template="videos"')
+    expect(markup).toContain(">Ignore</button>")
+    expect(markup).toContain("data-edit-ignore")
   })
 
   it("defaults to all history and automatically crosses sparse document pages in StrictMode", async () => {

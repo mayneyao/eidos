@@ -1,6 +1,10 @@
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
+  appendIgnorePatterns,
   appendVideoIgnorePatterns,
+  IGNORE_TEMPLATES,
+  ignorePathPattern,
+  spaceIgnorePreflight,
   videoFileSummary,
   VIDEO_IGNORE_PATTERNS,
 } from "./space-ignore-rules"
@@ -51,4 +55,40 @@ it("summarizes nested video entries without counting folders", () => {
       entry("archive.mov", "file", 400),
     ])
   ).toEqual({ count: 3, bytes: 2400 })
+})
+
+it("reports large files and symlinks in the preflight summary", () => {
+  const summary = spaceIgnorePreflight(
+    [
+      entry("media", "directory", 0, [
+        entry("clip.mp4", "file", 2000),
+        entry("notes.md", "file", 20),
+        entry("big.zip", "file", 1500),
+        entry("link", "symlink", 10),
+      ]),
+    ],
+    1000,
+    1
+  )
+  expect(summary).toMatchObject({
+    totalFiles: 4,
+    totalBytes: 3530,
+    videoCount: 1,
+    videoBytes: 2000,
+    symlinkCount: 1,
+    largeFileCount: 2,
+  })
+  expect(summary.largeFiles).toEqual([{ path: "clip.mp4", size: 2000 }])
+})
+
+it("anchors and escapes exact paths, and applies templates once", () => {
+  expect(ignorePathPattern("clips/a#1!.mp4")).toBe("/clips/a\\#1\\!.mp4")
+  const template = IGNORE_TEMPLATES.find((item) => item.id === "node")!
+  const first = appendIgnorePatterns("", template.patterns, template.header)
+  expect(first.content).toContain("# Node and build outputs")
+  expect(first.added).toEqual(template.patterns)
+  expect(
+    appendIgnorePatterns(first.content, template.patterns, template.header)
+      .added
+  ).toEqual([])
 })

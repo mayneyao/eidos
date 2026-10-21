@@ -9786,9 +9786,74 @@ body:has(.file-properties-window)
 }
 
 .version-setup-ignore-heading span {
+  max-width: 55%;
+  overflow: hidden;
   color: var(--ink-faint);
   font-size: 0.62rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.version-setup-preflight {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+}
+
+.version-setup-ignore p.version-setup-group-label {
+  margin: 0.15rem 0 0;
+  color: var(--ink-faint);
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+
+.version-setup-large-files {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.version-setup-large-files li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.version-setup-large-files li > span {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-setup-large-files small {
+  color: var(--ink-faint);
+  font-size: 0.6rem;
+}
+
+.version-setup-large-files button {
+  padding: 0 0.15rem;
+  border: 0;
+  color: var(--lite-accent);
+  background: transparent;
+  font: inherit;
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+
+.version-setup-large-files button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.version-setup-large-files button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .version-setup-ignore p {
