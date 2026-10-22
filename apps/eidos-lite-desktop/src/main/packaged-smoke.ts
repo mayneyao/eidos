@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
-import { clipboard, nativeImage, type BrowserWindow } from "electron"
+import { app, clipboard, nativeImage, type BrowserWindow } from "electron"
 import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../shared/performance-contract"
@@ -13,6 +13,11 @@ import {
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
 import { RuntimePool } from "./runtime/runtime-pool"
+import {
+  ensurePackagedSmokeForeground,
+  type PackagedSmokeDocumentState,
+  type PackagedSmokeForegroundDiagnostics,
+} from "./packaged-smoke-foreground"
 
 const EMPTY_MARKDOWN_SMOKE_CONTENT = "# Empty Markdown is editable"
 
@@ -56,12 +61,25 @@ interface RendererSmokeResult {
     startup: PackagedStartupTimings
     utilityOpenMs: number[]
     utilityOpenP95Ms: number
+    foreground?: PackagedSmokeForegroundDiagnostics
+    utilityOpenStages: {
+      relativePath: string
+      clickDispatchMs: number
+      cachedFileWaitMs: number
+      activeEditorWaitMs: number
+      editorShellWaitMs: number
+      canvasWaitMs: number | null
+      animationFrameGapsMs: number[]
+      documentBefore: PackagedSmokeDocumentState
+      documentAfter: PackagedSmokeDocumentState
+    }[]
     denseGrid: {
       rows: number
       preparationMs: number
       renderedFirstFrameMs: number
       canvasWidth: number
       canvasHeight: number
+      devicePixelRatio: number
     }
   }
   launchRouting: {
@@ -796,24 +814,35 @@ const rendererProbe = `
     return scanTreeItem(relativePath)
   }
   const utilityOpenMs = []
+  const utilityOpenStages = []
   let denseGrid = null
   for (let index = 0; index < 4; index += 1) {
     const relativePath = eidosPaths[index]
     const button = await revealTreeItem(relativePath)
+    const documentBefore = {
+      visibilityState: document.visibilityState,
+      hasFocus: document.hasFocus(),
+    }
     const openStartedAt = performance.now()
     button.click()
+    let stageStartedAt = performance.now()
+    const clickDispatchMs = stageStartedAt - openStartedAt
     await waitFor(
       () => document.querySelector(
         '[data-cached-file-path="' + CSS.escape(relativePath) + '"]'
       ),
       "cached Eidos File " + (index + 1)
     )
+    const cachedFileWaitMs = performance.now() - stageStartedAt
+    stageStartedAt = performance.now()
     const editorContainer = await waitFor(
       () => document.querySelector(
         '.file-editor[aria-label="' + CSS.escape(relativePath) + '"]'
       ),
       "active Eidos File " + (index + 1)
     )
+    const activeEditorWaitMs = performance.now() - stageStartedAt
+    stageStartedAt = performance.now()
     const editorShell = await waitFor(
       () => document.querySelector(
         '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
@@ -821,6 +850,9 @@ const rendererProbe = `
       ),
       "rendered Eidos File " + (index + 1)
     )
+    const editorShellWaitMs = performance.now() - stageStartedAt
+    let canvasWaitMs = null
+    const animationFrameGapsMs = []
     if (relativePath === "dense-100000.eidos") {
       if (editorContainer.dataset.eidosFileRowCount !== "100000") {
         throw new Error(
@@ -828,23 +860,48 @@ const rendererProbe = `
             editorContainer.dataset.eidosFileRowCount
         )
       }
+      stageStartedAt = performance.now()
       const canvas = await waitFor(
         () => [...editorShell.querySelectorAll("canvas")].find(
           (candidate) => candidate.width > 0 && candidate.height > 0
         ),
         "100,000-row Grid canvas"
       )
-      await new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve))
-      )
+      canvasWaitMs = performance.now() - stageStartedAt
+      let frameStartedAt = performance.now()
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          animationFrameGapsMs.push(performance.now() - frameStartedAt)
+          frameStartedAt = performance.now()
+          requestAnimationFrame(() => {
+            animationFrameGapsMs.push(performance.now() - frameStartedAt)
+            resolve()
+          })
+        })
+      })
       denseGrid = {
         rows: 100000,
         renderedFirstFrameMs: performance.now() - openStartedAt,
         canvasWidth: canvas.width,
         canvasHeight: canvas.height,
+        devicePixelRatio: window.devicePixelRatio,
       }
     }
     utilityOpenMs.push(performance.now() - openStartedAt)
+    utilityOpenStages.push({
+      relativePath,
+      clickDispatchMs,
+      cachedFileWaitMs,
+      activeEditorWaitMs,
+      editorShellWaitMs,
+      canvasWaitMs,
+      animationFrameGapsMs,
+      documentBefore,
+      documentAfter: {
+        visibilityState: document.visibilityState,
+        hasFocus: document.hasFocus(),
+      },
+    })
   }
   if (!denseGrid) {
     throw new Error("Packaged 100,000-row Grid did not render")
@@ -1890,6 +1947,7 @@ const rendererProbe = `
       },
       utilityOpenMs,
       utilityOpenP95Ms,
+      utilityOpenStages,
       denseGrid: {
         ...denseGrid,
         preparationMs: 0,
@@ -2034,6 +2092,13 @@ export async function runPackagedSmoke(
     window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     onboardingWindow.destroy()
     onboardingWindow = null
+    const foreground = await ensurePackagedSmokeForeground(window, () => {
+      if (process.platform === "darwin") app.focus({ steal: true })
+    })
+    console.info(
+      "Packaged smoke foreground precondition:",
+      JSON.stringify(foreground)
+    )
     const reportPromise = window.webContents.executeJavaScript(
       rendererProbe,
       true
@@ -2131,6 +2196,7 @@ export async function runPackagedSmoke(
     report.onboarding = onboarding
     report.performance.coldStartMs = coldStartMs
     report.performance.startup = startup.timings
+    report.performance.foreground = foreground
     report.performance.denseGrid.preparationMs = densePreparationMs
     const routedWindow = await controller.openEidosFilePath(
       path.join(spaceRoot, "projects", "content-calendar.eidos")
