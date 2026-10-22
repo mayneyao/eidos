@@ -4,12 +4,10 @@ import path from "node:path"
 import { SpaceSession } from "./space-session"
 import { GraftClient } from "../graft/graft-client"
 import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
-import {
-  createEidosLiteFileRuntime,
-  type openEidosLiteFileRuntime,
-} from "../../runtime/eidos-file-runtime"
+import { createEidosLiteFileRuntime } from "../../runtime/eidos-file-runtime"
+import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
 
-it("inherits the nearest parent configuration and enforces one catalog per folder", async () => {
+it("creates one Space catalog, shares fields and views, and leaves legacy catalogs untouched", async () => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "eidos-properties-space-")
   )
@@ -18,79 +16,128 @@ it("inherits the nearest parent configuration and enforces one catalog per folde
   )
   const graft = new GraftClient({ sdkTransport: new GraftInProcessTransport() })
   let session: SpaceSession | undefined
-  const runtimes = new Map<
-    string,
-    Awaited<ReturnType<typeof openEidosLiteFileRuntime>>
-  >()
+  let runtime:
+    | Awaited<ReturnType<typeof createEidosLiteFileRuntime>>
+    | undefined
   try {
-    await fs.mkdir(path.join(root, "assets"))
-    await fs.writeFile(path.join(root, "assets/proof.txt"), "proof")
-    const parent = await createEidosLiteFileRuntime(
-      path.join(root, "files.eidos"),
-      "Files"
+    await fs.mkdir(path.join(root, "assets/nested"), { recursive: true })
+    await fs.writeFile(path.join(root, "assets/nested/proof.txt"), "proof")
+    const legacy = await createEidosLiteFileRuntime(
+      path.join(root, "assets/files.eidos"),
+      "Legacy"
     )
-    runtimes.set("files.eidos", parent)
-    const tableId = parent.initialSnapshot.tables[0]!.table.id
-    await parent.source.addField(tableId, {
-      name: "Status",
-      type: "select",
-      property: { options: [{ name: "Ready", color: "green" }] },
-    })
-    expect(
-      (await parent.source.getSnapshot()).tables[0]!.fields.map(
-        (field) => field.name
-      )
-    ).toContain("Status")
+    await legacy.close()
+    const original = await fs.readFile(path.join(root, "assets/files.eidos"))
     session = await SpaceSession.create(root, userData, { graft })
     vi.spyOn(session.runtimePool, "open").mockImplementation(
-      async (relativePath) => ({
-        sessionId: relativePath,
-        relativePath,
-        readOnly: false,
-        snapshot: await runtimes.get(relativePath)!.source.getSnapshot(),
-      })
+      async (relativePath) => {
+        expect(relativePath).toBe(SPACE_FILE_METADATA_PATH)
+        return {
+          sessionId: "global",
+          relativePath,
+          readOnly: false,
+          snapshot: await runtime!.source.getSnapshot(),
+        }
+      }
     )
     vi.spyOn(session.runtimePool, "call").mockImplementation(
-      async (_id, method) => {
-        if (method === "getExternalChangeProbe")
-          return { connectionId: "test", dataVersion: "1" } as never
-        return {} as never
-      }
+      async () => ({ connectionId: "test", dataVersion: "1" }) as never
     )
     const create = vi
       .spyOn(session.runtimePool, "create")
       .mockImplementation(async (relativePath, title, options) => {
-        const runtime = await createEidosLiteFileRuntime(
+        runtime = await createEidosLiteFileRuntime(
           path.join(root, relativePath),
           title,
           options
         )
-        runtimes.set(relativePath, runtime)
         return {
-          sessionId: relativePath,
+          sessionId: "global",
           relativePath,
           readOnly: false,
           snapshot: runtime.initialSnapshot,
         }
       })
-    const created = await session.createEidosFile(
+    const [first, second] = await Promise.all([
+      session.openFileMetadata("assets"),
+      session.openFileMetadata(null),
+    ])
+    expect(create).toHaveBeenCalledOnce()
+    expect(first.sessionId).toBe(second.sessionId)
+    const { table } = first.snapshot.tables[0]!
+    expect(table.settings?.vtabConfig).toMatchObject({ root: ".." })
+    await runtime!.source.addField(table.id, { name: "Status", type: "text" })
+    const opened = await session.openFileMetadata("assets/nested")
+    expect(
+      opened.snapshot.tables[0]!.fields.some((field) => field.name === "Status")
+    ).toBe(true)
+    expect(opened.snapshot.tables[0]!.views.map((view) => view.id)).toEqual(
+      first.snapshot.tables[0]!.views.map((view) => view.id)
+    )
+    const redirected = await session.createEidosFile(
       "assets",
-      "custom-name.eidos",
+      "unused.eidos",
       "files-index"
     )
-    expect(created.relativePath).toBe("assets/files.eidos")
+    expect(redirected.relativePath).toBe(SPACE_FILE_METADATA_PATH)
+    expect(create).toHaveBeenCalledOnce()
+    expect(await fs.readFile(path.join(root, "assets/files.eidos"))).toEqual(
+      original
+    )
     expect(
-      create.mock.calls[0]?.[2]?.metadataSchema?.fields.map(
-        (field) => field.name
+      (await session.snapshot()).entries.some(
+        (entry) => entry.name === ".eidos"
       )
-    ).toContain("Status")
-    await expect(
-      session.createEidosFile("assets", "second.eidos", "files-index")
-    ).rejects.toThrow()
+    ).toBe(false)
+    await expect(session.openFileMetadata("../outside")).rejects.toThrow()
+    await expect(session.openFileMetadata("missing")).rejects.toThrow()
+    await expect(session.openFileMetadata(".eidos")).rejects.toThrow()
+    await runtime!.close()
+    runtime = undefined
+    await fs.rename(
+      path.join(root, SPACE_FILE_METADATA_PATH),
+      path.join(root, ".eidos/catalog-backup.eidos")
+    )
+    await fs.writeFile(
+      path.join(root, SPACE_FILE_METADATA_PATH),
+      "keep this conflicting file"
+    )
+    const open = vi.mocked(session.runtimePool.open)
+    open.mockRejectedValueOnce(new Error("Not an Eidos File"))
+    await expect(session.openFileMetadata(null)).rejects.toThrow(
+      "Not an Eidos File"
+    )
+    expect(
+      await fs.readFile(path.join(root, SPACE_FILE_METADATA_PATH), "utf8")
+    ).toBe("keep this conflicting file")
+    if (process.platform !== "win32") {
+      await fs.rename(
+        path.join(root, SPACE_FILE_METADATA_PATH),
+        path.join(root, ".eidos/conflict.txt")
+      )
+      await fs.symlink(
+        path.join(root, "assets/files.eidos"),
+        path.join(root, SPACE_FILE_METADATA_PATH)
+      )
+      await expect(session.openFileMetadata(null)).rejects.toThrow(
+        "ordinary file"
+      )
+      await fs.rename(
+        path.join(root, ".eidos"),
+        path.join(root, "private-backup")
+      )
+      await fs.symlink(
+        path.join(root, "private-backup"),
+        path.join(root, ".eidos")
+      )
+      await expect(session.openFileMetadata(null)).rejects.toThrow(
+        "without symlinks"
+      )
+    }
   } finally {
     await session?.close()
     await graft.close()
-    for (const runtime of runtimes.values()) await runtime.close()
+    await runtime?.close()
     await fs.rm(root, { recursive: true, force: true })
     await fs.rm(userData, { recursive: true, force: true })
   }

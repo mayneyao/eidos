@@ -763,7 +763,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 files = files,
                 graft = graft,
                 recent = recent,
-                favorites = favorites,
+                favorites = favorites.filter { it.path in favoriteFiles },
                 favoriteFiles = favoriteFiles,
                 spaceId = repository.spaceId,
                 spaceName =
@@ -1134,7 +1134,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 pendingClone = cloneJournal.pending(),
                 files = files,
                 recent = recent,
-                favorites = favorites,
+                favorites = favorites.filter { it.path in favoriteFiles },
                 favoriteFiles = favoriteFiles,
                 busy = current.busy,
             )
@@ -1147,7 +1147,12 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         val selected = mutable.value.favorites.none { it.key == favorite.key }
         val favorites = repository.setFavorite(favorite, selected)
         val favoriteFiles = repository.favoriteFiles(favorites)
-        mutable.update { it.copy(favorites = favorites, favoriteFiles = favoriteFiles) }
+        mutable.update {
+            it.copy(
+                favorites = favorites.filter { favorite -> favorite.path in favoriteFiles },
+                favoriteFiles = favoriteFiles,
+            )
+        }
     }
 
     fun openFavorite(favorite: Favorite, addRecord: Boolean = false, done: () -> Unit = {}) =

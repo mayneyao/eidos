@@ -7,6 +7,10 @@ import { OAuthLoopbackCallback } from "./loopback-callback"
 import type { EidosOAuthClient } from "./oauth-client"
 import { EidosOAuthError } from "./oauth-client"
 
+vi.mock("./spark-hardware-id", () => ({
+  resolveSparkHardwareId: vi.fn(async () => "a".repeat(64)),
+}))
+
 describe("AccountSessionService", () => {
   function raceFixture(
     options: Partial<
@@ -67,6 +71,7 @@ describe("AccountSessionService", () => {
       close: vi.fn(),
     }
     const openExternal = vi.fn(async () => {})
+    const registerDevice = vi.fn(async () => device)
     const account = new AccountSessionService(
       oauth as unknown as EidosOAuthClient,
       credentials as unknown as SecureAccountCredentialStore,
@@ -74,7 +79,7 @@ describe("AccountSessionService", () => {
         getOrCreate: async () => ({ stableDeviceId: "device" }),
       } as unknown as DeviceIdentityStore,
       {
-        registerDevice: async () => device,
+        registerDevice,
         authorization: async (token: string) => ({
           subject: token === "fresh-b" ? "user-b" : "user-a",
           access: null,
@@ -92,8 +97,32 @@ describe("AccountSessionService", () => {
         ...options,
       }
     )
-    return { account, oauth, credentials, callback, tokens, openExternal }
+    return {
+      account,
+      oauth,
+      credentials,
+      callback,
+      tokens,
+      openExternal,
+      registerDevice,
+    }
   }
+
+  it("registers the machine hash once for an existing unexpired login before returning its token", async () => {
+    const f = raceFixture()
+    const previous = await f.credentials.read()
+    f.credentials.read.mockResolvedValue({ ...previous!, tokens: f.tokens })
+    await expect(f.account.accessToken()).resolves.toBe("fresh-a")
+    await expect(f.account.accessToken()).resolves.toBe("fresh-a")
+    expect(f.registerDevice).toHaveBeenCalledExactlyOnceWith(
+      "fresh-a",
+      expect.objectContaining({
+        stableDeviceId: "device",
+        sparkHardwareId: "a".repeat(64),
+      })
+    )
+    expect(f.oauth.refresh).not.toHaveBeenCalled()
+  })
 
   it("cancels a real OAuth listener, reuses its port immediately, and never exchanges a stale callback", async () => {
     const probe = await OAuthLoopbackCallback.listen("probe", 0)
@@ -340,6 +369,14 @@ describe("AccountSessionService", () => {
       authorization: { access: { access: "read_write" } },
     })
     expect(calls).toEqual(["register", "authorize", "persist"])
+    expect(syncClient.registerDevice).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        stableDeviceId: "0f9a8b7c-6d5e-4f32-a109-876543210abc",
+        sparkHardwareId: "a".repeat(64),
+      })
+    )
+    expect(await account.sparkHardwareId()).toBe("a".repeat(64))
     expect(write).toHaveBeenCalledWith(
       expect.objectContaining({
         user: { id: "user-1" },

@@ -5,6 +5,71 @@ import { GraftClient } from "../graft/graft-client"
 import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { SpaceSession } from "./space-session"
 import { readTextFilePreview } from "./text-file-preview"
+import { createEidosLiteFileRuntime } from "../../runtime/eidos-file-runtime"
+
+it("reviews, checkpoints, reads history and discards the managed Space catalog", async () => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "lite-catalog-history-")
+  )
+  const root = path.join(directory, "Space")
+  await fs.mkdir(root)
+  const graft = new GraftClient({ sdkTransport: new GraftInProcessTransport() })
+  let session: SpaceSession | undefined
+  try {
+    await fs.writeFile(path.join(root, "note.txt"), "Keep this ordinary file")
+    session = await SpaceSession.create(root, path.join(directory, "state"), {
+      graft,
+    })
+    const initial = await session.enableVersioning()
+    const catalogPath = ".eidos/files.eidos"
+    await fs.mkdir(path.join(root, ".eidos"), { recursive: true })
+    const createCatalog = async () => {
+      const runtime = await createEidosLiteFileRuntime(
+        path.join(root, catalogPath),
+        "Files",
+        { template: "files-index" }
+      )
+      await runtime.close()
+    }
+    await createCatalog()
+    const working = await session.getVersionPathDiff(catalogPath)
+    expect(working.files.some((file) => file.path === catalogPath)).toBe(true)
+    const saved = await session.createCheckpoint("Save managed catalog", [
+      catalogPath,
+    ])
+    const revision = saved.graft.currentHead!
+    expect(revision).not.toBe(initial.graft.currentHead)
+    const history = await session.getFileHistory(catalogPath)
+    expect(history.commits[0]?.id).toBe(revision)
+    const historical = await session.getVersionPathDiff(catalogPath, revision)
+    expect(historical.files.some((file) => file.path === catalogPath)).toBe(
+      true
+    )
+    await fs.unlink(path.join(root, catalogPath))
+    await session.createCheckpoint("Remove managed catalog", [catalogPath])
+    await createCatalog()
+    const status = await graft.status(root)
+    const discarded = await session.discardWorkingChanges({
+      expectedHead: status.currentHead!,
+      expectedChangeToken: status.changeToken!,
+      target: { kind: "file", path: catalogPath },
+    })
+    expect(discarded.paths).toContain(catalogPath)
+    await expect(fs.stat(path.join(root, catalogPath))).rejects.toMatchObject({
+      code: "ENOENT",
+    })
+    expect(await fs.readFile(path.join(root, "note.txt"), "utf8")).toBe(
+      "Keep this ordinary file"
+    )
+    await expect(
+      session.getVersionPathDiff(".eidos/settings.json")
+    ).rejects.toThrow("protected")
+  } finally {
+    await session?.close()
+    await graft.close()
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+}, 30000)
 
 it("returns an empty bounded page and keeps its cursor pinned while HEAD advances", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "lite-history-pages-"))

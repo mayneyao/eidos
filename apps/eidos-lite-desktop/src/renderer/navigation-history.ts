@@ -1,3 +1,8 @@
+import {
+  normalizeFileMetadataDirectory,
+  SPACE_FILE_METADATA_PATH,
+} from "../shared/file-metadata"
+
 export type VersionDiffNavigationLocation =
   | {
       type: "version-diff"
@@ -22,6 +27,8 @@ export interface RecordNavigationLocation {
   tableId: string
   rowId: string | null
   viewId?: string
+  /** Transient folder scope of the Space-wide metadata catalog. */
+  directory?: string
 }
 
 export type NavigationLocation =
@@ -34,6 +41,37 @@ export type NavigationLocation =
   | { type: "whats-new"; lang?: "en" | "zh-CN" }
   | { type: "merge"; path: string; tableName?: string }
   | null
+
+/** Keep the managed folder and inspected physical file aligned with local moves. */
+export function remapFileMetadataLocation(
+  location: NavigationLocation,
+  source: string,
+  destination: string | null
+): NavigationLocation {
+  if (
+    typeof location !== "object" ||
+    location?.type !== "record" ||
+    location.path !== SPACE_FILE_METADATA_PATH
+  )
+    return location
+  const affected = (value: string) =>
+    value === source || value.startsWith(`${source}/`)
+  const remap = (value: string) =>
+    destination === null ? null : `${destination}${value.slice(source.length)}`
+  const directory = location.directory ?? ""
+  const nextDirectory =
+    directory && affected(directory)
+      ? (remap(directory) ?? source.split("/").slice(0, -1).join("/"))
+      : directory
+  let rowId =
+    location.rowId && affected(location.rowId)
+      ? remap(location.rowId)
+      : location.rowId
+  if (rowId && nextDirectory && !rowId.startsWith(`${nextDirectory}/`))
+    rowId = null
+  if (nextDirectory === directory && rowId === location.rowId) return location
+  return { ...location, directory: nextDirectory, rowId }
+}
 
 export interface NavigationSnapshot {
   stackId: string
@@ -159,7 +197,11 @@ export function navigationHash(
     return `#/spaces/${space}/merge/files/${encodeURIComponent(location.path)}${location.tableName ? `?table=${encodeURIComponent(location.tableName)}` : ""}`
   if (location.type === "record") {
     const base = `#/spaces/${space}/files/${encodeURIComponent(location.path)}/tables/${encodeURIComponent(location.tableId)}`
-    return `${base}${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${location.viewId ? `?view=${encodeURIComponent(location.viewId)}` : ""}`
+    const params = new URLSearchParams()
+    if (location.viewId) params.set("view", location.viewId)
+    if (location.directory) params.set("folder", location.directory)
+    const query = params.toString()
+    return `${base}${location.rowId !== null ? `/records/${encodeURIComponent(location.rowId)}` : ""}${query ? `?${query}` : ""}`
   }
   const route =
     location.mode === "changes"
@@ -250,6 +292,13 @@ export function parseNavigationHash(
               tableId: parts[3],
               rowId: parts[5] ?? null,
               ...(viewId ? { viewId } : {}),
+              ...(params.get("folder")
+                ? {
+                    directory: normalizeFileMetadataDirectory(
+                      params.get("folder")!
+                    ),
+                  }
+                : {}),
             },
           }
         }

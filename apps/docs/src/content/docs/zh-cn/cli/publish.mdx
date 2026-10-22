@@ -184,10 +184,10 @@ CLI 以源文件所在目录为根目录解析附件，检查路径不越界、�
 
 访问策略属于每个资源 slug，而不是整个账号。
 
-| 访问方式 | 发布参数 | 谁能打开 |
-| --- | --- | --- |
-| 公开 | 不传访问参数 | 任何持有 URL 的人 |
-| 密码保护 | `--password` | 知道密码的人。不需要 Eidos 账号 |
+| 访问方式 | 发布参数               | 谁能打开                                  |
+| -------- | ---------------------- | ----------------------------------------- |
+| 公开     | 不传访问参数           | 任何持有 URL 的人                         |
+| 密码保护 | `--password`           | 知道密码的人。不需要 Eidos 账号           |
 | 账号私有 | `--visibility private` | 已登录资源所有者 eidos.space 账号的发布者 |
 
 再次发布同一个 slug 时，如果不传访问参数，会保留当前访问策略。
@@ -253,22 +253,22 @@ eidos publish inventory.eidos --slug inventory
 引用都相同时，不会创建新 Version。资源数不作为商业额度，实际限制是去重后的总存储与
 历史策略。当前标准 Publish 额度为：
 
-| 限制 | Publish |
-| --- | --- |
-| 账号去重后总存储 | 10 GiB |
-| 单个 `.eidos` 文件 | 256 MiB |
-| 单个 source 附件 | 1 GiB |
-| Markdown 正文 | 16 MiB |
-| 非当前 Version 历史 | 30 天 |
-| 资源数 | 不限数量 |
-| 访问方式 | 公开、密码保护、账号私有 |
-| Canonical hostname | 一个独立 Publish Handle |
-| 删除 Built with Eidos | 是 |
-| 每月 Form 回复 | 5,000 |
-| Collect Inbox | 5 GiB |
-| 单次回复附件数 | 20 |
-| 单个提交附件 | 100 MiB |
-| 已导入回复保留 | 30 天 |
+| 限制                  | Publish                  |
+| --------------------- | ------------------------ |
+| 账号去重后总存储      | 10 GiB                   |
+| 单个 `.eidos` 文件    | 256 MiB                  |
+| 单个 source 附件      | 1 GiB                    |
+| Markdown 正文         | 16 MiB                   |
+| 非当前 Version 历史   | 30 天                    |
+| 资源数                | 不限数量                 |
+| 访问方式              | 公开、密码保护、账号私有 |
+| Canonical hostname    | 一个独立 Publish Handle  |
+| 删除 Built with Eidos | 是                       |
+| 每月 Form 回复        | 5,000                    |
+| Collect Inbox         | 5 GiB                    |
+| 单次回复附件数        | 20                       |
+| 单个提交附件          | 100 MiB                  |
+| 已导入回复保留        | 30 天                    |
 
 当 `.eidos` 文件需要更高上限或独立 Runtime 容量时，可以联系 Eidos 开通 Custom 方案。
 以上为付费 Publish 的限制。本地构建与预览保持免费。付费方案的历史保留期从活动 Version 被替换时开始

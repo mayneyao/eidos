@@ -967,7 +967,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1008,7 +1008,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 [[package]]
 name = "fjall"
 version = "3.1.6"
-source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
+source = "git+https://github.com/eidos-space/graft?rev=136618aab8bc8085c9956bffcdda15f7919f7b77#136618aab8bc8085c9956bffcdda15f7919f7b77"
 dependencies = [
  "byteorder-lite",
  "byteview",
@@ -1272,8 +1272,8 @@ dependencies = [
 
 [[package]]
 name = "graft"
-version = "0.15.5"
-source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
+version = "0.16.1"
+source = "git+https://github.com/eidos-space/graft?rev=136618aab8bc8085c9956bffcdda15f7919f7b77#136618aab8bc8085c9956bffcdda15f7919f7b77"
 dependencies = [
  "assert_matches",
  "base64",
@@ -1308,6 +1308,7 @@ dependencies = [
  "toml",
  "tracing",
  "tryiter",
+ "windows-sys 0.61.2",
  "xxhash-rust",
  "zerocopy",
  "zeroize",
@@ -1316,8 +1317,8 @@ dependencies = [
 
 [[package]]
 name = "graft-sdk"
-version = "0.3.30"
-source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
+version = "0.3.34"
+source = "git+https://github.com/eidos-space/graft?rev=136618aab8bc8085c9956bffcdda15f7919f7b77#136618aab8bc8085c9956bffcdda15f7919f7b77"
 dependencies = [
  "blake3",
  "graft",
@@ -1330,8 +1331,8 @@ dependencies = [
 
 [[package]]
 name = "graft-sqlite"
-version = "0.15.5"
-source = "git+https://github.com/eidos-space/graft?rev=cb8f2ef07c470b0c28d6bbc70d3397861e75c56d#cb8f2ef07c470b0c28d6bbc70d3397861e75c56d"
+version = "0.16.1"
+source = "git+https://github.com/eidos-space/graft?rev=136618aab8bc8085c9956bffcdda15f7919f7b77#136618aab8bc8085c9956bffcdda15f7919f7b77"
 dependencies = [
  "blake3",
  "bytes",
@@ -2600,7 +2601,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3075,7 +3076,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3477,7 +3478,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4132,7 +4133,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

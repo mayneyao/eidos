@@ -24,6 +24,8 @@ const SHA256 = /^[0-9a-f]{64}$/
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/
 const INPUT_KEY = /^[A-Za-z0-9_-]{16,64}$/
 const CONTROL = /[\u0000-\u001f\u007f]/
+// Multiline form copy supports tabs and CR/LF, matching the local Form editor.
+const MULTILINE_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/
 const FIELD_TYPES = new Set<PublishedFormFieldType>([
   "integer",
   "text",
@@ -278,7 +280,8 @@ export function parsePublishedFormDefinition(
   const successMessage = requiredText(
     presentation.successMessage,
     1024,
-    "success message"
+    "success message",
+    true
   )
   if (
     !Array.isArray(root.fields) ||
@@ -792,11 +795,16 @@ function plainRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function requiredText(value: unknown, maxBytes: number, name: string): string {
+function requiredText(
+  value: unknown,
+  maxBytes: number,
+  name: string,
+  multiline = false
+): string {
   if (
     typeof value !== "string" ||
     value.trim().length === 0 ||
-    CONTROL.test(value) ||
+    (multiline ? MULTILINE_CONTROL : CONTROL).test(value) ||
     encoder.encode(value).byteLength > maxBytes
   ) {
     throw invalid("form_definition_invalid", `Invalid Form ${name}`)
@@ -810,7 +818,7 @@ function nullableText(
   name: string
 ): string | null {
   if (value === null) return null
-  return requiredText(value, maxBytes, name)
+  return requiredText(value, maxBytes, name, true)
 }
 
 function escapeHtml(value: string): string {

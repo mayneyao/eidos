@@ -3,6 +3,7 @@ import os from "node:os"
 import { app, safeStorage, shell } from "electron"
 
 import type { EidosLiteServiceEnvironment } from "../../shared/service-environment"
+import { accountStorageKey } from "../../shared/service-environment"
 import { AccountSyncClient } from "../account/account-sync-client"
 import { AccountSessionService } from "../account/account-session"
 import { AccountProfileStore } from "../account/account-profile-store"
@@ -19,7 +20,7 @@ export function createSyncControlPlane(
     path.join(
       app.getPath("userData"),
       "accounts",
-      environment.name,
+      accountStorageKey(environment),
       "oauth-session.bin"
     ),
     {
@@ -50,7 +51,7 @@ export function createSyncControlPlane(
       path.join(
         app.getPath("userData"),
         "accounts",
-        environment.name,
+        accountStorageKey(environment),
         "profile.json"
       )
     )

@@ -5,7 +5,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react"
-import { X, Plus, Search } from "lucide-react"
+import { X, Plus, Search, Database } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
 import type { ExplorerSort } from "./explorer-sort"
@@ -32,8 +32,10 @@ export function WorkspaceHeading({
   sort,
   onSortChange,
   spaceSwitcher,
+  onManageFiles,
 }: {
   spaceSwitcher?: ReactNode
+  onManageFiles?: () => void
   name: string
   path: string
   directory?: string | null
@@ -62,7 +64,7 @@ export function WorkspaceHeading({
   }[]
 }) {
   const { t } = useEidosLiteI18n()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState<false | "create" | "context">(false)
   const menu = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const input = useRef<HTMLInputElement>(null)
@@ -82,7 +84,17 @@ export function WorkspaceHeading({
   }, [menuOpen])
   useEffect(() => setMenuOpen(false), [searching])
   return (
-    <div className="space-heading">
+    <div
+      className="space-heading"
+      onContextMenu={
+        onManageFiles
+          ? (event) => {
+              event.preventDefault()
+              setMenuOpen("context")
+            }
+          : undefined
+      }
+    >
       {searching ? (
         <div
           className="workspace-heading-search"
@@ -203,6 +215,18 @@ export function WorkspaceHeading({
           {sort && onSortChange && (
             <ExplorerSortMenu sort={sort} onChange={onSortChange} />
           )}
+          {onManageFiles ? (
+            <button
+              type="button"
+              className="icon-button"
+              disabled={navigationDisabled}
+              onClick={onManageFiles}
+              aria-label={t("Manage files")}
+              title={t("Manage files")}
+            >
+              <Database size={14} />
+            </button>
+          ) : null}
           <div
             className="workspace-heading-menu"
             ref={menu}
@@ -225,8 +249,10 @@ export function WorkspaceHeading({
               className="icon-button"
               aria-label={t("Create")}
               title={t("Create")}
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
+              aria-expanded={!!menuOpen}
+              onClick={() =>
+                setMenuOpen((open) => (open === "create" ? false : "create"))
+              }
             >
               <Plus size={14} />
             </button>
@@ -234,8 +260,23 @@ export function WorkspaceHeading({
               <div
                 className="workspace-heading-menu-content"
                 role="group"
-                aria-label={t("Create")}
+                aria-label={t(
+                  menuOpen === "context" ? "Manage files" : "Create"
+                )}
               >
+                {onManageFiles && menuOpen === "context" ? (
+                  <button
+                    type="button"
+                    disabled={navigationDisabled}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onManageFiles()
+                    }}
+                  >
+                    <Database />
+                    {t("Manage files")}
+                  </button>
+                ) : null}
                 {actions.map((action) => (
                   <button
                     type="button"

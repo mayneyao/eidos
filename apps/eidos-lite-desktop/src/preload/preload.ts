@@ -23,6 +23,12 @@ import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
+  getSparkStatus: (refresh) =>
+    ipcRenderer.invoke(IPC_CHANNELS.sparkStatus, refresh),
+  activateSpark: (licenseId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.sparkActivate, licenseId),
+  deactivateSpark: () => ipcRenderer.invoke(IPC_CHANNELS.sparkDeactivate),
+  openSpark: () => ipcRenderer.invoke(IPC_CHANNELS.sparkOpen),
   createPluginFile: (key, parent, name) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.createFile, key, parent, name),
   pluginSettings: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.settings, id),
@@ -186,6 +192,35 @@ const api: EidosLiteApi = {
   },
   openSettingsDestination: (destination) =>
     ipcRenderer.invoke(IPC_CHANNELS.settingsOpenDestination, destination),
+  openFileProperties: (path) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filePropertiesOpen, path),
+  selectFileProperties: (path) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filePropertiesSelect, path),
+  getFilePropertiesTarget: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.filePropertiesTarget),
+  resizeFileProperties: (height) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filePropertiesResize, height),
+  getFilePropertiesIcon: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.filePropertiesIcon),
+  onFilePropertiesChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, path: string | null) =>
+      listener(path)
+    ipcRenderer.on(IPC_CHANNELS.filePropertiesChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.filePropertiesChanged, handler)
+  },
+  onFilePropertiesPrepareClose: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, token: string) =>
+      listener(token)
+    ipcRenderer.on(IPC_CHANNELS.filePropertiesPrepareClose, handler)
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.filePropertiesPrepareClose,
+        handler
+      )
+  },
+  replyFilePropertiesClose: (token, allowed) =>
+    ipcRenderer.send(IPC_CHANNELS.filePropertiesCloseReply, token, allowed),
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
   copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
   readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
@@ -320,6 +355,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.closeFile, sessionId),
+  openFileMetadata: (directory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openFileMetadata, directory),
   createEidosFile: (parentRelativePath, name, template, contentFieldName) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.createEidosFile,
@@ -435,6 +472,10 @@ const api: EidosLiteApi = {
     args: RuntimeCalls[M]["args"]
   ) => ipcRenderer.invoke(IPC_CHANNELS.runtimeCall, sessionId, method, args),
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
+  getSpaceIgnoreRules: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesGet),
+  saveSpaceIgnoreRules: (rules) =>
+    ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesSave, rules),
   createCheckpoint: (message, paths) =>
     ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message, paths),
   getVersionChanges: (limit, after) =>

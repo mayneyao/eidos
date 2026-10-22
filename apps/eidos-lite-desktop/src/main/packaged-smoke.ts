@@ -12,6 +12,7 @@ import {
   type PackagedStartupTimings,
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
+import { RuntimePool } from "./runtime/runtime-pool"
 
 const EMPTY_MARKDOWN_SMOKE_CONTENT = "# Empty Markdown is editable"
 
@@ -278,12 +279,24 @@ const emptySpaceOnboardingProbe = `
   const textKind = kinds.find(button => button.textContent?.trim() === "Text")
   const eidosKind = kinds.find(button => button.textContent?.trim() === "Eidos")
   if (!textKind || !eidosKind) throw new Error("New File type controls are missing")
-  const initialHeight = dialog.getBoundingClientRect().height
+  if (!dialog.querySelector('.path-dialog-advanced input[type="checkbox"]')) {
+    throw new Error("Eidos file type is missing its Markdown content option")
+  }
   textKind.click()
   await waitFor(() => textKind.getAttribute("aria-checked") === "true", "Text file type")
-  if (Math.abs(dialog.getBoundingClientRect().height - initialHeight) > 1) throw new Error("New File type switching changes dialog height")
+  if (dialog.querySelector('.path-dialog-advanced') || dialog.querySelector('input[type="checkbox"]')) {
+    throw new Error("Text file type exposes Eidos-only content options")
+  }
+  const textBounds = dialog.getBoundingClientRect()
+  if (!dialog.isConnected || textBounds.height <= 0 || textBounds.top < 0 || textBounds.bottom > window.innerHeight) {
+    throw new Error("New File type switching loses the visible dialog")
+  }
+  if (!dialog.querySelector('input')?.value.endsWith('.md')) throw new Error("Text file type has the wrong extension")
   eidosKind.click()
   await waitFor(() => eidosKind.getAttribute("aria-checked") === "true", "Eidos file type")
+  if (!dialog.querySelector('.path-dialog-advanced input[type="checkbox"]')) {
+    throw new Error("Returning to Eidos file type loses its Markdown content option")
+  }
   const input = dialog.querySelector("input")
   if (!input) throw new Error("New File name input is missing")
   const setValue = Object.getOwnPropertyDescriptor(
@@ -891,69 +904,20 @@ const rendererProbe = `
   )
   if (!syncAction) throw new Error("Eidos Sync action is missing")
   syncAction.click()
-  const syncPanel = await waitFor(
-    () => {
-      const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
-      const candidateBadge = candidate?.querySelector(
-        '.environment-badge[data-service-environment="staging"]'
-      )
-      const badgeMatches = expectedServices.name === "staging"
-        ? Boolean(candidateBadge)
-        : !candidateBadge
-      return candidate?.dataset.syncAccountState === "signed-out" &&
-        candidate.dataset.syncEnvironment === expectedServices.name &&
-        Boolean(candidate.querySelector("[data-sync-sign-in]")) &&
-        badgeMatches
-        ? candidate
-        : null
-    },
-    "signed-out Eidos Sync control plane"
+  const syncVersionGate = await waitFor(
+    () => document.querySelector('.sync-dialog[data-sync-local-versions="required"]'),
+    "local versioning prerequisite for Eidos Sync"
   )
-  const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
-  const stagingBadge = syncPanel.querySelector(
-    '.environment-badge[data-service-environment="staging"]'
-  )
-  const syncControl = {
-    action: Boolean(syncAction),
-    iconAction: syncAction.textContent?.trim() === "",
-    panel: ["dialog", "complementary"].includes(
-      syncPanel.getAttribute("role") ?? ""
-    ),
-    environment:
-      syncPanel.dataset.syncEnvironment === expectedServices.name,
-    environmentBadge:
-      expectedServices.name === "staging"
-        ? Boolean(stagingBadge)
-        : !stagingBadge,
-    signedOut: syncPanel.dataset.syncAccountState === "signed-out",
-    gated: syncPanel.dataset.syncCanEnable === "false",
-    signInAvailable: Boolean(syncSignIn),
-    cloneApi:
-      typeof window.eidosLite.listSyncRepositories === "function" &&
-      typeof window.eidosLite.cloneSyncRepository === "function",
-    syncApi: typeof window.eidosLite.runSync === "function",
-    accountStatusApi:
-      typeof window.eidosLite.getAccountStatus === "function" &&
-      typeof window.eidosLite.onAccountChanged === "function",
-    syncProgressApi: typeof window.eidosLite.onSyncProgress === "function",
-    syncQueueApi: typeof window.eidosLite.getSyncQueueStatus === "function",
-    syncQueueEventsApi:
-      typeof window.eidosLite.onSyncQueueChanged === "function",
-    recoveryApi:
-      typeof window.eidosLite.copyLocalRecoverySpace === "function" &&
-      typeof window.eidosLite.cloneHostedRecoverySpace === "function",
+  if (!syncVersionGate.querySelector("[data-sync-open-versions]") ||
+      syncVersionGate.querySelector("[data-sync-sign-in]")) {
+    throw new Error("Eidos Sync did not require local versions before sign-in")
   }
-  if (Object.values(syncControl).some((value) => !value)) {
-    throw new Error(
-      "Eidos Sync signed-out gate is incomplete: " + JSON.stringify(syncControl)
-    )
-  }
-  const closeSync = syncPanel.querySelector('[aria-label="Close Eidos Sync"]')
-  if (!closeSync) throw new Error("Eidos Sync close action is missing")
-  closeSync.click()
+  const closeSyncVersionGate = syncVersionGate.querySelector('[aria-label="Close Eidos Sync"]')
+  if (!closeSyncVersionGate) throw new Error("Eidos Sync prerequisite close action is missing")
+  closeSyncVersionGate.click()
   await waitFor(
     () => !document.querySelector(".sync-dialog") && true,
-    "closed Eidos Sync control plane"
+    "closed Eidos Sync prerequisite"
   )
   const initialSidebarWidth = sidebar.getBoundingClientRect().width
   sidebarResizer.dispatchEvent(
@@ -1416,6 +1380,72 @@ const rendererProbe = `
   await waitFor(
     () => !document.querySelector(".version-panel") && true,
     "closed Version panel"
+  )
+  window.__eidosLiteSmokeStep = "signed-out Sync after enabling versions"
+  syncAction.click()
+  const syncPanel = await waitFor(
+    () => {
+      const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
+      const candidateBadge = candidate?.querySelector(
+        '.environment-badge[data-service-environment="staging"]'
+      )
+      const badgeMatches = expectedServices.name === "staging"
+        ? Boolean(candidateBadge)
+        : !candidateBadge
+      return candidate?.dataset.syncAccountState === "signed-out" &&
+        candidate.dataset.syncEnvironment === expectedServices.name &&
+        Boolean(candidate.querySelector("[data-sync-sign-in]")) &&
+        badgeMatches
+        ? candidate
+        : null
+    },
+    "signed-out Eidos Sync control plane"
+  )
+  const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
+  const stagingBadge = syncPanel.querySelector(
+    '.environment-badge[data-service-environment="staging"]'
+  )
+  const syncControl = {
+    action: Boolean(syncAction),
+    iconAction: syncAction.textContent?.trim() === "",
+    panel: ["dialog", "complementary"].includes(
+      syncPanel.getAttribute("role") ?? ""
+    ),
+    environment:
+      syncPanel.dataset.syncEnvironment === expectedServices.name,
+    environmentBadge:
+      expectedServices.name === "staging"
+        ? Boolean(stagingBadge)
+        : !stagingBadge,
+    signedOut: syncPanel.dataset.syncAccountState === "signed-out",
+    gated: syncPanel.dataset.syncCanEnable === "false",
+    signInAvailable: Boolean(syncSignIn),
+    cloneApi:
+      typeof window.eidosLite.listSyncRepositories === "function" &&
+      typeof window.eidosLite.cloneSyncRepository === "function",
+    syncApi: typeof window.eidosLite.runSync === "function",
+    accountStatusApi:
+      typeof window.eidosLite.getAccountStatus === "function" &&
+      typeof window.eidosLite.onAccountChanged === "function",
+    syncProgressApi: typeof window.eidosLite.onSyncProgress === "function",
+    syncQueueApi: typeof window.eidosLite.getSyncQueueStatus === "function",
+    syncQueueEventsApi:
+      typeof window.eidosLite.onSyncQueueChanged === "function",
+    recoveryApi:
+      typeof window.eidosLite.copyLocalRecoverySpace === "function" &&
+      typeof window.eidosLite.cloneHostedRecoverySpace === "function",
+  }
+  if (Object.values(syncControl).some((value) => !value)) {
+    throw new Error(
+      "Eidos Sync signed-out gate is incomplete: " + JSON.stringify(syncControl)
+    )
+  }
+  const closeSync = syncPanel.querySelector('[aria-label="Close Eidos Sync"]')
+  if (!closeSync) throw new Error("Eidos Sync close action is missing")
+  closeSync.click()
+  await waitFor(
+    () => !document.querySelector(".sync-dialog") && true,
+    "closed Eidos Sync control plane"
   )
   window.__eidosLiteSmokeStep = "checkpoint row insert"
   const versionSnapshots = []
@@ -2132,29 +2162,72 @@ export async function runPackagedSmoke(
       path.join(spaceRoot, "VTab Smoke/proof.txt"),
       "metadata smoke"
     )
-    const metadataFile = await session.createEidosFile(
-      "VTab Smoke",
-      "files.eidos",
-      "files-index"
-    )
-    const metadataRuntime = await session.openEidosFile(
-      metadataFile.relativePath!
-    )
+    let metadataCreationBlocked = false
+    try {
+      await session.createEidosFile("VTab Smoke", "files.eidos", "files-index")
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("Activate Spark")
+      )
+        throw error
+      metadataCreationBlocked = true
+    }
+    if (!metadataCreationBlocked)
+      throw new Error("Unlicensed Spark metadata creation was allowed")
+    // Fixture setup verifies the packaged Runtime independently of the host's
+    // commercial guard. Existing files must remain readable without a grant.
+    await fs.mkdir(path.join(spaceRoot, ".eidos"), { recursive: true })
+    // Host watchers may invalidate their own pool when this catalog appears.
+    // Prepare the fixture in a separate pool so that lifecycle cannot close
+    // the fixture session before its metadata is written.
+    const fixturePool = new RuntimePool(await fs.realpath(spaceRoot))
+    const fixture = await fixturePool.create(".eidos/files.eidos", "Files", {
+      template: "files-index",
+    })
+    try {
+      const table = fixture.snapshot.tables[0]!
+      const field = table.fields.find((field) => field.name === "rating")!
+      await fixturePool.call(fixture.sessionId, "updateRow", [
+        table.table.id,
+        "VTab Smoke/proof.txt",
+        { [field.id!]: 4 },
+      ])
+    } finally {
+      await fixturePool.closeSession(fixture.sessionId)
+    }
+    const metadataRuntime = await session.openFileMetadata("VTab Smoke")
+    if (metadataRuntime.relativePath !== ".eidos/files.eidos")
+      throw new Error(
+        "Packaged file management did not reuse the Space catalog"
+      )
     const metadataTable = metadataRuntime.snapshot.tables[0]!
     const rating = metadataTable.fields.find(
       (field) => field.name === "rating"
     )!
     if (metadataTable.table.settings?.tableType !== "virtual" || !rating)
       throw new Error("Packaged fs_meta table unavailable")
-    await session.callRuntime(metadataRuntime.sessionId, "updateRow", [
-      metadataTable.table.id,
-      "proof.txt",
-      { [rating.id!]: 4 },
-    ])
+    let metadataMutationBlocked = false
+    try {
+      await session.callRuntime(metadataRuntime.sessionId, "updateRow", [
+        metadataTable.table.id,
+        "VTab Smoke/proof.txt",
+        { [rating.id!]: 5 },
+      ])
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("Activate Spark")
+      )
+        throw error
+      metadataMutationBlocked = true
+    }
+    if (!metadataMutationBlocked)
+      throw new Error("Unlicensed Spark metadata editing was allowed")
     const metadataRow = await session.callRuntime(
       metadataRuntime.sessionId,
       "getRow",
-      [metadataTable.table.id, "proof.txt"]
+      [metadataTable.table.id, "VTab Smoke/proof.txt"]
     )
     if (metadataRow?.[rating.id!] !== "4")
       throw new Error("Packaged fs_meta update lost metadata")

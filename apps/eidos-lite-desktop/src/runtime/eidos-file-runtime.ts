@@ -41,6 +41,8 @@ import {
 import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
 import { createFsMetaEidosFile, type FsMetaCustomField } from "./fs-meta-file"
 import type { FileMetadataSchema } from "../shared/contracts"
+import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
+import { SpaceMetadataConnectionPort } from "./space-metadata-connection"
 
 const MAX_CSV_ROWS = 2_000_000
 const MAX_CSV_COLUMNS = 500
@@ -740,8 +742,7 @@ async function bindRuntime(
     return {
       source,
       initialSnapshot,
-      findFileEntry: (entryId) =>
-        findEidosFileEntry(connection.database, entryId),
+      findFileEntry: (entryId) => findEidosFileEntry(connection, entryId),
       allocateFileEntry: (request) =>
         hostBridge.allocateFileEntry(
           request,
@@ -780,33 +781,31 @@ async function bindRuntime(
 }
 
 function findEidosFileEntry(
-  database: DatabaseSync,
+  connection: NodeSqliteConnectionPort,
   entryId: string
 ): FileEntry | null {
-  const fields = database
-    .prepare(
-      `SELECT t.physical_name AS table_name, f.physical_name AS column_name
+  const database = new ConnectionPortEidosFileConnection(connection)
+  const fields = database.query<{ table_name: string; column_name: string }>(
+    `SELECT t.physical_name AS table_name, f.physical_name AS column_name
          FROM eidos__fields f
          JOIN eidos__tables t ON t.id = f.table_id
         WHERE f.type = 'file' AND f.physical_name IS NOT NULL
         ORDER BY f.table_id COLLATE BINARY, f.id COLLATE BINARY`
-    )
-    .all() as Array<{ table_name: string; column_name: string }>
+  )
   let matched: FileEntry | null = null
   for (const field of fields) {
     const column = quoteIdentifier(field.column_name)
     const table = quoteIdentifier(field.table_name)
-    const values = database
-      .prepare(
-        `SELECT ${column} AS value
+    const values = database.query<{ value: unknown }>(
+      `SELECT ${column} AS value
            FROM ${table}
           WHERE ${column} IS NOT NULL
             AND (json_valid(${column}) = 0 OR EXISTS (
               SELECT 1 FROM json_each(${column}) item
                WHERE json_extract(item.value, '$.id') = ?
-            ))`
-      )
-      .all(entryId) as Array<{ value: unknown }>
+            ))`,
+      [entryId]
+    )
     for (const row of values) {
       if (typeof row.value !== "string") {
         throw new Error("Stored File value is not TEXT")
@@ -838,11 +837,12 @@ export async function createEidosLiteFileRuntime(
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
   const baseName = path.basename(filePath).toLowerCase()
+  const spaceCatalog =
+    filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH
   if (
     options?.template === "files-index" ||
-    baseName === "files.eidos" ||
-    baseName === "_files.eidos" ||
-    baseName === "_fs_meta.eidos"
+    (options?.template !== "blank" &&
+      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(baseName))
   ) {
     createFsMetaEidosFile(filePath, {
       title:
@@ -850,7 +850,8 @@ export async function createEidosLiteFileRuntime(
           ? "Files"
           : title,
       tableName: "files",
-      root: ".",
+      root: spaceCatalog ? ".." : ".",
+      ignore: spaceCatalog ? [".eidos"] : undefined,
       namespace: options?.metadataSchema?.namespace,
       customFields: options?.metadataSchema?.fields.map(
         (field): FsMetaCustomField => {
@@ -973,7 +974,10 @@ export async function openEidosLiteFileRuntime(
     timeout: 5_000,
   })
 
-  const connection = new NodeSqliteConnectionPort(database, { readOnly })
+  const connection =
+    filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH
+      ? new SpaceMetadataConnectionPort(database, readOnly)
+      : new NodeSqliteConnectionPort(database, { readOnly })
   try {
     loadDeclaredVTabExtensions(database)
     const binding = await Runtime.open(

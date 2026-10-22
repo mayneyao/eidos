@@ -14,6 +14,42 @@
 
 ## Editor composition
 
+File properties are a Lite-owned addition to local files, not an Eidos File UI
+feature. Lite owns file identity, filesystem-to-record mapping, inspector chrome,
+Spark access, and per-Space property-panel preferences. The inspector and the
+Grid share the managed `.eidos/files.eidos` catalog and canonical Runtime writes.
+The file property inspector is a separate, non-modal native window, reused per
+Space window and following that window's active file. Closing it does not close
+the Space or its shared catalog Runtime. Closing or replacing the owning Space
+revokes the inspector's session access. Native window chrome owns system controls
+on every platform; the inspector does not consume a workbench sidebar slot.
+Its visual structure follows Finder's Get Info window: a compact file identity,
+disclosure sections with hairline separators, right-aligned property labels,
+and small native-looking controls. These inspector styles are scoped to Lite;
+they do not change the shared editors' default sizing in other hosts.
+Use the actual macOS Finder Get Info window as the reference: a 400-point
+window, system document icon, filename and byte size on the first line,
+modification time below. Tags follow the same custom-field list and editor as
+every other field, without a dedicated header or name-based behavior. Display
+the location as selectable path text with a separate copy button. All section
+headers share one 20-point disclosure row with regular-weight text and
+full-width separators. The native window fits the content as sections collapse
+and expand, bounded by the current display's work area. Do not add a refresh
+toolbar or a permanent autosave footer. Labels are not configuration buttons;
+field definitions and option management belong in the file manager. A small
+add control opens a Lite-owned creation form, rather than the full shared field
+configuration interface. Shared editors provide an opt-in compact presentation.
+Saving a value preserves focus and queues writes; its own Runtime result must
+not trigger an inspector reload. Escape discards the draft before blur can save it.
+On macOS, read the system document icon resource directly: the asynchronous
+Electron 43.2.0 file-icon lookup can terminate the browser process. Missing icons
+are optional. Native title bars follow the same appearance preference as fields.
+Panel visibility and order use the `eidos.file-properties` table configuration
+namespace, independently of saved Grid Views. Fields and their values remain
+shared across the Space. `eidos-file-ui` supplies only host-neutral field editors,
+field configuration, and presentation primitives; it knows nothing about the
+Space filesystem, local-file selection, or Spark.
+
 The workbench owns only Space-level chrome: a path-first `@pierre/trees`
 Explorer, the active-file titlebar, operation status, and version management.
 The Explorer uses canonical Space-relative paths for focus and selection. It
@@ -63,7 +99,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.33"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.34"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -360,7 +396,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.33`,
+The SDK adapter pins published `@eidos.space/graft@0.3.34`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
@@ -624,7 +660,7 @@ conflict is never by itself proof that an Eidos candidate is safe.
    Abort restores the pre-merge Local head and retains Hosted history.
 
 The merge surface is compiled against a type-only snapshot kept aligned with
-the published Graft 0.3.33 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
+the published Graft 0.3.34 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
 a compatible local package in source development and tests; production always
 resolves the pinned SDK and fails closed with a typed unavailable result if its
 runtime contract is incomplete.

@@ -187,6 +187,19 @@ CREATE VIRTUAL TABLE "files" USING fs_meta(
 5. 在画廊视图（Gallery View）中，将 `layout_json.coverField` 指向此 `file` 字段 ID，画廊卡片即可直接从本地磁盘加载并渲染图片封面预览。
 6. 宿主运行时通过既有的 `resolveEidosFileAttachment` 机制，自动将 `uri` 解析为相对于 `files.eidos` 所在目录的本地物理文件。
 
+### 5.2. Lite Space 全局目录宿主约定
+
+Lite 管理的 Space 全局配置位于 `.eidos/files.eidos`，扫描根目录为 `..`，
+扫描排除 `.eidos`。文件夹管理均打开这一份配置，自定义字段和保存的视图共享。
+目录范围包含后代目录，通过规范 Runtime 查询 API 与保存的筛选条件取交集。
+目录范围属于导航状态，不得写入共享视图的筛选定义。
+不得自动合并、移动或删除已有配置。
+
+仅对于此宿主管理的配置，Lite SQLite 适配器将原生系统 File 列的
+`../<path>` URI 转换为受限的 Space 相对路径 `<path>`，再传入 Runtime。
+普通 File 值继续使用规范 URI 校验。Lite 相对于 Space 根目录解析这些附件，
+拒绝路径逃逸、符号链接及私有实现目录。这种适配不修改已存储的字段值或普通 File 语义。
+
 ## 6. 运行时语义 (`ER-VTab-1.0`)
 
 符合 `ER-VTab-1.0` 的运行时实现必须满足以下操作契约：

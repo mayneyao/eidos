@@ -405,15 +405,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                 ) { favorite ->
                                                     val file =
                                                         state.favoriteFiles[favorite.path]
-                                                            ?: SpaceFile(
-                                                                favorite.path,
-                                                                favorite.path.substringAfterLast(
-                                                                    '/'
-                                                                ),
-                                                                false,
-                                                                0,
-                                                                0,
-                                                            )
+                                                            ?: return@items
                                                     FileRow(
                                                         file = file,
                                                         enabled = !state.busy,

@@ -46,14 +46,14 @@ The declared result type must be one of: `text`, `number`, `integer`, `checkbox`
 
 ## Supported SQLite functions
 
-| Category | Functions |
-| --- | --- |
-| Null and choice | `COALESCE`, `IFNULL`, `IIF`, `NULLIF` |
-| Numeric | `ABS`, `CEIL`, `CEILING`, `FLOOR`, `ROUND`, `SIGN`, scalar `MAX`, scalar `MIN` |
-| Text | `CHAR`, `CONCAT`, `CONCAT_WS`, `FORMAT`, `PRINTF`, `INSTR`, `LENGTH`, `OCTET_LENGTH`, `LOWER`, `UPPER`, `LTRIM`, `RTRIM`, `TRIM`, `REPLACE`, `SUBSTR`, `SUBSTRING`, `UNICODE` |
-| Pattern | `GLOB`, `LIKE` |
-| Inspection | `HEX`, `QUOTE`, `TYPEOF` |
-| Date and time | `DATE`, `DATETIME`, `TIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, `TIMEDIFF` |
+| Category        | Functions                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Null and choice | `COALESCE`, `IFNULL`, `IIF`, `NULLIF`                                                                                                                                         |
+| Numeric         | `ABS`, `CEIL`, `CEILING`, `FLOOR`, `ROUND`, `SIGN`, scalar `MAX`, scalar `MIN`                                                                                                |
+| Text            | `CHAR`, `CONCAT`, `CONCAT_WS`, `FORMAT`, `PRINTF`, `INSTR`, `LENGTH`, `OCTET_LENGTH`, `LOWER`, `UPPER`, `LTRIM`, `RTRIM`, `TRIM`, `REPLACE`, `SUBSTR`, `SUBSTRING`, `UNICODE` |
+| Pattern         | `GLOB`, `LIKE`                                                                                                                                                                |
+| Inspection      | `HEX`, `QUOTE`, `TYPEOF`                                                                                                                                                      |
+| Date and time   | `DATE`, `DATETIME`, `TIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, `TIMEDIFF`                                                                                                  |
 
 Function names are ASCII case-insensitive.
 Accepted calls use SQLite 3.45 evaluation rules:
@@ -93,12 +93,12 @@ It excludes extension loading and JSON functions.
 Names like `IF`, `IS_NULL`, and `DATE_ADD_DAYS` are not aliases.
 Use standard SQLite function names:
 
-| Previous syntax | SQLite standard syntax |
-| --- | --- |
-| `IF(C, A, B)` | `IIF(C, A, B)` |
-| `IS_NULL(X)` | `X IS NULL` |
-| `LOWER_ASCII(X)` / `UPPER_ASCII(X)` | `LOWER(X)` / `UPPER(X)` |
-| `DATE_ADD_DAYS(D, 7)` | `DATE(D, '+7 days')` |
-| `DATE_DIFF_DAYS(A, B)` | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)` |
-| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')` |
-| `DATETIME_DIFF_MILLISECONDS(A, B)` | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |
+| Previous syntax                      | SQLite standard syntax                                      |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `IF(C, A, B)`                        | `IIF(C, A, B)`                                              |
+| `IS_NULL(X)`                         | `X IS NULL`                                                 |
+| `LOWER_ASCII(X)` / `UPPER_ASCII(X)`  | `LOWER(X)` / `UPPER(X)`                                     |
+| `DATE_ADD_DAYS(D, 7)`                | `DATE(D, '+7 days')`                                        |
+| `DATE_DIFF_DAYS(A, B)`               | `CAST(JULIANDAY(A) - JULIANDAY(B) AS INTEGER)`              |
+| `DATETIME_ADD_MILLISECONDS(D, 1000)` | `DATETIME(D, '+1 second', 'subsec')`                        |
+| `DATETIME_DIFF_MILLISECONDS(A, B)`   | `CAST((JULIANDAY(A) - JULIANDAY(B)) * 86400000 AS INTEGER)` |

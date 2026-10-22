@@ -2,6 +2,10 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { readGraftSourceSnapshotPolicy } from "./graft-snapshot-policy.mjs"
+import {
+  resolveSparkPublicKey,
+  verifySparkKeyArtifact,
+} from "./spark-key-policy.mjs"
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const expectedName = process.argv[2]
@@ -38,6 +42,26 @@ if (JSON.stringify(manifest) !== JSON.stringify(expected)) {
     `Eidos Lite ${expectedName} build environment mismatch: ${JSON.stringify(manifest)}`
   )
 }
+
+const electronOutput = path.join(appRoot, "dist-electron")
+const sparkKey = resolveSparkPublicKey(expectedName)
+verifySparkKeyArtifact(
+  JSON.parse(
+    await fs.readFile(
+      path.join(electronOutput, "spark-key-build-policy.json"),
+      "utf8"
+    )
+  ),
+  sparkKey,
+  await Promise.all(
+    (await fs.readdir(electronOutput))
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => fs.readFile(path.join(electronOutput, name), "utf8"))
+  )
+)
+console.log(
+  `Verified Spark ${expectedName} public key SHA-256: ${sparkKey.sha256}`
+)
 
 const graftPolicy = JSON.parse(
   await fs.readFile(

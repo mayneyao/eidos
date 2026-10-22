@@ -1,5 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react"
-import { ChevronRight, CircleHelp, LoaderCircle, X } from "lucide-react"
+import {
+  FileText,
+  LayoutTemplate,
+  LoaderCircle,
+  Table2,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -43,7 +50,7 @@ export function PathActionDialog({
     contentFieldName?: string
   ): void
 }) {
-  const { t, locale } = useEidosLiteI18n()
+  const { t } = useEidosLiteI18n()
   const config = {
     "create-linked-note": {
       title: t("Create linked note?"),
@@ -79,9 +86,9 @@ export function PathActionDialog({
   }[state.action]
   const [value, setValue] = useState(config.initial)
   const [selectedKind, setSelectedKind] = useState<FileKind>("eidos")
-  const [isFileTable, setIsFileTable] = useState(false)
   const [includeContent, setIncludeContent] = useState(false)
   const contentHintId = useId()
+  const titleId = useId()
   const [templates, setTemplates] = useState<
     Array<{ key: string; title: string; extension: string }>
   >([])
@@ -124,6 +131,15 @@ export function PathActionDialog({
     const extension = input.value.lastIndexOf(".")
     input.setSelectionRange(0, extension > 0 ? extension : input.value.length)
   }, [state.action])
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || busy) return
+      event.preventDefault()
+      onCancel()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [busy, onCancel])
   const destructive = state.action === "delete"
 
   const fileKinds: FileKindOption[] = [
@@ -137,23 +153,10 @@ export function PathActionDialog({
     },
   ]
 
-  const trimmed = value.trim().toLowerCase()
-  const isFilesEidosName =
-    trimmed === "files.eidos" ||
-    trimmed === "_files.eidos" ||
-    trimmed === "_fs_meta.eidos" ||
-    trimmed.endsWith("._files.eidos") ||
-    trimmed.endsWith(".files.eidos")
-
-  const effectiveIsFileTable =
-    !pluginTemplate &&
-    selectedKind === "eidos" &&
-    (isFileTable || isFilesEidosName)
-
   const currentTemplateId: FileTemplateId = (() => {
     if (pluginTemplate) return `plugin:${pluginTemplate}`
     if (selectedKind === "eidos") {
-      return effectiveIsFileTable ? "files-index" : "eidos"
+      return "eidos"
     }
     return "text"
   })()
@@ -174,12 +177,14 @@ export function PathActionDialog({
       id: kind.id,
       title: kind.label,
       extension: kind.id === "eidos" ? ".eidos" : ".md",
+      icon: (kind.id === "eidos" ? Table2 : FileText) as LucideIcon,
       select: () => handleSelectKind(kind),
     })),
     ...templates.map((template) => ({
       id: `plugin:${template.key}`,
       title: template.title,
       extension: template.extension,
+      icon: LayoutTemplate as LucideIcon,
       select: () => {
         if (pluginTemplate === template.key) return
         setPluginTemplate(template.key)
@@ -196,25 +201,20 @@ export function PathActionDialog({
     ? `plugin:${pluginTemplate}`
     : selectedKind
 
-  const handleToggleFileTable = () => {
-    if (effectiveIsFileTable) {
-      setIsFileTable(false)
-      if (isFilesEidosName || value.trim() === "files.eidos") {
-        setValue("Untitled.eidos")
-      }
-    } else {
-      setIsFileTable(true)
-      if (value.trim() === "Untitled.eidos") {
-        setValue("files.eidos")
-      }
-    }
-  }
-
   return (
-    <div className="path-dialog-backdrop" role="presentation">
+    <div
+      className="path-dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel()
+      }}
+    >
       <form
         className="path-dialog"
         data-action={state.action}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         aria-label={config.title}
         onSubmit={(event) => {
           event.preventDefault()
@@ -223,10 +223,7 @@ export function PathActionDialog({
             if (currentTemplateId === "eidos" && includeContent) {
               onSubmit(value, currentTemplateId, t("Content"))
             } else {
-              onSubmit(
-                effectiveIsFileTable ? "files.eidos" : value,
-                currentTemplateId
-              )
+              onSubmit(value, currentTemplateId)
             }
           } else {
             onSubmit(value)
@@ -234,7 +231,7 @@ export function PathActionDialog({
         }}
       >
         <header>
-          <strong>{config.title}</strong>
+          <strong id={titleId}>{config.title}</strong>
           <button
             type="button"
             className="icon-button"
@@ -258,6 +255,7 @@ export function PathActionDialog({
           <div className="path-dialog-fields">
             {state.action === "create-file" ? (
               <div className="path-dialog-types">
+                <p className="path-dialog-section-label">{t("Type")}</p>
                 <div
                   className="path-dialog-templates"
                   role="radiogroup"
@@ -297,22 +295,26 @@ export function PathActionDialog({
                       [next]?.focus()
                   }}
                 >
-                  {typeOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={selectedType === option.id}
-                      aria-label={`${option.title} (${option.extension})`}
-                      title={`${option.title} (${option.extension})`}
-                      tabIndex={selectedType === option.id ? 0 : -1}
-                      disabled={busy}
-                      className="path-dialog-template-btn"
-                      onClick={option.select}
-                    >
-                      <span>{option.title}</span>
-                    </button>
-                  ))}
+                  {typeOptions.map((option) => {
+                    const Icon = option.icon
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selectedType === option.id}
+                        aria-label={`${option.title} (${option.extension})`}
+                        title={`${option.title} (${option.extension})`}
+                        tabIndex={selectedType === option.id ? 0 : -1}
+                        disabled={busy}
+                        className="path-dialog-template-btn"
+                        onClick={option.select}
+                      >
+                        <Icon aria-hidden="true" />
+                        <span>{option.title}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             ) : null}
@@ -322,89 +324,34 @@ export function PathActionDialog({
               <input
                 ref={nameInput}
                 autoFocus
-                value={
-                  state.action === "create-file" && effectiveIsFileTable
-                    ? "files.eidos"
-                    : value
-                }
+                value={value}
                 onChange={(event) => setValue(event.target.value)}
                 disabled={busy}
-                readOnly={
-                  state.action === "create-linked-note" ||
-                  (state.action === "create-file" && effectiveIsFileTable)
-                }
+                readOnly={state.action === "create-linked-note"}
               />
             </label>
-            {state.action === "create-file" ? (
-              !pluginTemplate && selectedKind === "eidos" ? (
-                <details className="path-dialog-options">
-                  <summary>
-                    <ChevronRight aria-hidden="true" />
-                    {t("Advanced options")}
-                  </summary>
-                  <div className="path-dialog-options-fields">
-                    <div className="path-dialog-metadata">
-                      <label className="path-dialog-option-label">
-                        <input
-                          type="checkbox"
-                          checked={effectiveIsFileTable}
-                          onChange={handleToggleFileTable}
-                          disabled={busy}
-                        />
-                        <span>{t("Manage folder file metadata")}</span>
-                      </label>
-                      <button
-                        type="button"
-                        className="path-dialog-hint-help-btn"
-                        disabled={busy}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          const docUrl = locale.startsWith("zh")
-                            ? "https://docs.eidos.space/zh-cn/user-guide/file-metadata/"
-                            : "https://docs.eidos.space/user-guide/file-metadata/"
-                          void window.eidosLite?.openExternalUrl(docUrl)
-                        }}
-                        title={t(
-                          "Manage file metadata directly in the current folder with custom fields and visual views."
-                        )}
-                        aria-label={t("Learn more in documentation")}
-                      >
-                        <CircleHelp className="path-dialog-hint-help-icon" />
-                      </button>
-                    </div>
-                    {!effectiveIsFileTable ? (
-                      <div>
-                        <label className="path-dialog-option-label">
-                          <input
-                            type="checkbox"
-                            checked={includeContent}
-                            onChange={(event) =>
-                              setIncludeContent(event.target.checked)
-                            }
-                            disabled={busy}
-                            aria-describedby={contentHintId}
-                          />
-                          <span>{t("Include Markdown content")}</span>
-                        </label>
-                        <p
-                          id={contentHintId}
-                          className="path-dialog-option-hint"
-                        >
-                          {t(
-                            "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field."
-                          )}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </details>
-              ) : (
-                <div
-                  className="path-dialog-options-placeholder"
-                  aria-hidden="true"
-                />
-              )
+            {state.action === "create-file" &&
+            !pluginTemplate &&
+            selectedKind === "eidos" ? (
+              <div className="path-dialog-advanced">
+                <label className="path-dialog-option-label">
+                  <input
+                    type="checkbox"
+                    checked={includeContent}
+                    onChange={(event) =>
+                      setIncludeContent(event.target.checked)
+                    }
+                    disabled={busy}
+                    aria-describedby={contentHintId}
+                  />
+                  <span>{t("Include Markdown content")}</span>
+                </label>
+                <p id={contentHintId} className="path-dialog-option-hint">
+                  {t(
+                    "Adds a Text field for record content, editable with the Markdown editor."
+                  )}
+                </p>
+              </div>
             ) : state.action === "create-linked-note" ? (
               <div className="path-dialog-hint">
                 <p>
@@ -417,7 +364,12 @@ export function PathActionDialog({
           </div>
         )}
         <footer>
-          <button type="button" onClick={onCancel} disabled={busy}>
+          <button
+            type="button"
+            className="quiet-action"
+            onClick={onCancel}
+            disabled={busy}
+          >
             {t("Cancel")}
           </button>
           <button

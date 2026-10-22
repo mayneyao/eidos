@@ -458,6 +458,7 @@ describe("EidosFileGrid", () => {
     })
 
     expect(mocks.props?.rowMarkers).toBe("none")
+    expect(mocks.props?.verticalBorder).toBe(true)
     expect(
       container.querySelector('[data-testid="glide-grid"]')?.parentElement
         ?.classList
@@ -498,6 +499,27 @@ describe("EidosFileGrid", () => {
       table.fields[0],
       "Write implementation"
     )
+  })
+
+  it("hides vertical column dividers when the Grid view disables them", async () => {
+    const view = {
+      ...table.views[0]!,
+      properties: { showVerticalLines: false },
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={view}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.verticalBorder).toBe(false)
   })
 
   it("opens a Formula cell editor without activating Glide's generic overlay", async () => {

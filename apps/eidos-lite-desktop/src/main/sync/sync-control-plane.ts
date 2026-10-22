@@ -33,6 +33,9 @@ export interface SyncOperationContext {
 }
 
 export class SyncControlPlane {
+  sparkHardwareId(): Promise<string> {
+    return this.account.sparkHardwareId()
+  }
   private operationGeneration = 0
   private accountChangeGeneration: number | null = null
   private readonly operationContexts = new WeakSet<SyncOperationContext>()

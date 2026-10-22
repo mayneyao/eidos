@@ -21,6 +21,7 @@ export interface CreateFsMetaEidosFileOptions {
   tableName?: string
   root?: string
   namespace?: string
+  ignore?: string[]
   customFields?: FsMetaCustomField[]
 }
 
@@ -104,7 +105,7 @@ export function createFsMetaEidosFile(
     )
     const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
     db.exec(
-      `CREATE VIRTUAL TABLE "${tableName.replaceAll('"', '""')}" USING fs_meta(root = ${sqlString(root)}, namespace = ${sqlString(namespace)}, fields = ${sqlString(fieldsSql)});`
+      `CREATE VIRTUAL TABLE "${tableName.replaceAll('"', '""')}" USING fs_meta(root = ${sqlString(root)}, namespace = ${sqlString(namespace)}, fields = ${sqlString(fieldsSql)}${options.ignore?.length ? `, ignore = ${sqlString(options.ignore.join(","))}` : ""});`
     )
 
     // 4. Metadata registration (eidos__tables, eidos__fields, eidos__views)

@@ -547,7 +547,105 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain('data-version-initialized="false"')
     expect(markup).toContain("Start local versions")
     expect(markup).toContain("data-enable-versioning")
+    expect(markup).toContain("data-edit-ignore")
     expect(markup).not.toContain('role="tab"')
+  })
+
+  it("offers to exclude videos before the first version", () => {
+    const markup = renderToStaticMarkup(
+      createElement(VersionPanel, {
+        space: {
+          ...unversionedSpace,
+          entries: [
+            {
+              name: "clip.mp4",
+              relativePath: "clip.mp4",
+              kind: "file",
+              size: 30 * 1024 * 1024,
+              modifiedAtMs: 1,
+            },
+            {
+              name: "notes.md",
+              relativePath: "notes.md",
+              kind: "file",
+              size: 128,
+              modifiedAtMs: 1,
+            },
+          ],
+        },
+        refreshKey: 0,
+        onClose: () => undefined,
+        onSpaceChange: () => undefined,
+        onFilesMaterialized: () => undefined,
+        onRefresh: () => undefined,
+        onInspectionChange: () => undefined,
+      })
+    )
+    expect(markup).toContain("Preflight")
+    expect(markup).toContain("Videos: 1")
+    expect(markup).toContain("Large files: 1")
+    expect(markup).toContain("clip.mp4")
+    expect(markup).toContain("Build ignore rules")
+    expect(markup).not.toContain("data-ignore-template")
+    expect(markup).toContain("data-edit-ignore")
+  })
+
+  it("excludes ignored files from the preflight after rules load", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSpaceIgnoreRules: vi.fn().mockResolvedValue({
+          graftignore: "*.mp4\n",
+          gitignore: "",
+        }),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    try {
+      await act(async () =>
+        root.render(
+          createElement(VersionPanel, {
+            space: {
+              ...unversionedSpace,
+              entries: [
+                {
+                  name: "clip.mp4",
+                  relativePath: "clip.mp4",
+                  kind: "file",
+                  size: 30 * 1024 * 1024,
+                  modifiedAtMs: 1,
+                },
+                {
+                  name: "notes.md",
+                  relativePath: "notes.md",
+                  kind: "file",
+                  size: 100,
+                  modifiedAtMs: 1,
+                },
+              ],
+            },
+            refreshKey: 0,
+            onClose: () => undefined,
+            onSpaceChange: () => undefined,
+            onFilesMaterialized: () => undefined,
+            onRefresh: () => undefined,
+            onInspectionChange: () => undefined,
+          })
+        )
+      )
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain("Videos: 0")
+        expect(host.textContent).toContain("Large files: 0")
+      })
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      delete (window as { eidosLite?: EidosLiteApi }).eidosLite
+    }
   })
 
   it("defaults to all history and automatically crosses sparse document pages in StrictMode", async () => {

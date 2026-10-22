@@ -15,16 +15,23 @@ import {
 } from "./src/shared/service-environment"
 import { cleanElectronOutput } from "./src/main/electron-output-cleaner"
 import { readGraftSourceSnapshotPolicy } from "./scripts/graft-snapshot-policy.mjs"
+import { resolveSparkPublicKey } from "./scripts/spark-key-policy.mjs"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
 
 function buildEnvironmentManifest(
   environment: EidosLiteEnvironmentName,
-  graftSourceSnapshot: boolean
+  graftSourceSnapshot: boolean,
+  sparkKey: ReturnType<typeof resolveSparkPublicKey>
 ): Plugin {
   return {
     name: "eidos-lite-build-environment-manifest",
     generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "spark-key-build-policy.json",
+        source: `${JSON.stringify(sparkKey)}\n`,
+      })
       this.emitFile({
         type: "asset",
         fileName: "graft-sdk-build-policy.json",
@@ -96,6 +103,9 @@ export default defineConfig(({ mode, command }) => {
     defaultEnvironment === "staging" &&
     readGraftSourceSnapshotPolicy(path.resolve(appRoot, "../.."))
   const environmentDefine = {
+    __EIDOS_LITE_SPARK_PUBLIC_KEY__: JSON.stringify(
+      resolveSparkPublicKey(defaultEnvironment).publicKey
+    ),
     __EIDOS_LITE_DEFAULT_ENVIRONMENT__: JSON.stringify(defaultEnvironment),
     __EIDOS_LITE_UPDATES_ENABLED__: JSON.stringify(mode === "eidos-release"),
     __EIDOS_LITE_SOURCE_GRAFT_OVERRIDES__: JSON.stringify(command === "serve"),
@@ -118,7 +128,11 @@ export default defineConfig(({ mode, command }) => {
             define: environmentDefine,
             plugins: [
               cleanElectronOutput(path.join(appRoot, "dist-electron")),
-              buildEnvironmentManifest(defaultEnvironment, graftSourceSnapshot),
+              buildEnvironmentManifest(
+                defaultEnvironment,
+                graftSourceSnapshot,
+                resolveSparkPublicKey(defaultEnvironment)
+              ),
             ],
             resolve: { alias: aliases },
             build: {

@@ -34,6 +34,7 @@ import {
 
 import type {
   SpaceSnapshot,
+  SpaceIgnoreRules,
   SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionFileDiff,
@@ -56,6 +57,9 @@ import {
 } from "./version-table-diff"
 import { VersionWorkingMediaPreview } from "./version-media-preview"
 import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
+import { SpaceIgnoreBuilderDialog } from "./space-ignore-dialog"
+import { spaceIgnorePreflight } from "./space-ignore-rules"
+import { formatUsageBytes } from "./usage-meter"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
 
@@ -1200,6 +1204,39 @@ export function VersionPanel({
   onInspectionChange(inspection: VersionInspection | null): void
 }) {
   const { t } = useEidosLiteI18n()
+  const [ignoreRules, setIgnoreRules] = useState<SpaceIgnoreRules | null>(null)
+  const [ignoreBuilderOpen, setIgnoreBuilderOpen] = useState(false)
+  const [ignoreBusy, setIgnoreBusy] = useState(false)
+  const [ignoreError, setIgnoreError] = useState("")
+  const [ignoreNotice, setIgnoreNotice] = useState("")
+  const preflight = useMemo(
+    () => spaceIgnorePreflight(space.entries, { rules: ignoreRules }),
+    [ignoreRules, space.entries]
+  )
+  useEffect(() => {
+    setIgnoreRules(null)
+    setIgnoreBuilderOpen(false)
+    setIgnoreError("")
+    setIgnoreNotice("")
+    if (space.graft.initialized) return
+    let active = true
+    try {
+      const request = window.eidosLite.getSpaceIgnoreRules?.()
+      if (!request) return
+      void request
+        .then((rules) => {
+          if (active) setIgnoreRules(rules)
+        })
+        .catch((cause) => {
+          if (active) setIgnoreError(errorMessage(cause))
+        })
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    }
+    return () => {
+      active = false
+    }
+  }, [space.id, space.graft.initialized])
   const [historyScope, setHistoryScope] = useState<"all" | "current">("all")
   const [changesLayout, setChangesLayout] = useState<"tree" | "list">(() => {
     try {
@@ -1777,6 +1814,32 @@ export function VersionPanel({
     }
   }
 
+  const openIgnoreRules = async () => {
+    if (ignoreRules) {
+      setIgnoreBuilderOpen(true)
+      return
+    }
+    setIgnoreBusy(true)
+    setIgnoreError("")
+    try {
+      setIgnoreRules(await window.eidosLite.getSpaceIgnoreRules())
+      setIgnoreBuilderOpen(true)
+    } catch (cause) {
+      setIgnoreError(errorMessage(cause))
+    } finally {
+      setIgnoreBusy(false)
+    }
+  }
+
+  const saveIgnoreRules = async (rules: SpaceIgnoreRules) => {
+    const snapshot = await window.eidosLite.saveSpaceIgnoreRules(rules)
+    setIgnoreRules(rules)
+    setIgnoreBuilderOpen(false)
+    setIgnoreNotice(t("Ignore rules saved."))
+    onSpaceChange(snapshot)
+    onRefresh()
+  }
+
   const restore = async () => {
     if (!selectedCommit || !historyHead) return
     setBusy("restore")
@@ -2045,11 +2108,91 @@ export function VersionPanel({
             Save the first version of this Space. This stays local and does not
             require an account.
           </p>
+          <div className="version-setup-ignore" aria-busy={ignoreBusy}>
+            <div className="version-setup-ignore-heading">
+              <strong>{t("Preflight")}</strong>
+              <span>
+                {t("{files} files · {size}", {
+                  files: preflight.totalFiles.toLocaleString(),
+                  size: formatUsageBytes(preflight.totalBytes),
+                })}
+              </span>
+            </div>
+            <div className="version-setup-preflight">
+              <span>
+                {t("Videos")}: {preflight.videoCount.toLocaleString()} ·{" "}
+                {formatUsageBytes(preflight.videoBytes)}
+              </span>
+              <span>
+                {t("Large files")}: {preflight.largeFileCount.toLocaleString()}
+              </span>
+              <span>
+                {t("Symlinks")}: {preflight.symlinkCount.toLocaleString()}
+              </span>
+            </div>
+            <p>
+              {t(
+                "Version history stores every tracked file. Review these before the first version."
+              )}
+            </p>
+            {preflight.largeFiles.length > 0 ? (
+              <ul className="version-setup-large-files">
+                {preflight.largeFiles.map((file) => (
+                  <li key={file.path}>
+                    <span title={file.path}>{file.path}</span>
+                    <small>{formatUsageBytes(file.size)}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {preflight.largeFileCount > preflight.largeFiles.length ? (
+              <p className="version-setup-ignore-status">
+                {t("{count} more large files are not shown.", {
+                  count: (
+                    preflight.largeFileCount - preflight.largeFiles.length
+                  ).toLocaleString(),
+                })}
+              </p>
+            ) : null}
+            <div className="version-setup-ignore-actions">
+              <button
+                type="button"
+                data-edit-ignore
+                disabled={
+                  ignoreBusy ||
+                  busy !== null ||
+                  space.operation.phase !== "ready"
+                }
+                onClick={() => void openIgnoreRules()}
+              >
+                {ignoreBusy ? (
+                  <>
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                    {t("Loading…")}
+                  </>
+                ) : (
+                  t("Build ignore rules")
+                )}
+              </button>
+            </div>
+            {ignoreNotice ? (
+              <p className="version-setup-ignore-status" role="status">
+                {ignoreNotice}
+              </p>
+            ) : null}
+            {ignoreError ? (
+              <p className="version-setup-ignore-error" role="alert">
+                {ignoreError}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             className="panel-primary-action"
             data-enable-versioning
-            disabled={busy !== null || space.operation.phase !== "ready"}
+            disabled={
+              busy !== null || ignoreBusy || space.operation.phase !== "ready"
+            }
             onClick={() => void enableVersioning()}
           >
             {busy === "enable" ? (
@@ -2060,6 +2203,14 @@ export function VersionPanel({
             {busy === "enable" ? "Enabling…" : "Enable versioning"}
           </button>
         </section>
+        {ignoreBuilderOpen && ignoreRules ? (
+          <SpaceIgnoreBuilderDialog
+            rules={ignoreRules}
+            largeFiles={preflight.largeFiles}
+            onCancel={() => setIgnoreBuilderOpen(false)}
+            onSave={saveIgnoreRules}
+          />
+        ) : null}
       </aside>
     )
   }

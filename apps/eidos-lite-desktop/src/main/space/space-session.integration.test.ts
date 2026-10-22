@@ -273,7 +273,17 @@ describe("SpaceSession Graft-backed snapshots", () => {
         const watcher = session as unknown as {
           handleStableWatcherChange(paths: readonly string[]): Promise<void>
         }
+        const changes: SpaceSnapshot[] = []
+        const stop = session.onChanged((snapshot) => changes.push(snapshot))
+        await watcher.handleStableWatcherChange(["journals/2026/10/today.md"])
+        expect(changes.at(-1)?.externalChangePaths).toEqual([
+          "journals/2026/10/today.md",
+        ])
+        changes.length = 0
         await watcher.handleStableWatcherChange(["notes.eidos-wal"])
+        expect(changes.some((snapshot) => snapshot.externalChangePaths)).toBe(
+          false
+        )
         const after = await session.loadDirectory("journals/2026/10")
         const paths = flattenSpaceTree(after.entries).map(
           (entry) => entry.relativePath
@@ -291,6 +301,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
         // An actual full-rescan notification must still refresh loaded folders.
         await fs.writeFile(path.join(root, "journals/2026/10/new.md"), "new")
         await watcher.handleStableWatcherChange([])
+        expect(changes.at(-1)?.externalChangePaths).toEqual([])
+        stop()
         expect(
           flattenSpaceTree((await session.snapshot()).entries).map(
             (entry) => entry.relativePath

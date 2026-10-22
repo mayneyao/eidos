@@ -7,6 +7,7 @@ import {
 } from "./plugin-file-mutations"
 import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
+import type { SparkFeature } from "../../shared/spark"
 import { searchSpaceText } from "./text-search"
 import type {
   TextSearchProgress,
@@ -16,7 +17,6 @@ import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
-import { fileMetadataConfigPaths } from "../../shared/file-metadata-config"
 import {
   prepareMarkdownLinkMove,
   applyMarkdownLinkMove,
@@ -50,11 +50,11 @@ import type {
   GraftTrackedIgnoredPaths,
   GraftSpaceStatus,
   OpenEidosFileResult,
-  FileMetadataSchema,
   RuntimeCalls,
   RuntimeMethod,
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
+  SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
   SpaceVersionDiff,
@@ -124,6 +124,7 @@ import {
   listSpaceDirectory,
   listSpaceTree,
   normalizeMutableRelativePath,
+  normalizeVersionRelativePath,
   normalizeSpaceEntryName,
   resolveSpaceDirectory,
   resolveSpacePath,
@@ -131,6 +132,10 @@ import {
 } from "./space-paths"
 import { SpacePathIndex } from "./path-search"
 import { SpaceWatcher } from "./space-watcher"
+import {
+  normalizeFileMetadataDirectory,
+  SPACE_FILE_METADATA_PATH,
+} from "../../shared/file-metadata"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
 import { SpaceSyncConnectionStore } from "./sync-connection"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
@@ -380,6 +385,10 @@ interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
 }
 
 export class SpaceSession {
+  private readonly sparkRuntimePolicies = new Map<
+    string,
+    { connectionId: string; dataVersion: string; metadata: boolean }
+  >()
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
@@ -416,6 +425,7 @@ export class SpaceSession {
     RuntimeExternalChangeState
   >()
   private readonly runtimeSessionByPath = new Map<string, string>()
+  private fileMetadataOpen: Promise<OpenEidosFileResult> | null = null
 
   private async closeAndEvictRuntimeSessions(
     source: string
@@ -490,7 +500,10 @@ export class SpaceSession {
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
     private readonly stateDirectory: string,
-    workerPath?: string
+    workerPath?: string,
+    private readonly requireSparkFeature?: (
+      feature: SparkFeature
+    ) => Promise<void>
   ) {
     this.runtimePool = new RuntimePool(canonical.root, workerPath)
     this.pathIndex = new SpacePathIndex(canonical.root)
@@ -540,6 +553,7 @@ export class SpaceSession {
     options: {
       graft: GraftClient
       workerPath?: string
+      requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root)
@@ -552,13 +566,15 @@ export class SpaceSession {
     options: {
       graft: GraftClient
       workerPath?: string
+      requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
     const session = new SpaceSession(
       canonical,
       options.graft,
       path.join(userDataDirectory, "spaces", canonical.id),
-      options.workerPath
+      options.workerPath,
+      options.requireSparkFeature
     )
     try {
       await session.gate.recoverInterruptedOperation()
@@ -686,7 +702,8 @@ export class SpaceSession {
     this.assertRuntimeAvailable()
     this.prioritizeLocalWork()
     try {
-      await this.ensureAncestorDirectoriesLoaded(relativePath)
+      if (relativePath !== SPACE_FILE_METADATA_PATH)
+        await this.ensureAncestorDirectoriesLoaded(relativePath)
       const opened = await this.runtimePool.open(relativePath)
       this.runtimeSessionByPath.set(relativePath, opened.sessionId)
       await this.rememberRuntimeExternalChangeState(
@@ -708,6 +725,81 @@ export class SpaceSession {
       this.scheduleGraftStatusRefresh()
       throw new EidosFileRuntimeError(issue, { cause: error })
     }
+  }
+
+  async openFileMetadata(
+    directory: string | null
+  ): Promise<OpenEidosFileResult> {
+    this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
+    const scope = normalizeFileMetadataDirectory(directory ?? "")
+    await resolveSpaceDirectory(this.canonical.root, scope || null)
+    if (!this.fileMetadataOpen) {
+      this.fileMetadataOpen = this.openSpaceFileMetadata().finally(() => {
+        this.fileMetadataOpen = null
+      })
+    }
+    return this.fileMetadataOpen
+  }
+
+  private async openSpaceFileMetadata(): Promise<OpenEidosFileResult> {
+    const opened = await this.gate.withMutation(async () => {
+      const privateDirectory = path.join(this.canonical.root, ".eidos")
+      await fs.mkdir(privateDirectory).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "EEXIST") throw error
+      })
+      const stats = await fs.lstat(privateDirectory)
+      if (
+        !stats.isDirectory() ||
+        stats.isSymbolicLink() ||
+        (await fs.realpath(privateDirectory)) !== privateDirectory
+      )
+        throw new Error(
+          "The file metadata directory must be a local folder without symlinks."
+        )
+      const filePath = path.join(this.canonical.root, SPACE_FILE_METADATA_PATH)
+      const existing = await fs
+        .lstat(filePath)
+        .catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return null
+          throw error
+        })
+      if (existing) {
+        if (!existing.isFile() || existing.isSymbolicLink())
+          throw new Error(
+            "The file metadata configuration must be an ordinary file."
+          )
+        return this.runtimePool.open(SPACE_FILE_METADATA_PATH)
+      }
+      await this.requireSparkFeature?.("file-metadata")
+      const created = await this.runtimePool.create(
+        SPACE_FILE_METADATA_PATH,
+        "Files",
+        { template: "files-index" }
+      )
+      this.noteLocalChange()
+      return created
+    })
+    const tables = opened.snapshot.tables.filter(
+      ({ table }) => table.settings?.vtabModule === "fs_meta"
+    )
+    const config = tables[0]?.table.settings?.vtabConfig as
+      | { root?: unknown }
+      | undefined
+    if (tables.length !== 1 || config?.root !== "..")
+      throw new Error(
+        "The Space file metadata configuration must contain one file table scanning the Space root."
+      )
+    this.runtimeSessionByPath.set(SPACE_FILE_METADATA_PATH, opened.sessionId)
+    this.fileIssuesByPath.delete(SPACE_FILE_METADATA_PATH)
+    await this.rememberRuntimeExternalChangeState(
+      opened.sessionId,
+      opened.snapshot.metadata.revision
+    ).catch(() => {
+      this.runtimeExternalChangeState.delete(opened.sessionId)
+    })
+    this.scheduleGraftStatusRefresh()
+    return opened
   }
 
   async previewTextFile(relativePath: string): Promise<TextFilePreviewResult> {
@@ -1036,6 +1128,7 @@ export class SpaceSession {
     namespace: string,
     patch: FileMetaPatch
   ): Promise<FileMetaValues> {
+    await this.requireSparkFeature?.("file-metadata")
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
     const result = await this.gate.withMutation(() =>
@@ -1343,76 +1436,31 @@ export class SpaceSession {
     contentFieldName?: string
   ): Promise<SpacePathMutationResult> {
     this.prioritizeLocalWork()
+    if (template === "files-index") {
+      await this.openFileMetadata(parentRelativePath)
+      return {
+        snapshot: await this.freshSnapshotAndEmit(),
+        relativePath: SPACE_FILE_METADATA_PATH,
+        invalidatedSessionIds: [],
+      }
+    }
     const safeName = normalizeSpaceEntryName(requestedName)
     const requestedFileName = safeName.toLowerCase().endsWith(".eidos")
       ? safeName
       : `${safeName}.eidos`
-    const metadataFile =
-      template === "files-index" ||
-      ["files.eidos", "_files.eidos", "_fs_meta.eidos"].includes(
-        requestedFileName.toLowerCase()
-      )
-    const name = metadataFile ? "files.eidos" : requestedFileName
+    const name = requestedFileName
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
     const created = await this.gate.withMutation(async () => {
       // Recheck inside the mutation gate so concurrent creates cannot overwrite.
       await this.requireMissingPath(relativePath)
-      let metadataSchema: FileMetadataSchema | undefined
-      if (metadataFile) {
-        const siblings = await listSpaceDirectory(
-          this.canonical.root,
-          parentRelativePath,
-          { maxEntries: 100_000 }
-        )
-        if (
-          siblings.some((entry) => entry.name.toLowerCase() === "files.eidos")
-        )
-          throw new Error("This folder already contains files.eidos.")
-        await this.loadDirectoryEntries("", false)
-        await this.ensureAncestorDirectoriesLoaded(relativePath)
-        const parentPath = fileMetadataConfigPaths(
-          this.buildCachedTree(),
-          relativePath
-        ).find(
-          (candidate) =>
-            path.basename(candidate).toLowerCase() === "files.eidos"
-        )
-        if (parentPath) {
-          const parent = await this.runtimePool.open(parentPath)
-          const tables = parent.snapshot.tables.filter(
-            ({ table }) => table.settings?.vtabModule === "fs_meta"
-          )
-          if (tables.length !== 1)
-            throw new Error(
-              "Parent files.eidos must contain one file metadata table."
-            )
-          const table = tables[0]!
-          const config = table.table.settings?.vtabConfig as
-            | { namespace?: unknown }
-            | undefined
-          metadataSchema = {
-            namespace:
-              typeof config?.namespace === "string"
-                ? config.namespace
-                : "space.eidos.meta",
-            fields: table.fields.filter(
-              (field) =>
-                field.systemRole == null &&
-                field.settings?.isSystem !== true &&
-                !field.isDerived
-            ),
-          }
-        }
-      }
       return await this.runtimePool.create(
         relativePath,
         path.basename(name, ".eidos"),
         {
-          template: metadataFile ? "files-index" : template,
-          metadataSchema,
-          contentFieldName: metadataFile ? undefined : contentFieldName,
+          template: "blank",
+          contentFieldName,
         }
       )
     })
@@ -1909,6 +1957,33 @@ export class SpaceSession {
     }
   }
 
+  private async requireSparkRuntimeAccess(sessionId: string): Promise<void> {
+    if (!this.requireSparkFeature) return
+    const probe = await this.runtimePool.call(
+      sessionId,
+      "getExternalChangeProbe",
+      []
+    )
+    let policy = this.sparkRuntimePolicies.get(sessionId)
+    if (
+      !policy ||
+      policy.connectionId !== probe.connectionId ||
+      policy.dataVersion !== probe.dataVersion
+    ) {
+      const snapshot = await this.runtimePool.call(sessionId, "getSnapshot", [])
+      policy = {
+        ...probe,
+        metadata: snapshot.tables.some(
+          (table) => table.table.settings?.vtabModule === "fs_meta"
+        ),
+      }
+      this.sparkRuntimePolicies.set(sessionId, policy)
+    }
+    if (policy.metadata) {
+      await this.requireSparkFeature("file-metadata")
+    }
+  }
+
   async callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
@@ -1917,6 +1992,10 @@ export class SpaceSession {
     const isMutation = mutationMethods.has(method)
     const isCsvOperationControl = csvOperationControlMethods.has(method)
     if (isMutation) this.prioritizeLocalWork()
+    // Authorization may need a network refresh when an offline lease expired.
+    // Resolve it before taking the Space mutation gate so other edits are not
+    // blocked behind a Spark timeout.
+    if (isMutation) await this.requireSparkRuntimeAccess(sessionId)
     let result: RuntimeCalls[M]["result"]
     try {
       result = isMutation
@@ -2117,6 +2196,71 @@ export class SpaceSession {
     return resolveEidosFileUrlImage(uri, purpose)
   }
 
+  async readSpaceIgnoreRules(): Promise<SpaceIgnoreRules> {
+    const read = async (name: ".graftignore" | ".gitignore") => {
+      try {
+        const content = await fs.readFile(
+          path.join(this.canonical.root, name),
+          "utf8"
+        )
+        if (Buffer.byteLength(content, "utf8") > 64 * 1024)
+          throw new Error(`${name} is larger than 64 KB`)
+        return content
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return ""
+        throw error
+      }
+    }
+    return {
+      graftignore: await read(".graftignore"),
+      gitignore: await read(".gitignore"),
+    }
+  }
+
+  async saveSpaceIgnoreRules(value: unknown): Promise<SpaceSnapshot> {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Invalid ignore rules")
+    const rules = value as Partial<SpaceIgnoreRules>
+    for (const content of [rules.graftignore, rules.gitignore]) {
+      if (
+        typeof content !== "string" ||
+        content.includes("\0") ||
+        Buffer.byteLength(content, "utf8") > 64 * 1024
+      )
+        throw new Error("Ignore rules must be text no larger than 64 KB")
+    }
+    await this.gate.withMutation(async () => {
+      for (const name of [".graftignore", ".gitignore"] as const) {
+        const content =
+          name === ".graftignore" ? rules.graftignore! : rules.gitignore!
+        const target = path.join(this.canonical.root, name)
+        const exists = await fs
+          .lstat(target)
+          .then(() => true)
+          .catch(() => false)
+        if (!content && !exists) continue
+        const temporaryPath = path.join(
+          this.canonical.root,
+          `.${name}.${randomUUID()}.tmp`
+        )
+        try {
+          await fs.writeFile(temporaryPath, content, {
+            encoding: "utf8",
+            mode: 0o644,
+            flag: "wx",
+          })
+          await fs.rename(temporaryPath, target)
+        } finally {
+          await fs.rm(temporaryPath, { force: true }).catch(() => undefined)
+        }
+      }
+    })
+    this.noteLocalChange()
+    this.ignoreInspectionCache.clear()
+    this.scheduleGraftStatusRefresh()
+    return this.freshSnapshotAndEmit(true)
+  }
+
   async enableVersioning(): Promise<SpaceSnapshot> {
     const status = await this.repository.runForeground((signal) =>
       this.graft.inspectSpace(
@@ -2155,7 +2299,7 @@ export class SpaceSession {
     message?: string,
     paths?: string[]
   ): Promise<SpaceSnapshot> {
-    const selected = paths?.map((path) => normalizeMutableRelativePath(path))
+    const selected = paths?.map(normalizeVersionRelativePath)
     if (selected && selected.length === 0)
       throw new Error("Select at least one file")
     const normalizedMessage = message?.trim() || "Eidos Lite local checkpoint"
@@ -3522,7 +3666,7 @@ export class SpaceSession {
 
   async getFileHistory(relativePath: string, cursor?: string) {
     await this.requireInitializedVersioning()
-    const safePath = normalizeMutableRelativePath(relativePath)
+    const safePath = normalizeVersionRelativePath(relativePath)
     return this.withVersionRead(
       "file-history",
       "Reading file history",
@@ -3604,7 +3748,7 @@ export class SpaceSession {
     rowAfter?: string
   ): Promise<SpaceVersionDiff> {
     await this.requireInitializedVersioning()
-    const normalizedPath = normalizeMutableRelativePath(relativePath)
+    const normalizedPath = normalizeVersionRelativePath(relativePath)
     if (commitId) this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
     if (tableName !== undefined && !tableName.trim()) {
@@ -3815,7 +3959,10 @@ export class SpaceSession {
             ...request,
             target: {
               ...request.target,
-              path: normalizeMutableRelativePath(request.target.path),
+              path:
+                request.target.kind === "folder"
+                  ? normalizeMutableRelativePath(request.target.path)
+                  : normalizeVersionRelativePath(request.target.path),
             },
           }
     const restoreMaterializes = await this.repository.runForeground(() =>
@@ -3869,7 +4016,7 @@ export class SpaceSession {
         }
         const addedPaths = selectedChanges
           .filter(isAddedWorkingChange)
-          .map((change) => normalizeMutableRelativePath(change.path))
+          .map((change) => normalizeVersionRelativePath(change.path))
         for (const relativePath of addedPaths) {
           try {
             const stats = await fs.lstat(
@@ -3904,7 +4051,7 @@ export class SpaceSession {
             )
           ),
         ]
-          .map(normalizeMutableRelativePath)
+          .map(normalizeVersionRelativePath)
           .sort()
         plan = {
           previousStatus: status,
@@ -3944,8 +4091,8 @@ export class SpaceSession {
           }
           await this.graft.recordPathMove(
             this.canonical.root,
-            normalizeMutableRelativePath(change.path),
-            normalizeMutableRelativePath(change.previousPath)
+            normalizeVersionRelativePath(change.path),
+            normalizeVersionRelativePath(change.previousPath)
           )
         }
         await Promise.all(
@@ -4048,8 +4195,17 @@ export class SpaceSession {
   }
 
   closeEidosFile(sessionId: string): Promise<void> {
+    this.sparkRuntimePolicies.delete(sessionId)
     this.pendingEidosFileAssets.delete(sessionId)
     return this.runtimePool.closeSession(sessionId)
+  }
+
+  /** The Space-relative path currently bound to a Runtime session, if any. */
+  relativePathForRuntime(sessionId: string): string | null {
+    for (const [relativePath, current] of this.runtimeSessionByPath) {
+      if (current === sessionId) return relativePath
+    }
+    return null
   }
 
   resolveUserPath(relativePath: string): string {
@@ -4958,10 +5114,17 @@ export class SpaceSession {
       normalizedPaths.length === 0 || explorerPaths.length > 0
         ? this.invalidateDirectoryCaches(explorerPaths)
         : []
+    // fs_meta rows live on physical files, so database data_version alone
+    // cannot detect additions, renames, removals or external attribute edits.
+    const changedPaths = [
+      ...new Set([...explorerPaths, ...externalChangePaths]),
+    ]
     await this.refreshAndEmit(
       true,
       directoriesToRefresh,
-      externalChangePaths.length > 0 ? externalChangePaths : undefined
+      normalizedPaths.length === 0 || changedPaths.length > 0
+        ? changedPaths
+        : undefined
     )
   }
 
@@ -5219,7 +5382,7 @@ export class SpaceSession {
     const requestedEidosPaths = relativePaths
       ? new Set(
           relativePaths
-            .map(normalizeMutableRelativePath)
+            .map(normalizeVersionRelativePath)
             .filter((relativePath) =>
               relativePath.toLowerCase().endsWith(".eidos")
             )

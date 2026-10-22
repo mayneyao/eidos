@@ -183,6 +183,240 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     container.remove()
   })
 
+  it("uses a direct checkbox without a clear action in compact forms", async () => {
+    const onChange = vi.fn().mockResolvedValue(undefined)
+    const render = async (done: number | null) => {
+      await act(async () => {
+        root.render(
+          <EidosFileRecordFieldEditor
+            field={checkboxField(true)}
+            row={{ done }}
+            appearance="compact"
+            disabled={false}
+            onChange={onChange}
+          />
+        )
+      })
+    }
+    await render(null)
+    const checkbox = () =>
+      container.querySelector<HTMLButtonElement>('[role="checkbox"]')!
+    expect(checkbox().getAttribute("aria-checked")).toBe("mixed")
+    expect(container.querySelector('[role="combobox"]')).toBeNull()
+    await act(async () => checkbox().click())
+    expect(onChange).toHaveBeenLastCalledWith(1)
+    await render(1)
+    expect(checkbox().getAttribute("aria-checked")).toBe("true")
+    expect(container.querySelector('[aria-label="Clear"]')).toBeNull()
+    await act(async () => checkbox().click())
+    expect(onChange).toHaveBeenLastCalledWith(0)
+  })
+
+  it("creates and selects a single option, closes on success, and reuses existing names", async () => {
+    const create = vi.fn().mockResolvedValue(undefined)
+    const change = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={optionField("select")}
+          row={{ status: "Todo" }}
+          appearance="compact"
+          disabled={false}
+          onChange={change}
+          onCreateOption={create}
+        />
+      )
+    )
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Status"]'
+    )!
+    await act(async () => trigger.click())
+    let input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search or create an option…"]'
+    )!
+    await act(async () => enterInputValue(input, "New status"))
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    expect(create).toHaveBeenCalledWith("New status")
+    expect(
+      document.querySelector('input[aria-label="Search or create an option…"]')
+    ).toBeNull()
+    await act(async () => trigger.click())
+    input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search or create an option…"]'
+    )!
+    await act(async () => enterInputValue(input, "Done"))
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    expect(change).toHaveBeenCalledWith("Done")
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(
+      document.querySelector('input[aria-label="Search or create an option…"]')
+    ).toBeNull()
+  })
+
+  it("creates from an empty multi-select and keeps the draft retryable after a failure", async () => {
+    let reject!: (error: Error) => void
+    const create = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, fail) => {
+            reject = fail
+          })
+      )
+      .mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={{ ...optionField("multi-select"), property: { options: [] } }}
+          row={{ tags: null }}
+          appearance="compact"
+          disabled={false}
+          onChange={vi.fn()}
+          onCreateOption={create}
+        />
+      )
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Tags"]')!
+        .click()
+    )
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search or create an option…"]'
+    )!
+    expect(input).not.toBeNull()
+    await act(async () => enterInputValue(input, "  新选项  "))
+    const enter = () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    await act(async () => {
+      enter()
+      enter()
+    })
+    expect(create).toHaveBeenCalledOnce()
+    expect(create).toHaveBeenCalledWith("新选项")
+    expect(input.disabled).toBe(false)
+    expect(input.readOnly).toBe(true)
+    await act(async () => reject(new Error("Cannot write catalog")))
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "Cannot write catalog"
+    )
+    expect(input.value).toBe("  新选项  ")
+    await act(async () => enter())
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(input.value).toBe("")
+    expect(document.activeElement).toBe(input)
+  })
+
+  it("selects an existing multi-select option by Enter instead of creating a duplicate", async () => {
+    const create = vi.fn()
+    const change = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={optionField("multi-select")}
+          row={{ tags: '["Todo"]' }}
+          appearance="compact"
+          disabled={false}
+          onChange={change}
+          onCreateOption={create}
+        />
+      )
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Tags"]')!
+        .click()
+    )
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search or create an option…"]'
+    )!
+    await act(async () => enterInputValue(input, "Done"))
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          isComposing: true,
+          bubbles: true,
+        })
+      )
+    )
+    expect(change).not.toHaveBeenCalled()
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    expect(create).not.toHaveBeenCalled()
+    expect(change).toHaveBeenCalledWith('["Todo","Done"]')
+  })
+
+  it("discards an invalid compact numeric draft on Escape without blur revalidating or saving it", async () => {
+    const onChange = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={numberField()}
+          row={{ score: 148.5 }}
+          appearance="compact"
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    )
+    const input = container.querySelector("input")!
+    input.focus()
+    await act(async () => enterInputValue(input, "abc"))
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    )
+    expect(input.value).toBe("148.5")
+    expect(input.getAttribute("aria-invalid")).toBe("false")
+    expect(container.textContent).not.toContain("Enter a finite number")
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("shows only stars without numeric or clear actions in a compact rating", async () => {
+    const onChange = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileRecordFieldEditor
+          field={ratingField()}
+          row={{ rating: 3 }}
+          appearance="compact"
+          disabled={false}
+          onChange={onChange}
+        />
+      )
+    )
+    expect(container.querySelector("input")).toBeNull()
+    expect(
+      container
+        .querySelector('[aria-label="Rate 3"]')
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Rate 5"]')!
+        .click()
+    )
+    expect(onChange).toHaveBeenLastCalledWith(5)
+    expect(container.querySelector('[aria-label="Clear"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Rate 0"]')).toBeNull()
+    expect(container.querySelectorAll("button")).toHaveLength(5)
+  })
+
   it("opens the edited URL through the host and hides navigation for unsafe values", async () => {
     const activateUrl = vi.fn().mockResolvedValue(undefined)
     await act(async () => {
@@ -360,6 +594,31 @@ describe("EidosFileRecordFieldEditor option presentation", () => {
     })
     expect(onChange).toHaveBeenCalledWith(12.5)
   })
+
+  it.each([true, false])(
+    "clears a repeated compact rating with nullable=%s",
+    async (nullable) => {
+      const onChange = vi.fn(async () => undefined)
+      await act(async () => {
+        root.render(
+          <EidosFileRecordFieldEditor
+            field={{ ...ratingField(), nullable }}
+            row={{ id: "row-1", rating: 3 }}
+            appearance="compact"
+            disabled={false}
+            onChange={onChange}
+          />
+        )
+      })
+      const buttons = container.querySelectorAll<HTMLButtonElement>(
+        "button[aria-pressed]"
+      )
+      await act(async () => buttons[2]!.click())
+      expect(onChange).toHaveBeenLastCalledWith(nullable ? null : 0)
+      await act(async () => buttons[3]!.click())
+      expect(onChange).toHaveBeenLastCalledWith(4)
+    }
+  )
 
   it("keeps record Rating edits within the same whole-number range as Grid", async () => {
     const onChange = vi.fn(async () => undefined)

@@ -14,6 +14,9 @@ concurrency:
   group: eidos-lite-release-${{ github.ref_name }}
   cancel-in-progress: false
 
+env:
+  EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION: ${{ vars.EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION }}
+
 jobs:
   verify:
     name: Verify release source
@@ -39,6 +42,12 @@ jobs:
         uses: pnpm/setup@v2
         with:
           install: false
+
+      - name: Verify production Spark public key
+        run: node --input-type=module -e "import { resolveSparkPublicKey } from './apps/eidos-lite-desktop/scripts/spark-key-policy.mjs'; resolveSparkPublicKey('production')"
+
+      - name: Test Spark key build guards
+        run: node --test apps/eidos-lite-desktop/scripts/spark-key-policy.test.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -106,6 +115,9 @@ jobs:
     needs: verify
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 50
+    env:
+      EIDOS_LITE_SPARK_TEST_CERTIFICATE: ${{ secrets.EIDOS_LITE_SPARK_TEST_CERTIFICATE }}
+      EIDOS_LITE_SPARK_REQUIRE_SIGNED_TEST_CERTIFICATE: "1"
     strategy:
       fail-fast: false
       matrix:

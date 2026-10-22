@@ -754,6 +754,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const freezeColumns = allowFrozenColumns
     ? eidosFileViewFreezeColumns(view, fields.length)
     : 0
+  const showVerticalLines = view?.properties?.showVerticalLines !== false
   const inspectedRow =
     inspectedRowIndex === null
       ? (detachedInspectorRow ?? undefined)
@@ -1281,6 +1282,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
               }
             : undefined,
       rowMarkers: showRowMarkers ? defaultConfig.rowMarkers : "none",
+      verticalBorder: showVerticalLines,
       ...eidosFileGridScrollbarConfig(
         hasHorizontalScroll,
         horizontalScrollbarHeight
@@ -1292,6 +1294,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       hasHorizontalScroll,
       horizontalScrollbarHeight,
       showRowMarkers,
+      showVerticalLines,
       t,
     ]
   )

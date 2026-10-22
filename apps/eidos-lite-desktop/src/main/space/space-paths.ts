@@ -3,8 +3,9 @@ import fs from "node:fs/promises"
 import path from "node:path"
 
 import type { SpaceTreeEntry } from "../../shared/contracts"
+import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
 
-const HIDDEN_IMPLEMENTATION_NAMES = new Set([".graft"])
+const HIDDEN_IMPLEMENTATION_NAMES = new Set([".graft", ".eidos"])
 const LOCAL_NOISE_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"])
 const PORTABLE_INVALID_NAME = /[<>:"/\\|?*\u0000-\u001f]/
 
@@ -59,11 +60,24 @@ export function normalizeMutableRelativePath(value: string): string {
   if (
     normalized
       .split("/")
+      .some((component) => component.toLowerCase() === ".eidos")
+  ) {
+    throw new Error("The .eidos implementation directory is protected")
+  }
+  if (
+    normalized
+      .split("/")
       .some((component) => component.toLowerCase() === ".graft")
   ) {
     throw new Error("The .graft implementation directory is protected")
   }
   return normalized
+}
+
+/** Versioning owns the managed catalog as well as ordinary user files. */
+export function normalizeVersionRelativePath(value: string): string {
+  if (value === SPACE_FILE_METADATA_PATH) return value
+  return normalizeMutableRelativePath(value)
 }
 
 export function normalizeSpaceEntryName(value: string): string {
@@ -80,6 +94,9 @@ export function normalizeSpaceEntryName(value: string): string {
   }
   if (name.toLowerCase() === ".graft") {
     throw new Error("The .graft implementation directory is protected")
+  }
+  if (name.toLowerCase() === ".eidos") {
+    throw new Error("The .eidos implementation directory is protected")
   }
   return name
 }

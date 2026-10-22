@@ -4,6 +4,102 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Custom properties": "自定义属性",
+  "Configure properties": "配置属性",
+  "Configure {field}": "配置 {field}",
+  "Add property": "添加属性",
+  "New property": "新建属性",
+  "One option per line": "每行一个选项",
+  "New properties are shared across this Space.":
+    "新建属性供整个 Space 的文件使用。",
+  "File properties": "文件属性",
+  "File properties are read-only until Spark is activated on this computer.":
+    "Spark 未激活时，文件属性为只读。",
+  "General file information": "通用",
+  "More Info": "更多信息",
+  Where: "位置",
+  "Add Tags…": "添加标签…",
+  "{count} bytes": "{count} 字节",
+  "Modified: {date}": "修改时间：{date}",
+  Today: "今天",
+  "Markdown document": "Markdown 文稿",
+  "Select a file to view its properties.": "选择文件以查看属性。",
+  "Close file properties": "关闭文件属性",
+  "Copy path": "复制路径",
+  "Could not copy. Try again.": "复制失败，请重试。",
+  "Loading properties…": "正在读取属性…",
+  "Loading properties for {name}…": "正在读取 {name} 的属性…",
+  "Basic information": "基本信息",
+  "File size": "文件大小",
+  "Created time": "创建时间",
+  "Properties shown in this window": "此窗口显示的属性",
+  "Changes save automatically": "更改自动保存",
+  "Changes not saved": "更改尚未保存",
+  "This file is no longer available": "此文件已不可用",
+  "File properties are unavailable": "文件属性不可用",
+  "File properties cannot open a Space": "文件属性窗口无法打开 Space",
+  "System clock changed; refresh Spark while online.":
+    "系统时间发生变化，请联网刷新 Spark。",
+  "Activate this device using a license on your account.":
+    "使用账号内的许可证激活此设备。",
+  "Refresh to check your Spark access, or redeem a code.":
+    "刷新以检查账号的 Spark 权益，或前往兑换授权。",
+  "Advanced Spark features are available on this device.":
+    "此设备已解锁 Spark 高级功能。",
+  "Redeem a Spark code to your account, then activate this device.":
+    "将 Spark 兑换码兑换到你的账号，再激活此设备。",
+  "Choose a license to activate this device": "选择用于激活此设备的许可证",
+  "Legacy Spark gift": "老 Spark 用户赠送",
+  "Redeemed Spark code": "Spark 兑换码授权",
+  "Issued on {date}": "授权时间：{date}",
+  "Checking Spark…": "正在查询 Spark…",
+  "Buy a Spark code for yourself or as a gift. The license belongs to the account that redeems it.":
+    "购买 Spark 兑换码，自用或赠送。许可证归兑换此码的账号所有。",
+  "Sign in above with the account that redeemed your Spark code.":
+    "请在上方登录兑换 Spark 兑换码的账号。",
+  "Release this device's slot? Spark features will stop on this computer. Your files and account license will remain. You can activate this device again manually.":
+    "释放此设备名额后，这台电脑将停止使用 Spark 功能，文件和账号许可证会保留。之后可手动重新激活此设备。",
+  "Confirm release": "确认释放",
+  "Redeem code / manage devices": "兑换 / 管理设备",
+  "Activated for offline use without a renewal deadline.":
+    "已激活，可长期离线使用，无需定期续期。",
+  "Redeem a Spark code to your account. New devices activate automatically when signed in. Released devices can be activated again below.":
+    "将兑换码兑换到你的账号后，新设备登录即可自动激活。已释放的设备可在下方手动重新激活。",
+  "All Spark device slots are in use. Release an old device on your Spark account page and try again.":
+    "Spark 设备名额已用完，请在账号的 Spark 页面释放旧设备后重试。",
+  "Spark could not be updated. Check your connection and sign in to the license owner's account, then retry.":
+    "无法更新 Spark。请检查网络并登录许可证所属账号后重试。",
+  "Redeem a Spark code": "兑换 Spark 兑换码",
+  "Redeem a Spark code to your account, then refresh to activate this device.":
+    "先将 Spark 兑换码兑换到你的账号，再刷新并激活此设备。",
+  "Activate Spark in Settings → Account & Services to use this feature. Existing files remain available.":
+    "请前往设置 → 账户与服务激活 Spark，以使用此功能。已有文件仍可访问。",
+  "Activate Spark in Account & Services": "在账户与服务中激活 Spark",
+  "Spark is active on this device": "Spark 已在此设备激活",
+  "Activate Spark": "激活 Spark",
+  "A one-time purchase for early access to advanced Eidos features and to support Eidos development.":
+    "一次性买断，提前体验 Eidos 高级特性，支持 Eidos 开发。",
+  "Sync and Publish have separate plans.": "Sync 和 Publish 使用独立方案。",
+  "Offline authorization valid until {date}": "离线授权有效期至 {date}",
+  "Connect and refresh Spark to renew this device's offline authorization.":
+    "联网并刷新 Spark，以更新此设备的离线授权。",
+  "Sign in above to activate a purchased Spark license.":
+    "请先登录账户，再激活已购买的 Spark 许可证。",
+  "Learn about Spark": "了解 Spark",
+  "Release this Spark device": "释放此 Spark 设备",
+  "Spark license": "Spark 许可证",
+  "{used} of {total} devices activated": "已激活 {used} / {total} 台设备",
+  "Activate on this device": "在此设备激活",
+  "All Spark device slots are in use. Release a device from that installation and try again.":
+    "Spark 设备名额已用完。请在已激活的设备上解除绑定后重试。",
+  "Spark could not be updated. Check your connection and sign in to the purchasing account, then retry.":
+    "无法更新 Spark。请检查网络并登录购买时使用的账户，然后重试。",
+  "Spark status is unavailable. Your local files are unaffected.":
+    "暂时无法查询 Spark 状态，本地文件不受影响。",
+  "This Spark license is bound to a different device identity. Activate this device again; if all slots are in use, release the old device first.":
+    "此 Spark 许可证绑定的设备身份与当前电脑不一致。请重新激活本机；如果没有可用名额，请先释放旧设备。",
+  "Spark could not be refreshed. Cached offline authorization is still available.":
+    "无法刷新 Spark，缓存的离线授权仍然有效。",
   "Disconnect cloud sync": "断开云端连接",
   "Disconnect cloud sync?": "断开云端连接？",
   "Disconnecting…": "正在断开…",
@@ -21,6 +117,10 @@ const zh: Record<string, string> = {
   "Encrypted cloud sync is not available on this platform yet. Your local files remain available.":
     "此平台暂不支持加密云同步，本地文件仍可正常使用。",
   "Close Eidos Sync": "关闭同步",
+  "Enable local versions first": "请先开启本地版本管理",
+  "Cloud sync uses this Space's local version history. Enable versioning before connecting to Sync.":
+    "云同步依赖此 Space 的本地版本历史。请先开启版本管理，再连接云同步。",
+  "Open Versions": "打开版本管理",
   "Sign in to use Sync": "登录以使用同步",
   "Use your eidos.space account to check whether Sync is available.":
     "登录 eidos.space 账户以查看同步服务。",
@@ -153,6 +253,46 @@ const zh: Record<string, string> = {
     "已在版本历史中，忽略规则不会将其排除",
   "version history data": "版本历史数据",
   "ignored by Space settings": "由 Space 忽略规则排除",
+  "Large files": "大文件",
+  "{count} videos · {size}": "{count} 个视频 · {size}",
+  "1 video · {size}": "1 个视频 · {size}",
+  "Version history stores every tracked file. Exclude these videos before the first version if you do not need them in history.":
+    "版本历史会记录所有跟踪的文件。如果不需要这些视频进入历史，请在创建首个版本前排除它们。",
+  "Version history stores every tracked file. Add ignore rules before the first version if needed.":
+    "版本历史会记录所有跟踪的文件。如有需要，请在创建首个版本前添加忽略规则。",
+  "Ignore video files": "忽略视频文件",
+  "Edit ignore rules": "编辑忽略规则",
+  "Build ignore rules": "构建忽略规则",
+  "{count} rules": "{count} 条规则",
+  "Ignore rules": "忽略规则",
+  "Files matching these patterns are excluded from version history. Use one pattern per line.":
+    "匹配这些规则的文件不会进入版本历史。每行一个规则。",
+  "Graft reads .graftignore first. .gitignore is also respected, so either file can exclude files.":
+    "Graft 优先读取 .graftignore，同时也会遵循 .gitignore，因此两个文件都可以排除文件。",
+  "One pattern per line": "每行一个规则",
+  "Ignore rules saved.": "忽略规则已保存。",
+  "Video ignore rules are already present.": "视频忽略规则已存在。",
+  "Added {count} video patterns to .graftignore.":
+    "已将 {count} 条视频规则添加到 .graftignore。",
+  Preflight: "预检",
+  Templates: "模板",
+  "{files} files · {size}": "{files} 个文件 · {size}",
+  Videos: "视频",
+  Symlinks: "符号链接",
+  "Node and build": "Node 与构建产物",
+  "Design files": "设计文件",
+  Archives: "压缩包",
+  "System files": "系统文件",
+  "Temporary files": "临时文件",
+  Ignore: "忽略",
+  "Version history stores every tracked file. Review these before the first version.":
+    "版本历史会记录所有跟踪的文件。请在创建首个版本前检查这些内容。",
+  "{count} more large files are not shown.": "另有 {count} 个大文件未显示。",
+  "Those ignore rules are already present.": "这些忽略规则已存在。",
+  "That ignore rule is already present.": "该忽略规则已存在。",
+  "Added {count} rules from {template}.":
+    "已从“{template}”添加 {count} 条规则。",
+  "Added ignore rule for {path}.": "已添加“{path}”的忽略规则。",
   "system file": "系统文件",
   "temporary file": "临时文件",
   "End-to-end encryption": "端到端加密",
@@ -748,6 +888,8 @@ const zh: Record<string, string> = {
   View: "视图",
   Window: "窗口",
   Help: "帮助",
+  "Send feedback": "反馈",
+  "Release notes": "版本更新日志",
   "Eidos Documentation": "Eidos 文档",
   "Eidos Website": "Eidos 官网",
   Settings: "设置",
@@ -964,6 +1106,15 @@ const zh: Record<string, string> = {
   "New Eidos File": "新建 Eidos File",
   "New folder": "新建文件夹",
   "This folder already contains files.eidos.": "此目录已存在 files.eidos。",
+  "Manage files": "管理文件",
+  "File management folder": "文件管理目录",
+  "Invalid file metadata directory": "文件管理目录无效。",
+  "The file metadata directory must be a local folder without symlinks.":
+    "文件管理私有目录必须是本地文件夹，不能包含符号链接。",
+  "The file metadata configuration must be an ordinary file.":
+    "文件管理配置必须是普通文件。",
+  "The Space file metadata configuration must contain one file table scanning the Space root.":
+    "Space 文件管理配置必须包含一张扫描 Space 根目录的文件表格。",
   "Parent files.eidos must contain one file metadata table.":
     "父目录的 files.eidos 必须包含一张文件元数据表。",
   "Show this folder": "显示此文件夹",
@@ -994,6 +1145,8 @@ const zh: Record<string, string> = {
   "Manage folder file metadata": "管理当前文件夹的文件元数据",
   "Advanced options": "高级选项",
   "Include Markdown content": "添加 Markdown 正文",
+  "Adds a Text field for record content, editable with the Markdown editor.":
+    "添加用于记录正文的 Text 字段，可在 Markdown 编辑器中编辑。",
   "Selecting this option adds a Text field for record content. Expand a record to edit its content with the Markdown editor; changes are saved to this field.":
     "勾选后会添加一个 Text 字段来存储正文。展开记录后，可用 Markdown 编辑器编辑正文，内容会保存到该字段。",
   Content: "正文",

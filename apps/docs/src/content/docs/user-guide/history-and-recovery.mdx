@@ -45,14 +45,22 @@ Keep an independent backup for protection against drive failures.
 
 ## Exclude temporary files
 
-Create a `.gitignore` or `.graftignore` file in the Space root folder.
-List temporary directories and files to exclude them from history tracking:
+Open **Versions** and select **Build ignore rules** before enabling versioning
+for the first time. The builder writes `.graftignore` or `.gitignore` in the
+Space root. Both files use one pattern per line, and either can exclude files
+from tracking:
 
 ```text
 node_modules/
 *.tmp
 cache/
 ```
+
+The builder combines rule templates, per-file exclusions for large files, and a
+raw editor for both files. Templates cover videos, Node and build output, design
+files, archives, system files and temporary files. The preflight summary
+excludes paths matched by the saved rules. Review the generated rules, save
+once, then create the first version.
 
 History cannot restore files that you excluded from tracking.
 File attributes used by File Metadata Management require separate backup tools.

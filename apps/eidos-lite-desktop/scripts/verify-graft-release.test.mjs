@@ -114,6 +114,29 @@ function fixture() {
   }
 }
 
+test("installed lockfiles may omit foreign optional packages but require the host binding", () => {
+  const inputs = fixture()
+  const native =
+    inputs.lock.importers["apps/eidos-lite-desktop"].optionalDependencies
+  for (const name of Object.keys(native)) {
+    if (name !== "@eidos.space/graft-darwin-arm64") delete native[name]
+  }
+  const installed = {
+    ...inputs,
+    installed: true,
+    platform: "darwin",
+    arch: "arm64",
+  }
+  assert.deepEqual(validateGraftReleaseInputs(installed), [])
+  assert.ok(validateGraftReleaseInputs(inputs).length > 0)
+  delete native["@eidos.space/graft-darwin-arm64"]
+  assert.ok(
+    validateGraftReleaseInputs(installed).some((error) =>
+      error.includes("graft-darwin-arm64")
+    )
+  )
+})
+
 test("accepts matching registry-only SDK platform packages and remote cohort", () => {
   assert.deepEqual(validateGraftReleaseInputs(fixture()), [])
   assert.deepEqual(

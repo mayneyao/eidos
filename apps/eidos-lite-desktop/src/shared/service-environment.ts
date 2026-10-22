@@ -11,6 +11,39 @@ export interface EidosLiteServiceEnvironment {
   syncRemoteOrigin: string
 }
 
+/** Explicit local Test Mode account server; packaged apps use fixed origins. */
+export function developmentAccountEnvironment(
+  environment: EidosLiteServiceEnvironment,
+  packaged: boolean,
+  origin?: string
+): EidosLiteServiceEnvironment {
+  if (packaged || !origin) return environment
+  const url = new URL(origin)
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  )
+    throw new Error("EIDOS_LITE_ACCOUNT_ORIGIN must be an HTTPS origin")
+  return {
+    ...environment,
+    accountOrigin: url.origin,
+    billingOrigin: url.origin,
+  }
+}
+
+export function accountStorageKey(
+  environment: EidosLiteServiceEnvironment
+): string {
+  return environment.accountOrigin ===
+    EIDOS_LITE_SERVICE_ENVIRONMENTS[environment.name].accountOrigin
+    ? environment.name
+    : `${environment.name}-${encodeURIComponent(environment.accountOrigin)}`
+}
+
 export const EIDOS_LITE_SERVICE_ENVIRONMENTS = Object.freeze({
   staging: Object.freeze({
     name: "staging",

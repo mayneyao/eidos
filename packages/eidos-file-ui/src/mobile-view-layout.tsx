@@ -175,6 +175,11 @@ export function MobileViewLayout({
                 { value: "huge", label: t("Extra large") },
               ])}
               {toggle(t("Wrap text"), "textWrapping", p.textWrapping === true)}
+              {toggle(
+                t("Show vertical lines"),
+                "showVerticalLines",
+                p.showVerticalLines !== false
+              )}
             </section>
           )}
           {view.type === "kanban" && (

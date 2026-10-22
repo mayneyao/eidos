@@ -57,22 +57,22 @@ Eidos does not allow a table without a record label.
 
 ## Pick a field type
 
-| Field type | Use it for | Important behavior |
-| --- | --- | --- |
-| Text | Titles, notes, codes, and free-form values | Searchable. Preserves entered text |
-| Number | Measurements and decimal values | Finite decimal number |
-| Integer | Counts and whole numbers | Exact signed 64-bit value |
-| Select | One controlled state or category | One option. Can have a default option |
-| Multi-select | Tags and multiple categories | Ordered option list. No default option |
-| Checkbox | Yes/no state | Can remain empty |
-| Rating | Star ratings | Stored as an integer value |
-| URL | Web address | Clickable only after Host policy checks |
-| Date | Calendar day without a time zone | Use when time-of-day does not matter |
-| Date & time | Exact moment | Stored canonically and shown in a selected time zone |
-| File | Attachment and image references | File access depends on Host capabilities |
-| Formula | Value calculated from fields in this table | Read-only result |
-| Relation | Records in another table | Stores stable target record IDs |
-| Lookup / rollup | Values read or aggregated through a Relation | Read-only derived result |
+| Field type      | Use it for                                   | Important behavior                                   |
+| --------------- | -------------------------------------------- | ---------------------------------------------------- |
+| Text            | Titles, notes, codes, and free-form values   | Searchable. Preserves entered text                   |
+| Number          | Measurements and decimal values              | Finite decimal number                                |
+| Integer         | Counts and whole numbers                     | Exact signed 64-bit value                            |
+| Select          | One controlled state or category             | One option. Can have a default option                |
+| Multi-select    | Tags and multiple categories                 | Ordered option list. No default option               |
+| Checkbox        | Yes/no state                                 | Can remain empty                                     |
+| Rating          | Star ratings                                 | Stored as an integer value                           |
+| URL             | Web address                                  | Clickable only after Host policy checks              |
+| Date            | Calendar day without a time zone             | Use when time-of-day does not matter                 |
+| Date & time     | Exact moment                                 | Stored canonically and shown in a selected time zone |
+| File            | Attachment and image references              | File access depends on Host capabilities             |
+| Formula         | Value calculated from fields in this table   | Read-only result                                     |
+| Relation        | Records in another table                     | Stores stable target record IDs                      |
+| Lookup / rollup | Values read or aggregated through a Relation | Read-only derived result                             |
 
 Choose the narrowest type that expresses the data.
 Use Select for a status, not Text.
@@ -144,28 +144,28 @@ Read each row as the current type and each column as the target type:
 - `•` indicates the field is already that type.
 - `—` is not available in the Type menu.
 
-| From → To | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Text | • | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Number | ✓ | • | ⚠ | ⚠ | ✓ | — | ⚠ | — | — | — |
-| Integer | ✓ | ⚠ | • | ⚠ | ✓ | — | ✓ | — | — | — |
-| Checkbox | ✓ | ✓ | ✓ | • | ✓ | — | ✓ | — | — | — |
-| Select | ✓ | ✓ | ✓ | ✓ | • | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Multi-select | ✓ | — | — | — | ⚠ | • | — | — | — | — |
-| Rating | ✓ | ✓ | ✓ | ⚠ | ✓ | — | • | — | — | — |
-| Date | ✓ | — | — | — | ✓ | — | — | • | ✓ | ✓ |
-| Date & time | ✓ | — | — | — | ✓ | — | — | ⚠ | • | ✓ |
-| URL | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | • |
+| From → To    | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
+| :----------- | :--: | :----: | :-----: | :------: | :----: | :----------: | :----: | :--: | :---------: | :-: |
+| Text         |  •   |   ✓    |    ✓    |    ✓     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Number       |  ✓   |   •    |    ⚠    |    ⚠     |   ✓    |      —       |   ⚠    |  —   |      —      |  —  |
+| Integer      |  ✓   |   ⚠    |    •    |    ⚠     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Checkbox     |  ✓   |   ✓    |    ✓    |    •     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
+| Select       |  ✓   |   ✓    |    ✓    |    ✓     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Multi-select |  ✓   |   —    |    —    |    —     |   ⚠    |      •       |   —    |  —   |      —      |  —  |
+| Rating       |  ✓   |   ✓    |    ✓    |    ⚠     |   ✓    |      —       |   •    |  —   |      —      |  —  |
+| Date         |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  •   |      ✓      |  ✓  |
+| Date & time  |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ⚠   |      •      |  ✓  |
+| URL          |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  ✓   |      ✓      |  •  |
 
 These field types use dedicated setup flows instead of the Type conversion menu:
 
-| Field | General conversion | How to change it |
-| --- | :---: | --- |
-| File | — | Create a File field and move attachments manually |
-| Relation | — | Use the Relation configuration flow |
-| Formula | — | Use the Formula editor and set its result type |
-| Lookup / rollup | — | Use the Lookup editor and aggregation settings |
-| Row ID / Created time / Updated time | — | System fields are immutable |
+| Field                                | General conversion | How to change it                                  |
+| ------------------------------------ | :----------------: | ------------------------------------------------- |
+| File                                 |         —          | Create a File field and move attachments manually |
+| Relation                             |         —          | Use the Relation configuration flow               |
+| Formula                              |         —          | Use the Formula editor and set its result type    |
+| Lookup / rollup                      |         —          | Use the Lookup editor and aggregation settings    |
+| Row ID / Created time / Updated time |         —          | System fields are immutable                       |
 
 Rating is an Integer format.
 It accepts whole numbers from 0 through 5.
@@ -181,14 +181,14 @@ It does not apply stale plans.
 
 A practical Tasks table can contain:
 
-| Field | Type | Configuration |
-| --- | --- | --- |
-| Title | Text | Record Label Field |
-| Status | Select | Todo, Doing, Done. Default: Todo |
-| Assignee | Relation | Links to People |
-| Due | Date | No time-of-day |
-| Tags | Multi-select | Controlled tag names |
-| Days open | Formula | Calculated from creation time |
-| Team | Lookup | Read from Assignee's related record |
+| Field     | Type         | Configuration                       |
+| --------- | ------------ | ----------------------------------- |
+| Title     | Text         | Record Label Field                  |
+| Status    | Select       | Todo, Doing, Done. Default: Todo    |
+| Assignee  | Relation     | Links to People                     |
+| Due       | Date         | No time-of-day                      |
+| Tags      | Multi-select | Controlled tag names                |
+| Days open | Formula      | Calculated from creation time       |
+| Team      | Lookup       | Read from Assignee's related record |
 
 Next, learn how to [create and edit records](/user-guide/records-and-editing/).

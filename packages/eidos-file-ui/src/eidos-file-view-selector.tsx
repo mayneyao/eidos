@@ -332,6 +332,7 @@ export function EidosFileViewSelector({
   const hideEmptyFieldsId = useId()
   const showEmptyGroupsId = useId()
   const wrapTextId = useId()
+  const showVerticalLinesId = useId()
   const formExistingFieldsId = useId()
   const formEmptyId = useId()
   const handledRequestIdRef = useRef<number | null>(null)
@@ -1006,6 +1007,23 @@ export function EidosFileViewSelector({
                     disabled={busy}
                     onCheckedChange={(textWrapping) =>
                       updateProperties({ textWrapping })
+                    }
+                  />
+                </label>
+                <label
+                  className="mt-1 flex items-center justify-between gap-3 text-xs"
+                  htmlFor={showVerticalLinesId}
+                >
+                  <span>{t("Show vertical lines")}</span>
+                  <Switch
+                    id={showVerticalLinesId}
+                    aria-label={t("Show vertical lines")}
+                    checked={
+                      managedView.properties?.showVerticalLines !== false
+                    }
+                    disabled={busy}
+                    onCheckedChange={(showVerticalLines) =>
+                      updateProperties({ showVerticalLines })
                     }
                   />
                 </label>

@@ -14,10 +14,128 @@ import { createFsMetaEidosFile } from "./fs-meta-file"
 import { openEidosLiteFileRuntime } from "./eidos-file-runtime"
 import { resolveVTabExtensionPath } from "./vtab-resolver"
 import { resolveEidosFileAttachment } from "../main/space/eidos-file-attachments"
+import { createEidosLiteFileRuntime } from "./eidos-file-runtime"
+import {
+  fileMetadataScopedView,
+  fileMetadataRowPath,
+} from "../renderer/file-metadata-actions"
+import { eidosFileViewRowQuery } from "@eidos.space/eidos-file-ui"
 
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("scans the whole Space from the private catalog and applies transient directory scopes", async () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(tmpdir(), "eidos-global-meta-"))
+    )
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    fs.mkdirSync(path.join(root, "assets/nested"), { recursive: true })
+    fs.mkdirSync(path.join(root, "assets-other"))
+    for (const name of [
+      "root.txt",
+      "assets/proof.txt",
+      "assets/nested/deep.txt",
+      "assets-other/sibling.txt",
+      ".eidos/private.txt",
+    ])
+      fs.writeFileSync(path.join(root, name), "proof")
+    const runtime = await createEidosLiteFileRuntime(
+      path.join(root, ".eidos/files.eidos"),
+      "Files",
+      { template: "files-index" }
+    )
+    runtimes.push(runtime)
+    const table = runtime.initialSnapshot.tables[0]!
+    const view = table.views[0]!
+    const page = await runtime.source.getPage(table.table.id, 0, 100, {})
+    expect(page.rows.some((row) => String(row._id).startsWith(".eidos"))).toBe(
+      false
+    )
+    expect(page.rows.map((row) => row._id)).toContain("root.txt")
+    const scopedView = fileMetadataScopedView(table, view, "assets")!
+    const scoped = await runtime.source.getPage(
+      table.table.id,
+      0,
+      100,
+      eidosFileViewRowQuery(scopedView)
+    )
+    expect(scoped.rows.map((row) => row._id).sort()).toEqual([
+      "assets/nested/deep.txt",
+      "assets/proof.txt",
+    ])
+    const otherCase = await runtime.source.getPage(
+      table.table.id,
+      0,
+      100,
+      eidosFileViewRowQuery(fileMetadataScopedView(table, view, "ASSETS"))
+    )
+    expect(otherCase.rows).toHaveLength(0)
+    expect(
+      (await runtime.source.getSnapshot()).tables[0]!.views[0]!.filter
+    ).toEqual(view.filter)
+    const proof = scoped.rows.find((row) => row._id === "assets/proof.txt")!
+    expect(fileMetadataRowPath(table, proof, ".eidos/files.eidos")).toBe(
+      "assets/proof.txt"
+    )
+    const fileField = table.fields.find((field) => field.name === "file")!
+    const entry = decodeEidosFileValues(proof[fileField.id!] as string)[0]!
+    expect(runtime.findFileEntry(entry.id)).toEqual(entry)
+    const resolved = await resolveEidosFileAttachment(
+      root,
+      ".eidos/files.eidos",
+      entry,
+      "preview"
+    )
+    expect(resolved).toMatchObject({
+      kind: "local",
+      absolutePath: path.join(root, "assets/proof.txt"),
+    })
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        ".eidos/files.eidos",
+        { ...entry, uri: "../../outside.txt" },
+        "preview"
+      )
+    ).rejects.toThrow()
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        ".eidos/files.eidos",
+        { ...entry, uri: "private.txt" },
+        "preview"
+      )
+    ).rejects.toThrow()
+    const rating = table.fields.find((field) => field.name === "rating")!
+    await runtime.source.updateRow(table.table.id, "assets/proof.txt", {
+      [rating.id!]: 4,
+    })
+    fs.renameSync(
+      path.join(root, "assets/proof.txt"),
+      path.join(root, "assets/nested/renamed.txt")
+    )
+    expect(
+      await runtime.source.getRow(table.table.id, "assets/proof.txt")
+    ).toBeNull()
+    expect(
+      (
+        await runtime.source.getRow(table.table.id, "assets/nested/renamed.txt")
+      )?.[rating.id!]
+    ).toBe("4")
+    const snapshot = await runtime.source.addField(table.table.id, {
+      name: "Status",
+      type: "text",
+    })
+    expect(
+      snapshot.tables[0]!.fields.some((field) => field.name === "Status")
+    ).toBe(true)
+    expect(
+      (await runtime.source.getPage(table.table.id, 0, 100, {})).rows.some(
+        (row) => String(row._id).startsWith(".eidos")
+      )
+    ).toBe(false)
+  })
   afterEach(async () => {
     for (const runtime of runtimes.splice(0)) await runtime.close()
     for (const root of roots.splice(0))
