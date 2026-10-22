@@ -7,6 +7,50 @@ import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { createEidosLiteFileRuntime } from "../../runtime/eidos-file-runtime"
 import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
 
+it("reads basic file properties without Spark or a metadata catalog", async () => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "eidos-basic-properties-")
+  )
+  const userData = await fs.mkdtemp(
+    path.join(os.tmpdir(), "eidos-basic-state-")
+  )
+  const graft = new GraftClient({ sdkTransport: new GraftInProcessTransport() })
+  let session: SpaceSession | undefined
+  try {
+    await fs.writeFile(path.join(root, "proof.md"), "proof")
+    const requireSparkFeature = vi.fn(async () => {
+      throw new Error("Spark required")
+    })
+    session = await SpaceSession.create(root, userData, {
+      graft,
+      requireSparkFeature,
+    })
+    const stats = await fs.stat(path.join(root, "proof.md"))
+    expect(await session.statFile("proof.md")).toMatchObject({
+      path: "proof.md",
+      extension: ".md",
+      size: 5,
+      createdAtMs: stats.birthtimeMs,
+      modifiedAtMs: stats.mtimeMs,
+    })
+    expect(requireSparkFeature).not.toHaveBeenCalled()
+    await expect(
+      fs.stat(path.join(root, SPACE_FILE_METADATA_PATH))
+    ).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await session.statFile("missing.md")).toBeNull()
+    await expect(session.statFile("../outside.md")).rejects.toThrow()
+    if (process.platform !== "win32") {
+      await fs.symlink(path.join(root, "proof.md"), path.join(root, "link.md"))
+      expect(await session.statFile("link.md")).toBeNull()
+    }
+  } finally {
+    await session?.close()
+    await graft.close()
+    await fs.rm(root, { recursive: true, force: true })
+    await fs.rm(userData, { recursive: true, force: true })
+  }
+})
+
 it("creates one Space catalog, shares fields and views, and leaves legacy catalogs untouched", async () => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "eidos-properties-space-")

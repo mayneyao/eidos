@@ -151,7 +151,17 @@ export class WindowController {
           absoluteFilePropertiesPath(session.canonical.root, path)
         )
       existing.window.webContents.send(IPC_CHANNELS.filePropertiesChanged, path)
-      if (existing.presented) this.focusWindow(existing.window)
+      if (existing.presented) {
+        const ownerWindow = BrowserWindow.fromWebContents(owner)
+        if (
+          ownerWindow &&
+          !ownerWindow.isDestroyed() &&
+          screen.getDisplayMatching(ownerWindow.getBounds()).id !==
+            screen.getDisplayMatching(existing.window.getBounds()).id
+        )
+          this.presentFileProperties(existing)
+        else this.focusWindow(existing.window)
+      }
       return
     }
     existing?.window.close()
@@ -207,8 +217,7 @@ export class WindowController {
     // inspector. Present the loading shell after a short fallback.
     const presentFallback = setTimeout(() => {
       if (entry.presented || window.isDestroyed()) return
-      entry.presented = true
-      this.focusWindow(window)
+      this.presentFileProperties(entry)
     }, 1_500)
     presentFallback.unref?.()
     window.once("closed", () => {
@@ -240,9 +249,39 @@ export class WindowController {
       })
       .catch(() => {
         if (entry.presented || window.isDestroyed()) return
-        entry.presented = true
-        this.focusWindow(window)
+        this.presentFileProperties(entry)
       })
+  }
+
+  private presentFileProperties(
+    entry: { window: BrowserWindow; owner: WebContents; presented: boolean },
+    requested?: LiteWindowBounds
+  ): void {
+    if (entry.window.isDestroyed()) return
+    const bounds = requested ?? entry.window.getBounds()
+    const ownerWindow = entry.owner.isDestroyed()
+      ? null
+      : BrowserWindow.fromWebContents(entry.owner)
+    const anchor =
+      ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow.getBounds() : null
+    // Position the measured inspector before its first show. Its hidden native
+    // window may have been allocated on the primary display by the OS.
+    const next = fitWindowBounds(
+      {
+        ...bounds,
+        ...(anchor
+          ? {
+              x: anchor.x + (anchor.width - bounds.width) / 2,
+              y: anchor.y + (anchor.height - bounds.height) / 2,
+            }
+          : {}),
+      },
+      screen.getDisplayMatching(anchor ?? bounds).workArea,
+      { width: 340, height: 120 }
+    )
+    entry.window.setBounds(next, false)
+    entry.presented = true
+    this.focusWindow(entry.window)
   }
 
   selectFileProperties(owner: WebContents, path: string | null): void {
@@ -297,21 +336,18 @@ export class WindowController {
     const window = entry.window
     const bounds = window.getBounds()
     const chromeHeight = bounds.height - window.getContentBounds().height
+    const requested = {
+      ...bounds,
+      height: Math.ceil(height * sender.getZoomFactor()) + chromeHeight,
+    }
+    if (!entry.presented) {
+      this.presentFileProperties(entry, requested)
+      return
+    }
     const area = screen.getDisplayMatching(bounds).workArea
-    const next = fitWindowBounds(
-      {
-        ...bounds,
-        height: Math.ceil(height * sender.getZoomFactor()) + chromeHeight,
-      },
-      area,
-      { width: 340, height: 120 }
-    )
+    const next = fitWindowBounds(requested, area, { width: 340, height: 120 })
     if (Math.abs(next.height - bounds.height) > 1)
       window.setBounds(next, entry.presented)
-    if (!entry.presented) {
-      entry.presented = true
-      this.focusWindow(window)
-    }
   }
 
   async filePropertiesIcon(sender: WebContents): Promise<string | null> {

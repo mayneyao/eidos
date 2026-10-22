@@ -28,6 +28,7 @@ import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { useEidosLiteI18n } from "./i18n"
 import type { ResolvedAppearance } from "./app-appearance"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
+import type { EidosLiteApi } from "../shared/contracts"
 
 const CONFIG_ID = "eidos.file-properties"
 const BASIC_FIELDS: Record<string, string> = {
@@ -156,6 +157,9 @@ export const FilePropertiesContent = forwardRef<
   const { t, locale } = useEidosLiteI18n()
   const contentRef = useRef<HTMLElement>(null)
   const [model, setModel] = useState<Model | null>(null)
+  const [basic, setBasic] =
+    useState<Awaited<ReturnType<EidosLiteApi["getBasicFileProperties"]>>>(null)
+  const [basicError, setBasicError] = useState<string | null>(null)
   const modelRef = useRef(model)
   modelRef.current = model
   const [loading, setLoading] = useState(true)
@@ -214,6 +218,20 @@ export const FilePropertiesContent = forwardRef<
     // resizing the native window around every edit.
     setLoading(!ready)
     setError(null)
+    setBasicError(null)
+    void window.eidosLite
+      .getBasicFileProperties(path)
+      .then((info) => {
+        if (!active) return
+        setBasic(info)
+        if (!info) setBasicError(t("This file is no longer available"))
+      })
+      .catch((cause: unknown) => {
+        if (active)
+          setBasicError(
+            t(cause instanceof Error ? cause.message : String(cause))
+          )
+      })
     void (async () => {
       if (ready) await edits.current
       const revision = editRevision.current
@@ -271,7 +289,10 @@ export const FilePropertiesContent = forwardRef<
         setModel({ path, source, snapshot, row, config })
     })()
       .catch((cause) => {
-        if (active) report(cause)
+        if (active) {
+          if (!ready) setModel(null)
+          report(cause)
+        }
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -285,7 +306,7 @@ export const FilePropertiesContent = forwardRef<
     ({ table }) => table.settings?.vtabModule === "fs_meta"
   )
   const current = model?.path === props.relativePath
-  const displayPath = model?.path ?? props.relativePath
+  const displayPath = model?.path ?? basic?.path ?? props.relativePath
   const activationRequired =
     props.readOnly === true ||
     (error ?? "").includes(SPARK_ACTIVATION_REQUIRED) ||
@@ -295,7 +316,7 @@ export const FilePropertiesContent = forwardRef<
     const element = contentRef.current
     if (
       !element ||
-      ((!model || !current) && !error) ||
+      ((!model || !current) && !basic && !error && !basicError) ||
       loading ||
       !props.onContentHeight ||
       typeof ResizeObserver === "undefined"
@@ -320,8 +341,26 @@ export const FilePropertiesContent = forwardRef<
       cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [current, loading, error, model?.path, props.onContentHeight])
+  }, [
+    current,
+    loading,
+    error,
+    basic,
+    basicError,
+    model?.path,
+    props.onContentHeight,
+  ])
   const systemValue = (name: string) => {
+    if (basic?.path === displayPath) {
+      if (name === "extension") return basic.extension.replace(/^\./, "")
+      if (name === "size") return basic.size
+      if (name === "_created_at")
+        return basic.createdAtMs > 0
+          ? new Date(basic.createdAtMs).toISOString()
+          : null
+      if (name === "_updated_at")
+        return new Date(basic.modifiedAtMs).toISOString()
+    }
     const field = table?.fields.find(
       (field) => field.name === name && field.settings?.isSystem === true
     )
@@ -539,13 +578,12 @@ export const FilePropertiesContent = forwardRef<
             })}
           </p>
         )}
-        {activationRequired && !(model && table) && activationNotice}
-        {!activationRequired && (error || failedEdit) && (
+        {(basicError || (!activationRequired && (error || failedEdit))) && (
           <div
             className="file-sidebar-error file-properties-error"
             role="alert"
           >
-            <span>{error ?? failedEdit?.message}</span>
+            <span>{basicError ?? error ?? failedEdit?.message}</span>
             <div className="file-properties-error-actions">
               <button
                 type="button"
@@ -560,11 +598,15 @@ export const FilePropertiesContent = forwardRef<
             </div>
           </div>
         )}
-        {model && table && (
+        {activationRequired && !(model && table) && !basic && activationNotice}
+        {((model && table) || basic) && (
           <div
             className="file-properties-body"
             ref={(element) => {
-              if (element) element.inert = !current
+              if (element)
+                element.inert = model
+                  ? !current
+                  : basic?.path !== props.relativePath
             }}
           >
             <FilePropertiesSection title={t("General file information")}>
@@ -593,49 +635,45 @@ export const FilePropertiesContent = forwardRef<
                       </div>
                     )
                   }
-                  const field = table.fields.find(
-                    (field) =>
-                      field.name === name && field.settings?.isSystem === true
-                  )
-                  if (!field) return null
-                  const raw = model.row[field.tableColumnName]
+                  const raw = systemValue(name)
                   const text =
                     raw == null
                       ? "—"
-                      : field.name === "size"
+                      : name === "size"
                         ? sizeText
-                        : field.name === "_created_at" ||
-                            field.name === "_updated_at"
+                        : name === "_created_at" || name === "_updated_at"
                           ? new Date(String(raw)).toLocaleString(
                               locale === "zh" ? "zh-CN" : "en-US",
                               { dateStyle: "full", timeStyle: "short" }
                             )
-                          : field.name === "extension" &&
+                          : name === "extension" &&
                               String(raw).toLowerCase() === "md"
                             ? t("Markdown document")
                             : String(raw)
                   return (
-                    <div key={field.id}>
-                      <dt>{t(BASIC_FIELDS[field.name]!)}:</dt>
+                    <div key={name}>
+                      <dt>{t(BASIC_FIELDS[name]!)}:</dt>
                       <dd>{text}</dd>
                     </div>
                   )
                 })}
               </dl>
             </FilePropertiesSection>
-            <FilePropertiesFields
-              key={model.path}
-              source={model.source}
-              table={table}
-              row={model.row}
-              view={filePropertiesView(table.table.id, model.config)}
-              disabled={blocked}
-              readOnly={activationRequired}
-              onEdit={edit}
-              onCreateOption={createOption}
-              onSnapshot={updateSnapshot}
-              registerCommit={registerCommit}
-            />
+            {model && table && (
+              <FilePropertiesFields
+                key={model.path}
+                source={model.source}
+                table={table}
+                row={model.row}
+                view={filePropertiesView(table.table.id, model.config)}
+                disabled={blocked}
+                readOnly={activationRequired}
+                onEdit={edit}
+                onCreateOption={createOption}
+                onSnapshot={updateSnapshot}
+                registerCommit={registerCommit}
+              />
+            )}
             {activationRequired && activationNotice}
             <p className="sr-only" role="status">
               {pending > 0

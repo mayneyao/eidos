@@ -2287,6 +2287,11 @@ body {
   outline-offset: -2px;
   background: var(--surface-selected);
 }
+.sidebar-help-update-status {
+  max-width: 16rem;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
 .sidebar-pages {
   position: relative;
   height: 2rem;

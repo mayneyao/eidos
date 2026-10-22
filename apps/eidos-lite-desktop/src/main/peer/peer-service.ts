@@ -149,8 +149,19 @@ export class PeerService {
       () => false
     )
     this.store = new PeerObjectStore(this.exportDirectory)
-    const status = await this.startServers(identity)
-    return pair ? this.invite() : status
+    try {
+      const status = await this.startServers(identity)
+      await this.session?.refreshPeerSources(
+        this.localUrl,
+        this.localToken,
+        this.remote,
+        this.host.devices.map((device) => device.id)
+      )
+      return pair ? this.invite() : status
+    } catch (error) {
+      await this.close()
+      throw error
+    }
   }
   private async initializeHost() {
     let host = PeerService.hosts.get(this.deviceDirectory)

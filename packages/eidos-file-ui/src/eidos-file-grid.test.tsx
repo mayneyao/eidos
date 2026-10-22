@@ -891,6 +891,52 @@ describe("EidosFileGrid", () => {
     })
   })
 
+  it("clears positional selection on query identity changes without remounting or moving focus", async () => {
+    const loadPage = createLoadPage()
+    const onCellEdit = createCellEdit()
+    const onSelectedRowsChange = vi.fn()
+    const renderGrid = (scope: string) => (
+      <EidosFileGrid
+        table={table}
+        view={table.views[0]}
+        historyScopeKey={scope}
+        loadPage={loadPage}
+        onCellEdit={onCellEdit}
+        onSelectedRowsChange={onSelectedRowsChange}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid("all"))
+      await Promise.resolve()
+    })
+    const grid = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )!
+    grid.focus()
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.fromSingleSelection(0),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    expect(onSelectedRowsChange).toHaveBeenLastCalledWith([
+      { startIndex: 0, endIndex: 1 },
+    ])
+    await act(async () => {
+      root.render(renderGrid("filtered"))
+    })
+    expect(mocks.props?.gridSelection?.rows.length).toBe(0)
+    expect(mocks.props?.gridSelection?.current).toBeUndefined()
+    expect(onSelectedRowsChange).toHaveBeenLastCalledWith([])
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(grid)
+    expect(document.activeElement).toBe(grid)
+  })
+
   it("persists a multi-cell paste as one row batch", async () => {
     const onCellEdit = createCellEdit()
     const onRowsEdit = vi.fn(async (edits: EidosFileGridRowEdit[]) => ({
@@ -2966,6 +3012,160 @@ describe("EidosFileGrid", () => {
     expect(onViewUpdate).toHaveBeenLastCalledWith({
       hiddenFields: ["0198c72d-82b5-7000-8000-000000000002"],
     })
+  })
+
+  it("filters from the column header and keeps the editor open until the view is saved", async () => {
+    let finishSave: (() => void) | undefined
+    const onViewUpdate = vi.fn(
+      () => new Promise<void>((resolve) => (finishSave = resolve))
+    )
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onCellEdit={createCellEdit()}
+          onViewUpdate={onViewUpdate}
+        />
+      )
+      await Promise.resolve()
+    })
+    const mountedGrid = container.querySelector('[data-testid="glide-grid"]')
+    act(() => {
+      mocks.props?.onHeaderClicked?.(0, {
+        bounds: { x: 40, y: 20, width: 180, height: 36 },
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    const filterItem = document.body.querySelector<HTMLButtonElement>(
+      "[data-field-filter-trigger]"
+    )
+    expect(filterItem?.textContent).toContain("Filter by this field")
+    act(() => filterItem?.click())
+
+    const editor = document.body.querySelector<HTMLElement>(
+      '[role="dialog"][aria-label="Filter Title"]'
+    )
+    expect(editor).toBeTruthy()
+    expect(onViewUpdate).not.toHaveBeenCalled()
+    const input = editor?.querySelector<HTMLInputElement>("input")
+    expect(input).toBeTruthy()
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, "mp4")
+      input?.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const arrowDown = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => input?.dispatchEvent(arrowDown))
+    expect(arrowDown.defaultPrevented).toBe(false)
+    const apply = Array.from(editor?.querySelectorAll("button") ?? []).find(
+      (button) => button.textContent === "Apply"
+    )
+    await act(async () => apply?.click())
+    expect(onViewUpdate).toHaveBeenCalledWith({
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: table.fields[0]!.id,
+            operator: "equals",
+            value: "mp4",
+          },
+        ],
+      },
+    })
+    act(() => {
+      editor?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+    expect(editor?.isConnected).toBe(true)
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(
+      mountedGrid
+    )
+    await act(async () => finishSave?.())
+    expect(editor?.isConnected).toBe(false)
+  })
+
+  it("disables column filtering when the view cannot be updated", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onHeaderClicked?.(0, {
+        bounds: { x: 40, y: 20, width: 180, height: 36 },
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    expect(
+      document.body.querySelector<HTMLButtonElement>(
+        "[data-field-filter-trigger]"
+      )?.disabled
+    ).toBe(true)
+  })
+
+  it("stops column filter edits if the grid becomes read-only while open", async () => {
+    const onViewUpdate = vi.fn()
+    const loadPage = createLoadPage()
+    const onCellEdit = createCellEdit()
+    const render = async (disabled: boolean) => {
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            disabled={disabled}
+            loadPage={loadPage}
+            onCellEdit={onCellEdit}
+            onViewUpdate={onViewUpdate}
+          />
+        )
+        await Promise.resolve()
+      })
+    }
+    await render(false)
+    act(() => {
+      mocks.props?.onHeaderClicked?.(0, {
+        bounds: { x: 40, y: 20, width: 180, height: 36 },
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    act(() => {
+      document.body
+        .querySelector<HTMLButtonElement>("[data-field-filter-trigger]")
+        ?.click()
+    })
+    await render(true)
+    const editor = document.body.querySelector(
+      '[role="dialog"][aria-label="Filter Title"]'
+    )
+    expect(editor).toBeTruthy()
+    const buttons = Array.from(editor?.querySelectorAll("button") ?? [])
+    const apply = buttons.find((button) => button.textContent === "Apply")
+    expect(apply?.disabled).toBe(true)
+    act(() => apply?.click())
+    expect(onViewUpdate).not.toHaveBeenCalled()
+    act(() =>
+      buttons.find((button) => button.textContent === "Cancel")?.click()
+    )
+    expect(editor?.isConnected).toBe(false)
   })
 
   it.each(["desktop", "mobile"] as const)(

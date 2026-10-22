@@ -385,51 +385,61 @@ describe("BackgroundSyncQueue", () => {
     await syncQueue.close()
   })
 
-  it("recovers a persisted authentication pause without transferring files", async () => {
-    const execute = vi.fn().mockResolvedValue(succeeded())
-    const first = queue()
-    await first.attach({ spaceId, execute, emit: () => undefined })
-    await first.pause(spaceId, failed("authentication-required"))
-    await first.close()
+  it.each(["authentication-required", "remote-not-found"] as const)(
+    "rechecks a persisted %s pause without transferring files",
+    async (code) => {
+      const execute = vi.fn().mockResolvedValue(succeeded())
+      const first = queue()
+      await first.attach({ spaceId, execute, emit: () => undefined })
+      await first.pause(spaceId, failed(code))
+      await first.close()
 
-    const restarted = queue()
-    await restarted.attach({ spaceId, execute, emit: () => undefined })
-    const authorize = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Unauthorized"))
-      .mockResolvedValueOnce(undefined)
-    await expect(
-      restarted.reconcileAuthentication(spaceId, authorize)
-    ).rejects.toThrow("Unauthorized")
-    expect(restarted.status(spaceId).state).toBe("paused")
-    await restarted.reconcileAuthentication(spaceId, authorize)
-    expect(restarted.status(spaceId).state).toBe("idle")
-    await expect(store.read(spaceId)).resolves.toBeNull()
-    expect(execute).not.toHaveBeenCalled()
-    await restarted.close()
-  })
+      const restarted = queue()
+      await restarted.attach({ spaceId, execute, emit: () => undefined })
+      const authorize = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Unauthorized"))
+        .mockResolvedValueOnce(undefined)
+      await expect(
+        restarted.reconcileAccountAccess(spaceId, authorize)
+      ).rejects.toThrow("Unauthorized")
+      expect(restarted.status(spaceId).state).toBe("paused")
+      await restarted.reconcileAccountAccess(spaceId, authorize)
+      expect(restarted.status(spaceId).state).toBe("idle")
+      await expect(store.read(spaceId)).resolves.toBeNull()
+      expect(execute).not.toHaveBeenCalled()
+      await restarted.close()
+    }
+  )
 
-  it("preserves a newer failure while authentication is being verified", async () => {
-    const syncQueue = queue()
-    await syncQueue.attach({ spaceId, execute: vi.fn(), emit: () => undefined })
-    await syncQueue.pause(spaceId, failed("authentication-required"))
-    let finish!: () => void
-    const recovery = syncQueue.reconcileAuthentication(
-      spaceId,
-      () =>
-        new Promise<void>((resolve) => {
-          finish = resolve
-        })
-    )
-    await syncQueue.pause(spaceId, failed("quota-exceeded"))
-    finish()
-    await recovery
-    expect(syncQueue.status(spaceId).lastFailure?.code).toBe("quota-exceeded")
-    const authorize = vi.fn()
-    await syncQueue.reconcileAuthentication(spaceId, authorize)
-    expect(authorize).not.toHaveBeenCalled()
-    await syncQueue.close()
-  })
+  it.each(["authentication-required", "remote-not-found"] as const)(
+    "preserves a newer failure while %s is being verified",
+    async (code) => {
+      const syncQueue = queue()
+      await syncQueue.attach({
+        spaceId,
+        execute: vi.fn(),
+        emit: () => undefined,
+      })
+      await syncQueue.pause(spaceId, failed(code))
+      let finish!: () => void
+      const recovery = syncQueue.reconcileAccountAccess(
+        spaceId,
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          })
+      )
+      await syncQueue.pause(spaceId, failed("quota-exceeded"))
+      finish()
+      await recovery
+      expect(syncQueue.status(spaceId).lastFailure?.code).toBe("quota-exceeded")
+      const authorize = vi.fn()
+      await syncQueue.reconcileAccountAccess(spaceId, authorize)
+      expect(authorize).not.toHaveBeenCalled()
+      await syncQueue.close()
+    }
+  )
 
   it("coalesces multiple pending checkpoints into one whole-Space run", async () => {
     const execute = vi.fn().mockResolvedValue(succeeded())

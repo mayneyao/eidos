@@ -163,7 +163,7 @@ export class BackgroundSyncQueue {
     return this.run(entry, action)
   }
 
-  async reconcileAuthentication(
+  async reconcileAccountAccess(
     spaceId: string,
     authorize: () => Promise<unknown>
   ): Promise<EidosSyncQueueStatus> {
@@ -171,14 +171,17 @@ export class BackgroundSyncQueue {
     const paused = entry.status
     if (
       paused.state !== "paused" ||
-      paused.lastFailure?.code !== "authentication-required"
+      (paused.lastFailure?.code !== "authentication-required" &&
+        paused.lastFailure?.code !== "remote-not-found")
     )
       return entry.status
     // A saved failure belongs to an earlier attempt, not necessarily the
-    // current account session. Validate access without starting a transfer.
+    // current account session. An object-level 404 was also previously saved
+    // as a missing repository. Verify repository access before clearing either
+    // blocker, without starting a transfer or changing history.
     await authorize()
     if (entry.status !== paused) return entry.status
-    return this.clearResolvedFailure(spaceId, "authentication-required")
+    return this.clearResolvedFailure(spaceId, paused.lastFailure.code)
   }
 
   async clearResolvedFailure(

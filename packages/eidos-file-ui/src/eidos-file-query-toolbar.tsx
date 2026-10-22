@@ -15,6 +15,7 @@ import {
   ArrowUpDown,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronsUpDown,
   ChevronUp,
   ChevronRight,
@@ -204,11 +205,13 @@ function FilterValueEditor({
   field,
   rule,
   source,
+  compact = false,
   onChange,
 }: {
   field: EidosFileFieldInfo
   rule: EidosFileFilterRule
   source?: EidosFileEditorDataSource
+  compact?: boolean
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
   const { timeZone, translate: t } = useEidosFileUI()
@@ -300,7 +303,12 @@ function FilterValueEditor({
   ) {
     const selected = new Set(Array.isArray(rule.value) ? rule.value : [])
     return (
-      <div className="col-span-full ml-[116px] flex max-w-[320px] flex-wrap gap-1 pt-1">
+      <div
+        className={cn(
+          "flex max-w-[320px] flex-wrap gap-1 pt-1",
+          !compact && "col-span-full ml-[116px]"
+        )}
+      >
         {options.map((option) => (
           <button
             key={option.value}
@@ -560,14 +568,16 @@ function EidosFileFilterRuleEditor({
   fields,
   rule,
   source,
+  fixedField = false,
   onChange,
   onRemove,
 }: {
   fields: EidosFileFieldInfo[]
   rule: EidosFileFilterRule
   source?: EidosFileEditorDataSource
+  fixedField?: boolean
   onChange: (rule: EidosFileFilterRule) => void
-  onRemove: () => void
+  onRemove?: () => void
 }) {
   const { translate: t } = useEidosFileUI()
   const field =
@@ -575,30 +585,39 @@ function EidosFileFilterRuleEditor({
     fields[0]
   if (!field) return null
   return (
-    <div className="eidos-filter-rule grid grid-cols-[110px_172px_minmax(120px,1fr)_28px] items-start gap-1.5">
-      <Select
-        value={eidosFileFieldKey(field)}
-        onValueChange={(fieldId) => {
-          const nextField = fields.find(
-            (candidate) => eidosFileFieldKey(candidate) === fieldId
-          )
-          if (nextField) onChange(defaultRule(nextField))
-        }}
-      >
-        <SelectTrigger className="h-7 min-w-0 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {fields.map((candidate) => (
-            <SelectItem
-              key={eidosFileFieldKey(candidate)}
-              value={eidosFileFieldKey(candidate)}
-            >
-              {eidosFileFieldDisplayName(candidate)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div
+      className={cn(
+        "grid items-start gap-1.5",
+        fixedField
+          ? "grid-cols-1"
+          : "eidos-filter-rule grid-cols-[110px_172px_minmax(120px,1fr)_28px]"
+      )}
+    >
+      {!fixedField && (
+        <Select
+          value={eidosFileFieldKey(field)}
+          onValueChange={(fieldId) => {
+            const nextField = fields.find(
+              (candidate) => eidosFileFieldKey(candidate) === fieldId
+            )
+            if (nextField) onChange(defaultRule(nextField))
+          }}
+        >
+          <SelectTrigger className="h-7 min-w-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {fields.map((candidate) => (
+              <SelectItem
+                key={eidosFileFieldKey(candidate)}
+                value={eidosFileFieldKey(candidate)}
+              >
+                {eidosFileFieldDisplayName(candidate)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Select
         value={rule.operator}
         onValueChange={(operator: EidosFileFilterOperator) => {
@@ -648,24 +667,208 @@ function EidosFileFilterRuleEditor({
           ))}
         </SelectContent>
       </Select>
-      <div className="eidos-filter-value">
+      <div
+        className={fixedField ? "min-w-0" : "eidos-filter-value"}
+        data-eidos-file-filter-value={fixedField ? "" : undefined}
+      >
         <FilterValueEditor
           field={field}
           rule={rule}
           source={source}
+          compact={fixedField}
           onChange={(value) => onChange({ ...rule, value })}
         />
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="eidos-filter-remove h-7 w-7 text-muted-foreground"
-        aria-label={t("Remove filter")}
-        onClick={onRemove}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
+      {onRemove && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="eidos-filter-remove h-7 w-7 text-muted-foreground"
+          aria-label={t("Remove filter")}
+          onClick={onRemove}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function directFieldFilterRuleIndex(
+  value: EidosFileFilterGroup | null,
+  field: EidosFileFieldInfo
+): number {
+  if (value?.conjunction !== "and") return -1
+  const fieldKey = eidosFileFieldKey(field)
+  const matching = value.children.flatMap((child, index) =>
+    child.type === "rule" && child.field === fieldKey ? [index] : []
+  )
+  return matching.length === 1 ? matching[0]! : -1
+}
+
+export function EidosFileFieldFilterEditor({
+  field,
+  value,
+  source,
+  disabled = false,
+  onChange,
+  onClose,
+  onBack,
+  onPendingChange,
+}: {
+  field: EidosFileFieldInfo
+  value: EidosFileFilterGroup | null
+  source?: EidosFileEditorDataSource
+  disabled?: boolean
+  onChange: (filter: EidosFileFilterGroup) => Promise<void> | void
+  onClose: () => void
+  onBack: () => void
+  onPendingChange?: (pending: boolean) => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  const editorRef = useRef<HTMLDivElement>(null)
+  const [draft, setDraft] = useState<EidosFileFilterRule>(() => {
+    const index = directFieldFilterRuleIndex(value, field)
+    const current = index >= 0 ? value?.children[index] : undefined
+    return current?.type === "rule" ? current : defaultRule(field)
+  })
+  const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
+  const lifecycleRef = useRef({ active: false, generation: 0 })
+  const callbacksRef = useRef({ onClose, onPendingChange })
+  callbacksRef.current = { onClose, onPendingChange }
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const lifecycle = lifecycleRef.current
+    lifecycle.active = true
+    lifecycle.generation += 1
+    const valueControl = editorRef.current?.querySelector<HTMLElement>(
+      '[data-eidos-file-filter-value] input, [data-eidos-file-filter-value] button[role="combobox"]'
+    )
+    const operatorControl = editorRef.current?.querySelector<HTMLElement>(
+      'button[role="combobox"]'
+    )
+    ;(valueControl ?? operatorControl)?.focus({ preventScroll: true })
+    return () => {
+      lifecycle.active = false
+      lifecycle.generation += 1
+      if (pendingRef.current) {
+        pendingRef.current = false
+        callbacksRef.current.onPendingChange?.(false)
+      }
+    }
+  }, [])
+  const commit = async () => {
+    if (disabled || pendingRef.current || !lifecycleRef.current.active) return
+    const generation = lifecycleRef.current.generation
+    const isActive = () =>
+      lifecycleRef.current.active &&
+      lifecycleRef.current.generation === generation
+    pendingRef.current = true
+    setPending(true)
+    callbacksRef.current.onPendingChange?.(true)
+    setError(null)
+    try {
+      const index = directFieldFilterRuleIndex(value, field)
+      const next: EidosFileFilterGroup =
+        value?.conjunction === "and"
+          ? {
+              ...value,
+              children:
+                index >= 0
+                  ? value.children.map((child, childIndex) =>
+                      childIndex === index ? draft : child
+                    )
+                  : [...value.children, draft],
+            }
+          : {
+              type: "group",
+              conjunction: "and",
+              children: value ? [value, draft] : [draft],
+            }
+      await onChange(next)
+      if (isActive()) callbacksRef.current.onClose()
+    } catch (changeError) {
+      if (isActive()) {
+        setError(
+          changeError instanceof Error
+            ? changeError.message
+            : t("Unable to update filters")
+        )
+      }
+    } finally {
+      if (isActive()) {
+        pendingRef.current = false
+        setPending(false)
+        callbacksRef.current.onPendingChange?.(false)
+      }
+    }
+  }
+  return (
+    <div
+      ref={editorRef}
+      className="w-80 max-w-full p-3"
+      aria-busy={pending || undefined}
+    >
+      <fieldset disabled={pending} className="m-0 min-w-0 border-0 p-0">
+        <div className="mb-3 flex min-w-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label={t("Back")}
+            onClick={onBack}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <p className="text-[10px] text-muted-foreground">{t("Filter")}</p>
+            <h3 className="truncate text-xs font-medium">
+              {eidosFileFieldDisplayName(field)}
+            </h3>
+          </div>
+        </div>
+        <fieldset disabled={disabled} className="m-0 min-w-0 border-0 p-0">
+          <EidosFileFilterRuleEditor
+            key={disabled ? "disabled" : "enabled"}
+            fields={[field]}
+            fixedField
+            rule={draft}
+            source={source}
+            onChange={setDraft}
+          />
+        </fieldset>
+        {error ? (
+          <p className="mt-3 break-words text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-3 flex justify-end gap-1.5 border-t pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={onClose}
+          >
+            {t("Cancel")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            disabled={disabled}
+            onClick={() => void commit()}
+          >
+            {pending ? (
+              <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+            ) : null}
+            {t(pending ? "Applying…" : "Apply")}
+          </Button>
+        </div>
+      </fieldset>
     </div>
   )
 }

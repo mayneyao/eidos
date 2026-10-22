@@ -1581,6 +1581,13 @@ export function registerIpc(
     if (typeof value !== "string") throw new Error("Invalid file path")
     controller.showFileProperties(event.sender, value)
   })
+  ipcMain.handle(
+    IPC_CHANNELS.getBasicFileProperties,
+    (event, value: unknown) => {
+      if (typeof value !== "string") throw new Error("Invalid file path")
+      return controller.requireSession(event.sender).statFile(value)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.filePropertiesSelect, (event, value: unknown) => {
     if (value !== null && typeof value !== "string")
       throw new Error("Invalid file path")
@@ -2933,18 +2940,15 @@ export function registerIpc(
     if (!session) return null
     await attachSyncQueue(event)
     try {
-      await syncQueue.reconcileAuthentication(
-        session.canonical.id,
-        async () => {
-          const remoteUrl = await session.officialSyncRemoteUrl()
-          if (!remoteUrl)
-            throw new Error("This Space is not connected to Eidos Sync")
-          await syncControl.repositoryAccess(remoteUrl)
-        }
-      )
+      await syncQueue.reconcileAccountAccess(session.canonical.id, async () => {
+        const remoteUrl = await session.officialSyncRemoteUrl()
+        if (!remoteUrl)
+          throw new Error("This Space is not connected to Eidos Sync")
+        await syncControl.repositoryAccess(remoteUrl)
+      })
     } catch (error) {
       // Preserve the saved failure if access still cannot be verified.
-      eidosLiteLogger()?.warn("sync.authentication.reconcile-failed", {}, error)
+      eidosLiteLogger()?.warn("sync.access.reconcile-failed", {}, error)
     }
     return syncQueue.status(session.canonical.id)
   })

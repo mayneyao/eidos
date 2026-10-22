@@ -450,6 +450,7 @@ export function EidosFileDataGrid({
         onImportDroppedFiles={onImportDroppedFiles}
         onRequestDeleteRows={onDeleteRows ? deleteRows : undefined}
         onViewUpdate={view ? updateView : undefined}
+        filterSource={source}
         onError={onError}
       />
       <EidosFileFieldDeleteDialog

@@ -1204,7 +1204,9 @@ export class SpaceSession {
     await this.freshSnapshotAndEmit()
   }
 
-  async statFile(requestedPath: string): Promise<FileStat | null> {
+  async statFile(
+    requestedPath: string
+  ): Promise<(FileStat & { createdAtMs: number }) | null> {
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
     const canonicalRoot = await fs.realpath(this.canonical.root)
@@ -1219,6 +1221,7 @@ export class SpaceSession {
       extension: path.extname(relativePath).toLowerCase(),
       size: stats.size,
       isDirectory: stats.isDirectory(),
+      createdAtMs: stats.birthtimeMs,
       modifiedAtMs: stats.mtimeMs,
     }
   }
@@ -2505,6 +2508,78 @@ export class SpaceSession {
     const task = this.syncTask.then(action, action)
     this.syncTask = task.catch(() => {})
     return task
+  }
+
+  async refreshPeerSources(
+    url: string,
+    token: string,
+    remote: string,
+    authorizedDeviceIds: readonly string[]
+  ): Promise<void> {
+    if (!this.versioningEnabled) return
+    const endpoint = new URL(url.replace(/^graft\+/, ""))
+    if (
+      !/^eidos-peer-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(
+        remote
+      ) ||
+      endpoint.protocol !== "http:" ||
+      endpoint.hostname !== "127.0.0.1" ||
+      endpoint.pathname !== "/peer/space" ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash
+    )
+      throw new Error("Invalid local device cache identity")
+    const sources = [
+      { name: remote, pathname: "/peer/space" },
+      ...authorizedDeviceIds.map((id) => ({
+        name: `${remote}-${id}`,
+        pathname: `/incoming/${encodeURIComponent(id)}`,
+      })),
+    ]
+    await this.withSyncTask(() =>
+      this.gate.withRepositoryOperation(
+        "Reconnecting device history caches",
+        async (signal) => {
+          if (this.closed) throw new Error("Space is closed")
+          for (const source of sources) {
+            const previous = await this.graft.remoteUrl(
+              this.canonical.root,
+              source.name,
+              { signal }
+            )
+            if (!previous) continue
+            let previousUrl: URL
+            try {
+              previousUrl = new URL(previous.replace(/^graft\+/, ""))
+            } catch {
+              continue
+            }
+            // Only refresh this gateway's existing private loopback sources.
+            // Origin, unrelated gateways and manually edited remote URLs remain intact.
+            if (
+              previousUrl.protocol !== "http:" ||
+              previousUrl.hostname !== "127.0.0.1" ||
+              previousUrl.pathname !== source.pathname ||
+              previousUrl.username ||
+              previousUrl.password ||
+              previousUrl.search ||
+              previousUrl.hash
+            )
+              continue
+            const next = new URL(endpoint)
+            next.pathname = source.pathname
+            await this.graft.configurePeer(
+              this.canonical.root,
+              `graft+${next.toString()}`,
+              token,
+              source.name
+            )
+          }
+        }
+      )
+    )
   }
 
   async syncPeerRemote(

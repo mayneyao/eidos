@@ -96,6 +96,7 @@ import {
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
+import type { EidosFileEditorDataSource } from "./data-source"
 import { encodeEidosFileValues } from "@eidos.space/eidos-file"
 
 import {
@@ -296,6 +297,7 @@ export interface EidosFileGridProps {
     ranges: EidosFileRowRange[]
   ) => Promise<EidosFileGridDeleteResult | void> | void
   onViewUpdate?: (changes: UpdateEidosFileViewInput) => Promise<void> | void
+  filterSource?: EidosFileEditorDataSource
   onError?: (error: unknown) => void
 }
 
@@ -533,6 +535,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onDeleteField,
   onRequestDeleteRows,
   onViewUpdate,
+  filterSource,
   onError,
 }: EidosFileGridProps) {
   const {
@@ -2245,6 +2248,20 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [history.onGridSelectionChange, releaseDraftRowPins]
   )
 
+  const selectionScopeRef = useRef(historyScopeKey)
+  useEffect(() => {
+    if (selectionScopeRef.current === historyScopeKey) return
+    selectionScopeRef.current = historyScopeKey
+    // A new query may put different records at the same positions. Keep the
+    // mounted editor and focus, but never carry positional selections over.
+    const empty = {
+      rows: CompactSelection.empty(),
+      columns: CompactSelection.empty(),
+    }
+    history.onGridSelectionChange(empty)
+    releaseDraftRowPins(empty)
+  }, [historyScopeKey, history.onGridSelectionChange, releaseDraftRowPins])
+
   useEffect(() => {
     history.reset()
   }, [
@@ -3096,6 +3113,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
           canUpdateView={!gridWriteLocked && Boolean(view && onViewUpdate)}
           canEditStructure={!gridWriteLocked && canAlterSchema}
+          filter={view?.filter ?? null}
+          source={filterSource}
+          onFilterChange={(filter) => onViewUpdate?.({ filter })}
           statType={fieldStatType}
           onOpenChange={(open) => {
             if (!open) setFieldMenu(null)

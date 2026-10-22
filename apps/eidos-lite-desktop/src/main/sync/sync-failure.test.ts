@@ -1,6 +1,9 @@
 import type { EidosSyncFailureCode } from "../../shared/contracts"
 import { classifySyncFailure, shouldReconcileHostedPush } from "./sync-failure"
 
+const missingLocalSnapshotSegment =
+  "local snapshot hydrate failed: Object store error: NotFound (permanent) at read, context: { service: memory, path: segments/private-segment-id, range: 0- } => memory doesn't have this path"
+
 describe("classifySyncFailure", () => {
   it.each([
     [
@@ -105,6 +108,120 @@ describe("classifySyncFailure", () => {
     })
     expect(JSON.stringify(classified)).not.toContain("4Fe8EPM1JWDDV")
   })
+
+  it.each(["fetch", "pull", "push"] as const)(
+    "keeps a missing encrypted snapshot object distinct from account access during %s",
+    (phase) => {
+      const classified = classifySyncFailure(
+        Object.assign(
+          new Error(
+            `${missingLocalSnapshotSegment}; remote snapshot hydrate failed: HTTP remote returned 404 for \`encrypted object\`: object missing`
+          ),
+          { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+        ),
+        phase
+      )
+
+      expect(classified).toMatchObject({
+        code: "history-data-missing",
+        title: "Sync history is temporarily unavailable",
+        action: "retry-now",
+        retryable: true,
+        retryAfterMs: 2_000,
+        localSafe: true,
+        status: 404,
+      })
+      expect(classified.message).toContain(
+        "current files have not been replaced"
+      )
+      expect(classified.message).toContain(
+        "Keep this Space and its local versions"
+      )
+      expect(JSON.stringify(classified)).not.toMatch(
+        /private-segment-id|encrypted object|signed-in account|fresh cloud copy/
+      )
+    }
+  )
+
+  it("identifies a local snapshot's missing segment without a misleading account error", () => {
+    expect(
+      classifySyncFailure(
+        Object.assign(new Error(missingLocalSnapshotSegment), {
+          code: "GRAFT_SDK_REPOSITORY_COMMAND",
+        }),
+        "push"
+      )
+    ).toMatchObject({
+      code: "history-data-missing",
+      action: "retry-now",
+      retryable: true,
+    })
+  })
+
+  it("keeps authentication recovery available when remote hydration needs a new login", () => {
+    expect(
+      classifySyncFailure(
+        Object.assign(
+          new Error(
+            `${missingLocalSnapshotSegment}; remote snapshot hydrate failed: HTTP remote returned 401`
+          ),
+          { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+        ),
+        "push"
+      )
+    ).toMatchObject({ code: "authentication-required", retryable: false })
+  })
+
+  it("keeps network recovery available when remote hydration cannot be reached", () => {
+    expect(
+      classifySyncFailure(
+        Object.assign(
+          new Error(
+            `${missingLocalSnapshotSegment}; remote snapshot hydrate failed: network connection reset`
+          ),
+          { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+        ),
+        "push"
+      )
+    ).toMatchObject({ code: "offline", retryable: true })
+  })
+
+  it("recognizes a missing plaintext snapshot segment without claiming the whole Space is unavailable", () => {
+    expect(
+      classifySyncFailure(
+        Object.assign(
+          new Error(
+            `${missingLocalSnapshotSegment}; remote snapshot hydrate failed: HTTP remote returned 404 for \`segments/private-segment-id\`: {"title":"object_not_found","status":404,"detail":"Object not found"}`
+          ),
+          { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+        ),
+        "push"
+      )
+    ).toMatchObject({
+      code: "history-data-missing",
+      action: "retry-now",
+      retryable: true,
+      status: 404,
+    })
+  })
+
+  it.each([
+    "HTTP remote returned 404 for `encrypted object`: object missing",
+    'HTTP remote returned 404 for `segments/private-segment-id`: {"title":"object_not_found","status":404}',
+    `${missingLocalSnapshotSegment}; remote snapshot hydrate failed: HTTP remote returned 404 for \`repository\`: {"title":"repository_not_found"}`,
+  ])(
+    "does not generalize non-snapshot or repository HTTP 404: %s",
+    (message) => {
+      expect(
+        classifySyncFailure(
+          Object.assign(new Error(message), {
+            code: "GRAFT_SDK_REPOSITORY_COMMAND",
+          }),
+          "push"
+        )
+      ).toMatchObject({ code: "remote-not-found", status: 404 })
+    }
+  )
 
   it("keeps an edge upload limit distinct from account storage quota", () => {
     const classified = classifySyncFailure(
