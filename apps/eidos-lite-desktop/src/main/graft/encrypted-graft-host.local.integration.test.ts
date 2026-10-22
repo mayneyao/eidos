@@ -90,7 +90,7 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     return result
   }
   try {
-    expect(sdk.sdkVersion()).toBe("0.3.34")
+    expect(sdk.sdkVersion()).toBe("0.3.35")
     await fs.mkdir(spaceA)
     await fs.mkdir(spaceB)
     const fixture = path.resolve(

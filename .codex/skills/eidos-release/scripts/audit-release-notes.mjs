@@ -13,6 +13,8 @@ const surfaceContracts = {
   lite: {
     notes: "apps/eidos-lite-desktop/RELEASE_NOTES.md",
     prefix: "lite-v",
+    // Retain the failed immutable tag, but verify it has no Release.
+    knownUnpublishedTags: ["lite-v0.26.1"],
   },
 }
 
@@ -337,8 +339,15 @@ function readRecentBodies(contract, candidateTag, limit, unpublishedTags = []) {
     .split("\n")
     .filter(Boolean)
 
-  verifyUnpublishedTags(contract, candidateTag, tags, unpublishedTags)
-  const unpublished = new Set(unpublishedTags)
+  const unpublished = new Set([
+    ...unpublishedTags,
+    ...(contract.knownUnpublishedTags ?? []).filter(
+      (tag) =>
+        compareVersions(parseVersion(tag, contract.prefix), candidateVersion) <
+        0
+    ),
+  ])
+  verifyUnpublishedTags(contract, candidateTag, tags, unpublished)
 
   const eligible = tags.filter((tag) => {
     if (tag === candidateTag) return false
