@@ -83,6 +83,13 @@ beforeEach(() => {
     throw new Error(method)
   })
   window.eidosLite = {
+    getBasicFileProperties: vi.fn(async (path: string) => ({
+      path,
+      extension: ".md",
+      size: 42,
+      createdAtMs: Date.UTC(2026, 9, 20),
+      modifiedAtMs: Date.UTC(2026, 9, 21),
+    })),
     openFileMetadata: vi.fn(async () => ({ sessionId: "catalog", snapshot })),
     callRuntime: call,
   } as unknown as EidosLiteApi
@@ -157,6 +164,75 @@ it("renders loaded properties read-only without Spark", async () => {
   expect(element.querySelector(".file-properties-activation")).not.toBeNull()
   expect(surface.current?.disabled).toBe(true)
   expect(surface.current?.readOnly).toBe(true)
+})
+
+it("shows filesystem properties without Spark or a metadata catalog", async () => {
+  props = { ...props, readOnly: true, spacePath: "/space" }
+  vi.mocked(window.eidosLite.getBasicFileProperties).mockResolvedValue({
+    path: "a.md",
+    extension: ".md",
+    size: 42,
+    createdAtMs: Date.UTC(2026, 9, 20),
+    modifiedAtMs: Date.UTC(2026, 9, 21),
+  })
+  vi.mocked(window.eidosLite.openFileMetadata).mockRejectedValue(
+    new Error(SPARK_ACTIVATION_REQUIRED)
+  )
+  await render()
+  expect(element.textContent).toContain("General file information")
+  expect(element.textContent).toContain("Markdown document")
+  expect(element.textContent).toContain("42 bytes")
+  expect(element.textContent).toContain("/space")
+  expect(element.textContent).toContain("Created time")
+  expect(element.textContent).toContain("Modified time")
+  expect(element.querySelector(".file-sidebar-error")).toBeNull()
+  expect(surface.current).toBeNull()
+  expect(call).not.toHaveBeenCalled()
+})
+
+it("discards a late filesystem read after selecting another file", async () => {
+  props = { ...props, readOnly: true }
+  let finish!: (
+    value: Awaited<ReturnType<EidosLiteApi["getBasicFileProperties"]>>
+  ) => void
+  vi.mocked(window.eidosLite.getBasicFileProperties).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  vi.mocked(window.eidosLite.openFileMetadata).mockRejectedValue(
+    new Error(SPARK_ACTIVATION_REQUIRED)
+  )
+  await render()
+  props = { ...props, relativePath: "b.md" }
+  await render()
+  await act(async () =>
+    finish({
+      path: "a.md",
+      extension: ".txt",
+      size: 999,
+      createdAtMs: 0,
+      modifiedAtMs: 0,
+    })
+  )
+  expect(
+    element.querySelector(".file-properties-identity strong")?.textContent
+  ).toBe("b.md")
+  expect(element.textContent).toContain("42 bytes")
+  expect(element.textContent).not.toContain("999")
+})
+
+it("reports a missing filesystem target even without Spark", async () => {
+  props = { ...props, readOnly: true }
+  vi.mocked(window.eidosLite.getBasicFileProperties).mockResolvedValue(null)
+  vi.mocked(window.eidosLite.openFileMetadata).mockRejectedValue(
+    new Error(SPARK_ACTIVATION_REQUIRED)
+  )
+  await render()
+  expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+    "This file is no longer available"
+  )
 })
 
 it("coalesces form layout measurements before reporting a native window height", async () => {

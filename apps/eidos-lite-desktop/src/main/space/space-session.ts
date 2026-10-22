@@ -1204,7 +1204,9 @@ export class SpaceSession {
     await this.freshSnapshotAndEmit()
   }
 
-  async statFile(requestedPath: string): Promise<FileStat | null> {
+  async statFile(
+    requestedPath: string
+  ): Promise<(FileStat & { createdAtMs: number }) | null> {
     this.prioritizeLocalWork()
     const relativePath = normalizeMutableRelativePath(requestedPath)
     const canonicalRoot = await fs.realpath(this.canonical.root)
@@ -1219,6 +1221,7 @@ export class SpaceSession {
       extension: path.extname(relativePath).toLowerCase(),
       size: stats.size,
       isDirectory: stats.isDirectory(),
+      createdAtMs: stats.birthtimeMs,
       modifiedAtMs: stats.mtimeMs,
     }
   }

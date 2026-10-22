@@ -1581,6 +1581,13 @@ export function registerIpc(
     if (typeof value !== "string") throw new Error("Invalid file path")
     controller.showFileProperties(event.sender, value)
   })
+  ipcMain.handle(
+    IPC_CHANNELS.getBasicFileProperties,
+    (event, value: unknown) => {
+      if (typeof value !== "string") throw new Error("Invalid file path")
+      return controller.requireSession(event.sender).statFile(value)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.filePropertiesSelect, (event, value: unknown) => {
     if (value !== null && typeof value !== "string")
       throw new Error("Invalid file path")

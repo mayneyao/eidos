@@ -194,6 +194,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.settingsOpenDestination, destination),
   openFileProperties: (path) =>
     ipcRenderer.invoke(IPC_CHANNELS.filePropertiesOpen, path),
+  getBasicFileProperties: (path) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getBasicFileProperties, path),
   selectFileProperties: (path) =>
     ipcRenderer.invoke(IPC_CHANNELS.filePropertiesSelect, path),
   getFilePropertiesTarget: () =>
