@@ -31,6 +31,13 @@ licenses are not upgraded implicitly. The main process checks Ed25519 signatures
 issuer, audience, device ID and expiration. Spark derives its device ID from the
 operating system machine identifier (hashed before transmission) and falls back
 to the Eidos device identity only when no stable machine identifier exists.
+Account registration sends this identity as `sparkHardwareId`, separately from
+the Sync installation UUID. The account service binds it to the authenticated
+OAuth token and signs that value into Spark certificates. Registration and
+verification share one cached resolver in the account session. Existing signed-in
+profiles register this binding on their first token use after restart. Existing
+new-Spark UUID activations move to the machine binding without consuming another
+seat or restoring an explicitly released activation.
 A valid cache survives sign-out and offline restart. An expired cache enables no
 features; a large backward clock change disables an offline grant until Spark is
 refreshed online. Server-confirmed loss of authorization clears the cache, but a

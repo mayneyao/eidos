@@ -7,6 +7,7 @@ export type SyncAccessMode = "read_write" | "read_only" | "blocked"
 
 export interface SyncDeviceRegistration {
   stableDeviceId: string
+  sparkHardwareId?: string
   displayName: string
   platform: SyncDevicePlatform
   appVersion: string

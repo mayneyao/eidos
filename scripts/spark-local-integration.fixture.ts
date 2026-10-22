@@ -38,7 +38,8 @@ const db =
   ${read("db/license-system.sql")} ${read("db/eidos-cloud-billing.sql")} ${read("db/eidos-sync-devices.sql")}
   ${read("db/migrations/2026-10-19-spark-lite.sql")} ${read("db/migrations/2026-10-19-spark-cdk.sql")} ${read("db/migrations/2026-10-19-spark-personal-license.sql")} ${read("db/migrations/2026-10-19-spark-legacy-claim.sql")}`)
 const keys = generateKeyPairSync("ed25519")
-const hardwareId = "1f9a8b7c-6d5e-4f32-a109-876543210abc"
+const stableDeviceId = "1f9a8b7c-6d5e-4f32-a109-876543210abc"
+const hardwareId = "a".repeat(64)
 const env = {
   DB: db,
   EIDOS_ENVIRONMENT: "staging",
@@ -123,7 +124,8 @@ try {
   assert(address && typeof address === "object")
   env.BASE_URL = env.BETTER_AUTH_URL = `http://127.0.0.1:${address.port}`
   await registerSyncDevice(db, "fixture-access", {
-    stableDeviceId: hardwareId,
+    stableDeviceId,
+    sparkHardwareId: hardwareId,
     displayName: "Spark fixture",
     platform: "macos",
   })
@@ -333,7 +335,11 @@ try {
   db.exec("UPDATE license SET mode='live' WHERE license_key='legacy_fixture'")
   const gift = await (await claimLegacy()).json()
   assert.equal((await (await claimLegacy()).json()).licenseId, gift.licenseId)
-  assert.equal((await restarted.status(true)).licenseId, gift.licenseId)
+  assert.equal((await restarted.status(true)).state, "inactive")
+  assert.equal(
+    (await restarted.activate(gift.licenseId)).licenseId,
+    gift.licenseId
+  )
   await restarted.require("file-metadata")
   signedIn = false
   assert.equal((await new SparkService(options).status()).state, "active")
@@ -347,7 +353,7 @@ try {
     1
   )
   console.log(
-    "PASS: legacy eligibility → authenticated one-time claim → Lite automatic activation → perpetual offline grant; no duplicate gift"
+    "PASS: legacy eligibility → authenticated one-time claim → explicit activation after release → perpetual offline grant; no duplicate gift"
   )
   console.log(
     "PASS: legacy activation/validation and certificate shape remain compatible; new plan cannot bypass the Lite account/device protocol"

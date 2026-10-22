@@ -7,6 +7,7 @@ import type { DeviceIdentityStore } from "./device-identity"
 import type { OAuthUser } from "./oauth-client"
 import { EidosOAuthError } from "./oauth-client"
 import { OAuthLoopbackCallback } from "./loopback-callback"
+import { resolveSparkHardwareId } from "./spark-hardware-id"
 import type {
   SecureAccountCredentialStore,
   StoredAccountSession,
@@ -34,6 +35,14 @@ interface AccountSessionOptions {
 }
 
 export class AccountSessionService {
+  private hardwareIdPromise: Promise<string> | null = null
+  private boundAccessToken: string | null = null
+
+  sparkHardwareId(): Promise<string> {
+    return (this.hardwareIdPromise ??= resolveSparkHardwareId(
+      async () => (await this.deviceIdentity.getOrCreate()).stableDeviceId
+    ))
+  }
   private signInPromise: Promise<AccountSessionStatus> | null = null
   private signInCallback: Promise<OAuthLoopbackCallback> | null = null
   private callbackShutdown: Promise<void> = Promise.resolve()
@@ -141,6 +150,18 @@ export class AccountSessionService {
         ? 0
         : tokens.storedAtMs + tokens.expiresIn * 1000
     if (expiresAt > Date.now() + TOKEN_REFRESH_BUFFER_MS) {
+      // Upgrade an already signed-in profile before asking Spark for a grant.
+      // A restart must not wait for the OAuth token to expire to register its hash.
+      if (this.boundAccessToken !== tokens.accessToken) {
+        const identity = await this.deviceIdentity.getOrCreate()
+        await this.syncClient.registerDevice(tokens.accessToken, {
+          stableDeviceId: identity.stableDeviceId,
+          sparkHardwareId: await this.sparkHardwareId(),
+          ...this.options.device,
+        })
+        this.assertCurrent(generation)
+        this.boundAccessToken = tokens.accessToken
+      }
       return session
     }
     if (!tokens.refreshToken) {
@@ -276,6 +297,7 @@ export class AccountSessionService {
     const identity = await this.deviceIdentity.getOrCreate()
     const device = await this.syncClient.registerDevice(tokens.accessToken, {
       stableDeviceId: identity.stableDeviceId,
+      sparkHardwareId: await this.sparkHardwareId(),
       ...this.options.device,
     })
     const authorization = await this.syncClient.authorization(
@@ -286,6 +308,7 @@ export class AccountSessionService {
         "The Eidos Sync identity does not match the signed-in account."
       )
     }
+    this.boundAccessToken = tokens.accessToken
     return {
       session: { tokens, user: { id: user.id }, device },
       authorization,

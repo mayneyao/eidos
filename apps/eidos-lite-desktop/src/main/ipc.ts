@@ -10,8 +10,6 @@ import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { SparkService } from "./account/spark-service"
-import { resolveSparkHardwareId } from "./account/spark-hardware-id"
-import { DeviceIdentityStore } from "./account/device-identity"
 import { accountStorageKey } from "../shared/service-environment"
 import {
   resolveEidosLiteLocale,
@@ -671,14 +669,6 @@ export function registerIpc(
   openPluginPackage(filePath: string): Promise<boolean>
 } {
   const plugins = registerPluginIpc(controller)
-  const deviceIdentity = new DeviceIdentityStore(
-    path.join(app.getPath("userData"), "device-identity.json")
-  )
-  let hardwareIdPromise: Promise<string> | null = null
-  const sparkHardwareId = () =>
-    (hardwareIdPromise ??= resolveSparkHardwareId(
-      async () => (await deviceIdentity.getOrCreate()).stableDeviceId
-    ))
   const spark = new SparkService({
     origin: services.accountOrigin,
     publicKey: sparkPublicKey(services.name),
@@ -688,7 +678,7 @@ export function registerIpc(
       accountStorageKey(services),
       "spark-certificate.json"
     ),
-    hardwareId: sparkHardwareId,
+    hardwareId: () => syncControl.sparkHardwareId(),
     account: async () => {
       const account = await syncControl.accountStatus()
       return account.state === "signed-in" && account.user
