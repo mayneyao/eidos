@@ -279,12 +279,24 @@ const emptySpaceOnboardingProbe = `
   const textKind = kinds.find(button => button.textContent?.trim() === "Text")
   const eidosKind = kinds.find(button => button.textContent?.trim() === "Eidos")
   if (!textKind || !eidosKind) throw new Error("New File type controls are missing")
-  const initialHeight = dialog.getBoundingClientRect().height
+  if (!dialog.querySelector('.path-dialog-advanced input[type="checkbox"]')) {
+    throw new Error("Eidos file type is missing its Markdown content option")
+  }
   textKind.click()
   await waitFor(() => textKind.getAttribute("aria-checked") === "true", "Text file type")
-  if (Math.abs(dialog.getBoundingClientRect().height - initialHeight) > 1) throw new Error("New File type switching changes dialog height")
+  if (dialog.querySelector('.path-dialog-advanced') || dialog.querySelector('input[type="checkbox"]')) {
+    throw new Error("Text file type exposes Eidos-only content options")
+  }
+  const textBounds = dialog.getBoundingClientRect()
+  if (!dialog.isConnected || textBounds.height <= 0 || textBounds.top < 0 || textBounds.bottom > window.innerHeight) {
+    throw new Error("New File type switching loses the visible dialog")
+  }
+  if (!dialog.querySelector('input')?.value.endsWith('.md')) throw new Error("Text file type has the wrong extension")
   eidosKind.click()
   await waitFor(() => eidosKind.getAttribute("aria-checked") === "true", "Eidos file type")
+  if (!dialog.querySelector('.path-dialog-advanced input[type="checkbox"]')) {
+    throw new Error("Returning to Eidos file type loses its Markdown content option")
+  }
   const input = dialog.querySelector("input")
   if (!input) throw new Error("New File name input is missing")
   const setValue = Object.getOwnPropertyDescriptor(
