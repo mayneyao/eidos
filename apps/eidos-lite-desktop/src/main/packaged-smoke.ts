@@ -2092,13 +2092,19 @@ export async function runPackagedSmoke(
     window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     onboardingWindow.destroy()
     onboardingWindow = null
-    const foreground = await ensurePackagedSmokeForeground(window, () => {
-      if (process.platform === "darwin") app.focus({ steal: true })
-    })
-    console.info(
-      "Packaged smoke foreground precondition:",
-      JSON.stringify(foreground)
-    )
+    // The installed performance comparison runs on macOS. Headless Linux
+    // functional smoke does not require a native window-manager focus policy.
+    const foreground =
+      process.platform === "darwin"
+        ? await ensurePackagedSmokeForeground(window, () => {
+            app.focus({ steal: true })
+          })
+        : undefined
+    if (foreground)
+      console.info(
+        "Packaged smoke foreground precondition:",
+        JSON.stringify(foreground)
+      )
     const reportPromise = window.webContents.executeJavaScript(
       rendererProbe,
       true
@@ -2196,7 +2202,7 @@ export async function runPackagedSmoke(
     report.onboarding = onboarding
     report.performance.coldStartMs = coldStartMs
     report.performance.startup = startup.timings
-    report.performance.foreground = foreground
+    if (foreground) report.performance.foreground = foreground
     report.performance.denseGrid.preparationMs = densePreparationMs
     const routedWindow = await controller.openEidosFilePath(
       path.join(spaceRoot, "projects", "content-calendar.eidos")
