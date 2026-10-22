@@ -96,6 +96,7 @@ import {
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
+import type { EidosFileEditorDataSource } from "./data-source"
 import { encodeEidosFileValues } from "@eidos.space/eidos-file"
 
 import {
@@ -296,6 +297,7 @@ export interface EidosFileGridProps {
     ranges: EidosFileRowRange[]
   ) => Promise<EidosFileGridDeleteResult | void> | void
   onViewUpdate?: (changes: UpdateEidosFileViewInput) => Promise<void> | void
+  filterSource?: EidosFileEditorDataSource
   onError?: (error: unknown) => void
 }
 
@@ -533,6 +535,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onDeleteField,
   onRequestDeleteRows,
   onViewUpdate,
+  filterSource,
   onError,
 }: EidosFileGridProps) {
   const {
@@ -3110,6 +3113,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
           canUpdateView={!gridWriteLocked && Boolean(view && onViewUpdate)}
           canEditStructure={!gridWriteLocked && canAlterSchema}
+          filter={view?.filter ?? null}
+          source={filterSource}
+          onFilterChange={(filter) => onViewUpdate?.({ filter })}
           statType={fieldStatType}
           onOpenChange={(open) => {
             if (!open) setFieldMenu(null)

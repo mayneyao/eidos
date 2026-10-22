@@ -1,10 +1,16 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
+import type {
+  EidosFileFieldInfo,
+  EidosFileFilterGroup,
+} from "@eidos.space/eidos-file"
 
 import { EidosFileUIProvider } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
-import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
+import {
+  EidosFileFieldFilterEditor,
+  EidosFileQueryToolbar,
+} from "./eidos-file-query-toolbar"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -904,4 +910,320 @@ describe("shared EidosFileQueryToolbar", () => {
       document.body.querySelector('[aria-label="Sort direction 1"]')
     ).not.toBeNull()
   })
+})
+
+describe("EidosFileFieldFilterEditor", () => {
+  let container: HTMLDivElement
+  let root: Root
+  const onChange = vi.fn()
+  const onClose = vi.fn()
+  const onBack = vi.fn()
+  const onPendingChange = vi.fn()
+  const extension: EidosFileFieldInfo = {
+    ...fields[0],
+    name: "extension",
+    type: "select",
+    writable: false,
+    property: {
+      options: [
+        { name: "mp4", color: "orange" },
+        { name: "png", color: "green" },
+      ],
+    },
+  }
+
+  const renderEditor = (
+    value: EidosFileFilterGroup | null = null,
+    disabled = false
+  ) => {
+    act(() => {
+      root.render(
+        <React.StrictMode>
+          <EidosFileFieldFilterEditor
+            field={extension}
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+            onClose={onClose}
+            onBack={onBack}
+            onPendingChange={onPendingChange}
+          />
+        </React.StrictMode>
+      )
+    })
+  }
+
+  const selectOption = async (name: string) => {
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-eidos-file-filter-value] button[role="combobox"]'
+    )
+    await act(async () => trigger?.click())
+    const option = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((candidate) => candidate.textContent?.trim() === name)
+    expect(option).toBeDefined()
+    await act(async () => option?.click())
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    onChange.mockReset()
+    onClose.mockReset()
+    onBack.mockReset()
+    onPendingChange.mockReset()
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it("selects extension mp4 in a focused field-bound draft before applying", async () => {
+    renderEditor()
+    const valueTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-eidos-file-filter-value] button[role="combobox"]'
+    )
+    expect(document.activeElement).toBe(valueTrigger)
+    expect(container.querySelectorAll('button[role="combobox"]')).toHaveLength(
+      2
+    )
+    await selectOption("mp4")
+    expect(onChange).not.toHaveBeenCalled()
+    expect(
+      valueTrigger?.querySelector('[data-eidos-file-option-color="orange"]')
+    ).not.toBeNull()
+
+    await act(async () => button("Apply")?.click())
+
+    expect(onChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        { type: "rule", field: extension.id, operator: "equals", value: "mp4" },
+      ],
+    })
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onPendingChange.mock.calls).toEqual([[true], [false]])
+  })
+
+  it("preserves an existing OR tree under an AND wrapper", async () => {
+    const value: EidosFileFilterGroup = {
+      type: "group",
+      conjunction: "or",
+      children: [
+        { type: "rule", field: fields[1].id, operator: "equals", value: 5 },
+        {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: extension.id,
+              operator: "equals",
+              value: "png",
+            },
+          ],
+        },
+      ],
+    }
+    renderEditor(value)
+    await selectOption("mp4")
+    await act(async () => button("Apply")?.click())
+
+    expect(onChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        value,
+        { type: "rule", field: extension.id, operator: "equals", value: "mp4" },
+      ],
+    })
+    expect(onChange.mock.calls[0][0].children[0]).toBe(value)
+  })
+
+  it("prefills and replaces one direct AND rule without changing nested rules", async () => {
+    const value: EidosFileFilterGroup = {
+      type: "group",
+      conjunction: "and",
+      children: [
+        { type: "rule", field: fields[1].id, operator: "equals", value: 5 },
+        { type: "rule", field: extension.id, operator: "equals", value: "mp4" },
+        {
+          type: "group",
+          conjunction: "or",
+          children: [
+            {
+              type: "rule",
+              field: extension.id,
+              operator: "equals",
+              value: "mp4",
+            },
+          ],
+        },
+      ],
+    }
+    renderEditor(value)
+    expect(
+      container.querySelector("[data-eidos-file-filter-value]")?.textContent
+    ).toBe("mp4")
+    await selectOption("png")
+    await act(async () => button("Apply")?.click())
+
+    const next = onChange.mock.calls[0][0] as EidosFileFilterGroup
+    expect(next).toEqual({
+      ...value,
+      children: [
+        value.children[0],
+        { type: "rule", field: extension.id, operator: "equals", value: "png" },
+        value.children[2],
+      ],
+    })
+    expect(next.children[0]).toBe(value.children[0])
+    expect(next.children[2]).toBe(value.children[2])
+  })
+
+  it("keeps a rejected draft and reports pending while preventing navigation", async () => {
+    let rejectSave: ((reason: Error) => void) | undefined
+    onChange.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSave = reject
+        })
+    )
+    renderEditor()
+    await selectOption("mp4")
+    await act(async () => button("Apply")?.click())
+    expect(onPendingChange.mock.calls).toEqual([[true]])
+    const back = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Back"]'
+    )
+    expect(back?.matches(":disabled")).toBe(true)
+    expect(button("Cancel")?.matches(":disabled")).toBe(true)
+    await act(async () => {
+      back?.click()
+      button("Cancel")?.click()
+      button("Applying…")?.click()
+    })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onBack).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => rejectSave?.(new Error("Unable to save this view")))
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Unable to save this view"
+    )
+    expect(
+      container.querySelector("[data-eidos-file-filter-value]")?.textContent
+    ).toBe("mp4")
+    expect(onPendingChange.mock.calls).toEqual([[true], [false]])
+    expect(onClose).not.toHaveBeenCalled()
+    expect(back?.matches(":disabled")).toBe(false)
+
+    await act(async () => button("Apply")?.click())
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(onChange.mock.calls[1][0]).toEqual(onChange.mock.calls[0][0])
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("locks editing and Apply after becoming disabled while keeping navigation usable", async () => {
+    renderEditor()
+    await selectOption("mp4")
+    const valueTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-eidos-file-filter-value] button[role="combobox"]'
+    )
+    await act(async () => valueTrigger?.click())
+    expect(document.body.querySelector('[role="option"]')).not.toBeNull()
+
+    renderEditor(null, true)
+    expect(document.body.querySelector('[role="option"]')).toBeNull()
+    const controls = container.querySelectorAll<HTMLButtonElement>(
+      'button[role="combobox"]'
+    )
+    expect([...controls].every((control) => control.matches(":disabled"))).toBe(
+      true
+    )
+    expect(button("Apply")?.matches(":disabled")).toBe(true)
+    const back = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Back"]'
+    )
+    expect(back?.matches(":disabled")).toBe(false)
+    expect(button("Cancel")?.matches(":disabled")).toBe(false)
+    await act(async () => {
+      button("Apply")?.click()
+      controls[0]?.click()
+      controls[1]?.click()
+      back?.click()
+      button("Cancel")?.click()
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onPendingChange).not.toHaveBeenCalled()
+    expect(onBack).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+
+    renderEditor()
+    await act(async () => button("Apply")?.click())
+    expect(onChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        { type: "rule", field: extension.id, operator: "equals", value: "mp4" },
+      ],
+    })
+  })
+
+  it.each(["resolves", "rejects"])(
+    "clears pending on unmount and ignores a stale save that %s",
+    async (outcome) => {
+      let finishOldSave: (() => void) | undefined
+      let finishNewSave: (() => void) | undefined
+      onChange
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              finishOldSave = () =>
+                outcome === "resolves"
+                  ? resolve()
+                  : reject(new Error("Old save failed"))
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              finishNewSave = resolve
+            })
+        )
+      renderEditor()
+      await selectOption("mp4")
+      await act(async () => button("Apply")?.click())
+      expect(onPendingChange.mock.calls).toEqual([[true]])
+
+      act(() => root.render(<p>Another panel</p>))
+      expect(onPendingChange.mock.calls).toEqual([[true], [false]])
+      renderEditor()
+      await selectOption("png")
+      await act(async () => button("Apply")?.click())
+      expect(onPendingChange.mock.calls).toEqual([[true], [false], [true]])
+
+      await act(async () => finishOldSave?.())
+      expect(onClose).not.toHaveBeenCalled()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expect(button("Applying…")?.matches(":disabled")).toBe(true)
+      expect(onPendingChange.mock.calls).toEqual([[true], [false], [true]])
+
+      await act(async () => finishNewSave?.())
+      expect(onClose).toHaveBeenCalledOnce()
+      expect(onPendingChange.mock.calls).toEqual([
+        [true],
+        [false],
+        [true],
+        [false],
+      ])
+    }
+  )
 })

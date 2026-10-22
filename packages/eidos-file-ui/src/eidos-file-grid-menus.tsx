@@ -1,7 +1,14 @@
-import { useRef, type ButtonHTMLAttributes, type KeyboardEvent } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent,
+} from "react"
 import type {
   EidosFileColumnStatType,
   EidosFileFieldInfo,
+  EidosFileFilterGroup,
   EidosFileRow,
   EidosFileRowRange,
   EidosFileSortDirection,
@@ -9,6 +16,7 @@ import type {
 import {
   eidosFileColumnStatLabel,
   eidosFileColumnStatTypesForField,
+  eidosFileFieldQueryCapabilities,
 } from "@eidos.space/eidos-file"
 import type { Rectangle } from "@glideapps/glide-data-grid"
 import {
@@ -22,6 +30,7 @@ import {
   Copy,
   ExternalLink,
   EyeOff,
+  Filter,
   ListX,
   PanelRightOpen,
   Pin,
@@ -33,6 +42,8 @@ import {
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
 import { useEidosFileTableActions } from "./table-actions"
+import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileFieldFilterEditor } from "./eidos-file-query-toolbar"
 import {
   EidosFileCellActions,
   type EidosFileCellAction,
@@ -117,6 +128,9 @@ export function EidosFileFieldMenu({
   frozen,
   canUpdateView,
   canEditStructure,
+  filter = null,
+  source,
+  onFilterChange,
   onOpenChange,
   onEditProperty,
   statType,
@@ -133,6 +147,9 @@ export function EidosFileFieldMenu({
   frozen: boolean
   canUpdateView: boolean
   canEditStructure: boolean
+  filter?: EidosFileFilterGroup | null
+  source?: EidosFileEditorDataSource
+  onFilterChange?: (filter: EidosFileFilterGroup) => Promise<void> | void
   onOpenChange: (open: boolean) => void
   onEditProperty?: (field: EidosFileFieldInfo) => void
   statType?: EidosFileColumnStatType
@@ -148,13 +165,22 @@ export function EidosFileFieldMenu({
 }) {
   const { translate: t } = useEidosFileUI()
   const menuRef = useRef<HTMLDivElement>(null)
+  const [filtering, setFiltering] = useState(false)
+  const filterPendingRef = useRef(false)
+  useEffect(() => {
+    setFiltering(false)
+  }, [state, open])
+  const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen && filterPendingRef.current) return
+    onOpenChange(nextOpen)
+  }
   const run = (action: () => void) => {
     onOpenChange(false)
     action()
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={changeOpen}>
       <PopoverAnchor asChild>
         <span
           className="pointer-events-none fixed h-px w-px"
@@ -173,24 +199,31 @@ export function EidosFileFieldMenu({
         align="start"
         side="bottom"
         sideOffset={2}
-        className="w-56 p-1"
-        role="menu"
+        className={cn(
+          "max-w-[calc(100vw-32px)]",
+          filtering ? "w-80 p-0" : "w-56 p-1"
+        )}
+        role={filtering ? "dialog" : "menu"}
         aria-label={
           state
-            ? t("Actions for {field}", {
+            ? t(filtering ? "Filter {field}" : "Actions for {field}", {
                 field: eidosFileFieldDisplayName(state.field),
               })
             : t("Field actions")
         }
-        onKeyDown={menuKeyDown}
+        onKeyDown={filtering ? undefined : menuKeyDown}
         onFocusOutside={(event) => {
+          if (filterPendingRef.current) {
+            event.preventDefault()
+            return
+          }
           if (!state?.openedFromTouch) return
           // Glide restores focus after completing a touch selection. Keep a
           // touch-opened menu stable until the user taps outside or chooses an
           // action instead of treating that programmatic focus move as intent
           // to dismiss the menu.
           event.preventDefault()
-          if (event.target instanceof HTMLCanvasElement) {
+          if (!filtering && event.target instanceof HTMLCanvasElement) {
             requestAnimationFrame(() => {
               menuRef.current
                 ?.querySelector<HTMLElement>(
@@ -201,7 +234,27 @@ export function EidosFileFieldMenu({
           }
         }}
       >
-        {state ? (
+        {state && filtering && onFilterChange ? (
+          <EidosFileFieldFilterEditor
+            field={state.field}
+            value={filter}
+            source={source}
+            disabled={!canUpdateView}
+            onChange={onFilterChange}
+            onBack={() => {
+              setFiltering(false)
+              requestAnimationFrame(() => {
+                menuRef.current
+                  ?.querySelector<HTMLElement>("[data-field-filter-trigger]")
+                  ?.focus({ preventScroll: true })
+              })
+            }}
+            onClose={() => onOpenChange(false)}
+            onPendingChange={(pending) => {
+              filterPendingRef.current = pending
+            }}
+          />
+        ) : state ? (
           <>
             <div className="px-2 py-1.5">
               <p className="truncate text-xs font-medium">
@@ -225,6 +278,18 @@ export function EidosFileFieldMenu({
               </MenuItem>
             ) : null}
             <div className="my-1 h-px bg-border" role="separator" />
+            {onFilterChange &&
+            eidosFileFieldQueryCapabilities(state.field).filterOperators
+              .length > 0 ? (
+              <MenuItem
+                data-field-filter-trigger
+                disabled={!canUpdateView}
+                onClick={() => setFiltering(true)}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {t("Filter by this field")}
+              </MenuItem>
+            ) : null}
             <MenuItem
               disabled={!canUpdateView}
               onClick={() => run(() => onSort(state.field, "asc"))}

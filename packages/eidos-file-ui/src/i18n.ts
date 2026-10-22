@@ -728,6 +728,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Actions for {field}": "{field} 的操作",
   "Field actions": "字段操作",
   "Edit property": "编辑属性",
+  "Filter by this field": "筛选此字段",
+  "Filter {field}": "筛选 {field}",
   "Sort ascending": "升序排列",
   "Sort descending": "降序排列",
   Active: "已启用",
