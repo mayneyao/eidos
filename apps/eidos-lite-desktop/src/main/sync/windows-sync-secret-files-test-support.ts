@@ -11,7 +11,23 @@ export async function verifyNativeWindowsSyncSecretFiles(): Promise<void> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-sync-acl-"))
   const directory = path.join(root, "private's storage")
   try {
-    await policy.prepareDirectory(directory)
+    try {
+      await policy.prepareDirectory(directory)
+    } catch (error) {
+      const cause = error instanceof Error ? error.cause : undefined
+      const diagnostic =
+        cause && typeof cause === "object"
+          ? (cause as { code?: unknown; stderr?: unknown })
+          : null
+      console.error("Windows Sync directory protection failed", {
+        exitCode: diagnostic?.code,
+        stderr:
+          typeof diagnostic?.stderr === "string"
+            ? diagnostic.stderr
+            : undefined,
+      })
+      throw error
+    }
     await policy.validateDirectory(directory)
     const file = path.join(directory, "credential.bin")
     await fs.writeFile(file, "synthetic ciphertext", { flag: "wx" })

@@ -111,8 +111,10 @@ async function protect(target: string, operation: string): Promise<void> {
         },
       }
     )
-  } catch {
-    throw new Error("Windows Sync password storage could not be protected")
+  } catch (cause) {
+    throw new Error("Windows Sync password storage could not be protected", {
+      cause,
+    })
   }
 }
 
