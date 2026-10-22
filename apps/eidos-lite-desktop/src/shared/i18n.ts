@@ -204,6 +204,9 @@ const zh: Record<string, string> = {
   "Eidos Lite could not safely read this Space’s sync history. Keep working locally, then open a fresh cloud copy.":
     "无法读取此 Space 的同步历史。可以继续在本地工作，并另行打开一份云端副本。",
   "Open a fresh copy": "打开新的云端副本",
+  "Sync history is temporarily unavailable": "暂时无法读取同步历史",
+  "Some Sync history data is temporarily unavailable. Keep this Space and its local versions, and retry or contact support. Your current files have not been replaced.":
+    "部分同步历史数据暂时无法读取。请保留此 Space 和本地版本，重试或联系支持。当前文件未被替换。",
   "Sync process stopped": "同步进程已停止",
   "The isolated Sync process stopped unexpectedly. Local files were not discarded and the session can reopen.":
     "同步意外停止，请重试。本地文件未丢失。",

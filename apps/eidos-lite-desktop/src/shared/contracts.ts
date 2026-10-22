@@ -1138,6 +1138,7 @@ export type EidosSyncFailureCode =
   | "remote-persistence-failed"
   | "rate-limited"
   | "repository-invalid"
+  | "history-data-missing"
   | "sync-process-crashed"
   | "service-unavailable"
   | "local-changes"

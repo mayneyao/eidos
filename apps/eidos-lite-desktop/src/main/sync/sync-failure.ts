@@ -156,6 +156,17 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
     retryable: false,
     localSafe: true,
   },
+  "history-data-missing": {
+    state: "needs-attention",
+    title: "Sync history is temporarily unavailable",
+    message:
+      "Some Sync history data is temporarily unavailable. Keep this Space and its local versions, and retry or contact support. Your current files have not been replaced.",
+    action: "retry-now",
+    actionLabel: "Retry now",
+    retryable: true,
+    retryAfterMs: 2_000,
+    localSafe: true,
+  },
   "sync-process-crashed": {
     state: "service-unavailable",
     title: "Sync process stopped",
@@ -328,6 +339,32 @@ export function classifySyncFailure(
     normalized.includes("timed out")
   ) {
     return failure("offline", status)
+  }
+
+  // A missing object while hydrating a snapshot does not mean the account lost
+  // the whole repository. Match the storage diagnostics before generic HTTP
+  // mapping, without hiding authentication or transport recovery failures.
+  if (
+    code === "GRAFT_SDK_REPOSITORY_COMMAND" &&
+    normalized.includes("snapshot hydrate failed:") &&
+    ((status === 404 &&
+      (/\bhttp remote returned 404 for `encrypted object`:\s*object missing\b/.test(
+        normalized
+      ) ||
+        /\bhttp remote returned 404 for `segments\/[^`]+`:\s*\{[^}]*"title"\s*:\s*"object_not_found"/.test(
+          normalized
+        ))) ||
+      (status === undefined &&
+        !normalized.includes("remote snapshot hydrate failed:") &&
+        normalized.includes(
+          "object store error: notfound (permanent) at read"
+        ) &&
+        /context:\s*\{[^}]*\bservice:\s*memory,\s*path:\s*segments\//.test(
+          normalized
+        ) &&
+        normalized.includes("memory doesn't have this path")))
+  ) {
+    return failure("history-data-missing", status)
   }
 
   const byStatus = status === undefined ? null : statusFailure(status)
