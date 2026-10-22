@@ -2245,6 +2245,20 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [history.onGridSelectionChange, releaseDraftRowPins]
   )
 
+  const selectionScopeRef = useRef(historyScopeKey)
+  useEffect(() => {
+    if (selectionScopeRef.current === historyScopeKey) return
+    selectionScopeRef.current = historyScopeKey
+    // A new query may put different records at the same positions. Keep the
+    // mounted editor and focus, but never carry positional selections over.
+    const empty = {
+      rows: CompactSelection.empty(),
+      columns: CompactSelection.empty(),
+    }
+    history.onGridSelectionChange(empty)
+    releaseDraftRowPins(empty)
+  }, [historyScopeKey, history.onGridSelectionChange, releaseDraftRowPins])
+
   useEffect(() => {
     history.reset()
   }, [

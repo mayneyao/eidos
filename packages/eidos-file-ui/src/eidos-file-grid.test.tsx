@@ -891,6 +891,52 @@ describe("EidosFileGrid", () => {
     })
   })
 
+  it("clears positional selection on query identity changes without remounting or moving focus", async () => {
+    const loadPage = createLoadPage()
+    const onCellEdit = createCellEdit()
+    const onSelectedRowsChange = vi.fn()
+    const renderGrid = (scope: string) => (
+      <EidosFileGrid
+        table={table}
+        view={table.views[0]}
+        historyScopeKey={scope}
+        loadPage={loadPage}
+        onCellEdit={onCellEdit}
+        onSelectedRowsChange={onSelectedRowsChange}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid("all"))
+      await Promise.resolve()
+    })
+    const grid = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )!
+    grid.focus()
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.fromSingleSelection(0),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    expect(onSelectedRowsChange).toHaveBeenLastCalledWith([
+      { startIndex: 0, endIndex: 1 },
+    ])
+    await act(async () => {
+      root.render(renderGrid("filtered"))
+    })
+    expect(mocks.props?.gridSelection?.rows.length).toBe(0)
+    expect(mocks.props?.gridSelection?.current).toBeUndefined()
+    expect(onSelectedRowsChange).toHaveBeenLastCalledWith([])
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(grid)
+    expect(document.activeElement).toBe(grid)
+  })
+
   it("persists a multi-cell paste as one row batch", async () => {
     const onCellEdit = createCellEdit()
     const onRowsEdit = vi.fn(async (edits: EidosFileGridRowEdit[]) => ({
