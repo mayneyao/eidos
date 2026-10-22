@@ -904,69 +904,20 @@ const rendererProbe = `
   )
   if (!syncAction) throw new Error("Eidos Sync action is missing")
   syncAction.click()
-  const syncPanel = await waitFor(
-    () => {
-      const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
-      const candidateBadge = candidate?.querySelector(
-        '.environment-badge[data-service-environment="staging"]'
-      )
-      const badgeMatches = expectedServices.name === "staging"
-        ? Boolean(candidateBadge)
-        : !candidateBadge
-      return candidate?.dataset.syncAccountState === "signed-out" &&
-        candidate.dataset.syncEnvironment === expectedServices.name &&
-        Boolean(candidate.querySelector("[data-sync-sign-in]")) &&
-        badgeMatches
-        ? candidate
-        : null
-    },
-    "signed-out Eidos Sync control plane"
+  const syncVersionGate = await waitFor(
+    () => document.querySelector('.sync-dialog[data-sync-local-versions="required"]'),
+    "local versioning prerequisite for Eidos Sync"
   )
-  const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
-  const stagingBadge = syncPanel.querySelector(
-    '.environment-badge[data-service-environment="staging"]'
-  )
-  const syncControl = {
-    action: Boolean(syncAction),
-    iconAction: syncAction.textContent?.trim() === "",
-    panel: ["dialog", "complementary"].includes(
-      syncPanel.getAttribute("role") ?? ""
-    ),
-    environment:
-      syncPanel.dataset.syncEnvironment === expectedServices.name,
-    environmentBadge:
-      expectedServices.name === "staging"
-        ? Boolean(stagingBadge)
-        : !stagingBadge,
-    signedOut: syncPanel.dataset.syncAccountState === "signed-out",
-    gated: syncPanel.dataset.syncCanEnable === "false",
-    signInAvailable: Boolean(syncSignIn),
-    cloneApi:
-      typeof window.eidosLite.listSyncRepositories === "function" &&
-      typeof window.eidosLite.cloneSyncRepository === "function",
-    syncApi: typeof window.eidosLite.runSync === "function",
-    accountStatusApi:
-      typeof window.eidosLite.getAccountStatus === "function" &&
-      typeof window.eidosLite.onAccountChanged === "function",
-    syncProgressApi: typeof window.eidosLite.onSyncProgress === "function",
-    syncQueueApi: typeof window.eidosLite.getSyncQueueStatus === "function",
-    syncQueueEventsApi:
-      typeof window.eidosLite.onSyncQueueChanged === "function",
-    recoveryApi:
-      typeof window.eidosLite.copyLocalRecoverySpace === "function" &&
-      typeof window.eidosLite.cloneHostedRecoverySpace === "function",
+  if (!syncVersionGate.querySelector("[data-sync-open-versions]") ||
+      syncVersionGate.querySelector("[data-sync-sign-in]")) {
+    throw new Error("Eidos Sync did not require local versions before sign-in")
   }
-  if (Object.values(syncControl).some((value) => !value)) {
-    throw new Error(
-      "Eidos Sync signed-out gate is incomplete: " + JSON.stringify(syncControl)
-    )
-  }
-  const closeSync = syncPanel.querySelector('[aria-label="Close Eidos Sync"]')
-  if (!closeSync) throw new Error("Eidos Sync close action is missing")
-  closeSync.click()
+  const closeSyncVersionGate = syncVersionGate.querySelector('[aria-label="Close Eidos Sync"]')
+  if (!closeSyncVersionGate) throw new Error("Eidos Sync prerequisite close action is missing")
+  closeSyncVersionGate.click()
   await waitFor(
     () => !document.querySelector(".sync-dialog") && true,
-    "closed Eidos Sync control plane"
+    "closed Eidos Sync prerequisite"
   )
   const initialSidebarWidth = sidebar.getBoundingClientRect().width
   sidebarResizer.dispatchEvent(
@@ -1429,6 +1380,72 @@ const rendererProbe = `
   await waitFor(
     () => !document.querySelector(".version-panel") && true,
     "closed Version panel"
+  )
+  window.__eidosLiteSmokeStep = "signed-out Sync after enabling versions"
+  syncAction.click()
+  const syncPanel = await waitFor(
+    () => {
+      const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
+      const candidateBadge = candidate?.querySelector(
+        '.environment-badge[data-service-environment="staging"]'
+      )
+      const badgeMatches = expectedServices.name === "staging"
+        ? Boolean(candidateBadge)
+        : !candidateBadge
+      return candidate?.dataset.syncAccountState === "signed-out" &&
+        candidate.dataset.syncEnvironment === expectedServices.name &&
+        Boolean(candidate.querySelector("[data-sync-sign-in]")) &&
+        badgeMatches
+        ? candidate
+        : null
+    },
+    "signed-out Eidos Sync control plane"
+  )
+  const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
+  const stagingBadge = syncPanel.querySelector(
+    '.environment-badge[data-service-environment="staging"]'
+  )
+  const syncControl = {
+    action: Boolean(syncAction),
+    iconAction: syncAction.textContent?.trim() === "",
+    panel: ["dialog", "complementary"].includes(
+      syncPanel.getAttribute("role") ?? ""
+    ),
+    environment:
+      syncPanel.dataset.syncEnvironment === expectedServices.name,
+    environmentBadge:
+      expectedServices.name === "staging"
+        ? Boolean(stagingBadge)
+        : !stagingBadge,
+    signedOut: syncPanel.dataset.syncAccountState === "signed-out",
+    gated: syncPanel.dataset.syncCanEnable === "false",
+    signInAvailable: Boolean(syncSignIn),
+    cloneApi:
+      typeof window.eidosLite.listSyncRepositories === "function" &&
+      typeof window.eidosLite.cloneSyncRepository === "function",
+    syncApi: typeof window.eidosLite.runSync === "function",
+    accountStatusApi:
+      typeof window.eidosLite.getAccountStatus === "function" &&
+      typeof window.eidosLite.onAccountChanged === "function",
+    syncProgressApi: typeof window.eidosLite.onSyncProgress === "function",
+    syncQueueApi: typeof window.eidosLite.getSyncQueueStatus === "function",
+    syncQueueEventsApi:
+      typeof window.eidosLite.onSyncQueueChanged === "function",
+    recoveryApi:
+      typeof window.eidosLite.copyLocalRecoverySpace === "function" &&
+      typeof window.eidosLite.cloneHostedRecoverySpace === "function",
+  }
+  if (Object.values(syncControl).some((value) => !value)) {
+    throw new Error(
+      "Eidos Sync signed-out gate is incomplete: " + JSON.stringify(syncControl)
+    )
+  }
+  const closeSync = syncPanel.querySelector('[aria-label="Close Eidos Sync"]')
+  if (!closeSync) throw new Error("Eidos Sync close action is missing")
+  closeSync.click()
+  await waitFor(
+    () => !document.querySelector(".sync-dialog") && true,
+    "closed Eidos Sync control plane"
   )
   window.__eidosLiteSmokeStep = "checkpoint row insert"
   const versionSnapshots = []
