@@ -1,33 +1,21 @@
-Eidos Lite 0.26.0 adds a native File properties inspector, one file-metadata catalog shared across the Space, Spark device authorization for managed file metadata, and a list-like Grid layout option.
-
 ## What's new
 
-### File properties
+### Filter directly from column headers
 
-Inspect and edit a file's metadata without opening the file manager. The native **File properties** window shows the system file information and the custom properties configured for the Space. Changes save automatically, the current field keeps focus while saving, and a focused draft is committed before the window closes. Open it from a file's context menu.
+Open a column's menu and choose **Filter by this field** to set its condition directly. For example, select `mp4` in the `extension` column to find videos. Other conditions in the View are preserved, and you can continue editing the complete filter from the toolbar.
 
-Creating the Space file-metadata catalog and editing managed properties requires Spark activation on this computer. Existing files and their saved properties remain readable after releasing the device.
+### Remember Sync passwords on Windows
 
-### File management across the Space
+Windows now supports saving Sync passwords in system secure storage, so connected encrypted Spaces can unlock automatically after restarting Lite.
 
-Explorer and folder **Manage files** now open the same Space-wide catalog at `.eidos/files.eidos` instead of a separate catalog for each folder. Folder entry points open the catalog scoped to that folder. The managed catalog participates in version history, checkpoints and restore, and the Fields control now supports ordering, hiding and showing properties.
+### Check for updates from Help
 
-### Ignore rules before versioning
+Choose **Check for updates** in the sidebar Help menu. Progress, results and errors appear in the same menu, with a retry available if the check fails.
 
-The Versions setup panel shows a preflight summary of files, videos, large files and symlinks. **Build ignore rules** opens one builder for rule templates (videos, Node and build output, design files, archives, system files, temporary files), per-file exclusions for large files, and a raw `.graftignore`/`.gitignore` editor. The preflight excludes paths matched by the current rules; save once, then create the first version.
+## Bug fixes
 
-### Spark device authorization
-
-Licensed accounts can activate this computer and release it later from **Settings → Account & Services**. Device authorization is bound to the machine, is verified locally from signed certificates, and keeps working offline until its authorization expires. When another account signs in, the original account's device certificate is preserved for its owner.
-
-If a certificate belongs to another computer, Settings provides activation and device-management actions. Releasing a device frees its slot; activating it again requires an explicit action.
-
-### List-like Grid
-
-Grid views have a new **Show vertical lines** setting. Turn it off to hide column dividers, including in the header, for a cleaner list-like layout; horizontal row lines and row markers remain.
-
-## Improvements
-
-- **Help menu**: Feedback and Release notes are now available from one sidebar menu.
-- **Version history**: The managed file catalog appears in checkpoints, file history and safe restore.
-- **Cloud Sync**: A Space must enable local versioning before connecting. Sync now links directly to Versions instead of showing an unusable setup.
+- **File properties**: Basic file information is available without Spark activation or an existing file-metadata catalog. Property windows open on the same display as their Space window, including on Windows with multiple monitors.
+- **Recent files**: Opening **Files** from **Recent files** now reopens the Space-wide file manager instead of incorrectly reporting that the file is unavailable.
+- **Sync reconnection**: Device-history caches reconnect after a restart. Saved account-access errors are rechecked against the current account before they continue to block Sync.
+- **Sync history errors**: Missing history data now offers a retry instead of incorrectly reporting that the entire cloud Space is unavailable. Local files and saved versions stay in place.
+- **Grid selection**: Filtering and sorting clear old row and cell selections while preserving keyboard focus, preventing an old selection from pointing to a different record.

@@ -14,6 +14,13 @@ import type {
   GraftTransferProgress,
 } from "../../shared/graft-sdk-contracts"
 import type * as SyncEncryption from "../../shared/sync-encryption"
+import { verifyNativeWindowsSyncSecretFiles } from "../sync/windows-sync-secret-files-test-support"
+
+it.skipIf(process.platform !== "win32")(
+  "protects Windows ciphertext with native ACLs and rejects broad access and junctions",
+  verifyNativeWindowsSyncSecretFiles,
+  30_000
+)
 
 // Only the official-origin allowlist is replaced for this loopback fixture.
 // Filesystem permissions, SDK, encryption, HTTP and repository operations are real.

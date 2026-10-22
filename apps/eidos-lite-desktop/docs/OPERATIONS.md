@@ -358,7 +358,9 @@ uses the SDK's native private-directory API for checkpoint, recovery and staging
 state, including protected Windows DACLs. It binds the intended branch and commit
 before publishing the initial encryption configuration; retry restores that
 retained intent rather than adopting a newer HEAD. Windows supports explicit
-password sessions; remembered/default sync passwords remain unavailable there.
+password sessions and remembered/default Sync passwords protected by system
+encryption and private Windows ACLs. Saved passwords are reused for startup
+unlock when system secure storage is available.
 
 Encrypted initial upload, clone and later transfers report actual body-byte
 progress and transfer speed. Aggregate bundles and multipart parts use the same
