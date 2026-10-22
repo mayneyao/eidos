@@ -3996,6 +3996,10 @@ function WorkspaceApp({
                   .catch((cause: unknown) => setError(errorMessage(cause)))
               }}
               onReleaseNotes={whatsNew.show}
+              updateStatus={updateStatus}
+              onCheckForUpdates={async () => {
+                setUpdateStatus(await window.eidosLite.checkForUpdates())
+              }}
             />
           </div>
           {isSidebarUpdateVisible(updateStatus) ? (

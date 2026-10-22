@@ -1,14 +1,19 @@
-import { CircleHelp, FileText, MessageSquare } from "lucide-react"
+import { CircleHelp, FileText, MessageSquare, RefreshCw } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
+import type { EidosLiteUpdateStatus } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
 
 export function SidebarHelp({
   onFeedback,
   onReleaseNotes,
+  onCheckForUpdates,
+  updateStatus,
 }: {
   onFeedback(): void
   onReleaseNotes(): void
+  onCheckForUpdates(): Promise<void> | void
+  updateStatus?: EidosLiteUpdateStatus | null
 }) {
   const { t } = useEidosLiteI18n()
   const [open, setOpen] = useState(false)
@@ -16,6 +21,58 @@ export function SidebarHelp({
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const menuId = useId()
+  const [requestedCheck, setRequestedCheck] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const pendingCheck = useRef(false)
+  const checkBusy = checking || updateStatus?.state === "checking"
+
+  const checkForUpdates = async () => {
+    if (pendingCheck.current || checkBusy) return
+    pendingCheck.current = true
+    setRequestedCheck(true)
+    setChecking(true)
+    setCheckError(null)
+    try {
+      await onCheckForUpdates()
+    } catch (cause) {
+      setCheckError(
+        cause instanceof Error
+          ? cause.message
+          : t("Could not check for updates. Try again later.")
+      )
+    } finally {
+      pendingCheck.current = false
+      setChecking(false)
+    }
+  }
+  const updateCopy = (() => {
+    if (!requestedCheck) return null
+    if (checkError) return checkError
+    if (checkBusy) return t("Checking for updates…")
+    if (updateStatus?.state === "unavailable")
+      return t("Updates are available only in a packaged production build.")
+    if (updateStatus?.state === "up-to-date") return t("You're up to date.")
+    if (updateStatus?.state === "available")
+      return t("Update {version} is available.", {
+        version: updateStatus.version ?? "",
+      })
+    if (updateStatus?.state === "downloading")
+      return t("Downloading update… {percent}%", {
+        percent: Math.round(updateStatus.progressPercent ?? 0),
+      })
+    if (updateStatus?.state === "downloaded")
+      return t("Version {version} is ready to install.", {
+        version: updateStatus.version ?? "",
+      })
+    if (updateStatus?.state === "error")
+      return t("Could not check for updates. Try again later.")
+    return updateStatus
+      ? t("Current version: {version}", {
+          version: updateStatus.currentVersion,
+        })
+      : null
+  })()
 
   useEffect(() => {
     if (!open) return
@@ -115,6 +172,31 @@ export function SidebarHelp({
             <FileText aria-hidden="true" />
             {t("Release notes")}
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            aria-disabled={checkBusy || undefined}
+            aria-busy={checkBusy || undefined}
+            onClick={() => void checkForUpdates()}
+          >
+            <RefreshCw
+              className={checkBusy ? "spin" : undefined}
+              aria-hidden="true"
+            />
+            {t(checkBusy ? "Checking for updates…" : "Check for updates")}
+          </button>
+          {updateCopy ? (
+            <p
+              className="space-context-menu-selection sidebar-help-update-status"
+              role={
+                checkError || updateStatus?.state === "error"
+                  ? "alert"
+                  : "status"
+              }
+            >
+              {updateCopy}
+            </p>
+          ) : null}
         </div>
       )}
     </div>
