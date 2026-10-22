@@ -102,6 +102,7 @@ interface SparkServiceOptions {
 }
 export class SparkService {
   private tail: Promise<unknown> = Promise.resolve()
+  private lastCertificateRejection = ""
   private current: SparkStatus = {
     state: "inactive",
     source: "none",
@@ -338,6 +339,7 @@ export class SparkService {
         features: [],
         licenses: data.licenses,
       }
+      this.lastCertificateRejection = ""
       return
     }
     if (typeof data.certificate !== "string")
@@ -352,7 +354,10 @@ export class SparkService {
       false,
       (reason) => {
         rejection = reason
-        console.warn("Spark certificate rejected:", reason)
+        if (reason !== this.lastCertificateRejection) {
+          this.lastCertificateRejection = reason
+          console.warn("Spark certificate rejected:", reason)
+        }
       }
     )
     if (!p || p.subject !== subject) {
@@ -382,6 +387,7 @@ export class SparkService {
             }
       return
     }
+    this.lastCertificateRejection = ""
     await fs.mkdir(path.dirname(this.options.cachePath), {
       recursive: true,
       mode: 0o700,
