@@ -8,6 +8,7 @@ import { SpaceSession } from "../space/space-session"
 import { SpaceOperationGate } from "../space/operation-gate"
 import { SpaceOperationJournal } from "../space/operation-journal"
 import type { SyncControlPlane } from "./sync-control-plane"
+import type { WindowsSyncSecretFiles } from "./windows-sync-secret-files"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import { BackgroundSyncQueue } from "./background-sync-queue"
 import { SyncQueueStore } from "./sync-queue-store"
@@ -44,8 +45,9 @@ function encryption(): SecretEncryption {
   }
 }
 
-describe.skipIf(process.platform === "win32")(
-  "remembered encrypted Sync",
+describe(
+  "remembered encrypted Sync across supported desktop platforms",
+  { timeout: 30_000 },
   () => {
     let root: string
     let crypto: SecretEncryption
@@ -79,31 +81,36 @@ describe.skipIf(process.platform === "win32")(
       )
       expect(canRememberSyncUnlock("linux", true, "gnome_libsecret")).toBe(true)
       expect(canRememberSyncUnlock("darwin", false)).toBe(false)
-      expect(canRememberSyncUnlock("win32", true)).toBe(false)
+      expect(canRememberSyncUnlock("win32", true)).toBe(true)
+      expect(canRememberSyncUnlock("win32", false)).toBe(false)
+      expect(canRememberSyncUnlock("freebsd", true)).toBe(false)
     })
 
-    it("reopens owner-only ciphertext with the same system protector, without plaintext or password JSON", async () => {
-      const password = Buffer.from("independent synthetic password")
-      await store.write(identity, password)
-      const file = path.join(
-        root,
-        "private",
-        (await fs.readdir(path.join(root, "private")))[0]!
-      )
-      const bytes = await fs.readFile(file)
-      expect(bytes.includes(password)).toBe(false)
-      expect(bytes.includes(Buffer.from(password.toString("base64")))).toBe(
-        false
-      )
-      expect((await fs.stat(file)).mode & 0o077).toBe(0)
-      const recovered = await new RememberedSyncUnlockStore(
-        path.join(root, "private"),
-        crypto
-      ).read(identity)
-      expect(recovered).toEqual(password)
-      recovered?.fill(0)
-      password.fill(0)
-    })
+    it.skipIf(process.platform === "win32")(
+      "reopens owner-only ciphertext with the same system protector, without plaintext or password JSON",
+      async () => {
+        const password = Buffer.from("independent synthetic password")
+        await store.write(identity, password)
+        const file = path.join(
+          root,
+          "private",
+          (await fs.readdir(path.join(root, "private")))[0]!
+        )
+        const bytes = await fs.readFile(file)
+        expect(bytes.includes(password)).toBe(false)
+        expect(bytes.includes(Buffer.from(password.toString("base64")))).toBe(
+          false
+        )
+        expect((await fs.stat(file)).mode & 0o077).toBe(0)
+        const recovered = await new RememberedSyncUnlockStore(
+          path.join(root, "private"),
+          crypto
+        ).read(identity)
+        expect(recovered).toEqual(password)
+        recovered?.fill(0)
+        password.fill(0)
+      }
+    )
 
     it.each([
       "domain",
@@ -164,26 +171,29 @@ describe.skipIf(process.platform === "win32")(
       await expect(store.read(identity)).rejects.toThrow("unavailable")
     })
 
-    it("rejects permissive files and symlinks, and forgetting one Space leaves another intact", async () => {
-      await store.write(identity, Buffer.from("one"))
-      const file = path.join(
-        root,
-        "private",
-        (await fs.readdir(path.join(root, "private")))[0]!
-      )
-      await fs.chmod(file, 0o644)
-      await expect(store.read(identity)).rejects.toThrow("permissions")
-      await fs.chmod(file, 0o600)
-      const other = { ...identity, space: "/independent/two" }
-      await store.write(other, Buffer.from("two"))
-      await store.forget(identity)
-      expect(await store.read(identity)).toBeNull()
-      expect((await store.read(other))?.toString()).toBe("two")
-      await fs.symlink(path.join(root, "other-secret"), file)
-      await expect(store.read(identity)).rejects.toThrow("permissions")
-      await store.forget(identity)
-      await store.forget(identity)
-    })
+    it.skipIf(process.platform === "win32")(
+      "rejects permissive files and symlinks, and forgetting one Space leaves another intact",
+      async () => {
+        await store.write(identity, Buffer.from("one"))
+        const file = path.join(
+          root,
+          "private",
+          (await fs.readdir(path.join(root, "private")))[0]!
+        )
+        await fs.chmod(file, 0o644)
+        await expect(store.read(identity)).rejects.toThrow("permissions")
+        await fs.chmod(file, 0o600)
+        const other = { ...identity, space: "/independent/two" }
+        await store.write(other, Buffer.from("two"))
+        await store.forget(identity)
+        expect(await store.read(identity)).toBeNull()
+        expect((await store.read(other))?.toString()).toBe("two")
+        await fs.symlink(path.join(root, "other-secret"), file)
+        await expect(store.read(identity)).rejects.toThrow("permissions")
+        await store.forget(identity)
+        await store.forget(identity)
+      }
+    )
 
     it("sanitizes secure-store errors and leaves no partial credential file", async () => {
       crypto.encrypt = () => {
@@ -241,6 +251,98 @@ describe.skipIf(process.platform === "win32")(
         },
       }
     }
+
+    function windowsStore() {
+      const policy: WindowsSyncSecretFiles = {
+        prepareDirectory: vi.fn(async (directory) => {
+          await fs.mkdir(directory, { recursive: true, mode: 0o700 })
+        }),
+        validateDirectory: vi.fn(async () => {}),
+        validateFile: vi.fn(async () => {}),
+        protectFile: vi.fn(async (file) => {
+          // No credential bytes may reach disk before native ACL protection.
+          expect((await fs.readFile(file)).length).toBe(0)
+        }),
+      }
+      store = new RememberedSyncUnlockStore(
+        path.join(root, "private"),
+        crypto,
+        "win32",
+        policy
+      )
+      return policy
+    }
+
+    it("restores a Windows remembered password after restart without Unix directory fsync", async () => {
+      const policy = windowsStore()
+      const open = fs.open.bind(fs)
+      vi.spyOn(fs, "open").mockImplementation(
+        async (...args: Parameters<typeof fs.open>) => {
+          if (args[0] === path.join(root, "private"))
+            throw new Error("Windows cannot open a directory handle")
+          return open(...args)
+        }
+      )
+      try {
+        const model = fixture()
+        const manual = model.create()
+        await manual.finishManual(
+          model.session,
+          identity.remote,
+          Buffer.from("Windows synthetic password"),
+          true,
+          manual.captureGeneration()
+        )
+        expect(policy.protectFile).toHaveBeenCalledOnce()
+        const file = path.join(
+          root,
+          "private",
+          (await fs.readdir(path.join(root, "private")))[0]!
+        )
+        expect(
+          (await fs.readFile(file)).includes(
+            Buffer.from("Windows synthetic password")
+          )
+        ).toBe(false)
+        // Construct a fresh store and coordinator, as startup does.
+        store = new RememberedSyncUnlockStore(
+          path.join(root, "private"),
+          crypto,
+          "win32",
+          policy
+        )
+        await model
+          .create()
+          .autoUnlock(model.session, identity.remote, "fresh-token")
+        expect(model.unlock).toHaveBeenCalledOnce()
+        expect(policy.validateFile).toHaveBeenCalledOnce()
+        await model.create().forget(model.session, identity.remote)
+        model.unlock.mockClear()
+        await model
+          .create()
+          .autoUnlock(model.session, identity.remote, "fresh-token")
+        expect(model.unlock).not.toHaveBeenCalled()
+      } finally {
+        vi.mocked(fs.open).mockRestore()
+      }
+    })
+
+    it("does not read or persist a Windows password when native protection fails", async () => {
+      const policy = windowsStore()
+      vi.mocked(policy.protectFile).mockRejectedValue(
+        new Error("ACL unavailable")
+      )
+      await expect(
+        store.write(identity, Buffer.from("synthetic password"))
+      ).rejects.toThrow("ACL unavailable")
+      expect(await fs.readdir(path.join(root, "private"))).toEqual([])
+      vi.mocked(policy.protectFile).mockResolvedValue()
+      await store.write(identity, Buffer.from("synthetic password"))
+      vi.mocked(policy.validateFile).mockRejectedValue(new Error("Unsafe ACL"))
+      const decrypt = vi.spyOn(crypto, "decrypt")
+      await expect(store.read(identity)).rejects.toThrow("Unsafe ACL")
+      expect(decrypt).not.toHaveBeenCalled()
+    })
 
     it("persists one account default across restarts without exposing it to another account or domain", async () => {
       const model = fixture()

@@ -7,6 +7,10 @@ import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import type { SpaceSession } from "../space/space-session"
 import type { SyncControlPlane } from "./sync-control-plane"
 import {
+  windowsSyncSecretFiles,
+  type WindowsSyncSecretFiles,
+} from "./windows-sync-secret-files"
+import {
   assertSyncEncryptionBinding,
   isSyncEncryptionAccountDomain,
 } from "../../shared/sync-encryption"
@@ -44,6 +48,7 @@ export function canRememberSyncUnlock(
   return (
     available &&
     (platform === "darwin" ||
+      platform === "win32" ||
       (platform === "linux" &&
         ["gnome_libsecret", "kwallet", "kwallet5", "kwallet6"].includes(
           backend ?? ""
@@ -76,8 +81,25 @@ export class RememberedSyncUnlockStore {
   private queue: Promise<unknown> = Promise.resolve()
   constructor(
     private readonly directory: string,
-    private readonly encryption: SecretEncryption
+    private readonly encryption: SecretEncryption,
+    private readonly platform: NodeJS.Platform = process.platform,
+    private readonly windowsFiles: WindowsSyncSecretFiles = windowsSyncSecretFiles
   ) {}
+
+  private async validateDirectory(): Promise<void> {
+    if (this.platform === "win32") {
+      await this.windowsFiles.validateDirectory(this.directory)
+      return
+    }
+    const directory = await fs.lstat(this.directory)
+    if (
+      !directory.isDirectory() ||
+      directory.isSymbolicLink() ||
+      directory.uid !== process.getuid?.() ||
+      (directory.mode & 0o077) !== 0
+    )
+      throw new Error("Remembered Sync unlock directory is not private")
+  }
 
   available(): boolean {
     return this.encryption.isAvailable()
@@ -112,22 +134,18 @@ export class RememberedSyncUnlockStore {
     return this.serialize(async () => {
       const metadata = await this.metadata(identity)
       if (!metadata) return null
-      const directory = await fs.lstat(this.directory)
-      if (
-        !directory.isDirectory() ||
-        directory.isSymbolicLink() ||
-        directory.uid !== process.getuid?.() ||
-        (directory.mode & 0o077) !== 0
-      )
-        throw new Error("Remembered Sync unlock directory is not private")
+      await this.validateDirectory()
       if (
         !metadata.isFile() ||
         metadata.isSymbolicLink() ||
-        (metadata.mode & 0o077) !== 0 ||
-        metadata.uid !== process.getuid?.() ||
+        (this.platform !== "win32" &&
+          ((metadata.mode & 0o077) !== 0 ||
+            metadata.uid !== process.getuid?.())) ||
         metadata.size > 4096
       )
         throw new Error("Remembered Sync unlock has unsafe file permissions")
+      if (this.platform === "win32")
+        await this.windowsFiles.validateFile(this.file(identity))
       if (!this.available())
         throw new Error(
           "System secure storage is unavailable; enter your sync password"
@@ -167,15 +185,11 @@ export class RememberedSyncUnlockStore {
           )
         if (secret.length < 1 || secret.length > 1024)
           throw new Error("Invalid sync password")
-        await fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
-        const directory = await fs.lstat(this.directory)
-        if (
-          !directory.isDirectory() ||
-          directory.isSymbolicLink() ||
-          directory.uid !== process.getuid?.() ||
-          (directory.mode & 0o077) !== 0
-        )
-          throw new Error("Remembered Sync unlock directory is not private")
+        if (this.platform === "win32") {
+          await fs.mkdir(path.dirname(this.directory), { recursive: true })
+          await this.windowsFiles.prepareDirectory(this.directory)
+        } else await fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
+        await this.validateDirectory()
         let ciphertext: Buffer
         try {
           ciphertext = this.encryption.encrypt(payload.toString("base64"))
@@ -186,17 +200,21 @@ export class RememberedSyncUnlockStore {
         }
         const handle = await fs.open(temporary, "wx", 0o600)
         try {
+          if (this.platform === "win32")
+            await this.windowsFiles.protectFile(temporary)
           await handle.writeFile(ciphertext)
           await handle.sync()
         } finally {
           await handle.close()
         }
         await fs.rename(temporary, this.file(identity))
-        const parent = await fs.open(this.directory, "r")
-        try {
-          await parent.sync()
-        } finally {
-          await parent.close()
+        if (this.platform !== "win32") {
+          const parent = await fs.open(this.directory, "r")
+          try {
+            await parent.sync()
+          } finally {
+            await parent.close()
+          }
         }
       } finally {
         secret.fill(0)
@@ -208,6 +226,7 @@ export class RememberedSyncUnlockStore {
 
   forget(identity: StoredSyncIdentity): Promise<void> {
     return this.serialize(async () => {
+      if (await this.metadata(identity)) await this.validateDirectory()
       await fs
         .unlink(this.file(identity))
         .catch((error: NodeJS.ErrnoException) => {
@@ -229,13 +248,7 @@ export class RememberedSyncUnlockStore {
           throw error
         })
       if (!directory) return
-      if (
-        !directory.isDirectory() ||
-        directory.isSymbolicLink() ||
-        directory.uid !== process.getuid?.() ||
-        (directory.mode & 0o077) !== 0
-      )
-        throw new Error("Remembered Sync unlock directory is not private")
+      await this.validateDirectory()
       const pattern = new RegExp(
         `^${scopeDigest(identity)}-[a-f0-9]{64}\\.bin$`
       )
