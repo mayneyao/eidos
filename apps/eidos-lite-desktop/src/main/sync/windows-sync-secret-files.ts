@@ -11,10 +11,21 @@ export interface WindowsSyncSecretFiles {
   protectFile(file: string): Promise<void>
 }
 
+export function createWindowsPowerShellEnvironment(): NodeJS.ProcessEnv {
+  // Node can inherit PowerShell 7 module paths that Windows PowerShell cannot
+  // load. Environment variable names are case-insensitive on Windows.
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => name.toLowerCase() !== "psmodulepath"
+    )
+  )
+}
+
 // Paths travel as data in the child environment. Passwords and ciphertext never
 // enter PowerShell. Use the system executable, not a PATH-resolved command.
 const script = `
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
 $target = $env:EIDOS_SYNC_SECRET_PATH
 $operation = $env:EIDOS_SYNC_SECRET_OPERATION
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -105,7 +116,7 @@ async function protect(target: string, operation: string): Promise<void> {
         timeout: 15_000,
         maxBuffer: 16_384,
         env: {
-          ...process.env,
+          ...createWindowsPowerShellEnvironment(),
           EIDOS_SYNC_SECRET_PATH: target,
           EIDOS_SYNC_SECRET_OPERATION: operation,
         },

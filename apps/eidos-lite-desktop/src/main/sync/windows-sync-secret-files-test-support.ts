@@ -5,7 +5,10 @@ import os from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 
-import { windowsSyncSecretFiles as policy } from "./windows-sync-secret-files"
+import {
+  createWindowsPowerShellEnvironment,
+  windowsSyncSecretFiles as policy,
+} from "./windows-sync-secret-files"
 
 export async function verifyNativeWindowsSyncSecretFiles(): Promise<void> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-sync-acl-"))
@@ -35,6 +38,7 @@ export async function verifyNativeWindowsSyncSecretFiles(): Promise<void> {
     await policy.validateFile(file)
     const script = `
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
 $acl = Get-Acl -LiteralPath $env:EIDOS_SYNC_TEST_PATH
 $users = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')
 $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($users, 'Read', 'Allow'))
@@ -57,7 +61,10 @@ Set-Acl -LiteralPath $env:EIDOS_SYNC_TEST_PATH -AclObject $acl
       {
         windowsHide: true,
         timeout: 15_000,
-        env: { ...process.env, EIDOS_SYNC_TEST_PATH: file },
+        env: {
+          ...createWindowsPowerShellEnvironment(),
+          EIDOS_SYNC_TEST_PATH: file,
+        },
       }
     )
     await assert.rejects(policy.validateFile(file), /could not be protected/)

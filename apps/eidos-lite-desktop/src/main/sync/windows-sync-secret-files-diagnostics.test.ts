@@ -47,6 +47,32 @@ it("retains the PowerShell cause behind the safe storage error", async () => {
   expect((failure as Error).cause).toBe(child.failure)
 })
 
+it.each(["PSModulePath", "PSMODULEPATH", "psmodulepath"])(
+  "does not inherit %s from a PowerShell 7 parent",
+  async (variable) => {
+    const inherited = "C:\\Program Files\\PowerShell\\7\\Modules"
+    vi.stubEnv(variable, inherited)
+    const directory = process.platform === "win32" ? "C:\\private" : "/private"
+    await expect(
+      windowsSyncSecretFiles.prepareDirectory(directory)
+    ).rejects.toThrow("Windows Sync password storage could not be protected")
+    const options = child.execute.mock.calls[0]?.[2] as {
+      env: NodeJS.ProcessEnv
+    }
+    expect(
+      Object.keys(options.env).filter(
+        (name) => name.toLowerCase() === "psmodulepath"
+      )
+    ).toEqual([])
+    expect(options.env).toMatchObject({
+      SystemRoot: process.env.SystemRoot,
+      EIDOS_SYNC_SECRET_PATH: directory,
+      EIDOS_SYNC_SECRET_OPERATION: "prepare-directory",
+    })
+    expect(process.env[variable]).toBe(inherited)
+  }
+)
+
 it("reports only exit code and stderr when the native directory setup fails", async () => {
   const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {})
   await expect(verifyNativeWindowsSyncSecretFiles()).rejects.toMatchObject({
