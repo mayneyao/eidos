@@ -18,4 +18,5 @@ Choose **Check for updates** in the sidebar Help menu. Progress, results and err
 - **Recent files**: Opening **Files** from **Recent files** now reopens the Space-wide file manager instead of incorrectly reporting that the file is unavailable.
 - **Sync reconnection**: Device-history caches reconnect after a restart. Saved account-access errors are rechecked against the current account before they continue to block Sync.
 - **Sync history errors**: Missing history data now offers a retry instead of incorrectly reporting that the entire cloud Space is unavailable. Local files and saved versions stay in place.
+- **Local changes**: Files edited during a status check are no longer shown as unchanged after restarting Lite or disconnecting Sync.
 - **Grid selection**: Filtering and sorting clear old row and cell selections while preserving keyboard focus, preventing an old selection from pointing to a different record.
