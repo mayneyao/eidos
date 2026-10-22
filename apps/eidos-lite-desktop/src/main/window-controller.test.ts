@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   record: vi.fn(async () => {}),
   saveDialog: vi.fn(),
+  displayMatching: vi.fn(
+    (_bounds: { x: number; y: number; width: number; height: number }) => ({
+      id: 1,
+      workArea: { x: 0, y: 0, width: 1440, height: 900 },
+    })
+  ),
   canonical: vi.fn(async (root: string) => ({
     id: root,
     root,
@@ -32,9 +38,7 @@ vi.mock("electron", () => ({
   clipboard: {},
   dialog: { showSaveDialog: mocks.saveDialog },
   screen: {
-    getDisplayMatching: () => ({
-      workArea: { x: 0, y: 0, width: 1440, height: 900 },
-    }),
+    getDisplayMatching: mocks.displayMatching,
   },
   shell: {},
   utilityProcess: {},
@@ -74,6 +78,7 @@ function fixture() {
     show: vi.fn(),
     focus: vi.fn(),
     setTitle: vi.fn(),
+    getBounds: vi.fn(() => ({ x: 0, y: 0, width: 500, height: 600 })),
   })
   mocks.window = window
   const controller = new WindowController({} as EidosLiteServiceEnvironment)
@@ -110,7 +115,13 @@ function session(id: string) {
     ),
   }
 }
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.displayMatching.mockImplementation(() => ({
+    id: 1,
+    workArea: { x: 0, y: 0, width: 1440, height: 900 },
+  }))
+})
 
 it("keeps Space runtime loading out of the Welcome controller", () => {
   expect(mocks.sessionModuleLoads).toBe(0)
@@ -385,7 +396,7 @@ it("reuses a separate property window without registering it as a Space owner", 
   expect(child.setBounds).toHaveBeenLastCalledWith(
     {
       x: 50,
-      y: 50,
+      y: 223,
       width: 400,
       height: 154,
     },
@@ -491,6 +502,8 @@ it("presents a property window even when the renderer load fails", async () => {
     focus: vi.fn(),
     setTitle: vi.fn(),
     close: vi.fn(),
+    getBounds: () => ({ x: 50, y: 50, width: 400, height: 400 }),
+    setBounds: vi.fn(),
   })
   const internals = controller as unknown as {
     createWindow(show: boolean, kind: string): BrowserWindow
@@ -506,6 +519,188 @@ it("presents a property window even when the renderer load fails", async () => {
   )
   controller.showFileProperties(owner, "a.md")
   await vi.waitFor(() => expect(child.show).toHaveBeenCalledOnce())
+  expect(child.setBounds).toHaveBeenCalledWith(
+    { x: 50, y: 100, width: 400, height: 400 },
+    false
+  )
+  expect(child.setBounds.mock.invocationCallOrder[0]).toBeLessThan(
+    child.show.mock.invocationCallOrder[0]!
+  )
+})
+
+async function propertyWindowFixture() {
+  const setup = fixture()
+  mocks.create.mockResolvedValueOnce(session("properties-monitor-space"))
+  await setup.controller.openRecentSpace(
+    setup.owner,
+    "properties-monitor-space"
+  )
+  let bounds = { x: 50, y: 50, width: 400, height: 400 }
+  const contents = Object.assign(new EventEmitter(), {
+    id: 25,
+    send: vi.fn(),
+    isDestroyed: () => false,
+    setZoomFactor: vi.fn(),
+    getZoomFactor: vi.fn(() => 1),
+  })
+  const child = Object.assign(new EventEmitter(), {
+    webContents: contents,
+    isDestroyed: () => false,
+    isMinimized: () => false,
+    show: vi.fn(),
+    focus: vi.fn(),
+    setTitle: vi.fn(),
+    close: vi.fn(),
+    getBounds: () => ({ ...bounds }),
+    getContentBounds: () => ({
+      ...bounds,
+      y: bounds.y + 28,
+      height: bounds.height - 28,
+    }),
+    setBounds: vi.fn((next: typeof bounds, _animate?: boolean) => {
+      bounds = { ...next }
+    }),
+  })
+  const internals = setup.controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+  }
+  const create = vi
+    .spyOn(internals, "createWindow")
+    .mockReturnValue(child as unknown as BrowserWindow)
+  vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  vi.spyOn(setup.controller, "locale").mockResolvedValue("en")
+  vi.spyOn(setup.controller, "getPreferences").mockResolvedValue(
+    DEFAULT_EIDOS_LITE_PREFERENCES
+  )
+  return {
+    ...setup,
+    child,
+    contents: contents as unknown as WebContents,
+    create,
+    moveChild: (next: typeof bounds) => {
+      bounds = { ...next }
+    },
+    dispose: () => child.emit("closed"),
+  }
+}
+
+function useTwoMonitors() {
+  mocks.displayMatching.mockImplementation((bounds) =>
+    bounds.x >= 1440
+      ? { id: 2, workArea: { x: 1440, y: 0, width: 1920, height: 1080 } }
+      : { id: 1, workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+  )
+}
+
+it("places the first ready property window on its owner's negative-coordinate monitor even without a height change", async () => {
+  const setup = await propertyWindowFixture()
+  mocks.displayMatching.mockImplementation((bounds) =>
+    bounds.x < 0
+      ? { id: 2, workArea: { x: -1920, y: -1080, width: 1920, height: 1040 } }
+      : { id: 1, workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+  )
+  setup.window.getBounds.mockReturnValue({
+    x: -1800,
+    y: -980,
+    width: 1000,
+    height: 700,
+  })
+  try {
+    setup.controller.showFileProperties(setup.owner, "a.md")
+    setup.controller.resizeFileProperties(setup.contents, 372)
+    expect(setup.child.setBounds).toHaveBeenCalledWith(
+      { x: -1500, y: -830, width: 400, height: 400 },
+      false
+    )
+    expect(setup.child.show).toHaveBeenCalledOnce()
+    expect(setup.child.setBounds.mock.invocationCallOrder[0]).toBeLessThan(
+      setup.child.show.mock.invocationCallOrder[0]!
+    )
+  } finally {
+    setup.dispose()
+  }
+})
+
+it("moves a reused property window to the owner's new monitor without creating another window", async () => {
+  const setup = await propertyWindowFixture()
+  useTwoMonitors()
+  try {
+    setup.controller.showFileProperties(setup.owner, "a.md")
+    setup.controller.resizeFileProperties(setup.contents, 372)
+    setup.child.setBounds.mockClear()
+    setup.window.getBounds.mockReturnValue({
+      x: 1600,
+      y: 80,
+      width: 1000,
+      height: 700,
+    })
+    setup.controller.showFileProperties(setup.owner, "b.md")
+    expect(setup.create).toHaveBeenCalledOnce()
+    expect(setup.child.setBounds).toHaveBeenCalledWith(
+      { x: 1900, y: 230, width: 400, height: 400 },
+      false
+    )
+    expect(setup.controller.filePropertiesTarget(setup.contents)).toBe("b.md")
+  } finally {
+    setup.dispose()
+  }
+})
+
+it("keeps a property window's dragged position on same-screen reopen and later resize", async () => {
+  const setup = await propertyWindowFixture()
+  useTwoMonitors()
+  try {
+    setup.controller.showFileProperties(setup.owner, "a.md")
+    setup.controller.resizeFileProperties(setup.contents, 372)
+    setup.moveChild({ x: 920, y: 100, width: 400, height: 400 })
+    setup.child.setBounds.mockClear()
+    setup.controller.showFileProperties(setup.owner, "b.md")
+    expect(setup.child.setBounds).not.toHaveBeenCalled()
+    setup.controller.resizeFileProperties(setup.contents, 472)
+    expect(setup.child.setBounds).toHaveBeenCalledWith(
+      { x: 920, y: 100, width: 400, height: 500 },
+      true
+    )
+    setup.moveChild({ x: 1900, y: 120, width: 400, height: 500 })
+    setup.child.setBounds.mockClear()
+    setup.controller.selectFileProperties(setup.owner, "c.md")
+    setup.controller.resizeFileProperties(setup.contents, 572)
+    expect(setup.child.setBounds).toHaveBeenCalledWith(
+      { x: 1900, y: 120, width: 400, height: 600 },
+      true
+    )
+  } finally {
+    setup.dispose()
+  }
+})
+
+it("positions the fallback loading shell using the owner's current monitor before showing it", async () => {
+  vi.useFakeTimers()
+  const setup = await propertyWindowFixture()
+  useTwoMonitors()
+  try {
+    setup.controller.showFileProperties(setup.owner, "a.md")
+    setup.window.getBounds.mockReturnValue({
+      x: 1600,
+      y: 80,
+      width: 1000,
+      height: 700,
+    })
+    expect(setup.child.show).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(setup.child.setBounds).toHaveBeenCalledWith(
+      { x: 1900, y: 230, width: 400, height: 400 },
+      false
+    )
+    expect(setup.child.show).toHaveBeenCalledOnce()
+    expect(setup.child.setBounds.mock.invocationCallOrder[0]).toBeLessThan(
+      setup.child.show.mock.invocationCallOrder[0]!
+    )
+  } finally {
+    setup.dispose()
+    vi.useRealTimers()
+  }
 })
 
 it("keeps the old Space alive on cancel and failed opens, then releases it once on a successful switch", async () => {
