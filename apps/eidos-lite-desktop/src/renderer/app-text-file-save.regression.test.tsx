@@ -17,6 +17,7 @@ import {
 } from "./navigation-history"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
+import { loadRecentFiles, storeRecentFiles } from "./recent-files"
 
 const surface = vi.hoisted(() =>
   vi.fn<
@@ -189,46 +190,59 @@ function installHost(overrides: Record<string, unknown>) {
   }) as unknown as EidosLiteApi
 }
 
-it("shows Spark activation guidance instead of missing-file recovery when catalog creation is denied", async () => {
-  const openSettingsDestination = vi.fn(async () => {})
-  const inspect = vi.fn(async () => {
-    throw new Error("Should not inspect a catalog that has not been created")
-  })
-  installHost({
-    openFileMetadata: async () => {
-      throw new Error(
-        `Error invoking remote method: ${SPARK_ACTIVATION_REQUIRED}`
-      )
-    },
-    inspectEidosFileIssue: inspect,
-    openSettingsDestination,
-  })
-  window.history.replaceState(null, "", navigationHash("s", null))
-  await act(async () => root!.render(<App />))
-  await vi.waitFor(() =>
-    expect(host.querySelector('[aria-label="Manage files"]')).not.toBeNull()
-  )
-  await act(async () =>
-    host
-      .querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
-      .click()
-  )
-  await vi.waitFor(() =>
-    expect(host.textContent).toContain(SPARK_ACTIVATION_REQUIRED)
-  )
-  expect(inspect).not.toHaveBeenCalled()
-  expect(host.textContent).not.toContain("Eidos File is missing")
-  const activate = Array.from(
-    host.querySelectorAll<HTMLButtonElement>("button")
-  ).find(
-    (button) => button.textContent === "Activate Spark in Account & Services"
-  )!
-  expect(activate).toBeDefined()
-  await act(async () => activate.click())
-  expect(openSettingsDestination).toHaveBeenCalledWith("account-sync")
-})
+it.each(["toolbar", "recent"])(
+  "shows Spark activation guidance instead of missing-file recovery when catalog creation is denied from %s",
+  async (mode) => {
+    const openSettingsDestination = vi.fn(async () => {})
+    const inspect = vi.fn(async () => {
+      throw new Error("Should not inspect a catalog that has not been created")
+    })
+    installHost({
+      openFileMetadata: async () => {
+        throw new Error(
+          `Error invoking remote method: ${SPARK_ACTIVATION_REQUIRED}`
+        )
+      },
+      inspectEidosFileIssue: inspect,
+      openSettingsDestination,
+    })
+    if (mode === "recent") {
+      storeRecentFiles(window.localStorage, "s", [
+        { relativePath: ".eidos/files.eidos", name: "Files", kind: "eidos" },
+      ])
+    }
+    window.history.replaceState(null, "", navigationHash("s", null))
+    await act(async () => root!.render(<App />))
+    const selector =
+      mode === "recent"
+        ? '[data-recent-file-path=".eidos/files.eidos"]'
+        : '[aria-label="Manage files"]'
+    await vi.waitFor(() => expect(host.querySelector(selector)).not.toBeNull())
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(selector)!.click()
+    )
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain(SPARK_ACTIVATION_REQUIRED)
+    )
+    expect(inspect).not.toHaveBeenCalled()
+    expect(host.textContent).not.toContain("Eidos File is missing")
+    if (mode === "recent") {
+      expect(loadRecentFiles(window.localStorage, "s")).toEqual([
+        { relativePath: ".eidos/files.eidos", name: "Files", kind: "eidos" },
+      ])
+    }
+    const activate = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("button")
+    ).find(
+      (button) => button.textContent === "Activate Spark in Account & Services"
+    )!
+    expect(activate).toBeDefined()
+    await act(async () => activate.click())
+    expect(openSettingsDestination).toHaveBeenCalledWith("account-sync")
+  }
+)
 
-it.each(["root", "folder", "restore"])(
+it.each(["root", "folder", "restore", "recent"])(
   "opens Space metadata through the built-in editor from %s",
   async (mode) => {
     const snapshot = {
@@ -266,6 +280,11 @@ it.each(["root", "folder", "restore"])(
       openPluginEditor: plugins,
       inspectEidosFileIssue: async () => null,
     })
+    if (mode === "recent") {
+      storeRecentFiles(window.localStorage, "s", [
+        { relativePath: ".eidos/files.eidos", name: "Files", kind: "eidos" },
+      ])
+    }
     window.history.replaceState(
       null,
       "",
@@ -287,7 +306,20 @@ it.each(["root", "folder", "restore"])(
       await vi.waitFor(() =>
         expect(host.querySelector('[aria-label="Manage files"]')).not.toBeNull()
       )
-      if (mode === "root") {
+      if (mode === "recent") {
+        await vi.waitFor(() =>
+          expect(
+            host.querySelector('[data-recent-file-path=".eidos/files.eidos"]')
+          ).not.toBeNull()
+        )
+        await act(async () =>
+          host
+            .querySelector<HTMLButtonElement>(
+              '[data-recent-file-path=".eidos/files.eidos"]'
+            )!
+            .click()
+        )
+      } else if (mode === "root") {
         await act(async () =>
           host
             .querySelector<HTMLButtonElement>('[aria-label="Manage files"]')!
@@ -330,9 +362,11 @@ it.each(["root", "folder", "restore"])(
       host
         .querySelector("[data-test-metadata-scope]")!
         .getAttribute("data-test-metadata-scope")
-    ).toBe(mode === "root" ? "" : "business")
+    ).toBe(mode === "root" || mode === "recent" ? "" : "business")
     expect(open).toHaveBeenCalledOnce()
-    expect(open).toHaveBeenCalledWith(mode === "root" ? null : "business")
+    expect(open).toHaveBeenCalledWith(
+      mode === "root" || mode === "recent" ? null : "business"
+    )
     expect(plugins).not.toHaveBeenCalled()
     expect(host.textContent).not.toContain("Could not open")
     const breadcrumb = host.querySelector<HTMLElement>(
@@ -342,9 +376,46 @@ it.each(["root", "folder", "restore"])(
     expect(breadcrumb.closest(".file-titlebar")).not.toBeNull()
     expect(
       breadcrumb.querySelector('[aria-current="location"]')?.textContent
-    ).toBe(mode === "root" ? staleSpace.name : "business")
+    ).toBe(mode === "root" || mode === "recent" ? staleSpace.name : "business")
+    if (mode === "root" || mode === "folder") {
+      await act(async () => navigateCurrentWindow(null))
+      await vi.waitFor(() =>
+        expect(
+          host.querySelector('[data-recent-file-path=".eidos/files.eidos"]')
+        ).not.toBeNull()
+      )
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>(
+            '[data-recent-file-path=".eidos/files.eidos"]'
+          )!
+          .click()
+      )
+      await vi.waitFor(() =>
+        expect(
+          host
+            .querySelector("[data-test-metadata-scope]")
+            ?.getAttribute("data-test-metadata-scope")
+        ).toBe("")
+      )
+      expect(open).toHaveBeenCalledOnce()
+      expect(plugins).not.toHaveBeenCalled()
+      expect(readNavigationHistory("s").location).toEqual({
+        type: "record",
+        path: ".eidos/files.eidos",
+        tableId: "files",
+        rowId: null,
+      })
+    }
+    expect(loadRecentFiles(window.localStorage, "s")).toEqual([
+      { relativePath: ".eidos/files.eidos", name: "Files", kind: "eidos" },
+    ])
+    expect(host.textContent).not.toContain("no longer available")
     await act(async () =>
-      breadcrumb.querySelector<HTMLButtonElement>("button")!.click()
+      host
+        .querySelector('nav[aria-label="File management folder"]')!
+        .querySelector<HTMLButtonElement>("button")!
+        .click()
     )
     expect(
       host
@@ -352,6 +423,56 @@ it.each(["root", "folder", "restore"])(
         .getAttribute("data-test-metadata-scope")
     ).toBe("")
     expect(open).toHaveBeenCalledOnce()
+  }
+)
+
+it.each(["missing.md", ".eidos/settings.eidos"])(
+  "keeps the missing recent-file behavior for %s",
+  async (relativePath) => {
+    const openFileMetadata = vi.fn()
+    const openEidosFile = vi.fn()
+    const previewTextFile = vi.fn()
+    const openPluginEditor = vi.fn()
+    const loadSpaceDirectory = vi.fn()
+    installHost({
+      openFileMetadata,
+      openEidosFile,
+      previewTextFile,
+      openPluginEditor,
+      loadSpaceDirectory,
+    })
+    const remaining = {
+      relativePath: oldPath,
+      name: oldPath,
+      kind: "file" as const,
+    }
+    storeRecentFiles(window.localStorage, "s", [
+      {
+        relativePath,
+        name: relativePath.split("/").at(-1)!,
+        kind: relativePath.endsWith(".eidos") ? "eidos" : "file",
+      },
+      remaining,
+    ])
+    window.history.replaceState(null, "", navigationHash("s", null))
+    await act(async () => root!.render(<App />))
+    const selector = `[data-recent-file-path="${relativePath}"]`
+    await vi.waitFor(() => expect(host.querySelector(selector)).not.toBeNull())
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(selector)!.click()
+    )
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain(
+        "is no longer available in this Space."
+      )
+    )
+    expect(loadRecentFiles(window.localStorage, "s")).toEqual([remaining])
+    expect(host.querySelector("[data-test-metadata-scope]")).toBeNull()
+    expect(openFileMetadata).not.toHaveBeenCalled()
+    expect(openEidosFile).not.toHaveBeenCalled()
+    expect(previewTextFile).not.toHaveBeenCalled()
+    expect(openPluginEditor).not.toHaveBeenCalled()
+    expect(loadSpaceDirectory).not.toHaveBeenCalled()
   }
 )
 

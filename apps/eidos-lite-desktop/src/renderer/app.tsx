@@ -2655,6 +2655,10 @@ function WorkspaceApp({
       if (!space) return
       setError(null)
       try {
+        if (recent.relativePath === SPACE_FILE_METADATA_PATH) {
+          await openFileMetadata(null)
+          return
+        }
         let currentSpace = space
         let directoryPath = ""
         for (const segment of recent.relativePath.split("/").slice(0, -1)) {
@@ -2686,7 +2690,14 @@ function WorkspaceApp({
         setError(errorMessage(cause))
       }
     },
-    [acceptSpaceSnapshot, openEntry, space, t, updateRecentFilePaths]
+    [
+      acceptSpaceSnapshot,
+      openEntry,
+      openFileMetadata,
+      space,
+      t,
+      updateRecentFilePaths,
+    ]
   )
 
   const launchSpace = useRef(space)
