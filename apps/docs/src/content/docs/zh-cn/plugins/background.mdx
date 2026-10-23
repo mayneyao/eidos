@@ -1,0 +1,237 @@
+---
+title: 后台任务
+description: 页面关闭后继续运行，通过 Cmd+K 交换消息，并由宿主授权网络和 BLE 连接。
+sidebar:
+  order: 4
+---
+
+import PluginBackgroundExamples from "../../../../components/PluginBackgroundExamples.astro"
+
+Background 让插件在页面关闭后继续保留内存状态和连接。
+它适合 WebSocket 连接、BLE 外设，以及由页面和命令共同控制的任务。
+需要支持 **插件 API 3.4.0 的 Eidos Lite**；
+CLI Serve 和移动端宿主不提供这项能力。
+
+## 选择合适的生命周期
+
+| 代码 | 启动时机 | 生命周期 |
+| --- | --- | --- |
+| Page 或 file View | 用户打开视图 | 关闭视图时结束 |
+| 命令 action | 用户执行命令 | 处理函数完成或被取消时结束 |
+| Background | 视图或 action 请求，且宿主批准 | 调用者结束后仍继续运行 |
+
+Background 是额外的执行入口，不是第三种 View。
+在 page/file View 或注册 action 的 `extension` 之外，声明独立的
+`background.entry`。每个窗口、Space、插件分别拥有一个 background；
+同一范围内的页面和 Cmd+K action 共用它。
+
+安装或启用插件不会自动启动后台。
+首次调用 `start()`、`request()`、`postMessage()` 或 `onMessage()`
+时，宿主通过原生对话框确认后按需启动。
+`requestDevice()` 使用独立的设备授权流程。
+
+模块运行在 Rust + QuickJS 进程中，提供 Worker 风格的消息、计时器、
+`fetch` 和 `WebSocket`。它没有 DOM、Node 模块加载器、Electron、
+文件系统 API 或 Eidos 数据能力。网络与设备访问需要明确的宿主授权。
+这是能力隔离，不是操作系统级沙盒。
+
+## 示例：页面和 Cmd+K 共用计数器
+
+创建一个目录，放入以下四个文件。这里的代码直接来自仓库中可运行的
+`packages/plugin-sandbox/examples/lite-background` 示例。
+
+<PluginBackgroundExamples kind="counter" />
+
+在支持 API 3.4.0 的 Lite 中：
+
+1. 打开测试 Space，进入 **Plugin Manager → Load development source…**。
+2. 选择该目录的 `plugin.json`，并启用插件。
+3. 从导航打开 **Background Counter**，确认启动。
+4. 点击 **Increment**，然后关闭页面。
+5. 在 Cmd+K 中执行 **Increment background counter**。
+6. 重新打开页面，计数包含命令刚才的累加。
+7. 执行 **Stop background counter**。下次启动会重新确认权限，
+   并从新的内存状态开始。
+
+从 Eidos 仓库运行时，在仓库根目录执行 `pnpm dev:eidos-lite`，
+它也会准备原生 sandbox 可执行文件。
+如果已安装的工具尚未支持这项能力，应使用当前源码构建的插件工具和 SDK。
+
+## 交换消息
+
+View 和 action 的上下文都提供 `ctx.capabilities.background`。
+通过 `ExtensionContext.capabilities.actions` 注册命令；
+在处理函数收到的 **action context** 上访问 background。
+
+```ts
+const result = await ctx.capabilities.background!.request({
+  command: "increment",
+})
+```
+
+`request(data)` 发送 `{ requestId, data }`。
+后台用同一个 `requestId` 回复，并将结果放在 `data` 中：
+
+```ts
+globalThis.onmessage = (event: MessageEvent) => {
+  const { requestId, data } = event.data
+  postMessage({ requestId, data: { received: data } })
+}
+export {}
+```
+
+这层请求/回复格式是 Eidos 宿主约定。
+原始消息使用 `postMessage(data)` 和 `await onMessage(listener)`。
+消息必须是 JSON，二进制数据需要显式编码。
+业务错误可以作为结果返回，例如 `{ ok: false, error: "Device unavailable" }`，
+调用方需要检查结果。宿主错误、取消、退出或超时则会使请求 Promise 拒绝。
+
+Action 应等待回复后再返回，其未完成请求和订阅会随 action 结束而释放。
+View 的订阅随页面关闭而释放，后台继续运行。
+订阅属于某一次运行：停止、替换设备或更新后，需要重新订阅。
+
+## 授权网络连接
+
+在 `background` 对象中声明精确的 HTTPS/WSS origins：
+
+```json
+{
+  "entry": "./background.ts",
+  "networkOrigins": ["https://api.example.com", "wss://events.example.com"]
+}
+```
+
+原生授权对话框会列出这些 origins。
+浏览器的 `browser.networkOrigins` 不会赋予后台网络权限。
+普通运行不会授权私网地址；下文的本地开发示例需要单独的精确回环授权。重定向仍受 sandbox 网络策略约束。
+请将示例地址替换成你的实际服务。
+
+在后台模块中：
+
+```ts
+const socket = new WebSocket("wss://events.example.com")
+socket.onmessage = (event) => {
+  postMessage({ type: "server-message", data: String(event.data) })
+}
+socket.onclose = () => postMessage({ type: "connection-closed" })
+socket.onerror = () => postMessage({ type: "connection-error" })
+```
+
+HTTP 请求可使用 `fetch("https://api.example.com/status")`。
+网络授权不会提供已认证的 Eidos connection 或账号凭据，
+宿主也不会自动重连断开的 socket。
+
+## 示例：选择并连接 BLE 电量设备
+
+准备一个提供 Battery Service（`0x180F`）和 Battery Level（`0x2A19`）
+的 BLE 外设。这个示例读取电量，并在设备支持时订阅电量通知。
+BLE GATT 不负责将音频输出到蓝牙音箱。
+
+创建另一个插件目录，放入以下五个文件。它们来自可运行的
+`packages/plugin-sandbox/examples/lite-bluetooth` 示例。
+本地类型文件描述后台使用的 Web Bluetooth 风格 API 子集。
+
+<PluginBackgroundExamples kind="bluetooth" />
+
+1. 在插件管理器加载该目录的 `plugin.json`，并启用插件。
+2. 打开 **Bluetooth Battery → Choose and connect**，
+   或在 Cmd+K 执行 **Bluetooth: choose and connect battery**。
+3. 确认扫描；如果操作系统询问蓝牙权限，再进行系统授权。
+   将外设置于广播状态。
+4. 按名称和精确 ID 选择设备，最后确认服务操作权限。
+5. Lite 用该设备的授权启动新后台。页面或 action 发送连接消息，
+   后台调用 `getDevices()` 和 `gatt.connect()`。
+6. 关闭页面。在 Cmd+K 执行 **Bluetooth: battery status**，
+   检查仍保持的连接。重新打开页面后，点击
+   **Status / resume notifications** 订阅当前运行。
+7. 执行 **Bluetooth: disconnect and stop**，结束进程并撤销设备授权。
+
+Manifest 声明服务 UUID 和 `read`、`write`、`notify` 操作，
+不能指定设备 ID。后台的 `navigator.bluetooth.getDevices()`
+只返回选中的设备；后台不能自行打开选择器，
+`navigator.bluetooth.requestDevice()` 在其中不可用。
+
+取消选择保留原运行。确认设备会替换运行、清空内存状态并断开旧设备，
+其他页面需重新订阅。如果新连接失败，不会自动恢复旧连接。
+名称和广播信息不是设备身份的密码学证明，广播也不保证某个服务实际可用。
+
+授权只针对本次运行，不会持久化。普通的 `start()` 永远不授予蓝牙权限。
+设备断开会触发 `gattserverdisconnected`，示例会报告断开，不会悄悄重连。
+
+## File View 复用 WebSocket
+
+**WebSocket Workbench** 把 `.wsreq` 文本文件作为保存的请求样本。
+将 `packages/plugin-sandbox/examples/lite-file-websocket` 加载为开发插件，
+把其中的 `samples/*.wsreq` 复制到 Space，用此 View 打开两个文件。
+点击 **Send sample**，在宿主弹窗中授权网络访问。
+
+在两个终端分别运行示例自带的 Python 服务和开发版 Lite：
+
+```sh
+python3 packages/plugin-sandbox/examples/lite-file-websocket/server.py
+EIDOS_LITE_DEV_BACKGROUND_ORIGIN=ws://127.0.0.1:8787 pnpm dev:eidos-lite
+```
+
+Python 只用标准库，仅监听本机回环地址。打开文件不发送内容；点击发送才读取当前文档文本，不发送路径。
+开发授权必须匹配字面量 `127.0.0.1` 的精确 origin 和端口，不能混合其他 origins，仍需宿主弹窗确认。
+打包版 Lite 忽略此环境变量。正式使用时，同时修改 background 地址和 manifest origin 为公网 WSS，
+私有网络地址仍被禁止。服务器需要原样回显 `{ id, text }` JSON 消息；示例 Python 服务只支持
+这里使用的未分片文本帧等基本操作，不是生产级 WebSocket 服务。
+
+```text
+文件 A ─┐                                      ┌─ 响应 A
+        ├─ background.request → 一个 WebSocket ─┤
+文件 B ─┘                                      └─ 响应 B
+```
+
+同一窗口、Space、插件共用后台实例。并发连接共享一个 Promise，独立的网络消息 ID
+把乱序回显映射到宿主请求 ID。`background.request()` 将响应返回对应调用者，
+无需广播订阅或新的 session API。这是消息路由，不是同一插件内部 View 之间的安全隔离。
+
+连接卡片直接显示“本次建立了新 WebSocket”或“复用了已有 WebSocket”，并展示消息序号、
+连接编号和建立时间。卡片描述最近一次成功响应，不是实时连接健康监控。
+两个文件的响应应显示相同的 `connection` 编号。关闭一个文件再发送另一个，
+只要服务器保持连接，编号就不变；View 关闭时不调用 `stop()`。
+通过 CmdK 的 **WebSocket Workbench: stop shared connection** 可以统一断开，
+下次发送会启动新实例。服务器断开会使待处理请求失败；后续发送重新连接，不自动重发旧消息。
+连接和回显分别在八秒后超时，每次限制 16,000 字符，最多 32 个待处理网络请求。
+
+<PluginBackgroundExamples kind="file-websocket" />
+
+## 停止、更新与恢复
+
+| 事件 | 结果 |
+| --- | --- |
+| 关闭页面或 action 完成 | 释放调用者的请求/订阅，保留后台 |
+| 取消尚未完成的设备选择 | 不授予新权限，保留原运行 |
+| 确认设备 | 替换运行和设备授权 |
+| `stop()`、禁用、卸载或更新 | 停止后台并释放连接 |
+| 切换/关闭 Space 或关闭其窗口 | 停止该范围内的后台 |
+| 退出 Lite | 停止所有后台 |
+
+开发源码重载也会撤销旧运行。重新打开页面或执行命令以请求新运行。
+重启或崩溃后不会自动恢复内存状态。
+计时器只在进程存活时执行，不是能够唤醒 Lite 的持久定时任务或闹钟。
+
+宿主每次请求都会检查 Space 授权，并以 500 ms 的间隔轮询。
+每次运行的 JavaScript 堆上限为 64 MiB，每轮执行预算为 100 ms。
+消息请求 30 秒超时，每个进程最多 64 个待回复请求，
+整个应用最多 16 个 background。设备选择最多等待五分钟。
+耗时操作应拆成有界步骤，并在步骤之间让出执行。
+
+## 验证插件
+
+检查页面关闭重开、没有打开页面时执行命令、取消、拒绝授权、
+停止重启、更新和切换 Space。
+BLE 还应检查同名设备、不支持的服务、设备断开，以及替换设备。
+确认未授权的设备 ID 和未声明的服务始终不可访问。
+
+原生扫描需要可用的 BLE 适配器和操作系统权限；
+Linux 还需要 BlueZ 与 D-Bus。
+自动化测试使用真实 QuickJS 进程和显式 mock BLE 后端，
+不能作为真实设备或签名安装包权限验收的依据。
+请在每个分发平台上单独验收。
+
+按[开发与分发](/zh-cn/plugins/workflow/)检查和打包插件。
+Manifest 字段与方法定义见
+[API 参考](/zh-cn/plugins/api/#常驻-backgroundlite-api-34)。

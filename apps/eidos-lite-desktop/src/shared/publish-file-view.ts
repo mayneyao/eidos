@@ -11,6 +11,7 @@ export function isPublishableFileView(
     !manifest.connections &&
     !manifest.settings &&
     !manifest.storage &&
+    !manifest.background &&
     view.kind === "file" &&
     view.access === "read" &&
     !view.capabilities?.length

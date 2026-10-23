@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["apps/cli", "crates/*"]
+members = ["apps/cli", "apps/plugin-sandbox", "crates/*"]
 default-members = ["apps/cli"]
 
 [workspace.dependencies]

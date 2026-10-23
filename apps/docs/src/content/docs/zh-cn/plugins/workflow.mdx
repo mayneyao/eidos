@@ -32,6 +32,16 @@ npm install
 
 项目较小时，也可以使用独立的 `.ts` 文件，将声明导出为 `manifest`，再默认导出 `mount` 或 `activate`。检查和打包命令同时接受目录与独立源码文件。
 
+## 后台示例
+
+需要常驻连接时，可使用完整的[后台示例](/zh-cn/plugins/background/)。
+仓库目录 `packages/plugin-sandbox/examples/lite-background` 和
+`packages/plugin-sandbox/examples/lite-bluetooth` 包含全部源码。
+`packages/plugin-sandbox/examples/lite-file-websocket` 包含复用后台连接的 file view 和本地 Python 回显服务器；
+按其 README 配置开发宿主的精确回环授权。
+它们是独立示例，不是 `--template` 接受的模板名称。
+复制目录并加载 `plugin.json`；检查或打包时，后台入口会与页面、extension 一起打包。
+
 ## 检查并调试
 
 在插件目录中执行：
@@ -46,6 +56,10 @@ npx @eidos.space/plugin-tools check . --target lite
 
 保存源码会自动重新加载视图。修改访问权限声明后，需要重新审核权限。开发期间的自动更新在本次运行中生效。安装打包后的版本可以让用户在重启后继续使用它。
 
+后台还需验证页面关闭后执行命令、取消授权、停止重启、更新和切换 Space。
+源码重载会停止旧后台、重置内存并撤销设备授权，需要显式重新连接和订阅。
+Mock BLE 测试之外，还需单独验收真实设备。
+
 ## 在 CLI Serve 中使用
 
 CLI Serve 可以在表格中加载 file 视图，提供表格查询和通知接口。如果插件需要同时在 Serve 中使用，再执行目标检查：
@@ -55,6 +69,7 @@ npx @eidos.space/plugin-tools check . --target cli
 ```
 
 Lite 的文件系统、独立页面和扩展操作适用于桌面应用。跨环境使用的视图应在调用可选接口前检查其是否存在。
+Background 及其网络/BLE 授权仅适用于 Lite，不能在 CLI Serve 中运行。
 
 ## 打包并安装
 

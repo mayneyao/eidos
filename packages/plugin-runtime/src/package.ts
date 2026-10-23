@@ -29,6 +29,7 @@ export function parsePackage(value: unknown): PluginPackage {
   const entries = new Set([
     ...(manifest.views ?? []).map((v) => v.entry),
     ...(manifest.extension ? [manifest.extension] : []),
+    ...(manifest.background ? [manifest.background.entry] : []),
   ])
   if (
     Object.keys(modules).length !== entries.size ||

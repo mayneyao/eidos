@@ -1,0 +1,13 @@
+[package]
+name = "eidos-plugin-sandbox-cli"
+version = "0.3.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "plugin-sandbox"
+path = "src/main.rs"
+
+[dependencies]
+eidos-plugin-sandbox = { path = "../../crates/eidos-plugin-sandbox" }
+clap = { version = "4", features = ["derive"] }

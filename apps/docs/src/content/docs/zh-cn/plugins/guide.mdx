@@ -102,6 +102,9 @@ Eidos 调用 `mount` 时传入上下文和界面容器。这里创建一个 `pre
 
 ## 接下来
 
+需要在页面关闭后保持连接或内存状态时，阅读[后台任务](/zh-cn/plugins/background/)。
+其中的完整计数器和 BLE 示例包含页面、命令注册，以及独立的后台模块。
+
 要让用户编辑文本，将声明中的 `access` 设为 `write`，添加输入界面，再用 `document.edit()` 更新内容、`document.save()` 保存。编辑、冲突处理和撤销方法见 [API 参考](/zh-cn/plugins/api/)。
 
 要制作从导航打开的工具页面，请看[页面视图](/zh-cn/plugins/concepts/#页面视图独立打开)。准备分享插件时，按[开发与分发](/zh-cn/plugins/workflow/)完成检查和打包。

@@ -55,10 +55,13 @@ function activateGuest(
       )
     const id = crypto.randomUUID()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        reject(failure("TIMEOUT", "Host request timed out"))
-      }, 30000)
+      const timer = setTimeout(
+        () => {
+          pending.delete(id)
+          reject(failure("TIMEOUT", "Host request timed out"))
+        },
+        method === "background.requestDevice" ? 300000 : 30000
+      )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -276,6 +279,32 @@ function activateGuest(
       signal: controller.signal,
       subscriptions: { add: own },
       capabilities: {
+        background: {
+          requestDevice: () => invoke("background.requestDevice"),
+          start: () => invoke("background.start"),
+          stop: () => invoke("background.stop"),
+          postMessage: (data) => invoke("background.postMessage", { data }),
+          request: (data) => invoke("background.request", { data }),
+          async onMessage(listener) {
+            const id = crypto.randomUUID()
+            observers.set(id, (data) =>
+              listener(data as Parameters<typeof listener>[0])
+            )
+            const subscription = own({
+              dispose() {
+                observers.delete(id)
+                void invoke("background.unobserve", { id }).catch(() => {})
+              },
+            })
+            try {
+              await invoke("background.observe", { id })
+              return subscription
+            } catch (error) {
+              subscription.dispose()
+              throw error
+            }
+          },
+        },
         document: value.kind === "document" ? document : undefined,
         connections: {
           isConfigured: (connection) =>

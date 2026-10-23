@@ -1,0 +1,42 @@
+---
+import { Code } from "@astrojs/starlight/components"
+import counterManifest from "../../../../packages/plugin-sandbox/examples/lite-background/plugin.json?raw"
+import counterBackground from "../../../../packages/plugin-sandbox/examples/lite-background/background.ts?raw"
+import counterPage from "../../../../packages/plugin-sandbox/examples/lite-background/page.ts?raw"
+import counterExtension from "../../../../packages/plugin-sandbox/examples/lite-background/extension.ts?raw"
+import bluetoothManifest from "../../../../packages/plugin-sandbox/examples/lite-bluetooth/plugin.json?raw"
+import bluetoothBackground from "../../../../packages/plugin-sandbox/examples/lite-bluetooth/background.ts?raw"
+import bluetoothPage from "../../../../packages/plugin-sandbox/examples/lite-bluetooth/page.ts?raw"
+import bluetoothExtension from "../../../../packages/plugin-sandbox/examples/lite-bluetooth/extension.ts?raw"
+import bluetoothTypes from "../../../../packages/plugin-sandbox/examples/lite-bluetooth/bluetooth-types.ts?raw"
+import websocketManifest from "../../../../packages/plugin-sandbox/examples/lite-file-websocket/plugin.json?raw"
+import websocketBackground from "../../../../packages/plugin-sandbox/examples/lite-file-websocket/background.ts?raw"
+import websocketFile from "../../../../packages/plugin-sandbox/examples/lite-file-websocket/file.ts?raw"
+import websocketExtension from "../../../../packages/plugin-sandbox/examples/lite-file-websocket/extension.ts?raw"
+import websocketServer from "../../../../packages/plugin-sandbox/examples/lite-file-websocket/server.py?raw"
+
+interface Props { kind: "counter" | "bluetooth" | "file-websocket" }
+const files = Astro.props.kind === "file-websocket"
+  ? [["plugin.json", websocketManifest], ["background.ts", websocketBackground], ["file.ts", websocketFile], ["extension.ts", websocketExtension], ["server.py", websocketServer]]
+  : Astro.props.kind === "counter"
+  ? [
+      ["plugin.json", counterManifest],
+      ["background.ts", counterBackground],
+      ["page.ts", counterPage],
+      ["extension.ts", counterExtension],
+    ]
+  : [
+      ["plugin.json", bluetoothManifest],
+      ["background.ts", bluetoothBackground],
+      ["bluetooth-types.ts", bluetoothTypes],
+      ["page.ts", bluetoothPage],
+      ["extension.ts", bluetoothExtension],
+    ]
+---
+
+{files.map(([name, code], index) => (
+  <details open={index === 0}>
+    <summary><code>{name}</code></summary>
+    <Code code={code} lang={name.endsWith(".json") ? "json" : name.endsWith(".py") ? "python" : "ts"} title={name} />
+  </details>
+))}

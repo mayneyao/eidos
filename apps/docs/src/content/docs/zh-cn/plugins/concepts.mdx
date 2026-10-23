@@ -62,6 +62,18 @@ Eidos 打开视图时调用默认导出的 `mount(ctx, root)`。在 `root` 中�
 
 格式化器接收文档文本并返回格式化结果。通过 `ctx.capabilities.formatters` 注册后，用户可以从 Eidos 的格式化操作中调用它。
 
+## 后台：调用者关闭后继续保留状态
+
+通过 `background.entry` 声明独立的 Worker 风格模块。
+View 和 action 处理函数通过 `ctx.capabilities.background` 与它通信，
+后台不会获得调用者的 binding 或数据能力。
+Extension 模块负责注册命令，background 则拥有持续的内存状态与连接。
+
+宿主在确认授权后按需启动后台。页面关闭会释放该页面的订阅，后台仍继续运行。
+停止、禁用、更新或离开所在 Space 会结束运行并撤销授权。
+重启后不会自动恢复状态和权限。
+完整的计数器与 BLE 示例见[后台任务](/zh-cn/plugins/background/)。
+
 ## 申请访问权限
 
 视图和动作的 `access` 默认为 `read`。需要修改数据时声明 `access: "write"`。如果操作涉及整个 Space 的文件，还需要声明 `workspace.files`，例如：

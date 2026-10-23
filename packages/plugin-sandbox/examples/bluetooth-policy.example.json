@@ -1,0 +1,9 @@
+{
+  "devices": [
+    {
+      "id": "REPLACE_WITH_ID_FROM_BLUETOOTH_SCAN",
+      "name": "My BLE battery device",
+      "services": [{ "uuid": "battery_service", "read": true, "notify": true }]
+    }
+  ]
+}

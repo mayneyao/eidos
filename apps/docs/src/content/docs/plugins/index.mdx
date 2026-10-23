@@ -19,6 +19,8 @@ command that processes selected records.
 A page opens independently. A file View receives the file it is bound to.
 These are the two View kinds.
 A plugin can also provide commands, shortcuts, and document formatting.
+For state or connections that outlive a page, add a
+[background task](/plugins/background/) controlled by Views and Cmd+K commands.
 Theme packages provide light and dark palettes for Lite.
 
 ## Build a working example
@@ -29,6 +31,9 @@ updates when the file changes.
 
 Then read [plugin concepts](/plugins/concepts/) to understand data access and
 lifetime. Use the [API reference](/plugins/api/) for exact methods and types.
+
+For complete page-and-command examples, follow [Background tasks](/plugins/background/):
+share a counter across page closes, or choose and connect a BLE battery device.
 
 ## Install a package
 

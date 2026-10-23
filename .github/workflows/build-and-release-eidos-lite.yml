@@ -166,6 +166,10 @@ jobs:
       - name: Setup Rust for the bundled Publish engine
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install sandbox native dependencies
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Install pnpm
         uses: pnpm/setup@v2
         with:

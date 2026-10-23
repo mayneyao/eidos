@@ -6,6 +6,8 @@ import type { PluginResourceContent } from "../../shared/plugins"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
+import type { PluginBackgroundHost } from "./plugin-background"
+import type { JsonValue } from "@eidos.space/plugin-sandbox"
 import { readPluginNetwork } from "./plugin-network"
 import { fileMetaPatch } from "./filemeta"
 import {
@@ -90,6 +92,7 @@ interface Instance {
     document?: TextDocument
     format?: { version: string; text: string; applying: boolean }
     finish(error?: Error): void
+    waitForHostDialog(): () => void
   }
   owner: number
   session: PluginDocumentSession
@@ -148,7 +151,12 @@ export class PluginService {
       owner: number,
       input: FileExportRequest,
       authorize: () => Promise<void>
-    ) => Promise<FileExportResult>
+    ) => Promise<FileExportResult>,
+    private readonly backgrounds?: PluginBackgroundHost,
+    private readonly backgroundOwnerActive: (
+      owner: number,
+      space: string
+    ) => boolean = () => true
   ) {}
   private armMount(owner: number, ticket: string) {
     const instance = this.instances.get(ticket)!
@@ -382,7 +390,35 @@ export class PluginService {
     })
     void completion.catch(() => {})
     let timer: ReturnType<typeof setTimeout> | undefined
+    let hostDialogs = 0
     const invocation: NonNullable<Instance["invocation"]> = {
+      waitForHostDialog: () => {
+        if (hostDialogs++ === 0) {
+          clearTimeout(timer)
+          timer = setTimeout(
+            () =>
+              invocation.finish(
+                new PluginError("TIMEOUT", "Device selection timed out")
+              ),
+            300000
+          )
+        }
+        let released = false
+        return () => {
+          if (released) return
+          released = true
+          if (--hostDialogs > 0) return
+          clearTimeout(timer)
+          if (!scope.signal.aborted)
+            timer = setTimeout(
+              () =>
+                invocation.finish(
+                  new PluginError("TIMEOUT", "Action timed out")
+                ),
+              30000
+            )
+        }
+      },
       id,
       access: declaration.access ?? "read",
       context: declaration.context,
@@ -824,11 +860,13 @@ export class PluginService {
     }
   }
   closeOwner(owner: number) {
+    this.backgrounds?.closeOwner(owner)
     this.formatterContexts.delete(owner)
     for (const [ticket, instance] of this.instances)
       if (instance.owner === owner) this.close(owner, ticket)
   }
   revoke(pluginId: string, spaceId?: string) {
+    this.backgrounds?.revoke(pluginId, spaceId)
     for (const [ticket, instance] of this.instances)
       if (
         instance.pluginId === pluginId &&
@@ -1104,6 +1142,7 @@ export class PluginService {
       if (
         instance.extension &&
         (request.method === "network.read" ||
+          request.method.startsWith("background.") ||
           request.method.startsWith("storage.") ||
           request.method.startsWith("eidos.connection."))
       ) {
@@ -1123,6 +1162,101 @@ export class PluginService {
         capabilityScope = invocation.scope
         capabilityScope.assertActive()
         capabilityParams = envelope.args
+      }
+      if (request.method.startsWith("background.")) {
+        const pkg = await this.store.read(instance.hash)
+        if (!pkg.manifest.background || !this.backgrounds || instance.embedded)
+          throw new PluginError("PERMISSION_DENIED", "Background unavailable")
+        const authorize = async () => {
+          const current = await this.store.binding(
+            instance.pluginId,
+            session.canonical.id
+          )
+          if (
+            !current?.enabled ||
+            current.hash !== instance.hash ||
+            !this.backgroundOwnerActive(owner, session.canonical.id)
+          )
+            throw new PluginError(
+              "PERMISSION_DENIED",
+              "Background grant revoked"
+            )
+        }
+        await authorize()
+        capabilityScope.assertActive()
+        const backgroundBinding = {
+          owner,
+          space: session.canonical.id,
+          hash: instance.hash,
+          manifest: pkg.manifest,
+          code: pkg.modules[pkg.manifest.background.entry],
+          authorize,
+        }
+        if (
+          request.method === "background.observe" ||
+          request.method === "background.unobserve"
+        ) {
+          const p = object(capabilityParams)
+          if (typeof p.id !== "string" || !p.id || p.id.length > 128)
+            throw new PluginError(
+              "INVALID_REQUEST",
+              "Invalid background observer"
+            )
+          const observation = p.id
+          if (request.method === "background.unobserve") {
+            instance.observations.get(observation)?.dispose()
+            instance.observations.delete(observation)
+          } else {
+            if (
+              instance.observations.has(observation) ||
+              instance.observations.size >= 64
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Duplicate or excessive observers"
+              )
+            const background = await this.backgrounds.start(backgroundBinding)
+            capabilityScope.assertActive()
+            const unsubscribe = background.onMessage((value) => {
+              if (!capabilityScope.signal.aborted)
+                emit({
+                  protocol: PLUGIN_PROTOCOL,
+                  apiVersion: 1,
+                  observation,
+                  value,
+                })
+            })
+            const subscription = {
+              dispose: () => {
+                unsubscribe()
+                instance.observations.delete(observation)
+              },
+            }
+            instance.observations.set(observation, subscription)
+            capabilityScope.subscriptions.add(subscription)
+          }
+          return { response: { ...base, result: null } }
+        }
+        const resume =
+          request.method === "background.requestDevice"
+            ? instance.invocation?.waitForHostDialog()
+            : undefined
+        let result: JsonValue
+        try {
+          result = await this.backgrounds.request(
+            backgroundBinding,
+            request.method,
+            (capabilityParams == null
+              ? null
+              : (object(capabilityParams).data ?? null)) as JsonValue,
+            capabilityScope.signal
+          )
+        } finally {
+          resume?.()
+        }
+        await authorize()
+        capabilityScope.assertActive()
+        return { response: { ...base, result } }
       }
       if (request.method === "network.read") {
         const pkg = await this.store.read(instance.hash)

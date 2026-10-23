@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.3.
+// Public type-only SDK for Eidos Plugin API 3.4.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -26,6 +26,13 @@ export interface PluginManifest {
    */
   icon?: PluginIconDefinition
   extension?: string
+  /** A bundled Worker-style module. Started explicitly by a View or action. */
+  background?: {
+    entry: string
+    networkOrigins?: string[]
+    /** Requested BLE service operations; device IDs are selected by the host. */
+    bluetooth?: { services: BluetoothServicePermission[] }
+  }
   views?: ViewDeclaration[]
   /** Static UTF-8 templates offered by the host's New File dialog. */
   fileTemplates?: FileTemplateDeclaration[]
@@ -192,6 +199,7 @@ export interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 export interface CommonCapabilities {
+  readonly background?: PluginBackground
   readonly fs?: PluginFileSystem
   readonly filemeta?: PluginFileMeta
   readonly storage?: PluginStorage
@@ -199,6 +207,30 @@ export interface CommonCapabilities {
   readonly settings?: Pick<PluginSettings, "get">
   readonly connections?: PluginConnections
   readonly ui: HostUI
+}
+
+export type BackgroundMessage =
+  | null
+  | boolean
+  | number
+  | string
+  | BackgroundMessage[]
+  | { [key: string]: BackgroundMessage }
+export interface PluginBackground {
+  /** Opens the host picker. Confirmation starts a fresh background with this device's grant. */
+  requestDevice(): Promise<{ id: string; name?: string }>
+  start(): Promise<void>
+  stop(): Promise<void>
+  postMessage(message: BackgroundMessage): Promise<void>
+  /** Background replies with { requestId, data } to { requestId, data }. */
+  request(message: BackgroundMessage): Promise<BackgroundMessage>
+  onMessage(listener: (message: BackgroundMessage) => void): Promise<Disposable>
+}
+export interface BluetoothServicePermission {
+  uuid: string
+  read?: boolean
+  write?: boolean
+  notify?: boolean
 }
 export interface CommonContext extends Lifetime {
   readonly capabilities: CommonCapabilities

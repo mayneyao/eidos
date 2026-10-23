@@ -7,6 +7,45 @@ sidebar:
 
 Import types from `@eidos.space/plugin-sdk` using `import type`. Eidos supplies the context when it calls mount or activate.
 
+## Persistent backgrounds (Lite API 3.4)
+
+Declare `background: { entry, networkOrigins?, bluetooth? }` and
+`requires: { pluginApi: "3.4.0" }`. The background entry must be separate from
+View and extension entries. Network origins must be exact HTTPS/WSS origins
+(development-only `ws://127.0.0.1:port` requires an exact host environment grant;
+see [the local WebSocket example](/plugins/background/#file-views-sharing-a-websocket))
+(up to eight); browser network grants do not grant background access.
+
+Views and action handlers use `ctx.capabilities.background`:
+
+| Method | Result and behavior |
+| --- | --- |
+| `start()` | `Promise<void>`; start on demand with native host approval |
+| `stop()` | `Promise<void>`; stop the run and release its connections and grants |
+| `postMessage(data)` | `Promise<void>`; send a raw JSON message |
+| `request(data)` | `Promise<BackgroundMessage>`; send `{ requestId, data }` and await a reply with the same ID |
+| `onMessage(listener)` | `Promise<Disposable>`; subscribe to raw messages for this run and caller scope |
+| `requestDevice()` | `Promise<{ id: string; name?: string }>`; select and authorize a BLE device, starting a fresh run |
+
+`BackgroundMessage` is JSON-compatible: null, boolean, number, string,
+arrays or objects. Encode binary values explicitly. Requests time out after
+30 seconds; device selection has a five-minute deadline. Complete lifecycle,
+limits and runnable examples are in [Background tasks](/plugins/background/).
+
+### Select and authorize a BLE device
+
+`background.bluetooth.services` accepts 1–16 objects with `uuid` and optional
+boolean `read`, `write`, `notify`; at least one operation must be true. Use
+canonical lowercase UUIDs or `battery_service`, `heart_rate`,
+`device_information`. Duplicate services are rejected. Device IDs belong to
+host grants and cannot be specified in the manifest.
+
+Call `requestDevice()` from a View or action, then send a connection message.
+The worker uses `navigator.bluetooth.getDevices()` and `device.gatt.connect()`.
+Its own `navigator.bluetooth.requestDevice()` is unavailable.
+Cancelling preserves the current run; confirming replaces it and its grants.
+See the [BLE example](/plugins/background/#example-choose-and-connect-a-ble-battery-device).
+
 ## Declare a view
 
 ### File templates and dashboards

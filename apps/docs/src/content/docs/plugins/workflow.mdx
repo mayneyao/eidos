@@ -34,6 +34,18 @@ Install interface libraries such as React in your plugin project when needed. Pa
 For a small project, you can also export manifest and a default mount or activate function from a single `.ts` file.
 Check and pack commands accept both directories and standalone source files.
 
+## Background examples
+
+For persistent connections, use the complete [background examples](/plugins/background/).
+The repository directories `packages/plugin-sandbox/examples/lite-background`
+and `packages/plugin-sandbox/examples/lite-bluetooth` contain all source files.
+`packages/plugin-sandbox/examples/lite-file-websocket` includes a file View sharing
+a background connection and a local Python echo server; follow its README for the
+development host's exact loopback grant.
+They are standalone examples, not names accepted by the `--template` option.
+Copy one directory and load its `plugin.json`; the background entry is bundled
+with the page and extension when you check or pack the plugin.
+
 ## Check and debug
 
 Run in the plugin directory:
@@ -50,6 +62,11 @@ Text editors must test save, reopen, undo, redo, and external-change conflicts.
 Batch operations must test targets, cancellation, and partial completion.
 Check light and dark rendering and reopening for every interface.
 
+For backgrounds, also test commands while the page is closed, permission
+cancellation, stop/restart, update and Space switching. A source reload stops
+the old background, resets memory and revokes its device grant; reconnect and
+resubscribe explicitly. Mock BLE tests need separate real-device acceptance.
+
 Saving source automatically reloads the view.
 Changes to access declarations require another permission review.
 Automatic development updates last for the current run.
@@ -65,6 +82,7 @@ npx @eidos.space/plugin-tools check . --target cli
 ```
 
 Lite's filesystem, independent pages and extension operations are desktop features.
+Backgrounds and their network/BLE grants are Lite-only and cannot run in CLI Serve.
 Check for optional interfaces before calling them in a view intended for multiple environments.
 
 ## Package and install

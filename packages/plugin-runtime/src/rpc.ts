@@ -22,6 +22,13 @@ export interface PluginRequest {
     | "eidos.pluginConfig.read"
     | "eidos.pluginConfig.write"
     | "network.read"
+    | "background.start"
+    | "background.requestDevice"
+    | "background.stop"
+    | "background.postMessage"
+    | "background.request"
+    | "background.observe"
+    | "background.unobserve"
     | "storage.list"
     | "storage.read"
     | "storage.write"
@@ -113,6 +120,13 @@ export function parseRequest(value: unknown): PluginRequest {
       "eidos.pluginConfig.read",
       "eidos.pluginConfig.write",
       "network.read",
+      "background.start",
+      "background.requestDevice",
+      "background.stop",
+      "background.postMessage",
+      "background.request",
+      "background.observe",
+      "background.unobserve",
       "storage.list",
       "storage.read",
       "storage.write",

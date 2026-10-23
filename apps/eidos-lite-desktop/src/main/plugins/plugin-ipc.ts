@@ -23,6 +23,8 @@ import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
+import { PluginBackgroundHost } from "./plugin-background"
+import { choosePluginBluetoothDevice } from "./plugin-bluetooth"
 import { PluginFileHooks } from "./plugin-file-hooks"
 import { PluginService } from "./plugin-service"
 import { exportPluginFile } from "./plugin-export"
@@ -90,6 +92,59 @@ export function registerPluginIpc(controller: WindowController): {
     }
   )
   const connectionRequests = new Map<string, Set<AbortController>>()
+  const sandboxBinary = path.join(
+    app.isPackaged ? process.resourcesPath : app.getAppPath(),
+    app.isPackaged ? "plugin-sandbox" : "resources/plugin-sandbox",
+    process.platform === "win32" ? "plugin-sandbox.exe" : "plugin-sandbox"
+  )
+  const loopbackOrigin = !app.isPackaged
+    ? process.env.EIDOS_LITE_DEV_BACKGROUND_ORIGIN
+    : undefined
+  const backgrounds = new PluginBackgroundHost(
+    sandboxBinary,
+    async (binding) => {
+      const window = BrowserWindow.getAllWindows().find(
+        (w) => w.webContents.id === binding.owner
+      )
+      if (!window || window.isDestroyed()) return false
+      const result = await dialog.showMessageBox(window, {
+        type: "question",
+        title: "Start plugin background",
+        message: `Allow ${binding.manifest.name} to run in the background?`,
+        detail: `It continues running after its View closes, until stopped, disabled, updated, or this Space closes.\n\nNetwork origins: ${binding.manifest.background?.networkOrigins?.join(", ") || "None"}\n${loopbackOrigin && binding.manifest.background?.networkOrigins?.includes(loopbackOrigin) ? `Development host grants local WebSocket access to ${loopbackOrigin}.` : "Private networks are not granted."} Bluetooth is not granted.\n\nPlugin: ${binding.manifest.id}`,
+        buttons: ["Cancel", "Start"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      return result.response === 1
+    },
+    {
+      loopbackOrigin,
+      chooseDevice: (binding, signal) =>
+        choosePluginBluetoothDevice(
+          binding,
+          signal,
+          sandboxBinary,
+          async (options) => {
+            const window = BrowserWindow.getAllWindows().find(
+              (w) => w.webContents.id === binding.owner
+            )
+            if (!window || window.isDestroyed()) return 0
+            return (
+              await dialog.showMessageBox(window, {
+                ...options,
+                type: "question",
+                title: "Plugin Bluetooth permission",
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true,
+              })
+            ).response
+          }
+        ),
+    }
+  )
   const service = new PluginService(
     store,
     (owner, ticket) => {
@@ -107,7 +162,18 @@ export function registerPluginIpc(controller: WindowController): {
           },
         })
     },
-    exportPluginFile
+    exportPluginFile,
+    backgrounds,
+    (owner, space) => {
+      const window = BrowserWindow.getAllWindows().find(
+        (w) => w.webContents.id === owner
+      )
+      return (
+        !!window &&
+        !window.webContents.isDestroyed() &&
+        controller.sessionFor(window.webContents)?.canonical.id === space
+      )
+    }
   )
   const owners = new Set<number>()
   const watchers = new Map<string, FSWatcher>()
@@ -1056,6 +1122,7 @@ export function registerPluginIpc(controller: WindowController): {
       return encodePackage(pkg.manifest, pkg.modules)
     },
     close() {
+      backgrounds.close()
       fileHooks.close()
       controller.fileHookRunner = undefined
       for (const channel of Object.values(PLUGIN_CHANNELS))

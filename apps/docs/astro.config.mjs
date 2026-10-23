@@ -165,6 +165,7 @@ export default defineConfig({
                   items: [
                     "plugins/concepts",
                     "plugins/guide",
+                    "plugins/background",
                     "plugins/workflow",
                   ],
                 },

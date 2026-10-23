@@ -50,7 +50,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.3.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.4.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],

@@ -202,7 +202,7 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
           pending.delete(id)
           reject(error("TIMEOUT", "Host request timed out"))
         },
-        method === "ui.exportFile"
+        method === "ui.exportFile" || method === "background.requestDevice"
           ? 300000
           : method === "eidos.connection.request"
             ? 95000
@@ -330,6 +330,32 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
   const context: ViewContext = {
     presentation: { mode: binding.embedded ? "embedded" : "standalone" },
     capabilities: {
+      background: {
+        requestDevice: () => call("background.requestDevice"),
+        start: () => call("background.start"),
+        stop: () => call("background.stop"),
+        postMessage: (data) => call("background.postMessage", { data }),
+        request: (data) => call("background.request", { data }),
+        async onMessage(listener) {
+          const id = crypto.randomUUID()
+          observers.set(id, (data) =>
+            listener(data as Parameters<typeof listener>[0])
+          )
+          const subscription = own({
+            dispose() {
+              observers.delete(id)
+              void call("background.unobserve", { id }).catch(() => {})
+            },
+          })
+          try {
+            await call("background.observe", { id })
+            return subscription
+          } catch (error) {
+            subscription.dispose()
+            throw error
+          }
+        },
+      },
       ...(explorerState
         ? {
             explorer: {

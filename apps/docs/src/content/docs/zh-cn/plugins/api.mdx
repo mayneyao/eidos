@@ -5,6 +5,42 @@ sidebar:
   order: 4
 ---
 
+## 常驻 background（Lite API 3.4）
+
+声明 `background: { entry, networkOrigins?, bluetooth? }` 和
+`requires: { pluginApi: "3.4.0" }`。后台入口必须独立于 View 和 extension 入口。
+网络 origins 必须是精确的 HTTPS/WSS origins，最多八项；开发用 `ws://127.0.0.1:端口`
+还需要宿主环境变量精确授权，见[本地 WebSocket 示例](/zh-cn/plugins/background/#file-view-复用-websocket)。浏览器网络授权
+不会赋予后台权限。
+
+View 和 action 处理函数使用 `ctx.capabilities.background`：
+
+| 方法 | 返回值与行为 |
+| --- | --- |
+| `start()` | `Promise<void>`；经宿主原生确认后按需启动 |
+| `stop()` | `Promise<void>`；停止运行，释放连接并撤销授权 |
+| `postMessage(data)` | `Promise<void>`；发送原始 JSON 消息 |
+| `request(data)` | `Promise<BackgroundMessage>`；发送 `{ requestId, data }`，等待相同 ID 的回复 |
+| `onMessage(listener)` | `Promise<Disposable>`；订阅属于本次运行和调用者生命周期的原始消息 |
+| `requestDevice()` | `Promise<{ id: string; name?: string }>`；选择并授权 BLE 设备，启动新运行 |
+
+`BackgroundMessage` 是 JSON 兼容值：null、布尔值、数字、字符串、数组或对象。
+二进制需显式编码。请求 30 秒超时，设备选择最多等待五分钟。
+完整生命周期、限制及可运行示例见[后台任务](/zh-cn/plugins/background/)。
+
+### 选择并授权 BLE 设备
+
+`background.bluetooth.services` 接受 1–16 个对象，每项包含 `uuid` 和可选的
+布尔值 `read`、`write`、`notify`，至少一项操作为 true。
+使用标准小写 UUID，或 `battery_service`、`heart_rate`、`device_information`
+别名；不允许重复服务。设备 ID 属于宿主授权，不能在 manifest 中指定。
+
+在 View 或 action 调用 `requestDevice()`，再发送连接消息。
+后台通过 `navigator.bluetooth.getDevices()` 和 `device.gatt.connect()` 连接，
+后台自身的 `navigator.bluetooth.requestDevice()` 不可用。
+取消保留原运行，确认则替换运行及其授权。
+参见 [BLE 示例](/zh-cn/plugins/background/#示例选择并连接-ble-电量设备)。
+
 在代码中使用 `import type` 从 `@eidos.space/plugin-sdk` 导入类型。Eidos 在调用 `mount` 或 `activate` 时提供上下文。
 
 ## 声明视图

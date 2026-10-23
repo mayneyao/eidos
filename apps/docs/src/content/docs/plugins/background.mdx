@@ -1,0 +1,251 @@
+---
+title: Background tasks
+description: Keep a plugin running after its page closes, exchange messages from Cmd+K, and authorize network or BLE connections.
+sidebar:
+  order: 4
+---
+
+import PluginBackgroundExamples from "../../../components/PluginBackgroundExamples.astro"
+
+A background keeps plugin state and connections alive while its page is closed.
+Use it for a WebSocket connection, a BLE peripheral, or a task controlled by
+both a page and a command. It requires **Eidos Lite plugin API 3.4.0**.
+It is available in Lite; CLI Serve and mobile hosts do not provide this capability.
+
+## Choose the right lifetime
+
+| Code | Starts when | Lifetime |
+| --- | --- | --- |
+| Page or file View | The user opens the View | Ends when the View closes |
+| Command action | The user invokes the action | Ends when its handler completes or is cancelled |
+| Background | A View or action requests it, with host approval | Continues after the caller finishes |
+
+Background is an additional executable entry, not a third View kind.
+Declare a separate `background.entry` alongside page/file Views or an
+`extension` that registers actions. Each window, Space and plugin has its
+own background; a page and Cmd+K action in that scope share it.
+
+Installing or enabling a plugin does not start its background.
+The first `start()`, `request()`, `postMessage()` or `onMessage()` starts it
+on demand after native host approval. `requestDevice()` uses its separate
+device approval flow.
+
+The module runs in a Rust + QuickJS process with Worker-style messages, timers,
+`fetch` and `WebSocket`. It has no DOM, Node module loader, Electron access,
+filesystem API or Eidos data capabilities. Network and device access require
+explicit host grants. This is capability isolation, not an operating-system sandbox.
+
+## Example: share a counter between a page and Cmd+K
+
+Create a directory containing the following four files. The code shown here
+comes directly from the runnable `packages/plugin-sandbox/examples/lite-background`
+example in the repository.
+
+<PluginBackgroundExamples kind="counter" />
+
+In a Lite build supporting API 3.4.0:
+
+1. Open a test Space and choose **Plugin Manager → Load development source…**.
+2. Select the directory's `plugin.json` and enable the plugin.
+3. Open **Background Counter** from navigation and approve startup.
+4. Click **Increment**, then close the page.
+5. Run **Increment background counter** from Cmd+K.
+6. Reopen the page. The count includes the command's increment.
+7. Run **Stop background counter**. The next start asks for permission again
+   and begins with fresh in-memory state.
+
+To run the example from the Eidos repository, start Lite with
+`pnpm dev:eidos-lite` at the repository root. This prepares the native
+sandbox executable. Use the current source-built plugin tools and SDK when
+checking a feature not yet present in your installed tools.
+
+## Exchange messages
+
+`ctx.capabilities.background` is available to Views and action handlers.
+Register commands through `ExtensionContext.capabilities.actions`; use the
+background capability on the **action context** supplied to the handler.
+
+```ts
+const result = await ctx.capabilities.background!.request({
+  command: "increment",
+})
+```
+
+`request(data)` sends `{ requestId, data }`. The worker replies with the same
+`requestId` and places its result in `data`:
+
+```ts
+globalThis.onmessage = (event: MessageEvent) => {
+  const { requestId, data } = event.data
+  postMessage({ requestId, data: { received: data } })
+}
+export {}
+```
+
+This request/reply envelope is an Eidos host convention. For raw messages use
+`postMessage(data)` and `await onMessage(listener)`. Messages must be JSON;
+encode binary data explicitly. Application errors can be returned as data,
+for example `{ ok: false, error: "Device unavailable" }`; inspect that result.
+The request Promise rejects on host errors, cancellation, exit or timeout.
+
+Await replies before returning from an action. Its pending requests and
+subscriptions end with the action. View subscriptions end when that View
+closes, while the background continues running. A subscription belongs to
+one run: recreate it after a stop, device replacement or update.
+
+## Allow a network connection
+
+Declare exact HTTPS/WSS origins in the `background` object:
+
+```json
+{
+  "entry": "./background.ts",
+  "networkOrigins": ["https://api.example.com", "wss://events.example.com"]
+}
+```
+
+The native approval dialog lists those origins. Browser
+`browser.networkOrigins` grants do not authorize background access.
+Private addresses are not granted in normal runs; the local development example
+below requires a separate exact loopback grant. Redirects remain subject to the
+sandbox network policy. Replace example origins with your actual service.
+
+In the background module:
+
+```ts
+const socket = new WebSocket("wss://events.example.com")
+socket.onmessage = (event) => {
+  postMessage({ type: "server-message", data: String(event.data) })
+}
+socket.onclose = () => postMessage({ type: "connection-closed" })
+socket.onerror = () => postMessage({ type: "connection-error" })
+```
+
+Use `fetch("https://api.example.com/status")` for an HTTP request.
+A network grant does not provide an authenticated Eidos connection or account
+credentials. The host does not automatically reconnect a failed socket.
+
+## Example: choose and connect a BLE battery device
+
+Use a BLE peripheral exposing Battery Service (`0x180F`) and Battery Level
+(`0x2A19`). This example reads its battery level and subscribes when
+notifications are supported. BLE GATT does not route audio to Bluetooth speakers.
+
+Create another plugin directory with these five files. They are the runnable
+`packages/plugin-sandbox/examples/lite-bluetooth` example. The local types
+describe the Web Bluetooth-style subset used by the worker.
+
+<PluginBackgroundExamples kind="bluetooth" />
+
+1. Load its `plugin.json` through Plugin Manager and enable it.
+2. Open **Bluetooth Battery → Choose and connect**, or run
+   **Bluetooth: choose and connect battery** in Cmd+K.
+3. Confirm scanning; allow operating-system Bluetooth access if prompted.
+   Put the peripheral into advertising mode.
+4. Choose the device by name and exact ID, then confirm the service operations.
+5. Lite starts a fresh background with that device's grant. The page or action
+   sends a connect message; the worker calls `getDevices()` and `gatt.connect()`.
+6. Close the page. Use **Bluetooth: battery status** from Cmd+K to inspect the
+   retained connection. Reopen the page and click **Status / resume notifications**
+   to subscribe to the current run.
+7. Run **Bluetooth: disconnect and stop** to end the process and revoke its grant.
+
+The manifest declares service UUIDs and `read`, `write`, `notify` operations.
+It cannot supply device IDs. Only the selected device is returned by background
+`navigator.bluetooth.getDevices()`. The worker cannot open its own picker:
+`navigator.bluetooth.requestDevice()` is unavailable there.
+
+Cancelling selection preserves the current run. Confirming a device replaces
+it, resetting memory and disconnecting the previous device. Other pages must
+resubscribe. If the new connection fails, the old one is not restored.
+Names and advertisements are not cryptographic proof of device identity, and
+an advertisement does not guarantee that a service is available.
+
+Grants are per run and are not persisted. A normal `start()` never grants
+Bluetooth. Device loss emits `gattserverdisconnected`; the example reports
+the loss without silently reconnecting.
+
+## File Views sharing a WebSocket
+
+**WebSocket Workbench** uses `.wsreq` text files as saved request fixtures.
+Load `packages/plugin-sandbox/examples/lite-file-websocket` as a development plugin,
+copy its `samples/*.wsreq` into your Space, and open both with this View.
+Click **Send sample** and approve the host's network permission dialog.
+
+Run the included Python server and the development host in separate terminals:
+
+```sh
+python3 packages/plugin-sandbox/examples/lite-file-websocket/server.py
+EIDOS_LITE_DEV_BACKGROUND_ORIGIN=ws://127.0.0.1:8787 pnpm dev:eidos-lite
+```
+
+Python uses only its standard library and listens on loopback. Opening a file sends
+nothing; Send reads the current document and sends its text without the path.
+The development grant must match the exact literal `127.0.0.1` origin and port,
+cannot be mixed with other origins, and still requires the host's permission dialog.
+Packaged Lite ignores this environment variable. For production, change both the
+background endpoint and manifest origin to public WSS; private addresses remain denied.
+The server must echo `{ id, text }` unchanged. The Python server supports this
+example's unfragmented text frames and is not a production WebSocket server.
+
+```text
+File A ─┐                                      ┌─ reply to A
+        ├─ background.request → one WebSocket ──┤
+File B ─┘                                      └─ reply to B
+```
+
+The background is shared within one window, Space and plugin. Concurrent connects
+share a promise; separate wire IDs map out-of-order echoes to host request IDs.
+`background.request()` returns each response to its caller, so no broadcast
+subscription or session API is needed. This routing is not a security boundary
+between Views of the same plugin.
+
+The connection card explicitly labels a newly created or reused socket, with its
+message number, connection ID and creation time. It describes the last successful
+response, rather than continuously monitoring connection health.
+Both responses show the same `connection` ID. Close one file and send the other:
+the ID stays the same while the server keeps the socket alive. Closing a View does
+not call `stop()`. CmdK's **WebSocket Workbench: stop shared connection** stops it
+for all Views; the next Send starts a fresh run. Server disconnects fail pending
+requests; later sends reconnect without replaying messages. Connection and echo
+timeouts are each eight seconds, with 16,000 characters per sample and 32 pending requests.
+
+<PluginBackgroundExamples kind="file-websocket" />
+
+## Stop, update and recover
+
+| Event | Result |
+| --- | --- |
+| Close a page or finish an action | Release that caller's requests/subscriptions; keep the background |
+| Cancel pending device selection | Grant nothing; preserve the previous run |
+| Confirm a device | Replace the run and its device grant |
+| `stop()`, disable, uninstall or update | Stop the background and release connections |
+| Switch/close the Space or close its window | Stop that scope's background |
+| Exit Lite | Stop all backgrounds |
+
+Development source reloads also revoke the old run. Reopen or invoke an entry
+point to request a new run. State is not restored after restart or a crash.
+Timer callbacks run only while the process is alive; they are not durable
+scheduled tasks or alarms that wake Lite.
+
+The host checks Space authorization on every request and polls it at 500 ms
+intervals. A run has a 64 MiB JavaScript heap and a 100 ms execution budget per
+turn. Message requests have a 30-second deadline, with at most 64 pending
+requests per process and 16 backgrounds per application. Device selection
+has a five-minute deadline. Long work should yield between bounded steps.
+
+## Verify your plugin
+
+Test page close/reopen, commands without an open page, cancellation, permission
+denial, stop/restart, update, and Space switching. For BLE, also test duplicate
+device names, unsupported services, device loss, and choosing a replacement.
+Confirm that denied device IDs and undeclared services remain inaccessible.
+
+Native scanning requires a working BLE adapter and OS permission; Linux also
+requires BlueZ and D-Bus. Automated tests use a real QuickJS process with an
+explicit mock BLE backend. They do not establish real-device or signed-package
+permission acceptance. Check those on each platform you distribute.
+
+Use [development and distribution](/plugins/workflow/) to check and package
+the plugin. Exact manifest fields and methods are in the
+[API reference](/plugins/api/#persistent-backgrounds-lite-api-34).

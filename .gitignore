@@ -14,6 +14,7 @@ dist-cli
 dist-*
 apps/eidos-lite-desktop/resources/publish-engine/
 apps/eidos-lite-desktop/resources/vtab/
+apps/eidos-lite-desktop/resources/plugin-sandbox/
 apps/eidos-lite-desktop/resources/graft-e2ee/
 
 # Vite may name a generated CLI Serve chunk `dist-<hash>.js`. It must remain
