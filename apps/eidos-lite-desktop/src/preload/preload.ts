@@ -441,12 +441,13 @@ const api: EidosLiteApi = {
       uri,
       name
     ),
-  resolveEidosFileAsset: (sessionId, entryId, purpose) =>
+  resolveEidosFileAsset: (sessionId, entryId, purpose, thumbnailSize) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.resolveEidosFileAsset,
       sessionId,
       entryId,
-      purpose
+      purpose,
+      thumbnailSize
     ),
   resolveEidosFileUrlImage: (sessionId, uri, purpose) =>
     ipcRenderer.invoke(

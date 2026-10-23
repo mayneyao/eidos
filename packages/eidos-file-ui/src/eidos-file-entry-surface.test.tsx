@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider, type AssetPresenter } from "./context"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
+import { EidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
 import {
   EidosFileEntryCoverSurface,
   EidosFileEntrySurface,
@@ -98,6 +99,247 @@ describe("EidosFileEntrySurface", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it.each(["video/mp4", "application/pdf", "application/octet-stream"])(
+    "requests Grid and Gallery sizes for local %s files",
+    async (mediaType) => {
+      const file = entry(
+        "cover-size",
+        "assets/cover.file",
+        "cover.file",
+        mediaType
+      )
+      const resolveThumbnail = vi.fn(async () => leaseFor(file, "thumbnail"))
+      const session = {
+        services: {
+          releaseAsset: vi.fn(async () => undefined),
+        } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+        resolveThumbnail,
+      }
+      const presenter = {
+        loadImage: vi.fn(
+          async () =>
+            ({ width: 128, height: 72 }) as unknown as CanvasImageSource
+        ),
+      } as unknown as AssetPresenter<ReactNode>
+      const ready = vi.fn()
+      const grid = new EidosFileAttachmentThumbnailManager(
+        session,
+        presenter,
+        ready
+      )
+      const gallery = new EidosFileAttachmentSourceCache(session, presenter)
+      grid.prepare([file], 0, 0)
+      const unsubscribe = gallery.subscribe(file, vi.fn())
+      await vi.waitFor(() => expect(gallery.snapshot(file).state).toBe("ready"))
+      expect(resolveThumbnail.mock.calls).toHaveLength(2)
+      expect(resolveThumbnail).toHaveBeenCalledWith(
+        expect.objectContaining({ size: 128 }),
+        expect.anything()
+      )
+      expect(resolveThumbnail).toHaveBeenCalledWith(
+        expect.objectContaining({ size: 512 }),
+        expect.anything()
+      )
+      unsubscribe()
+      grid.clear()
+      gallery.clear()
+    }
+  )
+
+  it.each(["application/pdf", "image/svg+xml", "application/octet-stream"])(
+    "shows a large local %s thumbnail without a play button",
+    async (mediaType) => {
+      const file = entry("pdf", "assets/report.pdf", "report.pdf", mediaType)
+      const resolveThumbnail = vi.fn(async (request: { size: number }) => ({
+        ...leaseFor(file, "thumbnail"),
+        resourceToken: `blob:pdf/${request.size}`,
+      }))
+      const session = {
+        services: {
+          resolveAsset: vi.fn(async () => leaseFor(file, "preview")),
+          releaseAsset: vi.fn(async () => undefined),
+        } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+        resolveThumbnail,
+      }
+      const presenter: AssetPresenter<ReactNode> = {
+        renderImage: ({ lease, altText }) => {
+          if (lease.purpose === "preview")
+            throw new Error("Original cannot be embedded")
+          return <img src={lease.resourceToken} alt={altText} />
+        },
+        copyImage: vi.fn(async () => undefined),
+        activate: vi.fn(async () => undefined),
+      }
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider
+            assetSession={session}
+            assetPresenter={presenter}
+          >
+            <EidosFileEntrySurface entry={file} />
+          </EidosFileUIProvider>
+        )
+      })
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[aria-label="Preview report.pdf"]')
+          ?.click()
+      })
+      const dialog = document.body.querySelector(
+        "[data-eidos-file-attachment-preview]"
+      )!
+      expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
+        "blob:pdf/1024"
+      )
+      expect(dialog.querySelector('[aria-label="Play report.pdf"]')).toBeNull()
+      expect(dialog.textContent).not.toContain("Copy image")
+    }
+  )
+
+  it("falls back to a quiet file icon when the system cannot thumbnail a local document", async () => {
+    const file = entry(
+      "unsupported",
+      "assets/data.unknown",
+      "data.unknown",
+      "application/octet-stream"
+    )
+    const resolveThumbnail = vi.fn(async () => {
+      throw new Error("unsupported")
+    })
+    const session = {
+      services: {
+        releaseAsset: vi.fn(async () => undefined),
+      } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(),
+      resolveThumbnail,
+    }
+    const renderImage = vi.fn(() => null)
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={session}
+          assetPresenter={{
+            renderImage,
+            activate: vi.fn(async () => undefined),
+          }}
+        >
+          <EidosFileEntrySurface entry={file} compact />
+        </EidosFileUIProvider>
+      )
+    })
+    expect(container.textContent).toContain("data.unknown")
+    expect(container.textContent).not.toContain("Preview unavailable")
+    expect(container.querySelector("svg")).not.toBeNull()
+    expect(renderImage).not.toHaveBeenCalled()
+  })
+
+  it("shows a large video poster and loads the inline player only after play", async () => {
+    const file = entry("clip", "assets/clip.mp4", "clip.mp4", "video/mp4")
+    const resolveAsset = vi.fn(async () => leaseFor(file, "preview"))
+    const releaseAsset = vi.fn(async () => undefined)
+    const resolveThumbnail = vi.fn(async (request: { size: number }) => ({
+      ...leaseFor(file, "thumbnail"),
+      resourceToken: `blob:poster/${request.size}`,
+    }))
+    const renderVideo = vi.fn(() => <video aria-label="clip.mp4" controls />)
+    const session = {
+      services: { resolveAsset, releaseAsset } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(),
+      resolveThumbnail,
+    }
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ lease, altText }) => (
+        <img src={lease.resourceToken} alt={altText} />
+      ),
+      renderVideo,
+      activate: vi.fn(async () => undefined),
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider assetSession={session} assetPresenter={presenter}>
+          <EidosFileEntrySurface entry={file} />
+        </EidosFileUIProvider>
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Preview clip.mp4"]')
+        ?.click()
+    })
+    const dialog = document.body.querySelector(
+      "[data-eidos-file-attachment-preview]"
+    )!
+    expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
+      "blob:poster/1024"
+    )
+    expect(resolveAsset).not.toHaveBeenCalled()
+    expect(renderVideo).not.toHaveBeenCalled()
+    await act(async () => {
+      dialog
+        .querySelector<HTMLButtonElement>('[aria-label="Play clip.mp4"]')
+        ?.click()
+    })
+    expect(resolveAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: "preview" }),
+      expect.anything()
+    )
+    expect(dialog.querySelector("video")).not.toBeNull()
+    await act(async () => {
+      dialog.querySelector<HTMLButtonElement>('[aria-label="Close"]')?.click()
+    })
+    expect(
+      document.body.querySelector("[data-eidos-file-attachment-preview]")
+    ).toBeNull()
+    expect(releaseAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ leaseId: "preview-clip" }),
+      expect.anything()
+    )
+  })
+
+  it("shows a cached file-row thumbnail immediately after unmount and remount", async () => {
+    const file = entry("scroll", "assets/scroll.png", "scroll.png")
+    const resolveAsset = vi.fn(async () => leaseFor(file, "thumbnail"))
+    const releaseAsset = vi.fn(async () => undefined)
+    const session = {
+      services: { resolveAsset, releaseAsset } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(),
+    }
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: () => null,
+      loadImage: vi.fn(
+        async () => ({ width: 128, height: 72 }) as unknown as CanvasImageSource
+      ),
+      activate: vi.fn(async () => undefined),
+    }
+    const row = (
+      <EidosFileUIProvider assetSession={session} assetPresenter={presenter}>
+        <EidosFileEntrySurface entry={file} compact />
+      </EidosFileUIProvider>
+    )
+    await act(async () => {
+      root.render(row)
+    })
+    expect(container.querySelector("canvas")).not.toBeNull()
+    await act(async () => {
+      root.render(null)
+    })
+    await act(async () => {
+      root.render(row)
+    })
+    expect(container.querySelector("canvas")).not.toBeNull()
+    expect(container.querySelector(".animate-spin")).toBeNull()
+    expect(resolveAsset).toHaveBeenCalledOnce()
+    expect(presenter.loadImage).toHaveBeenCalledOnce()
+    expect(releaseAsset).toHaveBeenCalledOnce()
   })
 
   it("uses Host leases for relative, HTTPS, and Data thumbnails with zero direct URI fetch", async () => {
@@ -422,7 +664,7 @@ describe("EidosFileEntrySurface", () => {
     )
     expect(preview).not.toBeNull()
     expect(preview?.querySelector("img")?.getAttribute("src")).toBe(
-      "blob:host/thumbnail/photo"
+      "blob:host/preview/photo"
     )
     expect(preview?.textContent).toContain("photo.png")
   })

@@ -15,11 +15,13 @@ import type {
 
 const objectUrlsByResource = new Map<string, string>()
 const resourcesByLease = new Map<string, string>()
+const mediaUrlsByResource = new Map<string, string>()
 
 function releaseObjectUrl(leaseId: string): void {
   const resourceToken = resourcesByLease.get(leaseId)
   if (!resourceToken) return
   resourcesByLease.delete(leaseId)
+  mediaUrlsByResource.delete(resourceToken)
   const objectUrl = objectUrlsByResource.get(resourceToken)
   objectUrlsByResource.delete(resourceToken)
   if (objectUrl) URL.revokeObjectURL(objectUrl)
@@ -107,7 +109,21 @@ export function createEidosLiteAssetSession(
         request.purpose
       )
       if (resolution.bytes) {
-        registerObjectUrl(resolution.lease, resolution.bytes)
+        registerObjectUrl(
+          resolution.lease,
+          resolution.bytes,
+          resolution.bytesMediaType
+        )
+      }
+      if (resolution.mediaUrl) {
+        resourcesByLease.set(
+          resolution.lease.leaseId,
+          resolution.lease.resourceToken
+        )
+        mediaUrlsByResource.set(
+          resolution.lease.resourceToken,
+          resolution.mediaUrl
+        )
       }
       return resolution.lease
     },
@@ -138,17 +154,36 @@ export function createEidosLiteAssetSession(
     serviceCapabilities: SERVICE_CAPABILITIES,
     state,
     localAssetOpenBytesMax: String(Number.MAX_SAFE_INTEGER),
+    localAssetThumbnailBytesMax: String(Number.MAX_SAFE_INTEGER),
+    async resolveThumbnail(request) {
+      if (request.sessionId !== sessionId)
+        throw new Error("Attachment session is no longer active")
+      const resolution = await window.eidosLite.resolveEidosFileAsset(
+        sessionId,
+        request.entryId,
+        "thumbnail",
+        request.size
+      )
+      if (resolution.bytes)
+        registerObjectUrl(
+          resolution.lease,
+          resolution.bytes,
+          resolution.bytesMediaType
+        )
+      return resolution.lease
+    },
   }
 }
 
 function registerObjectUrl(
   lease: AssetLease | UrlImageLease,
-  bytes: Uint8Array
+  bytes: Uint8Array,
+  bytesMediaType = lease.mediaType
 ): void {
   const blobBytes = new Uint8Array(bytes.byteLength)
   blobBytes.set(bytes)
   const url = URL.createObjectURL(
-    new Blob([blobBytes], { type: lease.mediaType })
+    new Blob([blobBytes], { type: bytesMediaType })
   )
   objectUrlsByResource.set(lease.resourceToken, url)
   resourcesByLease.set(lease.leaseId, lease.resourceToken)
@@ -192,6 +227,19 @@ async function imageBytesForClipboard(
 }
 
 export const eidosLiteAssetPresenter: AssetPresenter<ReactNode> = {
+  renderVideo({ lease, altText, onError }) {
+    const url = mediaUrlsByResource.get(lease.resourceToken)
+    if (!url) throw new Error("Video preview resource is unavailable")
+    return createElement("video", {
+      src: url,
+      controls: true,
+      autoPlay: true,
+      playsInline: true,
+      "aria-label": altText,
+      onError,
+      className: "max-h-[min(70dvh,calc(100dvh-9rem))] max-w-full",
+    })
+  },
   renderImage({ lease, altText }) {
     return createElement("img", {
       src: objectUrl(lease),

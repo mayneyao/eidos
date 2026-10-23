@@ -5,7 +5,26 @@ import {
   type FileEntry,
 } from "@eidos.space/eidos-file"
 
-import type { AssetPresenter, EidosFileUIAssetSession } from "./context"
+import type {
+  AssetPresenter,
+  EidosFileUIAssetSession,
+  EidosFileThumbnailSize,
+} from "./context"
+
+export function resolveEidosFileThumbnail(
+  session: EidosFileUIAssetSession,
+  entryId: string,
+  size: EidosFileThumbnailSize,
+  context: ReturnType<typeof eidosFileAssetRequestContext>
+): Promise<AssetLease> {
+  const request = { sessionId: session.state.sessionId, entryId }
+  return session.resolveThumbnail
+    ? session.resolveThumbnail({ ...request, size }, context)
+    : session.services.resolveAsset(
+        { ...request, purpose: "thumbnail" },
+        context
+      )
+}
 
 export async function activateEidosFileAsset(
   session: EidosFileUIAssetSession,
@@ -55,6 +74,13 @@ function assetPurposeLimit(
   entry: FileEntry
 ): string {
   if (
+    purpose === "thumbnail" &&
+    eidosFileUriClass(entry.uri) === "relative" &&
+    session.localAssetThumbnailBytesMax
+  ) {
+    return session.localAssetThumbnailBytesMax
+  }
+  if (
     purpose === "preview" &&
     eidosFileUriClass(entry.uri) === "relative" &&
     session.localAssetOpenBytesMax
@@ -64,6 +90,13 @@ function assetPurposeLimit(
   return purpose === "download"
     ? session.state.limits.assetBytesMax
     : session.state.limits.assetPreviewBytesMax
+}
+
+export function eidosFileHasThumbnail(entry: FileEntry): boolean {
+  return (
+    eidosFileUriClass(entry.uri) === "relative" ||
+    entry.mediaType.toLowerCase().startsWith("image/")
+  )
 }
 
 export function eidosFileAssetResolutionAllowed(

@@ -152,6 +152,7 @@ import type {
   FileListOptions,
 } from "@eidos.space/plugin-sdk"
 import type { MediaFilePreviewResult } from "../plugins/document-host"
+import type { FileThumbnailProvider } from "./file-thumbnails"
 import {
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
@@ -2132,7 +2133,8 @@ export class SpaceSession {
   async resolveEidosFileAsset(
     sessionId: string,
     entryId: string,
-    purpose: "thumbnail" | "preview" | "download"
+    purpose: "thumbnail" | "preview" | "download",
+    thumbnailProvider?: FileThumbnailProvider
   ): Promise<{ entry: FileEntry; resolved: ResolvedEidosFileAsset }> {
     this.assertRuntimeAvailable()
     const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
@@ -2184,7 +2186,8 @@ export class SpaceSession {
         this.canonical.root,
         eidosRelativePath,
         entry,
-        purpose
+        purpose,
+        thumbnailProvider
       ),
     }
   }

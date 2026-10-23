@@ -1357,7 +1357,8 @@ the persisted setting.
 
 File presentation follows this deterministic ladder:
 
-1. For an entry whose declared `mediaType` is `image/*`, UI SHOULD request a
+1. For any relative local File entry, or an entry whose declared `mediaType`
+   is `image/*`, UI SHOULD request a
    `thumbnail` lease while the item is on a rendered surface and use the
    injected `AssetPresenter` to render the returned resource as an image. The
    request is allowed only when `canUseAssets`, the entry's URI class, current
@@ -1368,8 +1369,38 @@ File presentation follows this deterministic ladder:
    cell when decoding completes, and releases the lease when the row leaves
    its bounded render window. It MUST fall back rather than using the
    canonical URI when this optional presenter method is absent.
+   A Host MAY generate a bounded raster thumbnail using platform services.
+   Local thumbnail generation is format-independent: the system provider
+   determines support, including document formats such as PDF. A provider
+   failure falls back to the media-type icon without reading the source file
+   into the UI. This does not authorize downloading other remote file types.
+   The lease retains the original File entry metadata; the presenter owns the
+   derived resource encoding. Local generation MAY use a separately declared
+   source-file size limit without increasing network read limits. Thumbnail
+   caches are non-canonical and MUST be bounded.
+   Virtualized row/card unmounts MUST NOT by themselves discard ready decoded
+   thumbnails: implementations SHOULD retain them in a size-aware LRU bounded
+   by entry count and decoded bytes, and reuse in-flight work across scrolls.
+   Host leases can be released after decoding; keeping the decoded source does
+   not require keeping its lease. Cache hits SHOULD render immediately without
+   returning to loading. Authorization changes and session closure revoke reuse;
+   ordinary clean/dirty state transitions do not. Failed thumbnails MAY be
+   retained for a bounded retry interval to avoid retrying on every remount.
+   Full image preview and copy
+   SHOULD resolve the original image separately from the generated thumbnail.
+   Size-aware Hosts SHOULD distinguish compact Grid thumbnails, Gallery covers,
+   and dialog posters (for example, maximum edges of 128, 512, and 1024 pixels).
+   Generated resource caches MUST include the requested size in their identity.
+   These sizes are maximum edges, not forced square dimensions. Generated
+   pixels MUST preserve the source aspect ratio. Compact Grid thumbnails fit
+   the entire image within their slot; Gallery fitting follows its View layout.
+   Video dialogs SHOULD show a poster with an accessible play action. Inline
+   playback uses an optional Host presenter and a separately resolved `preview`
+   lease after that action; closing the dialog releases it. Without an inline
+   presenter, play MAY use the explicit Host open action. UI MUST NOT autoplay
+   videos or resolve their playback resources merely by displaying thumbnails.
 2. While a thumbnail is pending, denied, unsupported, unsafe, over limit, or
-   failed, and for every non-image entry, UI SHOULD show a non-executing icon
+   failed, and for every other entry, UI SHOULD show a non-executing icon
    selected from a trusted mapping of the declared media-type family. It MAY
    use a filename suffix only as a display hint, never as authority. Unknown
    types use a generic file icon. Icons do not require asset resolution.

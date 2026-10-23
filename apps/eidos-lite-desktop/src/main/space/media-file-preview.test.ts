@@ -32,6 +32,31 @@ describe("detectMediaFileType", () => {
 })
 
 describe("serveMediaPreview", () => {
+  it("revokes playback with its lease and refuses changed source files", async () => {
+    await withTempRoot(async (root) => {
+      const file = path.join(root, "clip.mp4")
+      await fs.writeFile(file, "video")
+      const stats = await fs.stat(file)
+      let active = true
+      const url = issueMediaPreviewUrl(root, "clip.mp4", "video/mp4", {
+        authorize: () => active,
+        identity: {
+          device: stats.dev,
+          inode: stats.ino,
+          size: stats.size,
+          modifiedAtMs: stats.mtimeMs,
+        },
+      })
+      const response = await serveMediaPreview(url, new Headers())
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe("video")
+      active = false
+      expect((await serveMediaPreview(url, new Headers())).status).toBe(404)
+      active = true
+      await fs.appendFile(file, "changed")
+      expect((await serveMediaPreview(url, new Headers())).status).toBe(409)
+    })
+  })
   async function withTempRoot(
     run: (root: string) => Promise<void>
   ): Promise<void> {

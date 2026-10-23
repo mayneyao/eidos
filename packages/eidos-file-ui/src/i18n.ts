@@ -613,6 +613,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Adding…": "正在添加…",
   "Reorder {file}": "调整{file}的顺序",
   "Open {file}": "打开{file}",
+  "Play {file}": "播放{file}",
   "Preview {file}": "预览{file}",
   "Download {file}": "下载{file}",
   Open: "打开",

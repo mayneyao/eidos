@@ -1230,7 +1230,8 @@ image-capable surface 共享；View layout 继续拥有 dimension、visibility�
 
 File presentation 使用以下 deterministic ladder：
 
-1. entry declared `mediaType` 为 `image/*` 时，UI 应在 item 处于 rendered surface
+1. 对任意 relative local File entry，或 declared `mediaType` 为 `image/*` 的 entry，
+   UI 应在 item 处于 rendered surface
    期间请求 `thumbnail` lease，并通过 injected `AssetPresenter` 把返回资源渲染为 image。
    只有 `canUseAssets`、entry URI class、当前 Host policy、byte/decode limit 与
    concurrent-lease limit 都允许时才能请求。因此 `https:` 永远不会造成未经批准的
@@ -1238,8 +1239,27 @@ File presentation 使用以下 deterministic ladder：
    Canvas-backed Grid 使用 `AssetPresenter.loadImage`，decode 完成后重绘对应 cell，并在
    row 离开 bounded render window 时 release lease。这个 optional presenter method 缺失
    时必须 fallback，不能改用 canonical URI。
+   Host 可以使用平台服务生成 bounded raster thumbnail。
+   本地缩略图生成不限制格式，由系统 provider 决定是否支持，包括 PDF 等文档格式。
+   provider 失败时回退到 media-type icon，不把原文件读入 UI；这不授予下载其他远程
+   文件类型的权限。lease 保留原始 File entry
+   metadata；presenter 负责派生资源的 encoding。本地生成可以单独声明 source-file
+   size limit，但不得提高 network read limit。thumbnail cache 是 non-canonical，
+   必须有容量限制。虚拟化 row/card 卸载本身不得丢弃已解码缩略图：实现应按规格使用
+   同时限制 entry count 和 decoded bytes 的 LRU，并复用滚动期间尚未完成的请求。
+   解码后可以释放 Host lease，保留 decoded source 不要求保留 lease。cache hit 应立即
+   显示，不重新进入 loading。authorization 变化和 session 关闭必须失效；普通 clean/dirty
+   状态切换不应清空。失败结果可以在有界重试时间内保留，避免每次挂载都重试。
+   完整图片 preview 和 copy 应独立解析原始图片，不使用生成的小缩略图。
+   支持尺寸请求的 Host 应区分紧凑 Grid 缩略图、Gallery 封面和弹窗海报，例如最大边长
+   分别为 128、512 和 1024 像素。生成资源的 cache identity 必须包含请求尺寸。
+   这些尺寸表示最大边长，不是强制正方形。生成像素必须保留原始宽高比。紧凑 Grid
+   缩略图完整等比放入图标区域；Gallery 的填充方式遵循其 View layout。
+   视频弹窗应显示海报和可访问的播放按钮。用户点击后，内联播放通过 optional Host
+   presenter 和单独解析的 `preview` lease 实现；关闭弹窗时释放该 lease。缺少内联
+   presenter 时可以使用显式 Host open action。仅显示缩略图不得自动播放或解析播放资源。
 2. thumbnail pending、denied、unsupported、unsafe、over-limit 或 failed 时，以及每个
-   non-image entry，UI 应显示由 declared media-type family 的 trusted mapping 选择的
+   其他 entry，UI 应显示由 declared media-type family 的 trusted mapping 选择的
    non-executing icon。filename suffix 只能作为 display hint，不能作为 authority；
    unknown type 使用 generic file icon。显示 icon 不需要 asset resolution。
 3. graphical icon presentation 不可用时，UI 必须把 inert raw `uri` 显示为可 select/copy

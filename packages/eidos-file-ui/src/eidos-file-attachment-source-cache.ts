@@ -1,11 +1,18 @@
 import type { AssetLease, FileEntry } from "@eidos.space/eidos-file"
 
-import type { AssetPresenter, EidosFileUIAssetSession } from "./context"
+import type {
+  AssetPresenter,
+  EidosFileUIAssetSession,
+  EidosFileThumbnailSize,
+} from "./context"
+import { eidosFileCanvasImageSourceDimensions } from "./eidos-file-url-image-source-cache"
 import {
   assertEidosFileAssetLease,
   eidosFileAssetRequestContext,
   eidosFileAssetResolutionAllowed,
+  eidosFileHasThumbnail,
   releaseEidosFileAssetLease,
+  resolveEidosFileThumbnail,
 } from "./eidos-file-asset-lease"
 
 export type EidosFileAttachmentSourceState =
@@ -21,11 +28,30 @@ export interface EidosFileAttachmentSourceSnapshot {
 
 interface SourceRecord {
   active: boolean
+  started: boolean
+  decodedBytes: number
+  lastAccess: number
+  failedAt?: number
   entry: FileEntry
   key: string
   lease?: AssetLease
   listeners: Set<() => void>
   snapshot: EidosFileAttachmentSourceSnapshot
+}
+
+export interface EidosFileAttachmentSourceCacheOptions {
+  size?: EidosFileThumbnailSize
+  entriesMax?: number
+  decodedBytesMax?: number
+}
+
+const FAILURE_TTL_MS = 30_000
+
+function decodedBytes(source: CanvasImageSource): number {
+  const size = eidosFileCanvasImageSourceDimensions(source)
+  return size
+    ? Math.ceil(size.width) * Math.ceil(size.height) * 4
+    : 4 * 1024 * 1024
 }
 
 const UNAVAILABLE_SNAPSHOT: EidosFileAttachmentSourceSnapshot = {
@@ -61,15 +87,26 @@ function disposeImageSource(source: CanvasImageSource | undefined): void {
  * cards from holding the entire session lease budget for their mounted life.
  */
 export class EidosFileAttachmentSourceCache {
+  private accessClock = 0
   private activeLoads = 0
+  private readonly entriesMax: number
+  private readonly decodedBytesMax: number
+  private readonly size: EidosFileThumbnailSize
   private readonly concurrentLoads: number
   private readonly loadQueue: SourceRecord[] = []
   private readonly records = new Map<string, SourceRecord>()
 
   constructor(
     private readonly session: EidosFileUIAssetSession | undefined,
-    private readonly presenter: AssetPresenter<unknown> | undefined
+    private readonly presenter: AssetPresenter<unknown> | undefined,
+    options: EidosFileAttachmentSourceCacheOptions = {}
   ) {
+    this.size = options.size ?? 512
+    this.entriesMax = Math.max(0, options.entriesMax ?? 256)
+    this.decodedBytesMax = Math.max(
+      0,
+      options.decodedBytesMax ?? 64 * 1024 * 1024
+    )
     this.concurrentLoads = Math.max(
       1,
       Math.min(4, session?.state.limits.concurrentAssetLeasesMax ?? 1)
@@ -79,7 +116,7 @@ export class EidosFileAttachmentSourceCache {
   canResolve(entry: FileEntry): boolean {
     return Boolean(
       this.presenter?.loadImage &&
-      entry.mediaType.toLowerCase().startsWith("image/") &&
+      eidosFileHasThumbnail(entry) &&
       eidosFileAssetResolutionAllowed(this.session, entry, "thumbnail")
     )
   }
@@ -92,9 +129,20 @@ export class EidosFileAttachmentSourceCache {
     if (!this.canResolve(entry)) return () => undefined
     const key = entryKey(entry)
     let record = this.records.get(key)
+    if (
+      record?.listeners.size === 0 &&
+      record.failedAt !== undefined &&
+      Date.now() - record.failedAt >= FAILURE_TTL_MS
+    ) {
+      this.evict(record)
+      record = undefined
+    }
     if (!record) {
       record = {
         active: true,
+        started: false,
+        decodedBytes: 0,
+        lastAccess: 0,
         entry,
         key,
         listeners: new Set(),
@@ -103,18 +151,51 @@ export class EidosFileAttachmentSourceCache {
       this.records.set(key, record)
       this.loadQueue.push(record)
     }
+    this.touch(record)
     record.listeners.add(listener)
     this.drainLoadQueue()
     return () => {
       record?.listeners.delete(listener)
-      if (record?.listeners.size === 0) this.evict(record)
+      if (record?.listeners.size === 0) {
+        if (record.snapshot.state === "loading" && !record.started)
+          this.evict(record)
+        else this.pruneCache()
+      }
     }
   }
 
   clear(): void {
     this.loadQueue.length = 0
-    for (const record of this.records.values()) this.dispose(record)
+    for (const record of this.records.values()) {
+      const source = record.snapshot.source
+      record.snapshot = UNAVAILABLE_SNAPSHOT
+      this.notify(record)
+      disposeImageSource(source)
+      this.dispose(record)
+    }
     this.records.clear()
+    this.accessClock = 0
+  }
+
+  private touch(record: SourceRecord): void {
+    record.lastAccess = ++this.accessClock
+  }
+
+  private pruneCache(): void {
+    const cached = [...this.records.values()]
+      .filter(
+        (record) =>
+          record.listeners.size === 0 && record.snapshot.state !== "loading"
+      )
+      .sort((a, b) => a.lastAccess - b.lastAccess)
+    let entries = cached.length
+    let bytes = cached.reduce((total, record) => total + record.decodedBytes, 0)
+    for (const record of cached) {
+      if (entries <= this.entriesMax && bytes <= this.decodedBytesMax) break
+      entries -= 1
+      bytes -= record.decodedBytes
+      this.evict(record)
+    }
   }
 
   private notify(record: SourceRecord): void {
@@ -142,6 +223,7 @@ export class EidosFileAttachmentSourceCache {
         continue
       }
       this.activeLoads += 1
+      record.started = true
       void this.load(record).finally(() => {
         this.activeLoads -= 1
         this.drainLoadQueue()
@@ -154,12 +236,10 @@ export class EidosFileAttachmentSourceCache {
     if (!this.session || !loadImage) return
     let lease: AssetLease | undefined
     try {
-      lease = await this.session.services.resolveAsset(
-        {
-          sessionId: this.session.state.sessionId,
-          entryId: record.entry.id,
-          purpose: "thumbnail",
-        },
+      lease = await resolveEidosFileThumbnail(
+        this.session,
+        record.entry.id,
+        this.size,
         eidosFileAssetRequestContext("asset-gallery-thumbnail")
       )
       record.lease = lease
@@ -176,12 +256,21 @@ export class EidosFileAttachmentSourceCache {
       }
       await this.releaseLease(record, lease)
       lease = undefined
+      if (!record.active) {
+        disposeImageSource(source)
+        return
+      }
+      record.decodedBytes = decodedBytes(source)
       record.snapshot = { source, state: "ready" }
+      this.touch(record)
       this.notify(record)
+      this.pruneCache()
     } catch {
       if (!record.active) return
       record.snapshot = FAILED_SNAPSHOT
+      record.failedAt = Date.now()
       this.notify(record)
+      this.pruneCache()
     } finally {
       if (lease) await this.releaseLease(record, lease)
     }
@@ -214,23 +303,27 @@ interface SharedCacheBinding {
 
 const sharedCaches = new WeakMap<
   EidosFileUIAssetSession,
-  WeakMap<object, SharedCacheBinding>
+  WeakMap<object, Map<EidosFileThumbnailSize, SharedCacheBinding>>
 >()
 
 function authorizationScope(session: EidosFileUIAssetSession): string {
   return JSON.stringify([
     session.state.sessionId,
-    session.state.phase,
+    ["fatal", "closed"].includes(session.state.phase)
+      ? session.state.phase
+      : "available",
     session.serviceCapabilities.canUseAssets,
     session.state.capabilities.assetReadSchemes,
     session.state.limits.assetPreviewBytesMax,
+    session.localAssetThumbnailBytesMax,
     session.state.limits.concurrentAssetLeasesMax,
   ])
 }
 
 export function sharedEidosFileAttachmentSourceCache(
   session: EidosFileUIAssetSession | undefined,
-  presenter: AssetPresenter<unknown> | undefined
+  presenter: AssetPresenter<unknown> | undefined,
+  size: EidosFileThumbnailSize = 512
 ): EidosFileAttachmentSourceCache | undefined {
   if (!session || !presenter?.loadImage) return undefined
   let byPresenter = sharedCaches.get(session)
@@ -239,10 +332,23 @@ export function sharedEidosFileAttachmentSourceCache(
     sharedCaches.set(session, byPresenter)
   }
   const scope = authorizationScope(session)
-  const existing = byPresenter.get(presenter)
+  let bySize = byPresenter.get(presenter)
+  if (!bySize) {
+    bySize = new Map()
+    byPresenter.set(presenter, bySize)
+  }
+  const existing = bySize.get(size)
   if (existing?.scope === scope) return existing.cache
-  existing?.cache.clear()
-  const cache = new EidosFileAttachmentSourceCache(session, presenter)
-  byPresenter.set(presenter, { cache, scope })
+  for (const [cachedSize, binding] of bySize) {
+    if (binding.scope !== scope) {
+      binding.cache.clear()
+      bySize.delete(cachedSize)
+    }
+  }
+  const cache = new EidosFileAttachmentSourceCache(session, presenter, {
+    size,
+    decodedBytesMax: size === 128 ? 16 * 1024 * 1024 : 64 * 1024 * 1024,
+  })
+  bySize.set(size, { cache, scope })
   return cache
 }

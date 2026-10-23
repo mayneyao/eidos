@@ -125,7 +125,17 @@ describe("Eidos File cell", () => {
     >[0]
     EidosFileAttachmentCellRenderer.draw?.(drawArgs, cell)
 
-    expect(drawImage).toHaveBeenCalledWith(source, 24, 0, 48, 48, 8, 3, 30, 30)
+    expect(drawImage).toHaveBeenCalledWith(
+      source,
+      0,
+      0,
+      96,
+      48,
+      8,
+      10.5,
+      30,
+      15
+    )
   })
 
   it("adds imported files and removes attachments inside the cell editor", async () => {

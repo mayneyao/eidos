@@ -75,6 +75,85 @@ function lease(): AssetLease {
 }
 
 describe("EidosFileAttachmentThumbnailManager", () => {
+  it("finishes offscreen work into the cache and reuses it on scroll-back", async () => {
+    let finish: (value: AssetLease) => void = () => undefined
+    const resolveAsset = vi.fn(
+      () =>
+        new Promise<AssetLease>((resolve) => {
+          finish = resolve
+        })
+    )
+    const releaseAsset = vi.fn(async () => undefined)
+    const session = {
+      services: { resolveAsset, releaseAsset } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(),
+    }
+    const source = { width: 128, height: 72 } as unknown as CanvasImageSource
+    const loadImage = vi.fn(async () => source)
+    const manager = new EidosFileAttachmentThumbnailManager(
+      session,
+      { loadImage } as unknown as AssetPresenter<unknown>,
+      vi.fn()
+    )
+    manager.prepare([entry], 0, 0)
+    manager.retainVisibleRows(100, 10)
+    finish(lease())
+    await vi.waitFor(() => expect(releaseAsset).toHaveBeenCalledOnce())
+    expect(manager.prepare([entry], 0, 0)).toEqual([source])
+    expect(resolveAsset).toHaveBeenCalledOnce()
+    expect(loadImage).toHaveBeenCalledOnce()
+    manager.clear()
+  })
+  it("loads a large local video as a Host-derived image without allowing remote video reads", async () => {
+    const video = {
+      ...entry,
+      mediaType: "video/mp4",
+      name: "clip.mp4",
+      uri: "assets/clip.mp4",
+      size: "536870912",
+    }
+    const resolveAsset = vi.fn(async () => ({
+      ...lease(),
+      mediaType: video.mediaType,
+      name: video.name,
+      size: video.size,
+    }))
+    const releaseAsset = vi.fn(async () => undefined)
+    const session: EidosFileUIAssetSession = {
+      services: { resolveAsset, releaseAsset } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(["relative", "https"]),
+      localAssetThumbnailBytesMax: String(Number.MAX_SAFE_INTEGER),
+    }
+    const source = { height: 72, width: 128 } as unknown as CanvasImageSource
+    const loadImage = vi.fn(async () => source)
+    const ready = vi.fn()
+    const manager = new EidosFileAttachmentThumbnailManager(
+      session,
+      { loadImage } as unknown as AssetPresenter<unknown>,
+      ready
+    )
+    expect(manager.prepare([video], 0, 0)).toEqual([])
+    await vi.waitFor(() => expect(ready).toHaveBeenCalled())
+    expect(manager.prepare([video], 0, 0)).toEqual([source])
+    expect(
+      manager.prepare(
+        [
+          {
+            ...video,
+            id: "remote-video",
+            uri: "https://example.com/video.mp4",
+          },
+        ],
+        0,
+        1
+      )
+    ).toEqual([])
+    expect(resolveAsset).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(releaseAsset).toHaveBeenCalledOnce())
+    manager.clear()
+  })
   it("loads through the Host lease and presenter, redraws, and releases after decoding", async () => {
     const resolveAsset = vi.fn(async () => lease())
     const releaseAsset = vi.fn(async () => undefined)

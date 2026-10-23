@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import {
+  detectAssetMediaType,
   eidosFileAssetDirectory,
   importEidosFileAttachmentData,
   importEidosFileAttachments,
@@ -22,6 +23,164 @@ async function fixture() {
 }
 
 describe("Eidos Lite attachment files", () => {
+  it("recognizes imported video formats using the same mapping as file previews", () => {
+    expect(detectAssetMediaType(new Uint8Array(), "clip.mov")).toBe(
+      "video/quicktime"
+    )
+    expect(detectAssetMediaType(new Uint8Array(), "clip.mkv")).toBe(
+      "video/x-matroska"
+    )
+  })
+  it("preserves original image preview bytes and propagates system thumbnail failure", async () => {
+    const root = await fixture()
+    try {
+      await fs.writeFile(path.join(root, "project", "photo.png"), PNG)
+      const entry = {
+        id: "01900000-0000-7000-8000-000000000001",
+        uri: "photo.png",
+        name: "photo.png",
+        mediaType: "image/png",
+        size: String(PNG.byteLength),
+      }
+      const derived = new Uint8Array([...PNG, 1])
+      const generate = vi.fn(async () => derived)
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "thumbnail",
+          generate
+        )
+      ).resolves.toMatchObject({ bytes: derived, bytesMediaType: "image/png" })
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "preview",
+          generate
+        )
+      ).resolves.toMatchObject({ bytes: PNG })
+      expect(generate).toHaveBeenCalledOnce()
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "thumbnail",
+          async () => {
+            throw new Error("unsupported")
+          }
+        )
+      ).rejects.toThrow("unsupported")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+  it("generates bounded thumbnails for large local videos in any Eidos File", async () => {
+    const root = await fixture()
+    try {
+      const video = path.join(root, "project", "video.mp4")
+      const handle = await fs.open(video, "w")
+      const size = 512 * 1024 * 1024
+      await handle.truncate(size)
+      await handle.close()
+      const entry = {
+        id: "01900000-0000-7000-8000-000000000001",
+        uri: "video.mp4",
+        name: "video.mp4",
+        mediaType: "video/mp4",
+        size: String(size),
+      }
+      const generate = vi.fn(async () => PNG)
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "thumbnail",
+          generate
+        )
+      ).resolves.toMatchObject({
+        kind: "local",
+        absolutePath: video,
+        bytes: PNG,
+        bytesMediaType: "image/png",
+      })
+      expect(generate).toHaveBeenCalledOnce()
+      // Metadata and path authorization are checked before consulting the cache/provider.
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          { ...entry, size: "1" },
+          "thumbnail",
+          generate
+        )
+      ).rejects.toThrow("no longer matches")
+      await fs.symlink(video, path.join(root, "project", "linked.mp4"))
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          { ...entry, uri: "linked.mp4" },
+          "thumbnail",
+          generate
+        )
+      ).rejects.toThrow()
+      expect(generate).toHaveBeenCalledOnce()
+      const mutate = vi.fn(async () => {
+        await fs.appendFile(video, "changed")
+        return PNG
+      })
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          entry,
+          "thumbnail",
+          mutate
+        )
+      ).rejects.toThrow("changed")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ["report.pdf", "application/pdf"],
+    ["page.html", "text/html"],
+    ["drawing.svg", "image/svg+xml"],
+    ["unknown.custom", "application/octet-stream"],
+  ])(
+    "asks the system to generate a thumbnail for %s without a format allowlist",
+    async (name, mediaType) => {
+      const root = await fixture()
+      try {
+        await fs.writeFile(path.join(root, "project", name), "test")
+        const generate = vi.fn(async () => PNG)
+        await expect(
+          resolveEidosFileAttachment(
+            root,
+            "project/data.eidos",
+            {
+              id: "01900000-0000-7000-8000-000000000001",
+              uri: name,
+              name,
+              mediaType,
+              size: "4",
+            },
+            "thumbnail",
+            generate
+          )
+        ).resolves.toMatchObject({ bytes: PNG, bytesMediaType: "image/png" })
+        expect(generate).toHaveBeenCalledOnce()
+      } finally {
+        await fs.rm(root, { recursive: true, force: true })
+      }
+    }
+  )
   it("opens large local videos without reading bytes while retaining thumbnail limits", async () => {
     const root = await fixture()
     try {
