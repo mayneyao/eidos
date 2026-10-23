@@ -24,6 +24,83 @@ import { eidosFileViewRowQuery } from "@eidos.space/eidos-file-ui"
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("creates, updates, queries and reopens Calendar views on the file catalog", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-files-calendar-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    fs.utimesSync(
+      path.join(root, "proof.txt"),
+      new Date(),
+      new Date("2026-10-15T12:00:00Z")
+    )
+    fs.writeFileSync(path.join(root, "older.txt"), "older")
+    fs.utimesSync(
+      path.join(root, "older.txt"),
+      new Date(),
+      new Date("2026-09-30T12:00:00Z")
+    )
+    const filePath = path.join(root, ".eidos/files.eidos")
+    const runtime = await createEidosLiteFileRuntime(filePath, "Files", {
+      template: "files-index",
+    })
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const created = fields.find((field) => field.name === "_created_at")!
+    const modified = fields.find((field) => field.name === "_updated_at")!
+    const snapshot = await runtime.source.createView(table.id, {
+      name: "Calendar",
+      type: "calendar",
+      properties: { dateField: created.id },
+    })
+    const calendar = snapshot.tables[0]!.views.find(
+      (view) => view.type === "calendar"
+    )!
+    await runtime.source.updateView(calendar.id, {
+      properties: { dateField: modified.id },
+    })
+    const query = {
+      filter: {
+        type: "group" as const,
+        conjunction: "and" as const,
+        children: [
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "greater-than-or-equal" as const,
+            value: "2026-10-01T00:00:00Z",
+          },
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "less-than" as const,
+            value: "2026-11-01T00:00:00Z",
+          },
+        ],
+      },
+    }
+    expect(
+      (await runtime.source.getPage(table.id, 0, 100, query)).rows.map(
+        (row) => row._id
+      )
+    ).toEqual(["proof.txt"])
+    await runtime.close()
+    runtimes.splice(runtimes.indexOf(runtime), 1)
+    const reopened = await openEidosLiteFileRuntime(filePath)
+    runtimes.push(reopened)
+    expect(reopened.initialSnapshot.tables[0]!.views).toContainEqual(
+      expect.objectContaining({
+        id: calendar.id,
+        properties: expect.objectContaining({ dateField: modified.id }),
+      })
+    )
+    expect(
+      (await reopened.source.getPage(table.id, 0, 100, query)).rows.map(
+        (row) => row._id
+      )
+    ).toEqual(["proof.txt"])
+  })
+
   it("scans the whole Space from the private catalog and applies transient directory scopes", async () => {
     const root = fs.realpathSync(
       fs.mkdtempSync(path.join(tmpdir(), "eidos-global-meta-"))

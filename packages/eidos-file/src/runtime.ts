@@ -6183,6 +6183,8 @@ export class EidosFileRuntime {
   optimizeViewQueries(): void {
     const indexedFields = new Set<string>()
     for (const table of this.listTables()) {
+      // Virtual tables own their query planning and cannot accept SQLite indexes.
+      if (this.isVirtualTable(table.id)) continue
       const fields = this.listFields(table.id)
       for (const view of this.listViews(table.id)) {
         if (view.type !== "calendar") continue
