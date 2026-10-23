@@ -13,6 +13,7 @@ import type {
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileViewInfo,
+  FileEntry,
 } from "@eidos.space/eidos-file"
 import {
   decodeEidosFileValues,
@@ -30,7 +31,10 @@ import {
 } from "lucide-react"
 import { useEidosFileUI, type EidosFileUIHost } from "./context"
 import { Dialog } from "radix-ui"
-import { EidosFileEntryCoverSurface } from "./eidos-file-entry-surface"
+import {
+  EidosFileEntryCoverSurface,
+  EidosFileEntrySurface,
+} from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import {
@@ -81,11 +85,13 @@ function EidosFileRecordCover({
   field,
   compact,
   fitContent,
+  coverOnly = false,
 }: {
   row: EidosFileRow
   field: EidosFileFieldInfo
   compact: boolean
   fitContent: boolean
+  coverOnly?: boolean
 }) {
   const value = row[field.tableColumnName]
   if (eidosFileUrlDisplaysImage(field)) {
@@ -93,14 +99,18 @@ function EidosFileRecordCover({
       <div
         data-eidos-file-card-cover
         className={cn(
-          "overflow-hidden border-b bg-gradient-to-br from-muted/40 to-muted",
-          compact ? "h-28" : "h-36"
+          "overflow-hidden",
+          coverOnly
+            ? "aspect-square w-full"
+            : "border-b bg-gradient-to-br from-muted/40 to-muted",
+          !coverOnly && (compact ? "h-28" : "h-36")
         )}
       >
         <EidosFileUrlImageCoverSurface
           uri={typeof value === "string" ? value : ""}
           altText={field.name}
           fitContent={fitContent}
+          className={coverOnly ? "bg-transparent" : undefined}
         />
       </div>
     )
@@ -111,12 +121,19 @@ function EidosFileRecordCover({
     <div
       data-eidos-file-card-cover
       className={cn(
-        "overflow-hidden border-b bg-gradient-to-br from-muted/40 to-muted",
-        compact ? "h-28" : "h-36"
+        "overflow-hidden",
+        coverOnly
+          ? "aspect-square w-full"
+          : "border-b bg-gradient-to-br from-muted/40 to-muted",
+        !coverOnly && (compact ? "h-28" : "h-36")
       )}
     >
       {entry ? (
-        <EidosFileEntryCoverSurface entry={entry} fitContent={fitContent} />
+        <EidosFileEntryCoverSurface
+          entry={entry}
+          fitContent={fitContent}
+          className={coverOnly ? "bg-transparent" : undefined}
+        />
       ) : null}
     </div>
   )
@@ -277,6 +294,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   fixedHeight,
   cardWidth,
   onOpen,
+  onPreviewFile,
   onDelete,
   moveOptions,
   disabledMoveOptionId,
@@ -295,6 +313,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   fixedHeight?: number
   cardWidth?: number
   onOpen: (row: EidosFileRow) => void
+  onPreviewFile?: (row: EidosFileRow, entry: FileEntry) => void
   onDelete?: (row: EidosFileRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
   disabledMoveOptionId?: string
@@ -370,6 +389,62 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     },
     []
   )
+
+  if (view.type === "gallery" && layout.coverOnly) {
+    const entry =
+      layout.coverField?.type === "file"
+        ? decodeEidosFileValues(row[layout.coverField.tableColumnName]).at(0)
+        : undefined
+    return (
+      <article
+        role={role}
+        aria-posinset={role === "listitem" ? positionInSet : undefined}
+        aria-setsize={role === "listitem" ? setSize : undefined}
+        aria-current={focused ? "true" : undefined}
+        data-eidos-file-row-id={String(row._id)}
+        data-eidos-file-card-surface="cover-only"
+        className={cn(
+          "min-w-0 overflow-hidden rounded-sm",
+          focused && "ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
+        )}
+      >
+        {entry ? (
+          <EidosFileEntrySurface
+            entry={entry}
+            presentation="cover"
+            fitContent={layout.fitContent}
+            onPreview={
+              onPreviewFile ? (entry) => onPreviewFile(row, entry) : undefined
+            }
+          />
+        ) : (
+          <button
+            type="button"
+            className="block aspect-square w-full cursor-pointer overflow-hidden bg-transparent p-0 outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            aria-label={t("Open {title}", { title })}
+            onClick={() => onOpen(row)}
+          >
+            {layout.coverField ? (
+              <EidosFileRecordCover
+                row={row}
+                field={layout.coverField}
+                compact={compact}
+                fitContent={layout.fitContent}
+                coverOnly
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="flex aspect-square items-center justify-center text-muted-foreground"
+              >
+                <Paperclip className="h-6 w-6" />
+              </span>
+            )}
+          </button>
+        )}
+      </article>
+    )
+  }
 
   const card = (
     <article

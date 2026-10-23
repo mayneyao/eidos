@@ -134,7 +134,7 @@ export const eidosFileGalleryPlugin = defineEidosFilePlugin({
             .slice(0, 6)
             .map(eidosFileFieldKey),
           cardSize: "medium",
-          coverFit: "cover",
+          coverFit: "contain",
           hideEmptyFields: true,
         }),
       },

@@ -368,11 +368,12 @@ unbounded foreground wait。
 ### 4.2 Capability 与 limit
 
 `negotiate({protocol:"eidos-runtime",versions:["1.0"]})` 返回 version 1.0 或
-`unsupported`。它会返回下面的每个 member；不得省略任何 member。
+`unsupported`。它会返回下面的每个必需 member；可选 capability 缺省时表示 false。
 
 ```ts
 interface RuntimeCapabilities {
   readRows: boolean
+  batchRowPages?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -987,6 +988,17 @@ lowercase 64-character SHA-256：
 二者都绑定一个 File ID、Table ID、revision 与 projection。Runtime MUST 在一个
 consistent read transaction 中取得 page 及所有 Relation label，并且 MUST 使用
 set-based join/batch，不能对每个 row 或 label 各执行一条 SQL statement。
+
+`batchRowPages` 为 true 时，可选操作
+`queryRowPages({ tableId, queries, projection, limit }, context)` 按请求
+顺序返回每个完整 `RowQuery` 的第一页。支持 1–64 个 query；`limit` 必须为正数，
+`queries.length * limit` MUST NOT 超过 `pageSizeMax`。每项结果是带有额外精确
+`total` 的 `RowPage`，`total` 编码为无符号十进制字符串。所有结果 MUST 共享同一
+read transaction、revision 和 projection。筛选、搜索、排序及 Row ID 决胜规则遵循
+`queryRows`；返回的 `nextCursor` MUST 可用于相同 query 和 projection 的
+`queryRows`。无匹配记录的 query 返回空 page，total 为 `"0"`。不同请求之间不保留
+source snapshot。实现 SHOULD 在 page 之间共享 source evaluation，尤其是文件系统
+virtual table。
 
 `getRowsById.rowIds` 包含一个 requested Table 中的 canonical unique ID。existing
 row 按 request order 出现；`missingRowIds` 按其 request order 包含 absent ID。
@@ -2125,6 +2137,15 @@ interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  queryRowPages?(
+    request: {
+      tableId: string
+      queries: RowQuery[]
+      projection: ProjectionSpec
+      limit: number
+    },
+    context: RequestContext
+  ): Promise<Array<RowPage & { total: string }>>
   getRecordNeighbors(
     request: { tableId: string; rowId: string; query: RowQuery },
     context: RequestContext

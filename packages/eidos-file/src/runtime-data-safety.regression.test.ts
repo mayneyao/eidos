@@ -13,6 +13,7 @@ import {
 import { eidosFileConversionTargetNullable } from "./canonical-conversion"
 import type {
   RequestContext,
+  RowQuery,
   RuntimeClient,
   RuntimeEnvironment,
   SchemaChange,
@@ -137,6 +138,77 @@ async function createTable(
 }
 
 describe("Eidos Runtime P0 data safety regressions", () => {
+  it("returns bounded batch pages with queryRows-compatible cursors and rejects oversized batches", async () => {
+    const { runtime, connection } = await createRuntime("Batch pages")
+    try {
+      const table = await createTable(runtime, "events", "Events", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "due", name: "Due", kind: "date" },
+      ])
+      for (let index = 0; index < 5; index++) {
+        connection.run(
+          'INSERT INTO "Events" ("_id","_created_at","_updated_at","Title","Due") VALUES (?1,?2,?3,?4,?5)',
+          [
+            `00000000-0000-7000-8000-${String(index).padStart(12, "0")}`,
+            "2026-07-26T00:00:00.000Z",
+            "2026-07-26T00:00:00.000Z",
+            `Event ${index}`,
+            index < 3 ? "2026-08-01" : "2026-08-02",
+          ].map((value) => ({ tag: "text" as const, value }))
+        )
+      }
+      const queries: RowQuery[] = [
+        "2026-08-01",
+        "2026-08-02",
+        "2026-08-03",
+      ].map((value) => ({
+        filter: { op: "eq", fieldId: table.fieldIds.due!, value },
+        sort: [{ fieldId: table.fieldIds.title!, direction: "desc" }],
+      }))
+      const request = {
+        tableId: table.tableId,
+        queries,
+        projection: { fields: [table.fieldIds.title!], resolveRelations: [] },
+        limit: 2,
+      }
+      const pages = await runtime.queryRowPages!(request, context("batch"))
+      expect(pages.map((page) => page.total)).toEqual(["3", "2", "0"])
+      expect(pages.map((page) => page.rows.length)).toEqual([2, 2, 0])
+      expect(new Set(pages.map((page) => page.revision)).size).toBe(1)
+      expect(pages[0]!.nextCursor).toBeTruthy()
+      expect(pages[1]!.nextCursor).toBeNull()
+      const next = await runtime.queryRows(
+        {
+          tableId: table.tableId,
+          query: queries[0]!,
+          projection: request.projection,
+          limit: 2,
+          cursor: pages[0]!.nextCursor!,
+        },
+        context("next")
+      )
+      expect(next.rows).toHaveLength(1)
+      expect(next.nextCursor).toBeNull()
+      expect(
+        new Set([...pages[0]!.rows, ...next.rows].map((row) => row.id)).size
+      ).toBe(3)
+      for (const invalid of [
+        { queries: [] },
+        { queries: Array.from({ length: 65 }, () => queries[0]!) },
+        { limit: 1000 },
+      ]) {
+        await expect(
+          runtime.queryRowPages!(
+            { ...request, ...invalid },
+            context("oversized")
+          )
+        ).rejects.toMatchObject({ code: "invalid-request" })
+      }
+    } finally {
+      await runtime.close(context("close-batch"))
+    }
+  })
+
   it("validates every content page within adapter budgets and catches late invalid values", async () => {
     const { runtime, connection } = await createRuntime("Paged validation", {
       maxResultBytes: 32_768,

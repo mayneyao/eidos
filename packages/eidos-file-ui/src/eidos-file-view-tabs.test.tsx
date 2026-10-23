@@ -227,6 +227,66 @@ describe("EidosFileViewTabs", () => {
     expect(document.body.textContent).toContain("Card appearance")
   })
 
+  it("places Cover only beside Card appearance and preserves card configuration", async () => {
+    const cover = {
+      ...dueField,
+      name: "Photos",
+      type: "file" as const,
+      tableColumnName: "photos",
+    }
+    const gallery = {
+      ...views[1]!,
+      properties: {
+        cardFields: [dueField.id],
+        cardSize: "large",
+        coverFit: "contain",
+      },
+    }
+    const onUpdate = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileViewTabs
+          views={[gallery]}
+          fields={[cover]}
+          activeView={gallery}
+          onSelect={vi.fn()}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onReorder={vi.fn()}
+          onUpdate={onUpdate}
+        />
+      )
+    )
+    await openViewMenu(container, "gallery")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Configure view"))
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain("Card appearance")
+    expect(document.body.textContent).not.toContain("Card content")
+    const toggle = document.body.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="Cover only"]'
+    )
+    expect(toggle).not.toBeNull()
+    await act(async () => {
+      toggle!.click()
+      await Promise.resolve()
+    })
+    expect(onUpdate).toHaveBeenCalledWith("gallery", {
+      properties: {
+        ...gallery.properties,
+        cardDisplay: "cover-only",
+        coverField: cover.id,
+      },
+    })
+  })
+
   it("exports the view selected from its context menu", async () => {
     const onExportCsv = vi.fn().mockResolvedValue(undefined)
     await act(async () => {

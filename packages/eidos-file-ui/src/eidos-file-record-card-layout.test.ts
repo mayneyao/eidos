@@ -200,6 +200,38 @@ describe("createEidosFileRecordCardLayout", () => {
     ])
     expect(layout.fieldLimit).toBe(2)
     expect(layout.fitContent).toBe(true)
+    const gallery: EidosFileViewInfo = {
+      id: "fit-default",
+      name: "Gallery",
+      type: "gallery",
+      tableId: "tasks",
+      query: "",
+      properties: {},
+      filter: null,
+      sorts: [],
+      orderMap: null,
+      hiddenFields: [],
+      position: 0,
+      createdAt: "2026-10-23T00:00:00.000Z",
+      updatedAt: "2026-10-23T00:00:00.000Z",
+    }
+    expect(createEidosFileRecordCardLayout([], gallery).fitContent).toBe(true)
+    expect(
+      createEidosFileRecordCardLayout([], { ...gallery, type: "kanban" })
+        .fitContent
+    ).toBe(false)
+    expect(
+      createEidosFileRecordCardLayout([], {
+        ...gallery,
+        properties: { coverFit: "cover" },
+      }).fitContent
+    ).toBe(false)
+    expect(
+      createEidosFileRecordCardLayout([], {
+        ...gallery,
+        properties: { fitContent: false },
+      }).fitContent
+    ).toBe(false)
   })
 
   it("omits the Kanban grouping field by default but respects an explicit card layout", () => {
@@ -250,6 +282,51 @@ describe("createEidosFileRecordCardLayout", () => {
 })
 
 describe("eidosFileRecordCardPageProjection", () => {
+  it("omits secondary fields for cover-only Gallery and restores them for standard cards", () => {
+    const cover = { ...recordField(0).field, type: "file" as const }
+    const detail = recordField(1).field
+    const gallery: EidosFileViewInfo = {
+      id: "gallery",
+      name: "Photos",
+      type: "gallery",
+      tableId: "tasks",
+      query: "",
+      properties: {
+        cardDisplay: "cover-only",
+        coverField: cover.id,
+        cardFields: [detail.id],
+      },
+      filter: null,
+      sorts: [],
+      orderMap: null,
+      hiddenFields: [],
+      position: 1,
+      createdAt: "2026-10-23T00:00:00.000Z",
+      updatedAt: "2026-10-23T00:00:00.000Z",
+    }
+    const fields = [cover, detail]
+    expect(eidosFileRecordCardPageProjection(fields, gallery)).toMatchObject({
+      columns: [],
+      preservedColumns: [cover.tableColumnName],
+    })
+    expect(
+      eidosFileRecordCardPageProjection(fields, {
+        ...gallery,
+        properties: { ...gallery.properties, cardDisplay: "standard" },
+      })
+    ).toMatchObject({ columns: [detail.tableColumnName] })
+    expect(
+      createEidosFileRecordCardLayout(fields, {
+        ...gallery,
+        hiddenFields: [cover.id!],
+      }).coverField
+    ).toEqual(cover)
+    expect(
+      createEidosFileRecordCardLayout(fields, { ...gallery, type: "kanban" })
+        .coverOnly
+    ).toBe(false)
+  })
+
   it("keeps visible card fields, cover, and Kanban grouping without hidden payload", () => {
     const title = recordField(0).field
     const visible = recordField(1).field

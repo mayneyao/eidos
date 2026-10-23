@@ -160,6 +160,7 @@ const RUNTIME_OPERATIONS = new Set([
   "getSnapshot",
   "getSchemaPage",
   "queryRows",
+  "queryRowPages",
   "getRecordNeighbors",
   "getRowsById",
   "aggregate",
@@ -857,6 +858,7 @@ export interface AdapterTransportRuntimeClientOptions {
 }
 
 export class AdapterTransportRuntimeClient implements RuntimeClient {
+  declare queryRowPages: RuntimeClient["queryRowPages"]
   declare revertMutation: RuntimeClient["revertMutation"]
   declare exportCsv: RuntimeClient["exportCsv"]
   declare importCsv: RuntimeClient["importCsv"]
@@ -1227,6 +1229,14 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
   }
 
   private installOptionalMethods(capabilities: RuntimeCapabilities): void {
+    if (capabilities.batchRowPages) {
+      this.queryRowPages = (request, context) =>
+        this.call("queryRowPages", request, context) as ReturnType<
+          NonNullable<RuntimeClient["queryRowPages"]>
+        >
+    } else {
+      delete this.queryRowPages
+    }
     if (capabilities.mutationUndo) {
       this.revertMutation = (request, context) =>
         this.call("revertMutation", request, context) as ReturnType<

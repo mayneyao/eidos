@@ -77,6 +77,12 @@ export interface EidosFileDataSource {
     projection?: EidosFileRowPageProjection
   ): Promise<EidosFileRowPage>
   getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>
+  getPages?(
+    tableId: string,
+    queries: EidosFileRowQuery[],
+    limit: number,
+    projection?: EidosFileRowPageProjection
+  ): Promise<EidosFileRowPage[] | null>
   getRecordNeighbors?(
     tableId: string,
     rowId: string,

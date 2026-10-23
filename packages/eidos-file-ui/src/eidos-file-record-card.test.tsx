@@ -121,6 +121,59 @@ describe("EidosFileRecordCard", () => {
     container.remove()
   })
 
+  it.each(["desktop", "mobile"] as const)(
+    "renders only a borderless cover in %s Gallery with a file preview trigger",
+    async (interactionMode) => {
+      eidosFileUiMocks.useEidosFileUI.mockReturnValue({
+        themeName: "light",
+        interactionMode,
+        translate: eidosFileUiMocks.translate,
+      })
+      const open = vi.fn()
+      const row = {
+        _id: "photo",
+        title: "Holiday photo",
+        cover: encodeEidosFileAttachmentPaths(["photo.jpg"]),
+      }
+      try {
+        await act(async () =>
+          root.render(
+            <EidosFileRecordCard
+              row={row}
+              fields={fields}
+              view={{
+                ...view,
+                properties: { ...view.properties, cardDisplay: "cover-only" },
+              }}
+              onOpen={open}
+              onDelete={vi.fn()}
+            />
+          )
+        )
+        const card = container.querySelector(
+          '[data-eidos-file-card-surface="cover-only"]'
+        )!
+        expect(card).toBeTruthy()
+        expect(card.classList.contains("border")).toBe(false)
+        expect(card.querySelector("[data-eidos-file-entry-cover]")).toBeTruthy()
+        expect(card.querySelector("[data-eidos-file-card-body]")).toBeNull()
+        expect(card.querySelector("h3")).toBeNull()
+        expect(card.querySelector("[data-eidos-file-card-actions]")).toBeNull()
+        expect(card.textContent).not.toContain("Holiday photo")
+        const button = card.querySelector("button")!
+        expect(button.getAttribute("aria-label")).toBe("Preview photo.jpg")
+        act(() => button.click())
+        expect(open).not.toHaveBeenCalled()
+      } finally {
+        eidosFileUiMocks.useEidosFileUI.mockReturnValue({
+          themeName: "light",
+          interactionMode: "desktop",
+          translate: eidosFileUiMocks.translate,
+        })
+      }
+    }
+  )
+
   it("offers mobile card actions and group moves in a bottom sheet", async () => {
     eidosFileUiMocks.useEidosFileUI.mockReturnValue({
       themeName: "light",

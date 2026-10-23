@@ -191,7 +191,8 @@ export function EidosFileWorkbench({
   const assetSession = useMemo(
     () =>
       createEidosLiteAssetSession(source.sessionId, snapshot.metadata.fileId),
-    [snapshot.metadata.fileId, source.sessionId]
+    // A filesystem refresh must revalidate images, including same-size edits.
+    [snapshot.metadata.fileId, source.sessionId, refreshToken]
   )
   const editorKeyboardShortcuts = useMemo(
     () => eidosFileKeyboardShortcuts(keyboardShortcuts, macos),

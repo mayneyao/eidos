@@ -217,6 +217,53 @@ describe("EidosFileCalendarView", () => {
     vi.useRealTimers()
   })
 
+  it("loads visible days in one batch and refreshes without per-day reads", async () => {
+    const loadRows = vi.fn()
+    const onRowCountChange = vi.fn()
+    let title = "First batch"
+    const loadPages = vi.fn(
+      async (_field: EidosFileFieldInfo, ranges: EidosFileCalendarRange[]) =>
+        ranges.map((range) =>
+          localDayKey(range.start) === "2026-08-21"
+            ? {
+                rows: [{ _id: "one", title, due: "2026-08-21" }],
+                total: 1,
+                nextCursor: null,
+              }
+            : { rows: [], total: 0, nextCursor: null }
+        )
+    )
+    const render = (reloadToken: number) =>
+      root.render(
+        <EidosFileCalendarView
+          table={table}
+          view={view}
+          loadRows={loadRows}
+          loadPages={loadPages}
+          onRowCountChange={onRowCountChange}
+          reloadToken={reloadToken}
+        />
+      )
+    await act(async () => {
+      render(0)
+      await settleCalendarLoad()
+    })
+    expect(loadPages).toHaveBeenCalledTimes(1)
+    expect(loadPages.mock.calls[0]![1].length).toBeGreaterThanOrEqual(35)
+    expect(loadRows).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("First batch")
+    expect(onRowCountChange).toHaveBeenLastCalledWith(1)
+    title = "Updated batch"
+    await act(async () => {
+      render(1)
+      await settleCalendarLoad()
+    })
+    expect(loadPages).toHaveBeenCalledTimes(2)
+    expect(loadRows).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("Updated batch")
+    expect(container.textContent).not.toContain("First batch")
+  })
+
   it("selects mobile dates without opening records and opens record actions in a sheet", async () => {
     contextMocks.interactionMode = "mobile"
     const rows = [

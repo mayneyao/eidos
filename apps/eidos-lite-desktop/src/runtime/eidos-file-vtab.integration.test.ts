@@ -3,7 +3,7 @@ import path from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
 import { DatabaseSync } from "node:sqlite"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   decodeEidosFileValues,
   EidosFileRuntime,
@@ -19,11 +19,237 @@ import {
   fileMetadataScopedView,
   fileMetadataRowPath,
 } from "../renderer/file-metadata-actions"
-import { eidosFileViewRowQuery } from "@eidos.space/eidos-file-ui"
+import {
+  eidosFileViewRowQuery,
+  eidosFileRecordCardPageProjection,
+  createEidosFileRecordCardLayout,
+} from "@eidos.space/eidos-file-ui"
 
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("preserves PDF, video and image File covers when the Gallery hides its fields", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-gallery-covers-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    for (const name of ["document.pdf", "clip.mp4", "photo.jpg"])
+      fs.writeFileSync(path.join(root, name), "fixture")
+    const runtime = await createEidosLiteFileRuntime(
+      path.join(root, ".eidos/files.eidos"),
+      "Files",
+      { template: "files-index" }
+    )
+    runtimes.push(runtime)
+    const initial = runtime.initialSnapshot.tables[0]!
+    const file = initial.fields.find((field) => field.type === "file")!
+    const gallery = initial.views.find((view) => view.type === "gallery")!
+    expect(gallery.properties?.coverFit).toBe("contain")
+    const updated = await runtime.source.updateView(gallery.id, {
+      properties: { ...gallery.properties, cardDisplay: "cover-only" },
+      hiddenFields: initial.fields.map((field) => field.id!),
+    })
+    const table = updated.tables[0]!
+    const view = table.views.find((view) => view.id === gallery.id)!
+    expect(
+      createEidosFileRecordCardLayout(table.fields, view).coverField?.id
+    ).toBe(file.id)
+    const page = await runtime.source.getPage(
+      table.table.id,
+      0,
+      20,
+      {},
+      undefined,
+      undefined,
+      eidosFileRecordCardPageProjection(table.fields, view)
+    )
+    expect(
+      page.rows
+        .map(
+          (row) => decodeEidosFileValues(row[file.id!] as string)[0]!.mediaType
+        )
+        .sort()
+    ).toEqual(["application/pdf", "image/jpeg", "video/mp4"])
+  })
+
+  it("shares one live source scan across Calendar pages, with exact totals and reusable cursors", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-calendar-batch-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    for (let index = 0; index < 120; index++) {
+      const file = path.join(root, `${String(index).padStart(3, "0")}.txt`)
+      fs.writeFileSync(file, "proof")
+      fs.utimesSync(
+        file,
+        new Date(),
+        new Date(Date.UTC(2026, 9, 1 + (index % 28), 12))
+      )
+    }
+    const runtime = await createEidosLiteFileRuntime(
+      path.join(root, ".eidos/files.eidos"),
+      "Files",
+      { template: "files-index" }
+    )
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const modified = fields.find((field) => field.name === "_updated_at")!
+    const name = fields.find((field) => field.name === "name")!
+    const queries = Array.from({ length: 42 }, (_, index) => ({
+      filter: {
+        type: "group" as const,
+        conjunction: "and" as const,
+        children: [
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "greater-than-or-equal" as const,
+            value: new Date(Date.UTC(2026, 8, 28 + index)).toISOString(),
+          },
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "less-than" as const,
+            value: new Date(Date.UTC(2026, 8, 29 + index)).toISOString(),
+          },
+        ],
+      },
+      sorts: [{ field: name.id!, direction: "desc" as const }],
+    }))
+    const projection = {
+      columns: [name.id!, modified.id!],
+      includeRecordLabel: true,
+    }
+    const querySpy = vi.spyOn(NodeSqliteConnectionPort.prototype, "query")
+    try {
+      const pages = await runtime.source.getPages(
+        table.id,
+        queries,
+        3,
+        projection
+      )
+      expect(pages).toHaveLength(42)
+      expect(pages!.reduce((total, page) => total + page.total, 0)).toBe(120)
+      expect(
+        querySpy.mock.calls.filter(([sql]) =>
+          sql.includes("WITH logical AS MATERIALIZED")
+        )
+      ).toHaveLength(1)
+      const dayIndex = 3 // October 1, including five files.
+      const page = pages![dayIndex]!
+      expect(page.total).toBe(5)
+      expect(page.rows.map((row) => row[name.id!])).toEqual([
+        "112.txt",
+        "084.txt",
+        "056.txt",
+      ])
+      expect(page.nextCursor).toBeTruthy()
+      const remaining = await runtime.source.getPage(
+        table.id,
+        0,
+        3,
+        queries[dayIndex]!,
+        page.total,
+        page.nextCursor,
+        projection
+      )
+      expect(remaining.rows.map((row) => row[name.id!])).toEqual([
+        "028.txt",
+        "000.txt",
+      ])
+      expect(remaining.nextCursor).toBeUndefined()
+      // External file changes are visible on the very next batch: no retained snapshot.
+      const added = path.join(root, "new.txt")
+      fs.writeFileSync(added, "new")
+      fs.utimesSync(added, new Date(), new Date("2026-10-01T12:00:00Z"))
+      const refreshed = await runtime.source.getPages(
+        table.id,
+        queries,
+        3,
+        projection
+      )
+      expect(refreshed![dayIndex]!.total).toBe(6)
+      expect(refreshed![dayIndex]!.rows[0]![name.id!]).toBe("new.txt")
+    } finally {
+      querySpy.mockRestore()
+    }
+  })
+
+  it("creates, updates, queries and reopens Calendar views on the file catalog", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-files-calendar-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    fs.writeFileSync(path.join(root, "proof.txt"), "proof")
+    fs.utimesSync(
+      path.join(root, "proof.txt"),
+      new Date(),
+      new Date("2026-10-15T12:00:00Z")
+    )
+    fs.writeFileSync(path.join(root, "older.txt"), "older")
+    fs.utimesSync(
+      path.join(root, "older.txt"),
+      new Date(),
+      new Date("2026-09-30T12:00:00Z")
+    )
+    const filePath = path.join(root, ".eidos/files.eidos")
+    const runtime = await createEidosLiteFileRuntime(filePath, "Files", {
+      template: "files-index",
+    })
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const created = fields.find((field) => field.name === "_created_at")!
+    const modified = fields.find((field) => field.name === "_updated_at")!
+    const snapshot = await runtime.source.createView(table.id, {
+      name: "Calendar",
+      type: "calendar",
+      properties: { dateField: created.id },
+    })
+    const calendar = snapshot.tables[0]!.views.find(
+      (view) => view.type === "calendar"
+    )!
+    await runtime.source.updateView(calendar.id, {
+      properties: { dateField: modified.id },
+    })
+    const query = {
+      filter: {
+        type: "group" as const,
+        conjunction: "and" as const,
+        children: [
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "greater-than-or-equal" as const,
+            value: "2026-10-01T00:00:00Z",
+          },
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "less-than" as const,
+            value: "2026-11-01T00:00:00Z",
+          },
+        ],
+      },
+    }
+    expect(
+      (await runtime.source.getPage(table.id, 0, 100, query)).rows.map(
+        (row) => row._id
+      )
+    ).toEqual(["proof.txt"])
+    await runtime.close()
+    runtimes.splice(runtimes.indexOf(runtime), 1)
+    const reopened = await openEidosLiteFileRuntime(filePath)
+    runtimes.push(reopened)
+    expect(reopened.initialSnapshot.tables[0]!.views).toContainEqual(
+      expect.objectContaining({
+        id: calendar.id,
+        properties: expect.objectContaining({ dateField: modified.id }),
+      })
+    )
+    expect(
+      (await reopened.source.getPage(table.id, 0, 100, query)).rows.map(
+        (row) => row._id
+      )
+    ).toEqual(["proof.txt"])
+  })
+
   it("scans the whole Space from the private catalog and applies transient directory scopes", async () => {
     const root = fs.realpathSync(
       fs.mkdtempSync(path.join(tmpdir(), "eidos-global-meta-"))

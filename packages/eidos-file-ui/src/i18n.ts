@@ -4,6 +4,9 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
+  "Cover only": "仅封面",
+  "Previous file": "上一个文件",
+  "Next file": "下一个文件",
   "Search or create an option…": "搜索或新建选项…",
   "Create option: {name}": "创建选项：{name}",
   "Creating…": "正在创建…",
@@ -613,6 +616,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Adding…": "正在添加…",
   "Reorder {file}": "调整{file}的顺序",
   "Open {file}": "打开{file}",
+  "Play {file}": "播放{file}",
   "Preview {file}": "预览{file}",
   "Download {file}": "下载{file}",
   Open: "打开",

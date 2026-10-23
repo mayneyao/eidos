@@ -5,6 +5,8 @@ import type { FileEntry } from "@eidos.space/eidos-file"
 
 import { resolveSpacePath } from "./space-paths"
 import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
+import type { FileThumbnailProvider } from "./file-thumbnails"
+import { detectMediaFileType } from "./media-file-preview"
 
 export const EIDOS_LITE_ASSET_BYTES_MAX = 256 * 1024 * 1024
 export const EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX = 64 * 1024 * 1024
@@ -48,6 +50,7 @@ export type ResolvedEidosFileAsset =
       absolutePath: string
       identity: EidosFileAssetIdentity
       bytes?: Uint8Array
+      bytesMediaType?: string
     }
   | {
       kind: "network"
@@ -238,7 +241,9 @@ export function detectAssetMediaType(
       ".txt": "text/plain",
       ".wav": "audio/wav",
       ".webm": "video/webm",
-    }[path.extname(filename).toLowerCase()] ?? "application/octet-stream"
+    }[path.extname(filename).toLowerCase()] ??
+    detectMediaFileType(filename)?.mimeType ??
+    "application/octet-stream"
   )
 }
 
@@ -713,7 +718,8 @@ export async function resolveEidosFileAttachment(
   spaceRoot: string,
   eidosRelativePath: string,
   entry: FileEntry,
-  purpose: "thumbnail" | "preview" | "download"
+  purpose: "thumbnail" | "preview" | "download",
+  thumbnailProvider?: FileThumbnailProvider
 ): Promise<ResolvedEidosFileAsset> {
   const eidosPath = resolveSpacePath(spaceRoot, eidosRelativePath)
   const eidosStats = await fs.lstat(eidosPath)
@@ -741,8 +747,10 @@ export async function resolveEidosFileAttachment(
   const stats = await fs.stat(absolutePath)
   if (!stats.isFile()) throw new Error("Attachment is not an ordinary file")
   const declaredSize = Number(entry.size)
+  const nativeThumbnail =
+    purpose === "thumbnail" && thumbnailProvider !== undefined
   const maximum =
-    purpose === "preview"
+    purpose === "preview" || nativeThumbnail
       ? Number.MAX_SAFE_INTEGER
       : purpose === "download"
         ? EIDOS_LITE_ASSET_BYTES_MAX
@@ -763,7 +771,38 @@ export async function resolveEidosFileAttachment(
     size: stats.size,
     modifiedAtMs: stats.mtimeMs,
   }
-  if (purpose !== "thumbnail") return { kind: "local", absolutePath, identity }
+  if (
+    purpose !== "thumbnail" &&
+    !(
+      purpose === "preview" &&
+      SAFE_RASTER_MEDIA_TYPES.has(entry.mediaType.toLowerCase()) &&
+      stats.size <= EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX
+    )
+  ) {
+    return { kind: "local", absolutePath, identity }
+  }
+  if (nativeThumbnail && thumbnailProvider) {
+    const bytes = await thumbnailProvider(absolutePath, identity)
+    await assertNoSymlinkPath(
+      spaceCatalog ? spaceRoot : sourceRoot,
+      absolutePath
+    )
+    const latest = await fs.stat(absolutePath)
+    if (
+      latest.dev !== identity.device ||
+      latest.ino !== identity.inode ||
+      latest.size !== identity.size ||
+      latest.mtimeMs !== identity.modifiedAtMs
+    )
+      throw new Error("Attachment changed while its thumbnail was generated")
+    return {
+      kind: "local",
+      absolutePath,
+      identity,
+      bytes,
+      bytesMediaType: "image/png",
+    }
+  }
   if (!SAFE_RASTER_MEDIA_TYPES.has(entry.mediaType.toLowerCase())) {
     throw new Error("Only safe raster images can be used as thumbnails")
   }
@@ -790,8 +829,11 @@ export async function resolveEidosFileAttachment(
   } finally {
     await handle.close()
   }
-  if (detectRasterMediaType(bytes) !== entry.mediaType.toLowerCase()) {
-    throw new Error("Attachment bytes do not match the declared image type")
+  const bytesMediaType = detectRasterMediaType(bytes)
+  if (!bytesMediaType) {
+    throw new Error("Attachment bytes are not a supported raster image")
   }
-  return { kind: "local", absolutePath, identity, bytes }
+  // Folder metadata is extension-based; a .jpg can contain a valid PNG.
+  // Preserve canonical metadata while presenting only a recognized raster type.
+  return { kind: "local", absolutePath, identity, bytes, bytesMediaType }
 }

@@ -23,6 +23,7 @@ export interface EidosFileRecordCardFieldLayout {
 }
 
 export interface EidosFileRecordCardLayout {
+  coverOnly?: boolean
   fields: EidosFileRecordCardFieldLayout[]
   coverField: EidosFileFieldInfo | null
   fieldLimit: number
@@ -104,6 +105,8 @@ export function createEidosFileRecordCardLayout(
     : defaultCardFields
   const coverFit = view.properties?.coverFit
   return {
+    coverOnly:
+      view.type === "gallery" && view.properties?.cardDisplay === "cover-only",
     fields: cardFields.map((field) => {
       const options =
         field.type === "select" || field.type === "multi-select"
@@ -130,7 +133,10 @@ export function createEidosFileRecordCardLayout(
         : 6,
     fitContent:
       coverFit === "contain" ||
-      (coverFit !== "cover" && view.properties?.fitContent === true),
+      (coverFit !== "cover" &&
+        (typeof view.properties?.fitContent === "boolean"
+          ? view.properties.fitContent
+          : view.type === "gallery")),
     hideEmptyFields: view.properties?.hideEmptyFields !== false,
   }
 }
@@ -156,9 +162,11 @@ export function eidosFileRecordCardPageProjection(
     )
     if (groupField) preservedColumns.add(groupField.tableColumnName)
   }
-  const candidateFields = layout.hideEmptyFields
-    ? layout.fields
-    : layout.fields.slice(0, layout.fieldLimit)
+  const candidateFields = layout.coverOnly
+    ? []
+    : layout.hideEmptyFields
+      ? layout.fields
+      : layout.fields.slice(0, layout.fieldLimit)
   return {
     columns: candidateFields
       .map(({ field }) => field.tableColumnName)

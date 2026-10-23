@@ -12,7 +12,10 @@ import {
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
-import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
+import {
+  isEidosFileRecordCoverField,
+  createEidosFileRecordCardLayout,
+} from "./eidos-file-record-card-layout"
 import { eidosFileCalendarDateFields } from "./eidos-file-calendar-view"
 
 export function MobileLayoutChoice({
@@ -214,6 +217,29 @@ export function MobileViewLayout({
           )}
           {(view.type === "gallery" || view.type === "kanban") && (
             <>
+              {view.type === "gallery" ? (
+                <section className="mobile-setting-list">
+                  <label className="mobile-setting-row">
+                    <span>{t("Cover only")}</span>
+                    <Switch
+                      aria-label={t("Cover only")}
+                      checked={p.cardDisplay === "cover-only"}
+                      disabled={busy}
+                      onCheckedChange={(coverOnly) => {
+                        const firstCover = visible.find(
+                          isEidosFileRecordCoverField
+                        )
+                        void update({
+                          cardDisplay: coverOnly ? "cover-only" : "standard",
+                          ...(coverOnly && !p.coverField && firstCover
+                            ? { coverField: eidosFileFieldKey(firstCover) }
+                            : {}),
+                        }).catch(() => {})
+                      }}
+                    />
+                  </label>
+                </section>
+              ) : null}
               <h3>{t("Card appearance")}</h3>
               <section className="mobile-setting-list">
                 {select(t("Cover field"), "coverField", "__none__", [
@@ -224,7 +250,10 @@ export function MobileViewLayout({
                   ? select(
                       t("Image display"),
                       "coverFit",
-                      p.fitContent === true ? "contain" : "cover",
+                      createEidosFileRecordCardLayout(table.fields, view)
+                        .fitContent
+                        ? "contain"
+                        : "cover",
                       [
                         { value: "cover", label: t("Crop to fill") },
                         { value: "contain", label: t("Fit") },

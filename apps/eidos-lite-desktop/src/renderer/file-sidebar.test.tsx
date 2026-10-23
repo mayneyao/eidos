@@ -122,6 +122,44 @@ const render = async (changes: Partial<typeof props> = {}) => {
   await act(async () => root.render(<FileSidebar {...props} />))
 }
 
+it("keeps media metadata beside the title and opens its file context menu", async () => {
+  const onTitleContextMenu = vi.fn()
+  await render({ onTitleContextMenu })
+  const title = container.querySelector<HTMLButtonElement>(
+    ".file-sidebar-title"
+  )!
+  expect(title.textContent).toContain("a.png")
+  expect(title.textContent).toContain("Image")
+  expect(title.textContent).toContain("12 B")
+  expect(container.querySelector(".media-file-preview header")).toBeNull()
+  await act(async () =>
+    title.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 20,
+      })
+    )
+  )
+  expect(onTitleContextMenu).toHaveBeenLastCalledWith("a.png", 120, 20)
+  await render({ relativePath: "b.png" })
+  const nextTitle = container.querySelector<HTMLButtonElement>(
+    ".file-sidebar-title"
+  )!
+  await act(async () =>
+    nextTitle.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "F10",
+        shiftKey: true,
+      })
+    )
+  )
+  expect(onTitleContextMenu).toHaveBeenLastCalledWith("b.png", 0, 0)
+})
+
 it("uses the configured File View and supplies the existing draft", async () => {
   textDraftLifecycle.update("review.md", { content: "unsaved", revision: "v1" })
   openPlugin.mockResolvedValue(plugin("configured"))

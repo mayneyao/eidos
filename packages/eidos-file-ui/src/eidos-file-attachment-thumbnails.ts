@@ -5,7 +5,9 @@ import {
   assertEidosFileAssetLease,
   eidosFileAssetRequestContext,
   eidosFileAssetResolutionAllowed,
+  eidosFileHasThumbnail,
   releaseEidosFileAssetLease,
+  resolveEidosFileThumbnail,
 } from "./eidos-file-asset-lease"
 import { eidosFileCanvasImageSourceDimensions } from "./eidos-file-url-image-source-cache"
 
@@ -23,6 +25,7 @@ interface ThumbnailRecord {
     ReturnType<EidosFileUIAssetSession["services"]["resolveAsset"]>
   >
   loadAttempts: number
+  failedAt?: number
   source?: CanvasImageSource
   state: "queued" | "loading" | "ready" | "failed"
 }
@@ -111,7 +114,7 @@ export class EidosFileAttachmentThumbnailManager {
     const key = cellKey(column, row)
     const eligible = entries.filter(
       (entry) =>
-        entry.mediaType.toLowerCase().startsWith("image/") &&
+        eidosFileHasThumbnail(entry) &&
         this.presenter?.loadImage !== undefined &&
         eidosFileAssetResolutionAllowed(this.session, entry, "thumbnail")
     )
@@ -121,6 +124,26 @@ export class EidosFileAttachmentThumbnailManager {
     const sources: CanvasImageSource[] = []
     for (const entry of eligible) {
       let record = this.records.get(entry.id)
+      if (
+        record &&
+        (record.entry.uri !== entry.uri ||
+          record.entry.mediaType !== entry.mediaType ||
+          record.entry.size !== entry.size ||
+          record.entry.name !== entry.name)
+      ) {
+        this.dispose(record)
+        this.records.delete(entry.id)
+        record = undefined
+      }
+      if (
+        record?.state === "failed" &&
+        Date.now() - (record.failedAt ?? 0) >= 30_000
+      ) {
+        record.state = "queued"
+        record.loadAttempts = 0
+        record.failedAt = undefined
+        this.loadQueue.push(record)
+      }
       if (!record) {
         record = {
           active: true,
@@ -171,8 +194,7 @@ export class EidosFileAttachmentThumbnailManager {
       .filter(
         (record) =>
           record.cells.size === 0 &&
-          record.state === "ready" &&
-          record.source !== undefined
+          (record.state === "ready" || record.state === "failed")
       )
       .sort((left, right) => left.lastAccess - right.lastAccess)
     let entries = cached.length
@@ -226,9 +248,9 @@ export class EidosFileAttachmentThumbnailManager {
       const record = this.records.get(entryId)
       record?.cells.delete(key)
       if (record && record.cells.size === 0) {
-        if (record.state === "ready" && record.source) {
+        if (record.state === "ready" || record.state === "failed") {
           this.pruneCache()
-        } else {
+        } else if (record.state !== "loading") {
           this.records.delete(entryId)
           this.dispose(record)
         }
@@ -242,12 +264,10 @@ export class EidosFileAttachmentThumbnailManager {
     if (!this.session || !this.presenter?.loadImage) return
     let lease: ThumbnailRecord["lease"]
     try {
-      lease = await this.session.services.resolveAsset(
-        {
-          sessionId: this.session.state.sessionId,
-          entryId: record.entry.id,
-          purpose: "thumbnail",
-        },
+      lease = await resolveEidosFileThumbnail(
+        this.session,
+        record.entry.id,
+        128,
         eidosFileAssetRequestContext("asset-grid-thumbnail")
       )
       assertEidosFileAssetLease(this.session, record.entry, "thumbnail", lease)
@@ -273,6 +293,7 @@ export class EidosFileAttachmentThumbnailManager {
       await releaseEidosFileAssetLease(this.session, lease)
       this.touch(record)
       this.onCellsReady([...record.cells].map(cellFromKey))
+      this.pruneCache()
     } catch {
       if (lease) {
         await releaseEidosFileAssetLease(this.session, lease)
@@ -289,6 +310,8 @@ export class EidosFileAttachmentThumbnailManager {
         this.loadQueue.push(record)
       } else {
         record.state = "failed"
+        record.failedAt = Date.now()
+        this.pruneCache()
       }
     }
   }

@@ -9,6 +9,7 @@ import {
   type MediaFileKind,
 } from "../../shared/contracts"
 import { resolveSpacePath } from "./space-paths"
+import type { EidosFileAssetIdentity } from "./eidos-file-attachments"
 
 interface MediaFileType {
   mediaKind: MediaFileKind
@@ -48,6 +49,8 @@ interface MediaPreviewTicket {
   root: string
   relativePath: string
   mimeType: string
+  authorize?: () => boolean
+  identity?: EidosFileAssetIdentity
 }
 
 const MEDIA_PREVIEW_HOST = "preview"
@@ -60,10 +63,11 @@ const mediaPreviewTickets = new Map<string, MediaPreviewTicket>()
 export function issueMediaPreviewUrl(
   root: string,
   relativePath: string,
-  mimeType: string
+  mimeType: string,
+  options: Pick<MediaPreviewTicket, "authorize" | "identity"> = {}
 ): string {
   const token = randomUUID()
-  mediaPreviewTickets.set(token, { root, relativePath, mimeType })
+  mediaPreviewTickets.set(token, { root, relativePath, mimeType, ...options })
   while (mediaPreviewTickets.size > MEDIA_PREVIEW_TICKETS_MAX) {
     const oldest = mediaPreviewTickets.keys().next().value
     if (oldest === undefined) break
@@ -112,7 +116,7 @@ export async function serveMediaPreview(
   headers: Headers
 ): Promise<Response> {
   const ticket = resolveMediaPreviewUrl(url)
-  if (!ticket)
+  if (!ticket || (ticket.authorize && !ticket.authorize()))
     return new Response("Unknown media preview", {
       status: 404,
       headers: MEDIA_PREVIEW_CORS_HEADERS,
@@ -126,6 +130,14 @@ export async function serveMediaPreview(
   }
 
   const stats = await fs.stat(candidate)
+  if (
+    ticket.identity &&
+    (stats.dev !== ticket.identity.device ||
+      stats.ino !== ticket.identity.inode ||
+      stats.size !== ticket.identity.size ||
+      stats.mtimeMs !== ticket.identity.modifiedAtMs)
+  )
+    return new Response("Media file changed", { status: 409 })
   const range = /^bytes=(\d+)-(\d*)$/u.exec(headers.get("range") ?? "")
   if (range) {
     const start = Number(range[1])

@@ -7,9 +7,15 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
-import { type AssetLease, type FileEntry } from "@eidos.space/eidos-file"
+import {
+  eidosFileUriClass,
+  type AssetLease,
+  type FileEntry,
+} from "@eidos.space/eidos-file"
 import {
   Archive,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
@@ -19,16 +25,19 @@ import {
   FileVideo,
   Image,
   LoaderCircle,
+  Play,
   X,
 } from "lucide-react"
 
-import { useEidosFileUI } from "./context"
+import { useEidosFileUI, type EidosFileThumbnailSize } from "./context"
 import {
   activateEidosFileAsset,
   assertEidosFileAssetLease,
   eidosFileAssetRequestContext,
   eidosFileAssetResolutionAllowed,
+  eidosFileHasThumbnail,
   releaseEidosFileAssetLease,
+  resolveEidosFileThumbnail,
 } from "./eidos-file-asset-lease"
 import {
   sharedEidosFileAttachmentSourceCache,
@@ -45,16 +54,22 @@ import {
   DialogTitle,
 } from "./ui/dialog"
 
-function useThumbnailLease(entry: FileEntry): {
+function useThumbnailLease(
+  entry: FileEntry,
+  purpose: "thumbnail" | "preview" = "thumbnail",
+  requested = true,
+  size: EidosFileThumbnailSize = 128
+): {
   lease: AssetLease | null
   pending: boolean
   error: string | null
 } {
   const { assetPresenter, assetSession } = useEidosFileUI()
   const enabled =
-    entry.mediaType.toLowerCase().startsWith("image/") &&
+    requested &&
+    eidosFileHasThumbnail(entry) &&
     assetPresenter !== undefined &&
-    eidosFileAssetResolutionAllowed(assetSession, entry, "thumbnail")
+    eidosFileAssetResolutionAllowed(assetSession, entry, purpose)
   const [state, setState] = useState<{
     lease: AssetLease | null
     pending: boolean
@@ -76,17 +91,25 @@ function useThumbnailLease(entry: FileEntry): {
       void releaseEidosFileAssetLease(assetSession, heldLease)
     }
     setState({ lease: null, pending: true, error: null })
-    void assetSession.services
-      .resolveAsset(
-        {
-          sessionId: assetSession.state.sessionId,
-          entryId: entry.id,
-          purpose: "thumbnail",
-        },
-        eidosFileAssetRequestContext("asset-thumbnail")
-      )
+    const resolution =
+      purpose === "thumbnail"
+        ? resolveEidosFileThumbnail(
+            assetSession,
+            entry.id,
+            size,
+            eidosFileAssetRequestContext("asset-thumbnail")
+          )
+        : assetSession.services.resolveAsset(
+            {
+              sessionId: assetSession.state.sessionId,
+              entryId: entry.id,
+              purpose,
+            },
+            eidosFileAssetRequestContext("asset-thumbnail")
+          )
+    void resolution
       .then((lease) => {
-        assertEidosFileAssetLease(assetSession, entry, "thumbnail", lease)
+        assertEidosFileAssetLease(assetSession, entry, purpose, lease)
         heldLease = lease
         if (!active) {
           release()
@@ -131,6 +154,8 @@ function useThumbnailLease(entry: FileEntry): {
     entry.name,
     entry.size,
     entry.uri,
+    purpose,
+    size,
   ])
 
   return state
@@ -189,6 +214,9 @@ function EidosFileEntryPreviewDialog({
   activating,
   activationError,
   onActivate,
+  onPrevious,
+  onNext,
+  stableViewport = false,
 }: {
   entry: FileEntry
   open: boolean
@@ -203,48 +231,137 @@ function EidosFileEntryPreviewDialog({
   activating: "open" | "download" | null
   activationError: string | null
   onActivate: (action: "open" | "download") => void
+  onPrevious?: () => void
+  onNext?: () => void
+  stableViewport?: boolean
 }) {
   const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
   const isImage = entry.mediaType.toLowerCase().startsWith("image/")
+  const isVideo = entry.mediaType.toLowerCase().startsWith("video/")
+  const [playingEntryId, setPlayingEntryId] = useState<string | null>(null)
+  const playing = playingEntryId === entry.id
+  const setPlaying = (value: boolean) =>
+    setPlayingEntryId(value ? entry.id : null)
+  const [playbackError, setPlaybackError] = useState(false)
+  useEffect(() => {
+    setPlaying(false)
+    setPlaybackError(false)
+  }, [open, entry.id, entry.uri])
+  const poster = useThumbnailLease(
+    entry,
+    "thumbnail",
+    open && (!isImage || eidosFileUriClass(entry.uri) === "relative"),
+    1024
+  )
+  const playback = useThumbnailLease(
+    entry,
+    "preview",
+    open && isVideo && playing
+  )
+  useEffect(() => {
+    if (playback.error) {
+      setPlaybackError(true)
+      setPlaying(false)
+    }
+  }, [playback.error])
+  const fullImage = useThumbnailLease(entry, "preview", open && isImage)
   const [copyState, setCopyState] = useState<
     "idle" | "copying" | "copied" | "error"
   >("idle")
   useEffect(() => {
     setCopyState("idle")
   }, [entry.id, open])
-  const canCopyImage =
-    isImage && thumbnail.lease !== null && Boolean(assetPresenter?.copyImage)
   const copyImage = useCallback(() => {
-    if (!thumbnail.lease || !assetPresenter?.copyImage || !assetSession) return
+    if (!fullImage.lease || !assetPresenter?.copyImage || !assetSession) return
     setCopyState("copying")
     void assetPresenter
       .copyImage({
         sessionId: assetSession.state.sessionId,
-        lease: thumbnail.lease,
+        lease: fullImage.lease,
         altText: entry.name,
       })
       .then(() => setCopyState("copied"))
       .catch(() => setCopyState("error"))
-  }, [assetPresenter, assetSession, entry.name, thumbnail.lease])
+  }, [assetPresenter, assetSession, entry.name, fullImage.lease])
   let image: ReactNode = null
-  if (isImage && thumbnail.lease && assetPresenter && assetSession) {
+  let originalImagePresented = false
+  if (assetPresenter && assetSession) {
+    for (const lease of [fullImage.lease, poster.lease, thumbnail.lease]) {
+      if (!lease || lease.entryId !== entry.id) continue
+      try {
+        image = assetPresenter.renderImage({
+          sessionId: assetSession.state.sessionId,
+          lease,
+          altText: entry.name,
+        })
+        if (image) {
+          originalImagePresented = lease === fullImage.lease
+          break
+        }
+      } catch {
+        // A Host may provide a system thumbnail without an embeddable original.
+      }
+    }
+  }
+  const canCopyImage =
+    isImage && originalImagePresented && Boolean(assetPresenter?.copyImage)
+  let player: ReactNode = null
+  if (
+    playing &&
+    playback.lease &&
+    playback.lease.entryId === entry.id &&
+    assetPresenter?.renderVideo &&
+    assetSession &&
+    !playbackError
+  ) {
     try {
-      image = assetPresenter.renderImage({
+      player = assetPresenter.renderVideo({
         sessionId: assetSession.state.sessionId,
-        lease: thumbnail.lease,
+        lease: playback.lease,
         altText: entry.name,
+        onError: () => {
+          setPlaybackError(true)
+          setPlaying(false)
+        },
       })
     } catch {
-      image = null
+      player = null
     }
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+        className={cn(
+          "flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0",
+          stableViewport && "h-[min(80dvh,48rem)] w-[calc(100vw-2rem)]"
+        )}
         data-eidos-file-attachment-preview=""
       >
         <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+          {stableViewport || onPrevious || onNext ? (
+            <div className="flex shrink-0 gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={t("Previous file")}
+                disabled={!onPrevious}
+                onClick={onPrevious}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={t("Next file")}
+                disabled={!onNext}
+                onClick={onNext}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
           <EidosFileMediaIcon
             mediaType={entry.mediaType}
             className="h-4 w-4 shrink-0 text-muted-foreground"
@@ -269,9 +386,65 @@ function EidosFileEntryPreviewDialog({
             </Button>
           </DialogClose>
         </div>
-        <div className="flex min-h-0 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-h-[min(70dvh,calc(100dvh-9rem))] [&_img]:max-w-full [&_img]:object-contain">
-          {image ??
-            (thumbnail.pending && isImage ? (
+        <div
+          className={cn(
+            "flex min-h-0 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-w-full [&_img]:object-contain",
+            stableViewport
+              ? "flex-1 overflow-hidden [&_img]:max-h-full [&_video]:max-h-full [&_video]:max-w-full [&_video]:object-contain"
+              : "[&_img]:max-h-[min(70dvh,calc(100dvh-9rem))]"
+          )}
+          data-eidos-file-preview-viewport
+        >
+          {isVideo ? (
+            <div
+              className={cn(
+                "relative flex w-full items-center justify-center",
+                stableViewport
+                  ? "h-full min-h-0 [&_img]:max-h-full [&_video]:max-h-full"
+                  : "min-h-40"
+              )}
+              data-eidos-file-video-preview=""
+            >
+              {player ?? image ?? (
+                <EidosFileMediaIcon
+                  mediaType={entry.mediaType}
+                  className="h-10 w-10 text-muted-foreground"
+                />
+              )}
+              {!player && canOpen ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="absolute h-14 w-14 rounded-full border border-border bg-background/90 shadow-md"
+                  aria-label={t("Play {file}", { file: entry.name })}
+                  disabled={playing && playback.pending}
+                  onClick={() => {
+                    if (assetPresenter?.renderVideo) {
+                      setPlaybackError(false)
+                      setPlaying(true)
+                    } else onActivate("open")
+                  }}
+                >
+                  {playing && playback.pending ? (
+                    <LoaderCircle className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <Play className="h-6 w-6" />
+                  )}
+                </Button>
+              ) : null}
+              {playbackError || playback.error ? (
+                <span
+                  role="status"
+                  className="absolute bottom-2 rounded bg-background/90 px-2 py-1 text-xs"
+                >
+                  {t("Preview unavailable")}
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            (image ??
+            (thumbnail.pending || poster.pending || fullImage.pending ? (
               <LoaderCircle
                 aria-label={t("Loading preview")}
                 className="h-5 w-5 animate-spin text-muted-foreground"
@@ -292,7 +465,8 @@ function EidosFileEntryPreviewDialog({
                   </span>
                 ) : null}
               </span>
-            ))}
+            )))
+          )}
         </div>
         {canOpen || canDownload || canCopyImage ? (
           <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2">
@@ -369,6 +543,12 @@ export interface EidosFileEntrySurfaceProps {
   className?: string
   compact?: boolean
   showActions?: boolean
+  presentation?: "file" | "cover" | "preview"
+  fitContent?: boolean
+  onPreview?: (entry: FileEntry) => void
+  onPreviewClose?: () => void
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
 const UNAVAILABLE_ATTACHMENT_SOURCE: EidosFileAttachmentSourceSnapshot = {
@@ -430,10 +610,14 @@ function EidosFileDecodedEntryCoverSurface({
   entry,
   fitContent = false,
   className,
+  size = 512,
+  iconOnly = false,
 }: {
   entry: FileEntry
   fitContent?: boolean
   className?: string
+  size?: EidosFileThumbnailSize
+  iconOnly?: boolean
 }) {
   const { assetPresenter, assetSession } = useEidosFileUI()
   const stableEntry = useMemo(
@@ -442,7 +626,8 @@ function EidosFileDecodedEntryCoverSurface({
   )
   const cache = sharedEidosFileAttachmentSourceCache(
     assetSession,
-    assetPresenter
+    assetPresenter,
+    size
   )
   const subscribe = useCallback(
     (listener: () => void) =>
@@ -490,6 +675,8 @@ function EidosFileDecodedEntryCoverSurface({
           aria-label={entry.name}
           className="h-5 w-5 animate-spin"
         />
+      ) : iconOnly ? (
+        <EidosFileMediaIcon mediaType={entry.mediaType} />
       ) : (
         <EidosFileEntryCoverFallback entry={entry} />
       )}
@@ -507,7 +694,7 @@ function EidosFileLeasedEntryCoverSurface({
   className?: string
 }) {
   const { assetPresenter, assetSession } = useEidosFileUI()
-  const thumbnail = useThumbnailLease(entry)
+  const thumbnail = useThumbnailLease(entry, "thumbnail", true, 512)
   let preview: ReactNode = null
   if (thumbnail.lease && assetPresenter && assetSession) {
     try {
@@ -577,12 +764,52 @@ export function EidosFileEntrySurface({
   className,
   compact = false,
   showActions = true,
+  presentation = "file",
+  fitContent = false,
+  onPreview,
+  onPreviewClose,
+  onPrevious,
+  onNext,
 }: EidosFileEntrySurfaceProps) {
   const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
-  const thumbnail = useThumbnailLease(entry)
+  const thumbnail = useThumbnailLease(
+    entry,
+    "thumbnail",
+    presentation === "file" && !assetPresenter?.loadImage
+  )
   const [activationError, setActivationError] = useState<string | null>(null)
   const [activating, setActivating] = useState<"open" | "download" | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(presentation === "preview")
+
+  useEffect(() => {
+    if (!previewOpen || (presentation !== "preview" && !onPrevious && !onNext))
+      return
+    const handle = (event: KeyboardEvent) => {
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            "input, textarea, select, [contenteditable=true], video, audio"
+          ))
+      )
+        return
+      const action =
+        event.key === "ArrowLeft"
+          ? onPrevious
+          : event.key === "ArrowRight"
+            ? onNext
+            : undefined
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      event.preventDefault()
+      event.stopPropagation()
+      action?.()
+    }
+    document.addEventListener("keydown", handle, true)
+    return () => document.removeEventListener("keydown", handle, true)
+  }, [previewOpen, presentation, onPrevious, onNext])
 
   const activate = useCallback(
     async (action: "open" | "download") => {
@@ -632,12 +859,63 @@ export function EidosFileEntrySurface({
   const canDownload =
     assetPresenter !== undefined &&
     eidosFileAssetResolutionAllowed(assetSession, entry, "download")
-  const imagePreviewAllowed =
-    entry.mediaType.toLowerCase().startsWith("image/") &&
+  const thumbnailPreviewAllowed =
+    eidosFileHasThumbnail(entry) &&
     assetPresenter !== undefined &&
     eidosFileAssetResolutionAllowed(assetSession, entry, "thumbnail")
-  const canPreview = imagePreviewAllowed || canOpen || canDownload
-  const assetError = activationError ?? thumbnail.error
+  const canPreview = thumbnailPreviewAllowed || canOpen || canDownload
+  const assetError =
+    activationError ??
+    (entry.mediaType.toLowerCase().startsWith("image/")
+      ? thumbnail.error
+      : null)
+
+  if (presentation === "cover" || presentation === "preview") {
+    return (
+      <>
+        {presentation === "cover" ? (
+          <button
+            type="button"
+            data-eidos-file-entry-cover
+            className={cn(
+              "block aspect-square w-full cursor-pointer overflow-hidden bg-transparent p-0 outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              className
+            )}
+            aria-label={t("Preview {file}", { file: entry.name })}
+            disabled={!canPreview}
+            onClick={() =>
+              onPreview ? onPreview(entry) : setPreviewOpen(true)
+            }
+          >
+            <EidosFileEntryCoverSurface
+              entry={entry}
+              fitContent={fitContent}
+              className="bg-transparent"
+            />
+          </button>
+        ) : null}
+        {previewOpen ? (
+          <EidosFileEntryPreviewDialog
+            entry={entry}
+            open={previewOpen}
+            onOpenChange={(open) => {
+              setPreviewOpen(open)
+              if (!open) onPreviewClose?.()
+            }}
+            thumbnail={thumbnail}
+            canOpen={canOpen}
+            canDownload={canDownload}
+            activating={activating}
+            activationError={activationError}
+            onActivate={(action) => void activate(action)}
+            onPrevious={onPrevious}
+            onNext={onNext}
+            stableViewport={presentation === "preview"}
+          />
+        ) : null}
+      </>
+    )
+  }
 
   const thumbnailBadge = (
     <span
@@ -646,7 +924,15 @@ export function EidosFileEntrySurface({
         compact ? "h-7 w-7" : "h-8 w-8"
       )}
     >
-      {preview ??
+      {assetPresenter?.loadImage ? (
+        <EidosFileDecodedEntryCoverSurface
+          entry={entry}
+          fitContent
+          size={128}
+          iconOnly
+        />
+      ) : (
+        (preview ??
         (thumbnail.pending ? (
           <LoaderCircle
             aria-label={t("Loading preview")}
@@ -654,7 +940,8 @@ export function EidosFileEntrySurface({
           />
         ) : (
           <EidosFileMediaIcon mediaType={entry.mediaType} />
-        ))}
+        )))
+      )}
     </span>
   )
   const identityText = (

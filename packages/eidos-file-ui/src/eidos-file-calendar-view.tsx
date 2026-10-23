@@ -308,6 +308,7 @@ export function EidosFileCalendarView({
   disabled = false,
   reloadToken = 0,
   loadRows,
+  loadPages,
   loadDayTotals,
   loadRow,
   onCellEdit,
@@ -335,6 +336,11 @@ export function EidosFileCalendarView({
     field: EidosFileFieldInfo,
     range: EidosFileCalendarRange
   ) => Promise<Map<string, number> | null>
+  loadPages?: (
+    field: EidosFileFieldInfo,
+    ranges: EidosFileCalendarRange[],
+    limit: number
+  ) => Promise<EidosFileCalendarPage[] | null>
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>
   onOpenRecord?: (row: EidosFileRow) => void
   onCellEdit?: (
@@ -448,6 +454,32 @@ export function EidosFileCalendarView({
     onRowCountChange?.(null)
     try {
       const loaded = new Map<string, EidosFileCalendarDayPage>()
+      const pages = loadPages
+        ? await loadPages(
+            dateField,
+            days.map((day) => {
+              const end = new Date(day)
+              end.setDate(end.getDate() + 1)
+              return { start: new Date(day), end }
+            }),
+            initialDayLimit
+          )
+        : null
+      if (generation !== requestGenerationRef.current) return
+      if (pages) {
+        if (pages.length !== days.length)
+          throw new Error("Calendar batch returned an incomplete set of days")
+        pages.forEach((page, index) =>
+          loaded.set(localDateKey(days[index]!), {
+            ...page,
+            loadingMore: false,
+            loadMoreError: null,
+          })
+        )
+        setDayPages(loaded)
+        onRowCountChange?.(pages.reduce((total, page) => total + page.total, 0))
+        return
+      }
       const totals = loadDayTotals
         ? await loadDayTotals(dateField, range)
         : null
@@ -526,6 +558,7 @@ export function EidosFileCalendarView({
     days,
     initialDayLimit,
     loadDayTotals,
+    loadPages,
     loadRows,
     onRowCountChange,
     range,

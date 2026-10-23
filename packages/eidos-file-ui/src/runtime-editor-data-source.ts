@@ -337,6 +337,68 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
   }
 
+  async getPages(
+    tableId: string,
+    queries: EidosFileRowQuery[],
+    limit: number,
+    projection?: EidosFileRowPageProjection
+  ): Promise<EidosFileRowPage[] | null> {
+    const table = this.assertTable(tableId)
+    // Stored tables retain indexed, independent queries. Virtual sources benefit
+    // from a single scan shared by the batch, without retaining stale file data.
+    if (
+      !this.runtime.queryRowPages ||
+      (table.settings?.tableType !== "virtual" &&
+        typeof table.settings?.vtabModule !== "string")
+    )
+      return null
+    const fields = this.fieldsByTable.get(tableId) ?? []
+    const selected = this.projectionFields(fields, projection)
+    const pages = await this.runtime
+      .queryRowPages(
+        {
+          tableId,
+          queries: queries.map((query) => this.runtimeQuery(tableId, query)),
+          projection: {
+            fields: selected.map((field) => field.id),
+            resolveRelations:
+              projection?.includeRelationDisplays !== false
+                ? selected
+                    .filter((field) => field.kind === "relation")
+                    .map((field) => field.id)
+                : [],
+          },
+          limit,
+        },
+        this.context("row-pages")
+      )
+      .catch((error: unknown) => {
+        if (
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "unsupported"
+        )
+          return null
+        throw error
+      })
+    if (!pages) return null
+    return Promise.all(
+      pages.map(async (page) => ({
+        tableId,
+        offset: 0,
+        limit,
+        total: Number(page.total),
+        rows: await this.editorRows(
+          page,
+          selected,
+          projection?.includeRelationDisplays !== false
+        ),
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      }))
+    )
+  }
+
   async getRecordNeighbors(
     tableId: string,
     rowId: string,

@@ -11,6 +11,11 @@ import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { SparkService } from "./account/spark-service"
 import { accountStorageKey } from "../shared/service-environment"
+import { systemFileThumbnail } from "./space/file-thumbnails"
+import {
+  detectMediaFileType,
+  issueMediaPreviewUrl,
+} from "./space/media-file-preview"
 import {
   resolveEidosLiteLocale,
   translateEidosLite,
@@ -1775,11 +1780,19 @@ export function registerIpc(
       event,
       sessionValue: unknown,
       entryValue: unknown,
-      purposeValue: unknown
+      purposeValue: unknown,
+      thumbnailSizeValue: unknown
     ) => {
       const sessionId = requiredString(sessionValue, "Eidos File session")
       const entryId = requiredString(entryValue, "File entry")
       const purpose = requiredAssetPurpose(purposeValue)
+      const thumbnailSize = thumbnailSizeValue ?? 128
+      if (
+        thumbnailSize !== 128 &&
+        thumbnailSize !== 512 &&
+        thumbnailSize !== 1024
+      )
+        throw new Error("Invalid thumbnail size")
       const activeCount = [
         ...assetLeases.values(),
         ...urlImageLeases.values(),
@@ -1794,7 +1807,15 @@ export function registerIpc(
       }
       const { entry, resolved } = await controller
         .requireSession(event.sender)
-        .resolveEidosFileAsset(sessionId, entryId, purpose)
+        .resolveEidosFileAsset(
+          sessionId,
+          entryId,
+          purpose,
+          systemFileThumbnail
+            ? (absolutePath, identity) =>
+                systemFileThumbnail!(absolutePath, identity, thumbnailSize)
+            : undefined
+        )
       const leaseId = `eidos-lite-asset-${randomUUID()}`
       const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
       const lease: AssetLease = {
@@ -1829,9 +1850,30 @@ export function registerIpc(
             }
       )
       attachAssetLeaseCleanup(event.sender)
+      const mediaUrl =
+        purpose === "preview" &&
+        resolved.kind === "local" &&
+        entry.mediaType.startsWith("video/") &&
+        detectMediaFileType(resolved.absolutePath)?.mediaKind === "video"
+          ? issueMediaPreviewUrl(
+              path.dirname(resolved.absolutePath),
+              path.basename(resolved.absolutePath),
+              entry.mediaType,
+              {
+                identity: resolved.identity,
+                authorize: () =>
+                  assetLeases.get(leaseId)?.lease === lease &&
+                  expiresAtMs > Date.now(),
+              }
+            )
+          : undefined
       return {
         lease,
+        ...(mediaUrl ? { mediaUrl } : {}),
         ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
+        ...(resolved.kind === "local" && resolved.bytesMediaType
+          ? { bytesMediaType: resolved.bytesMediaType }
+          : {}),
       }
     }
   )

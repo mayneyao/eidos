@@ -204,6 +204,7 @@ describe("Adapter 1.0 Transport", () => {
     )
     expect(negotiation.version).toBe("1.0")
     expect("revertMutation" in client).toBe(false)
+    expect("queryRowPages" in client).toBe(false)
     expect("exportCsv" in client).toBe(false)
     expect("importCsv" in client).toBe(false)
 

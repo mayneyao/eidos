@@ -17,6 +17,101 @@ const lease = {
 }
 
 describe("Eidos Lite renderer attachment leases", () => {
+  it("passes thumbnail sizes through IPC and releases inline video resources", async () => {
+    const previewLease = {
+      ...lease,
+      purpose: "preview" as const,
+      mediaType: "video/mp4",
+    }
+    const resolveEidosFileAsset = vi.fn(async (_session, _entry, purpose) =>
+      purpose === "preview"
+        ? {
+            lease: previewLease,
+            mediaUrl: "eidos-space-media://preview/video-ticket",
+          }
+        : { lease, bytes: new Uint8Array([1]), bytesMediaType: "image/png" }
+    )
+    vi.stubGlobal("window", {
+      eidosLite: {
+        resolveEidosFileAsset,
+        releaseEidosFileAsset: vi.fn(async () => undefined),
+      },
+    })
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:poster")
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    const session = createEidosLiteAssetSession("session-1", "file-1")
+    await session.resolveThumbnail!(
+      { sessionId: "session-1", entryId: lease.entryId, size: 512 },
+      { requestId: "cover" }
+    )
+    expect(resolveEidosFileAsset).toHaveBeenCalledWith(
+      "session-1",
+      lease.entryId,
+      "thumbnail",
+      512
+    )
+    await session.services.resolveAsset(
+      { sessionId: "session-1", entryId: lease.entryId, purpose: "preview" },
+      { requestId: "play" }
+    )
+    const request = {
+      sessionId: "session-1",
+      lease: previewLease,
+      altText: "Video",
+      onError: vi.fn(),
+    }
+    const video = eidosLiteAssetPresenter.renderVideo!(request) as {
+      props: { src: string; controls: boolean }
+    }
+    expect(video.props).toMatchObject({
+      src: "eidos-space-media://preview/video-ticket",
+      controls: true,
+    })
+    await session.services.releaseAsset(
+      { sessionId: "session-1", leaseId: lease.leaseId },
+      { requestId: "close" }
+    )
+    expect(() => eidosLiteAssetPresenter.renderVideo!(request)).toThrow(
+      "unavailable"
+    )
+  })
+  it("decodes a PNG video thumbnail while preserving original video lease metadata", async () => {
+    const videoLease = {
+      ...lease,
+      mediaType: "video/mp4",
+      size: "536870912",
+      name: "clip.mp4",
+    }
+    vi.stubGlobal("window", {
+      eidosLite: {
+        resolveEidosFileAsset: vi.fn(async () => ({
+          lease: videoLease,
+          bytes: new Uint8Array([1]),
+          bytesMediaType: "image/png",
+        })),
+        releaseEidosFileAsset: vi.fn(async () => undefined),
+      },
+    })
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:video-thumbnail")
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    const session = createEidosLiteAssetSession("session-1", "file-1")
+    const acquired = await session.services.resolveAsset(
+      {
+        sessionId: "session-1",
+        entryId: videoLease.entryId,
+        purpose: "thumbnail",
+      },
+      { requestId: "thumbnail" }
+    )
+    expect(acquired).toEqual(videoLease)
+    expect((createObjectURL.mock.calls[0]![0] as Blob).type).toBe("image/png")
+    await session.services.releaseAsset(
+      { sessionId: "session-1", leaseId: acquired.leaseId },
+      { requestId: "release" }
+    )
+  })
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()

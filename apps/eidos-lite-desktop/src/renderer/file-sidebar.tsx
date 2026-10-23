@@ -12,7 +12,7 @@ import type { ResolvedAppearance } from "./app-appearance"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
-import { MediaFilePreview } from "./media-file-preview"
+import { MediaFileMetadata, MediaFilePreview } from "./media-file-preview"
 import {
   TextFilePreview,
   prepareTextFilePreview,
@@ -56,6 +56,7 @@ export function FileSidebar(props: {
   ) => Promise<void>
   onDraftChange(path: string, draft: TextFileDraft | null): void
   onOpenFile(path: string): void
+  onTitleContextMenu?(path: string, x: number, y: number): void
   onNavigatePlugin(key: string): void
   onReleaseEidosFile(sessionId: string): Promise<void>
   onChanged(): void
@@ -190,7 +191,36 @@ export function FileSidebar(props: {
       aria-busy={loading}
     >
       <header>
-        <strong title={titlePath}>{titlePath.split("/").at(-1)}</strong>
+        <button
+          type="button"
+          className="file-sidebar-title"
+          title={titlePath}
+          disabled={loading || props.disabled}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            if (!loading && !props.disabled)
+              props.onTitleContextMenu?.(
+                titlePath,
+                event.clientX,
+                event.clientY
+              )
+          }}
+          onKeyDown={(event) => {
+            if (
+              event.key === "ContextMenu" ||
+              (event.shiftKey && event.key === "F10")
+            ) {
+              event.preventDefault()
+              const rect = event.currentTarget.getBoundingClientRect()
+              props.onTitleContextMenu?.(titlePath, rect.left, rect.bottom)
+            }
+          }}
+        >
+          <strong>{titlePath.split("/").at(-1)}</strong>
+          {model?.type === "file" && model.preview.type === "media" ? (
+            <MediaFileMetadata preview={model.preview} />
+          ) : null}
+        </button>
         <button
           type="button"
           className="icon-button"
@@ -311,11 +341,7 @@ export function FileSidebar(props: {
           </Suspense>
         ) : model?.type === "file" ? (
           model.preview.type === "media" ? (
-            <MediaFilePreview
-              preview={model.preview}
-              platform={props.platform}
-              onReveal={() => void window.eidosLite.revealPath(model.path)}
-            />
+            <MediaFilePreview preview={model.preview} />
           ) : (
             <TextFilePreview
               preview={model.preview}

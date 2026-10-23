@@ -217,6 +217,12 @@ interface EidosFileEntrySurfaceProps {
   className?: string;
   compact?: boolean;
   showActions?: boolean;
+  presentation?: "file" | "cover" | "preview";
+  fitContent?: boolean;
+  onPreview?: (entry: FileEntry) => void;
+  onPreviewClose?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 declare function EidosFileEntryCoverSurface({
   entry,
@@ -235,7 +241,13 @@ declare function EidosFileEntrySurface({
   entry,
   className,
   compact,
-  showActions
+  showActions,
+  presentation,
+  fitContent,
+  onPreview,
+  onPreviewClose,
+  onPrevious,
+  onNext
 }: EidosFileEntrySurfaceProps): _$react_jsx_runtime0.JSX.Element;
 //#endregion
 //#region src/eidos-file-grid.d.ts
@@ -773,6 +785,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   initialize(): Promise<EidosFileSnapshot>;
   getSnapshot(): Promise<EidosFileSnapshot>;
   getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
+  getPages(tableId: string, queries: EidosFileRowQuery[], limit: number, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage[] | null>;
   getRecordNeighbors(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
   getRowIndex(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
   getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
@@ -1144,6 +1157,7 @@ declare function EidosFileCalendarView({
   disabled,
   reloadToken,
   loadRows,
+  loadPages,
   loadDayTotals,
   loadRow,
   onCellEdit,
@@ -1164,6 +1178,7 @@ declare function EidosFileCalendarView({
   reloadToken?: number;
   loadRows: (field: EidosFileFieldInfo, range: EidosFileCalendarRange, request: EidosFileCalendarPageRequest) => Promise<EidosFileCalendarPage>;
   loadDayTotals?: (field: EidosFileFieldInfo, range: EidosFileCalendarRange) => Promise<Map<string, number> | null>;
+  loadPages?: (field: EidosFileFieldInfo, ranges: EidosFileCalendarRange[], limit: number) => Promise<EidosFileCalendarPage[] | null>;
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;
   onOpenRecord?: (row: EidosFileRow) => void;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
@@ -1730,7 +1745,7 @@ export { EidosFileFilterPopover, EidosFileQueryToolbar, EidosFileSortPopover };
 
 ```ts
 import { n as EidosFileRecordCardLayout } from "./eidos-file-record-card-layout-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo } from "@eidos.space/eidos-file";
+import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { AriaRole } from "react";
 
@@ -1744,6 +1759,7 @@ declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
   fixedHeight?: number;
   cardWidth?: number;
   onOpen: (row: EidosFileRow) => void;
+  onPreviewFile?: (row: EidosFileRow, entry: FileEntry) => void;
   onDelete?: (row: EidosFileRow) => void;
   moveOptions?: Array<{
     id: string;

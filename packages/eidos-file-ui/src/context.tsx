@@ -17,9 +17,17 @@ import {
 
 export type EidosFileUIThemeName = "light" | "dark"
 export type EidosFileImagePresentationLease = AssetLease | UrlImageLease
+export type EidosFileThumbnailSize = 128 | 512 | 1024
 
 /** Framework-native consumer of a Host-scoped asset lease. */
 export interface AssetPresenter<Surface> {
+  /** Optional inline player. Media is loaded only after an explicit play action. */
+  renderVideo?(request: {
+    sessionId: string
+    lease: AssetLease
+    altText: string
+    onError(): void
+  }): Surface
   renderImage(request: {
     sessionId: string
     lease: EidosFileImagePresentationLease
@@ -51,6 +59,17 @@ export interface AssetPresenter<Surface> {
 export interface EidosFileUIAssetSession {
   /** Host limit for opening local references without loading their bytes. */
   localAssetOpenBytesMax?: string
+  /** Host source-file limit for generating bounded local thumbnails. */
+  localAssetThumbnailBytesMax?: string
+  /** Optional size-aware thumbnail provider; other Hosts use resolveAsset. */
+  resolveThumbnail?(
+    request: {
+      sessionId: string
+      entryId: string
+      size: EidosFileThumbnailSize
+    },
+    context: RequestContext
+  ): Promise<AssetLease>
   services: HostServices
   serviceCapabilities: HostServiceCapabilities
   state: HostSessionState

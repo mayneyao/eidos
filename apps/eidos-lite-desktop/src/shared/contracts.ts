@@ -1484,9 +1484,14 @@ export interface EidosLiteCsvOperationProgress {
   updatedAt: number
 }
 
+export type EidosLiteThumbnailSize = 128 | 512 | 1024
+
 export interface EidosLiteAssetResolution {
   lease: AssetLease
   bytes?: Uint8Array
+  /** Verified image encoding; the lease retains canonical metadata. */
+  bytesMediaType?: string
+  mediaUrl?: string
 }
 
 export interface EidosLiteUrlImageResolution {
@@ -1576,6 +1581,7 @@ export const RUNTIME_READ_METHODS = [
   "allocateFileEntry",
   "findFileEntry",
   "getPage",
+  "getPages",
   "getRow",
   "getRowIndex",
   "getRecordNeighbors",
@@ -1973,7 +1979,8 @@ export interface EidosLiteApi extends PluginApi {
   resolveEidosFileAsset(
     sessionId: string,
     entryId: string,
-    purpose: AssetLease["purpose"]
+    purpose: AssetLease["purpose"],
+    thumbnailSize?: EidosLiteThumbnailSize
   ): Promise<EidosLiteAssetResolution>
   resolveEidosFileUrlImage(
     sessionId: string,

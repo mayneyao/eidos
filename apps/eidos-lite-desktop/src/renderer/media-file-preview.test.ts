@@ -4,7 +4,7 @@ import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
 import type { TextFilePreviewResult } from "../shared/contracts"
-import { MediaFilePreview } from "./media-file-preview"
+import { MediaFileMetadata, MediaFilePreview } from "./media-file-preview"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -37,17 +37,14 @@ describe("MediaFilePreview", () => {
     host.remove()
   })
 
-  async function render(preview: MediaPreview, onReveal = vi.fn()) {
+  async function render(preview: MediaPreview) {
     await act(async () => {
       root.render(
         createElement(MediaFilePreview, {
           preview,
-          platform: "darwin",
-          onReveal,
         })
       )
     })
-    return onReveal
   }
 
   it("renders browser-native surfaces for each media kind", async () => {
@@ -65,8 +62,6 @@ describe("MediaFilePreview", () => {
       root.render(
         createElement(MediaFilePreview, {
           preview: mediaPreview("video"),
-          platform: "darwin",
-          onReveal: vi.fn(),
         })
       )
     })
@@ -79,8 +74,6 @@ describe("MediaFilePreview", () => {
       root.render(
         createElement(MediaFilePreview, {
           preview: mediaPreview("audio"),
-          platform: "darwin",
-          onReveal: vi.fn(),
         })
       )
     })
@@ -90,40 +83,30 @@ describe("MediaFilePreview", () => {
     expect(host.querySelector("audio")?.hasAttribute("controls")).toBe(true)
   })
 
-  it("reveals the file in Finder from the meta bar", async () => {
-    const onReveal = await render(mediaPreview("image"))
-    const button = Array.from(host.querySelectorAll("button")).find((item) =>
-      item.textContent?.includes("Reveal in Finder")
-    )
-    expect(button).toBeDefined()
-    await act(async () => {
-      button?.click()
-    })
-    expect(onReveal).toHaveBeenCalledTimes(1)
-  })
-
-  it("uses File Explorer copy on Windows", async () => {
-    await act(async () => {
-      root.render(
-        createElement(MediaFilePreview, {
-          preview: mediaPreview("image"),
-          platform: "win32",
-          onReveal: vi.fn(),
-        })
-      )
-    })
-    expect(host.textContent).toContain("Show in File Explorer")
-    expect(host.textContent).not.toContain("Finder")
+  it("leaves the preview stage free of a metadata toolbar", async () => {
+    await render(mediaPreview("image"))
+    expect(host.querySelector("header")).toBeNull()
+    expect(host.querySelector("button")).toBeNull()
   })
 
   it("labels the preview with its kind and path", async () => {
     await render(mediaPreview("audio"))
-    expect(host.textContent).toContain("Audio")
-    expect(host.textContent).toContain("41.0 KB")
     expect(
       host
         .querySelector("[data-media-file-preview]")
         ?.getAttribute("aria-label")
     ).toContain("assets/sample.mp3")
+  })
+
+  it("provides compact metadata for the title", async () => {
+    await act(async () =>
+      root.render(
+        createElement(MediaFileMetadata, {
+          preview: mediaPreview("audio"),
+        })
+      )
+    )
+    expect(host.textContent).toContain("Audio")
+    expect(host.textContent).toContain("41.0 KB")
   })
 })

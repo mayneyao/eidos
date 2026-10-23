@@ -53,7 +53,10 @@ import {
   Switch,
 } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
-import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
+import {
+  isEidosFileRecordCoverField,
+  createEidosFileRecordCardLayout,
+} from "./eidos-file-record-card-layout"
 import {
   eidosFileCalendarDateFields,
   eidosFileCalendarLayout,
@@ -1145,6 +1148,26 @@ export function EidosFileViewSelector({
                 ) : null}
               </div>
             ) : null}
+            {managedView.type === "gallery" ? (
+              <label className="mt-3 flex h-8 items-center justify-between gap-3 rounded-md border border-border/70 px-2 text-xs">
+                <span className="font-medium">{t("Cover only")}</span>
+                <Switch
+                  aria-label={t("Cover only")}
+                  checked={managedView.properties?.cardDisplay === "cover-only"}
+                  disabled={busy}
+                  onCheckedChange={(coverOnly) =>
+                    updateProperties({
+                      cardDisplay: coverOnly ? "cover-only" : "standard",
+                      ...(coverOnly &&
+                      !managedView.properties?.coverField &&
+                      coverFields[0]
+                        ? { coverField: eidosFileFieldKey(coverFields[0]) }
+                        : {}),
+                    })
+                  }
+                />
+              </label>
+            ) : null}
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <button
                 type="button"
@@ -1354,9 +1377,8 @@ export function EidosFileViewSelector({
                     id={fitImageId}
                     aria-label={t("Fit image")}
                     checked={
-                      managedView.properties?.coverFit === "contain" ||
-                      (managedView.properties?.coverFit !== "cover" &&
-                        managedView.properties?.fitContent === true)
+                      createEidosFileRecordCardLayout(fields, managedView)
+                        .fitContent
                     }
                     disabled={busy}
                     onCheckedChange={(fitImage) =>

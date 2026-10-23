@@ -91,23 +91,23 @@ function drawAttachmentThumbnails(
   for (const source of visible) {
     const dimensions = imageDimensions(source)
     if (!dimensions) continue
-    const sourceSize = Math.min(dimensions.width, dimensions.height)
-    const sourceX = (dimensions.width - sourceSize) / 2
-    const sourceY = (dimensions.height - sourceSize) / 2
+    const scale = Math.min(size / dimensions.width, size / dimensions.height)
+    const width = dimensions.width * scale
+    const height = dimensions.height * scale
     ctx.save()
     ctx.beginPath()
     ctx.roundRect(drawX, rect.y + padding, size, size, 4)
     ctx.clip()
     ctx.drawImage(
       source,
-      sourceX,
-      sourceY,
-      sourceSize,
-      sourceSize,
-      drawX,
-      rect.y + padding,
-      size,
-      size
+      0,
+      0,
+      dimensions.width,
+      dimensions.height,
+      drawX + (size - width) / 2,
+      rect.y + padding + (size - height) / 2,
+      width,
+      height
     )
     ctx.restore()
     drawX += size + 4

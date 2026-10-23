@@ -154,19 +154,22 @@ Runtime query 命中的全部 row。前者统计 canonical true，后者统计 f
 
 Gallery 与 Kanban 共用：
 
-| Key               | 类型                   | 读取默认值 | 含义                                                               |
-| ----------------- | ---------------------- | ---------- | ------------------------------------------------------------------ |
-| `cardFields`      | Field-ID 唯一数组      | `[]`       | ordered secondary card Field；Record Label 始终为 title            |
-| `coverField`      | Field ID 或 `null`     | `null`     | 用作 cover 的 File Field 或 image-display URL-capable scalar Field |
-| `coverFit`        | `cover\|contain`       | `cover`    | semantic cover fitting hint                                        |
-| `cardSize`        | `small\|medium\|large` | `medium`   | semantic card-size hint                                            |
-| `hideEmptyFields` | boolean                | `true`     | logical value 为空时省略 configured secondary Field                |
+| Key               | 类型                   | 读取默认值                          | 含义                                                               |
+| ----------------- | ---------------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| `cardFields`      | Field-ID 唯一数组      | `[]`                                | ordered secondary card Field；Record Label 始终为 title            |
+| `coverField`      | Field ID 或 `null`     | `null`                              | 用作 cover 的 File Field 或 image-display URL-capable scalar Field |
+| `coverFit`        | `cover\|contain`       | Gallery: `contain`; Kanban: `cover` | semantic cover fitting hint                                        |
+| `cardSize`        | `small\|medium\|large` | `medium`                            | semantic card-size hint                                            |
+| `hideEmptyFields` | boolean                | `true`                              | logical value 为空时省略 configured secondary Field                |
 
 `cardFields` 是 secondary content，Table Record Label 是 card title。同时存在于
 `hiddenFields` 的 `cardFields` member 必须省略。
 
+Gallery 的 `coverFit` 默认为 `contain`（完整适应图片）；Kanban 默认为 `cover`。
+明确配置的适应方式（包括旧的 `fitContent`）仍予保留。
+
 File Field，或 Field settings 声明 `display.kind="image"` 的 scalar URL Field / scalar
-URL Formula/Lookup result，可以作为 `coverField`。Missing、hidden、ineligible、NULL、
+URL Formula/Lookup result，可以作为 `coverField`。Missing、ineligible、NULL、
 empty、denied 或 unresolved cover 产生 non-persisted placeholder。Eligible URL cover
 遵循 Eidos UI 1.0 的 image-display 规则，绝不能把 URL 转成 File entry。
 
@@ -177,9 +180,16 @@ unknown 或暂时 unavailable 的 `cardFields` member。
 
 ## 6. Gallery
 
-Gallery 使用第 3.2 节的通用 Field layout 与第 5 节的共享 Card layout；version 1 没有
-额外 layout key。Gallery 必须通过 bounded Runtime page 保持交互，不得 materialize
-全部 row set。
+Gallery 使用第 3.2 节的通用 Field layout 与第 5 节的共享 Card layout。
+`cardDisplay` 为 `standard`（默认）或 `cover-only`。`cover-only` 只显示配置的
+封面，不显示卡片边框、标题、次要 Field 或操作浮层。封面控件保留无障碍标签。
+激活 File 封面会打开由 Host 提供的文件预览，视频需显式点击播放；无 File entry
+的封面仍打开 Record。封面适应方式和卡片大小仍然生效，缺少封面时遵循
+共享 placeholder 规则。切换模式保留全部卡片配置，配置的封面独立于次要字段的
+可见性。左右方向键按照当前筛选和排序顺序切换文件预览，并能跨 bounded page；
+Esc 关闭预览。Gallery 必须通过 bounded
+Runtime page 保持交互，不得 materialize 全部 row set；仅封面 page 的 projection
+SHOULD 省略次要 Field。
 
 ## 7. Kanban
 
@@ -439,11 +449,15 @@ Conformance tool 使用 stored View `type` 与解析后的 `layout` 组装 envel
           "default": {}
         },
         "cardFields": { "$ref": "#/$defs/fieldIdArray", "default": [] },
+        "cardDisplay": {
+          "enum": ["standard", "cover-only"],
+          "default": "standard"
+        },
         "coverField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
         },
-        "coverFit": { "enum": ["cover", "contain"], "default": "cover" },
+        "coverFit": { "enum": ["cover", "contain"] },
         "cardSize": {
           "enum": ["small", "medium", "large"],
           "default": "medium"
