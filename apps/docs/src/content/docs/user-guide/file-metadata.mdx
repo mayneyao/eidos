@@ -1,73 +1,116 @@
 ---
 title: File Metadata Management
-description: Manage files like a table, with custom fields, filters, and sorting.
+description: Inspect file properties, filter files directly, and organize your Space with tags, ratings, and custom properties.
 sidebar:
   label: File Metadata Management
   order: 60
 ---
 
-**Manage files like a table, with custom fields, filters, and sorting.**
-File Metadata Management is a Spark advanced feature. Spark is a one-time purchase, independent of subscriptions.
+In Eidos Lite, open **File properties** to inspect one file, or use **Manage files** to organize the files in your Space as a table.
+Files stay in their original locations. Tags, ratings, and other custom properties are available in both the properties window and the management table.
 
-## Open file management
+## Inspect one file
 
-Right-click a folder in the Space Explorer and choose **Manage files**.
-To manage the entire Space, use **Manage files** beside the Space heading, or right-click the heading and choose **Manage files**.
-When the Explorer is showing a subfolder, the heading action manages that folder.
+1. Right-click a file in the Space Explorer and choose **File properties**.
+2. In the separate window, use **General file information** to inspect its type, size, location, creation time, and modification time.
+3. Use the copy button beside its location to copy the containing folder's path.
 
-Eidos creates `.eidos/files.eidos` in the Space on first use and reuses it afterward.
-Every folder opens this same configuration. The private `.eidos` folder stays out of the Explorer, file search, and the catalog's scan results.
-Ordinary **New File** creates an independent document.
+These basic properties are read-only. **They do not require Spark activation or an existing file management configuration.**
+If the filesystem does not provide a creation time, that value appears as `—`.
+While the properties window is open, it follows the file currently opened in the main window.
 
-## Folder scope and shared views
+## Add tags, ratings, or custom properties
 
-The Space root shows all managed files. A folder shows its files and all descendants.
-The breadcrumb in the window title bar shows the current scope; select an ancestor to expand it.
-Back, forward, and refresh retain the folder scope in the page address.
+Creating and editing file metadata requires **Spark** activation on this computer. Spark is a one-time purchase, independent of subscriptions.
+Without activation, you can still inspect basic properties and custom properties from existing configurations. The properties window shows a read-only notice and an **Activate Spark** action.
 
-Fields, field options, and saved views are shared across the Space.
-Add a Status, Rating, or Tags field and edit cells as you would in a table.
-Use Search, Filter, Sort, and Fields to organize the view.
+After activation, add properties directly in the file properties window. For example, add a review status:
 
-The folder scope is combined with the selected view's filters.
-Switching folders does not rewrite those saved filters or create another view.
-For example, a view filtered to Status = Ready still shows only Ready files when opened from another folder.
+1. In **Custom properties**, select **+ (Add property)**.
+2. Enter “Review status” and choose **Select** as the type.
+3. Enter “Pending” and “Reviewed”, one option per line, and create the property.
+4. Choose “Pending” for the current file.
+
+The property definition is shared across the Space; each file stores its own value.
+Open another file's properties to use the same “Review status” field.
+
+The properties window supports Text, Number, Integer, Checkbox, Select, Multi-select, Rating, Date, Date & time, and URL.
+New configurations include a `tags` multi-select field and a `rating` field, which you can use immediately.
+Click the selected rating again to clear it when the field allows an empty value.
+
+Changes are submitted automatically, without a Save button. Text and numeric values submit when you move focus away; choices, checkboxes, and ratings submit after the action.
+If saving fails, the window shows an error and a **Retry** action. Closing the window also attempts to submit unsaved changes.
+
+## Manage files as a table
+
+Select **Manage files** beside the Space or current folder heading, or right-click a folder in the Explorer and choose **Manage files**.
+
+After Spark activation, Eidos automatically creates `.eidos/files.eidos` the first time you open file properties or file management, then reuses it.
+You do not need to create this configuration manually. It includes an **All Files** grid view and a **Gallery** view.
+
+- Open from the Space root to see all files within the scan scope.
+- Open from a folder to see that folder and all its descendants.
+- Select an ancestor in the window's top breadcrumb to expand the scope. Back, forward, and refresh retain the current scope.
+
+The entire Space shares one set of fields, options, and saved views.
+For example, adding “Review status” in one folder makes that definition available in other folders.
+The folder scope and view filters apply together. Switching folders does not rewrite the saved filters.
+
+Without Spark activation, an existing configuration remains available for reading, searching, switching saved views, and browsing folder scopes.
+Adding or editing properties, changing filters or sorting, and changing view configuration require Spark.
+Filters and sorting are saved view settings; a temporary search does not modify the view.
+
+## Filter MP4 files from a column heading
+
+Start directly from the field you want to filter:
+
+1. Open the `extension` column heading menu.
+2. Choose **Filter by this field**.
+3. Set the condition to **is** and select `mp4`, without a leading dot.
+4. Select **Apply**.
+
+The table now shows MP4 files within the current folder scope that also match any other existing conditions.
+Filtering does not move or delete files. To remove the filter, remove its condition in the top **Filter** panel, then select **Apply**.
+
+Use other column headings to add filters, or use **Filter**, **Sort**, and **Fields** in the toolbar to organize the view.
+Save separate views for conditions you use regularly. See [Find records with views](/user-guide/views-and-querying/) for more operations.
 
 ## Open and preview files
 
-The read-only `file` cell opens the physical file in your system viewer.
-Choose **Open in sidebar** from a row menu to keep the table visible while previewing the file on the right.
-Previews use your configured opening method, including custom File Views.
-Local large files open without loading all content bytes into the editor; image thumbnails retain size limits.
+Use the open action in a `file` cell to open the file in its system default application.
+Choose **Open in sidebar** from a row menu to keep the table visible while previewing on the right. Previews use your configured opening method, including custom File Views.
+Opening a local large file in a system application does not require loading all its content into the editor first.
 
-The table refreshes after filesystem change notifications.
-Scanning does not follow symbolic links and excludes the native scanner's ignored directories, including `.graft` and `.eidos`.
+The table refreshes when additions, renames, deletions, or attribute changes are detected on the filesystem.
+Scanning does not follow symbolic links and excludes private directories such as `.eidos` and `.graft`.
 
-## Configuration and physical attributes
+## Where the data is stored
 
-`.eidos/files.eidos` stores field definitions, options, and views.
-Custom values live in the physical files' attributes: extended attributes on macOS and Linux, alternate data streams on Windows.
-Editing a custom cell changes attributes, not the file's content bytes.
-Copying the configuration alone does not copy your tags.
+| Data | Location |
+| --- | --- |
+| Field definitions, options, saved views, filters, and sorting | `.eidos/files.eidos` inside the Space |
+| Each file's tags, ratings, and other custom values | The file's own attributes: extended attributes on macOS/Linux, NTFS alternate data streams on Windows |
+| File contents | The original physical file |
 
-New custom fields use their exact names as storage keys.
-Metadata fields cannot be renamed; existing generated storage keys retain their mapping.
-Tables using the same namespace and storage key read the same physical attribute.
+Editing a custom value does not change the file's content bytes.
+The private `.eidos` directory stays out of the Explorer, file search, and the management table's scan results.
 
-- Clearing a cell clears that attribute on one file.
-- Deleting a custom field clears that attribute from files in the table's full scan scope. A folder filter does not limit schema changes. This can affect other configurations sharing the key.
-- Renaming on the same filesystem can preserve attributes. Cross-drive copies, backup tools, and other transfer methods depend on filesystem and tool support.
-- Content history or successful content synchronization does not prove that attributes were preserved. Verify attribute preservation separately for your backup, recovery, or transfer workflow.
-- Attribute rollback uses an in-memory journal. It does not provide crash atomicity or protection from concurrent edits by other programs.
+New fields use their entered names as attribute storage keys. Metadata fields cannot be renamed.
+Clearing a cell clears only that file's value.
+**Deleting a field clears its attribute from files across the table's full scan scope**, regardless of the current folder or view filter.
+Other configurations sharing that namespace and storage key can also be affected.
 
-## Existing configurations
+Renaming within the same filesystem can preserve attributes. Whether copying, moving between drives, archiving, backing up, or other transfers preserve attributes depends on the filesystem and tool.
+Copying `.eidos/files.eidos` alone does not back up the tags and ratings stored on files.
+Recording file contents or configuration in version history, or completing Sync, does not prove that file attributes were synchronized or can be recovered.
+Check attribute preservation separately when backing up and restoring. See [Know where your data is stored](/user-guide/data-safety/).
 
-Existing metadata `.eidos` files remain directly usable.
-Opening Space file management does not move, merge, or delete them, or import their field definitions and views.
-If they share the global catalog's namespace and storage keys, they can still observe the same physical attributes.
-
-## Built-in fields
+## System fields and limits
 
 System fields are read-only: `name`, `path`, `extension`, `size`, `mimetype`, `file`, creation time, and modification time.
-In the Space catalog, `path` is relative to the Space root.
-The filesystem-backed `files` table does not support inserting or deleting physical files through ordinary row operations, or serving as a Relation source or target.
+In the global table, `path` is relative to the Space root.
+Custom properties describe files. The file management table cannot create or delete physical files through ordinary insert/delete row operations, or serve as a Relation source or target.
+
+Other existing metadata `.eidos` files remain directly usable.
+Opening Space file management does not move, merge, or delete them, or import their fields and views.
+Existing storage keys retain their mappings. Configurations sharing a namespace and storage key can still read the same physical file attributes.
