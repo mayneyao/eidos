@@ -8782,6 +8782,18 @@ body {
   accent-color: var(--accent-strong);
 }
 
+.media-file-preview-with-metadata {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.media-preview-meta {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.75rem 0 1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
 .media-file-metadata {
   display: inline-flex;
   flex-shrink: 0;

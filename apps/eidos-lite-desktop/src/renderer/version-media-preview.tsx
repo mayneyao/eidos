@@ -42,7 +42,7 @@ export function VersionWorkingMediaPreview({ path }: { path: string }) {
   }, [path])
 
   if (state.phase === "ready") {
-    return <MediaFilePreview preview={state.preview} />
+    return <MediaFilePreview preview={state.preview} showMetadata />
   }
   if (state.phase === "loading") {
     return (

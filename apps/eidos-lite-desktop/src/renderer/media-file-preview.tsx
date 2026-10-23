@@ -41,9 +41,11 @@ export function MediaFileMetadata({ preview }: { preview: MediaPreview }) {
 export function MediaFilePreview({
   preview,
   focusRequestToken = 0,
+  showMetadata = false,
 }: {
   preview: MediaPreview
   focusRequestToken?: number
+  showMetadata?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const previewRef = useRef<HTMLElement>(null)
@@ -64,7 +66,7 @@ export function MediaFilePreview({
     <section
       ref={previewRef}
       tabIndex={-1}
-      className="media-file-preview"
+      className={`media-file-preview${showMetadata ? " media-file-preview-with-metadata" : ""}`}
       aria-label={t("{kind} preview of {path}", {
         kind: kindLabel,
         path: preview.relativePath,
@@ -72,6 +74,11 @@ export function MediaFilePreview({
       data-media-file-preview={preview.relativePath}
       data-media-file-preview-kind={preview.mediaKind}
     >
+      {showMetadata ? (
+        <header className="media-preview-meta">
+          <MediaFileMetadata preview={preview} />
+        </header>
+      ) : null}
       <div className="media-preview-stage">
         {preview.mediaKind === "image" ? (
           <img src={preview.previewUrl} alt={preview.relativePath} />

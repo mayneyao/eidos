@@ -1,3 +1,6 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { generateSystemFileThumbnail } from "./file-thumbnails"
 
 const mocks = vi.hoisted(() => ({
@@ -7,6 +10,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock("electron", () => ({ nativeImage: mocks }))
 
 describe("system thumbnail pixel aspect ratio", () => {
+  let directory: string
+  beforeEach(async () => {
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-thumb-ratio-"))
+    await fs.writeFile(path.join(directory, "clip.mp4"), "video fixture")
+  })
+  afterEach(async () => {
+    await fs.rm(directory, { recursive: true, force: true })
+  })
   it.each([
     [256, 144, { width: 128 }],
     [144, 256, { height: 128 }],
@@ -28,9 +39,9 @@ describe("system thumbnail pixel aspect ratio", () => {
         getSize: () => ({ width, height }),
         resize,
       })
-      expect(await generateSystemFileThumbnail("/clip.mp4", 128)).toEqual(
-        output
-      )
+      expect(
+        await generateSystemFileThumbnail(path.join(directory, "clip.mp4"), 128)
+      ).toEqual(output)
       expect(mocks.createFromBuffer).toHaveBeenCalledWith(originalPng)
       expect(logicalSize).not.toHaveBeenCalled()
       expect(resize).toHaveBeenCalledWith(options)
