@@ -101,13 +101,13 @@ export default defineConfig({
                     "user-guide/records-and-editing",
                     "user-guide/views-and-querying",
                     "user-guide/import-and-export",
-                    "user-guide/file-metadata",
                   ],
                 },
                 {
                   label: "Advanced",
                   translations: { "zh-CN": "进阶使用" },
                   items: [
+                    "user-guide/file-metadata",
                     "user-guide/data-safety",
                     "user-guide/history-and-recovery",
                     "user-guide/sync",
