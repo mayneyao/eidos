@@ -3,7 +3,7 @@ import path from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
 import { DatabaseSync } from "node:sqlite"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   decodeEidosFileValues,
   EidosFileRuntime,
@@ -24,6 +24,108 @@ import { eidosFileViewRowQuery } from "@eidos.space/eidos-file-ui"
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("shares one live source scan across Calendar pages, with exact totals and reusable cursors", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-calendar-batch-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    for (let index = 0; index < 120; index++) {
+      const file = path.join(root, `${String(index).padStart(3, "0")}.txt`)
+      fs.writeFileSync(file, "proof")
+      fs.utimesSync(
+        file,
+        new Date(),
+        new Date(Date.UTC(2026, 9, 1 + (index % 28), 12))
+      )
+    }
+    const runtime = await createEidosLiteFileRuntime(
+      path.join(root, ".eidos/files.eidos"),
+      "Files",
+      { template: "files-index" }
+    )
+    runtimes.push(runtime)
+    const { table, fields } = runtime.initialSnapshot.tables[0]!
+    const modified = fields.find((field) => field.name === "_updated_at")!
+    const name = fields.find((field) => field.name === "name")!
+    const queries = Array.from({ length: 42 }, (_, index) => ({
+      filter: {
+        type: "group" as const,
+        conjunction: "and" as const,
+        children: [
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "greater-than-or-equal" as const,
+            value: new Date(Date.UTC(2026, 8, 28 + index)).toISOString(),
+          },
+          {
+            type: "rule" as const,
+            field: modified.id!,
+            operator: "less-than" as const,
+            value: new Date(Date.UTC(2026, 8, 29 + index)).toISOString(),
+          },
+        ],
+      },
+      sorts: [{ field: name.id!, direction: "desc" as const }],
+    }))
+    const projection = {
+      columns: [name.id!, modified.id!],
+      includeRecordLabel: true,
+    }
+    const querySpy = vi.spyOn(NodeSqliteConnectionPort.prototype, "query")
+    try {
+      const pages = await runtime.source.getPages(
+        table.id,
+        queries,
+        3,
+        projection
+      )
+      expect(pages).toHaveLength(42)
+      expect(pages!.reduce((total, page) => total + page.total, 0)).toBe(120)
+      expect(
+        querySpy.mock.calls.filter(([sql]) =>
+          sql.includes("WITH logical AS MATERIALIZED")
+        )
+      ).toHaveLength(1)
+      const dayIndex = 3 // October 1, including five files.
+      const page = pages![dayIndex]!
+      expect(page.total).toBe(5)
+      expect(page.rows.map((row) => row[name.id!])).toEqual([
+        "112.txt",
+        "084.txt",
+        "056.txt",
+      ])
+      expect(page.nextCursor).toBeTruthy()
+      const remaining = await runtime.source.getPage(
+        table.id,
+        0,
+        3,
+        queries[dayIndex]!,
+        page.total,
+        page.nextCursor,
+        projection
+      )
+      expect(remaining.rows.map((row) => row[name.id!])).toEqual([
+        "028.txt",
+        "000.txt",
+      ])
+      expect(remaining.nextCursor).toBeUndefined()
+      // External file changes are visible on the very next batch: no retained snapshot.
+      const added = path.join(root, "new.txt")
+      fs.writeFileSync(added, "new")
+      fs.utimesSync(added, new Date(), new Date("2026-10-01T12:00:00Z"))
+      const refreshed = await runtime.source.getPages(
+        table.id,
+        queries,
+        3,
+        projection
+      )
+      expect(refreshed![dayIndex]!.total).toBe(6)
+      expect(refreshed![dayIndex]!.rows[0]![name.id!]).toBe("new.txt")
+    } finally {
+      querySpy.mockRestore()
+    }
+  })
+
   it("creates, updates, queries and reopens Calendar views on the file catalog", async () => {
     const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-files-calendar-"))
     roots.push(root)

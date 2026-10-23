@@ -160,6 +160,43 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
     },
     [query, source, table.table.id, timeZone]
   )
+  const loadPages = useCallback(
+    async (
+      field: EidosFileFieldInfo,
+      ranges: EidosFileCalendarRange[],
+      limit: number
+    ) => {
+      if (!source.getPages) return null
+      const pages = await source.getPages(
+        table.table.id,
+        ranges.map((range) => ({
+          ...query,
+          filter: eidosFileCalendarRangeFilter(
+            query.filter,
+            field,
+            range,
+            timeZone
+          ),
+        })),
+        limit,
+        {
+          columns: [
+            eidosFileFieldKey(field),
+            ...(labelField ? [eidosFileFieldKey(labelField)] : []),
+          ],
+          includeRecordLabel: true,
+        }
+      )
+      return (
+        pages?.map((page) => ({
+          rows: page.rows,
+          total: page.total,
+          nextCursor: page.nextCursor ?? null,
+        })) ?? null
+      )
+    },
+    [source, table.table.id, query, timeZone, labelField]
+  )
   const editCell = useCallback(
     async (
       row: EidosFileRow,
@@ -237,6 +274,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       loadRows={loadRows}
+      loadPages={loadPages}
       loadDayTotals={loadDayTotals}
       loadRow={loadRow}
       onCellEdit={editCell}

@@ -109,6 +109,7 @@ export interface RuntimePublicationSnapshot {
 
 export interface RuntimeCapabilities {
   readRows: boolean
+  batchRowPages?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -995,6 +996,15 @@ export interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  queryRowPages?(
+    request: {
+      tableId: string
+      queries: RowQuery[]
+      projection: ProjectionSpec
+      limit: number
+    },
+    context: RequestContext
+  ): Promise<Array<RowPage & { total: string }>>
   getRecordNeighbors(
     request: GetRecordNeighborsRequest,
     context: RequestContext

@@ -392,11 +392,13 @@ and result encoding; no operation has an unbounded foreground wait.
 ### 4.2 Capabilities and limits
 
 `negotiate({protocol:"eidos-runtime",versions:["1.0"]})` returns version 1.0
-or `unsupported`. It returns every member below; no member is omitted.
+or `unsupported`. It returns every required member below. An omitted optional
+capability means false.
 
 ```ts
 interface RuntimeCapabilities {
   readRows: boolean
+  batchRowPages?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -1036,6 +1038,18 @@ with the requested arrays substituted without reordering. The empty hash is:
 Both bind one File ID, Table ID, revision, and projection. Runtime MUST obtain
 the page and any Relation labels in one consistent read transaction and MUST
 use set-based joins/batches rather than one SQL statement per row or label.
+
+When `batchRowPages` is true, the optional
+`queryRowPages({ tableId, queries, projection, limit }, context)`
+operation returns the first page for each complete `RowQuery`, in request order.
+It accepts 1–64 queries; `limit` is positive and `queries.length * limit` MUST NOT
+exceed `pageSizeMax`. Each result is a `RowPage` with an additional exact `total`
+encoded as an unsigned decimal string. All results MUST share one read transaction,
+revision and projection. Filtering, search, sorting and Row ID tie-breaks follow
+`queryRows`; each `nextCursor` MUST be accepted by `queryRows` with that query and
+projection. Empty queries return an empty page with total `"0"`. This operation
+does not retain a source snapshot between requests. Implementations SHOULD share
+source evaluation across pages, especially for filesystem virtual tables.
 
 `getRowsById.rowIds` contains canonical unique IDs from one requested Table.
 Existing rows appear in request order; `missingRowIds` contains absent IDs in
@@ -2241,6 +2255,15 @@ interface RuntimeClient {
     request: QueryRowsRequest,
     context: RequestContext
   ): Promise<RowPage>
+  queryRowPages?(
+    request: {
+      tableId: string
+      queries: RowQuery[]
+      projection: ProjectionSpec
+      limit: number
+    },
+    context: RequestContext
+  ): Promise<Array<RowPage & { total: string }>>
   getRecordNeighbors(
     request: { tableId: string; rowId: string; query: RowQuery },
     context: RequestContext

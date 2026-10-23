@@ -343,6 +343,36 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
         rowsPerGroup: 1,
       }
       const first = await runtime.groupRows(request, context("group-1"))
+      const batchQueries = ["A", "B", "C"].map((value) => ({
+        ...request.query,
+        filter: { op: "eq" as const, fieldId: groupFieldId, value },
+      }))
+      const batch = await runtime.queryRowPages!(
+        {
+          tableId,
+          queries: batchQueries,
+          projection: request.projection,
+          limit: 2,
+        },
+        context("batch-pages")
+      )
+      expect(batch.map((page) => page.total)).toEqual(["501", "501", "0"])
+      expect(batch.map((page) => page.rows.length)).toEqual([2, 2, 0])
+      const batchNext = await runtime.queryRows(
+        {
+          tableId,
+          query: batchQueries[0]!,
+          projection: request.projection,
+          limit: 2,
+          cursor: batch[0]!.nextCursor!,
+        },
+        context("batch-next")
+      )
+      expect(batchNext.rows).toHaveLength(2)
+      expect(
+        new Set([...batch[0]!.rows, ...batchNext.rows].map((row) => row.id))
+          .size
+      ).toBe(4)
       expect(first.groups[0]).toMatchObject({
         key: ["A"],
         count: "501",

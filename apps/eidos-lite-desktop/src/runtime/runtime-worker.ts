@@ -204,6 +204,22 @@ async function runtimeCall(
         projection
       )
     }
+    case "getPages": {
+      if (!Array.isArray(args[1])) throw new Error("queries must be an array")
+      return dataSource.getPages(
+        requireString(args[0], "tableId"),
+        args[1].map(
+          (query) => objectValue(query, "query") as EidosFileRowQuery
+        ),
+        requireInteger(args[2], "limit"),
+        args[3] === undefined
+          ? undefined
+          : (objectValue(
+              args[3],
+              "projection"
+            ) as unknown as EidosFileRowPageProjection)
+      )
+    }
     case "getRow":
       return dataSource.getRow(
         requireString(args[0], "tableId"),

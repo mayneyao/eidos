@@ -117,6 +117,10 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
       .catch(() => {})
   }
 
+  getPages(...args: Parameters<NonNullable<EidosFileDataSource["getPages"]>>) {
+    return window.eidosLite.callRuntime(this.sessionId, "getPages", args)
+  }
+
   getRow(...args: Parameters<NonNullable<EidosFileDataSource["getRow"]>>) {
     return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
   }

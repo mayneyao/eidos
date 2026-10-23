@@ -1581,6 +1581,7 @@ export const RUNTIME_READ_METHODS = [
   "allocateFileEntry",
   "findFileEntry",
   "getPage",
+  "getPages",
   "getRow",
   "getRowIndex",
   "getRecordNeighbors",

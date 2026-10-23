@@ -149,6 +149,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     queryGroupRows(request: Parameters<RuntimeClient["queryGroupRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["queryGroupRows"]>;
     // (undocumented)
+    queryRowPages: RuntimeClient["queryRowPages"];
+    // (undocumented)
     queryRows(request: Parameters<RuntimeClient["queryRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["queryRows"]>;
     // (undocumented)
     revertMutation: RuntimeClient["revertMutation"];
@@ -984,6 +986,8 @@ export interface EidosFileDataSource {
     getGroupCounts?(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
+    // (undocumented)
+    getPages?(tableId: string, queries: EidosFileRowQuery[], limit: number, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage[] | null>;
     // (undocumented)
     getRecordNeighbors?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
     // (undocumented)
@@ -2647,6 +2651,8 @@ export interface RuntimeCapabilities {
     // (undocumented)
     aggregate: boolean;
     // (undocumented)
+    batchRowPages?: boolean;
+    // (undocumented)
     csvExport: boolean;
     // (undocumented)
     csvImport: boolean;
@@ -2733,6 +2739,15 @@ export interface RuntimeClient {
     previewFormula(request: FormulaPreviewRequest, context: RequestContext): Promise<FormulaPreviewResult>;
     // (undocumented)
     queryGroupRows(request: GroupRowsRequest, context: RequestContext): Promise<GroupRowPage>;
+    // (undocumented)
+    queryRowPages?(request: {
+        tableId: string;
+        queries: RowQuery[];
+        projection: ProjectionSpec;
+        limit: number;
+    }, context: RequestContext): Promise<Array<RowPage & {
+        total: string;
+    }>>;
     // (undocumented)
     queryRows(request: QueryRowsRequest, context: RequestContext): Promise<RowPage>;
     // (undocumented)

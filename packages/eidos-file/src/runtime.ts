@@ -4486,6 +4486,80 @@ export class EidosFileRuntime {
     return { rows, ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) }
   }
 
+  /** @internal Bounded first pages sharing one materialized source scan. */
+  runtimeQueryRowPages(
+    tableId: string,
+    queries: EidosFileRowQuery[],
+    fieldIds: string[],
+    limit: number,
+    resolveRelations: boolean
+  ): Array<{ rows: EidosFileLogicalRow[]; total: number }> {
+    if (queries.length === 0) return []
+    const fields = this.listFields(tableId)
+    const requested = fieldIds.map((id) => this.fieldByKey(tableId, id))
+    const rowIdField = fields.find((field) => field.type === "row-id")!
+    const compatible = queries.map((query) =>
+      this.compatibilityQuery(tableId, query)
+    )
+    const source = this.logicalSource(
+      tableId,
+      [
+        ...fieldIds,
+        rowIdField.id!,
+        ...compatible.flatMap((query) => [
+          ...this.requiredQueryFieldKeys(fields, query),
+        ]),
+      ],
+      false,
+      resolveRelations,
+      new Set(
+        compatible.flatMap((query) => [
+          ...this.querySearchFragmentFieldIds(fields, query),
+        ])
+      )
+    )
+    const referenceInstant = this.nowInstant()
+    const compiled = compatible.map((query) =>
+      compileEidosFileRowQuery(source.fields, query, { referenceInstant })
+    )
+    // A fresh internal alias avoids collisions with user-defined physical names.
+    const prefix = `__batch_${this.allocateId().replaceAll("-", "")}`
+    const batchKey = `${prefix}_page`
+    const countKey = `${prefix}_count`
+    const params: EidosFileSqlPrimitive[] = []
+    const selects = compiled.map((query, index) => {
+      params.push(...query.params, limit)
+      return `SELECT ${index} AS ${quoteIdentifier(batchKey)}, * FROM (
+        SELECT *, count(*) OVER () AS ${quoteIdentifier(countKey)}
+        FROM logical ${query.whereSql} ${query.orderSql} LIMIT ?
+      )`
+    })
+    const raw = this.connection.query<Record<string, EidosFileSqlPrimitive>>(
+      `WITH logical AS MATERIALIZED (${source.sql}) ${selects.join(" UNION ALL ")}`,
+      params
+    )
+    return queries.map((_, index) => {
+      const selected = raw.filter((row) => Number(row[batchKey]) === index)
+      return {
+        total: Number(selected[0]?.[countKey] ?? 0),
+        rows: this.logicalRows(
+          rowIdField,
+          requested,
+          selected.map((row) =>
+            Object.fromEntries(
+              Object.entries(row).flatMap(([key, value]) =>
+                key === "__base_rowid" || key === batchKey || key === countKey
+                  ? []
+                  : [[key, rowValue(value)]]
+              )
+            )
+          ),
+          resolveRelations
+        ),
+      }
+    })
+  }
+
   /** @internal Exact primary-key lookup without page totals or cursor work. */
   getLogicalRowsByIds(
     tableId: string,

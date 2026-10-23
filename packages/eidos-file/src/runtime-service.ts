@@ -165,6 +165,7 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
   readRows: true,
+  batchRowPages: true,
   schemaPaging: true,
   cursorPaging: true,
   aggregate: true,
@@ -702,6 +703,105 @@ export class EidosRuntimeService implements RuntimeClient {
             nextCursor: hasLater ? boundaryCursor(logicalRows.at(-1)) : null,
             previousCursor: hasEarlier ? boundaryCursor(logicalRows[0]) : null,
           }
+        }),
+      false,
+      request
+    )
+  }
+
+  queryRowPages(
+    request: {
+      tableId: string
+      queries: RowQuery[]
+      projection: ProjectionSpec
+      limit: number
+    },
+    context: RequestContext
+  ): Promise<Array<RowPage & { total: string }>> {
+    return this.invoke(
+      context,
+      async () =>
+        this.read(async () => {
+          assertLimit(request.limit, EIDOS_RUNTIME_LIMITS.pageSizeMax, "limit")
+          if (
+            !Array.isArray(request.queries) ||
+            request.queries.length < 1 ||
+            request.queries.length > 64 ||
+            request.queries.length * request.limit >
+              EIDOS_RUNTIME_LIMITS.pageSizeMax
+          ) {
+            throw runtimeError(
+              "invalid-request",
+              "Batch pages must contain 1–64 queries and fit pageSizeMax"
+            )
+          }
+          assertProjection(request.projection)
+          const fields = Array.from(
+            new Set([
+              ...request.projection.fields,
+              ...request.queries.flatMap((query) =>
+                (query.sort ?? []).map((sort) => sort.fieldId)
+              ),
+            ])
+          )
+          const pages = this.core.runtimeQueryRowPages(
+            request.tableId,
+            request.queries.map((query) =>
+              this.compatibilityQuery(request.tableId, query)
+            ),
+            fields,
+            request.limit,
+            request.projection.resolveRelations.length > 0
+          )
+          const metadata = this.core.info()
+          const projectionDigest = await projectionHash(request.projection)
+          const columns = this.columns(request.tableId, request.projection)
+          return Promise.all(
+            pages.map(async (page, index) => {
+              const query = request.queries[index]!
+              const last = page.rows.at(-1)
+              const backwardQuery = reverseRuntimeQuery(
+                query,
+                this.core.listFields(request.tableId)
+              )
+              const nextCursor =
+                last && page.total > page.rows.length
+                  ? this.encodeCursor("rows", {
+                      fileId: metadata.fileId,
+                      tableId: request.tableId,
+                      revision: String(metadata.revision),
+                      queryHash: await hashJson(normalizedRuntimeQuery(query)),
+                      projectionHash: projectionDigest,
+                      forward: this.core.createRowCursor(
+                        request.tableId,
+                        this.compatibilityQuery(request.tableId, query),
+                        last
+                      ),
+                      backward: this.core.createRowCursor(
+                        request.tableId,
+                        this.compatibilityQuery(request.tableId, backwardQuery),
+                        last
+                      ),
+                    })
+                  : null
+              return {
+                fileId: metadata.fileId,
+                tableId: request.tableId,
+                revision: String(metadata.revision),
+                projectionHash: projectionDigest,
+                columns,
+                rows: this.projectRows(
+                  request.tableId,
+                  request.projection,
+                  page.rows,
+                  columns
+                ),
+                total: String(page.total),
+                nextCursor,
+                previousCursor: null,
+              }
+            })
+          )
         }),
       false,
       request
