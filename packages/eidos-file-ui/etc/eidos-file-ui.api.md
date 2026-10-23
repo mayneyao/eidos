@@ -217,6 +217,12 @@ interface EidosFileEntrySurfaceProps {
   className?: string;
   compact?: boolean;
   showActions?: boolean;
+  presentation?: "file" | "cover" | "preview";
+  fitContent?: boolean;
+  onPreview?: (entry: FileEntry) => void;
+  onPreviewClose?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 declare function EidosFileEntryCoverSurface({
   entry,
@@ -235,7 +241,13 @@ declare function EidosFileEntrySurface({
   entry,
   className,
   compact,
-  showActions
+  showActions,
+  presentation,
+  fitContent,
+  onPreview,
+  onPreviewClose,
+  onPrevious,
+  onNext
 }: EidosFileEntrySurfaceProps): _$react_jsx_runtime0.JSX.Element;
 //#endregion
 //#region src/eidos-file-grid.d.ts
@@ -1733,7 +1745,7 @@ export { EidosFileFilterPopover, EidosFileQueryToolbar, EidosFileSortPopover };
 
 ```ts
 import { n as EidosFileRecordCardLayout } from "./eidos-file-record-card-layout-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo } from "@eidos.space/eidos-file";
+import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { AriaRole } from "react";
 
@@ -1747,6 +1759,7 @@ declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
   fixedHeight?: number;
   cardWidth?: number;
   onOpen: (row: EidosFileRow) => void;
+  onPreviewFile?: (row: EidosFileRow, entry: FileEntry) => void;
   onDelete?: (row: EidosFileRow) => void;
   moveOptions?: Array<{
     id: string;

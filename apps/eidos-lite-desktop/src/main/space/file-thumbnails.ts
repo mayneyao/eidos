@@ -1,4 +1,9 @@
-import type { EidosFileAssetIdentity } from "./eidos-file-attachments"
+import fs from "node:fs/promises"
+import {
+  detectRasterMediaType,
+  EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX,
+  type EidosFileAssetIdentity,
+} from "./eidos-file-attachments"
 import type { EidosLiteThumbnailSize } from "../../shared/contracts"
 
 export type FileThumbnailProvider = (
@@ -43,7 +48,7 @@ export class FileThumbnailCache {
     size = 128
   ) => {
     const key = JSON.stringify([
-      "pixel-aspect-v2",
+      "raster-content-v3",
       absolutePath,
       identity.device,
       identity.inode,
@@ -141,6 +146,46 @@ export async function generateSystemFileThumbnail(
   targetSize: EidosLiteThumbnailSize
 ): Promise<Uint8Array> {
   const { nativeImage } = await import("electron")
+  // Quick Look can return a file-type icon when an image's extension is wrong.
+  // Decode recognized raster bytes first, keeping original reads bounded.
+  const handle = await fs.open(absolutePath, "r")
+  try {
+    const stats = await handle.stat()
+    if (stats.isFile() && stats.size <= EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX) {
+      const header = new Uint8Array(32)
+      const { bytesRead } = await handle.read(header, 0, header.length, 0)
+      if (detectRasterMediaType(header.subarray(0, bytesRead))) {
+        const bytes = Buffer.alloc(stats.size)
+        let offset = 0
+        while (offset < bytes.length) {
+          const result = await handle.read(
+            bytes,
+            offset,
+            bytes.length - offset,
+            offset
+          )
+          if (result.bytesRead === 0)
+            throw new Error("Image changed while its thumbnail was read")
+          offset += result.bytesRead
+        }
+        const raster = nativeImage.createFromBuffer(bytes)
+        if (!raster.isEmpty()) {
+          const size = raster.getSize()
+          return Math.max(size.width, size.height) <= targetSize
+            ? raster.toPNG()
+            : raster
+                .resize(
+                  size.width >= size.height
+                    ? { width: targetSize }
+                    : { height: targetSize }
+                )
+                .toPNG()
+        }
+      }
+    }
+  } finally {
+    await handle.close()
+  }
   const image = await nativeImage.createThumbnailFromPath(absolutePath, {
     width: targetSize,
     height: targetSize,

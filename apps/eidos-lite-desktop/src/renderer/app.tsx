@@ -154,7 +154,7 @@ import {
   type RecentFileEntry,
 } from "./recent-files"
 import { blocksLocalInteraction } from "./space-operation-availability"
-import { MediaFilePreview } from "./media-file-preview"
+import { MediaFileMetadata, MediaFilePreview } from "./media-file-preview"
 import {
   prepareTextFilePreview,
   TextFilePreview,
@@ -1092,7 +1092,7 @@ function WorkspaceApp({
       window.removeEventListener("blur", reset)
     }
   }, [titleHovered])
-  const titleActionRef = useRef({ path: "", spaceId: "" })
+  const titleActionRef = useRef({ path: "", spaceId: "", sidebarPath: "" })
   const [contextMenu, setContextMenu] = useState<{
     entry: SpaceTreeEntry
     entries: SpaceTreeEntry[]
@@ -1767,6 +1767,7 @@ function WorkspaceApp({
   titleActionRef.current = {
     path: activeDocumentPath ?? "",
     spaceId: space?.id ?? "",
+    sidebarPath: sidebarFilePath ?? "",
   }
   const activeDocumentDirty = Boolean(
     activeDocumentPath && textFileDrafts[activeDocumentPath]
@@ -3685,6 +3686,30 @@ function WorkspaceApp({
       setError(errorMessage(cause))
     }
   }
+  const openSidebarTitleContextMenu = async (
+    path: string,
+    x: number,
+    y: number
+  ) => {
+    if (localInteractionBlocked || pathMutationBusy) return
+    const spaceId = space.id
+    try {
+      const resolved = await resolveSpaceEntry(space, path, (directory) =>
+        window.eidosLite.loadSpaceDirectory(directory)
+      )
+      if (
+        titleActionRef.current.spaceId !== spaceId ||
+        titleActionRef.current.sidebarPath !== path
+      )
+        return
+      if (!resolved.entry)
+        throw new Error(`${path} is no longer available in this Space.`)
+      acceptSpaceSnapshot(resolved.snapshot)
+      openEntryContextMenu(resolved.entry, x, y)
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+  }
   const terminalOwnsTitlebarNavigation =
     sidebarCollapsed && workbenchSurfaces.terminal === "side"
   const collapsedTitlebarNavigation = sidebarCollapsed ? (
@@ -4195,6 +4220,10 @@ function WorkspaceApp({
                   }}
                 >
                   <strong>{titlebarPresentation.title}</strong>
+                  {textPreview?.type === "media" &&
+                  textPreview.relativePath === activeDocumentPath ? (
+                    <MediaFileMetadata preview={textPreview} />
+                  ) : null}
                   {titleHovered && titleAltPressed ? (
                     <small className="file-titlebar-path">
                       {activeDocumentPath}
@@ -4651,13 +4680,7 @@ function WorkspaceApp({
                 textPreview.type === "media" ? (
                   <MediaFilePreview
                     preview={textPreview}
-                    platform={platform}
                     focusRequestToken={fileSurfaceFocusRequestToken}
-                    onReveal={() =>
-                      void window.eidosLite
-                        .revealPath(textPreview.relativePath)
-                        .catch((cause) => setError(errorMessage(cause)))
-                    }
                   />
                 ) : (
                   <TextFilePreview
@@ -5166,6 +5189,9 @@ function WorkspaceApp({
             menuOrders={menuOrders}
             onMenuOrderChange={saveMenuOrder}
             onOpenFile={openFileInSidebar}
+            onTitleContextMenu={(path, x, y) =>
+              void openSidebarTitleContextMenu(path, x, y)
+            }
             onNavigatePlugin={navigatePluginPage}
             onReleaseEidosFile={releaseSidebarEidosFile}
             onChanged={() => setExternalFileRefreshToken((token) => token + 1)}

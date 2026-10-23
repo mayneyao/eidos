@@ -1,6 +1,58 @@
-import { FileThumbnailCache } from "./file-thumbnails"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import {
+  FileThumbnailCache,
+  generateSystemFileThumbnail,
+} from "./file-thumbnails"
+
+const native = vi.hoisted(() => ({
+  createFromBuffer: vi.fn(),
+  createThumbnailFromPath: vi.fn(),
+}))
+vi.mock("electron", () => ({ nativeImage: native }))
 
 const identity = { device: 1, inode: 2, size: 1024, modifiedAtMs: 100 }
+
+describe("file thumbnail image decoding", () => {
+  it("decodes raster content before asking the system for an extension-based preview", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-raster-thumb-"))
+    try {
+      const png = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==",
+        "base64"
+      )
+      const filename = path.join(root, "photo.jpg")
+      await fs.writeFile(filename, png)
+      const output = new Uint8Array([1, 2, 3])
+      const resize = vi.fn(() => ({ toPNG: () => output }))
+      native.createFromBuffer.mockReturnValue({
+        isEmpty: () => false,
+        getSize: () => ({ width: 1500, height: 1000 }),
+        resize,
+        toPNG: () => png,
+      })
+      native.createThumbnailFromPath.mockClear()
+      expect(await generateSystemFileThumbnail(filename, 512)).toEqual(output)
+      expect(native.createFromBuffer).toHaveBeenLastCalledWith(png)
+      expect(resize).toHaveBeenCalledWith({ width: 512 })
+      expect(native.createThumbnailFromPath).not.toHaveBeenCalled()
+
+      await fs.writeFile(filename, "%PDF-1.4")
+      native.createThumbnailFromPath.mockResolvedValue({
+        isEmpty: () => false,
+        toPNG: () => png,
+      })
+      expect(await generateSystemFileThumbnail(filename, 512)).toEqual(output)
+      expect(native.createThumbnailFromPath).toHaveBeenCalledWith(filename, {
+        width: 512,
+        height: 512,
+      })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+})
 
 describe("system file thumbnail scheduling", () => {
   it("caches Grid, Gallery and preview sizes independently", async () => {

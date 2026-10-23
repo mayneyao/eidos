@@ -332,7 +332,7 @@ export function createFsMetaEidosFile(
 
     const galleryLayout = canonicalizeEidosFileJson({
       coverField: fileFieldId,
-      coverFit: "cover",
+      coverFit: "contain",
     })
 
     db.prepare(`

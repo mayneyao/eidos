@@ -14,6 +14,8 @@ import {
 } from "@eidos.space/eidos-file"
 import {
   Archive,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
@@ -212,6 +214,9 @@ function EidosFileEntryPreviewDialog({
   activating,
   activationError,
   onActivate,
+  onPrevious,
+  onNext,
+  stableViewport = false,
 }: {
   entry: FileEntry
   open: boolean
@@ -226,11 +231,17 @@ function EidosFileEntryPreviewDialog({
   activating: "open" | "download" | null
   activationError: string | null
   onActivate: (action: "open" | "download") => void
+  onPrevious?: () => void
+  onNext?: () => void
+  stableViewport?: boolean
 }) {
   const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
   const isImage = entry.mediaType.toLowerCase().startsWith("image/")
   const isVideo = entry.mediaType.toLowerCase().startsWith("video/")
-  const [playing, setPlaying] = useState(false)
+  const [playingEntryId, setPlayingEntryId] = useState<string | null>(null)
+  const playing = playingEntryId === entry.id
+  const setPlaying = (value: boolean) =>
+    setPlayingEntryId(value ? entry.id : null)
   const [playbackError, setPlaybackError] = useState(false)
   useEffect(() => {
     setPlaying(false)
@@ -276,7 +287,7 @@ function EidosFileEntryPreviewDialog({
   let originalImagePresented = false
   if (assetPresenter && assetSession) {
     for (const lease of [fullImage.lease, poster.lease, thumbnail.lease]) {
-      if (!lease) continue
+      if (!lease || lease.entryId !== entry.id) continue
       try {
         image = assetPresenter.renderImage({
           sessionId: assetSession.state.sessionId,
@@ -298,6 +309,7 @@ function EidosFileEntryPreviewDialog({
   if (
     playing &&
     playback.lease &&
+    playback.lease.entryId === entry.id &&
     assetPresenter?.renderVideo &&
     assetSession &&
     !playbackError
@@ -319,10 +331,37 @@ function EidosFileEntryPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+        className={cn(
+          "flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0",
+          stableViewport && "h-[min(80dvh,48rem)] w-[calc(100vw-2rem)]"
+        )}
         data-eidos-file-attachment-preview=""
       >
         <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+          {stableViewport || onPrevious || onNext ? (
+            <div className="flex shrink-0 gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={t("Previous file")}
+                disabled={!onPrevious}
+                onClick={onPrevious}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={t("Next file")}
+                disabled={!onNext}
+                onClick={onNext}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
           <EidosFileMediaIcon
             mediaType={entry.mediaType}
             className="h-4 w-4 shrink-0 text-muted-foreground"
@@ -347,10 +386,23 @@ function EidosFileEntryPreviewDialog({
             </Button>
           </DialogClose>
         </div>
-        <div className="flex min-h-0 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-h-[min(70dvh,calc(100dvh-9rem))] [&_img]:max-w-full [&_img]:object-contain">
+        <div
+          className={cn(
+            "flex min-h-0 items-center justify-center overflow-auto bg-muted/30 p-3 [&_img]:max-w-full [&_img]:object-contain",
+            stableViewport
+              ? "flex-1 overflow-hidden [&_img]:max-h-full [&_video]:max-h-full [&_video]:max-w-full [&_video]:object-contain"
+              : "[&_img]:max-h-[min(70dvh,calc(100dvh-9rem))]"
+          )}
+          data-eidos-file-preview-viewport
+        >
           {isVideo ? (
             <div
-              className="relative flex min-h-40 w-full items-center justify-center"
+              className={cn(
+                "relative flex w-full items-center justify-center",
+                stableViewport
+                  ? "h-full min-h-0 [&_img]:max-h-full [&_video]:max-h-full"
+                  : "min-h-40"
+              )}
               data-eidos-file-video-preview=""
             >
               {player ?? image ?? (
@@ -491,6 +543,12 @@ export interface EidosFileEntrySurfaceProps {
   className?: string
   compact?: boolean
   showActions?: boolean
+  presentation?: "file" | "cover" | "preview"
+  fitContent?: boolean
+  onPreview?: (entry: FileEntry) => void
+  onPreviewClose?: () => void
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
 const UNAVAILABLE_ATTACHMENT_SOURCE: EidosFileAttachmentSourceSnapshot = {
@@ -706,16 +764,52 @@ export function EidosFileEntrySurface({
   className,
   compact = false,
   showActions = true,
+  presentation = "file",
+  fitContent = false,
+  onPreview,
+  onPreviewClose,
+  onPrevious,
+  onNext,
 }: EidosFileEntrySurfaceProps) {
   const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
   const thumbnail = useThumbnailLease(
     entry,
     "thumbnail",
-    !assetPresenter?.loadImage
+    presentation === "file" && !assetPresenter?.loadImage
   )
   const [activationError, setActivationError] = useState<string | null>(null)
   const [activating, setActivating] = useState<"open" | "download" | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(presentation === "preview")
+
+  useEffect(() => {
+    if (!previewOpen || (presentation !== "preview" && !onPrevious && !onNext))
+      return
+    const handle = (event: KeyboardEvent) => {
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            "input, textarea, select, [contenteditable=true], video, audio"
+          ))
+      )
+        return
+      const action =
+        event.key === "ArrowLeft"
+          ? onPrevious
+          : event.key === "ArrowRight"
+            ? onNext
+            : undefined
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      event.preventDefault()
+      event.stopPropagation()
+      action?.()
+    }
+    document.addEventListener("keydown", handle, true)
+    return () => document.removeEventListener("keydown", handle, true)
+  }, [previewOpen, presentation, onPrevious, onNext])
 
   const activate = useCallback(
     async (action: "open" | "download") => {
@@ -775,6 +869,53 @@ export function EidosFileEntrySurface({
     (entry.mediaType.toLowerCase().startsWith("image/")
       ? thumbnail.error
       : null)
+
+  if (presentation === "cover" || presentation === "preview") {
+    return (
+      <>
+        {presentation === "cover" ? (
+          <button
+            type="button"
+            data-eidos-file-entry-cover
+            className={cn(
+              "block aspect-square w-full cursor-pointer overflow-hidden bg-transparent p-0 outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              className
+            )}
+            aria-label={t("Preview {file}", { file: entry.name })}
+            disabled={!canPreview}
+            onClick={() =>
+              onPreview ? onPreview(entry) : setPreviewOpen(true)
+            }
+          >
+            <EidosFileEntryCoverSurface
+              entry={entry}
+              fitContent={fitContent}
+              className="bg-transparent"
+            />
+          </button>
+        ) : null}
+        {previewOpen ? (
+          <EidosFileEntryPreviewDialog
+            entry={entry}
+            open={previewOpen}
+            onOpenChange={(open) => {
+              setPreviewOpen(open)
+              if (!open) onPreviewClose?.()
+            }}
+            thumbnail={thumbnail}
+            canOpen={canOpen}
+            canDownload={canDownload}
+            activating={activating}
+            activationError={activationError}
+            onActivate={(action) => void activate(action)}
+            onPrevious={onPrevious}
+            onNext={onNext}
+            stableViewport={presentation === "preview"}
+          />
+        ) : null}
+      </>
+    )
+  }
 
   const thumbnailBadge = (
     <span

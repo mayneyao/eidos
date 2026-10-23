@@ -50,7 +50,7 @@ export type ResolvedEidosFileAsset =
       absolutePath: string
       identity: EidosFileAssetIdentity
       bytes?: Uint8Array
-      bytesMediaType?: "image/png"
+      bytesMediaType?: string
     }
   | {
       kind: "network"
@@ -829,8 +829,11 @@ export async function resolveEidosFileAttachment(
   } finally {
     await handle.close()
   }
-  if (detectRasterMediaType(bytes) !== entry.mediaType.toLowerCase()) {
-    throw new Error("Attachment bytes do not match the declared image type")
+  const bytesMediaType = detectRasterMediaType(bytes)
+  if (!bytesMediaType) {
+    throw new Error("Attachment bytes are not a supported raster image")
   }
-  return { kind: "local", absolutePath, identity, bytes }
+  // Folder metadata is extension-based; a .jpg can contain a valid PNG.
+  // Preserve canonical metadata while presenting only a recognized raster type.
+  return { kind: "local", absolutePath, identity, bytes, bytesMediaType }
 }

@@ -8465,7 +8465,7 @@ body {
 
 .media-file-preview {
   display: grid;
-  grid-template-rows: 2rem minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--canvas);
@@ -8782,16 +8782,15 @@ body {
   accent-color: var(--accent-strong);
 }
 
-.media-preview-meta {
-  display: flex;
+.media-file-metadata {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.5rem;
   min-width: 0;
-  padding: 0 0.75rem 0 1rem;
-  border-bottom: 1px solid var(--hairline);
   color: var(--ink-muted);
-  background: transparent;
   font-size: 0.625rem;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -8805,20 +8804,6 @@ body {
 }
 
 .media-preview-kind svg {
-  width: 0.72rem;
-  height: 0.72rem;
-}
-
-.media-preview-meta .media-preview-reveal {
-  min-height: 1.4rem;
-  margin-top: 0;
-  margin-left: auto;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-}
-
-.media-preview-meta .media-preview-reveal svg {
   width: 0.72rem;
   height: 0.72rem;
 }
@@ -9178,6 +9163,21 @@ body {
 
 .file-sidebar > header button {
   -webkit-app-region: no-drag;
+}
+
+.file-sidebar-title {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: default;
 }
 
 .file-sidebar > header strong {

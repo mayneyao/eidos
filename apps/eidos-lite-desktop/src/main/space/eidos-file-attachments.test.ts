@@ -23,6 +23,35 @@ async function fixture() {
 }
 
 describe("Eidos Lite attachment files", () => {
+  it("previews a misnamed raster using its actual encoding without changing metadata", async () => {
+    const root = await fixture()
+    try {
+      await fs.writeFile(path.join(root, "project", "photo.jpg"), PNG)
+      const entry = {
+        id: "01900000-0000-7000-8000-000000000001",
+        uri: "photo.jpg",
+        name: "photo.jpg",
+        mediaType: "image/jpeg",
+        size: String(PNG.byteLength),
+      }
+      await expect(
+        resolveEidosFileAttachment(root, "project/data.eidos", entry, "preview")
+      ).resolves.toMatchObject({ bytes: PNG, bytesMediaType: "image/png" })
+      expect(entry.mediaType).toBe("image/jpeg")
+      const html = Buffer.from("<html>not an image</html>")
+      await fs.writeFile(path.join(root, "project", "photo.jpg"), html)
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          { ...entry, size: String(html.byteLength) },
+          "preview"
+        )
+      ).rejects.toThrow("not a supported raster image")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
   it("recognizes imported video formats using the same mapping as file previews", () => {
     expect(detectAssetMediaType(new Uint8Array(), "clip.mov")).toBe(
       "video/quicktime"

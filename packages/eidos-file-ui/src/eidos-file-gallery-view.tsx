@@ -26,6 +26,7 @@ import { Button } from "./ui/primitives"
 import { useEidosFileUI } from "./context"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import { EidosFileRecordCard } from "./eidos-file-record-card"
+import { EidosFileGalleryPreview } from "./eidos-file-gallery-preview"
 import {
   createEidosFileRecordCardLayout,
   type EidosFileRecordCardLayout,
@@ -65,7 +66,11 @@ function galleryCardWidth(view: EidosFileViewInfo): number {
   return 280
 }
 
-function uniformGalleryCardHeight(layout: EidosFileRecordCardLayout): number {
+function uniformGalleryCardHeight(
+  layout: EidosFileRecordCardLayout,
+  cardWidth = 280
+): number {
+  if (layout.coverOnly) return cardWidth
   const visibleFieldCount = Math.min(layout.fields.length, layout.fieldLimit)
   return 72 + (layout.coverField ? 144 : 0) + visibleFieldCount * 32
 }
@@ -85,6 +90,7 @@ interface EidosFileGalleryVirtualRowProps {
   canDelete: boolean
   measureElement: (node: HTMLDivElement | null | undefined) => void
   onOpen: (row: EidosFileRow) => void
+  onPreviewFile: (row: EidosFileRow, entry: FileEntry) => void
   onDelete: (row: EidosFileRow) => void
 }
 
@@ -105,6 +111,7 @@ function galleryVirtualRowPropsEqual(
     previous.canDelete !== next.canDelete ||
     previous.measureElement !== next.measureElement ||
     previous.onOpen !== next.onOpen ||
+    previous.onPreviewFile !== next.onPreviewFile ||
     previous.onDelete !== next.onDelete
   ) {
     return false
@@ -147,6 +154,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
   canDelete,
   measureElement,
   onOpen,
+  onPreviewFile,
   onDelete,
 }: EidosFileGalleryVirtualRowProps) {
   const { interactionMode } = useEidosFileUI()
@@ -181,18 +189,23 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               setSize={total}
               focused={focusedRowId === String(row._id)}
               onOpen={onOpen}
+              onPreviewFile={onPreviewFile}
               onDelete={canDelete ? onDelete : undefined}
             />
           ) : (
             <div
               key={`gallery-placeholder-${absoluteIndex}`}
               data-eidos-file-gallery-placeholder
-              className="min-h-24 rounded-lg border bg-muted/20"
+              className={
+                layout.coverOnly
+                  ? "rounded-sm"
+                  : "min-h-24 rounded-lg border bg-muted/20"
+              }
               style={{
                 minHeight:
-                  interactionMode === "mobile"
+                  interactionMode === "mobile" && !layout.coverOnly
                     ? 104
-                    : uniformGalleryCardHeight(layout),
+                    : uniformGalleryCardHeight(layout, cardWidth),
               }}
               aria-hidden="true"
             />
@@ -259,6 +272,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   const mobile = interactionMode === "mobile"
   const generationRef = useRef(0)
   const scopeRef = useRef("")
+  const [preview, setPreview] = useState<{
+    entry: FileEntry
+    index: number
+  } | null>(null)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   useEidosFileScrollKeys(scrollContainerRef)
@@ -307,6 +324,16 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     [table.fields, view]
   )
   const { rows, total } = rowWindow
+  const previewFile = useCallback(
+    (row: EidosFileRow, entry: FileEntry) => {
+      const index = rowWindow.rows.findIndex(
+        (candidate) => String(candidate._id) === String(row._id)
+      )
+      if (index >= 0)
+        setPreview({ entry, index: rowWindow.startOffset + index })
+    },
+    [rowWindow]
+  )
   const inspectorNeighbors = useMemo(
     () => eidosFileRecordNeighbors(rows, inspectedRow),
     [inspectedRow, rows]
@@ -383,6 +410,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         : { rows: [], startOffset: 0, total: table.rowCount }
     )
     closeInspectorRow()
+    setPreview(null)
     onRowCountChange?.(null)
     void requestPage(0, "replace")
     return () => {
@@ -446,7 +474,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   } = useEidosFileBoundedVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
-    estimatedItemSize: mobile ? 112 : uniformGalleryCardHeight(cardLayout),
+    estimatedItemSize:
+      mobile && !cardLayout.coverOnly
+        ? 112
+        : uniformGalleryCardHeight(cardLayout, renderedCardWidth),
     getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
     paddingEnd: GALLERY_END_PADDING,
@@ -645,6 +676,16 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 
   return (
     <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">
+      {preview && cardLayout.coverOnly && cardLayout.coverField ? (
+        <EidosFileGalleryPreview
+          initial={preview}
+          rowWindow={rowWindow}
+          coverColumn={cardLayout.coverField.tableColumnName}
+          loadPage={loadPage}
+          onClose={() => setPreview(null)}
+          onError={onError}
+        />
+      ) : null}
       <div
         ref={scrollContainerRef}
         data-eidos-file-gallery-scroll
@@ -716,6 +757,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   offset={virtualRowOffset(virtualRow)}
                   columnCount={columnCount}
                   cardWidth={renderedCardWidth}
+                  onPreviewFile={previewFile}
                   total={total}
                   fields={table.fields}
                   view={view}

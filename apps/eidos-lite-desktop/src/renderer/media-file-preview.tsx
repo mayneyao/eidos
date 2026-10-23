@@ -1,8 +1,7 @@
 import { useRef } from "react"
-import { FileMusic, FolderOpen, Image, MonitorPlay } from "lucide-react"
+import { FileMusic, Image, MonitorPlay } from "lucide-react"
 
 import type { TextFilePreviewResult } from "../shared/contracts"
-import { fileManagerMessage } from "../shared/platform-copy"
 import { useFileContentFocusRequest } from "./file-content-focus"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -14,16 +13,37 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1_024 * 1_024)).toFixed(1)} MB`
 }
 
+export function MediaFileMetadata({ preview }: { preview: MediaPreview }) {
+  const { t } = useEidosLiteI18n()
+  const kindLabel =
+    preview.mediaKind === "image"
+      ? t("Image")
+      : preview.mediaKind === "video"
+        ? t("Video")
+        : t("Audio")
+  return (
+    <span className="media-file-metadata">
+      <span className="media-preview-kind">
+        {preview.mediaKind === "image" ? (
+          <Image aria-hidden="true" />
+        ) : preview.mediaKind === "video" ? (
+          <MonitorPlay aria-hidden="true" />
+        ) : (
+          <FileMusic aria-hidden="true" />
+        )}
+        {kindLabel}
+      </span>
+      <span>{formatBytes(preview.size)}</span>
+    </span>
+  )
+}
+
 export function MediaFilePreview({
   preview,
-  platform,
   focusRequestToken = 0,
-  onReveal,
 }: {
   preview: MediaPreview
-  platform?: string
   focusRequestToken?: number
-  onReveal?(): void
 }) {
   const { t } = useEidosLiteI18n()
   const previewRef = useRef<HTMLElement>(null)
@@ -32,12 +52,13 @@ export function MediaFilePreview({
     const media = preview?.querySelector<HTMLElement>("video, audio")
     ;(media ?? preview)?.focus({ preventScroll: true })
   })
-  const kindLabel =
+  const kindLabel = t(
     preview.mediaKind === "image"
-      ? t("Image")
+      ? "Image"
       : preview.mediaKind === "video"
-        ? t("Video")
-        : t("Audio")
+        ? "Video"
+        : "Audio"
+  )
 
   return (
     <section
@@ -51,29 +72,6 @@ export function MediaFilePreview({
       data-media-file-preview={preview.relativePath}
       data-media-file-preview-kind={preview.mediaKind}
     >
-      <header className="media-preview-meta">
-        <span className="media-preview-kind">
-          {preview.mediaKind === "image" ? (
-            <Image aria-hidden="true" />
-          ) : preview.mediaKind === "video" ? (
-            <MonitorPlay aria-hidden="true" />
-          ) : (
-            <FileMusic aria-hidden="true" />
-          )}
-          {kindLabel}
-        </span>
-        <span>{formatBytes(preview.size)}</span>
-        {onReveal ? (
-          <button
-            type="button"
-            className="editor-empty-action media-preview-reveal"
-            onClick={onReveal}
-          >
-            <FolderOpen aria-hidden="true" />
-            {t(fileManagerMessage(platform ?? ""))}
-          </button>
-        ) : null}
-      </header>
       <div className="media-preview-stage">
         {preview.mediaKind === "image" ? (
           <img src={preview.previewUrl} alt={preview.relativePath} />

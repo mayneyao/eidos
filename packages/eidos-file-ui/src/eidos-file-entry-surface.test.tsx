@@ -101,6 +101,79 @@ describe("EidosFileEntrySurface", () => {
     container.remove()
   })
 
+  it("handles preview arrow keys, leaves text inputs alone and closes with Escape", async () => {
+    const file = entry("keyboard", "assets/key.png", "key.png")
+    const previous = vi.fn(),
+      next = vi.fn(),
+      close = vi.fn()
+    const services = {
+      resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ altText }) => <img alt={altText} />,
+      activate: vi.fn(async () => undefined),
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{ services, serviceCapabilities, state: hostState() }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface
+            entry={file}
+            presentation="preview"
+            onPrevious={previous}
+            onNext={next}
+            onPreviewClose={close}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowLeft",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    expect(previous).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledOnce()
+    const input = document.createElement("input")
+    document
+      .querySelector("[data-eidos-file-attachment-preview]")!
+      .appendChild(input)
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      })
+    )
+    expect(next).toHaveBeenCalledOnce()
+    input.remove()
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      await Promise.resolve()
+    })
+    expect(close).toHaveBeenCalledOnce()
+  })
+
   it.each(["video/mp4", "application/pdf", "application/octet-stream"])(
     "requests Grid and Gallery sizes for local %s files",
     async (mediaType) => {
@@ -240,69 +313,75 @@ describe("EidosFileEntrySurface", () => {
     expect(renderImage).not.toHaveBeenCalled()
   })
 
-  it("shows a large video poster and loads the inline player only after play", async () => {
-    const file = entry("clip", "assets/clip.mp4", "clip.mp4", "video/mp4")
-    const resolveAsset = vi.fn(async () => leaseFor(file, "preview"))
-    const releaseAsset = vi.fn(async () => undefined)
-    const resolveThumbnail = vi.fn(async (request: { size: number }) => ({
-      ...leaseFor(file, "thumbnail"),
-      resourceToken: `blob:poster/${request.size}`,
-    }))
-    const renderVideo = vi.fn(() => <video aria-label="clip.mp4" controls />)
-    const session = {
-      services: { resolveAsset, releaseAsset } as unknown as HostServices,
-      serviceCapabilities,
-      state: hostState(),
-      resolveThumbnail,
-    }
-    const presenter: AssetPresenter<ReactNode> = {
-      renderImage: ({ lease, altText }) => (
-        <img src={lease.resourceToken} alt={altText} />
-      ),
-      renderVideo,
-      activate: vi.fn(async () => undefined),
-    }
-    await act(async () => {
-      root.render(
-        <EidosFileUIProvider assetSession={session} assetPresenter={presenter}>
-          <EidosFileEntrySurface entry={file} />
-        </EidosFileUIProvider>
+  it.each(["file", "cover"] as const)(
+    "shows a large video poster and loads the inline player only after play in %s presentation",
+    async (presentation) => {
+      const file = entry("clip", "assets/clip.mp4", "clip.mp4", "video/mp4")
+      const resolveAsset = vi.fn(async () => leaseFor(file, "preview"))
+      const releaseAsset = vi.fn(async () => undefined)
+      const resolveThumbnail = vi.fn(async (request: { size: number }) => ({
+        ...leaseFor(file, "thumbnail"),
+        resourceToken: `blob:poster/${request.size}`,
+      }))
+      const renderVideo = vi.fn(() => <video aria-label="clip.mp4" controls />)
+      const session = {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+        resolveThumbnail,
+      }
+      const presenter: AssetPresenter<ReactNode> = {
+        renderImage: ({ lease, altText }) => (
+          <img src={lease.resourceToken} alt={altText} />
+        ),
+        renderVideo,
+        activate: vi.fn(async () => undefined),
+      }
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider
+            assetSession={session}
+            assetPresenter={presenter}
+          >
+            <EidosFileEntrySurface entry={file} presentation={presentation} />
+          </EidosFileUIProvider>
+        )
+      })
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[aria-label="Preview clip.mp4"]')
+          ?.click()
+      })
+      const dialog = document.body.querySelector(
+        "[data-eidos-file-attachment-preview]"
+      )!
+      expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
+        "blob:poster/1024"
       )
-    })
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[aria-label="Preview clip.mp4"]')
-        ?.click()
-    })
-    const dialog = document.body.querySelector(
-      "[data-eidos-file-attachment-preview]"
-    )!
-    expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
-      "blob:poster/1024"
-    )
-    expect(resolveAsset).not.toHaveBeenCalled()
-    expect(renderVideo).not.toHaveBeenCalled()
-    await act(async () => {
-      dialog
-        .querySelector<HTMLButtonElement>('[aria-label="Play clip.mp4"]')
-        ?.click()
-    })
-    expect(resolveAsset).toHaveBeenCalledWith(
-      expect.objectContaining({ purpose: "preview" }),
-      expect.anything()
-    )
-    expect(dialog.querySelector("video")).not.toBeNull()
-    await act(async () => {
-      dialog.querySelector<HTMLButtonElement>('[aria-label="Close"]')?.click()
-    })
-    expect(
-      document.body.querySelector("[data-eidos-file-attachment-preview]")
-    ).toBeNull()
-    expect(releaseAsset).toHaveBeenCalledWith(
-      expect.objectContaining({ leaseId: "preview-clip" }),
-      expect.anything()
-    )
-  })
+      expect(resolveAsset).not.toHaveBeenCalled()
+      expect(renderVideo).not.toHaveBeenCalled()
+      await act(async () => {
+        dialog
+          .querySelector<HTMLButtonElement>('[aria-label="Play clip.mp4"]')
+          ?.click()
+      })
+      expect(resolveAsset).toHaveBeenCalledWith(
+        expect.objectContaining({ purpose: "preview" }),
+        expect.anything()
+      )
+      expect(dialog.querySelector("video")).not.toBeNull()
+      await act(async () => {
+        dialog.querySelector<HTMLButtonElement>('[aria-label="Close"]')?.click()
+      })
+      expect(
+        document.body.querySelector("[data-eidos-file-attachment-preview]")
+      ).toBeNull()
+      expect(releaseAsset).toHaveBeenCalledWith(
+        expect.objectContaining({ leaseId: "preview-clip" }),
+        expect.anything()
+      )
+    }
+  )
 
   it("shows a cached file-row thumbnail immediately after unmount and remount", async () => {
     const file = entry("scroll", "assets/scroll.png", "scroll.png")
@@ -622,52 +701,55 @@ describe("EidosFileEntrySurface", () => {
     expect(releaseAsset).toHaveBeenCalledOnce()
   })
 
-  it("previews an image attachment inline from the Host-issued lease", async () => {
-    const file = entry("photo", "assets/photo.png", "photo.png")
-    const services = {
-      resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
-      releaseAsset: vi.fn(async () => undefined),
-    } as unknown as HostServices
-    const presenter: AssetPresenter<ReactNode> = {
-      renderImage: ({ lease, altText }) => (
-        <img src={lease.resourceToken} alt={altText} />
-      ),
-      activate: vi.fn(async () => undefined),
-    }
+  it.each(["file", "cover"] as const)(
+    "previews an image attachment inline from the Host-issued lease in %s presentation",
+    async (presentation) => {
+      const file = entry("photo", "assets/photo.png", "photo.png")
+      const services = {
+        resolveAsset: vi.fn(async (request) => leaseFor(file, request.purpose)),
+        releaseAsset: vi.fn(async () => undefined),
+      } as unknown as HostServices
+      const presenter: AssetPresenter<ReactNode> = {
+        renderImage: ({ lease, altText }) => (
+          <img src={lease.resourceToken} alt={altText} />
+        ),
+        activate: vi.fn(async () => undefined),
+      }
 
-    await act(async () => {
-      root.render(
-        <EidosFileUIProvider
-          assetSession={{
-            services,
-            serviceCapabilities,
-            state: hostState(),
-          }}
-          assetPresenter={presenter}
-        >
-          <EidosFileEntrySurface entry={file} />
-        </EidosFileUIProvider>
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider
+            assetSession={{
+              services,
+              serviceCapabilities,
+              state: hostState(),
+            }}
+            assetPresenter={presenter}
+          >
+            <EidosFileEntrySurface entry={file} presentation={presentation} />
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[aria-label="Preview photo.png"]')
+          ?.click()
+        await Promise.resolve()
+      })
+
+      const preview = document.body.querySelector(
+        "[data-eidos-file-attachment-preview]"
       )
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[aria-label="Preview photo.png"]')
-        ?.click()
-      await Promise.resolve()
-    })
-
-    const preview = document.body.querySelector(
-      "[data-eidos-file-attachment-preview]"
-    )
-    expect(preview).not.toBeNull()
-    expect(preview?.querySelector("img")?.getAttribute("src")).toBe(
-      "blob:host/preview/photo"
-    )
-    expect(preview?.textContent).toContain("photo.png")
-  })
+      expect(preview).not.toBeNull()
+      expect(preview?.querySelector("img")?.getAttribute("src")).toBe(
+        "blob:host/preview/photo"
+      )
+      expect(preview?.textContent).toContain("photo.png")
+    }
+  )
 
   it("copies an image attachment through the Host presenter", async () => {
     const file = entry("photo-copy", "assets/photo.png", "photo-copy.png")

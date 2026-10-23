@@ -19,11 +19,58 @@ import {
   fileMetadataScopedView,
   fileMetadataRowPath,
 } from "../renderer/file-metadata-actions"
-import { eidosFileViewRowQuery } from "@eidos.space/eidos-file-ui"
+import {
+  eidosFileViewRowQuery,
+  eidosFileRecordCardPageProjection,
+  createEidosFileRecordCardLayout,
+} from "@eidos.space/eidos-file-ui"
 
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("preserves PDF, video and image File covers when the Gallery hides its fields", async () => {
+    const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-gallery-covers-"))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    for (const name of ["document.pdf", "clip.mp4", "photo.jpg"])
+      fs.writeFileSync(path.join(root, name), "fixture")
+    const runtime = await createEidosLiteFileRuntime(
+      path.join(root, ".eidos/files.eidos"),
+      "Files",
+      { template: "files-index" }
+    )
+    runtimes.push(runtime)
+    const initial = runtime.initialSnapshot.tables[0]!
+    const file = initial.fields.find((field) => field.type === "file")!
+    const gallery = initial.views.find((view) => view.type === "gallery")!
+    expect(gallery.properties?.coverFit).toBe("contain")
+    const updated = await runtime.source.updateView(gallery.id, {
+      properties: { ...gallery.properties, cardDisplay: "cover-only" },
+      hiddenFields: initial.fields.map((field) => field.id!),
+    })
+    const table = updated.tables[0]!
+    const view = table.views.find((view) => view.id === gallery.id)!
+    expect(
+      createEidosFileRecordCardLayout(table.fields, view).coverField?.id
+    ).toBe(file.id)
+    const page = await runtime.source.getPage(
+      table.table.id,
+      0,
+      20,
+      {},
+      undefined,
+      undefined,
+      eidosFileRecordCardPageProjection(table.fields, view)
+    )
+    expect(
+      page.rows
+        .map(
+          (row) => decodeEidosFileValues(row[file.id!] as string)[0]!.mediaType
+        )
+        .sort()
+    ).toEqual(["application/pdf", "image/jpeg", "video/mp4"])
+  })
+
   it("shares one live source scan across Calendar pages, with exact totals and reusable cursors", async () => {
     const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-calendar-batch-"))
     roots.push(root)
