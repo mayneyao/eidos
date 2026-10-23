@@ -1,22 +1,22 @@
 ## What's new
 
-### Filter directly from column headers
+### File thumbnails and video previews
 
-Open a column's menu and choose **Filter by this field** to set its condition directly. For example, select `mp4` in the `extension` column to find videos. Other conditions in the View are preserved, and you can continue editing the complete filter from the toolbar.
+File fields can now show system-generated thumbnails for images, videos, PDFs and other supported files across Eidos tables. Thumbnails preserve their proportions and use sizes suited to lists, Gallery covers and previews. Files without a thumbnail keep their file icon, and cached images remain available as you scroll.
 
-### Remember Sync passwords on Windows
+Open a video preview to see its thumbnail, then press Play to start playback. Image previews read the actual image format, including images whose filename extension does not match their contents.
 
-Windows now supports saving Sync passwords in system secure storage, so connected encrypted Spaces can unlock automatically after restarting Lite.
+### Browse Gallery as a photo album
 
-### Check for updates from Help
+Turn on **Cover only** in a Gallery View's settings to show covers without card backgrounds, borders, titles or extra fields. Gallery fits the complete image by default while preserving an existing fitting preference. Configured covers remain visible when their fields are hidden from card details.
 
-Choose **Check for updates** in the sidebar Help menu. Progress, results and errors appear in the same menu, with a retry available if the check fails.
+Click a file cover to open its preview. Use the Left and Right arrow keys to browse files in the View's filtered and sorted order, and press Esc to close. The preview window stays the same size as you switch files, and videos wait for you to press Play.
+
+## Improvements
+
+- **File preview headers**: File type and size appear beside the title instead of taking a separate row. Right-click the sidebar title to open the file menu, including the system file-manager action; Shift+F10 also opens the menu.
+- **Calendar performance**: File-backed calendars share a scan across the displayed days, reducing repeated filesystem work when viewing a month.
 
 ## Bug fixes
 
-- **File properties**: Basic file information is available without Spark activation or an existing file-metadata catalog. Property windows open on the same display as their Space window, including on Windows with multiple monitors.
-- **Recent files**: Opening **Files** from **Recent files** now reopens the Space-wide file manager instead of incorrectly reporting that the file is unavailable.
-- **Sync reconnection**: Device-history caches reconnect after a restart. Saved account-access errors are rechecked against the current account before they continue to block Sync.
-- **Sync history errors**: Missing history data now offers a retry instead of incorrectly reporting that the entire cloud Space is unavailable. Local files and saved versions stay in place.
-- **Local changes**: Files edited during a status check are no longer shown as unchanged after restarting Lite or disconnecting Sync.
-- **Grid selection**: Filtering and sorting clear old row and cell selections while preserving keyboard focus, preventing an old selection from pointing to a different record.
+- **File calendars**: Creating a Calendar View in the file manager no longer fails with “virtual tables may not be indexed.”
