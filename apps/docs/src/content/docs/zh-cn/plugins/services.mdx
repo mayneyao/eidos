@@ -1,0 +1,26 @@
+---
+title: "设置、存储和宿主服务"
+description: "设置、存储和宿主服务"
+---
+
+## 设置、存储和通知
+
+Lite 视图通过 `capabilities.settings.get(key)` 读取插件设置。普通动作还可调用 set/reset。
+`capabilities.storage` 提供按 key 存取私有二进制数据的 list、read、write、delete，配额通过 `manifest.storage.maxBytes` 声明。这些私有数据保存在设备本地。
+
+`capabilities.ui.notify(message)` 显示通知。
+在支持导航的环境中，`ui.openFile(relativePath)` 打开文件，`ui.navigate(viewId, route?)` 打开页面。
+可选方法在调用前检查其是否存在。
+
+View 可以通过可选的 `capabilities.ui.exportFile({ name, mimeType, data })` 导出生成文件，
+无需文件系统写入权限。name 是不含目录的文件名，mimeType 如 `image/png`，data 是不超过
+16 MiB 的 `Uint8Array`。Lite 打开保存对话框，返回 `{ status: "saved" }` 或
+`{ status: "cancelled" }`。CLI Serve 发起浏览器下载后返回
+`{ status: "download-started" }`。调用前检查方法是否存在，并向用户显示导出失败原因。
+目前移动端与 Action 上下文不提供此操作。
+
+`capabilities.network.read({ url })` 向 `browser.networkOrigins` 声明的 HTTPS 来源发起有界请求。
+需要凭据的请求通过 `ctx.capabilities.connections` 的 `isConfigured(connectionId)` 和 `request({ connection, body })` 调用已声明连接。
+连接可用于页面、文件视图和普通动作，由用户在 Eidos 中配置连接信息和密钥。动作结束时请求会被取消。
+
+[接口签名与类型](/zh-cn/plugins/api/).

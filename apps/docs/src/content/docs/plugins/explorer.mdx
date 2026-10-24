@@ -1,0 +1,45 @@
+---
+title: "Sidebar explorer"
+description: "Sidebar explorer"
+---
+
+## Replace the sidebar explorer in Lite
+
+Declare a page View at `sidebar/explorer`, requiring plugin API `3.1.0`:
+
+```json
+{
+  "requires": { "pluginApi": "3.1.0" },
+  "workspace": { "files": { "read": true } },
+  "views": [
+    {
+      "id": "tree",
+      "title": "My explorer",
+      "kind": "page",
+      "entry": "./src/tree.ts"
+    }
+  ],
+  "placements": [{ "location": "sidebar/explorer", "view": "tree" }]
+}
+```
+
+After installing and enabling the plugin, open **Plugins → Choose file explorer** and select it.
+Lite saves the choice per Space. A replacement owns the complete explorer area, including its heading, breadcrumbs, search, sorting, and file-action toolbar.
+Lite does not place the built-in Space heading above the plugin.
+Window navigation and application controls remain in the host shell, outside this contribution.
+Return to the built-in explorer through Plugin Manager. If a plugin fails, Lite restores the built-in heading and tree with retry and recovery actions.
+
+At this placement `ctx.capabilities.explorer.read()` returns rootDirectory, activePath, and sort.
+Root null means the Space. ActivePath null means no open file.
+`explorer.watch(listener)` subscribes to changes without an initial callback and returns a disposable subscription.
+It provides state to show, while the host checks file permissions independently.
+Use `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` for each directory level.
+Use `fs.watch` for refreshes and `ui.openFile(relativePath)` when a user selects a file.
+Listings include empty directories. FileStat.modifiedAtMs supports time sorting.
+Default list options preserve recursive file-only indexing.
+Eidos opens files in the main area using the configured file View.
+The plugin owns navigation, selection styling, and granted file actions within the sidebar sandbox.
+Global Space text search temporarily overlays the explorer and leaves the plugin mounted.
+Ordinary navigation pages do not receive explorer context.
+
+[API signatures and types](/plugins/api/).

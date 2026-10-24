@@ -1,0 +1,61 @@
+---
+title: "Eidos table Views"
+description: "Eidos table Views"
+---
+
+## Work with Eidos files
+
+`ctx.capabilities.eidos` contains the `schema`, `table`, and `config` interfaces you declare. For example, a table view that reads file structure and saves plugin configuration can declare:
+
+```json
+{
+  "id": "board",
+  "title": "Board",
+  "kind": "file",
+  "entry": "./src/board.ts",
+  "capabilities": ["eidos/schema", "eidos/table", "eidos/config"],
+  "access": "write"
+}
+```
+
+Add a `table/view` placement for this view.
+Each declaration provides its corresponding interface.
+Declaration order does not affect behavior.
+
+### Browse file structure
+
+Declare `eidos/schema`. Use `ctx.capabilities.eidos.schema.listTables()` to list tables in the file and `readTable(tableId)` to read fields.
+A file browser opens through a `file/open` placement matching `.eidos`. A table view can also read the structure of its containing file.
+
+### Query the current table
+
+Declare `eidos/table` and open through `table/view`.
+`ctx.capabilities.eidos.table` provides readContext for schema and view information.
+It provides readRows for records, aggregate for summaries, and setViewConfig to replace view configuration.
+It provides openRecord for record navigation and watch for invalidation notifications.
+Read schema first and query using field IDs. These operations always target the bound table.
+
+### Save plugin configuration
+
+Declare `eidos/config`. Use read, write, and watch on `ctx.capabilities.eidos.config` to access plugin configuration in the file.
+A file browser can select tables within that file. A table view uses its bound table ID.
+
+```ts
+const { table, config } = ctx.capabilities.eidos ?? {}
+if (!table || !config) throw new Error("Table and config capabilities required")
+const current = await config.read(table.tableId)
+await config.write(table.tableId, {
+  value: { ...current.value, compact: true },
+  expectedVersion: current.version,
+})
+```
+
+Writes require `access: "write"` and the version from the read result.
+If the version is stale, reread and reconcile changes before writing.
+`config.watch(tableId, listener)` returns a subscription without an initial value. Read initially and reread on notification.
+Notifications can include unrelated changes and stop after disposal.
+
+Lite supports all three interfaces. CLI Serve provides `eidos/table`.
+Declare only supported capabilities and check with `check --target cli` when targeting Serve.
+
+[API signatures and types](/plugins/api/).

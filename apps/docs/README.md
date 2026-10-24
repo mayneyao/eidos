@@ -39,6 +39,26 @@ English and Simplified Chinese foundation pages are maintained as pairs.
 
 ## Commands
 
+### Plugin API reference
+
+The bilingual reference under `src/content/docs/{,zh-cn/}plugins/api/` is
+generated from `packages/plugin-sdk/src/index.ts` with the TypeScript AST.
+Runtime error codes come from `packages/plugin-runtime/src/errors.ts`; they are
+not SDK exports. Page organization and bilingual behavior notes live in
+`scripts/plugin-api-pages.mjs` and `scripts/plugin-api-notes.mjs`. Edit those
+sources rather than generated MDX. Tutorials remain hand-written guides.
+
+After changing SDK declarations or editorial metadata, run
+`pnpm --filter docs sync:plugin-api` and include the generated pages in the change.
+`check:plugin-api`, also run by content checks/build/typecheck, fails on stale
+output, invalid type mappings or notes for removed members. Both locales are
+generated together. New SDK declarations default to Types & Errors until assigned
+to a capability page. Development startup refreshes generated pages; rerun the
+sync command after editing SDK types during a running docs session.
+
+The API landing pages retain old section anchors as guide links. Keep those
+anchors when changing navigation so existing bookmarks continue to work.
+
 Run from the repository root:
 
 ```bash

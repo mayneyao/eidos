@@ -1,0 +1,106 @@
+---
+title: "Files and text"
+description: "Files and text"
+---
+
+## Read and edit text
+
+Declare `capabilities: ["document"]` and use ctx.capabilities.document. Writing also requires `access: "write"`.
+
+| Method                            | Purpose                                            |
+| --------------------------------- | -------------------------------------------------- |
+| `read()`                          | Read a snapshot including text, version, and dirty |
+| `observe(listener, onError?)`     | Get an initial snapshot and subscribe to changes   |
+| `edit({ text, expectedVersion })` | Update unsaved content. Returns applied or stale   |
+| `save()`                          | Save the file. Returns saved or conflict           |
+| `undo()` / `redo()`               | Undo or redo an edit and return a snapshot         |
+
+This function body converts the current text to uppercase and saves it:
+
+```ts
+const document = ctx.capabilities.document
+if (!document) throw new Error("Document capability required")
+const current = await document.read()
+const result = await document.edit({
+  text: current.text.toUpperCase(),
+  expectedVersion: current.version,
+})
+if (result.status === "stale") {
+  await ctx.capabilities.ui.notify(
+    "The text changed. Review it before editing again."
+  )
+  return
+}
+const saved = await document.save()
+if (saved.status === "conflict") {
+  await ctx.capabilities.ui.notify(
+    "The file changed on disk. Your draft is still available."
+  )
+}
+```
+
+Use the version from the read snapshot as expectedVersion. On stale, preserve user input and let the user review newer content. On conflict, preserve the draft and explain the disk change. An editor handling continuous input should serialize edit calls so several requests do not use the same old version.
+
+## Read files and play media
+
+Lite's `ctx.capabilities.fs` provides readText, writeText, readBinary, writeBinary, list, stat, delete, rename, getUrl, and watch.
+The host limits text reads to 2 MiB and binary I/O to 16 MiB.
+For larger media, play the streaming URL returned by getUrl.
+
+```ts
+const fs = ctx.capabilities.fs
+if (!fs) throw new Error("Filesystem access is required")
+const video = document.createElement("video")
+video.controls = true
+video.src = await fs.getUrl()
+root.append(video)
+```
+
+File-view access stays confined to the bound file and its allowed directory scope.
+Access throughout a Space requires `workspace.files`. Writes also require write access on the contribution.
+Direct writes, deletes, and renames return BUSY for paths with an existing working copy.
+Use the document interface for text editing, saving, and conflict handling.
+
+## File properties in Lite
+
+Lite API 3.1 exposes complete native namespace properties through `ctx.capabilities.filemeta`, backed by sqlite-fs-meta.
+Declare the namespaces you need. Writes also require `access: "write"` on the View or Action.
+A page needs workspace file read permission to select files across the Space.
+
+```json
+{
+  "workspace": {
+    "files": { "read": true },
+    "filemeta": { "namespaces": ["space.eidos.meta"], "write": true }
+  }
+}
+```
+
+```ts
+const filemeta = ctx.capabilities.filemeta!
+const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
+await filemeta.patch("notes/example.md", "space.eidos.meta", {
+  set: { rating: 4, tags: ["review"], custom: { checked: true } },
+  remove: ["obsolete"],
+})
+```
+
+Reads return the whole JSON object, including keys without columns in `files.eidos`. An absent namespace returns `{}`.
+Patches preserve other keys. Null is a value. The `remove` array deletes keys.
+Paths are relative to the Space, and without workspace file read permission only the bound file is available.
+Property permission does not allow changing file contents.
+Existing corrupt JSON, symbolic links, and non-files fail instead of being overwritten.
+The host limits envelopes to 1 MiB and the native filesystem can impose smaller limits.
+These are immediate filesystem operations. Serialize writers when several processes change the same namespace.
+You do not need a Linux `attr` command-line package.
+
+## Release resources and handle errors
+
+Add subscriptions to `ctx.subscriptions`, cancel asynchronous work with `ctx.signal`, and release interface resources in the dispose object returned from mount.
+
+Common errors include PERMISSION_DENIED (insufficient access), INSTANCE_CLOSED (closed context), STALE_REVISION (changed data), BUSY (a managed resource), TOO_LARGE (a size limit), and TIMEOUT.
+Explain the failure to the user and preserve unsaved input.
+
+See the [SDK types](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts) for full signatures and the [plugin specification](https://github.com/mayneyao/eidos/blob/dev/docs/specs/eidos-lite-plugins-1.0.md) for behavioral requirements.
+
+[API signatures and types](/plugins/api/).

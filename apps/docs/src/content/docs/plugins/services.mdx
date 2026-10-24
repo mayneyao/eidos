@@ -1,0 +1,29 @@
+---
+title: "Settings, storage and host services"
+description: "Settings, storage and host services"
+---
+
+## Settings, storage and notifications
+
+Lite views read settings with `capabilities.settings.get(key)`. Ordinary actions can also set or reset them.
+The storage interface supplies list, read, write, and delete for private binary objects.
+Declare the quota in `manifest.storage.maxBytes`. Private storage remains on the device.
+
+`capabilities.ui.notify(message)` shows a notification.
+In environments supporting navigation, `ui.openFile(relativePath)` opens a file and `ui.navigate(viewId, route?)` opens a page.
+Check optional methods before calling them.
+
+Views can use the optional `capabilities.ui.exportFile({ name, mimeType, data })`
+to export generated files without filesystem write permission. Supply a filename
+without a directory, a media type such as `image/png`, and a `Uint8Array` of at most
+16 MiB. Lite opens a save dialog and returns `{ status: "saved" }` or
+`{ status: "cancelled" }`. CLI Serve returns `{ status: "download-started" }` after
+starting the browser download. Check whether the method exists and show export
+failures to the user. Mobile and action contexts do not provide it currently.
+
+`capabilities.network.read({ url })` makes bounded HTTPS requests to origins declared in `browser.networkOrigins`.
+For credentialed requests, use `isConfigured(connectionId)` and `request({ connection, body })` on `ctx.capabilities.connections` with a declared connection.
+Connections are available to pages, file views, and ordinary actions.
+Users configure details and secrets in Eidos. The host cancels action requests when the invocation ends.
+
+[API signatures and types](/plugins/api/).

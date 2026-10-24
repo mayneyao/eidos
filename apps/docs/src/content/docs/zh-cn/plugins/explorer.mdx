@@ -1,0 +1,30 @@
+---
+title: "侧边栏目录树"
+description: "侧边栏目录树"
+---
+
+## 替换 Lite 侧边栏目录树
+
+声明 page View，放到 `sidebar/explorer`，并使用 plugin API `3.1.0`：
+
+```json
+{
+  "requires": { "pluginApi": "3.1.0" },
+  "workspace": { "files": { "read": true } },
+  "views": [
+    {
+      "id": "tree",
+      "title": "我的目录树",
+      "kind": "page",
+      "entry": "./src/tree.ts"
+    }
+  ],
+  "placements": [{ "location": "sidebar/explorer", "view": "tree" }]
+}
+```
+
+安装和启用插件后，进入「插件 → 选择文件浏览器」选用。选择按 Space 保存。插件接管完整探索器区域，包括标题、路径、搜索、排序和文件操作工具栏。宿主不会在插件上方绘制内置 Space 标题。窗口导航与应用控制属于宿主外壳，位于此贡献点之外。通过插件管理页可返回内置探索器。插件失败时，宿主恢复内置标题和目录树，并提供重试与恢复入口。
+
+此位置提供 `ctx.capabilities.explorer.read()`，返回当前 rootDirectory、activePath 和 sort。root 为 null 表示 Space，activePath 为 null 表示未打开文件。`explorer.watch(listener)` 订阅变化，返回可释放订阅，不提供初始回调。它只提供展示状态，文件权限单独校验。通过 `fs.list(rootDirectory ?? "", { recursive: false, includeDirectories: true })` 逐层浏览，包括空目录。FileStat.modifiedAtMs 可用于时间排序。默认 list 行为保留递归文件索引。通过 `fs.watch` 刷新。用户点击文件时调用 `ui.openFile(relativePath)`，宿主在主区域使用已配置的文件 View 打开。插件在侧边栏沙箱内负责导航、选中样式和已授权文件操作。全局 Space 文本搜索会临时覆盖探索器，保留插件挂载与浏览状态。普通 navigation Page 不提供 explorer 上下文。
+
+[接口签名与类型](/zh-cn/plugins/api/).
