@@ -206,6 +206,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:plugin-compiler
+          node --test packages/plugin-sandbox/scripts/build-web.test.mjs
           pnpm --filter @eidos.space/plugin-sandbox check:web
           cargo test -p eidos-plugin-sandbox --locked
           python3 packages/plugin-sandbox/tests/smoke.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox

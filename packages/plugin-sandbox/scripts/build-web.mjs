@@ -6,9 +6,10 @@ import path from "node:path"
 const root = new URL("../", import.meta.url)
 const check = process.argv.includes("--check")
 const emit = async (name, text) => {
+  text = text.replaceAll("\r\n", "\n")
   const target = new URL(`../../crates/eidos-plugin-sandbox/src/${name}`, root)
   if (check) {
-    if ((await readFile(target, "utf8")) !== text)
+    if ((await readFile(target, "utf8")).replaceAll("\r\n", "\n") !== text)
       throw new Error(
         `Stale ${name}; run pnpm --filter @eidos.space/plugin-sandbox build:web`
       )
