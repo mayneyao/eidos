@@ -84,8 +84,10 @@ const subscription = ctx.events.on("file.opened", (event) => {
 用 `ctx.spaceId` 区分 Space，用 `ctx.instanceId` 区分本次运行。
 多个窗口需要自行避免同键覆盖，不能把一次读改写当作事务。
 
-「最近打开」作为独立插件维护在 `eidos-plugins/eidos-recent-history-plugin`。
-加载其中的 `plugin.json` 并启用后，通过 Cmd+K 使用：
+在 Lite 插件市场中安装 **Recent History（最近打开）**，在 Space 中启用，
+并授权自动启动及访问文件打开元数据。插件需要 Eidos Lite 0.28.0 或更高版本（插件 API 3.6.0）。
+完整示例和开发说明维护在独立的[源码仓库](https://github.com/eidos-space/eidos-recent-history-plugin)中。
+启用后，通过 Cmd+K 使用：
 
 - **最近打开：打开面板**：搜索路径、查看次数并重新打开文件。
 
