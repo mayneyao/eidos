@@ -85,6 +85,7 @@ import {
   type EidosFileAttachmentCell,
 } from "./eidos-file-attachment-cell"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
+import { sharedEidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
 import {
   EidosFileUrlImageCellRenderer,
   type EidosFileUrlImageCell,
@@ -580,14 +581,21 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridRef = useRef<DataEditorRef>(null)
   const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
+  const attachmentSourceCache = sharedEidosFileAttachmentSourceCache(
+    assetSession,
+    assetPresenter,
+    128
+  )
   const attachmentThumbnails = useMemo(
     () =>
       new EidosFileAttachmentThumbnailManager(
         assetSession,
         assetPresenter,
-        (cells) => gridRef.current?.updateCells(cells)
+        (cells) => gridRef.current?.updateCells(cells),
+        undefined,
+        attachmentSourceCache
       ),
-    [assetPresenter, assetSession]
+    [assetPresenter, assetSession, attachmentSourceCache]
   )
   const urlImageThumbnails = useMemo(() => {
     const sourceCache = sharedEidosFileUrlImageSourceCache(
@@ -638,6 +646,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const generationRef = useRef(0)
   const dataScopeRef = useRef<string | null>(null)
   const thumbnailScopeRef = useRef<string | null>(null)
+  const thumbnailReloadTokenRef = useRef(reloadToken)
   const tableRowCountRef = useRef(table.rowCount)
   const onErrorRef = useRef(onError)
   const onRowCountChangeRef = useRef(onRowCountChange)
@@ -1097,6 +1106,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     dataScopeRef.current = scope
     if (thumbnailScopeRef.current !== thumbnailScope) {
       thumbnailScopeRef.current = thumbnailScope
+      if (thumbnailReloadTokenRef.current !== reloadToken) {
+        thumbnailReloadTokenRef.current = reloadToken
+        if (assetSession?.thumbnailRevision === undefined)
+          attachmentSourceCache?.clear()
+      }
       attachmentThumbnails.clear()
       urlImageThumbnails.clear()
     }
@@ -1132,6 +1146,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       prefetchPages: [],
     })
   }, [
+    attachmentSourceCache,
     attachmentThumbnails,
     loadPageIndex,
     refreshToken,

@@ -10,6 +10,7 @@ import {
   resolveEidosFileThumbnail,
 } from "./eidos-file-asset-lease"
 import { eidosFileCanvasImageSourceDimensions } from "./eidos-file-url-image-source-cache"
+import type { EidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
 
 export interface EidosFileAttachmentThumbnailCell {
   cell: [number, number]
@@ -27,6 +28,7 @@ interface ThumbnailRecord {
   loadAttempts: number
   failedAt?: number
   source?: CanvasImageSource
+  releaseSharedSource?: () => void
   state: "queued" | "loading" | "ready" | "failed"
 }
 
@@ -90,7 +92,8 @@ export class EidosFileAttachmentThumbnailManager {
     private readonly onCellsReady: (
       cells: EidosFileAttachmentThumbnailCell[]
     ) => void,
-    options: EidosFileAttachmentThumbnailManagerOptions = {}
+    options: EidosFileAttachmentThumbnailManagerOptions = {},
+    private readonly sourceCache?: EidosFileAttachmentSourceCache
   ) {
     this.concurrentLoads = Math.max(
       1,
@@ -142,12 +145,15 @@ export class EidosFileAttachmentThumbnailManager {
         record.state = "queued"
         record.loadAttempts = 0
         record.failedAt = undefined
-        this.loadQueue.push(record)
+        if (this.sourceCache) {
+          record.releaseSharedSource?.()
+          this.loadSharedSource(record)
+        } else this.loadQueue.push(record)
       }
       if (!record) {
         record = {
           active: true,
-          cells: new Set(),
+          cells: new Set([key]),
           decodedBytes: 0,
           entry,
           lastAccess: 0,
@@ -155,7 +161,8 @@ export class EidosFileAttachmentThumbnailManager {
           state: "queued",
         }
         this.records.set(entry.id, record)
-        this.loadQueue.push(record)
+        if (this.sourceCache) this.loadSharedSource(record)
+        else this.loadQueue.push(record)
       }
       record.cells.add(key)
       this.touch(record)
@@ -260,6 +267,36 @@ export class EidosFileAttachmentThumbnailManager {
     else this.cellEntries.delete(key)
   }
 
+  private loadSharedSource(record: ThumbnailRecord): void {
+    const cache = this.sourceCache
+    if (!cache) return
+    const update = (notify: boolean) => {
+      if (!record.active) return
+      const snapshot = cache.snapshot(record.entry)
+      record.source = snapshot.source
+      record.decodedBytes = snapshot.source
+        ? decodedImageBytes(snapshot.source)
+        : 0
+      record.state =
+        snapshot.state === "unavailable" ? "failed" : snapshot.state
+      if (record.state === "failed") {
+        record.failedAt = Date.now()
+        this.pruneCache()
+      }
+      if (record.state === "ready") {
+        this.touch(record)
+        if (notify && record.cells.size > 0)
+          this.onCellsReady([...record.cells].map(cellFromKey))
+        this.pruneCache()
+      }
+    }
+    record.releaseSharedSource = cache.subscribe(record.entry, () =>
+      update(true)
+    )
+    // A remounted Grid can draw an already decoded thumbnail on its first pass.
+    update(false)
+  }
+
   private async load(record: ThumbnailRecord): Promise<void> {
     if (!this.session || !this.presenter?.loadImage) return
     let lease: ThumbnailRecord["lease"]
@@ -324,7 +361,9 @@ export class EidosFileAttachmentThumbnailManager {
     }
     record.lease = undefined
     record.decodedBytes = 0
-    disposeImageSource(record.source)
+    record.releaseSharedSource?.()
+    record.releaseSharedSource = undefined
+    if (!this.sourceCache) disposeImageSource(record.source)
     record.source = undefined
     record.cells.clear()
   }

@@ -75,17 +75,127 @@ function fixture() {
       canUseAssets: true,
     },
   }
+  const close = vi.fn()
   const source = {
     width: 2,
     height: 2,
-    close: vi.fn(),
+    close,
   } as unknown as CanvasImageSource
   const loadImage = vi.fn(async () => source)
   const presenter = { loadImage } as unknown as AssetPresenter<unknown>
-  return { session, presenter, source, resolveAsset, releaseAsset, loadImage }
+  return {
+    session,
+    presenter,
+    source,
+    close,
+    resolveAsset,
+    releaseAsset,
+    loadImage,
+  }
 }
 
 describe("decoded attachment thumbnail cache", () => {
+  it("keeps offscreen sources drawable and defers their revalidation until return", async () => {
+    const f = fixture()
+    const cache = new EidosFileAttachmentSourceCache(f.session, f.presenter)
+    const stop = cache.subscribe(entries[0]!, vi.fn())
+    await vi.waitFor(() =>
+      expect(cache.snapshot(entries[0]!).state).toBe("ready")
+    )
+    stop()
+    cache.revalidate()
+    expect(f.resolveAsset).toHaveBeenCalledOnce()
+    expect(cache.snapshot(entries[0]!).source).toBe(f.source)
+    const stopAgain = cache.subscribe(entries[0]!, vi.fn())
+    expect(cache.snapshot(entries[0]!).state).toBe("ready")
+    await vi.waitFor(() => expect(f.resolveAsset).toHaveBeenCalledTimes(2))
+    stopAgain()
+    cache.clear()
+  })
+
+  it("does not lose another file change arriving during an in-flight decode", async () => {
+    const f = fixture()
+    let finish: (source: CanvasImageSource) => void = () => undefined
+    f.loadImage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const cache = new EidosFileAttachmentSourceCache(f.session, f.presenter)
+    const stop = cache.subscribe(entries[0]!, vi.fn())
+    await vi.waitFor(() => expect(f.loadImage).toHaveBeenCalledOnce())
+    cache.revalidate()
+    cache.revalidate()
+    finish(f.source)
+    await vi.waitFor(() => expect(f.loadImage).toHaveBeenCalledTimes(2))
+    expect(cache.snapshot(entries[0]!).state).toBe("ready")
+    stop()
+    cache.clear()
+  })
+
+  it("keeps visible thumbnails ready throughout watcher revalidation and replaces changed content", async () => {
+    const f = fixture()
+    f.session.thumbnailRevision = 0
+    const cache = sharedEidosFileAttachmentSourceCache(f.session, f.presenter)!
+    const observed: string[] = []
+    const stop = cache.subscribe(entries[0]!, () => {
+      observed.push(cache.snapshot(entries[0]!).state)
+    })
+    await vi.waitFor(() =>
+      expect(cache.snapshot(entries[0]!).state).toBe("ready")
+    )
+    let finish: (source: CanvasImageSource) => void = () => undefined
+    f.loadImage.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    f.session.thumbnailRevision = 1
+    expect(sharedEidosFileAttachmentSourceCache(f.session, f.presenter)).toBe(
+      cache
+    )
+    await vi.waitFor(() => expect(f.loadImage).toHaveBeenCalledTimes(2))
+    expect(cache.snapshot(entries[0]!)).toEqual({
+      state: "ready",
+      source: f.source,
+    })
+    expect(f.close).not.toHaveBeenCalled()
+    const changed = {
+      width: 3,
+      height: 2,
+      close: vi.fn(),
+    } as unknown as CanvasImageSource
+    finish(changed)
+    await vi.waitFor(() =>
+      expect(cache.snapshot(entries[0]!).source).toBe(changed)
+    )
+    expect(observed).toEqual(["ready", "ready"])
+    expect(f.close).toHaveBeenCalledOnce()
+    stop()
+    cache.clear()
+  })
+
+  it("drops stale content when background revalidation fails", async () => {
+    const f = fixture()
+    const cache = new EidosFileAttachmentSourceCache(f.session, f.presenter)
+    const stop = cache.subscribe(entries[0]!, vi.fn())
+    await vi.waitFor(() =>
+      expect(cache.snapshot(entries[0]!).state).toBe("ready")
+    )
+    f.resolveAsset.mockRejectedValue(new Error("File removed"))
+    cache.revalidate()
+    expect(cache.snapshot(entries[0]!).source).toBe(f.source)
+    await vi.waitFor(() =>
+      expect(cache.snapshot(entries[0]!).state).toBe("failed")
+    )
+    expect(cache.snapshot(entries[0]!).source).toBeUndefined()
+    expect(f.close).toHaveBeenCalledOnce()
+    stop()
+    cache.clear()
+  })
+
   it("returns a ready source synchronously after scroll-out and scroll-back without a lease or decode", async () => {
     const f = fixture()
     const cache = new EidosFileAttachmentSourceCache(f.session, f.presenter)

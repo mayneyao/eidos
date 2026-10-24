@@ -29,6 +29,8 @@ export interface EidosFileAttachmentSourceSnapshot {
 interface SourceRecord {
   active: boolean
   started: boolean
+  pending: boolean
+  stale: boolean
   decodedBytes: number
   lastAccess: number
   failedAt?: number
@@ -141,6 +143,8 @@ export class EidosFileAttachmentSourceCache {
       record = {
         active: true,
         started: false,
+        pending: true,
+        stale: false,
         decodedBytes: 0,
         lastAccess: 0,
         entry,
@@ -153,13 +157,23 @@ export class EidosFileAttachmentSourceCache {
     }
     this.touch(record)
     record.listeners.add(listener)
+    if (record.stale && !record.pending) {
+      record.stale = false
+      record.pending = true
+      this.loadQueue.push(record)
+    }
     this.drainLoadQueue()
     return () => {
       record?.listeners.delete(listener)
       if (record?.listeners.size === 0) {
-        if (record.snapshot.state === "loading" && !record.started)
-          this.evict(record)
-        else this.pruneCache()
+        if (record.pending && !record.started) {
+          if (!record.snapshot.source) this.evict(record)
+          else {
+            record.pending = false
+            record.stale = true
+          }
+        }
+        this.pruneCache()
       }
     }
   }
@@ -177,16 +191,27 @@ export class EidosFileAttachmentSourceCache {
     this.accessClock = 0
   }
 
+  /** Keep visible sources drawable until fresh bytes have been decoded. */
+  revalidate(): void {
+    for (const record of this.records.values()) {
+      record.stale = true
+      if (record.pending) continue
+      if (record.listeners.size === 0) continue
+      record.stale = false
+      record.pending = true
+      record.started = false
+      this.loadQueue.push(record)
+    }
+    this.drainLoadQueue()
+  }
+
   private touch(record: SourceRecord): void {
     record.lastAccess = ++this.accessClock
   }
 
   private pruneCache(): void {
     const cached = [...this.records.values()]
-      .filter(
-        (record) =>
-          record.listeners.size === 0 && record.snapshot.state !== "loading"
-      )
+      .filter((record) => record.listeners.size === 0 && !record.pending)
       .sort((a, b) => a.lastAccess - b.lastAccess)
     let entries = cached.length
     let bytes = cached.reduce((total, record) => total + record.decodedBytes, 0)
@@ -218,14 +243,23 @@ export class EidosFileAttachmentSourceCache {
       if (
         !record.active ||
         record.listeners.size === 0 ||
-        record.snapshot.state !== "loading"
+        !record.pending ||
+        record.started
       ) {
         continue
       }
       this.activeLoads += 1
       record.started = true
       void this.load(record).finally(() => {
+        record.pending = false
+        record.started = false
+        if (record.active && record.stale && record.listeners.size > 0) {
+          record.stale = false
+          record.pending = true
+          this.loadQueue.push(record)
+        }
         this.activeLoads -= 1
+        this.pruneCache()
         this.drainLoadQueue()
       })
     }
@@ -260,13 +294,17 @@ export class EidosFileAttachmentSourceCache {
         disposeImageSource(source)
         return
       }
+      const previous = record.snapshot.source
       record.decodedBytes = decodedBytes(source)
       record.snapshot = { source, state: "ready" }
+      if (previous !== source) disposeImageSource(previous)
       this.touch(record)
       this.notify(record)
       this.pruneCache()
     } catch {
       if (!record.active) return
+      disposeImageSource(record.snapshot.source)
+      record.decodedBytes = 0
       record.snapshot = FAILED_SNAPSHOT
       record.failedAt = Date.now()
       this.notify(record)
@@ -299,6 +337,7 @@ export class EidosFileAttachmentSourceCache {
 interface SharedCacheBinding {
   cache: EidosFileAttachmentSourceCache
   scope: string
+  revision?: number
 }
 
 const sharedCaches = new WeakMap<
@@ -338,7 +377,13 @@ export function sharedEidosFileAttachmentSourceCache(
     byPresenter.set(presenter, bySize)
   }
   const existing = bySize.get(size)
-  if (existing?.scope === scope) return existing.cache
+  if (existing?.scope === scope) {
+    if (existing.revision !== session.thumbnailRevision) {
+      existing.revision = session.thumbnailRevision
+      existing.cache.revalidate()
+    }
+    return existing.cache
+  }
   for (const [cachedSize, binding] of bySize) {
     if (binding.scope !== scope) {
       binding.cache.clear()
@@ -349,6 +394,6 @@ export function sharedEidosFileAttachmentSourceCache(
     size,
     decodedBytesMax: size === 128 ? 16 * 1024 * 1024 : 64 * 1024 * 1024,
   })
-  bySize.set(size, { cache, scope })
+  bySize.set(size, { cache, scope, revision: session.thumbnailRevision })
   return cache
 }

@@ -59,7 +59,7 @@ import {
 } from "../shared/keyboard-shortcuts"
 import type { EidosLiteRecordOpenMode } from "../shared/contracts"
 import {
-  createEidosLiteAssetSession,
+  retainedEidosLiteAssetSession,
   eidosLiteAssetPresenter,
 } from "./eidos-file-assets"
 import { eidosFileKeyboardShortcuts } from "./eidos-file-keyboard-shortcuts"
@@ -190,9 +190,14 @@ export function EidosFileWorkbench({
   }, [refreshToken])
   const assetSession = useMemo(
     () =>
-      createEidosLiteAssetSession(source.sessionId, snapshot.metadata.fileId),
-    // A filesystem refresh must revalidate images, including same-size edits.
-    [snapshot.metadata.fileId, source.sessionId, refreshToken]
+      retainedEidosLiteAssetSession(
+        source,
+        snapshot.metadata.fileId,
+        refreshToken
+      ),
+    // Revalidate filesystem changes, including same-size edits, while retaining
+    // drawable thumbnails through the resident Runtime's asset session.
+    [snapshot.metadata.fileId, source, refreshToken]
   )
   const editorKeyboardShortcuts = useMemo(
     () => eidosFileKeyboardShortcuts(keyboardShortcuts, macos),
