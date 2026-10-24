@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "3.4.0",
+      "pluginApi": "3.6.0",
       "features": [
         "data.file",
         "data.eidos/table",
@@ -13,6 +13,7 @@
         "fileTemplates",
         "extension",
         "background",
+        "background.fileHistory",
         "actions",
         "formatters",
         "hooks",
@@ -24,6 +25,7 @@
         "sidebar.explorer",
         "browser.workers",
         "browser.network",
+        "network.public",
         "theme.lite"
       ]
     },

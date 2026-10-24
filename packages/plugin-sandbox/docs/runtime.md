@@ -100,11 +100,11 @@ TypeScript 和多文件项目需先编译、打包成一个 ESM 文件。运行�
 
 启动时只输出 ready，不连接设备。connect 后读取电量并订阅通知，连接本身保持运行时存活。去掉 `--bluetooth-mock` 并换成真实设备权限文件即可使用原生 BLE 后端；宿主使用 `bluetooth-scan --seconds 5` 查找设备 ID。默认未授权任何蓝牙设备。
 
-`navigator.bluetooth.getDevices()` 只返回宿主已授权设备。`requestDevice()` 不可用：这个无 UI 的宿主没有浏览器设备选择器，插件不能自行扩大授权。每个设备的服务及 read/write/notify 分别授权。Web Bluetooth 原本面向 Window；在本 worker 中暴露它是宿主扩展。
+`navigator.bluetooth.getDevices()` 只返回宿主已授权设备。`requestDevice()` 不可用：这个无 UI 的宿主没有浏览器设备选择器，插件不能自行扩大授权。可信宿主可为单个设备设置 `allServices: true`（同时提供 `services: []`）以授权全部 GATT 服务及操作，或通过 `services` 限制服务及 read/write/notify。Lite 的 `bluetooth: true` 经设备选择授权后转换为前者。Web Bluetooth 原本面向 Window；在本 worker 中暴露它是宿主扩展。
 
 ## 网络权限由宿主授予
 
-默认禁止所有网络访问。`--allow-net` 可以重复，只接受精确 origin（协议、主机和有效端口），不接受通配符或路径。HTTP 和 WS 是不同的授权项。插件无法自行授权，也不会弹出授权窗口。
+默认禁止所有网络访问。`--allow-net` 可以重复，接受精确 origin（协议、主机和有效端口），或由可信宿主传入 `--allow-net '*'` 允许公网 HTTPS/WSS；不接受路径和部分域名通配符。通用授权不包含明文 HTTP/WS，也不会取消私网地址检查。HTTP 和 WS 是不同的精确授权项。插件无法自行授权，也不会弹出授权窗口。
 
 ```sh
 ./bin/darwin-arm64/plugin-sandbox run plugin.mjs \
@@ -155,13 +155,13 @@ socket.onclose = ({ code, wasClean }) => postMessage({ code, wasClean })
 
 ### 网络兼容范围及限额
 
-- `fetch` 在完整响应体读取完成后 resolve，最多缓冲 1 MiB（解压后）。`text()`、`json()`、`arrayBuffer()`、`bytes()`、`blob()` 和 `clone()` 可用，非空 `.body`、`formData()`、流式读写会明确报 NotSupportedError。
-- 请求 body 支持字符串、Blob、ArrayBuffer 和 TypedArray；不支持 FormData、URLSearchParams 或 ReadableStream。URL 需为绝对字符串，没有浏览器基准 URL。
-- 支持 `redirect: follow/error/manual`、AbortSignal、HTTP 错误状态响应。没有浏览器 origin/CORS 检查、Cookie、凭据存储、缓存或 Service Worker；`credentials: include` 等未支持选项会报错。宿主 origin 授权是访问控制依据。
-- Headers 的常用操作及网络响应头不可修改约束已实现；禁止的请求头由 Rust 过滤。事件类和编码类为常用子集，TextDecoder 仅支持非流式 UTF-8。
+- `fetch` 收到响应头即 resolve。`.body` 为 ReadableStream，按需拉取最多 16 KiB 的块并支持背压、取消和 SSE。`text()`、`json()`、`arrayBuffer()`、`bytes()`、`blob()`、`formData()` 和 `clone()` 可用。缓冲读取最多 16 MiB，还受 JS 堆和单轮 CPU 配额约束；大响应应逐块消费。始终消费或取消 body。
+- 请求 body 支持字符串、Blob/File、ArrayBuffer、TypedArray、FormData、URLSearchParams、ReadableStream。当前上传先缓冲，最多 1 MiB，不是流式上传传输。URL 需为绝对地址，没有浏览器基准 URL。
+- 支持 `redirect: follow/error/manual`、AbortSignal（包括 any/timeout）、HTTP 错误状态响应和 SHA-256/384/512 integrity。没有浏览器 origin/CORS 检查、Cookie、凭据存储、持久缓存或 Service Worker；credentials/cache/referrer 不授予环境权限。宿主 origin 授权是访问控制依据，Authorization 需显式设置。
+- Headers 操作及网络响应头不可修改约束已实现；禁止的请求头由 Rust 过滤。UTF-8 TextDecoder 支持分块解码，也提供 TextDecoderStream/TextEncoderStream。通用 Streams 与 URL/URLSearchParams 使用固定版本 polyfill；运行 `pnpm --filter @eidos.space/plugin-sandbox build:web` 生成内嵌文件，`check:web` 检查是否过期。依赖许可证见 `crates/eidos-plugin-sandbox/src/generated-web-NOTICE.txt`。
 - WebSocket 支持 `open/message/error/close`、字符串或 BufferSource/Blob 的 send、`binaryType: blob/arraybuffer`、子协议、readyState 常量和关闭码验证。没有自动重连、扩展协商或握手重定向。发送队列满时抛异常，是当前资源限额行为。
-- 最多 16 个并发网络资源；每个 HTTP body / WS 消息最多 1 MiB；WS 发送缓冲最多 4 MiB，命令队列 32 条；宿主事件队列 32 条。输入 header 最多 128 个、32 KiB；响应 header 读取后检查 32 KiB。
-- HTTP 请求总超时 30 秒，连接超时 10 秒；最多 20 次重定向。WebSocket 建连、单次写入和关闭握手超时 10 秒，已连接的空闲 socket 不设网络层超时。
+- 最多 16 个并发网络资源；HTTP 上传 / WS 消息最多 1 MiB；响应流没有原来的 1 MiB 总量上限。WS 发送缓冲最多 4 MiB，命令队列 32 条；宿主事件队列 32 条。输入 header 最多 128 个、32 KiB；响应 header 读取后检查 32 KiB。
+- HTTP 从开始请求到最终响应头共用 30 秒截止时间，包含 DNS、连接及全部重定向；连接本身最多 10 秒。读取等待及未消费 body 的空闲截止时间分别为 30 秒；最多 20 次重定向。活跃的 SSE 可超过 30 秒。WebSocket 建连、单次写入和关闭握手超时 10 秒，已连接的空闲 socket 不设网络层超时。
 - 网络等待不占用 JS turn 预算。大体积数据的编码/复制仍占用 JS turn，需要时提高 `--turn-budget-ms`。宿主网络缓冲不计入 QuickJS 堆限制。
 
 ### 内部数据流
@@ -186,7 +186,8 @@ socket.onclose = ({ code, wasClean }) => postMessage({ code, wasClean })
 - 默认整个运行最多 30 秒；常驻任务传 `--max-duration-ms 0`。
 - 默认每次 JS 执行及其微任务 checkpoint 共用 100ms 墙钟预算，微任务数上限 10,000。预算不是精确 CPU 计量，也不是可抢占的 OS 限额。
 - QuickJS 堆默认 64 MiB，栈 512 KiB。宿主缓冲不计入 JS 堆，另有输入/输出上限。
-- 最多 1,024 个定时器；模块最多 4 MiB；单条输入/输出最多 1 MiB；累计输出 16 MiB；输入队列最多 8 条。
+- 最多 1,024 个定时器；模块最多 4 MiB；单条输入/输出最多 1 MiB；输入队列最多 8 条。
+- 输出没有生命周期累计上限。每个一秒窗口内消息最多 16 MiB，超限终止运行；日志独立限制为每窗口 1 MiB，超额日志丢弃。Node SDK 另外限制每条输出管道为每秒 32 MiB。输出通过有界管道产生背压，不在宿主累计保存全部历史消息。
 - 非法输入、脚本异常、未处理 rejection、资源超限返回非零退出码。不会自动重启或重试副作用。
 - message handler 的异步任务可以交错执行，调用方需要自行处理命令串行化。
 

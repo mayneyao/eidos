@@ -57,6 +57,8 @@ pub struct Policy {
 struct DeviceGrant {
     id: String,
     name: Option<String>,
+    #[serde(default, rename = "allServices")]
+    all_services: bool,
     services: Vec<ServiceGrant>,
 }
 #[derive(Clone, Deserialize)]
@@ -116,11 +118,21 @@ impl Policy {
             .find(|d| d.id == id)
             .ok_or_else(|| anyhow!("SecurityError: Bluetooth device is not granted"))
     }
-    fn service(&self, id: &str, service: &str) -> Result<&ServiceGrant> {
-        self.device(id)?
+    fn service(&self, id: &str, service: &str) -> Result<ServiceGrant> {
+        let device = self.device(id)?;
+        if device.all_services {
+            return Ok(ServiceGrant {
+                uuid: service.to_owned(),
+                read: true,
+                write: true,
+                notify: true,
+            });
+        }
+        device
             .services
             .iter()
             .find(|s| s.uuid == service)
+            .cloned()
             .ok_or_else(|| anyhow!("SecurityError: Bluetooth service is not granted"))
     }
 }
@@ -689,6 +701,24 @@ mod tests {
     #[test]
     fn default_policy_denies() {
         assert!(Policy::default().device("mock-battery").is_err());
+    }
+
+    #[test]
+    fn all_services_grant_stays_bound_to_selected_device() {
+        let policy: Policy = serde_json::from_value(json!({"devices": [{
+            "id": "selected", "allServices": true, "services": []
+        }]}))
+        .unwrap();
+        let grant = policy.service("selected", "any-service").unwrap();
+        assert!(grant.read && grant.write && grant.notify);
+        assert!(policy.service("other-device", "any-service").is_err());
+        let restricted: Policy = serde_json::from_value(json!({"devices": [{
+            "id": "selected", "services": [{"uuid": "battery", "read": true}]
+        }]}))
+        .unwrap();
+        assert!(restricted.service("selected", "other-service").is_err());
+        let grant = restricted.service("selected", "battery").unwrap();
+        assert!(grant.read && !grant.write && !grant.notify);
     }
 
     #[tokio::test]

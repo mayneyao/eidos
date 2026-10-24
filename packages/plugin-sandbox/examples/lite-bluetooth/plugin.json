@@ -6,9 +6,7 @@
   "requires": { "pluginApi": "3.4.0" },
   "background": {
     "entry": "./background.ts",
-    "bluetooth": {
-      "services": [{ "uuid": "battery_service", "read": true, "notify": true }]
-    }
+    "bluetooth": true
   },
   "extension": "./extension.ts",
   "views": [
@@ -21,23 +19,29 @@
   ],
   "actions": [
     {
+      "id": "open-panel",
+      "title": "蓝牙电量：打开面板",
+      "context": "workspace"
+    },
+    {
       "id": "connect",
-      "title": "Bluetooth: choose and connect battery",
+      "title": "蓝牙电量：选择并连接设备",
       "context": "workspace"
     },
     {
       "id": "status",
-      "title": "Bluetooth: battery status",
+      "title": "蓝牙电量：查看连接与电量",
       "context": "workspace"
     },
     {
       "id": "stop",
-      "title": "Bluetooth: disconnect and stop",
+      "title": "蓝牙电量：断开并停止后台",
       "context": "workspace"
     }
   ],
   "placements": [
     { "location": "navigation", "view": "battery" },
+    { "location": "command-palette", "action": "open-panel" },
     { "location": "command-palette", "action": "connect" },
     { "location": "command-palette", "action": "status" },
     { "location": "command-palette", "action": "stop" }

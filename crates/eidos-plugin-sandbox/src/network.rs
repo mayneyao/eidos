@@ -4,6 +4,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256, Sha384, Sha512};
 use std::{
     collections::{HashMap, HashSet},
     net::{IpAddr, SocketAddr},
@@ -15,7 +16,7 @@ use tokio::{
     runtime::Runtime,
     sync::mpsc,
     task::AbortHandle,
-    time::{timeout, Instant},
+    time::{timeout, timeout_at, Instant},
 };
 use tokio_tungstenite::{
     client_async_tls_with_config,
@@ -37,12 +38,18 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub struct Policy {
     origins: HashSet<String>,
     private: bool,
+    #[cfg(test)]
+    resolution_delay: Option<Duration>,
 }
 
 impl Policy {
     pub fn new(origins: Vec<String>, private: bool) -> Result<Self> {
         let mut allowed = HashSet::new();
         for origin in origins {
+            if origin == "*" {
+                allowed.insert(origin);
+                continue;
+            }
             let url = parse_url(&origin, false)?;
             ensure!(
                 url.path() == "/" && url.query().is_none() && url.fragment().is_none(),
@@ -53,12 +60,15 @@ impl Policy {
         Ok(Self {
             origins: allowed,
             private,
+            #[cfg(test)]
+            resolution_delay: None,
         })
     }
 
     async fn resolve(&self, url: &Url) -> Result<Vec<SocketAddr>> {
         ensure!(
-            self.origins.contains(&url.origin().ascii_serialization()),
+            self.origins.contains(&url.origin().ascii_serialization())
+                || (self.origins.contains("*") && matches!(url.scheme(), "https" | "wss")),
             "Network permission denied for {}",
             url.origin().ascii_serialization()
         );
@@ -67,6 +77,10 @@ impl Policy {
             url::Host::Ipv4(ip) => ip.to_string(),
             url::Host::Ipv6(ip) => ip.to_string(),
         };
+        #[cfg(test)]
+        if let Some(delay) = self.resolution_delay {
+            tokio::time::sleep(delay).await;
+        }
         let port = url
             .port_or_known_default()
             .ok_or_else(|| anyhow!("Missing port"))?;
@@ -158,6 +172,7 @@ impl Events {
 struct Operation {
     abort: AbortHandle,
     socket: Option<mpsc::Sender<SocketCommand>>,
+    pull: Option<mpsc::Sender<()>>,
     queued: usize,
 }
 enum SocketCommand {
@@ -200,7 +215,7 @@ impl Network {
                 continue;
             };
             match event["type"].as_str() {
-                Some("fetch_response" | "fetch_error" | "ws_close") => {
+                Some("fetch_end" | "fetch_error" | "ws_close") => {
                     self.operations.remove(&id);
                 }
                 Some("ws_drain") => {
@@ -233,7 +248,7 @@ impl Network {
     // This entry point validates all input independently of the JS facade.
     pub fn call(&mut self, method: &str, input: &str) -> String {
         let result = (|| -> Result<Value> {
-            ensure!(input.len() <= 8 * BODY_LIMIT, "Host request too large");
+            ensure!(input.len() <= 72 * BODY_LIMIT, "Host request too large");
             let value: Value = serde_json::from_str(input)?;
             match method {
                 "url" => {
@@ -251,7 +266,7 @@ impl Network {
                     .as_bytes())),
                 "decode" => {
                     let bytes: Vec<u8> = serde_json::from_value(value["bytes"].clone())?;
-                    ensure!(bytes.len() <= BODY_LIMIT, "Byte limit exceeded");
+                    ensure!(bytes.len() <= 16 * BODY_LIMIT, "Byte limit exceeded");
                     let text = if value["fatal"] == true {
                         String::from_utf8(bytes)?
                     } else {
@@ -265,7 +280,10 @@ impl Network {
                 }
                 "base64.encode" => {
                     let bytes: Vec<u8> = serde_json::from_value(value)?;
-                    ensure!(bytes.len() <= BODY_LIMIT, "Body/message exceeds 1 MiB");
+                    ensure!(
+                        bytes.len() <= 16 * BODY_LIMIT,
+                        "Encoding input exceeds 16 MiB"
+                    );
                     Ok(json!(BASE64.encode(bytes)))
                 }
                 "base64.decode" => {
@@ -274,10 +292,42 @@ impl Network {
                             .as_str()
                             .ok_or_else(|| anyhow!("Expected base64 string"))?,
                     )?;
-                    ensure!(bytes.len() <= BODY_LIMIT, "Body/message exceeds 1 MiB");
+                    ensure!(
+                        bytes.len() <= 16 * BODY_LIMIT,
+                        "Encoding input exceeds 16 MiB"
+                    );
                     Ok(json!(bytes))
                 }
                 "fetch" => self.start_fetch(serde_json::from_value(value)?),
+                "digest" => {
+                    let bytes = BASE64.decode(
+                        value["body"]
+                            .as_str()
+                            .ok_or_else(|| anyhow!("Missing body"))?,
+                    )?;
+                    let digest = match value["algorithm"].as_str() {
+                        Some("sha256") => Sha256::digest(bytes).to_vec(),
+                        Some("sha384") => Sha384::digest(bytes).to_vec(),
+                        Some("sha512") => Sha512::digest(bytes).to_vec(),
+                        _ => bail!("Unsupported integrity algorithm"),
+                    };
+                    Ok(json!(BASE64.encode(digest)))
+                }
+                "fetch.pull" => {
+                    let id = value
+                        .as_u64()
+                        .ok_or_else(|| anyhow!("Invalid request ID"))?;
+                    let op = self
+                        .operations
+                        .get(&id)
+                        .ok_or_else(|| anyhow!("Request closed"))?;
+                    op.pull
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("Not a fetch request"))?
+                        .try_send(())
+                        .map_err(|_| anyhow!("Read already pending"))?;
+                    Ok(Value::Null)
+                }
                 "cancel" => {
                     let id = value
                         .as_u64()
@@ -360,26 +410,20 @@ impl Network {
         let id = self.id()?;
         let policy = self.policy.clone();
         let events = self.events.clone();
+        let (pull, receiver) = mpsc::channel(1);
         let task = self.runtime.as_ref().unwrap().spawn(async move {
-            let result = timeout(REQUEST_TIMEOUT, fetch(&policy, request)).await;
-            let event = match result {
-                Ok(Ok(mut result)) => {
-                    result["id"] = json!(id);
-                    result["type"] = json!("fetch_response");
-                    result
-                }
-                Ok(Err(error)) => {
-                    json!({"type":"fetch_error","id":id,"error":format!("{error:#}")})
-                }
-                Err(_) => json!({"type":"fetch_error","id":id,"error":"Network request timed out"}),
-            };
-            events.send(event).await;
+            if let Err(error) = fetch(&policy, request, id, &events, receiver).await {
+                events
+                    .send(json!({"type":"fetch_error","id":id,"error":format!("{error:#}")}))
+                    .await;
+            }
         });
         self.operations.insert(
             id,
             Operation {
                 abort: task.abort_handle(),
                 socket: None,
+                pull: Some(pull),
                 queued: 0,
             },
         );
@@ -404,6 +448,7 @@ impl Network {
             Operation {
                 abort: task.abort_handle(),
                 socket: Some(sender),
+                pull: None,
                 queued: 0,
             },
         );
@@ -457,7 +502,32 @@ fn forbidden_header(name: &str) -> bool {
         || name.starts_with("sec-")
 }
 
-async fn fetch(policy: &Policy, request: FetchRequest) -> Result<Value> {
+async fn fetch(
+    policy: &Policy,
+    request: FetchRequest,
+    id: u64,
+    events: &Events,
+    pulls: mpsc::Receiver<()>,
+) -> Result<()> {
+    fetch_with_deadline(
+        policy,
+        request,
+        id,
+        events,
+        pulls,
+        Instant::now() + REQUEST_TIMEOUT,
+    )
+    .await
+}
+
+async fn fetch_with_deadline(
+    policy: &Policy,
+    request: FetchRequest,
+    id: u64,
+    events: &Events,
+    mut pulls: mpsc::Receiver<()>,
+    header_deadline: Instant,
+) -> Result<()> {
     let mut url = parse_url(&request.url, false)?;
     ensure!(
         matches!(url.scheme(), "http" | "https"),
@@ -497,13 +567,14 @@ async fn fetch(policy: &Policy, request: FetchRequest) -> Result<Value> {
         headers.append(name, reqwest::header::HeaderValue::from_str(&value)?);
     }
     for hop in 0..=20 {
-        let addresses = policy.resolve(&url).await?;
+        let addresses = timeout_at(header_deadline, policy.resolve(&url))
+            .await
+            .context("Fetch response headers timed out during DNS")??;
         // No environment proxies, cookie jar, automatic redirects, or second DNS lookup.
         let client = reqwest::Client::builder()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(REQUEST_TIMEOUT)
             .resolve_to_addrs(url.host_str().unwrap(), &addresses)
             .build()?;
         let mut builder = client
@@ -512,16 +583,18 @@ async fn fetch(policy: &Policy, request: FetchRequest) -> Result<Value> {
         if let Some(body) = &body {
             builder = builder.body(body.clone());
         }
-        let mut response = builder.send().await?;
+        let mut response = timeout_at(header_deadline, builder.send())
+            .await
+            .context("Fetch response headers timed out")??;
         let status = response.status().as_u16();
         if [301, 302, 303, 307, 308].contains(&status) {
             if request.redirect == "error" {
                 bail!("Redirect disallowed by request");
             }
             if request.redirect == "manual" {
-                return Ok(
-                    json!({"status":0,"statusText":"","headers":[],"body":null,"url":url.as_str(),"redirected":false,"responseType":"opaqueredirect"}),
-                );
+                events.send(json!({"type":"fetch_response","id":id,"status":0,"statusText":"","headers":[],"body":null,"url":"","redirected":false,"responseType":"opaqueredirect"})).await;
+                events.send(json!({"type":"fetch_end","id":id})).await;
+                return Ok(());
             }
             if let Some(location) = response.headers().get(reqwest::header::LOCATION) {
                 ensure!(hop < 20, "Too many redirects");
@@ -578,17 +651,31 @@ async fn fetch(policy: &Policy, request: FetchRequest) -> Result<Value> {
             "Response headers exceed 32 KiB"
         );
         let null_body = method == reqwest::Method::HEAD || [204, 205, 304].contains(&status);
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            ensure!(
-                bytes.len() + chunk.len() <= BODY_LIMIT,
-                "Response body exceeds 1 MiB"
-            );
-            bytes.extend_from_slice(&chunk);
+        events.send(json!({"type":"fetch_response","id":id,"status":status,"statusText":response.status().canonical_reason().unwrap_or(""),"headers":response_headers,"body":if null_body {None} else {Some("")},"url":url.as_str(),"redirected":hop>0,"responseType":"basic"})).await;
+        if !null_body {
+            // Read only on guest demand. Each event is bounded even for large HTTP chunks.
+            let mut queued = Vec::new();
+            let mut offset = 0;
+            loop {
+                if timeout(REQUEST_TIMEOUT, pulls.recv()).await?.is_none() {
+                    return Ok(());
+                }
+                if offset == queued.len() {
+                    match timeout(REQUEST_TIMEOUT, response.chunk()).await?? {
+                        Some(chunk) => {
+                            queued = chunk.to_vec();
+                            offset = 0;
+                        }
+                        None => break,
+                    }
+                }
+                let end = (offset + 16 * 1024).min(queued.len());
+                events.send(json!({"type":"fetch_chunk","id":id,"body":BASE64.encode(&queued[offset..end])})).await;
+                offset = end;
+            }
         }
-        return Ok(
-            json!({"status":status,"statusText":response.status().canonical_reason().unwrap_or(""),"headers":response_headers,"body":if null_body {None} else {Some(BASE64.encode(bytes))},"url":url.as_str(),"redirected":hop>0,"responseType":"basic"}),
-        );
+        events.send(json!({"type":"fetch_end","id":id})).await;
+        return Ok(());
     }
     bail!("Too many redirects")
 }
@@ -698,6 +785,81 @@ async fn socket(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn request(url: String) -> FetchRequest {
+        FetchRequest {
+            url,
+            method: "GET".into(),
+            headers: vec![],
+            body: None,
+            redirect: "follow".into(),
+        }
+    }
+    fn events() -> Events {
+        let (sender, _) = mpsc::channel(32);
+        let (wake, _) = std::sync::mpsc::sync_channel(1);
+        Events { sender, wake }
+    }
+    #[tokio::test]
+    async fn header_deadline_includes_dns() {
+        let mut policy = Policy::new(vec!["https://example.com".into()], false).unwrap();
+        policy.resolution_delay = Some(Duration::from_secs(60));
+        let (_, pulls) = mpsc::channel(1);
+        let result = timeout(
+            Duration::from_secs(1),
+            fetch_with_deadline(
+                &policy,
+                request("https://example.com".into()),
+                1,
+                &events(),
+                pulls,
+                Instant::now() + Duration::from_millis(20),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        assert!(result.to_string().contains("during DNS"));
+    }
+    #[tokio::test]
+    async fn redirects_share_one_header_deadline() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let mut count = 0;
+            while count < 2 && std::time::Instant::now() < deadline {
+                if let Ok((mut socket, _)) = listener.accept() {
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(1)))
+                        .unwrap();
+                    let mut bytes = [0; 4096];
+                    let _ = socket.read(&mut bytes);
+                    std::thread::sleep(Duration::from_millis(100));
+                    let _ = socket.write_all(b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    count += 1;
+                } else {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            }
+            count
+        });
+        let policy = Policy::new(vec![origin.clone()], true).unwrap();
+        let (_, pulls) = mpsc::channel(1);
+        let result = fetch_with_deadline(
+            &policy,
+            request(origin),
+            1,
+            &events(),
+            pulls,
+            Instant::now() + Duration::from_millis(170),
+        )
+        .await
+        .unwrap_err();
+        assert!(result.to_string().contains("headers timed out"));
+        assert_eq!(server.join().unwrap(), 2);
+    }
     #[test]
     fn private_and_transition_addresses_are_blocked() {
         for address in [
@@ -727,7 +889,6 @@ mod tests {
         assert!(!policy.origins.contains("http://example.com"));
         assert!(!policy.origins.contains("https://example.com:444"));
         for invalid in [
-            "*",
             "https://example.com/path",
             "https://example.com?x",
             "https://u:p@example.com",
@@ -735,5 +896,34 @@ mod tests {
         ] {
             assert!(Policy::new(vec![invalid.into()], false).is_err());
         }
+    }
+
+    #[tokio::test]
+    async fn public_network_grant_keeps_transport_and_private_address_limits() {
+        let policy = Policy::new(vec!["*".into()], false).unwrap();
+        assert!(policy
+            .resolve(&Url::parse("https://1.1.1.1").unwrap())
+            .await
+            .is_ok());
+        assert!(policy
+            .resolve(&Url::parse("wss://1.1.1.1").unwrap())
+            .await
+            .is_ok());
+        for url in [
+            "https://127.0.0.1",
+            "wss://192.168.1.1",
+            "http://1.1.1.1",
+            "ws://1.1.1.1",
+        ] {
+            assert!(
+                policy.resolve(&Url::parse(url).unwrap()).await.is_err(),
+                "{url}"
+            );
+        }
+        let restricted = Policy::new(vec!["https://example.com".into()], false).unwrap();
+        assert!(restricted
+            .resolve(&Url::parse("https://1.1.1.1").unwrap())
+            .await
+            .is_err());
     }
 }

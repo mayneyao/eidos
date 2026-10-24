@@ -65,10 +65,10 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(result, [[[0,255,42], True]])
 
     def test_http_error_is_response(self):
-        self.assertEqual(self.run_js('const r=await fetch(HTTP+"/404");postMessage([r.status,r.ok]);'), [[404, False]])
+        self.assertEqual(self.run_js('const r=await fetch(HTTP+"/404");postMessage([r.status,r.ok]);await r.body.cancel();'), [[404, False]])
 
     def test_redirect_follow_and_manual(self):
-        result = self.run_js('const r=await fetch(HTTP+"/redirect?to=/json");postMessage([r.status,r.redirected,r.url]); const m=await fetch(HTTP+"/redirect?to=/json",{redirect:"manual"});postMessage([m.status,m.type,m.body]);')
+        result = self.run_js('const r=await fetch(HTTP+"/redirect?to=/json");postMessage([r.status,r.redirected,r.url]); await r.body.cancel(); const m=await fetch(HTTP+"/redirect?to=/json",{redirect:"manual"});postMessage([m.status,m.type,m.body]);')
         self.assertEqual(result, [[200,True,self.http+'/json'],[0,'opaqueredirect',None]])
 
     def test_redirect_cannot_expand_permission(self):
@@ -97,9 +97,24 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(result, ['cancelled'])
         self.assertEqual(len(self.server.hits), before)
 
-    def test_response_limit(self):
-        result = self.run_js('try{await fetch(HTTP+"/large")}catch(e){postMessage(e.message)}')
-        self.assertIn('1 MiB', result[0])
+    def test_large_response_stream(self):
+        result = self.run_js('const r=await fetch(HTTP+"/large");let size=0;for await(const bytes of r.body)size+=bytes.length;postMessage(size)')
+        self.assertEqual(result, [1024 * 1024 + 1])
+
+    def test_shared_fetch_contract(self):
+        source = (pathlib.Path(__file__).parent / 'fetch-contract.js').read_text()
+        result = self.run_js('const FETCH_URL=HTTP;\n'+source)
+        self.assertEqual(result, [['你好', 'sample.bin', [0,255,42], True, True, True], ['a b', '你好'], [[1,2,3],True], 'abc', 'TypeError', [[9,8],True], ['stop',True]])
+
+    def test_abort_after_headers_errors_body(self):
+        self.assertEqual(self.run_js('const c=new AbortController();const r=await fetch(HTTP,{signal:c.signal});c.abort();try{await r.text()}catch(e){postMessage(e.name)}'), ['AbortError'])
+
+    def test_streaming_utf8_decode(self):
+        self.assertEqual(self.run_js('const d=new TextDecoder();postMessage([d.decode(new Uint8Array([0xe4,0xbd]),{stream:true}),d.decode(new Uint8Array([0xa0]))]);'), [['', '你']])
+
+    def test_sse_headers_arrive_before_body_and_decode_across_chunks(self):
+        result = self.run_js('const r=await fetch(HTTP+"/stream");let tick=false;setTimeout(()=>{tick=true},20);let text="";for await(const chunk of r.body.pipeThrough(new TextDecoderStream())){if(!text)postMessage(tick);text+=chunk};postMessage(text)')
+        self.assertEqual(result, [True, 'data: 你\n\ndata: done\n\n'])
 
     def test_websocket_denied_before_connect(self):
         before = len(self.server.hits)

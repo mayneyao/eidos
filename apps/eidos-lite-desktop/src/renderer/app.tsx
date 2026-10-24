@@ -1390,8 +1390,17 @@ function WorkspaceApp({
     (entry: SpaceTreeEntry) => {
       if (entry.kind === "directory") return
       updateRecentFiles((files) => rememberRecentFile(files, entry))
+      if (
+        space?.id &&
+        !entry.relativePath
+          .split("/")
+          .some((part) => part === ".eidos" || part === ".graft")
+      )
+        void window.eidosLite
+          .reportFileOpened?.(space.id, entry.relativePath)
+          .catch(console.error)
     },
-    [updateRecentFiles]
+    [updateRecentFiles, space?.id]
   )
 
   const updateRecentFilePaths = useCallback(
@@ -2275,6 +2284,8 @@ function WorkspaceApp({
         setFileIssue(null)
         setTextPreview(null)
         setActiveSession(historyFile.sessionId)
+        if (activeSession !== historyFile.sessionId || textPreview)
+          rememberOpenedEntry(entry)
         if (
           entry.relativePath === SPACE_FILE_METADATA_PATH &&
           options.recordHistory !== false
@@ -2522,6 +2533,8 @@ function WorkspaceApp({
     },
     [
       cachedFiles,
+      activeSession,
+      textPreview,
       markdownFileEditingMode,
       htmlFileOpenMode,
       recordNavigationLocation,

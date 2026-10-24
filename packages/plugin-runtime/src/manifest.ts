@@ -298,7 +298,16 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.browser !== undefined) {
     const browser = record(m.browser)
-    fields(browser, [], ["workers", "networkOrigins"])
+    fields(browser, [], ["workers", "network", "networkOrigins"])
+    if (browser.network !== undefined && browser.network !== true)
+      invalid("Expected network: true")
+    if (browser.network === true) {
+      const version = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (!(version[0]! > 3 || (version[0] === 3 && version[1]! >= 5)))
+        invalid("browser.network requires plugin API 3.5.0 or newer")
+    }
     if (browser.workers !== undefined && typeof browser.workers !== "boolean")
       invalid("Invalid worker capability")
     if (browser.networkOrigins !== undefined) {
@@ -324,8 +333,27 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.background !== undefined) {
     const background = record(m.background)
-    fields(background, ["entry"], ["networkOrigins", "bluetooth"])
-    if (background.bluetooth !== undefined) {
+    fields(
+      background,
+      ["entry"],
+      ["network", "networkOrigins", "bluetooth", "fileHistory", "autoStart"]
+    )
+    if (background.fileHistory !== undefined && background.fileHistory !== true)
+      invalid("Expected fileHistory: true")
+    if (background.autoStart !== undefined && background.autoStart !== true)
+      invalid("Expected autoStart: true")
+    if (background.fileHistory === true || background.autoStart === true) {
+      const version = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (!(version[0]! > 3 || (version[0] === 3 && version[1]! >= 6)))
+        invalid(
+          "background.fileHistory and autoStart require plugin API 3.6.0 or newer"
+        )
+    }
+    if (background.network !== undefined && background.network !== true)
+      invalid("Expected network: true")
+    if (background.bluetooth !== undefined && background.bluetooth !== true) {
       const bluetooth = record(background.bluetooth)
       fields(bluetooth, ["services"], [])
       if (
@@ -362,8 +390,6 @@ export function parseManifest(input: unknown): PluginManifest {
         for (const op of ["read", "write", "notify"])
           if (service[op] !== undefined && typeof service[op] !== "boolean")
             invalid("Invalid Bluetooth operation")
-        if (!service.read && !service.write && !service.notify)
-          invalid("Bluetooth service requires an operation")
       }
     }
     entryPath(background.entry)

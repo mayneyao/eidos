@@ -19,7 +19,8 @@ use std::{
 
 const MAX_MESSAGE: usize = 1024 * 1024;
 const MAX_SOURCE: usize = 4 * 1024 * 1024;
-const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+const MESSAGE_RATE: usize = 16 * 1024 * 1024;
+const LOG_RATE: usize = 1024 * 1024;
 const MAX_TIMERS: usize = 1024;
 
 /// Process-scoped runner configuration. Use the CLI/Node SDK for isolated instances.
@@ -44,8 +45,31 @@ struct Host {
     control_protocol: bool,
     timers: BTreeMap<u32, Instant>,
     closed: bool,
-    output_bytes: usize,
+    messages: OutputWindow,
+    logs: OutputWindow,
     fatal: Option<String>,
+}
+
+#[derive(Default)]
+struct OutputWindow {
+    start: Option<Instant>,
+    bytes: usize,
+}
+impl OutputWindow {
+    fn accept(&mut self, now: Instant, bytes: usize, limit: usize) -> bool {
+        if self
+            .start
+            .is_none_or(|start| now.duration_since(start) >= Duration::from_secs(1))
+        {
+            self.start = Some(now);
+            self.bytes = 0;
+        }
+        if bytes > limit.saturating_sub(self.bytes) {
+            return false;
+        }
+        self.bytes += bytes;
+        true
+    }
 }
 
 enum Input {
@@ -154,13 +178,20 @@ fn install(
             if host.closed {
                 return true;
             }
-            if text.len() > MAX_MESSAGE
-                || host.output_bytes.saturating_add(text.len() + 16) > MAX_OUTPUT
-            {
-                host.fatal = Some("Output quota exceeded (1 MiB/message, 16 MiB/run)".into());
+            if text.len() > MAX_MESSAGE {
+                host.fatal = Some("Output frame exceeds 1 MiB".into());
                 return false;
             }
-            host.output_bytes += text.len() + 16;
+            let now = Instant::now();
+            if kind == "message" {
+                if !host.messages.accept(now, text.len() + 32, MESSAGE_RATE) {
+                    host.fatal = Some("Message output exceeds 16 MiB per second".into());
+                    return false;
+                }
+            } else if !host.logs.accept(now, text.len() + 16, LOG_RATE) {
+                // Logs are best effort and must not exhaust the message budget.
+                return true;
+            }
             let result = if kind == "message" {
                 let mut out = io::stdout().lock();
                 if host.control_protocol {
@@ -305,14 +336,22 @@ pub fn run(args: RunOptions) -> Result<()> {
             .eval(include_str!("bootstrap.js"))
             .catch(&ctx)
             .map_err(|e| anyhow!("{e}"))?;
+        ctx.eval::<(), _>(include_str!("generated-streams.js"))
+            .catch(&ctx)
+            .map_err(|e| anyhow!("{e}"))?;
         let web: Object = ctx
             .eval(include_str!("web.js"))
+            .catch(&ctx)
+            .map_err(|e| anyhow!("{e}"))?;
+        ctx.eval::<(), _>(include_str!("generated-url.js"))
             .catch(&ctx)
             .map_err(|e| anyhow!("{e}"))?;
         let ble: Object = ctx
             .eval(include_str!("bluetooth.js"))
             .catch(&ctx)
             .map_err(|e| anyhow!("{e}"))?;
+        // Trusted Web platform initialization must not consume the guest's first turn.
+        deadline.set(Instant::now() + budget);
         let (_, entry) = Module::declare(
             ctx.clone(),
             file.to_string_lossy().as_bytes(),
@@ -436,7 +475,9 @@ pub fn run(args: RunOptions) -> Result<()> {
                 task => {
                     let (bridge, method, text) = match task {
                         Task::Input(Input::Message(text)) => {
-                            ensure!(ready, "Host sent a message before the worker was ready");
+                            // Trusted host replies can resolve initialization RPCs awaited
+                            // by the entry module. Application sends remain readiness-gated
+                            // by the Node SDK; the bootstrap dispatcher is already installed.
                             (&bridge, "dispatch", text)
                         }
                         Task::Network(event) => (&web, "network", event.to_string()),
@@ -476,5 +517,20 @@ pub fn run(args: RunOptions) -> Result<()> {
             .map(|at| at.saturating_duration_since(Instant::now()))
             .unwrap_or(Duration::from_secs(60));
         let _ = wake_rx.recv_timeout(wait);
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+    #[test]
+    fn output_budget_recovers_without_a_lifetime_ceiling() {
+        let start = Instant::now();
+        let mut window = OutputWindow::default();
+        for second in 0..100 {
+            let now = start + Duration::from_secs(second);
+            assert!(window.accept(now, MESSAGE_RATE, MESSAGE_RATE));
+            assert!(!window.accept(now, 1, MESSAGE_RATE));
+        }
     }
 }

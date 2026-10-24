@@ -76,7 +76,7 @@ connect 会依次输出 connected、电量 85 和 subscribed，然后每隔约 5
 ```
 
 - 没有 `--bluetooth-policy`：`getDevices()` 返回空数组，`getAvailability()` 返回 false，不初始化原生蓝牙适配器。
-- 设备条目允许连接这个设备；services 只允许访问列出的服务。read/write/notify 默认 false，且在 Rust 的每次操作中复查。
+- 设备条目允许连接这个设备；默认由 services 限制服务，read/write/notify 默认 false。可信宿主也可设置 `allServices: true, services: []` 授权该设备的所有 GATT 服务和操作。Rust 每次操作仍检查设备身份和授权。
 - 一个服务的授权覆盖它的所有特征；当前没有特征级授权。如果一个服务包含危险控制特征，不要对整个服务授予 write。
 - 所有未知字段、重复 ID/服务和非法 UUID 都在运行前拒绝。没有通配符，没有名称匹配授权。
 - 权限文件由可信宿主提供，在启动时读取为不可变策略；插件不能修改。更换/撤销授权目前需要停止实例并以新策略重启。

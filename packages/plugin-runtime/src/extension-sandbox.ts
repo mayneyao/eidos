@@ -15,13 +15,16 @@ import type {
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
+import { createWorkerFetch } from "./worker-fetch"
 
 /** Runs only inside the isolated extension iframe. No host object is captured. */
 function activateGuest(
   activate: Activate,
   declared: string[],
   declaredFormatters: string[],
-  declaredHooks: string[]
+  declaredHooks: string[],
+  createFetch: typeof createWorkerFetch,
+  workerFetch: boolean
 ) {
   const parent = window.parent
   const lifetime = new AbortController()
@@ -60,7 +63,15 @@ function activateGuest(
           pending.delete(id)
           reject(failure("TIMEOUT", "Host request timed out"))
         },
-        method === "background.requestDevice" ? 300000 : 30000
+        [
+          "background.requestDevice",
+          "background.start",
+          "background.request",
+          "background.postMessage",
+          "background.observe",
+        ].includes(method)
+          ? 300000
+          : 30000
       )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
@@ -107,6 +118,7 @@ function activateGuest(
       controller.signal.aborted
         ? Promise.reject(failure("INSTANCE_CLOSED", "Action finished"))
         : call(method, { invocation: value.invocation, args })
+    if (workerFetch) globalThis.fetch = createFetch(invoke, controller.signal)
     const document: TextDocument = {
       read: () => invoke("document.read"),
       edit: (change) => invoke("document.edit", change),
@@ -280,6 +292,7 @@ function activateGuest(
       subscriptions: { add: own },
       capabilities: {
         background: {
+          isRunning: () => invoke("background.isRunning"),
           requestDevice: () => invoke("background.requestDevice"),
           start: () => invoke("background.start"),
           stop: () => invoke("background.stop"),
@@ -705,7 +718,8 @@ export function extensionHtml(
   code: string,
   actions: string[],
   formatters: string[] = [],
-  hooks: string[] = []
+  hooks: string[] = [],
+  workerFetch = false
 ): string {
   // The view bootstrap supplies transport for its own mount only. The extension
   // bootstrap uses a separate channel state and never exposes a DOM root to Activate.
@@ -718,6 +732,6 @@ export function extensionHtml(
       allowJs: true,
     },
   }).outputText
-  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}); }`
-  return viewHtml(adapter, { kind: "page", route: "" })
+  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}, ${createWorkerFetch.toString()}, ${workerFetch}); }`
+  return viewHtml(adapter, { kind: "page", route: "", workerFetch })
 }

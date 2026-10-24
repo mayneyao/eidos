@@ -6,6 +6,7 @@ The package is private to the monorepo and independent of Eidos services. A trus
 
 For host-controlled device selection, see the [complete Lite BLE example](examples/lite-bluetooth/README.md).
 For file Views sharing one connection, see [WebSocket Workbench](examples/lite-file-websocket/README.md), including a local Python echo server.
+The Recent History plugin is maintained separately in `eidos-plugins/eidos-recent-history-plugin`. Lite API 3.6 provides file-open metadata and private storage through `ctx`. Host integration coverage uses the frozen fixture in `test-fixtures/recent-history`.
 The Node SDK exports `scanBluetoothDevices(absoluteBinaryPath, signal?)` for
 trusted host code. It runs a bounded native discovery process and returns
 device IDs, display names, and advertised service UUIDs. Discovery does not
@@ -73,6 +74,13 @@ onmessage = ({ data }) => {
 
 The complete runnable pair is [node-background.mjs](examples/node-background.mjs) and [background-plugin.mjs](examples/background-plugin.mjs). It starts a background, correlates command replies, observes a heartbeat without a view, reads the retained state, and stops/disposes the process in `finally`.
 
+A host implementing initialization services can use `onMessage(message, reply)`
+in `startBackground` options. `reply(value)` can respond while the entry module
+is waiting in top-level `await`; ordinary `background.postMessage()` still requires
+readiness. Both directions retain the 1 MiB frame limit, so hosts must chunk larger
+service payloads. Lite's storage bridge does this without changing the public
+4 MiB binary-object limit.
+
 For a single process, use `await startBackground(options)`; it has the same options plus an optional `AbortSignal`. Aborting before/during startup rejects the start; aborting after startup stops the process. The manager owns cancellation for its instances.
 
 ## Lifecycle contract
@@ -88,6 +96,14 @@ For a single process, use `await startBackground(options)`; it has the same opti
 - Default SDK total duration is **0** (resident); standalone CLI default remains 30 seconds. Startup timeout defaults to 30 seconds. JS heap/turn defaults remain 64 MiB / 100ms. Messages are JSON, not structured clone; input wire frames are limited to 1 MiB and pending SDK input to 4 MiB.
 
 ## Host permissions and Bluetooth
+
+Trusted hosts can grant public HTTPS/WSS with `network: { origins: ["*"] }`.
+Private/reserved addresses remain denied unless explicitly granted by the host;
+the wildcard does not authorize HTTP/WS. Use exact origins for narrower grants.
+For Bluetooth, a selected device record with `allServices: true, services: []`
+allows all its GATT services and supported operations. Without `allServices`,
+the `services` list and operation flags restrict access as before. No device
+record means no access, even when another device has an unrestricted grant.
 
 Permissions are host configuration, not a plugin self-authorization mechanism. Never pass renderer input or an unreviewed manifest directly as grants. Each instance snapshots its configuration before startup. Permissions cannot be expanded at runtime; stop and create a new instance for changed grants.
 

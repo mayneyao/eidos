@@ -10,6 +10,8 @@ export interface BluetoothPolicy {
   devices: Array<{
     id: string
     name?: string
+    /** Trusted host grant for all GATT services of this specific device. */
+    allServices?: boolean
     services: Array<{
       uuid: string
       read?: boolean
@@ -52,7 +54,11 @@ export interface BackgroundOptions {
   stopTimeoutMs?: number
   /** Aborting also stops an already running background. */
   signal?: AbortSignal
-  onMessage?: (message: JsonValue) => void
+  /** Reply can service initialization requests before the entry module is ready. */
+  onMessage?: (
+    message: JsonValue,
+    reply: (message: JsonValue) => Promise<void>
+  ) => void
   onLog?: (line: string) => void
   onError?: (error: Error) => void
   onExit?: (exit: BackgroundExit) => void

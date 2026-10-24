@@ -18,6 +18,47 @@ const manifest = {
     networkOrigins: ["wss://example.com"],
   },
 }
+it("validates declarative automatic startup", () => {
+  const input = {
+    ...manifest,
+    requires: { pluginApi: "3.6.0" },
+    background: { entry: "./background.ts", autoStart: true },
+  }
+  expect(parseManifest(input).background?.autoStart).toBe(true)
+  expect(() =>
+    parseManifest({ ...input, requires: { pluginApi: "3.5.0" } })
+  ).toThrow("3.6.0")
+  expect(() =>
+    parseManifest({
+      ...input,
+      background: { ...input.background, autoStart: false },
+    })
+  ).toThrow("autoStart")
+})
+it("requires API 3.6 and an explicit file history grant", () => {
+  const history = {
+    ...manifest,
+    requires: { pluginApi: "3.6.0" },
+    background: { entry: "./background.ts", fileHistory: true },
+  }
+  expect(parseManifest(history).background?.fileHistory).toBe(true)
+  expect(
+    checkPluginCompatibility(parseManifest(history), "eidos-lite").compatible
+  ).toBe(true)
+  expect(
+    checkPluginCompatibility(parseManifest(history), "eidos-cli")
+      .missingFeatures
+  ).toContain("background.fileHistory")
+  expect(() =>
+    parseManifest({ ...history, requires: { pluginApi: "3.5.0" } })
+  ).toThrow("3.6.0")
+  expect(() =>
+    parseManifest({
+      ...history,
+      background: { ...history.background, fileHistory: false },
+    })
+  ).toThrow("fileHistory")
+})
 it("validates background declarations and denies unknown or unsafe grants", () => {
   expect(parseManifest(manifest).background).toEqual(manifest.background)
   expect(
@@ -44,6 +85,38 @@ it("validates background declarations and denies unknown or unsafe grants", () =
   ).toContain("background")
   expect(() => encodePackage(manifest, {})).toThrow()
 })
+it("accepts public network and selected-device grants with optional restrictions", () => {
+  for (const bluetooth of [true, { services: [{ uuid: "battery_service" }] }]) {
+    const value = {
+      ...manifest,
+      requires: { pluginApi: "3.5.0" },
+      browser: { network: true },
+      background: { entry: "./background.ts", network: true, bluetooth },
+    }
+    expect(parseManifest(value).background?.bluetooth).toEqual(bluetooth)
+    expect(
+      checkPluginCompatibility(parseManifest(value), "eidos-cli")
+        .missingFeatures
+    ).toContain("network.public")
+  }
+  expect(() =>
+    parseManifest({ ...manifest, browser: { network: true } })
+  ).toThrow(/3.5/)
+  for (const network of [false, "*", 1])
+    expect(() =>
+      parseManifest({
+        ...manifest,
+        background: { ...manifest.background, network },
+      })
+    ).toThrow()
+  expect(() =>
+    parseManifest({
+      ...manifest,
+      background: { ...manifest.background, bluetooth: false },
+    })
+  ).toThrow()
+})
+
 it("accepts service operations but never manifest-supplied device grants", () => {
   const bluetooth = {
     services: [{ uuid: "battery_service", read: true, notify: true }],
@@ -58,7 +131,6 @@ it("accepts service operations but never manifest-supplied device grants", () =>
     { devices: ["forged-id"], ...bluetooth },
     { services: [] },
     { services: [{ uuid: "*", read: true }] },
-    { services: [{ uuid: "battery_service" }] },
     { services: [{ uuid: "battery_service", write: "yes" }] },
     {
       services: [

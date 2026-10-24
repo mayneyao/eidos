@@ -113,7 +113,9 @@ describe("Node SDK with the real QuickJS executable", () => {
     await expect(
       start(
         'postMessage({type:"ready",protocol:1});await new Promise(r=>setTimeout(r,2000));',
-        { ...messages, startupTimeoutMs: 30 }
+        // Allow platform initialization; the forged message must not satisfy
+        // readiness while the guest's top-level await remains pending.
+        { ...messages, startupTimeoutMs: 500 }
       )
     ).rejects.toThrow("startup timed out")
     expect(messages.values).toEqual([{ type: "ready", protocol: 1 }])
@@ -158,6 +160,32 @@ describe("Node SDK with the real QuickJS executable", () => {
     )
     expect(messages.values[0]).toContain("Private/reserved")
   })
+  it("accepts broad grants while keeping private networks and device scope isolated", async () => {
+    const messages = inbox()
+    await start(
+      'try{await fetch("https://127.0.0.1:9")}catch(e){postMessage(e.message)}',
+      {
+        ...messages,
+        permissions: { network: { origins: ["*"] } },
+      }
+    )
+    expect(messages.values[0]).toContain("Private/reserved")
+    const ble = inbox()
+    await start(
+      'const ds=await navigator.bluetooth.getDevices();postMessage(ds.map(d=>d.id));const s=await ds[0].gatt.connect();const c=await(await s.getPrimaryService("battery_service")).getCharacteristic("battery_level");postMessage((await c.readValue()).getUint8(0));await ds[0].gatt.disconnect();',
+      {
+        ...ble,
+        bluetoothMock: true,
+        permissions: {
+          bluetooth: {
+            devices: [{ id: "mock-battery", allServices: true, services: [] }],
+          },
+        },
+      }
+    )
+    expect(ble.values).toEqual([["mock-battery"], 85])
+  })
+
   it("supports BLE permissions, notifications and shutdown without exposing policy files", async () => {
     const before = (await readdir(tmpdir())).filter((n) =>
       n.startsWith("eidos-plugin-sandbox-")
@@ -215,7 +243,9 @@ describe("Node SDK with the real QuickJS executable", () => {
       "memoryMb"
     )
     await expect(
-      start("", { permissions: { network: { origins: ["*"] } } })
+      start("", {
+        permissions: { network: { origins: ["https://*.example.com/path"] } },
+      })
     ).rejects.toThrow()
   })
   it("enforces input quota without terminating the background", async () => {
@@ -223,6 +253,48 @@ describe("Node SDK with the real QuickJS executable", () => {
     await expect(
       background.postMessage("x".repeat(1024 * 1024))
     ).rejects.toThrow("1 MiB")
+    expect(background.state).toBe("running")
+  })
+  it("keeps running after more than 32 MiB of paced output", async () => {
+    let count = 0
+    const background = await start(
+      `
+      let count = 0;
+      const payload = 'x'.repeat(256 * 1024);
+      const timer = setInterval(() => {
+        postMessage(payload);
+        if (++count === 136) clearInterval(timer);
+      }, 40);
+    `,
+      {
+        onMessage: () => {
+          count++
+        },
+      }
+    )
+    await expect.poll(() => count, { timeout: 10000 }).toBe(136)
+    expect(background.state).toBe("running")
+  }, 15000)
+  it("drops excess logs without starving messages or terminating the run", async () => {
+    let loggedBytes = 0
+    const messages = inbox()
+    const background = await start(
+      `
+      const text = 'x'.repeat(128 * 1024);
+      for (let i = 0; i < 16; i++) console.log(text);
+      postMessage('alive');
+    `,
+      {
+        ...messages,
+        limits: { turnBudgetMs: 1000 },
+        onLog: (line) => {
+          loggedBytes += line.length
+        },
+      }
+    )
+    expect(messages.values).toEqual(["alive"])
+    expect(loggedBytes).toBeGreaterThan(0)
+    expect(loggedBytes).toBeLessThan(1024 * 1024)
     expect(background.state).toBe("running")
   })
   it("aborts both starting and running instances", async () => {

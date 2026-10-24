@@ -22,7 +22,11 @@ export interface PluginRequest {
     | "eidos.pluginConfig.read"
     | "eidos.pluginConfig.write"
     | "network.read"
+    | "network.fetch"
+    | "network.fetch.read"
+    | "network.fetch.cancel"
     | "background.start"
+    | "background.isRunning"
     | "background.requestDevice"
     | "background.stop"
     | "background.postMessage"
@@ -120,7 +124,11 @@ export function parseRequest(value: unknown): PluginRequest {
       "eidos.pluginConfig.read",
       "eidos.pluginConfig.write",
       "network.read",
+      "network.fetch",
+      "network.fetch.read",
+      "network.fetch.cancel",
       "background.start",
+      "background.isRunning",
       "background.requestDevice",
       "background.stop",
       "background.postMessage",

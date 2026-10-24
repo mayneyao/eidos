@@ -13,9 +13,14 @@ import type {
   ResourceSource,
   ResourceViewInfo,
 } from "./contracts"
+import type { createWorkerFetch } from "./worker-fetch"
+
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
-export function sandboxCsp(browser?: PluginManifest["browser"]): string {
+export function sandboxCsp(
+  browser?: PluginManifest["browser"],
+  workerFetch = false
+): string {
   const origins = browser?.networkOrigins?.join(" ")
   return SANDBOX_CSP.replace(
     "worker-src 'none'",
@@ -23,7 +28,7 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
   )
     .replace(
       "connect-src eidos-space-media:",
-      origins
+      !workerFetch && origins
         ? `connect-src eidos-space-media: ${origins}`
         : "connect-src eidos-space-media:"
     )
@@ -37,6 +42,7 @@ export function sandboxCsp(browser?: PluginManifest["browser"]): string {
     )
 }
 export type BrowserBinding = {
+  workerFetch?: boolean
   resources?: boolean
   embedded?: boolean
   exportFile?: boolean
@@ -69,7 +75,11 @@ export type BrowserBinding = {
 )
 
 /** Serialized trusted bootstrap. It must not close over host/module objects. */
-export function bootstrap(mount: Mount, binding: BrowserBinding) {
+export function bootstrap(
+  mount: Mount,
+  binding: BrowserBinding,
+  createFetch: typeof createWorkerFetch
+) {
   const parent = window.parent
   const controller = new AbortController()
   const subscriptions = new Set<Disposable>()
@@ -202,7 +212,14 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
           pending.delete(id)
           reject(error("TIMEOUT", "Host request timed out"))
         },
-        method === "ui.exportFile" || method === "background.requestDevice"
+        method === "ui.exportFile" ||
+          [
+            "background.requestDevice",
+            "background.start",
+            "background.request",
+            "background.postMessage",
+            "background.observe",
+          ].includes(method)
           ? 300000
           : method === "eidos.connection.request"
             ? 95000
@@ -224,6 +241,8 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
     else subscriptions.add(value)
     return value
   }
+  if (binding.workerFetch)
+    globalThis.fetch = createFetch(call, controller.signal)
   const document: TextDocument = {
     read: () => call("document.read"),
     edit: (change) => call("document.edit", change),
@@ -331,6 +350,7 @@ export function bootstrap(mount: Mount, binding: BrowserBinding) {
     presentation: { mode: binding.embedded ? "embedded" : "standalone" },
     capabilities: {
       background: {
+        isRunning: () => call("background.isRunning"),
         requestDevice: () => call("background.requestDevice"),
         start: () => call("background.start"),
         stop: () => call("background.stop"),

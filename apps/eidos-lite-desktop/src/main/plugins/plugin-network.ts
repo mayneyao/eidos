@@ -40,7 +40,7 @@ export async function readPluginNetwork(
     url.username ||
     url.password ||
     url.hash ||
-    !origins.includes(url.origin)
+    (!origins.includes("*") && !origins.includes(url.origin))
   )
     throw new PluginError("PERMISSION_DENIED", "Network origin not granted")
   const limit = 4 * 1024 * 1024

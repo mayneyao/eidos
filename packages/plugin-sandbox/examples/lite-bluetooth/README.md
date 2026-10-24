@@ -7,23 +7,43 @@ Run `pnpm dev:eidos-lite` from the repository root. In the plugin manager,
 install this directory's `plugin.json` as a development plugin and enable it
 in the current Space. No device ID or permission file needs to be edited.
 
-1. Open **Bluetooth Battery** and click **Choose and connect**, or run
-   **Bluetooth: choose and connect battery** in Cmd+K.
-2. Confirm scanning in the native host dialog. Allow OS Bluetooth access if
+1. Open **Bluetooth Battery** and click **选择设备** (Choose device), or run
+   **蓝牙电量：选择并连接设备** in Cmd+K.
+2. Lite's device picker scans automatically when opened. Allow OS Bluetooth access if
    prompted. Put the device into advertising mode.
-3. Select the device by its name and exact ID. Confirm the device, service
-   operations and background lifetime in the final native dialog.
-4. The host starts a fresh background with only that device's Battery Service
-   read/notify grant. The page/action sends a connect message; the worker calls
+3. Select a device row and click **Connect** to authorize that device. Use **Scan again**
+   to retry without closing the picker; cancel at any time to grant nothing.
+4. The host starts a fresh background with access to that selected device's GATT
+   services. The page/action sends a connect message; the worker calls
    `navigator.bluetooth.getDevices()`, `gatt.connect()`, then reads and
    optionally subscribes to Battery Level.
-5. Close the page. The connection remains alive. Run **Bluetooth: battery
-   status** in Cmd+K to inspect it. Reopen the page and click **Status / resume
-   notifications** to subscribe to the current run.
-6. **Bluetooth: disconnect and stop**, disabling/uninstalling/updating the
+5. Close the page. The connection remains alive. Run **蓝牙电量：查看连接与电量** in Cmd+K to inspect it. Reopen the page and click **恢复后台状态**
+   (Resume background status) to subscribe to the current run.
+6. **蓝牙电量：断开并停止后台**, disabling/uninstalling/updating the
    plugin, closing/switching the Space or exiting Lite stops the background and
    revokes the device grant. Device loss emits `gattserverdisconnected`; this
    example does not silently reconnect.
+
+## Connection feedback
+
+Search for “蓝牙电量” in Cmd+K. The commands are **蓝牙电量：打开面板**
+(Open panel), **蓝牙电量：选择并连接设备** (Choose and connect),
+**蓝牙电量：查看连接与电量** (Connection and battery status), and
+**蓝牙电量：断开并停止后台** (Disconnect and stop).
+Opening the panel does not start the background, scan, or connect. Use its
+resume-status button to inspect an existing background connection.
+
+The picker grants access; selecting a device does not mean it is connected.
+The page keeps the device name and progress visible through connection,
+Battery Service discovery, and the first battery read. It shows success and
+a percentage only after the read succeeds.
+
+Failures retain the device and error details with retry and change-device
+actions. Cancelling an in-flight connection stops the background and revokes
+the device grant; late replies cannot overwrite the cancelled state.
+Unexpected disconnection hides the stale battery value and offers a manual
+retry. Cancelling device selection preserves an existing connection.
+Opening the page does not automatically start a background.
 
 Cancellation before final confirmation leaves an existing background and
 connection intact. Confirming a new device restarts the background, resets its
@@ -42,8 +62,11 @@ const result = await ctx.capabilities.background!.request({
 })
 ```
 
-The manifest declares required services and read/write/notify operations. It
-cannot declare device IDs or select by a name supplied by plugin code. The
+The manifest uses `bluetooth: true` for user-selected device access. To restrict
+it to Battery Service, use `bluetooth: { services: [{ uuid: "battery_service" }] }`.
+Omitted operation fields allow all supported operations; specifying any of
+`read`, `write`, or `notify` makes omitted operations denied. The example code
+only reads and subscribes. The manifest cannot declare device IDs or select by a name supplied by plugin code. The
 background receives no scanner or picker; its Web Bluetooth-style GATT API
 sees only the host grant. An advertisement/name is not a cryptographic device
 identity. Some devices do not advertise all services; choosing one does not

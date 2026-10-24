@@ -5,6 +5,11 @@ import path from "node:path"
 
 // Resolve the monorepo root independently of cwd.
 const repository = fileURLToPath(new URL("../../../", import.meta.url))
+execFileSync(
+  process.execPath,
+  [fileURLToPath(new URL("build-web.mjs", import.meta.url)), "--check"],
+  { cwd: repository, stdio: "inherit" }
+)
 const metadata = JSON.parse(
   execFileSync(
     "cargo",

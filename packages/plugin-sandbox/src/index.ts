@@ -81,7 +81,10 @@ export class PluginBackground {
     this.#options = options
     // A rejection is still observable through start/ready, without an early unhandled rejection.
     void this.#ready.promise.catch(() => {})
-    if (options.onMessage) this.#messages.add(options.onMessage)
+    if (options.onMessage)
+      this.#messages.add((message) =>
+        options.onMessage!(message, (value) => this.#writeMessage(value, true))
+      )
     if (options.onLog) this.#logs.add(options.onLog)
   }
   get state() {
@@ -255,11 +258,17 @@ export class PluginBackground {
     let chunks: Buffer[] = [],
       size = 0,
       total = 0
+    let windowStart = performance.now()
     stream.on("data", (chunk: Buffer) => {
       if (this.#finished || this.#error) return
+      const now = performance.now()
+      if (now - windowStart >= 1000) {
+        windowStart = now
+        total = 0
+      }
       total += chunk.length
       if (total > 32 * MAX_FRAME)
-        return this.#fail(new Error("Sandbox output quota exceeded"))
+        return this.#fail(new Error("Sandbox output exceeds 32 MiB per second"))
       let offset = 0
       while (offset < chunk.length) {
         const newline = chunk.indexOf(10, offset)
@@ -309,7 +318,17 @@ export class PluginBackground {
   }
 
   async postMessage(message: JsonValue): Promise<void> {
-    if (this.#state !== "running" || !this.#child)
+    return this.#writeMessage(message, false)
+  }
+  async #writeMessage(
+    message: JsonValue,
+    initializing: boolean
+  ): Promise<void> {
+    if (
+      (this.#state !== "running" &&
+        !(initializing && this.#state === "starting")) ||
+      !this.#child
+    )
       throw new Error("Background is not running")
     const data = JSON.stringify(message)
     if (data === undefined)
