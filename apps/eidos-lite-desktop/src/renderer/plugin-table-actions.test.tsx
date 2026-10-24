@@ -9,7 +9,11 @@ import type {
   EidosFileTableSnapshot,
 } from "@eidos.space/eidos-file"
 import { PluginTableActions } from "./plugin-table-actions"
-import { EidosFileTableActionMenu } from "@eidos.space/eidos-file-ui"
+import {
+  EidosFileTableActionMenu,
+  EidosFileTableActionsContext,
+  type EidosFileTableActions,
+} from "@eidos.space/eidos-file-ui"
 
 const calls = vi.hoisted(() => ({ lists: 0 }))
 vi.mock("./plugin-editor", () => ({
@@ -273,6 +277,7 @@ it.each([undefined, "row"])(
 )
 
 it("opens the current fs_meta file in the sidebar and properties without main or system navigation", async () => {
+  let currentActions: EidosFileTableActions | null = null
   const getRow = vi.fn(async () => ({ "path-id": "images/a.png" }))
   const onMain = vi.fn()
   const onSidebar = vi.fn()
@@ -318,6 +323,12 @@ it("opens the current fs_meta file in the sidebar and properties without main or
           onOpenFileInSidebar={onSidebar}
           onError={onError}
         >
+          <EidosFileTableActionsContext.Consumer>
+            {(value) => {
+              currentActions = value
+              return null
+            }}
+          </EidosFileTableActionsContext.Consumer>
           <EidosFileTableActionMenu
             target={{ rowId: "row", ranges: null }}
             onClose={() => {}}
@@ -327,6 +338,24 @@ it("opens the current fs_meta file in the sidebar and properties without main or
     )
   try {
     await render()
+    const sameFile = await currentActions!.list({
+      rowId: "row",
+      ranges: null,
+      fileUri: "images/a.png",
+    })
+    expect(
+      sameFile.find((item) => item.id === "host/open-mapped-file-system")
+        ?.replaces
+    ).toBe("core/open-file")
+    const differentFile = await currentActions!.list({
+      rowId: "row",
+      ranges: null,
+      fileUri: "images/other.png",
+    })
+    expect(
+      differentFile.find((item) => item.id === "host/open-mapped-file-system")
+        ?.replaces
+    ).toBeUndefined()
     const buttons = Array.from(
       container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
     )

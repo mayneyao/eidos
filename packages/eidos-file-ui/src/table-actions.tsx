@@ -12,11 +12,18 @@ export interface EidosFileActionTarget {
   /** Null with rowId targets that record; null alone targets the whole view. */
   ranges: readonly EidosFileRowRange[] | null
   rowId?: string
+  /** Single attachment targeted by a file-cell action, relative to this File. */
+  fileUri?: string
+}
+export interface EidosFileTableAction {
+  id: string
+  title: string
+  icon?: ReactNode
+  /** Host-confirmed equivalent action for the same attachment. */
+  replaces?: "core/open-file"
 }
 export interface EidosFileTableActions {
-  list(
-    target: EidosFileActionTarget
-  ): Promise<Array<{ id: string; title: string; icon?: ReactNode }>>
+  list(target: EidosFileActionTarget): Promise<EidosFileTableAction[]>
   run(id: string, target: EidosFileActionTarget): void
 }
 export const EidosFileTableActionsContext =
@@ -30,7 +37,7 @@ export function useEidosFileTableActions(
   const [listing, setListing] = useState<{
     owner: EidosFileTableActions
     key: string
-    items: Array<{ id: string; title: string; icon?: ReactNode }>
+    items: EidosFileTableAction[]
     error: string
   } | null>(null)
   useEffect(() => {

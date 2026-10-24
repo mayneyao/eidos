@@ -30,7 +30,10 @@ import {
   Info,
   PanelRight,
 } from "lucide-react"
-import { fileMetadataRowPath } from "./file-metadata-actions"
+import {
+  fileMetadataAttachmentMatchesPath,
+  fileMetadataRowPath,
+} from "./file-metadata-actions"
 import { validateIconDefinition } from "@eidos.space/plugin-runtime/manifest"
 
 interface Props {
@@ -140,6 +143,13 @@ export function PluginTableActions(props: Props) {
                 id: "host/open-mapped-file-system",
                 title: t("Open with default app"),
                 icon: <ExternalLink />,
+                replaces: fileMetadataAttachmentMatchesPath(
+                  props.fileRelativePath!,
+                  target.fileUri,
+                  path
+                )
+                  ? ("core/open-file" as const)
+                  : undefined,
               },
               {
                 id: "host/mapped-file-properties",

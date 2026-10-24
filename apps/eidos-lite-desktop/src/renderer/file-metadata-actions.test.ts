@@ -6,9 +6,32 @@ import type {
 } from "@eidos.space/eidos-file"
 import {
   externalChangeAffectsEidosFile,
+  fileMetadataAttachmentMatchesPath,
   fileMetadataRowPath,
   fileMetadataScopedView,
 } from "./file-metadata-actions"
+
+it.each([
+  ["assets/files.eidos", "notes.md", "assets/notes.md", true],
+  ["assets/files.eidos", "other.md", "assets/notes.md", false],
+  ["assets/files.eidos", "my%20photo%23%25.jpg", "assets/my photo#%.jpg", true],
+  ["assets/files.eidos", "%E7%9B%B8%E7%89%87.jpg", "assets/相片.jpg", true],
+  [".eidos/files.eidos", "photos/a.png", "photos/a.png", true],
+  ["files.eidos", "sub/a.png", "sub/a.png", true],
+  ["files.eidos", "https://example.com/a.png", "a.png", false],
+  ["files.eidos", "data:image/png;base64,AA==", "a.png", false],
+  ["files.eidos", "../a.png", "a.png", false],
+  ["files.eidos", "%2e%2e/a.png", "a.png", false],
+  ["files.eidos", "sub%2fa.png", "sub/a.png", false],
+  ["files.eidos", "bad%ZZ.png", "bad%ZZ.png", false],
+] as const)(
+  "compares file-cell URI %s / %s with mapped path %s",
+  (metadata, uri, path, expected) => {
+    expect(fileMetadataAttachmentMatchesPath(metadata, uri, path)).toBe(
+      expected
+    )
+  }
+)
 
 const table = {
   table: { settings: { vtabModule: "fs_meta", vtabConfig: { root: "." } } },

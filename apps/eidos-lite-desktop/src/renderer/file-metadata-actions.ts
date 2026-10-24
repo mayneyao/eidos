@@ -4,10 +4,42 @@ import type {
   EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
+import { eidosFileUriClass } from "@eidos.space/eidos-file"
 import {
   normalizeFileMetadataDirectory,
   SPACE_FILE_METADATA_PATH,
 } from "../shared/file-metadata"
+
+/** Compare logical targets without accessing the filesystem from the renderer. */
+export function fileMetadataAttachmentMatchesPath(
+  metadataPath: string,
+  uri: string | undefined,
+  mappedPath: string
+): boolean {
+  if (!uri || eidosFileUriClass(uri) !== "relative") return false
+  try {
+    const segments = uri
+      .split("/")
+      .map((segment) => decodeURIComponent(segment))
+    if (
+      segments.some(
+        (segment) =>
+          !segment ||
+          segment === "." ||
+          segment === ".." ||
+          /[/\\\u0000]/u.test(segment)
+      )
+    )
+      return false
+    const directory =
+      metadataPath === SPACE_FILE_METADATA_PATH
+        ? []
+        : metadataPath.split("/").slice(0, -1)
+    return [...directory, ...segments].join("/") === mappedPath
+  } catch {
+    return false
+  }
+}
 
 /** Navigation adds scope without persisting it into the shared View. */
 export function fileMetadataScopedView(

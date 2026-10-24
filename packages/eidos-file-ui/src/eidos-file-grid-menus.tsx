@@ -8,6 +8,7 @@ import type {
   EidosFileSortDirection,
 } from "@eidos.space/eidos-file"
 import {
+  decodeEidosFileValues,
   eidosFileColumnStatLabel,
   eidosFileColumnStatTypesForField,
   eidosFileFieldQueryCapabilities,
@@ -520,9 +521,21 @@ export function EidosFileCellMenu({
       ? cellText
       : ""
 
+  let fileUri: string | undefined
+  if (onOpenFile && state?.field.type === "file") {
+    try {
+      const files = decodeEidosFileValues(
+        state.row[state.field.tableColumnName]
+      )
+      if (files.length === 1) fileUri = files[0]!.uri
+    } catch {
+      // Invalid file values cannot establish a duplicate activation target.
+    }
+  }
   const target = {
     ranges: state?.rowRanges ?? null,
     rowId: typeof rowId === "string" ? rowId : undefined,
+    ...(fileUri ? { fileUri } : {}),
   }
   const {
     actions,
@@ -544,7 +557,8 @@ export function EidosFileCellMenu({
   })
   const items: EidosFileCellAction[] = state
     ? [
-        ...(onOpenFile
+        ...(onOpenFile &&
+        !extensions.some((item) => item.replaces === "core/open-file")
           ? [
               {
                 id: "core/open-file",
