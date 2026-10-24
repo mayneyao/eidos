@@ -1,0 +1,39 @@
+name: Experiment Lite cross-built sandbox on Intel
+
+on:
+  push:
+    branches: [codex/lite-macos-cross-build-experiment]
+    paths: [.github/workflows/experiment-lite-cross-sandbox.yml]
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: "Successful cross-build run containing signed x64 artifacts"
+        type: string
+        default: "40087162606"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sandbox-acceptance:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 156af9698cee01589e3490d2b03c51022f1d72f6
+      - uses: actions/download-artifact@v4
+        with:
+          name: experimental-mac-x64
+          path: artifacts
+          run-id: ${{ inputs.build_run_id || '40087162606' }}
+          github-token: ${{ github.token }}
+      - name: Exercise the shipped cross-compiled sandbox on Intel
+        run: |
+          test "$(uname -m)" = x86_64
+          ditto -x -k 'artifacts/Eidos Lite-0.28.0-mac-x64.zip' "$RUNNER_TEMP/cross-built"
+          binary="$RUNNER_TEMP/cross-built/Eidos Lite.app/Contents/Resources/plugin-sandbox/plugin-sandbox"
+          lipo "$binary" -verify_arch x86_64
+          codesign --verify --strict "$binary"
+          python3 packages/plugin-sandbox/tests/smoke.py "$binary"
