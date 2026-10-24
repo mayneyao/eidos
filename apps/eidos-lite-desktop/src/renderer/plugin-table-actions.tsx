@@ -22,7 +22,14 @@ import { useEidosLiteI18n } from "./i18n"
 import { PluginIcon } from "./plugin-icon"
 import { PluginTaskCard } from "./plugin-task-card"
 import { createTaskProgress } from "./task-progress"
-import { Redo2, Undo2, ExternalLink, File, PanelRight } from "lucide-react"
+import {
+  Redo2,
+  Undo2,
+  ExternalLink,
+  File,
+  Info,
+  PanelRight,
+} from "lucide-react"
 import { fileMetadataRowPath } from "./file-metadata-actions"
 import { validateIconDefinition } from "@eidos.space/plugin-runtime/manifest"
 
@@ -134,6 +141,11 @@ export function PluginTableActions(props: Props) {
                 title: t("Open with default app"),
                 icon: <ExternalLink />,
               },
+              {
+                id: "host/mapped-file-properties",
+                title: t("File properties"),
+                icon: <Info />,
+              },
             ]
           : []
         return [
@@ -150,7 +162,8 @@ export function PluginTableActions(props: Props) {
         if (
           (id === "host/open-mapped-file" ||
             id === "host/open-mapped-file-sidebar" ||
-            id === "host/open-mapped-file-system") &&
+            id === "host/open-mapped-file-system" ||
+            id === "host/mapped-file-properties") &&
           target.rowId &&
           props.fileRelativePath
         ) {
@@ -166,6 +179,8 @@ export function PluginTableActions(props: Props) {
                 await props.onOpenSpaceFile?.(path)
               else if (id === "host/open-mapped-file-sidebar")
                 await props.onOpenFileInSidebar?.(path)
+              else if (id === "host/mapped-file-properties")
+                await window.eidosLite.openFileProperties(path)
               else await window.eidosLite.openPath(path)
             })
             .catch((cause) => props.onError?.(cause))
@@ -313,7 +328,9 @@ function TableRunner(
       if (!ready.current || running.current) return []
       const kind =
         target.ranges === null
-          ? "view"
+          ? target.rowId
+            ? "row"
+            : "view"
           : target.ranges.reduce((n, r) => n + r.endIndex - r.startIndex, 0) > 1
             ? "selection"
             : "row"
@@ -376,7 +393,8 @@ function TableRunner(
         try {
           await run.capture(
             structuredClone(latest.current.query),
-            target.ranges
+            target.ranges,
+            target.rowId
           )
           if (!run.ids.length) {
             setStatus(t("No records to process"))

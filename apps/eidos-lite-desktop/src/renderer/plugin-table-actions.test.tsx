@@ -143,6 +143,7 @@ it("opens mapped files through the existing internal and system host flows", asy
   expect([...items].map((item) => item.textContent)).toEqual([
     "Open in Eidos",
     "Open with default app",
+    "File properties",
   ])
   await act(async () => items[0]!.click())
   expect(onOpenSpaceFile).toHaveBeenCalledWith("assets/notes.md")
@@ -157,120 +158,134 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-it("keeps dynamic menu results when StrictMode repeats the loading effect", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
-  calls.lists = 0
-  let ticket = 0
-  Object.defineProperty(window, "eidosLite", {
-    configurable: true,
-    value: {
-      listPlugins: async () => ({
-        plugins: [
-          {
-            enabled: true,
-            manifest: {
-              id: "eidos.smart-actions",
-              name: "Smart Actions",
-              version: "0.1.0",
-              actions: [{ id: "smart", context: "table", access: "write" }],
-              placements: [{ location: "table/context", action: "smart" }],
+it.each([undefined, "row"])(
+  "keeps dynamic menu results and executes the intended target %s",
+  async (rowId) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    calls.lists = 0
+    let ticket = 0
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listPlugins: async () => ({
+          plugins: [
+            {
+              enabled: true,
+              manifest: {
+                id: "eidos.smart-actions",
+                name: "Smart Actions",
+                version: "0.1.0",
+                actions: [{ id: "smart", context: "table", access: "write" }],
+                placements: [{ location: "table/context", action: "smart" }],
+              },
             },
+          ],
+        }),
+        onPluginEvent: () => () => {},
+        openPluginExtension: async () => ({
+          instance: {
+            ticket: String(++ticket),
+            url: "about:blank",
+            editor: { key: "smart", label: "Smart", pluginName: "Smart" },
           },
-        ],
-      }),
-      onPluginEvent: () => () => {},
-      openPluginExtension: async () => ({
-        instance: {
-          ticket: String(++ticket),
-          url: "about:blank",
-          editor: { key: "smart", label: "Smart", pluginName: "Smart" },
-        },
-      }),
-      closePluginEditor: vi.fn().mockResolvedValue(undefined),
-    },
-  })
-  const container = document.createElement("div")
-  document.body.append(container)
-  const root = createRoot(container)
-  cleanup = () => root.unmount()
-  const props = {
-    source: {
-      captureTableActionTarget: async () => ["row"],
-      readTableActionRows: async () => [
-        { id: "row", values: { field: "" }, version: "v1" },
-      ],
-      writeTableActionRow: vi.fn().mockResolvedValue({ undoToken: "undo" }),
-      undoTableActionRow: vi.fn().mockResolvedValue({ undoToken: "inverse" }),
-      getSnapshot: async () => ({}),
-      releaseTableActionUndo: vi.fn(),
-    },
-    table: { table: { id: "table" }, fields: [] },
-    view: { id: "grid" },
-    query: {},
-    disabled: false,
-    onSnapshot: vi.fn(),
-    children: (
-      <div>
-        Grid
-        <EidosFileTableActionMenu
-          target={{ ranges: null }}
-          onClose={() => {}}
-        />
-      </div>
-    ),
-  } as unknown as ComponentProps<typeof PluginTableActions>
-  await act(async () =>
-    root.render(
-      <StrictMode>
-        <PluginTableActions {...props} />
-      </StrictMode>
-    )
-  )
-  expect(container.textContent).not.toContain("Actions · filtered records")
-  expect(container.textContent).not.toContain("Connection settings")
-  expect(container.textContent).toContain("Classify requests")
-  expect(
-    container.querySelector('[role="menuitem"] svg path')?.getAttribute("d")
-  ).toBe("M3 3h18v18H3Z")
-  expect(calls.lists).toBe(1)
-  await act(async () =>
-    (container.querySelector('[role="menuitem"]') as HTMLButtonElement).click()
-  )
-  expect(props.source.writeTableActionRow).toHaveBeenCalledOnce()
-  expect(container.textContent).toContain("Done · 1 updated · 0 unchanged")
-  expect(container.textContent).toContain("Estimated cost $0.000042 USD")
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 120))
-  })
-  expect(container.textContent).toContain("Done · 1 updated · 0 unchanged")
-  expect(container.textContent).not.toContain("Apply and continue")
-  const clickText = async (label: string) =>
-    act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((b) => b.textContent === label)!
-        .click()
+        }),
+        closePluginEditor: vi.fn().mockResolvedValue(undefined),
+      },
     })
-  await clickText("Undo this run")
-  expect(container.textContent).toContain("Run undone")
-  expect(container.textContent).toContain("Estimated cost $0.000042 USD")
-  await clickText("Redo this run")
-  expect(container.textContent).toContain("Run redone")
-  expect(props.source.undoTableActionRow).toHaveBeenCalledTimes(2)
-  expect(props.source.writeTableActionRow).toHaveBeenCalledOnce()
-})
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    cleanup = () => root.unmount()
+    const props = {
+      source: {
+        captureTableActionTarget: vi.fn(async () => ["row"]),
+        getRow: vi.fn(async () => ({ _id: "row" })),
+        readTableActionRows: async () => [
+          { id: "row", values: { field: "" }, version: "v1" },
+        ],
+        writeTableActionRow: vi.fn().mockResolvedValue({ undoToken: "undo" }),
+        undoTableActionRow: vi.fn().mockResolvedValue({ undoToken: "inverse" }),
+        getSnapshot: async () => ({}),
+        releaseTableActionUndo: vi.fn(),
+      },
+      table: { table: { id: "table" }, fields: [] },
+      view: { id: "grid" },
+      query: {},
+      disabled: false,
+      onSnapshot: vi.fn(),
+      children: (
+        <div>
+          Grid
+          <EidosFileTableActionMenu
+            target={{ ranges: null, rowId }}
+            onClose={() => {}}
+          />
+        </div>
+      ),
+    } as unknown as ComponentProps<typeof PluginTableActions>
+    await act(async () =>
+      root.render(
+        <StrictMode>
+          <PluginTableActions {...props} />
+        </StrictMode>
+      )
+    )
+    expect(container.textContent).not.toContain("Actions · filtered records")
+    expect(container.textContent).not.toContain("Connection settings")
+    expect(container.textContent).toContain("Classify requests")
+    expect(
+      container.querySelector('[role="menuitem"] svg path')?.getAttribute("d")
+    ).toBe("M3 3h18v18H3Z")
+    expect(calls.lists).toBe(1)
+    await act(async () =>
+      (
+        container.querySelector('[role="menuitem"]') as HTMLButtonElement
+      ).click()
+    )
+    expect(props.source.writeTableActionRow).toHaveBeenCalledOnce()
+    if (rowId) {
+      expect(props.source.getRow).toHaveBeenCalledWith("table", "row")
+      expect(props.source.captureTableActionTarget).not.toHaveBeenCalled()
+    } else {
+      expect(props.source.captureTableActionTarget).toHaveBeenCalledOnce()
+    }
+    expect(container.textContent).toContain("Done · 1 updated · 0 unchanged")
+    expect(container.textContent).toContain("Estimated cost $0.000042 USD")
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    expect(container.textContent).toContain("Done · 1 updated · 0 unchanged")
+    expect(container.textContent).not.toContain("Apply and continue")
+    const clickText = async (label: string) =>
+      act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((b) => b.textContent === label)!
+          .click()
+      })
+    await clickText("Undo this run")
+    expect(container.textContent).toContain("Run undone")
+    expect(container.textContent).toContain("Estimated cost $0.000042 USD")
+    await clickText("Redo this run")
+    expect(container.textContent).toContain("Run redone")
+    expect(props.source.undoTableActionRow).toHaveBeenCalledTimes(2)
+    expect(props.source.writeTableActionRow).toHaveBeenCalledOnce()
+  }
+)
 
-it("opens the current fs_meta file in the sidebar without main or system navigation", async () => {
+it("opens the current fs_meta file in the sidebar and properties without main or system navigation", async () => {
   const getRow = vi.fn(async () => ({ "path-id": "images/a.png" }))
   const onMain = vi.fn()
   const onSidebar = vi.fn()
   const onError = vi.fn()
   const openPath = vi.fn()
+  const openFileProperties = vi.fn(async () => undefined)
   Object.defineProperty(window, "eidosLite", {
     configurable: true,
     value: {
       listPlugins: async () => ({ plugins: [] }),
       onPluginEvent: () => () => {},
       openPath,
+      openFileProperties,
     },
   })
   const table = {
@@ -319,6 +334,7 @@ it("opens the current fs_meta file in the sidebar without main or system navigat
       "Open in Eidos",
       "Open in sidebar",
       "Open with default app",
+      "File properties",
     ])
     // Resolve again when invoked, because the row can have changed since listing.
     getRow.mockResolvedValue({ "path-id": "images/b.png" })
@@ -326,9 +342,13 @@ it("opens the current fs_meta file in the sidebar without main or system navigat
     expect(onSidebar).toHaveBeenCalledExactlyOnceWith("images/b.png")
     expect(onMain).not.toHaveBeenCalled()
     expect(openPath).not.toHaveBeenCalled()
+    getRow.mockResolvedValue({ "path-id": "images/c.png" })
+    await act(async () => buttons[3]!.click())
+    expect(openFileProperties).toHaveBeenCalledExactlyOnceWith("images/c.png")
     getRow.mockResolvedValue({ "path-id": "../escape.png" })
-    await act(async () => buttons[1]!.click())
+    await act(async () => buttons[3]!.click())
     expect(onError).toHaveBeenCalledOnce()
+    expect(openFileProperties).toHaveBeenCalledTimes(1)
     expect(onSidebar).toHaveBeenCalledTimes(1)
     await render(true)
     expect(container.querySelectorAll('[role="menuitem"]')).toHaveLength(0)

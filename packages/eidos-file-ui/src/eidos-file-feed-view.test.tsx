@@ -33,6 +33,7 @@ import {
 import { eidosFileFeedPlugin } from "./plugins/feed"
 import { EidosFileEditorView } from "./eidos-file-editor-view"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileTableActionsContext } from "./table-actions"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -314,6 +315,59 @@ describe("EidosFileFeedView", () => {
     expect(
       container.querySelectorAll("[data-eidos-file-feed-row]")
     ).toHaveLength(3)
+  })
+
+  it("offers shared host actions and confirms record deletion from the feed", async () => {
+    let deleted = false
+    const loadPage = vi.fn(async (offset: number, limit: number) =>
+      page(offset, limit, deleted ? [] : [firstRow], deleted ? 0 : 1)
+    )
+    const onDeleteRow = vi.fn(async () => {
+      deleted = true
+    })
+    const actions = {
+      list: vi.fn(async () => [{ id: "sidebar", title: "Open in sidebar" }]),
+      run: vi.fn(),
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileTableActionsContext.Provider value={actions}>
+          <EidosFileFeedView
+            table={table}
+            view={view}
+            loadPage={loadPage}
+            onDeleteRow={onDeleteRow}
+          />
+        </EidosFileTableActionsContext.Provider>
+      )
+    )
+    await act(async () =>
+      container.querySelector("article")!.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+        })
+      )
+    )
+    const menu = document.querySelector("[data-eidos-file-record-menu]")!
+    expect(menu.textContent).toContain("Copy record ID")
+    expect(menu.textContent).toContain("Open in sidebar")
+    expect(actions.list).toHaveBeenCalledWith({ ranges: null, rowId: "row-1" })
+    await act(async () =>
+      Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent === "Delete record")!
+        .click()
+    )
+    expect(onDeleteRow).not.toHaveBeenCalled()
+    const dialog = document.querySelector('[role="alertdialog"]')!
+    await act(async () =>
+      Array.from(dialog.querySelectorAll("button"))
+        .find((item) => item.textContent === "Delete record")!
+        .click()
+    )
+    expect(onDeleteRow).toHaveBeenCalledWith(firstRow)
+    expect(container.querySelector("article")).toBeNull()
   })
 
   it("opens the record when its entry is activated", async () => {

@@ -884,7 +884,7 @@ describe("EidosFileCalendarView", () => {
     })
 
     const menu = document.body.querySelector<HTMLElement>(
-      "[data-eidos-file-calendar-record-menu]"
+      "[data-eidos-file-record-menu]"
     )
     expect(menu?.textContent).toContain("Open record")
     expect(menu?.textContent).toContain("Copy record ID")

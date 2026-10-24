@@ -9,6 +9,7 @@ import { Zap } from "lucide-react"
 import type { EidosFileRowRange } from "@eidos.space/eidos-file"
 
 export interface EidosFileActionTarget {
+  /** Null with rowId targets that record; null alone targets the whole view. */
   ranges: readonly EidosFileRowRange[] | null
   rowId?: string
 }

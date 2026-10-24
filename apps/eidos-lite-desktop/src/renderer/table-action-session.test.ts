@@ -63,6 +63,22 @@ async function fixture(count = 4) {
   }
 }
 describe("table action authority with native Runtime", () => {
+  it("captures only the right-clicked record when its view has no row ranges", async () => {
+    const f = await fixture(4)
+    try {
+      const all = new TableActionSession(f.source, f.tableId)
+      await all.capture({}, null)
+      expect(all.ids).toHaveLength(4)
+      const session = new TableActionSession(f.source, f.tableId)
+      await session.capture({}, null, all.ids[2]!)
+      expect(session.ids).toEqual([all.ids[2]])
+      expect(await session.readRows(0, 10, [f.message])).toHaveLength(1)
+      session.cancel()
+      await expect(session.capture({}, null, all.ids[0]!)).rejects.toThrow()
+    } finally {
+      await f.close()
+    }
+  })
   it("writes a full long Markdown sample and retains undo/redo and sample matching", async () => {
     const f = await fixture(1)
     try {

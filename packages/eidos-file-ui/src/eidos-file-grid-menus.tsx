@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type KeyboardEvent,
-} from "react"
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react"
 import type {
   EidosFileColumnStatType,
   EidosFileFieldInfo,
@@ -32,7 +26,6 @@ import {
   EyeOff,
   Filter,
   ListX,
-  PanelRightOpen,
   Pin,
   PinOff,
   SlidersHorizontal,
@@ -46,8 +39,10 @@ import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileFieldFilterEditor } from "./eidos-file-query-toolbar"
 import {
   EidosFileCellActions,
+  eidosFileMenuKeyDown,
   type EidosFileCellAction,
 } from "./eidos-file-cell-actions"
+import { eidosFileRecordActions } from "./eidos-file-record-actions"
 import { Zap } from "lucide-react"
 import { eidosFileFieldDisplaysUrl } from "./eidos-file-field-properties"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
@@ -77,28 +72,6 @@ export interface EidosFileCellMenuState {
 
 const menuItemClassName =
   "flex h-7 w-full items-center gap-2 rounded-[3px] px-2 text-left text-xs text-popover-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-45"
-
-function menuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-  if ((event.target as HTMLElement).closest("[data-menu-drag-handle]")) return
-  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
-  event.preventDefault()
-  const items = Array.from(
-    event.currentTarget.querySelectorAll<HTMLElement>(
-      '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)'
-    )
-  )
-  if (items.length === 0) return
-  const currentIndex = items.indexOf(document.activeElement as HTMLElement)
-  const nextIndex =
-    event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? items.length - 1
-        : event.key === "ArrowDown"
-          ? (currentIndex + 1 + items.length) % items.length
-          : (currentIndex - 1 + items.length) % items.length
-  items[nextIndex]?.focus()
-}
 
 function MenuItem({
   destructive = false,
@@ -211,7 +184,7 @@ export function EidosFileFieldMenu({
               })
             : t("Field actions")
         }
-        onKeyDown={filtering ? undefined : menuKeyDown}
+        onKeyDown={filtering ? undefined : eidosFileMenuKeyDown}
         onFocusOutside={(event) => {
           if (filterPendingRef.current) {
             event.preventDefault()
@@ -444,7 +417,7 @@ export function EidosFileColumnStatMenu({
             ? t("Calculate {field}", { field: state.field.name })
             : t("Calculate")
         }
-        onKeyDown={menuKeyDown}
+        onKeyDown={eidosFileMenuKeyDown}
       >
         {state ? (
           <>
@@ -556,6 +529,19 @@ export function EidosFileCellMenu({
     items: extensions,
     error,
   } = useEidosFileTableActions(target, open && !!state)
+  const [openRecord, copyRecordId, deleteRecord] = eidosFileRecordActions({
+    rowId,
+    count: selectionCount,
+    canDelete,
+    onOpen: () => {
+      if (state) run(() => onOpenRecord(state))
+    },
+    onCopyId: (id) => run(() => onCopyRecordId(id)),
+    onDelete: () => {
+      if (state) run(() => onDeleteRows(state.rowRanges))
+    },
+    translate: t,
+  })
   const items: EidosFileCellAction[] = state
     ? [
         ...(onOpenFile
@@ -569,13 +555,7 @@ export function EidosFileCellMenu({
               },
             ]
           : []),
-        {
-          id: "core/open-record",
-          title: t("Open record"),
-          icon: <PanelRightOpen className="h-3.5 w-3.5" />,
-          group: "record",
-          run: () => run(() => onOpenRecord(state)),
-        },
+        openRecord,
         {
           id: "core/copy-cell",
           title: t("Copy cell"),
@@ -584,15 +564,7 @@ export function EidosFileCellMenu({
           disabled: !cellText,
           run: () => run(() => onCopyCell(cellText)),
         },
-        {
-          id: "core/copy-record-id",
-          title: t("Copy record ID"),
-          icon: <Copy className="h-3.5 w-3.5" />,
-          group: "record",
-          disabled: typeof rowId !== "string" || rowId.length === 0,
-          run: () =>
-            run(() => onCopyRecordId(typeof rowId === "string" ? rowId : "")),
-        },
+        copyRecordId,
         ...(url
           ? [
               {
@@ -610,17 +582,7 @@ export function EidosFileCellMenu({
           group: "extension" as const,
           run: () => run(() => actions?.run(item.id, target)),
         })),
-        {
-          id: "core/delete-record",
-          title:
-            selectionCount === 1
-              ? t("Delete record")
-              : t("Delete {count} records", { count: selectionCount }),
-          icon: <Trash2 className="h-3.5 w-3.5" />,
-          group: "destructive",
-          disabled: !canDelete,
-          run: () => run(() => onDeleteRows(state.rowRanges)),
-        },
+        deleteRecord,
       ]
     : []
 
@@ -646,7 +608,7 @@ export function EidosFileCellMenu({
         className="w-56 p-1 has-[[data-menu-reordering=true]]:w-[15.25rem]"
         role="menu"
         aria-label={t("Record actions")}
-        onKeyDown={menuKeyDown}
+        onKeyDown={eidosFileMenuKeyDown}
         onEscapeKeyDown={(event) => {
           if (dragging.current) event.preventDefault()
         }}
