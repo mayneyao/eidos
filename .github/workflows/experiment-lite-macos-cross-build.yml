@@ -5,10 +5,16 @@ on:
     branches: [codex/lite-macos-cross-build-experiment]
     paths: [.github/workflows/experiment-lite-macos-cross-build.yml]
   workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: "Reuse signed artifacts from an earlier run; leave empty for a full build"
+        type: string
+        default: ""
 
 # No tags, releases, deployments, or update feeds are written by this experiment.
 permissions:
   contents: read
+  actions: read
 
 env:
   EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION: ${{ vars.EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION }}
@@ -17,6 +23,9 @@ env:
 
 jobs:
   cross-build:
+    # Branch pushes replay Intel acceptance against the known successful build.
+    # Manual runs build from scratch unless an artifact run is explicitly chosen.
+    if: github.event_name == 'workflow_dispatch' && inputs.build_run_id == ''
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -96,6 +105,7 @@ jobs:
 
   intel-validation:
     needs: cross-build
+    if: ${{ !cancelled() && (needs.cross-build.result == 'success' || needs.cross-build.result == 'skipped') }}
     runs-on: macos-15-intel
     timeout-minutes: 15
     steps:
@@ -114,6 +124,8 @@ jobs:
         with:
           name: experimental-mac-x64
           path: apps/eidos-lite-desktop/dist-app
+          run-id: ${{ inputs.build_run_id || (github.event_name == 'push' && '40087162606') || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Run the cross-built package on real Intel
         env:
           GH_TOKEN: ${{ github.token }}
