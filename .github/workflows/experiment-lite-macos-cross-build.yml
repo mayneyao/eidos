@@ -1,0 +1,130 @@
+name: Experiment Lite macOS x64 on ARM
+
+on:
+  push:
+    branches: [codex/lite-macos-cross-build-experiment]
+    paths: [.github/workflows/experiment-lite-macos-cross-build.yml]
+  workflow_dispatch:
+
+# No tags, releases, deployments, or update feeds are written by this experiment.
+permissions:
+  contents: read
+
+env:
+  EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION: ${{ vars.EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION }}
+  EIDOS_LITE_SPARK_TEST_CERTIFICATE: ${{ secrets.EIDOS_LITE_SPARK_TEST_CERTIFICATE }}
+  EIDOS_LITE_SPARK_REQUIRE_SIGNED_TEST_CERTIFICATE: "1"
+
+jobs:
+  cross-build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Compare with the immutable, successfully published Intel build.
+          ref: 156af9698cee01589e3490d2b03c51022f1d72f6
+      - name: Verify ARM host and disable indexing
+        run: |
+          test "$(uname -m)" = arm64
+          sudo mdutil -a -i off
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - uses: pnpm/setup@v2
+        with:
+          install: false
+      - name: Install host and target optional dependencies
+        run: |
+          cat >> pnpm-workspace.yaml <<'YAML'
+
+          supportedArchitectures:
+            os: [darwin]
+            cpu: [arm64, x64]
+          YAML
+          pnpm install --frozen-lockfile
+      - name: Verify native ARM encrypted Sync host
+        working-directory: apps/eidos-lite-desktop
+        run: node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/encrypted-graft-host.local.integration.test.ts
+      - name: Build JavaScript with native ARM tools
+        run: |
+          pnpm --filter @eidos.space/eidos-lite-desktop verify:graft-release
+          pnpm --filter @eidos.space/eidos-lite-desktop prepare:terminal
+          pnpm --filter @eidos.space/eidos-file build
+          pnpm --filter @eidos.space/plugin-sandbox exec tsc -p tsconfig.build.json
+          pnpm --filter @eidos.space/eidos-lite-desktop exec vite build --mode eidos-release
+          node apps/eidos-lite-desktop/scripts/verify-build-environment.mjs production
+          node apps/eidos-lite-desktop/scripts/verify-electron-output.mjs
+      - name: Cross-compile both Rust executables for Intel
+        run: |
+          node packages/plugin-sandbox/scripts/build-web.mjs --check
+          cargo build --release --locked --target x86_64-apple-darwin -p eidos -p eidos-plugin-sandbox-cli
+          mkdir -p apps/eidos-lite-desktop/resources/{publish-engine,plugin-sandbox}
+          cp target/x86_64-apple-darwin/release/eidos apps/eidos-lite-desktop/resources/publish-engine/eidos
+          cp target/x86_64-apple-darwin/release/plugin-sandbox apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
+          TARGET_ARCH=x64 pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
+          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/publish-engine/eidos
+          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
+          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/vtab/libfs_meta.dylib
+      - name: Package, sign and notarize x64
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
+        run: pnpm --filter @eidos.space/eidos-lite-desktop exec electron-builder --mac --x64 --publish never --config electron-builder.json
+      - name: Verify the signed target bundle
+        run: |
+          app='apps/eidos-lite-desktop/dist-app/mac/Eidos Lite.app'
+          test -d "$app"
+          lipo -verify_arch x86_64 "$app/Contents/MacOS/Eidos Lite"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experimental-mac-x64
+          path: |
+            apps/eidos-lite-desktop/dist-app/*.dmg
+            apps/eidos-lite-desktop/dist-app/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  intel-validation:
+    needs: cross-build
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 156af9698cee01589e3490d2b03c51022f1d72f6
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v4
+        with:
+          name: experimental-mac-x64
+          path: apps/eidos-lite-desktop/dist-app
+      - name: Run the cross-built package on real Intel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: |
+          test "$(uname -m)" = x86_64
+          ditto -x -k 'apps/eidos-lite-desktop/dist-app/Eidos Lite-0.28.0-mac-x64.zip' "$RUNNER_TEMP/cross-built"
+          app="$RUNNER_TEMP/cross-built/Eidos Lite.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          EIDOS_LITE_PACKAGED_APP="$app/Contents/MacOS/Eidos Lite" node apps/eidos-lite-desktop/scripts/packaged-smoke.mjs
+          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs --previous-tag=lite-v0.25.0 "--candidate=$PWD/apps/eidos-lite-desktop/dist-app/Eidos Lite-0.28.0-mac-x64.dmg" --version=0.28.0 "--evidence=$RUNNER_TEMP/cross-install-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experimental-intel-validation
+          path: ${{ runner.temp }}/cross-install-evidence
+          retention-days: 7
