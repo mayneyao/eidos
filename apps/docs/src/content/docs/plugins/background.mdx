@@ -92,9 +92,11 @@ plugin-private, shared across Spaces. Use `ctx.spaceId` to partition Spaces and
 `ctx.instanceId` to identify a run. Multiple windows must avoid overwriting the
 same keys; a read followed by a write is not a transaction.
 
-Recent History is maintained as an independent plugin in
-`eidos-plugins/eidos-recent-history-plugin`.
-Load its `plugin.json`, enable it, and use Cmd+K:
+Install **Recent History** from Lite's plugin marketplace, enable it in your Space,
+and approve automatic startup and file-open metadata access. It requires Eidos Lite
+0.28.0 or later (Plugin API 3.6.0). The independent
+[source repository](https://github.com/eidos-space/eidos-recent-history-plugin)
+includes the complete example and development instructions. Once enabled, use Cmd+K:
 
 - **最近打开：打开面板**: search paths, inspect counts, and reopen files.
 
