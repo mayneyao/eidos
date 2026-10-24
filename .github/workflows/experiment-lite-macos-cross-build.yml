@@ -66,9 +66,9 @@ jobs:
           cp target/x86_64-apple-darwin/release/eidos apps/eidos-lite-desktop/resources/publish-engine/eidos
           cp target/x86_64-apple-darwin/release/plugin-sandbox apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
           TARGET_ARCH=x64 pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
-          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/publish-engine/eidos
-          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
-          lipo -verify_arch x86_64 apps/eidos-lite-desktop/resources/vtab/libfs_meta.dylib
+          lipo apps/eidos-lite-desktop/resources/publish-engine/eidos -verify_arch x86_64
+          lipo apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox -verify_arch x86_64
+          lipo apps/eidos-lite-desktop/resources/vtab/libfs_meta.dylib -verify_arch x86_64
       - name: Package, sign and notarize x64
         env:
           CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
@@ -82,7 +82,7 @@ jobs:
         run: |
           app='apps/eidos-lite-desktop/dist-app/mac/Eidos Lite.app'
           test -d "$app"
-          lipo -verify_arch x86_64 "$app/Contents/MacOS/Eidos Lite"
+          lipo "$app/Contents/MacOS/Eidos Lite" -verify_arch x86_64
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
       - uses: actions/upload-artifact@v4
