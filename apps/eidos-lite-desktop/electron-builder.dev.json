@@ -1,11 +1,6 @@
 {
   "extends": "electron-builder.json",
   "extraResources": [
-    {
-      "from": "resources/plugin-sandbox",
-      "to": "plugin-sandbox",
-      "filter": ["**/*"]
-    },
     { "from": "resources/graft-e2ee", "to": "graft-e2ee", "filter": ["**/*"] }
   ],
   "mac": {

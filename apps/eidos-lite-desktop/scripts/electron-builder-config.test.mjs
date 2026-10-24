@@ -16,6 +16,7 @@ const { getConfig } = builderRequire(
 )
 
 const inheritedResources = [
+  { from: "resources/plugin-sandbox", to: "plugin-sandbox", filter: ["**/*"] },
   {
     from: "node_modules/typescript/lib",
     to: "app.asar.unpacked/node_modules/typescript/lib",
