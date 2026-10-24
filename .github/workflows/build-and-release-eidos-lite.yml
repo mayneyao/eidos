@@ -101,7 +101,17 @@ jobs:
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 
+      - name: Setup Rust for the plugin sandbox
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare plugin compiler and native sandbox
+        run: |
+          sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+          pnpm --filter @eidos.space/eidos-lite-desktop prepare:plugin-compiler
+
       - name: Test source and updater contracts
+        env:
+          EIDOS_PLUGIN_SANDBOX_BINARY: ${{ github.workspace }}/apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
         run: pnpm test:eidos-lite
 
       - name: Test download and update routing
