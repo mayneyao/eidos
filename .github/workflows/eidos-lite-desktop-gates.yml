@@ -19,6 +19,9 @@ on:
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
       - "packages/eidos-file-ui/**"
+      - "packages/plugin-*/**"
+      - "crates/eidos-plugin-sandbox/**"
+      - "apps/plugin-sandbox/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -196,7 +199,23 @@ jobs:
       - name: Test node:sqlite EA-Connection contract
         run: pnpm --filter @eidos.space/eidos-file test:node-sqlite
 
+      - name: Setup Rust for plugin background tests
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare and test the plugin sandbox
+        run: |
+          sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+          pnpm --filter @eidos.space/eidos-lite-desktop prepare:plugin-compiler
+          pnpm --filter @eidos.space/plugin-sandbox check:web
+          cargo test -p eidos-plugin-sandbox --locked
+          python3 packages/plugin-sandbox/tests/smoke.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
+          python3 packages/plugin-sandbox/tests/network.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
+          python3 packages/plugin-sandbox/tests/bluetooth.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
+          pnpm --filter @eidos.space/plugin-runtime test
+
       - name: Test source and real Graft SDK
+        env:
+          EIDOS_PLUGIN_SANDBOX_BINARY: ${{ github.workspace }}/apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
         run: pnpm test:eidos-lite
 
   packaged-macos:

@@ -76,9 +76,13 @@ it.runIf(existsSync(binary))(
       const extension = (
         await service.openExtension(1, session, pkg.manifest.id)
       ).instance!.ticket
-      await request(extension, "extension.ready", {
-        actions: ["connect", "status", "stop"],
-      })
+      expect(
+        (
+          await request(extension, "extension.ready", {
+            actions: pkg.manifest.actions!.map((action) => action.id),
+          })
+        ).response
+      ).not.toHaveProperty("error")
       let announce!: (value: { invocation: string }) => void
       const announced = new Promise<{ invocation: string }>((resolve) => {
         announce = resolve

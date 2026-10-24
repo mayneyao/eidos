@@ -28,6 +28,7 @@ vi.mock("electron", () => ({
     getPath: (name?: string) =>
       name === "appData" ? `${mock.directory}-app-data` : mock.directory,
     getName: () => "Eidos Lite",
+    getAppPath: () => process.cwd(),
   },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
