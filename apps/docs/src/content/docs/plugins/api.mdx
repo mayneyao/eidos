@@ -5,6 +5,15 @@ description: SDK signatures, permissions and behavior.
 
 Look up declarations, contexts, capabilities and data types by API name. Signatures are generated from the SDK; use `import type` to import types. Task-oriented walkthroughs live in the development guides.
 
+import { Badge } from "@astrojs/starlight/components"
+
+API entries use host badges: <Badge text="Lite" variant="note" /> for Eidos Lite,
+<Badge text="Serve" variant="note" /> for CLI Serve, and
+<Badge text="Mobile" variant="note" /> for the Android/iOS plugin host.
+Only supported hosts are shown. Badges apply to the individual member; declarations,
+permissions, minimum API versions, and context restrictions still apply. An entry
+without badges makes no host-support claim, including shared data types.
+
 ## Manifest
 
 [PluginManifest, Views, actions, placements](/plugins/api/manifest/).
@@ -15,13 +24,15 @@ Look up declarations, contexts, capabilities and data types by API name. Signatu
 
 ## Capabilities
 
+- [fetch](/plugins/api/fetch/)
 - [document](/plugins/api/document/)
 - [fs](/plugins/api/fs/)
 - [filemeta](/plugins/api/filemeta/)
 - [background](/plugins/api/background/)
+- [Host events](/plugins/api/events/)
 - [eidos](/plugins/api/eidos/)
 - [storage](/plugins/api/storage/)
-- [network](/plugins/api/network/)
+- [connections & network.read](/plugins/api/network/)
 - [settings](/plugins/api/settings/)
 - [ui](/plugins/api/ui/)
 - [explorer](/plugins/api/explorer/)
@@ -46,9 +57,13 @@ Look up declarations, contexts, capabilities and data types by API name. Signatu
 
 [Read the guide](/plugins/views/).
 
-### File templates and dashboards
+### File templates
 
 [Read the guide](/plugins/views/).
+
+### Embed files and table Views
+
+[Read the guide](/plugins/resources/).
 
 ### Current file and page
 
@@ -105,6 +120,5 @@ Look up declarations, contexts, capabilities and data types by API name. Signatu
 ### Release resources and handle errors
 
 [Read the guide](/plugins/files/).
-
 
 </details>

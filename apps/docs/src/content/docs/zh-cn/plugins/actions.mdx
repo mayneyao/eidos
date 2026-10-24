@@ -1,38 +1,142 @@
 ---
 title: "命令、格式化器和 hooks"
-description: "命令、格式化器和 hooks"
+description: "添加 Cmd+K 命令，并按需提供文本格式化和保存后的自动处理。"
 ---
 
-## 注册命令与格式化器
+有些功能不需要一直显示一个页面：用户可以从 Cmd+K 执行一次操作，也可以让插件在格式化文本或保存文件后执行。本篇先做一个能显示通知的命令，再把同一个 extension 扩展为文本处理工具。
 
-### 本地文件修改后自动执行
+## 1. 添加一个 Cmd+K 命令
 
-插件 API `3.3.0` 支持 `hooks` 声明，字段为
-`{ id, title, event, extensions, access? }`。event 是 `document.saved` 或
-`file.renamed`。需要 extension 入口和对应的 `requires.pluginApi`。
-在 activate 中调用 `ctx.capabilities.hooks.register(id, handler)`，并将返回的
-disposable 加入 `ctx.subscriptions`。
+创建 `plugin.json` 和 `src/extension.ts`：
 
-处理器接收 `{ event, settings, signal }`。event 提供 Space 相对 path、operationId、
-source 和 `document: { text, version }`。保存另有 previousText，重命名另有 previousPath。
-写 hook 声明 `access: "write"`，返回当前文档的 `{ text?, name? }` 或不返回计划。
-name 保留目录与扩展名。宿主校验版本和同名冲突，并维护 Markdown 引用。
-失败保留已经成功的保存或重命名。多个插件按 ID、声明顺序执行，第一个有效写计划生效。
+```json
+{
+  "apiVersion": 1,
+  "id": "example.hello-command",
+  "name": "Hello Command",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "hello",
+      "title": "Hello: show a message",
+      "context": "workspace"
+    }
+  ],
+  "placements": [
+    {
+      "location": "command-palette",
+      "action": "hello"
+    }
+  ]
+}
+```
 
-只在本地操作成功后触发。打开、启用、云同步、局域网更新以及 hook 自身的修改不触发。
-hook 使用可跨平台 JavaScript，不提供文件系统、数据库、网络、DOM 或 Node API。
-settings 是插件配置的当前快照。Lite 支持可编辑文本文件，Android、iOS 支持 Markdown。
-CLI Serve 不支持 hook。
+`actions` 声明命令，`command-palette` 将它放入 Cmd+K。`context: "workspace"` 表示不需要选中某个文件。`extension` 指向注册处理函数的代码，它不是用于绘制页面的 `mount`。
 
-在扩展的 activate 中使用 `capabilities.actions.register(id, handler)` 注册声明过的动作。handler 接收自己的上下文，通过 capabilities 执行操作。
+## 2. 注册命令处理函数
 
-格式化器通过 `capabilities.formatters.register(id, provider)` 注册。provider.format 接收 `{ text, path, signal }` 并返回 `{ text }`，由 Eidos 应用可撤销的文本编辑。
+在 `src/extension.ts` 中填写：
+
+```ts
+import type { Activate } from "@eidos.space/plugin-sdk"
+
+const activate: Activate = (ctx) => {
+  ctx.subscriptions.add(
+    ctx.capabilities.actions.register("hello", async ({ capabilities }) => {
+      await capabilities.ui.notify("Hello from your plugin!")
+    })
+  )
+}
+export default activate
+```
+
+注册 ID 必须与清单的 `hello` 一致。执行命令时，宿主传入本次调用的 `capabilities`。示例使用它显示通知，并把注册句柄加入订阅，方便结束时清理。
+
+## 3. 从 Cmd+K 验证
+
+在 Lite 加载清单并启用插件。打开 Cmd+K，搜索 **Hello: show a message**，执行后应出现通知。
+
+如果命令要打开自己声明的页面，在处理函数中检查并调用 `capabilities.ui.navigate(viewId, route)`。如果操作需要持续持有 WebSocket 或蓝牙连接，让命令向[后台任务](/zh-cn/plugins/background/)发送消息；命令本身不承担常驻生命周期。
+
+## 为文本提供格式化器
+
+格式化器适合用户主动执行的文本整理。例如，删除每行末尾的空格。在上面的清单中添加：
+
+```json
+{
+  "formatters": [
+    { "id": "trim", "title": "Trim trailing spaces", "extensions": [".txt"] }
+  ]
+}
+```
+
+在已有 `activate` 函数内部添加：
+
+```ts
+ctx.subscriptions.add(
+  ctx.capabilities.formatters.register("trim", {
+    format({ text, signal }) {
+      signal.throwIfAborted()
+      return { text: text.replace(/[ \t]+$/gm, "") }
+    },
+  })
+)
+```
+
+打开测试 `.txt` 文件，使用宿主的格式化入口选择此格式化器。它只返回新的文本，由宿主应用可撤销编辑；处理函数不需要自行写磁盘。不要假定格式化就意味着保存。
+
+## 保存后自动处理：使用 hook
+
+如果你希望每次本地保存后自动清理空格，可改用 hook。它与格式化器是两种触发方式，先分别测试，不必同时启用。
+
+将最低 API 调整为 `3.3.0`，在清单中添加：
+
+```json
+{
+  "requires": { "pluginApi": "3.3.0" },
+  "hooks": [
+    {
+      "id": "trim-on-save",
+      "title": "Trim trailing spaces on save",
+      "event": "document.saved",
+      "extensions": [".txt"],
+      "access": "write"
+    }
+  ]
+}
+```
+
+保留 extension 入口，在 `activate` 内添加：
+
+```ts
+ctx.subscriptions.add(
+  ctx.capabilities.hooks.register("trim-on-save", ({ event, signal }) => {
+    signal.throwIfAborted()
+    const text = event.document.text.replace(/[ \t]+$/gm, "")
+    if (text !== event.document.text) return { text }
+  })
+)
+```
+
+给测试文本的行尾加空格，再保存，检查结果。hook 返回修改计划，宿主负责校验版本并应用。没有变化时不返回计划；hook 自己产生的修改不会再次触发 hook。
+
+hook 只处理本次事件的文档，没有文件系统、数据库、网络、DOM 或 Node API。处理器也会收到 `settings` 配置快照。除 `document.saved` 外，还可以监听 `file.renamed`；后者提供 `previousPath`，保存事件提供 `previousText`。
+
+打开文件、启用插件、云同步和局域网更新都不触发 hook。hook 失败不会撤销已经成功的保存或重命名。返回 `name` 可以提出同目录、同扩展名的新文件名；宿主保护同名文件和较新的文档版本，并维护 Markdown 引用。多个 hook 按插件 ID 和声明顺序运行，第一个有效写计划生效。
+
+Lite 支持可编辑文本文件；Android、iOS 支持 Markdown；CLI Serve 不支持 hook。
 
 ## 批量处理表格记录
 
-使用 `capabilities.actions.registerTableProvider(id, provider)` 注册表格动作。
-`getItems` 接收 `capabilities.eidos.table`、只读的 `capabilities.eidos.config` 和 `signal`，返回供用户选择的菜单项。`run` 还可使用 `capabilities.target`、`task` 和 `connections`。
+表格动作使用独立的 `actions.registerTableProvider`，不能把普通命令上下文当成记录写接口。一次批处理分为：
 
-`target.count` 表示本次目标总数，`target.readRows` 分页读取记录。使用返回的 `readToken` 调用 `target.update`。开始写入前，调用 `task.declareOutputs` 提交真实输出样本并等待校验完成，它用于确定允许写入的字段。调用 `task.report` 报告进度，在每批操作之间检查 `signal`。取消会保留已经完成的记录修改。
+1. `getItems` 根据表格结构返回菜单项。
+2. `run` 使用 `target.count` 和 `target.readRows` 读取目标记录。
+3. 写入前，用真实结果样本调用并等待 `task.declareOutputs`，确定允许写入的字段。
+4. 用读取时返回的 `readToken` 调用 `target.update`，通过 `task.report` 报告进度。
 
-[接口签名与类型](/zh-cn/plugins/api/).
+批次之间检查 `signal`。用户取消时保留已完成的修改。完整的 provider、菜单和任务类型见 [Actions API](/zh-cn/plugins/api/actions/)；不要直接复制普通命令的权限假设到批处理。

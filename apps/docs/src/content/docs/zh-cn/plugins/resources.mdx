@@ -1,0 +1,63 @@
+---
+title: "嵌入文件与表格视图"
+description: "使用宿主预览在插件的文件视图中组合笔记、图片和 Eidos 表格。"
+---
+
+当一个插件需要同时展示笔记、图片或 Eidos 表格时，可以让 Lite 在插件界面的容器中渲染这些内容。本篇介绍宿主的资源嵌入能力；插件负责容器布局，宿主负责预览内容。
+
+准备一个已有的 file View，以及同一 Space 内用于预览的 `notes.md` 和包含已保存视图的 `downloads.eidos`。如果还没有 file View，先阅读[页面与文件视图](/zh-cn/plugins/views/)。此能力目前由 Lite 提供，需要文件绑定，不能直接在普通 page View 中使用。
+
+## 1. 嵌入文件预览
+
+在清单中声明 `workspace.files.read`，并要求 API `3.2.0`。在异步 `mount(ctx, root)` 中创建一个有明确尺寸的容器，再让宿主挂载预览：
+
+```ts
+const resources = ctx.capabilities.ui.resources
+if (!resources) throw new Error("This host does not support embedded resources")
+const container = document.createElement("div")
+container.style.height = "320px"
+root.append(container)
+
+const panel = await resources.mount(container, {
+  kind: "file",
+  path: "./notes.md",
+})
+ctx.subscriptions.add(panel)
+```
+
+把 `notes.md` 放在当前绑定文件旁边。打开插件的 file View 后，容器内应显示笔记预览。路径相对绑定文件解析，并且必须留在当前 Space 内。
+
+## 2. 嵌入 Eidos 表格视图
+
+要展示 `.eidos` 中的已保存视图，先列出可选项，再挂载其中一个：
+
+```ts
+const views = await resources.listViews("./downloads.eidos")
+const view = views.find((item) => item.kind !== "file")
+if (!view) throw new Error("No saved views")
+const panel = await resources.mount(container, {
+  kind: "eidos-view",
+  path: "./downloads.eidos",
+  tableId: view.tableId,
+  viewId: view.viewId,
+})
+ctx.subscriptions.add(panel)
+```
+
+这段代码替换上一段的 `resources.mount` 调用。普通文件也可以用 `listViews(path)` 列出可用展示方式，再将所选 `editor` 传给 `{ kind: "file", path, editor }`。
+
+## 3. 管理布局与资源释放
+
+预览由 Lite 渲染，父插件不会拿到子插件的句柄。最多挂载 12 个只读资源，不支持嵌套 Dashboard。使用普通矩形容器，不对它们应用变换，也不要用其他交互控件覆盖预览。
+
+浮动菜单使用 HTML `popover`；Lite 会裁剪被菜单遮住的预览区域。拖动或调整布局时，可暂时给资源容器设置 `pointer-events: none`，操作结束后恢复。子 View 可检查 `ctx.presentation?.mode === "embedded"` 精简自己的工具栏。
+
+把挂载句柄加入 `ctx.subscriptions`，页面关闭时自动释放；需要重新加载引用时调用 `panel.refresh()`。
+
+完整声明见 [Manifest](/zh-cn/plugins/api/manifest/)，预览接口见 [UI](/zh-cn/plugins/api/ui/)。
+
+## 应用示例：Dashboard 插件
+
+Dashboard 插件可以将布局和资源路径保存在自己的配置文件中，使用 file View 打开配置，再按布局为每个资源创建容器。它调用本篇的 `resources.mount` 来组合笔记、图片和表格预览。
+
+布局编辑、资源选择和配置保存属于这个插件的实现；文件预览和表格渲染由宿主提供。其他文件视图也可以使用同一项资源嵌入能力，不需要先实现 Dashboard。

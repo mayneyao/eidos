@@ -1,67 +1,103 @@
 ---
 title: "文件与文本"
-description: "文件与文本"
+description: "编辑当前文本、读取 Space 文件，以及为文件保存属性。"
 ---
 
-## 读取和编辑文本
+假设你已经完成[文本阅读器](/zh-cn/plugins/guide/)，现在希望加一个按钮，把当前文本转换成大写并保存。本篇从这个修改开始，再说明什么时候应使用文件接口。
 
-声明 `capabilities: ["document"]` 后，通过 `ctx.capabilities.document` 使用以下方法。写入还需要 `access: "write"`。
+## 1. 允许 View 编辑文本
 
-| 方法                              | 用途                                       |
-| --------------------------------- | ------------------------------------------ |
-| `read()`                          | 获取包含 text、version、dirty 等信息的快照 |
-| `observe(listener, onError?)`     | 获取初始快照并订阅后续变化                 |
-| `edit({ text, expectedVersion })` | 修改未保存内容。返回 applied 或 stale      |
-| `save()`                          | 保存到文件。返回 saved 或 conflict         |
-| `undo()` / `redo()`               | 撤销或重做编辑并返回快照                   |
+在文本阅读器的 `plugin.json` 中，给原来的 View 添加 `access: "write"`：
 
-下面的函数体将当前文本转成大写并保存：
-
-```ts
-const document = ctx.capabilities.document
-if (!document) throw new Error("Document capability required")
-const current = await document.read()
-const result = await document.edit({
-  text: current.text.toUpperCase(),
-  expectedVersion: current.version,
-})
-if (result.status === "stale") {
-  await ctx.capabilities.ui.notify(
-    "The text changed. Review it before editing again."
-  )
-  return
-}
-const saved = await document.save()
-if (saved.status === "conflict") {
-  await ctx.capabilities.ui.notify(
-    "The file changed on disk. Your draft is still available."
-  )
+```json
+{
+  "id": "main",
+  "title": "Text Reader",
+  "kind": "file",
+  "entry": "./src/main.ts",
+  "capabilities": ["document"],
+  "access": "write"
 }
 ```
 
-expectedVersion 使用读取时的版本。遇到 stale 时保留用户输入并让用户处理较新的内容。遇到 conflict 时保留草稿并提示磁盘变更。连续输入的编辑器应串行提交 edit，避免多个请求使用同一个旧版本。
+这是 `views` 数组中的一项，不是完整清单。`document` 提供当前打开文本的工作副本；`write` 允许修改。原来的 `file/open` 入口不变。
 
-## 读取文件和播放媒体
+## 2. 编辑后再保存
 
-Lite 的 `ctx.capabilities.fs` 提供 readText、writeText、readBinary、writeBinary、list、stat、delete、rename、getUrl 和 watch。
-文本读取上限为 2 MiB，二进制 I/O 上限为 16 MiB。
-播放较大的媒体文件使用 getUrl 返回的流地址。
+把 `src/main.ts` 替换为：
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = (ctx, root) => {
+  const textDocument = ctx.capabilities.document
+  if (!textDocument) throw new Error("Document capability required")
+  const button = document.createElement("button")
+  const status = document.createElement("p")
+  button.textContent = "Convert to uppercase and save"
+  root.append(button, status)
+
+  button.onclick = () => {
+    button.disabled = true
+    void (async () => {
+      const current = await textDocument.read()
+      const edited = await textDocument.edit({
+        text: current.text.toUpperCase(),
+        expectedVersion: current.version,
+      })
+      if (edited.status === "stale") {
+        status.textContent = "The text changed. Review it and try again."
+        return
+      }
+      const saved = await textDocument.save()
+      status.textContent =
+        saved.status === "conflict"
+          ? "The file changed on disk. Your draft is still available."
+          : "Saved."
+    })()
+      .catch((error) => {
+        status.textContent = String(error)
+      })
+      .finally(() => {
+        button.disabled = false
+      })
+  }
+}
+export default mount
+```
+
+先读取文本和版本，再提交编辑，最后保存到磁盘。这三个步骤不能合并成一次直接文件写入：用户可能正在其他界面编辑同一份文本。
+
+## 3. 验证保存与冲突
+
+重新加载插件，用它打开测试 `.txt` 文件。点击按钮，内容应变成大写，页面显示 **Saved.**。
+
+如果编辑时版本已变化，`edit` 返回 `stale`，示例停止保存并提示重新检查。如果磁盘内容已变化，`save` 返回 `conflict`，草稿仍保留。实际编辑器应保留用户输入，不能在冲突后自动用旧内容覆盖新内容。连续输入产生的编辑请求应串行提交。
+
+要持续显示文本，沿用入门教程中的 `document.observe`。把返回的订阅加入 `ctx.subscriptions`，关闭 View 后由宿主释放。撤销、重做也使用 document 接口。
+
+## 什么时候使用 fs？
+
+`document` 适合编辑当前文本；`fs` 适合读取其他文件、列出目录或播放媒体。例如，在一个已有的媒体 file View 的 `mount` 内：
 
 ```ts
 const fs = ctx.capabilities.fs
-if (!fs) throw new Error("Filesystem access is required")
+if (!fs) throw new Error("Filesystem access required")
 const video = document.createElement("video")
 video.controls = true
 video.src = await fs.getUrl()
 root.append(video)
 ```
 
-文件视图的文件访问受当前文件及其目录范围约束。访问整个 Space 需要 `workspace.files`。写入同时需要贡献项的 write 权限。已有工作副本的路径在直接写入、删除或重命名时会返回 BUSY。编辑文本时使用 document 接口处理保存和冲突。
+这里省略路径表示当前绑定文件。大文件播放使用 `getUrl` 的流地址，不要先把整个视频读入内存。`readText` 上限为 2 MiB，二进制读写上限为 16 MiB。
 
-## Lite 文件属性
+默认文件访问受绑定文件及目录范围限制。浏览整个 Space 时，在清单中声明 `workspace.files.read`；写文件还需要相应写权限和贡献项的 `access: "write"`。如果文件已有受管理的工作副本，直接写入、删除或重命名可能返回 `BUSY`；编辑当前文本继续使用 document。
 
-Lite API 3.1 通过 `ctx.capabilities.filemeta` 读取和修改原生 namespace 属性，底层由 sqlite-fs-meta 实现。
-声明需要访问的 namespace。写入同时要求 View 或 Action 的 `access: "write"`。Page 浏览 Space 文件还需要 workspace 文件读权限。
+## 给文件保存评分或标签
+
+文件属性独立于文件内容。例如，你可以给笔记写入评分，而不修改 Markdown 正文。Lite 的此项能力要求 API `3.1.0`。
+
+在清单中添加：
 
 ```json
 {
@@ -72,23 +108,19 @@ Lite API 3.1 通过 `ctx.capabilities.filemeta` 读取和修改原生 namespace 
 }
 ```
 
+给执行写入的 View 或 Action 设置 `access: "write"`。在其处理函数内：
+
 ```ts
-const filemeta = ctx.capabilities.filemeta!
-const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
+const filemeta = ctx.capabilities.filemeta
+if (!filemeta) throw new Error("File metadata unavailable")
 await filemeta.patch("notes/example.md", "space.eidos.meta", {
-  set: { rating: 4, tags: ["review"], custom: { checked: true } },
-  remove: ["obsolete"],
+  set: { rating: 4, tags: ["review"] },
 })
+const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
 ```
 
-读取返回完整 JSON 对象，包括 `files.eidos` 未定义的键。namespace 不存在时返回 `{}`。patch 保留其他键，null 是值，remove 数组删除键。路径相对 Space。未声明 workspace 文件读权限时，只能访问绑定文件。属性写权限不授予文件内容写权限。损坏的 JSON、符号链接、非普通文件会报错。属性最多 1 MiB，文件系统可能有更小限制。操作立即作用于文件系统。多个进程修改同一 namespace 时应串行协调写入。Linux 不需要安装 `attr` 命令行软件包。
+先在测试 Space 中准备该文件。路径相对 Space；没有 workspace 文件读权限时只能访问绑定文件。属性写权限不会授予正文写权限。
 
-## 释放资源与处理错误
+`patch` 保留未提到的键；删除键使用 `remove: ["rating"]`，设置 `null` 则保留值为 null 的键。修改立即作用于文件系统，读取返回完整 namespace JSON，不受表格字段定义限制。namespace 不存在时返回空对象。属性最多 1 MiB，文件系统可能有更小限制；损坏 JSON、符号链接和非普通文件会报错。多个写入方需要自行协调。
 
-把订阅加入 `ctx.subscriptions`，使用 `ctx.signal` 中止异步操作，并在 `mount` 返回的 `dispose` 中释放界面资源。
-
-常见错误包括 PERMISSION_DENIED（访问范围不足）、INSTANCE_CLOSED（上下文已关闭）、STALE_REVISION（数据已变化）、BUSY（资源正在被管理）、TOO_LARGE（超过限制）和 TIMEOUT（请求超时）。向用户说明失败原因，保留尚未保存的输入。
-
-完整签名见 [SDK 类型定义](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts)，行为约定见[插件规范](https://github.com/mayneyao/eidos/blob/dev/docs/specs/eidos-lite-plugins-1.0.md)。
-
-[接口签名与类型](/zh-cn/plugins/api/).
+完整参数与错误约定见 [Document](/zh-cn/plugins/api/document/)、[文件访问](/zh-cn/plugins/api/fs/)和[文件属性](/zh-cn/plugins/api/filemeta/)。

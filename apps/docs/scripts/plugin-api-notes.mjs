@@ -1,8 +1,39 @@
 // Human-written behavior, shared by the English and Chinese reference renderer.
 export const notes = {
+  "PluginEvents.on": [
+    "The event name determines the listener parameter type. Returns a Disposable; dispose() is idempotent. Unknown event names, non-function listeners and undeclared event permissions throw synchronously.",
+    "事件名决定监听器参数类型。返回 Disposable，dispose() 可重复调用。未知事件名、非函数监听器和未声明的事件权限会同步抛错。",
+  ],
+  'PluginEventMap."file.opened"': [
+    "Successful file-open metadata. See FileOpenedEvent.",
+    "成功打开文件的元数据，字段见 FileOpenedEvent。",
+  ],
+  "FileOpenedEvent.id": ["Host-generated event identity, usable for deduplication.", "宿主生成的事件标识，可用于去重。"],
+  "FileOpenedEvent.path": ["File path relative to the current Space.", "相对当前 Space 的文件路径。"],
+  "FileOpenedEvent.timestamp": ["Time of the successful open, in Unix milliseconds.", "成功打开的时间，单位为 Unix 毫秒。"],
   "PluginManifest.background": [
-    "A separate Worker-style entry. Allow at most eight exact HTTPS/WSS origins; development loopback WebSocket access needs an exact host grant. BLE accepts 1–16 distinct services with at least one read, write or notify operation. Use lowercase canonical UUIDs or battery_service, heart_rate, device_information. Device IDs are chosen by the host, not the manifest.",
-    "独立的 Worker 风格入口。最多声明八个精确的 HTTPS/WSS origin；开发环境的回环 WebSocket 需宿主精确授权。BLE 接受 1–16 个不重复的服务，每个服务至少声明 read、write、notify 中一种操作。使用小写规范 UUID 或 battery_service、heart_rate、device_information。设备 ID 由宿主选择，不在 manifest 中指定。",
+    "A separate Worker-style entry. network: true permits public HTTPS/WSS after approval; up to eight exact networkOrigins optionally restrict it. bluetooth: true grants the selected device, optionally narrowed by a service whitelist. Device IDs are chosen by the host. API 3.6 adds autoStart: true for approved startup on Space opening, and fileHistory: true for file-open metadata in the owner window and Space; fileHistory does not grant file contents.",
+    "独立的 Worker 风格入口。network: true 经授权允许公网 HTTPS/WSS，可用最多八个精确 networkOrigins 收窄。bluetooth: true 授权选中设备，可用服务白名单限制。设备 ID 由宿主选择。API 3.6 支持 autoStart: true，经授权随 Space 打开自动启动；fileHistory: true 监听所属窗口和 Space 的文件打开元数据，不授予文件内容。",
+  ],
+  "PluginBackground.isRunning": [
+    "Lite API 3.6. Returns true only for a ready, unrevoked run in the current window and Space. Does not start a background or prompt for permission.",
+    "Lite API 3.6。仅当前窗口和 Space 存在已就绪、未撤销的实例时返回 true。不会启动后台或请求授权。",
+  ],
+  "BackgroundHost.spaceId": [
+    "Lite API 3.6. Background modules access this host object through globalThis.ctx. Identifies the current Space, not a filesystem path.",
+    "Lite API 3.6。后台模块通过 globalThis.ctx 访问宿主对象。此字段标识当前 Space，不是文件系统路径。",
+  ],
+  "BackgroundHost.instanceId": [
+    "Unique to this run. Changes after stop/restart; remains stable when Views close.",
+    "唯一标识本次运行，停止并重启后改变，关闭 View 不改变。",
+  ],
+  "BackgroundHost.events": [
+    "Requires background.fileHistory: true and host approval. events.on(\"file.opened\", listener) returns a disposable listener for successful file opens, with no initial snapshot or replay. Events contain metadata only and stop on revocation. See the background guide for counting rules.",
+    "需声明 background.fileHistory: true 并经宿主授权。events.on(\"file.opened\", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。",
+  ],
+  "BackgroundHost.storage": [
+    "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. Concurrent read-modify-write operations are not transactions.",
+    "需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。并发读改写不是事务。",
   ],
   "PluginManifest.fileTemplates": [
     "Static UTF-8 templates, up to 256 KiB each. The referenced document View must have a matching file/open placement.",
@@ -208,8 +239,8 @@ export const notes = {
     "订阅失效通知，不包含初始值；通知可能包含无关变更。",
   ],
   "PluginNetwork.read": [
-    "Read an allowed HTTPS URL, optionally requesting a byte range.",
-    "读取已授权的 HTTPS 地址，可请求指定字节范围。",
+    "Deprecated. Use global fetch; for byte ranges, send a Range header and verify a 206 response before consuming it. Retained for compatibility with existing plugins.",
+    "已废弃。使用全局 fetch；读取字节范围时发送 Range 请求头，并在消费响应前检查状态码为 206。此接口仅为已有插件保留兼容。",
   ],
   "PluginConnections.isConfigured": [
     "Check whether the user configured the declared connection.",

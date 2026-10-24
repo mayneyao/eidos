@@ -74,10 +74,51 @@ export const pages = [
     "background",
     "background",
     "background",
-    ["PluginBackground"],
+    ["PluginBackground", "BackgroundHost"],
     "background",
-    "Lite API 3.4; requires manifest.background. start requests host approval and starts on demand. Closing a View does not stop the background. stop releases the run and connections. request uses matching requestId envelopes and a 30-second timeout. Messages must be JSON-compatible. onMessage belongs to the current run and caller; subscribe again after restarting. requestDevice has a five-minute deadline: cancellation preserves the run, confirmation replaces it with a fresh device grant. Network and BLE permissions are independent of browser permissions.",
-    "Lite API 3.4，需声明 manifest.background。start 请求宿主授权并按需启动。关闭 View 不会停止 background；stop 释放运行实例和连接。request 使用匹配 requestId 的消息封套，超时为 30 秒。消息必须兼容 JSON。onMessage 属于当前运行实例和调用方，重启后需重新订阅。requestDevice 的截止时间为五分钟：取消保留当前实例，确认则用新设备授权替换实例。网络和 BLE 权限独立于浏览器权限。",
+    "Lite API 3.4; requires manifest.background. bluetooth: true requests all GATT services on the user-selected device; an optional services whitelist narrows access. Omitted operation fields allow all supported operations; explicit fields deny omitted operations. network: true requests public HTTPS/WSS; networkOrigins optionally restricts it and takes precedence. start requests host approval and starts on demand. Initial approval is cancellable, has a five-minute deadline, and does not consume the command execution budget. Closing the initiating caller cancels pending startup; after readiness, closing a View does not stop the background. stop releases the run and connections. request uses matching requestId envelopes and a 30-second reply timeout after startup. Messages must be JSON-compatible. onMessage belongs to the current run and caller; subscribe again after restarting. requestDevice has a five-minute deadline: cancellation preserves the run, confirmation replaces it with a fresh device grant. Network and BLE permissions are independent of browser permissions.",
+    "Lite API 3.4，需声明 manifest.background。bluetooth: true 申请用户选中设备的全部 GATT 服务，可用 services 白名单收窄；省略操作字段允许设备支持的全部操作，显式声明任意操作后未声明项禁止。network: true 申请公网 HTTPS/WSS，networkOrigins 白名单可选且优先。start 请求宿主授权并按需启动。首次授权可取消，最多等待五分钟，不计入命令执行预算。关闭发起调用方会取消尚未完成的启动；就绪后关闭 View 不停止 background。stop 释放运行实例和连接。request 使用匹配 requestId 的消息封套，启动后的回复超时为 30 秒。消息必须兼容 JSON。onMessage 属于当前运行实例和调用方，重启后需重新订阅。requestDevice 的截止时间为五分钟：取消保留当前实例，确认则用新设备授权替换实例。网络和 BLE 权限独立于浏览器权限。",
+  ],
+  [
+    "events",
+    "Host events",
+    "宿主事件",
+    ["PluginEvents", "PluginEventMap", "FileOpenedEvent"],
+    "background",
+    `Lite plugin API **3.6.0**. Background modules access host events through \`ctx.events\` on the injected \`BackgroundHost\`. Views and actions do not expose this interface; they communicate with the background through its message API.
+
+## Supported events
+
+| Event | Payload | Permission |
+| --- | --- | --- |
+| \`file.opened\` | \`FileOpenedEvent\` | \`background.fileHistory: true\` and host approval |
+
+\`file.opened\` reports a successful workbench file open in the background's current window and Space. Content reads, resource previews, View rerenders and failed opens do not emit this event. It provides metadata only, without file-content access.
+
+## Delivery and lifetime
+
+Events are live notifications, without an initial snapshot, durable delivery or historical replay. Subscribing does not start a background or prompt for permission. Use \`background.autoStart\` for approved startup when the Space opens.
+
+Each subscription can be disposed independently. Stopping the background destroys its subscriptions; revoking access ends delivery. Closing a View does not stop background listeners. A throwing listener does not prevent other listeners from running.
+
+See the [background guide](/plugins/background/) for a subscription example and the Recent History plugin workflow.`,
+    `Lite 插件 API **3.6.0**。后台模块通过宿主注入的 \`BackgroundHost\` 上的 \`ctx.events\` 订阅事件。View 和 action 暂不提供此接口，通过后台消息 API 与 background 通信。
+
+## 支持的事件
+
+| 事件 | 参数类型 | 权限 |
+| --- | --- | --- |
+| \`file.opened\` | \`FileOpenedEvent\` | \`background.fileHistory: true\` 及宿主授权 |
+
+\`file.opened\` 表示后台所属窗口、当前 Space 中的一次成功文件打开。读取内容、预览资源、View 重渲染和打开失败不产生此事件。事件仅提供元数据，不授予文件内容访问权。
+
+## 交付与生命周期
+
+事件为实时通知，不提供初始快照、持久交付或历史回放。订阅不会启动后台，也不会弹出授权请求。需要随 Space 打开自动运行时，声明 \`background.autoStart\` 并由用户授权。
+
+每次订阅可以独立取消。后台停止时所有订阅随之销毁，权限撤销后停止交付。关闭 View 不影响后台监听。一个监听器抛错不会阻止其他监听器执行。
+
+订阅示例和最近打开插件的使用流程见[后台指南](/zh-cn/plugins/background/)。`,
   ],
   [
     "eidos",
@@ -99,12 +140,12 @@ export const pages = [
   ],
   [
     "network",
-    "network & connections",
-    "network 与 connections",
+    "Credential connections and legacy networking",
+    "凭据连接与旧网络接口",
     ["PluginNetwork", "PluginConnections"],
     "services",
-    "network.read performs bounded anonymous HTTPS reads to browser.networkOrigins. It is separate from background fetch/WebSocket. Declare connections for credentialed requests; users configure credentials in the host. Connections are available in Views and ordinary actions; action requests are cancelled when the invocation ends.",
-    "network.read 向 browser.networkOrigins 执行有界的匿名 HTTPS 读取，与 background 的 fetch/WebSocket 分开。需要凭据的请求应声明 connections，由用户在宿主配置凭据。View 和普通命令可以使用 connections，命令调用结束时会取消其请求。",
+    "Use the global [fetch API](/plugins/api/fetch/) for HTTP requests in Lite Views, ordinary commands and backgrounds. Use connections when the host must store credentials and send an authenticated JSON request without exposing those credentials to plugin code; fetch does not inherit connection credentials. Connections are available in Views and ordinary actions, not backgrounds, and requests end with their caller. network.read is deprecated and retained only for existing plugins. New code uses fetch, including Range headers for byte-range requests. It follows browser.network or browser.networkOrigins grants, with an explicit whitelist taking precedence.",
+    "Lite View、普通命令和 background 的 HTTP 请求统一使用全局 [fetch API](/zh-cn/plugins/api/fetch/)。需要由宿主保存凭据并代发 JSON 请求、避免插件代码接触密钥时，使用 connections；fetch 不会自动使用连接凭据。Connections 提供给 View 和普通命令，不提供给 background，请求随调用方结束而取消。network.read 已废弃，仅为已有插件保留兼容。新代码统一使用 fetch，字节范围读取使用 Range 请求头。它遵循 browser.network 或 browser.networkOrigins 授权，显式白名单优先。",
   ],
   [
     "settings",
@@ -120,7 +161,7 @@ export const pages = [
     "ui & resources",
     "ui 与 resources",
     ["HostUI", "HostResources", "ResourceMount"],
-    "views",
+    "resources",
     "Check optional UI methods before calling. exportFile accepts a leaf filename and at most 16 MiB; Lite shows a save dialog, Serve starts a download, and actions/mobile do not expose it. It needs no filesystem write permission. Lite resources require workspace file read access, resolve paths from the bound file, and render up to 12 read-only panels within the Space; nested dashboards are unsupported. Dispose mounts with the View.",
     "调用前检查可选 UI 方法。exportFile 接受不含目录的文件名及最多 16 MiB 数据；Lite 显示保存对话框，Serve 发起下载，命令和移动端不提供此方法。它不需要文件写入权限。Lite resources 需要 workspace 文件读取权限，从绑定文件解析路径，在 Space 内最多渲染 12 个只读面板，不支持嵌套 Dashboard。View 关闭时应释放挂载。",
   ],

@@ -5,6 +5,14 @@ description: SDK 签名、权限与行为。
 
 按接口名称查阅声明、上下文、能力与数据类型。签名从 SDK 自动生成，使用 `import type` 导入类型。完整操作流程见开发指南。
 
+import { Badge } from "@astrojs/starlight/components"
+
+API 使用 badge 标记支持宿主：<Badge text="Lite" variant="note" /> 表示 Eidos Lite，
+<Badge text="Serve" variant="note" /> 表示 CLI Serve，
+<Badge text="Mobile" variant="note" /> 表示 Android/iOS 插件宿主。
+只显示支持的宿主，标记以具体成员为准；仍需满足声明、权限、最低 API 版本和调用上下文要求。
+未标记的条目（如共享数据类型）不表示支持所有宿主。
+
 ## Manifest
 
 [PluginManifest, Views, actions, placements](/zh-cn/plugins/api/manifest/).
@@ -15,13 +23,15 @@ description: SDK 签名、权限与行为。
 
 ## Capabilities
 
+- [fetch](/zh-cn/plugins/api/fetch/)
 - [document](/zh-cn/plugins/api/document/)
 - [fs](/zh-cn/plugins/api/fs/)
 - [filemeta](/zh-cn/plugins/api/filemeta/)
 - [background](/zh-cn/plugins/api/background/)
+- [宿主事件](/zh-cn/plugins/api/events/)
 - [eidos](/zh-cn/plugins/api/eidos/)
 - [storage](/zh-cn/plugins/api/storage/)
-- [network](/zh-cn/plugins/api/network/)
+- [connections 与 network.read](/zh-cn/plugins/api/network/)
 - [settings](/zh-cn/plugins/api/settings/)
 - [ui](/zh-cn/plugins/api/ui/)
 - [explorer](/zh-cn/plugins/api/explorer/)
@@ -46,9 +56,13 @@ description: SDK 签名、权限与行为。
 
 [查看指南](/zh-cn/plugins/views/).
 
-### 文件模板与 Dashboard
+### 文件模板
 
 [查看指南](/zh-cn/plugins/views/).
+
+### 嵌入文件与表格视图
+
+[查看指南](/zh-cn/plugins/resources/).
 
 ### 当前文件与页面
 
@@ -105,6 +119,5 @@ description: SDK 签名、权限与行为。
 ### 释放资源与处理错误
 
 [查看指南](/zh-cn/plugins/files/).
-
 
 </details>

@@ -1,40 +1,99 @@
 ---
 title: "Eidos 表格 View"
-description: "Eidos 表格 View"
+description: "为 Eidos 表格添加自定义展示，读取记录并保存插件配置。"
 ---
 
-## 使用 Eidos 文件
+如果你想把一张 Eidos 表格展示成看板、图表或卡片列表，可以提供表格 View。它绑定用户当前选择的表格，使用同一份字段和记录。
 
-`ctx.capabilities.eidos` 包含按需声明的 `schema`、`table` 和 `config`。例如，一个需要读取结构和保存本插件配置的表格视图可以声明：
+本篇先做一个 **Inspector**：在表格中显示字段信息和前 20 条记录，便于确认数据如何到达插件。之后再把这个输出替换成自己的界面。
+
+## 1. 声明表格 View
+
+创建 `plugin.json` 和 `src/main.ts`：
 
 ```json
 {
-  "id": "board",
-  "title": "Board",
-  "kind": "file",
-  "entry": "./src/board.ts",
-  "capabilities": ["eidos/schema", "eidos/table", "eidos/config"],
-  "access": "write"
+  "apiVersion": 1,
+  "id": "example.table-inspector",
+  "name": "Table Inspector",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "views": [
+    {
+      "id": "inspect",
+      "title": "Inspector",
+      "kind": "file",
+      "entry": "./src/main.ts",
+      "capabilities": ["eidos/table"]
+    }
+  ],
+  "placements": [
+    {
+      "location": "table/view",
+      "view": "inspect"
+    }
+  ]
 }
 ```
 
-为此视图添加 `table/view` 入口。每项声明只提供对应接口。声明顺序不影响行为。
+这里使用 `kind: "file"`，因为数据来自 Eidos 文件。`eidos/table` 提供当前表格接口，`table/view` 让它出现在表格的 View 选择流程中。这个只读示例不需要 `access: "write"`。
 
-### 浏览文件结构
+## 2. 读取结构和记录
 
-声明 `eidos/schema`，使用 `ctx.capabilities.eidos.schema.listTables()` 获取文件内的表格列表，再用 `readTable(tableId)` 读取字段。文件浏览器通过匹配 `.eidos` 的 `file/open` 入口打开。表格视图也可以读取所在文件的结构。
+在 `src/main.ts` 中填写：
 
-### 查询当前表格
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
 
-声明 `eidos/table` 并从 `table/view` 打开后，使用 `ctx.capabilities.eidos.table`：readContext 读取当前表格结构和视图信息，readRows 分页读取记录，aggregate 聚合数据，setViewConfig 完整替换当前视图的插件配置，openRecord 打开记录，watch 订阅失效通知。先读取结构，再用字段 ID 查询。这些方法始终作用于当前绑定表格。
+const mount: Mount = async (ctx, root) => {
+  const table = ctx.capabilities.eidos?.table
+  if (!table) throw new Error("Open this View inside an Eidos table")
+  const output = document.createElement("pre")
+  const status = document.createElement("p")
+  root.append(output, status)
+  let revision = 0
+  const refresh = async () => {
+    const current = ++revision
+    try {
+      const context = await table.readContext()
+      const page = await table.readRows({ offset: 0, limit: 20 })
+      if (ctx.signal.aborted || current !== revision) return
+      output.textContent = JSON.stringify(
+        { fields: context.fields, page },
+        null,
+        2
+      )
+      status.textContent = ""
+    } catch (error) {
+      if (!ctx.signal.aborted && current === revision)
+        status.textContent = String(error)
+    }
+  }
+  ctx.subscriptions.add(table.watch(() => void refresh()))
+  await refresh()
+}
+export default mount
+```
 
-### 保存插件配置
+`readContext` 返回字段和视图信息，`readRows` 分页读取当前表格。示例用 JSON 展示它们，是为了让你先看清真实数据结构。实现卡片或图表时，用字段 ID 读取记录值，不要假定显示名称永远不变。
 
-声明 `eidos/config`，通过 `ctx.capabilities.eidos.config` 的 read、write、watch 使用保存在文件中的本插件配置。文件浏览器可指定文件内的表格 ID。表格视图使用当前绑定的表格 ID。
+`watch` 是“数据可能变化”的通知，不包含完整数据，也不发送初始值。收到通知后重新读取；页面关闭后订阅会释放。示例会忽略迟到的请求，保留最后一次成功显示的内容。
+
+## 3. 在表格中检查结果
+
+在 Lite 加载并启用插件，打开包含记录的 `.eidos` 文件。在表格中添加或选择插件提供的 **Inspector** View，应看到字段与最多 20 条记录。修改表格内容，输出应更新。
+
+这个接口始终针对绑定表格。要继续读下一页，增加 `offset`；要打开某条记录，调用 `table.openRecord(rowId)`；要计算汇总，使用 `table.aggregate`。具体数据类型见 [Eidos API](/zh-cn/plugins/api/eidos/)。
+
+## 保存展示配置
+
+例如，看板需要记住“紧凑显示”选项。先在 View 中加入 `eidos/config`，并设置 `access: "write"`。然后在用户改变选项的处理函数中：
 
 ```ts
 const { table, config } = ctx.capabilities.eidos ?? {}
-if (!table || !config) throw new Error("Table and config capabilities required")
+if (!table || !config) throw new Error("Table and config required")
 const current = await config.read(table.tableId)
 await config.write(table.tableId, {
   value: { ...current.value, compact: true },
@@ -42,8 +101,12 @@ await config.write(table.tableId, {
 })
 ```
 
-写入需要 `access: "write"` 和读取时的版本。版本过期时重新读取并处理冲突，避免覆盖他人的修改。`config.watch(tableId, listener)` 返回订阅，不发送初始值。先读取配置，收到通知后再次读取。通知可能包含其他数据变化，释放订阅后停止接收。
+这份配置保存在 Eidos 文件中，并且隔离到当前插件。写入使用刚读取的版本；如果版本过期，重新读取并合并用户选择，不要直接覆盖。用 `config.watch(tableId, listener)` 监听配置失效，再主动读取新值。
 
-Lite 支持以上三个接口。CLI Serve 提供 `eidos/table`。需要同时支持 Serve 时，只声明该宿主提供的能力，并通过 `check --target cli` 验证。
+如果只需要保存当前 View 的展示配置，也可以使用 `table.setViewConfig`。它完整替换配置，调用前应合并需要保留的键。
 
-[接口签名与类型](/zh-cn/plugins/api/).
+## 需要浏览整个文件时
+
+加入 `eidos/schema` 后，可以用 `schema.listTables()` 列出文件内的表，再用 `schema.readTable(tableId)` 查看字段。它适合文件结构浏览器；若要直接打开整个 `.eidos` 文件，还需要匹配该扩展名的 `file/open` 入口。
+
+三个能力分别声明，不会因为有 table 就自动获得 schema 或 config。Lite 支持这三个接口；CLI Serve 提供 `eidos/table`。需要支持 Serve 时，先用 `check --target cli` 检查兼容性。

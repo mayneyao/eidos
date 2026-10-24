@@ -1,79 +1,142 @@
 ---
 title: "Commands, formatters and hooks"
-description: "Commands, formatters and hooks"
+description: "Add a Cmd+K command, then provide text formatting or automatic processing after saving."
 ---
 
-## Register commands and formatters
+Some features need no persistent page: users can run a command from Cmd+K, format text, or trigger processing after saving a file. Start with a command that displays a notification, then extend the same extension into a text-processing tool.
 
-### Run after local file changes
+## 1. Add a Cmd+K command
 
-Declare `hooks` and require plugin API `3.3.0`:
+Create `plugin.json` and `src/extension.ts`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.hello-command",
+  "name": "Hello Command",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "extension": "./src/extension.ts",
+  "actions": [
+    {
+      "id": "hello",
+      "title": "Hello: show a message",
+      "context": "workspace"
+    }
+  ],
+  "placements": [
+    {
+      "location": "command-palette",
+      "action": "hello"
+    }
+  ]
+}
+```
+
+`actions` declares the command; `command-palette` puts it in Cmd+K. A `workspace` command needs no selected file. The `extension` entry registers handlers; it is not a page's `mount` function.
+
+## 2. Register the handler
+
+Write this in `src/extension.ts`:
+
+```ts
+import type { Activate } from "@eidos.space/plugin-sdk"
+
+const activate: Activate = (ctx) => {
+  ctx.subscriptions.add(
+    ctx.capabilities.actions.register("hello", async ({ capabilities }) => {
+      await capabilities.ui.notify("Hello from your plugin!")
+    })
+  )
+}
+export default activate
+```
+
+The registration ID must match `hello` in the manifest. The host passes capabilities for this invocation to the handler. The example uses them to display a notification and adds the registration handle to subscriptions for cleanup.
+
+## 3. Check it in Cmd+K
+
+Load the manifest and enable the plugin in Lite. Open Cmd+K, search for **Hello: show a message**, and run it. A notification should appear.
+
+To open a declared page, check and call `capabilities.ui.navigate(viewId, route)` in the handler. For a persistent WebSocket or Bluetooth connection, send a message to a [background task](/plugins/background/); the command itself does not own a persistent lifetime.
+
+## Provide a text formatter
+
+A formatter handles text cleanup explicitly requested by the user. To remove trailing spaces, add this manifest fragment:
+
+```json
+{
+  "formatters": [
+    { "id": "trim", "title": "Trim trailing spaces", "extensions": [".txt"] }
+  ]
+}
+```
+
+Inside the existing `activate` function, add:
+
+```ts
+ctx.subscriptions.add(
+  ctx.capabilities.formatters.register("trim", {
+    format({ text, signal }) {
+      signal.throwIfAborted()
+      return { text: text.replace(/[ \t]+$/gm, "") }
+    },
+  })
+)
+```
+
+Open a test `.txt` file and select the formatter through the host's formatting controls. It returns text; the host applies an undoable edit. The handler does not write the file directly, and formatting does not imply saving.
+
+## Process a saved file with a hook
+
+To clean up spaces after every local save, use a hook instead. Hooks and formatters have different triggers; test them separately before enabling both.
+
+Require API `3.3.0` and add:
 
 ```json
 {
   "requires": { "pluginApi": "3.3.0" },
-  "extension": "./extension.ts",
   "hooks": [
     {
-      "id": "saved",
-      "title": "After saving Markdown",
+      "id": "trim-on-save",
+      "title": "Trim trailing spaces on save",
       "event": "document.saved",
-      "extensions": [".md", ".markdown"],
+      "extensions": [".txt"],
       "access": "write"
     }
   ]
 }
 ```
 
+Keep the extension entry and add this inside `activate`:
+
 ```ts
-import type { Activate } from "@eidos.space/plugin-sdk"
-const activate: Activate = (ctx) => {
-  ctx.subscriptions.add(
-    ctx.capabilities.hooks.register(
-      "saved",
-      async ({ event, settings, signal }) => {
-        signal.throwIfAborted()
-        // Return { text } or { name } for this document, or nothing.
-      }
-    )
-  )
-}
-export default activate
+ctx.subscriptions.add(
+  ctx.capabilities.hooks.register("trim-on-save", ({ event, signal }) => {
+    signal.throwIfAborted()
+    const text = event.document.text.replace(/[ \t]+$/gm, "")
+    if (text !== event.document.text) return { text }
+  })
+)
 ```
 
-Events provide the Space-relative `path`, `operationId`, `source`, and
-`document: { text, version }`. `document.saved` includes `previousText`.
-`file.renamed` includes `previousPath`. Hooks run only after successful local
-changes. Opening, enabling, cloud or LAN updates, and hook-generated changes do not
-trigger them. A filename plan retains the extension and folder. The host protects existing files
-and newer document versions. A failed hook leaves the save or
-rename in place. Multiple plugins run by ID, then declaration order, stopping
-at the first effective write plan.
+Add trailing spaces to a test file, save it, and check the result. The hook returns a plan for the host to validate and apply. Return nothing when no change is needed. Changes generated by a hook do not retrigger it.
 
-Use portable JavaScript: hook handlers have no filesystem, database, network,
-DOM, or Node APIs. They receive resolved plugin settings and return plans
-for the current document only. Add registration disposables to subscriptions.
-Lite supports editable text files. Android and iOS support Markdown. CLI Serve
-does not support hooks.
+Hooks handle only the event's document, without filesystem, database, network, DOM, or Node APIs. The handler also receives a `settings` snapshot. Besides `document.saved`, hooks can handle `file.renamed`. Rename events include `previousPath`; save events include `previousText`.
 
-In activate, call `capabilities.actions.register(id, handler)` for a declared action.
-Its handler receives a context and performs operations through capabilities.
+Opening files, enabling plugins, and cloud or LAN updates do not trigger hooks. A hook failure does not undo a successful save or rename. Returning `name` proposes a new filename in the same directory with the same extension. The host protects existing files and newer document versions and maintains Markdown references. Hooks run by plugin ID and declaration order; the first effective write plan wins.
 
-Register formatters with `capabilities.formatters.register(id, provider)`.
-`provider.format` receives `{ text, path, signal }` and returns `{ text }`.
-Eidos applies an undoable edit.
+Lite supports editable text files; Android and iOS support Markdown. CLI Serve does not support hooks.
 
 ## Process table records in batches
 
-Register a table action with `capabilities.actions.registerTableProvider(id, provider)`.
-`getItems` receives `capabilities.eidos.table`, read-only `capabilities.eidos.config`, and `signal`, and returns menu items.
-`run` also receives `capabilities.target`, `task`, and `connections`.
+Table actions use `actions.registerTableProvider`; an ordinary command context is not a record-write interface. A batch follows these steps:
 
-`target.count` is the number of records in this run.
-Read them with `target.readRows` and pass each returned `readToken` to `target.update`.
-Before writing, submit a real output sample to `task.declareOutputs` and await validation.
-This establishes the fields the run can update.
-Report progress with `task.report` and check `signal` between batches.
-Cancellation retains completed changes.
+1. `getItems` returns menu choices based on table structure.
+2. `run` uses `target.count` and `target.readRows` to read target records.
+3. Before writing, submit a real result sample to `task.declareOutputs` and await validation of writable fields.
+4. Pass the returned `readToken` to `target.update` and report progress with `task.report`.
 
-[API signatures and types](/plugins/api/).
+Check `signal` between batches. Cancellation retains completed changes. See [Actions API](/plugins/api/actions/) for provider, menu, and task types; do not carry ordinary-command permission assumptions into batch processing.

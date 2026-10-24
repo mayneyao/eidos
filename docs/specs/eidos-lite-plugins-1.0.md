@@ -1,12 +1,103 @@
-# Eidos Plugins — API 3.3
+# Eidos Plugins — API 3.6
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.3.0
+Plugin API: 3.6.0
 
 Canonical language: English
 
+## Background host services
+
+API 3.6 accepts optional `background.autoStart: true`. Lite MUST attempt startup
+when an enabled plugin's Space opens and when that plugin is enabled. Startup uses
+the same singleton and permissions as explicit startup. Approval MUST disclose
+automatic startup and be stored per Space and exact package hash. Disabling revokes
+approval; a changed package requires renewed approval. Manual stop or failure MUST
+NOT trigger automatic retries within the Space session. Closing the Space ends
+the run. Automatic startup does not restore memory or grant Bluetooth devices.
+
+`ctx.events` is the background host-event entry point; initially only `file.opened` is supported. The event name determines the callback type. Unknown events, invalid listeners and undeclared permissions throw synchronously; subscribing never starts a background. Each subscription disposes independently, and a throwing listener does not prevent other listeners from running. Events are live only, without durable delivery or replay; stopping the background destroys its subscriptions. Views and actions do not expose this interface yet; use the existing background messaging API to obtain background state.
+
+Lite API 3.6 injects `globalThis.ctx` (`BackgroundHost`) into background modules.
+`spaceId` identifies the current Space; `instanceId` is unique to the run.
+With explicit `background.fileHistory: true`, `ctx.events.on("file.opened", listener)` observes
+successful workbench opens in that owner window and Space. Each event contains a
+host-generated `id`, Space-relative `path`, and Unix-millisecond `timestamp`.
+The host MUST disclose path/time observation during background approval, exclude
+protected implementation paths, reject subframe reporting, and revalidate the
+owner/Space and plugin revision before delivery. Failed opens, content reads,
+resource previews and View rerenders MUST NOT emit opens. Delivery starts only
+for running, granted backgrounds; no historical replay or automatic start is
+implied. Disposal removes the listener; revocation and termination end delivery.
+This permission MUST NOT grant file contents or filesystem access.
+
+With `storage.maxBytes`, background `storage` exposes the existing plugin-private
+binary object API and quota. Hosts MUST enforce the current plugin grant, serialize
+storage operations with View/action operations, atomically replace written objects,
+and reject writes after revocation. Storage is device-local, plugin-scoped and shared
+across Spaces; read-modify-write is not a transaction. Plugins must partition keys
+as needed. Timers provide no persistence guarantee: unflushed state can be lost on
+termination. `background.isRunning()` MUST NOT start a worker or request permission.
+Private host-service frames MUST NOT reach application message observers.
+
 Owner: Adapter / UI; Eidos File data semantics remain owned by the Runtime
+
+## Bluetooth grants
+
+`background.bluetooth: true` requests GATT access to the device explicitly selected
+by the user. It MUST NOT grant access to other devices or start a connection by itself.
+`background.bluetooth: { services: [...] }` optionally restricts services. A service
+entry with no operation fields allows supported read/write/notify operations; if
+any operation field is present, only fields set to `true` are granted. Manifest
+device IDs are forbidden. Normal background startup grants no Bluetooth device.
+The host MUST describe broad device access during selection, and revoke grants
+when the run stops. Cancelling selection preserves the current run; confirming
+a device replaces it. Device capabilities and BLE GATT transport limits still apply.
+
+## Worker Fetch
+
+Lite plugins requiring API 3.5 or later MUST use a host-mediated global `fetch`
+in page/file Views and ordinary command invocations. Backgrounds expose the same
+Worker-style Fetch surface: Request, Response, Headers, Blob, File, FormData,
+URLSearchParams, Body methods, readable response streams and AbortSignal.
+CLI Serve retains its browser networking contract and does not advertise API 3.5.
+Earlier Lite plugin requirements retain their browser networking behavior.
+
+View and command network declarations use `browser`; backgrounds use `background`.
+`network: true` requests public HTTPS access (and WSS in backgrounds), subject to
+explicit host approval. Optional `networkOrigins` restricts the grant and MUST
+take precedence, including an empty array which denies all destinations. An
+origin list alone remains valid; omitting both fields denies networking.
+`browser.network: true` requires API 3.5 or newer. These grants MUST NOT imply each other.
+The host MUST validate the initial URL and every redirect, pin a vetted DNS
+address, deny private/reserved destinations, filter forbidden request headers,
+strip credentials on cross-origin redirects, and omit response Cookie headers.
+No browser CORS check, cookie jar, login session, persistent HTTP cache or Service
+Worker participates. Request credentials/cache/referrer options do not grant
+ambient browser authority. Authorization headers remain explicit request data.
+Fetch-managed View frames MUST block direct external connections through CSP.
+Blob workers in those frames do not receive the host RPC channel.
+
+`fetch` MUST resolve on response headers. HTTP error status codes are successful
+Response values; network failures reject. `redirect: manual` returns an opaque
+redirect response. Integrity metadata using SHA-256/384/512 MUST be verified
+before exposing a response; this requires buffering. Body consumption is single-use;
+clones use stream tee semantics. Response streams MUST pull from the host on demand,
+with bounded chunks and queues, and support cancellation after headers. Closing a
+View or ending an action MUST close its fetch resources without stopping an
+independent background. Stopping a background MUST close its network resources.
+
+Hosts MAY enforce resource limits. Current uploads are buffered, limited to
+1 MiB, including ReadableStream inputs; response streams are not subject to the
+old 1 MiB aggregate response limit. QuickJS buffered body helpers are limited to
+16 MiB and the JS heap/turn budget. Network chunks are at most 16 KiB. Each caller
+has at most 16 fetch resources (backgrounds share the limit with WebSockets).
+Headers are limited to 128 request fields / 32 KiB. Header wait, read wait and
+unconsumed body idle deadlines are 30 seconds; active streams can run longer.
+The final-header deadline MUST include DNS, connection establishment and the
+entire redirect chain; redirects MUST NOT reset it.
+Callers MUST consume or cancel response bodies. This is a Worker profile of the
+Fetch API, not a claim of complete browser/WPT conformance.
 
 This specification defines the plugin interface at the Adapter / UI boundary.
 Eidos File format and data semantics are defined by their respective specifications.
@@ -14,6 +105,20 @@ The Chinese document is informative. MUST, MUST NOT, SHOULD, and MAY express
 requirements of this contract.
 
 ## 1. Purpose and conformance
+
+### Background startup and output
+
+Initial background approval MUST be cancellable and bounded to five minutes.
+Stopping, revoking, or closing the initiating caller before readiness MUST cancel
+startup; late approval MUST NOT create a process. Approval wait MUST NOT consume
+the ordinary command execution deadline. Once ready, the run remains independent
+of its initiating View or command.
+
+Output MUST NOT have a lifetime byte ceiling. Frames remain limited to 1 MiB.
+The QuickJS host permits 16 MiB of messages per one-second window; exceeding this
+rate terminates the run. Logs have a separate 1 MiB window and MUST be dropped on
+rate overflow without terminating the run. The Node SDK enforces a separate
+32 MiB per-second limit on each output pipe, plus bounded frame assembly.
 
 ### File hooks
 

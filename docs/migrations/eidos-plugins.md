@@ -1,5 +1,40 @@
 # Updating Eidos Plugins
 
+## Replace legacy network reads with fetch
+
+`ctx.capabilities.network` and `PluginNetwork.read` are deprecated but remain
+compatible. New Lite plugins use global `fetch` and require plugin API 3.5 or
+later. Keep the existing `browser.network` / `browser.networkOrigins` permission
+declaration (backgrounds use their own network declarations).
+
+```ts
+const response = await fetch(url, {
+  headers: { Range: `bytes=${offset}-${offset + length - 1}` },
+  signal: ctx.signal,
+})
+if (response.status !== 206) {
+  await response.body?.cancel()
+  throw new Error("Server did not honor the requested byte range")
+}
+const data = new Uint8Array(await response.arrayBuffer())
+const etag = response.headers.get("etag")
+```
+
+Validate positive lengths and nonnegative offsets before constructing a range.
+For whole-file reads, omit Range and check `response.ok`. Fetch resolves for HTTP
+errors, so check the status explicitly. `connections` remains the separate
+host-managed credential service; fetch does not inherit its secrets.
+
+## Background host events (API 3.6)
+
+Replace the pre-release `ctx.files.onOpened(listener)` with
+`ctx.events.on("file.opened", listener)`. Read `event.timestamp` instead of
+`event.openedAt`; the value remains Unix milliseconds. Keep
+`background.fileHistory: true` and the existing host approval. The returned
+subscription still has `dispose()`. Events remain scoped to the running
+background's window and Space, with no history replay. Views and actions use
+background messaging rather than subscribing directly.
+
 If your plugin uses context in View declarations or calls APIs through ctx.editor or ctx.table, follow these steps to update it.
 Back up the source and package, adjust declarations and API paths, then verify it with existing settings and test files.
 
@@ -205,6 +240,26 @@ Action context matches are expected; old View context matches are not.
 | Host compatibility | Every advertised host tested; old incompatible package remains manageable and is not silently executed                    |
 
 After verification, increase the plugin version and distribute the new package. Record dependency versions, tested environments and rollback instructions, and keep the previous archive. Rolling back code leaves completed data writes in place; schema changes need a corresponding data recovery plan.
+
+## API 3.5: host-mediated Fetch in Lite
+
+Set `requires.pluginApi` to `3.5.0` when a Lite View or ordinary command needs
+Worker-style Fetch. Keep its exact HTTPS origins in `browser.networkOrigins`;
+background origins remain independently declared in `background.networkOrigins`.
+The host checks redirects and resolved destinations. Browser CORS and ambient
+cookies no longer apply: use explicit Authorization or managed connections.
+
+Response streams, SSE, FormData and cancellation use the same API in Views,
+commands and backgrounds. Upload bodies, including stream inputs, are buffered
+before transmission and capped at 1 MiB. Consume or cancel every response body.
+Requests end with the owning View, command invocation or background.
+
+New-mode CSP blocks direct external connections, including from Blob Workers;
+perform network operations in the View and pass results to its Worker. Audit
+XHR, direct WebSocket and cookie-dependent requests before opting in. Existing
+plugins requiring older APIs keep their browser network behavior. CLI Serve
+remains API 3.0 and rejects packages requiring 3.5. Do not raise requirements on
+unchanged starters or registry packages solely to match the host version.
 
 ## API naming migration
 

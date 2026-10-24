@@ -1,5 +1,36 @@
 # Eidos 插件迁移指南
 
+## 用 fetch 替代旧网络读取
+
+`ctx.capabilities.network` 和 `PluginNetwork.read` 已废弃，保留已有插件兼容。
+新 Lite 插件统一使用全局 `fetch`，并要求插件 API 3.5 或更高版本。
+保留 `browser.network` / `browser.networkOrigins` 权限声明；后台使用独立的网络声明。
+
+```ts
+const response = await fetch(url, {
+  headers: { Range: `bytes=${offset}-${offset + length - 1}` },
+  signal: ctx.signal,
+})
+if (response.status !== 206) {
+  await response.body?.cancel()
+  throw new Error("服务器未按请求返回字节范围")
+}
+const data = new Uint8Array(await response.arrayBuffer())
+const etag = response.headers.get("etag")
+```
+
+构造范围前检查长度为正、偏移非负。读取完整文件时省略 Range，检查 `response.ok`。
+fetch 遇到 HTTP 错误状态不会自动抛错，必须显式检查。
+`connections` 仍作为独立的宿主凭据服务保留，fetch 不会自动继承其中的密钥。
+
+## 后台宿主事件（API 3.6）
+
+将预发布接口 `ctx.files.onOpened(listener)` 改为
+`ctx.events.on("file.opened", listener)`，将 `event.openedAt` 改为
+`event.timestamp`，单位仍是 Unix 毫秒。保留 `background.fileHistory: true`
+及现有宿主授权。返回的订阅仍通过 `dispose()` 取消。事件只属于当前运行后台的
+窗口和 Space，不回放历史。View 和 action 通过后台消息通信，不直接订阅。
+
 如果你的插件在视图声明中使用 `context`，或通过 `ctx.editor`、`ctx.table` 等入口调用接口，按以下步骤更新。
 先备份源码和安装包，再调整声明与调用路径，最后使用已有设置和测试文件验证插件。
 
@@ -192,6 +223,22 @@ Action context 命中是正常的，View 不能保留旧 context。
 | 宿主兼容         | 每个承诺支持的宿主都验证，旧不兼容包保持可管理且不会被偷偷执行             |
 
 完成验证后，增加插件版本并发布新的安装包。记录依赖版本、已测试的运行环境和回退方法，保留上一版安装包。回退代码后，已写入的用户数据仍然存在；涉及数据结构变化时需要对应的数据恢复方案。
+
+## API 3.5：Lite 宿主管理的 Fetch
+
+Lite View 或普通命令需要 Worker 风格 Fetch 时，将 `requires.pluginApi` 设为
+`3.5.0`。精确 HTTPS origin 仍声明在 `browser.networkOrigins`；background 独立使用
+`background.networkOrigins`。宿主检查重定向和解析后的地址，不再使用浏览器 CORS 或
+隐式 Cookie；认证使用显式 Authorization 或宿主管理的 connections。
+
+View、命令和 background 使用相同的响应流、SSE、FormData 和取消 API。上传先缓冲再发送，
+包括流输入在内，上限为 1 MiB。始终消费或取消响应体。请求随所属 View、命令调用或
+background 的结束而释放。
+
+新模式的 CSP 阻止外部直连，包括 Blob Worker 中的网络请求；应在 View 中请求网络，
+再把结果传给 Worker。升级前检查 XHR、直接 WebSocket 和依赖 Cookie 的请求。要求旧 API
+的插件保留原浏览器网络行为。CLI Serve 仍为 API 3.0，会拒绝要求 3.5 的包。无需仅为匹配
+宿主版本而提高未受影响的模板或 registry 插件的 API 要求。
 
 ## API 命名迁移
 

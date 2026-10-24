@@ -1,61 +1,144 @@
 ---
-title: 后台任务
-description: 页面关闭后继续运行，通过 Cmd+K 交换消息，并由宿主授权网络和 BLE 连接。
+title: 插件后台实例
+description: 用独立于 UI 的后台实例保存插件状态和连接，让页面、文件视图与命令共享同一次运行。
 sidebar:
   order: 4
+  badge:
+    text: Lite
+    variant: note
 ---
 
 import PluginBackgroundExamples from "../../../../components/PluginBackgroundExamples.astro"
+import { Badge } from "@astrojs/starlight/components"
 
-Background 让插件在页面关闭后继续保留内存状态和连接。
-它适合 WebSocket 连接、BLE 外设，以及由页面和命令共同控制的任务。
-需要支持 **插件 API 3.4.0 的 Eidos Lite**；
-CLI Serve 和移动端宿主不提供这项能力。
+<Badge text="Lite" variant="note" />
 
-## 选择合适的生命周期
+插件的 View 和 action 都有明确的结束时机：View 在取消挂载后销毁，
+action 在执行结束后销毁。它们适合界面交互和一次性操作，无法承载需要在这些入口结束后继续运行的逻辑。
 
-| 代码 | 启动时机 | 生命周期 |
-| --- | --- | --- |
-| Page 或 file View | 用户打开视图 | 关闭视图时结束 |
-| 命令 action | 用户执行命令 | 处理函数完成或被取消时结束 |
-| Background | 视图或 action 请求，且宿主批准 | 调用者结束后仍继续运行 |
+Background 补上了这项能力：它为插件提供独立的后台运行环境，
+启动后可以持续运行，不随 View 卸载或 action 执行结束而销毁，直到被停止。
 
-Background 是额外的执行入口，不是第三种 View。
-在 page/file View 或注册 action 的 `extension` 之外，声明独立的
-`background.entry`。每个窗口、Space、插件分别拥有一个 background；
-同一范围内的页面和 Cmd+K action 共用它。
+因此，插件可以把需要长期维护的状态、WebSocket 或蓝牙连接放在 background 中，
+由页面、文件视图和命令通过消息访问。关闭视图后连接仍可保留，
+再次打开视图时也可以读取后台的当前状态。
 
-安装或启用插件不会自动启动后台。
-首次调用 `start()`、`request()`、`postMessage()` 或 `onMessage()`
-时，宿主通过原生对话框确认后按需启动。
-`requestDevice()` 使用独立的设备授权流程。
+例如，一个蓝牙电量插件可以由 Cmd+K 选择设备，让 background 负责连接和读取电量，
+再由页面显示结果。页面负责交互，background 负责维护设备状态，两者各有自己的生命周期。
+插件也可以只提供命令，不提供页面。
 
-模块运行在 Rust + QuickJS 进程中，提供 Worker 风格的消息、计时器、
-`fetch` 和 `WebSocket`。它没有 DOM、Node 模块加载器、Electron、
-文件系统 API 或 Eidos 数据能力。网络与设备访问需要明确的宿主授权。
-这是能力隔离，不是操作系统级沙盒。
 
-## 示例：页面和 Cmd+K 共用计数器
+## 一个插件共享一个实例
 
-创建一个目录，放入以下四个文件。这里的代码直接来自仓库中可运行的
-`packages/plugin-sandbox/examples/lite-background` 示例。
+在**同一窗口、同一 Space 内**，一个插件最多有一个运行中的 background。
+该插件的所有调用者都与这个实例通信，不会因打开另一个文件或执行另一条命令而创建副本。
+不同窗口、不同 Space 或不同插件的实例相互独立。
 
-<PluginBackgroundExamples kind="counter" />
+```text
+页面 View ─────┐
+文件 View A ──┤       插件的 background
+文件 View B ──┼─ 消息 → 内存状态、WebSocket、蓝牙连接
+Cmd+K 命令 ───┘       独立于各个调用者存活
+```
 
-在支持 API 3.4.0 的 Lite 中：
+实例的内存状态在停止或崩溃后丢失。需要跨运行保存的数据由插件主动写入私有存储；
+宿主不自动保存内存状态，也不提供自动恢复或闹钟唤醒。
 
-1. 打开测试 Space，进入 **Plugin Manager → Load development source…**。
-2. 选择该目录的 `plugin.json`，并启用插件。
-3. 从导航打开 **Background Counter**，确认启动。
-4. 点击 **Increment**，然后关闭页面。
-5. 在 Cmd+K 中执行 **Increment background counter**。
-6. 重新打开页面，计数包含命令刚才的累加。
-7. 执行 **Stop background counter**。下次启动会重新确认权限，
-   并从新的内存状态开始。
+## 示例：增强最近打开历史
 
-从 Eidos 仓库运行时，在仓库根目录执行 `pnpm dev:eidos-lite`，
-它也会准备原生 sandbox 可执行文件。
-如果已安装的工具尚未支持这项能力，应使用当前源码构建的插件工具和 SDK。
+一个实际用途是记录文件打开次数和最近打开时间。页面只负责查看和搜索，
+background 在页面关闭后继续接收打开事件，每 10 秒保存有变化的数据。
+
+需要 Lite 插件 API **3.6.0**，声明：
+
+```json
+{
+  "requires": { "pluginApi": "3.6.0" },
+  "background": { "entry": "./background.ts", "fileHistory": true, "autoStart": true },
+  "storage": { "maxBytes": 16777216 }
+}
+```
+
+在 background 模块中，宿主注入 `globalThis.ctx`，类型为 SDK 的 `BackgroundHost`。
+声明 `fileHistory: true` 后，可通过 `ctx.events.on("file.opened", listener)` 接收当前窗口、
+当前 Space 成功打开文件的 `{ id, path, timestamp }`。`path` 相对 Space，`timestamp`
+为 Unix 毫秒。事件不包含文件内容；读取文件内容、预览资源和 View 重渲染不产生事件，
+打开失败也不产生事件。监听没有初始快照，不回放启动之前的历史。
+
+```ts
+import type { BackgroundHost } from "@eidos.space/plugin-sdk"
+declare const ctx: BackgroundHost
+
+const subscription = ctx.events.on("file.opened", (event) => {
+  console.log(event.path, event.timestamp)
+})
+// 不再需要时取消；停止 background 也会释放监听。
+// subscription.dispose()
+```
+
+
+事件字段、权限、交付和清理规则见[宿主事件 API](/zh-cn/plugins/api/events/)。
+
+声明 `storage.maxBytes` 后，`ctx.storage` 提供与 View/action 相同的
+`list/read/write/delete`，读写 `Uint8Array`。存储属于插件、本机所有 Space 共享；
+用 `ctx.spaceId` 区分 Space，用 `ctx.instanceId` 区分本次运行。
+多个窗口需要自行避免同键覆盖，不能把一次读改写当作事务。
+
+「最近打开」作为独立插件维护在 `eidos-plugins/eidos-recent-history-plugin`。
+加载其中的 `plugin.json` 并启用后，通过 Cmd+K 使用：
+
+- **最近打开：打开面板**：搜索路径、查看次数并重新打开文件。
+
+打开面板会自动连接后台，尚未运行时自动启动。记录默认自动进行，没有开始或停止按钮；禁用插件可停止记录。
+关闭面板后打开其他文件，再打开面板，实例 ID 保持不变，计数继续增加。
+保存失败会显示错误并在下一周期重试。异常退出或关闭 Space 可能丢失未保存的记录；
+授权后，每次打开这个 Space 都会自动记录。`background.isRunning()` 可检查运行状态，不会触发启动或授权。
+
+## 声明后台入口
+
+最低插件 API 版本：`3.4.0`。
+
+在 `plugin.json` 中添加 `background` 字段，指向独立模块。下面是 manifest 片段：
+
+```json
+{
+  "requires": { "pluginApi": "3.4.0" },
+  "background": { "entry": "./background.ts" }
+}
+```
+
+`background.ts` 保存共享状态并处理消息。页面与文件视图仍通过 `views` 声明，
+命令仍在 `extension` 中注册，它们通过 `ctx.capabilities.background` 访问这个实例。
+
+## 启动与停止
+
+插件 API 3.6 支持声明 `background.autoStart: true`，在启用插件或打开 Space 时启动。
+Lite 会请求授权，并为当前 Space 和这一版本的插件包记住授权。更新需要重新授权，
+禁用插件会撤销授权。仅安装、尚未启用的插件不会启动。
+
+自动启动在打开 Space 时执行一次。手动停止或崩溃后不会循环重启；可通过命令再次
+启动，或等下次打开 Space 时自动启动。Lite 关闭期间不会运行，不恢复内存状态，
+也不会自动授权蓝牙设备：设备仍需用户主动选择。
+
+默认情况下，安装或启用插件不会自动启动实例。View 或命令首次调用 `start()`、`request()`、
+`postMessage()` 或 `onMessage()` 时，宿主请求授权并按需启动；
+实例已运行时，这些调用复用它。`requestDevice()` 使用独立的设备授权流程，并替换原运行。
+
+如果希望由用户决定何时连接设备或服务，应把启动调用放在按钮或命令处理函数中。
+`onMessage()` 也可能启动后台，不能把它当作不会产生副作用的状态查询。
+
+| 事件                         | 结果                            |
+| ---------------------------- | ------------------------------- |
+| 关闭页面或 action 完成       | 释放调用者的请求/订阅，保留后台 |
+| 取消尚未完成的设备选择       | 不授予新权限，保留原运行        |
+| 确认设备                     | 替换运行和设备授权              |
+| `stop()`、禁用、卸载或更新   | 停止后台并释放连接              |
+| 切换/关闭 Space 或关闭其窗口 | 停止该范围内的后台              |
+| 退出 Lite                    | 停止所有后台                    |
+
+开发源码重载也会撤销旧运行。重新打开页面或执行命令以请求新运行。
+重启或崩溃后不会自动恢复内存状态。
+计时器只在进程存活时执行，不是能够唤醒 Lite 的持久定时任务或闹钟。
 
 ## 交换消息
 
@@ -90,9 +173,37 @@ Action 应等待回复后再返回，其未完成请求和订阅会随 action �
 View 的订阅随页面关闭而释放，后台继续运行。
 订阅属于某一次运行：停止、替换设备或更新后，需要重新订阅。
 
+## 示例：页面和 Cmd+K 共用计数器
+
+创建一个目录，放入以下四个文件。这里的代码直接来自仓库中可运行的
+`packages/plugin-sandbox/examples/lite-background` 示例。
+
+<PluginBackgroundExamples kind="counter" />
+
+在支持 API 3.4.0 的 Lite 中：
+
+1. 打开测试 Space，进入 **Plugin Manager → Load development source…**。
+2. 选择该目录的 `plugin.json`，并启用插件。
+3. 从导航打开 **Background Counter**，确认启动。
+4. 点击 **Increment**，然后关闭页面。
+5. 在 Cmd+K 中执行 **Increment background counter**。
+6. 重新打开页面，计数包含命令刚才的累加。
+7. 执行 **Stop background counter**。下次启动会重新确认权限，
+   并从新的内存状态开始。
+
+从 Eidos 仓库运行时，在仓库根目录执行 `pnpm dev:eidos-lite`，
+它也会准备原生 sandbox 可执行文件。
+如果已安装的工具尚未支持这项能力，应使用当前源码构建的插件工具和 SDK。
+
 ## 授权网络连接
 
-在 `background` 对象中声明精确的 HTTPS/WSS origins：
+在 `background` 对象中声明 `network: true`，经用户授权后访问公网 HTTPS/WSS 服务：
+
+```json
+{ "entry": "./background.ts", "network": true }
+```
+
+需要限制目标时，可添加 `networkOrigins` 白名单。只声明白名单也有效：
 
 ```json
 {
@@ -101,7 +212,8 @@ View 的订阅随页面关闭而释放，后台继续运行。
 }
 ```
 
-原生授权对话框会列出这些 origins。
+授权对话框会说明允许访问公网服务，或列出白名单中的 origins。
+同时声明两者时以白名单为准；空白名单不允许访问任何地址，未声明网络能力默认禁止访问。
 浏览器的 `browser.networkOrigins` 不会赋予后台网络权限。
 普通运行不会授权私网地址；下文的本地开发示例需要单独的精确回环授权。重定向仍受 sandbox 网络策略约束。
 请将示例地址替换成你的实际服务。
@@ -118,6 +230,8 @@ socket.onerror = () => postMessage({ type: "connection-error" })
 ```
 
 HTTP 请求可使用 `fetch("https://api.example.com/status")`。
+要求 Lite API 3.5 的 View 和普通命令使用相同的 [Worker 风格 fetch 接口](/zh-cn/plugins/api/fetch/)，
+支持表单、响应流和取消，各环境独立声明 origin。
 网络授权不会提供已认证的 Eidos connection 或账号凭据，
 宿主也不会自动重连断开的 socket。
 
@@ -134,22 +248,35 @@ BLE GATT 不负责将音频输出到蓝牙音箱。
 <PluginBackgroundExamples kind="bluetooth" />
 
 1. 在插件管理器加载该目录的 `plugin.json`，并启用插件。
-2. 打开 **Bluetooth Battery → Choose and connect**，
-   或在 Cmd+K 执行 **Bluetooth: choose and connect battery**。
-3. 确认扫描；如果操作系统询问蓝牙权限，再进行系统授权。
+2. 打开 **Bluetooth Battery → 选择设备**，
+   或在 Cmd+K 执行 **蓝牙电量：选择并连接设备**。
+3. Lite 设备选择弹窗打开后自动扫描；如果操作系统询问蓝牙权限，再进行系统授权。点击设备行选中，再点击“连接”授权该设备。可重新扫描或随时取消。
    将外设置于广播状态。
-4. 按名称和精确 ID 选择设备，最后确认服务操作权限。
+4. 点击“连接”只完成所选设备的授权，实际连接结果由页面持续展示。
 5. Lite 用该设备的授权启动新后台。页面或 action 发送连接消息，
    后台调用 `getDevices()` 和 `gatt.connect()`。
-6. 关闭页面。在 Cmd+K 执行 **Bluetooth: battery status**，
+6. 页面依次显示连接设备、检查电量服务和读取电量，读取成功后才显示“已连接”和百分比。
+   失败时保留设备和错误详情，可重试或换设备；连接中可取消并停止后台。
+   断线后隐藏旧电量并提示重连。关闭页面。在 Cmd+K 执行 **蓝牙电量：查看连接与电量**，
    检查仍保持的连接。重新打开页面后，点击
-   **Status / resume notifications** 订阅当前运行。
-7. 执行 **Bluetooth: disconnect and stop**，结束进程并撤销设备授权。
+   **恢复后台状态** 订阅当前运行。
+7. 执行 **蓝牙电量：断开并停止后台**，结束进程并撤销设备授权。
 
-Manifest 声明服务 UUID 和 `read`、`write`、`notify` 操作，
-不能指定设备 ID。后台的 `navigator.bluetooth.getDevices()`
+示例使用 `"bluetooth": true`，允许读取、写入和订阅用户选中设备的 GATT 特征。
+代码仍只读取电量并订阅通知，设备必须实际提供 Battery Service。
+插件不能在 manifest 中指定设备 ID。后台的 `navigator.bluetooth.getDevices()`
 只返回选中的设备；后台不能自行打开选择器，
 `navigator.bluetooth.requestDevice()` 在其中不可用。
+
+服务白名单是可选限制。例如仅访问电量服务：
+
+```json
+{ "bluetooth": { "services": [{ "uuid": "battery_service" }] } }
+```
+
+省略操作字段时，允许该服务下设备支持的读取、写入和通知。
+如需进一步收窄，显式声明 `"read": true, "notify": true`；
+只要声明了任意操作字段，未声明的操作就不允许。设备自身不支持的操作仍会失败。
 
 取消选择保留原运行。确认设备会替换运行、清空内存状态并断开旧设备，
 其他页面需重新订阅。如果新连接失败，不会自动恢复旧连接。
@@ -198,25 +325,23 @@ Python 只用标准库，仅监听本机回环地址。打开文件不发送内�
 
 <PluginBackgroundExamples kind="file-websocket" />
 
-## 停止、更新与恢复
+## 运行环境与限制
 
-| 事件 | 结果 |
-| --- | --- |
-| 关闭页面或 action 完成 | 释放调用者的请求/订阅，保留后台 |
-| 取消尚未完成的设备选择 | 不授予新权限，保留原运行 |
-| 确认设备 | 替换运行和设备授权 |
-| `stop()`、禁用、卸载或更新 | 停止后台并释放连接 |
-| 切换/关闭 Space 或关闭其窗口 | 停止该范围内的后台 |
-| 退出 Lite | 停止所有后台 |
-
-开发源码重载也会撤销旧运行。重新打开页面或执行命令以请求新运行。
-重启或崩溃后不会自动恢复内存状态。
-计时器只在进程存活时执行，不是能够唤醒 Lite 的持久定时任务或闹钟。
+模块运行在 Rust + QuickJS 进程中，提供 Worker 风格的消息、计时器、
+`fetch` 和 `WebSocket`。它没有 DOM、Node 模块加载器、Electron、
+文件系统 API 或 Eidos 数据能力。网络与设备访问需要明确的宿主授权。
+这是能力隔离，不是操作系统级沙盒。
 
 宿主每次请求都会检查 Space 授权，并以 500 ms 的间隔轮询。
 每次运行的 JavaScript 堆上限为 64 MiB，每轮执行预算为 100 ms。
 消息请求 30 秒超时，每个进程最多 64 个待回复请求，
-整个应用最多 16 个 background。设备选择最多等待五分钟。
+整个应用最多 16 个 background。设备选择和首次启动授权最多等待五分钟；
+授权等待不计入命令的普通执行预算。停止、撤销授权或关闭发起调用的页面/命令会取消
+尚未完成的启动，之后确认也不会启动已取消的实例。启动成功后，关闭调用方不会停止后台。
+
+消息与日志没有生命周期累计字节上限。单条输出最多 1 MiB；每个一秒窗口内消息最多
+16 MiB，超过消息速率会终止运行。日志独立限制为每窗口 1 MiB，超额日志被丢弃，
+不会因此终止运行。Node SDK 另对每条输出管道限制为每秒 32 MiB，并限制单条帧大小。
 耗时操作应拆成有界步骤，并在步骤之间让出执行。
 
 ## 验证插件

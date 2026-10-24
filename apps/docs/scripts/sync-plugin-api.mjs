@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { pages } from "./plugin-api-pages.mjs"
 import { notes } from "./plugin-api-notes.mjs"
+import { apiHosts } from "./plugin-api-hosts.mjs"
 
 const root = new URL("../../../", import.meta.url)
 const sdkPath = "packages/plugin-sdk/src/index.ts"
@@ -35,6 +36,21 @@ const memberNames = new Set(
 for (const key of Object.keys(notes))
   if (!memberNames.has(key)) throw new Error(`Stale API behavior note: ${key}`)
 const names = new Set(declarations.map((node) => node.name.text))
+for (const [key, hosts] of Object.entries(apiHosts)) {
+  if (!names.has(key) && !memberNames.has(key))
+    throw new Error(`Stale API host mapping: ${key}`)
+  if (
+    !hosts.length ||
+    hosts.some((host) => !["Lite", "Serve", "Mobile"].includes(host))
+  )
+    throw new Error(`Invalid API hosts: ${key}`)
+}
+const hostBadges = (key, fallback, zh) => {
+  const hosts = apiHosts[key] ?? apiHosts[fallback]
+  return hosts
+    ? `\n${zh ? "支持宿主" : "Supported hosts"}: ${hosts.map((host) => `<Badge text="${host}" variant="note" />`).join(" ")}\n`
+    : ""
+}
 const assigned = new Map()
 for (const [slug, , , types] of pages) {
   for (const name of types) {
@@ -54,6 +70,10 @@ const printer = ts.createPrinter({ removeComments: true })
 const print = (node, source = sdk) =>
   printer.printNode(ts.EmitHint.Unspecified, node, source).trim()
 const anchor = (name) => name.toLowerCase()
+const deprecatedBadge = (node, zh) =>
+  ts.getJSDocDeprecatedTag(node)
+    ? `\n<Badge text="${zh ? "已废弃" : "Deprecated"}" variant="caution" />\n`
+    : ""
 const code = (value) => `\n\n\`\`\`ts\n${value}\n\`\`\`\n\n`
 const inline = (value) =>
   `\`${value.replaceAll("|", "&#124;").replaceAll("\n", " ")}\``
@@ -69,6 +89,10 @@ for (const locale of ["en", "zh-cn"]) {
     const nodes = declarations.filter(
       (node) => assigned.get(node.name.text) === slug
     )
+    text = text.replace(
+      "{/* Generated",
+      'import { Badge } from "@astrojs/starlight/components"\n\n{/* Generated'
+    )
     if (slug === "types") nodes.push(errorCode)
     for (const node of nodes) {
       const source = node === errorCode ? errors : sdk
@@ -76,7 +100,7 @@ for (const locale of ["en", "zh-cn"]) {
       const line =
         source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
       const sourcePath = node === errorCode ? errorPath : sdkPath
-      text += `\n## ${name}\n\n[${zh ? "源码" : "Source"}](https://github.com/mayneyao/eidos/blob/dev/${sourcePath}#L${line})\n`
+      text += `\n## ${name}\n${deprecatedBadge(node, zh)}\n[${zh ? "源码" : "Source"}](https://github.com/mayneyao/eidos/blob/dev/${sourcePath}#L${line})\n`
       if (ts.isInterfaceDeclaration(node)) {
         const heritage =
           node.heritageClauses?.map((clause) => print(clause)).join(" ") ?? ""
@@ -85,7 +109,7 @@ for (const locale of ["en", "zh-cn"]) {
         for (const member of node.members) {
           const memberName = member.name?.getText(source) ?? "signature"
           const note = notes[`${name}.${memberName}`]?.[zh ? 1 : 0]
-          text += `\n### ${name}.${memberName}\n${note ? `\n${note}\n` : ""}${code(print(member, source))}`
+          text += `\n### ${name}.${memberName}\n${deprecatedBadge(member, zh)}${hostBadges(`${name}.${memberName}`, name, zh)}${note ? `\n${note}\n` : ""}${code(print(member, source))}`
           if (ts.isMethodSignature(member)) {
             if (member.parameters.length) {
               text += `| ${zh ? "参数" : "Parameter"} | ${zh ? "类型" : "Type"} | ${zh ? "必填" : "Required"} |\n| --- | --- | --- |\n`
@@ -95,7 +119,7 @@ for (const locale of ["en", "zh-cn"]) {
             text += `\n${zh ? "返回值" : "Returns"}: ${inline(print(member.type, source))}.\n`
           }
         }
-      } else text += code(print(node, source))
+      } else text += hostBadges(name, name, zh) + code(print(node, source))
       const refs = new Set()
       const visit = (child) => {
         if (ts.isTypeReferenceNode(child) && ts.isIdentifier(child.typeName)) {

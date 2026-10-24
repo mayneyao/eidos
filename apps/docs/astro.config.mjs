@@ -160,19 +160,41 @@ export default defineConfig({
                   items: ["plugins"],
                 },
                 {
-                  label: "Development",
-                  translations: { "zh-CN": "开发指南" },
+                  label: "Getting started",
+                  translations: { "zh-CN": "开发入门" },
                   items: [
                     "plugins/concepts",
                     "plugins/guide",
-                    "plugins/background",
                     "plugins/workflow",
+                  ],
+                },
+                {
+                  label: "Build interfaces",
+                  translations: { "zh-CN": "构建界面" },
+                  items: [
                     "plugins/views",
-                    "plugins/files",
                     "plugins/explorer",
                     "plugins/tables",
+                  ],
+                },
+                {
+                  label: "Data and host services",
+                  translations: { "zh-CN": "数据与宿主服务" },
+                  items: [
+                    "plugins/files",
+                    "plugins/resources",
                     "plugins/services",
+                  ],
+                },
+                {
+                  label: "Commands and background instances",
+                  translations: { "zh-CN": "命令与后台实例" },
+                  items: [
                     "plugins/actions",
+                    {
+                      slug: "plugins/background",
+                      badge: { text: "Lite", variant: "note" },
+                    },
                   ],
                 },
                 {
@@ -183,20 +205,40 @@ export default defineConfig({
                     "plugins/api/manifest",
                     "plugins/api/context",
                     {
-                      label: "Capabilities",
-                      translations: { "zh-CN": "能力" },
+                      label: "Files and tables",
+                      translations: { "zh-CN": "文件与表格" },
+                      collapsed: true,
                       items: [
                         "plugins/api/document",
                         "plugins/api/fs",
                         "plugins/api/filemeta",
-                        "plugins/api/background",
                         "plugins/api/eidos",
-                        "plugins/api/storage",
-                        "plugins/api/network",
+                      ],
+                    },
+                    {
+                      label: "Settings and services",
+                      translations: { "zh-CN": "设置与服务" },
+                      collapsed: true,
+                      items: [
                         "plugins/api/settings",
+                        "plugins/api/storage",
+                        "plugins/api/fetch",
+                        "plugins/api/network",
+                      ],
+                    },
+                    {
+                      label: "Interface and execution",
+                      translations: { "zh-CN": "界面与执行" },
+                      collapsed: true,
+                      items: [
                         "plugins/api/ui",
                         "plugins/api/explorer",
                         "plugins/api/actions",
+                        "plugins/api/background",
+                        {
+                          slug: "plugins/api/events",
+                          badge: { text: "Lite", variant: "note" },
+                        },
                       ],
                     },
                     "plugins/api/types",
