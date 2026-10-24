@@ -50,13 +50,7 @@ import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { cn } from "./lib/cn"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
 import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "./ui/context-menu"
+import { EidosFileRecordContextMenu } from "./eidos-file-record-actions"
 import { Button } from "./ui/primitives"
 
 export interface EidosFileCalendarRange {
@@ -972,58 +966,36 @@ export function EidosFileCalendarView({
         </div>
       )
     return (
-      <ContextMenu key={String(row._id)}>
-        <ContextMenuTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "flex min-w-0 items-baseline gap-1.5 rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring",
-              className
-            )}
-            title={timeLabel ? `${timeLabel} ${title}` : title}
-            onClick={() => openInspectorRow(row)}
-          >
-            {timeLabel ? (
-              <time
-                className="shrink-0 tabular-nums text-muted-foreground"
-                dateTime={String(row[dateField.tableColumnName])}
-                data-eidos-file-calendar-record-time
-              >
-                {timeLabel}
-              </time>
-            ) : null}
-            <span className="min-w-0 truncate">
-              {title === "Empty" ? t("Untitled") : title}
-            </span>
-          </button>
-        </ContextMenuTrigger>
-        <ContextMenuContent
-          className="w-44"
-          data-eidos-file-calendar-record-menu=""
-          onCloseAutoFocus={(event) => event.preventDefault()}
+      <EidosFileRecordContextMenu
+        key={String(row._id)}
+        row={row}
+        onOpen={openInspectorRow}
+        onDelete={onDeleteRow && !disabled ? setDeleteRow : undefined}
+        onError={onError}
+      >
+        <button
+          type="button"
+          className={cn(
+            "flex min-w-0 items-baseline gap-1.5 rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring",
+            className
+          )}
+          title={timeLabel ? `${timeLabel} ${title}` : title}
+          onClick={() => openInspectorRow(row)}
         >
-          <ContextMenuItem onSelect={() => openInspectorRow(row)}>
-            <PanelRightOpen />
-            {t("Open record")}
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => copyRecordId(String(row._id))}>
-            <Copy />
-            {t("Copy record ID")}
-          </ContextMenuItem>
-          {onDeleteRow && !disabled ? (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem
-                className="text-destructive focus:text-destructive"
-                onSelect={() => setDeleteRow(row)}
-              >
-                <Trash2 />
-                {t("Delete record")}
-              </ContextMenuItem>
-            </>
+          {timeLabel ? (
+            <time
+              className="shrink-0 tabular-nums text-muted-foreground"
+              dateTime={String(row[dateField.tableColumnName])}
+              data-eidos-file-calendar-record-time
+            >
+              {timeLabel}
+            </time>
           ) : null}
-        </ContextMenuContent>
-      </ContextMenu>
+          <span className="min-w-0 truncate">
+            {title === "Empty" ? t("Untitled") : title}
+          </span>
+        </button>
+      </EidosFileRecordContextMenu>
     )
   }
 

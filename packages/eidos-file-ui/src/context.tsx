@@ -57,6 +57,8 @@ export interface AssetPresenter<Surface> {
 
 /** Active Host binding for one Eidos File session. */
 export interface EidosFileUIAssetSession {
+  /** Host content refresh revision. Revalidate cached thumbnails without blanking them. */
+  thumbnailRevision?: number
   /** Host limit for opening local references without loading their bytes. */
   localAssetOpenBytesMax?: string
   /** Host source-file limit for generating bounded local thumbnails. */

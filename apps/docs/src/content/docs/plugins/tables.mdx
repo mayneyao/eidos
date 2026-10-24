@@ -1,0 +1,112 @@
+---
+title: "Eidos table Views"
+description: "Add a custom table display, read records, and save plugin configuration."
+---
+
+A table View lets you display an Eidos table as a board, chart, or card list. It binds to the user's selected table and works with its existing fields and records.
+
+Start with an **Inspector** that displays field information and the first 20 records. Once you understand the data reaching the plugin, replace the diagnostic output with your own interface.
+
+## 1. Declare a table View
+
+Create `plugin.json` and `src/main.ts`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.table-inspector",
+  "name": "Table Inspector",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "views": [
+    {
+      "id": "inspect",
+      "title": "Inspector",
+      "kind": "file",
+      "entry": "./src/main.ts",
+      "capabilities": ["eidos/table"]
+    }
+  ],
+  "placements": [
+    {
+      "location": "table/view",
+      "view": "inspect"
+    }
+  ]
+}
+```
+
+Use `kind: "file"` because the data belongs to an Eidos file. `eidos/table` provides the bound-table interface, and `table/view` makes the contribution available as a table View. This read-only example needs no `access: "write"`.
+
+## 2. Read schema and records
+
+Write this in `src/main.ts`:
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = async (ctx, root) => {
+  const table = ctx.capabilities.eidos?.table
+  if (!table) throw new Error("Open this View inside an Eidos table")
+  const output = document.createElement("pre")
+  const status = document.createElement("p")
+  root.append(output, status)
+  let revision = 0
+  const refresh = async () => {
+    const current = ++revision
+    try {
+      const context = await table.readContext()
+      const page = await table.readRows({ offset: 0, limit: 20 })
+      if (ctx.signal.aborted || current !== revision) return
+      output.textContent = JSON.stringify(
+        { fields: context.fields, page },
+        null,
+        2
+      )
+      status.textContent = ""
+    } catch (error) {
+      if (!ctx.signal.aborted && current === revision)
+        status.textContent = String(error)
+    }
+  }
+  ctx.subscriptions.add(table.watch(() => void refresh()))
+  await refresh()
+}
+export default mount
+```
+
+`readContext` returns fields and View information; `readRows` reads a page of records. JSON output makes the actual data structure visible before you build a custom display. Use field IDs when accessing record values rather than assuming display names remain unchanged.
+
+`watch` signals that data may have changed. It supplies neither full data nor an initial value. Read again on notification; the subscription is released when the View closes. The example discards late results and retains the last successful display during a refresh.
+
+## 3. Check it inside a table
+
+Load and enable the plugin in Lite. Open an `.eidos` file with records, then add or select the plugin's **Inspector** table View. You should see field information and up to 20 records. Modify table data and check that the output updates.
+
+The interface always targets the bound table. Increase `offset` for another page, call `table.openRecord(rowId)` to open a record, or use `table.aggregate` for summaries. See [Eidos API](/plugins/api/eidos/) for data types.
+
+## Save display configuration
+
+For a compact-layout option, add `eidos/config` and `access: "write"` to the View. Inside the user's option-change handler:
+
+```ts
+const { table, config } = ctx.capabilities.eidos ?? {}
+if (!table || !config) throw new Error("Table and config required")
+const current = await config.read(table.tableId)
+await config.write(table.tableId, {
+  value: { ...current.value, compact: true },
+  expectedVersion: current.version,
+})
+```
+
+This configuration lives in the Eidos file and is scoped to your plugin. Write with the version you just read. On a stale version, reread and reconcile the user's selection rather than overwrite newer values. Subscribe with `config.watch(tableId, listener)` and reread on invalidation.
+
+For configuration belonging to the current View, you can also use `table.setViewConfig`. It replaces the entire value, so merge any keys you need to retain before calling it.
+
+## Browse the containing file
+
+Add `eidos/schema` to list tables with `schema.listTables()` and inspect fields with `schema.readTable(tableId)`. This is useful for a file-structure browser. To open an entire `.eidos` file directly, also declare a matching `file/open` placement.
+
+Declare each capability separately; table access does not automatically provide schema or config. Lite supports all three interfaces. CLI Serve provides `eidos/table`; run `check --target cli` when targeting Serve.

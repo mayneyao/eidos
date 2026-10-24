@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "id": "example.background-counter",
+  "name": "Background Counter",
+  "version": "1.0.0",
+  "requires": { "pluginApi": "3.4.0" },
+  "background": { "entry": "./background.ts" },
+  "extension": "./extension.ts",
+  "views": [
+    {
+      "id": "counter",
+      "title": "Background Counter",
+      "kind": "page",
+      "entry": "./page.ts"
+    }
+  ],
+  "actions": [
+    {
+      "id": "increment",
+      "title": "Increment background counter",
+      "context": "workspace"
+    },
+    { "id": "stop", "title": "Stop background counter", "context": "workspace" }
+  ],
+  "placements": [
+    { "location": "navigation", "view": "counter" },
+    { "location": "command-palette", "action": "increment" },
+    { "location": "command-palette", "action": "stop" }
+  ]
+}

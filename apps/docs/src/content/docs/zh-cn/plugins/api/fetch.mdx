@@ -1,0 +1,54 @@
+---
+title: fetch
+description: 在 Lite View、命令和 background 中使用 Worker 风格 HTTP 请求。
+---
+
+import { Badge } from "@astrojs/starlight/components"
+
+`ctx.capabilities.network.read` 已废弃，新 HTTP 请求统一使用 `fetch`，
+字节范围读取通过 `Range` 请求头表达。旧方法保留兼容。
+宿主管理凭据的 `connections` 是独立服务，暂不废弃。
+
+支持宿主：<Badge text="Lite" variant="note" />
+
+要求 API **3.5.0** 的 Lite 插件，在 page/file View、普通命令和 background 中使用全局
+Fetch API。`fetch`、`Request`、`Response`、`Headers`、`Blob`、`File`、`FormData` 和
+`URLSearchParams` 使用标准 DOM/Worker TypeScript 类型，不从插件 SDK 导入。
+
+## 权限
+
+View 和命令声明 `browser.network: true`，background 声明 `background.network: true`，
+由宿主授权公网 HTTPS 访问，两者独立授权。可通过对应的 `networkOrigins` 白名单收窄范围；
+白名单优先于 `network: true`，空数组禁止所有地址。原有的精确 origin 声明仍可单独使用。
+宿主检查每次重定向及解析后的目标地址。
+不受浏览器 CORS 限制，不共享浏览器 Cookie 或登录会话。需要认证时显式传入 Authorization，
+或使用宿主管理凭据的 `connections`。跨 origin 重定向会移除 Authorization，Cookie 头不可用。
+
+`credentials`、`cache` 和 referrer 选项不启用浏览器 Cookie jar、持久缓存或浏览器来源信息。
+即使指定 `keepalive`，请求也受调用方生命周期约束。CLI Serve 使用浏览器网络，不支持 Lite 3.5
+契约。较旧 API 要求的 Lite 插件保留浏览器网络行为；依赖此接口时请要求 3.5。
+
+## 请求体与响应体
+
+请求体支持字符串、Blob/File、ArrayBuffer/视图、URLSearchParams、FormData 和 ReadableStream。
+上传先缓冲再发送，上限 **1 MiB**，包括流输入；目前不是流式上传传输。
+
+`fetch` 收到响应头即返回。SSE 或大型响应使用 `response.body` 的 ReadableStream，宿主按需读取，
+每块最多 16 KiB。`text()`、`json()`、`arrayBuffer()`、`bytes()`、`blob()` 和 `formData()`
+只能消费一次 body；检查 `bodyUsed` 或提前 clone。QuickJS 的缓冲读取方法上限 16 MiB，
+同时受内存和 CPU 配额约束。用 UTF-8 `TextDecoderStream` 解码跨网络块的文本。
+
+始终消费或取消 body。关闭 View、结束命令、停止 background 会释放各自的连接。
+每个调用方最多 16 个并发网络资源，background 与 WebSocket 共享预算。
+等待响应头、读取等待、未消费 body 的空闲截止时间为 30 秒，持续活跃的流可运行更久。
+最终响应头的期限包含 DNS、连接和整个重定向链，重定向不会重置期限。
+
+## 错误与重定向
+
+HTTP 4xx/5xx 仍返回 Response，通过 `ok` 和 `status` 判断。网络或权限失败会拒绝 Promise。
+`AbortSignal` 能取消初始请求及后续 body 读取。`redirect` 支持 `follow`、`error`、`manual`，
+manual 返回 `opaqueredirect` 响应。响应头不可修改。SHA-256/384/512 integrity 校验会先缓冲、
+验证响应，再将其暴露给调用方。
+
+两端共用代码见[Fetch 请求与流](/zh-cn/plugins/services/#fetch-请求与流)。接口参考
+[Fetch 标准](https://fetch.spec.whatwg.org/)，这里定义 Worker 语义，不代表完整浏览器行为或已通过全部 WPT。

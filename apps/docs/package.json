@@ -4,9 +4,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "sync:plugin-api": "node ./scripts/sync-plugin-api.mjs",
+    "check:plugin-api": "node ./scripts/sync-plugin-api.mjs --check",
     "sync:specs": "node ./scripts/sync-specs.mjs",
-    "check:content": "pnpm run sync:specs && node ./scripts/check-content.mjs",
-    "dev": "pnpm run sync:specs && astro dev",
+    "check:content": "pnpm run sync:specs && pnpm run check:plugin-api && node ./scripts/check-content.mjs",
+    "dev": "pnpm run sync:specs && pnpm run sync:plugin-api && astro dev",
     "start": "pnpm run dev",
     "build": "pnpm run check:content && astro build && node ./scripts/check-build.mjs",
     "preview": "astro preview",

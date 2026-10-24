@@ -1,4 +1,5 @@
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 import { assertPluginCompatibility } from "@eidos.space/plugin-runtime/compatibility"
 import fsSync from "node:fs"
 import fs from "node:fs/promises"
@@ -23,6 +24,8 @@ import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
+import { PluginBackgroundHost } from "./plugin-background"
+import { PluginBluetoothPicker } from "./plugin-bluetooth"
 import { PluginFileHooks } from "./plugin-file-hooks"
 import { PluginService } from "./plugin-service"
 import { exportPluginFile } from "./plugin-export"
@@ -90,6 +93,70 @@ export function registerPluginIpc(controller: WindowController): {
     }
   )
   const connectionRequests = new Map<string, Set<AbortController>>()
+  const sandboxBinary = path.join(
+    app.isPackaged ? process.resourcesPath : app.getAppPath(),
+    app.isPackaged ? "plugin-sandbox" : "resources/plugin-sandbox",
+    process.platform === "win32" ? "plugin-sandbox.exe" : "plugin-sandbox"
+  )
+  const loopbackOrigin = !app.isPackaged
+    ? process.env.EIDOS_LITE_DEV_BACKGROUND_ORIGIN
+    : undefined
+  const bluetoothPicker = new PluginBluetoothPicker((owner, state) => {
+    const target = BrowserWindow.getAllWindows().find(
+      (w) => w.webContents.id === owner
+    )
+    if (target && !target.webContents.isDestroyed())
+      target.webContents.send(PLUGIN_CHANNELS.bluetoothPicker, state)
+  })
+  const backgrounds = new PluginBackgroundHost(
+    sandboxBinary,
+    async (binding, signal) => {
+      if (
+        binding.manifest.background?.autoStart &&
+        (await store.backgroundApproved(
+          binding.manifest.id,
+          binding.space,
+          binding.hash
+        ))
+      ) {
+        await binding.authorize()
+        signal.throwIfAborted()
+        return true
+      }
+      const window = BrowserWindow.getAllWindows().find(
+        (w) => w.webContents.id === binding.owner
+      )
+      if (!window || window.isDestroyed()) return false
+      const result = await dialog.showMessageBox(window, {
+        signal,
+        type: "question",
+        title: binding.manifest.background?.autoStart
+          ? "Allow automatic background startup"
+          : "Start plugin background",
+        message: `Allow ${binding.manifest.name} to run in the background?${binding.manifest.background?.fileHistory ? "\nIt can observe file paths and opening times in this window and Space." : ""}${binding.manifest.storage ? "\nIt can read and write its device-local private storage." : ""}`,
+        detail: `${binding.manifest.background?.autoStart ? "Approval also allows automatic startup whenever this Space opens, until disabled or the plugin package changes.\n\n" : ""}It continues running after its View closes, until stopped, disabled, updated, or this Space closes.\n\nNetwork origins: ${binding.manifest.background?.networkOrigins?.join(", ") || (binding.manifest.background?.network && binding.manifest.background.networkOrigins === undefined ? "All public HTTPS/WSS services" : "None")}\n${loopbackOrigin && binding.manifest.background?.networkOrigins?.includes(loopbackOrigin) ? `Development host grants local WebSocket access to ${loopbackOrigin}.` : "Private networks are not granted."} Bluetooth is not granted.\n\nPlugin: ${binding.manifest.id}`,
+        buttons: ["Cancel", "Start"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (result.response !== 1) return false
+      await binding.authorize()
+      signal.throwIfAborted()
+      if (binding.manifest.background?.autoStart)
+        await store.approveBackground(
+          binding.manifest.id,
+          binding.space,
+          binding.hash
+        )
+      return true
+    },
+    {
+      loopbackOrigin,
+      chooseDevice: (binding, signal) =>
+        bluetoothPicker.choose(binding, signal, sandboxBinary),
+    }
+  )
   const service = new PluginService(
     store,
     (owner, ticket) => {
@@ -107,7 +174,18 @@ export function registerPluginIpc(controller: WindowController): {
           },
         })
     },
-    exportPluginFile
+    exportPluginFile,
+    backgrounds,
+    (owner, space) => {
+      const window = BrowserWindow.getAllWindows().find(
+        (w) => w.webContents.id === owner
+      )
+      return (
+        !!window &&
+        !window.webContents.isDestroyed() &&
+        controller.sessionFor(window.webContents)?.canonical.id === space
+      )
+    }
   )
   const owners = new Set<number>()
   const watchers = new Map<string, FSWatcher>()
@@ -151,12 +229,21 @@ export function registerPluginIpc(controller: WindowController): {
       owners.add(event.sender.id)
       const owner = event.sender.id
       event.sender.once("destroyed", () => {
+        bluetoothPicker.cancel(owner)
         service.closeOwner(owner)
         owners.delete(owner)
       })
     }
     return event.sender.id
   }
+  controller.pluginSpaceOpened = (owner, space) =>
+    service.autoStartBackgrounds(owner, space)
+  controller.pluginSpaceClosed = (owner) => service.closeOwner(owner)
+  ipcMain.handle(
+    PLUGIN_CHANNELS.bluetoothPickerAction,
+    (event, id: unknown, action: unknown, deviceId: unknown) =>
+      bluetoothPicker.action(caller(event), id, action, deviceId)
+  )
   function catalogChanged() {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.webContents.isDestroyed())
@@ -171,6 +258,29 @@ export function registerPluginIpc(controller: WindowController): {
         })
     }
   }
+  ipcMain.handle(
+    PLUGIN_CHANNELS.fileOpened,
+    async (event, spaceId: unknown, filePath: unknown) => {
+      const owner = caller(event)
+      const session = controller.requireSession(event.sender)
+      if (spaceId !== session.canonical.id || typeof filePath !== "string")
+        return
+      const openedAt = Date.now()
+      const relativePath = normalizeMutableRelativePath(filePath)
+      const stat = await session.statFile(relativePath)
+      if (
+        !stat ||
+        stat.isDirectory ||
+        controller.sessionFor(event.sender) !== session
+      )
+        return
+      await backgrounds.fileOpened(owner, session.canonical.id, {
+        id: randomUUID(),
+        path: relativePath,
+        openedAt,
+      })
+    }
+  )
   function clearReloads(id: string) {
     for (const [hash, pending] of pendingReloads) {
       if (pending.pluginId !== id) continue
@@ -705,7 +815,7 @@ export function registerPluginIpc(controller: WindowController): {
               )
               .join(", ")}`
           : ""
-      }${pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}${pkg.manifest.workspace?.filemeta ? `\nFile properties (${pkg.manifest.workspace.filemeta.write ? "read/write" : "read"}): ${pkg.manifest.workspace.filemeta.namespaces.join(", ")}` : ""}${pkg.manifest.placements?.some((p) => p.location === "sidebar/explorer") ? "\nProvides a sidebar file explorer. Select it from the Space heading." : ""}`,
+      }${pkg.manifest.browser?.network && pkg.manifest.browser.networkOrigins === undefined ? "\nNetwork access: all public HTTPS services (no private/local networks)." : pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}${pkg.manifest.workspace?.filemeta ? `\nFile properties (${pkg.manifest.workspace.filemeta.write ? "read/write" : "read"}): ${pkg.manifest.workspace.filemeta.namespaces.join(", ")}` : ""}${pkg.manifest.placements?.some((p) => p.location === "sidebar/explorer") ? "\nProvides a sidebar file explorer. Select it from the Space heading." : ""}`,
       detail: themeReview
         ? `${pkg.manifest.id}\n\n${themeReview}`
         : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
@@ -944,6 +1054,8 @@ export function registerPluginIpc(controller: WindowController): {
       await store.enable(id, enabled, spaceId)
       service.revoke(id, spaceId)
       catalogChanged()
+      if (enabled)
+        await service.autoStartBackgrounds(event.sender.id, spaceId, id)
     }
   )
   ipcMain.handle(PLUGIN_CHANNELS.selectTheme, async (event, id: unknown) => {
@@ -1056,6 +1168,9 @@ export function registerPluginIpc(controller: WindowController): {
       return encodePackage(pkg.manifest, pkg.modules)
     },
     close() {
+      controller.pluginSpaceOpened = undefined
+      controller.pluginSpaceClosed = undefined
+      backgrounds.close()
       fileHooks.close()
       controller.fileHookRunner = undefined
       for (const channel of Object.values(PLUGIN_CHANNELS))

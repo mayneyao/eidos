@@ -10,6 +10,7 @@ import {
   type EidosFileTableActions,
 } from "./table-actions"
 import { mergeMenuOrder, orderMenuItems } from "./menu-order"
+import { encodeEidosFileAttachmentPaths } from "@eidos.space/eidos-file"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -46,9 +47,11 @@ let actions: EidosFileTableActions
 function Harness({
   initialOrder = [],
   row = state,
+  onOpenFile,
 }: {
   initialOrder?: readonly string[]
   row?: EidosFileCellMenuState
+  onOpenFile?: () => void
 }) {
   const [order, setOrder] = useState(initialOrder)
   const [open, setOpen] = useState(true)
@@ -71,6 +74,7 @@ function Harness({
           onOpenRecord={onOpenRecord}
           onCopyCell={vi.fn()}
           onCopyRecordId={vi.fn()}
+          onOpenFile={onOpenFile}
           onDeleteRows={vi.fn()}
         />
       </EidosFileTableActionsContext.Provider>
@@ -146,6 +150,73 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+})
+
+it.each([true, false])(
+  "only removes the generic file action when the host confirms an equivalent target: %s",
+  async (equivalent) => {
+    actions.list = vi.fn(async (target) => {
+      expect(target.fileUri).toBe("assets/a.png")
+      return [
+        {
+          id: "host/open-mapped-file-system",
+          title: "Open with default app",
+          replaces: equivalent ? ("core/open-file" as const) : undefined,
+        },
+      ]
+    })
+    const onOpenFile = vi.fn()
+    const fileState: EidosFileCellMenuState = {
+      ...state,
+      field: { ...state.field, type: "file", tableColumnName: "file" },
+      row: {
+        _id: "row-1",
+        file: encodeEidosFileAttachmentPaths(["assets/a.png"]),
+      },
+    }
+    await act(async () =>
+      root.render(<Harness row={fileState} onOpenFile={onOpenFile} />)
+    )
+    expect(ids().includes("core/open-file")).toBe(!equivalent)
+    expect(ids()).toContain("host/open-mapped-file-system")
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[data-menu-action="host/open-mapped-file-system"] [role="menuitem"]'
+        )!
+        .click()
+    )
+    expect(run).toHaveBeenCalledWith(
+      "host/open-mapped-file-system",
+      expect.objectContaining({ fileUri: "assets/a.png" })
+    )
+    expect(onOpenFile).not.toHaveBeenCalled()
+  }
+)
+
+it("retains the generic attachment action for an ordinary table without a host equivalent", async () => {
+  actions.list = vi.fn(async () => [])
+  const onOpenFile = vi.fn()
+  const fileState: EidosFileCellMenuState = {
+    ...state,
+    field: { ...state.field, type: "file", tableColumnName: "file" },
+    row: {
+      _id: "row-1",
+      file: encodeEidosFileAttachmentPaths(["assets/a.png"]),
+    },
+  }
+  await act(async () =>
+    root.render(<Harness row={fileState} onOpenFile={onOpenFile} />)
+  )
+  expect(ids()).toContain("core/open-file")
+  await act(async () =>
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-menu-action="core/open-file"] [role="menuitem"]'
+      )!
+      .click()
+  )
+  expect(onOpenFile).toHaveBeenCalledOnce()
 })
 
 it("orders available actions, appends new actions and retains unavailable positions on reorder", () => {

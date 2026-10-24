@@ -11,6 +11,7 @@ import type {
   TextSnapshot,
 } from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
+import { PluginBackgroundHost } from "./plugin-background"
 import { PluginService, type PluginDocumentSession } from "./plugin-service"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
 const manifest: PluginManifest = {
@@ -35,6 +36,139 @@ const modules = {
   "./main.ts":
     "export default function mount(ctx, root) { root.textContent = 'CSV' }",
 }
+
+it("auto-starts only enabled declarations without a View and rechecks owner authorization", async () => {
+  const backgrounds = new PluginBackgroundHost("/unused", async () => true)
+  const start = vi
+    .spyOn(backgrounds, "start")
+    .mockRejectedValue(new Error("test startup failure"))
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+  let active = true
+  service = new PluginService(
+    store,
+    undefined,
+    undefined,
+    backgrounds,
+    () => active
+  )
+  for (const [id, autoStart] of [
+    ["example.automatic", true],
+    ["example.manual", false],
+  ] as const) {
+    await store.install(
+      encodePackage(
+        {
+          apiVersion: 1,
+          id,
+          name: id,
+          version: "1.0.0",
+          requires: { pluginApi: "3.6.0" },
+          background: {
+            entry: "./background.ts",
+            ...(autoStart ? { autoStart: true } : {}),
+          },
+        },
+        { "./background.ts": "onmessage = () => {}" }
+      ),
+      "space-a"
+    )
+    await store.enable(id, true, "space-a")
+  }
+  try {
+    await service.autoStartBackgrounds(1, "space-b")
+    expect(start).not.toHaveBeenCalled()
+    await service.autoStartBackgrounds(1, "space-a")
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(start.mock.calls[0][0].manifest.id).toBe("example.automatic")
+    expect(service.instances.size).toBe(0)
+    active = false
+    await expect(start.mock.calls[0][0].authorize()).rejects.toThrow("revoked")
+    await service.autoStartBackgrounds(1, "space-a")
+    expect(start).toHaveBeenCalledTimes(1)
+    active = true
+    await store.enable("example.automatic", false, "space-a")
+    await service.autoStartBackgrounds(1, "space-a")
+    expect(start).toHaveBeenCalledTimes(1)
+  } finally {
+    warn.mockRestore()
+    backgrounds.close()
+  }
+})
+
+it("does not charge background approval wait to the command deadline", async () => {
+  const backgrounds = new PluginBackgroundHost("/unused", async () => true)
+  let approve!: () => void
+  const waiting = vi.spyOn(backgrounds, "request").mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        approve = () => resolve(null)
+      })
+  )
+  service = new PluginService(store, undefined, undefined, backgrounds)
+  await store.install(
+    encodePackage(
+      {
+        apiVersion: 1,
+        requires: { pluginApi: "3.4.0" },
+        id: "example.approval",
+        name: "Approval",
+        version: "1.0.0",
+        extension: "./extension.js",
+        background: { entry: "./background.js" },
+        actions: [{ id: "run", title: "Run", context: "workspace" }],
+      },
+      {
+        "./extension.js": "export default function activate() {}",
+        "./background.js": "onmessage = () => {}",
+      }
+    ),
+    "space-a"
+  )
+  const { ticket } = (
+    await service.openExtension(1, session, "example.approval")
+  ).instance!
+  await rpc(ticket, "extension.ready", { actions: ["run"] })
+  vi.useFakeTimers()
+  try {
+    let announce!: (value: { invocation: string }) => void
+    const announced = new Promise<{ invocation: string }>((resolve) => {
+      announce = resolve
+    })
+    const completion = service.invoke(
+      1,
+      session,
+      ticket,
+      "run",
+      undefined,
+      undefined,
+      (event) => {
+        if (event.observation === "action.run")
+          announce(event.value as { invocation: string })
+      }
+    )
+    let settled = false
+    void completion.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    const { invocation } = await announced
+    const pending = rpc(ticket, "background.start", { invocation, args: null })
+    await vi.waitFor(() => expect(waiting).toHaveBeenCalled())
+    await vi.advanceTimersByTimeAsync(40000)
+    expect(settled).toBe(false)
+    approve()
+    expect((await pending).response).toMatchObject({ result: null })
+    await rpc(ticket, "action.complete", { invocation })
+    await completion
+  } finally {
+    vi.useRealTimers()
+    backgrounds.close()
+  }
+})
 let directory: string,
   root: string,
   store: PluginStore,

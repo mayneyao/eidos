@@ -149,6 +149,7 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
     ...new Set([
       ...(manifest.views ?? []).map((v) => v.entry),
       ...(manifest.extension ? [manifest.extension] : []),
+      ...(manifest.background ? [manifest.background.entry] : []),
     ]),
   ]
   const lock = await loadDependencyLock(root, read)
@@ -331,6 +332,7 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
   options.allowImportingTsExtensions = true
   const checks = new Map<string, string>()
   for (const [index, entry] of entries.entries()) {
+    if (entry === manifest.background?.entry) continue
     const expected = manifest.extension === entry ? "Activate" : "Mount"
     checks.set(
       path.join(root, `__eidos_entry_check_${index}.ts`),

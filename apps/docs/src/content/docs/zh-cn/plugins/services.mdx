@@ -1,0 +1,180 @@
+---
+title: "设置、存储和宿主服务"
+description: "为插件保存偏好和私有数据，显示通知、导出文件并请求网络服务。"
+---
+
+做完一个[独立页面](/zh-cn/plugins/views/)后，你可能希望它记住布局、保存上次选择，或者请求远程数据。本篇按这些需求逐项扩展已有插件。
+
+这里的代码不是另一个完整插件。清单片段合并到 `plugin.json`，界面代码放在已有的 `async mount(ctx, root)` 或按钮处理函数中。发请求、导出文件等操作应由明确的用户操作触发，并在调用处捕获错误、显示失败原因。
+
+## 1. 让用户配置插件
+
+用户可以修改的偏好放在 `settings`，例如是否使用紧凑布局。在清单中声明：
+
+```json
+{
+  "settings": {
+    "compact": {
+      "title": "Compact layout",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "storage": { "maxBytes": 1048576 }
+}
+```
+
+这个片段还为下一节准备了 1 MiB 私有存储。启用插件后，用户可以在宿主的插件设置中修改 **Compact layout**。View 中读取它：
+
+```ts
+const compact = await ctx.capabilities.settings?.get("compact")
+root.dataset.compact = String(compact === true)
+```
+
+插件根据这个值调整自己的布局。View 只读取设置；普通命令上下文还提供 `set` 和 `reset`。设置键需要事先声明，不应拿设置接口保存任意业务数据。
+
+## 2. 保存插件自己的数据
+
+比如记住上次选中的分类，使用 `storage`。它保存设备本地、插件私有的数据，并在页面或应用重启后保留：
+
+```ts
+const storage = ctx.capabilities.storage
+if (!storage) throw new Error("Private storage unavailable")
+await storage.write("last-selection", new TextEncoder().encode("inbox"))
+const bytes = await storage.read("last-selection")
+const selection = bytes ? new TextDecoder().decode(bytes) : null
+```
+
+存储值是 `Uint8Array`；文本或 JSON 需要自行编码。第一次读取不存在的键会得到 null。`maxBytes` 是总配额，写入可能因超限失败。
+
+区分三种用途：用户可调整的偏好用 settings；插件本地缓存用 storage；需要随 Eidos 文件携带的展示配置用 [eidos/config](/zh-cn/plugins/tables/)。
+
+## 3. 给用户反馈或打开页面
+
+短消息使用 `await ctx.capabilities.ui.notify("Saved.")`。长期连接、批处理等持续状态应显示在插件界面中，不能只靠一条通知。
+
+打开自己声明的页面时，先检查 `ui.navigate` 是否存在，再调用 `ui.navigate("main", "/")`。打开 Space 文件使用 `ui.openFile(relativePath)`。完整的 Cmd+K 入口示例见[命令与格式化器](/zh-cn/plugins/actions/)。
+
+### 导出生成的文件
+
+如果插件生成报告，让用户选择保存位置，不必申请整个 Space 的写权限。将下面代码放在 View 的导出按钮处理函数中：
+
+```ts
+const exportFile = ctx.capabilities.ui.exportFile
+if (!exportFile) throw new Error("Export is unavailable in this host")
+const result = await exportFile({
+  name: "report.txt",
+  mimeType: "text/plain",
+  data: new TextEncoder().encode("Report contents"),
+})
+if (result.status === "saved") {
+  await ctx.capabilities.ui.notify("Report saved.")
+}
+```
+
+Lite 会显示保存对话框，取消返回 `cancelled`。CLI Serve 发起下载后返回 `download-started`，不能把它当作已经保存成功。name 不能含目录，数据最多 16 MiB。当前移动端与 Action 上下文不提供此接口。
+
+<span id="fetch-请求与流"></span>
+
+## 4. 请求网络数据
+
+在 Lite 中使用宿主管理的 Worker 风格 fetch，要求 API `3.5.0`。先声明允许访问的来源：
+
+```json
+{
+  "requires": { "pluginApi": "3.5.0" },
+  "browser": { "networkOrigins": ["https://api.example.com"] }
+}
+```
+
+将示例地址替换成你的 HTTPS 服务。在页面中：
+
+```ts
+const response = await fetch("https://api.example.com/status", {
+  signal: ctx.signal,
+})
+if (!response.ok) {
+  await response.body?.cancel()
+  throw new Error("HTTP " + response.status)
+}
+const data: unknown = await response.json()
+root.textContent = JSON.stringify(data, null, 2)
+```
+
+给调用传入 `ctx.signal`，使 View 关闭时能够取消请求。HTTP 错误状态不会自动抛出异常，所以先检查 `response.ok`。
+
+不需要固定白名单时，可使用 `browser: { network: true }` 申请公网 HTTPS 访问。
+添加 `networkOrigins` 后按白名单收窄，即使同时声明 `network: true` 也一样。
+Background 独立声明 `background.network` 或 `background.networkOrigins`；页面请求不会启动后台。
+两者的 fetch 都由宿主授权，不共享浏览器 Cookie，也不受浏览器 CORS 限制，私网和本机地址仍被阻止。
+完整限制见 [Fetch API](/zh-cn/plugins/api/fetch/)。
+
+### 响应是连续的数据流时
+
+先让普通请求工作，再为流式响应增加读取循环：
+
+```ts
+async function readEvents(signal: AbortSignal, onText: (text: string) => void) {
+  const response = await fetch("https://api.example.com/events", { signal })
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error("HTTP " + response.status)
+  }
+  if (!response.body) throw new Error("Response has no body")
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      onText(value)
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
+  }
+}
+```
+
+View 中调用 `readEvents(ctx.signal, onText)`；background 则持有自己的 AbortController，在收到停止消息时取消。这里每次得到的是文本块，不保证正好是一条 SSE 消息。SSE 需要另外累积文本并解析消息边界。
+
+上传表单时使用 `FormData` 作为 fetch 的 body，不手动设置 Content-Type。
+
+## 5. 服务需要密钥时
+
+`fetch` 可以携带显式的 Authorization 请求头，但不会读取宿主保存的连接凭据。
+需要让宿主管理密钥、插件只提交业务数据时，使用 `connections` 代发 JSON 请求。
+它提供给 View 和普通命令，background 中不可用。
+
+用户的服务密钥由宿主连接配置管理，不应写进插件源码。先在清单声明连接：
+
+```json
+{
+  "connections": {
+    "summary": {
+      "title": "Summary service",
+      "url": "https://api.example.com/summary"
+    }
+  }
+}
+```
+
+页面、file View 或普通命令中检查连接是否已配置：
+
+```ts
+const connections = ctx.capabilities.connections
+if (!connections) throw new Error("Connections unavailable")
+if (!(await connections.isConfigured("summary"))) {
+  await ctx.capabilities.ui.notify(
+    "Configure the Summary service in plugin settings first."
+  )
+  return
+}
+const result = await connections.request({
+  connection: "summary",
+  body: { text: "A note to summarize" },
+})
+```
+
+这是异步处理函数内部的片段。`summary` 对应清单中的连接 ID，用户先在 Eidos 中配置连接信息和密钥，插件通过宿主发请求。命令结束时，尚未完成的请求会被取消。
+
+详细类型分别见 [Settings](/zh-cn/plugins/api/settings/)、[Storage](/zh-cn/plugins/api/storage/)、[UI](/zh-cn/plugins/api/ui/)和[网络与连接](/zh-cn/plugins/api/network/)。

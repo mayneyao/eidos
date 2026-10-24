@@ -1,0 +1,110 @@
+---
+title: "页面与文件视图"
+description: "选择 page 或 file View，声明入口、读取上下文并管理界面生命周期。"
+---
+
+View 是插件显示界面的地方。你可以给插件添加一个独立页面，也可以在用户打开文件时提供专用界面。本篇先做一个能从侧栏打开的页面，再介绍文件视图、文件模板和界面生命周期。
+
+如果还没有加载过插件，先完成[创建第一个插件](/zh-cn/plugins/guide/)。下面的独立页面使用相同的目录结构：`plugin.json` 和 `src/main.ts`。
+
+## 1. 添加一个独立页面
+
+将下面内容保存为 `plugin.json`：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.overview",
+  "name": "Overview",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "views": [
+    {
+      "id": "main",
+      "title": "Overview",
+      "kind": "page",
+      "entry": "./src/main.ts"
+    }
+  ],
+  "placements": [
+    {
+      "location": "navigation",
+      "view": "main"
+    }
+  ]
+}
+```
+
+这里的 `views` 声明页面，`placements` 决定入口。`kind: "page"` 表示它不绑定某个文件；`navigation` 让它出现在 Lite 的侧栏。
+
+在 `src/main.ts` 中显示页面内容：
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = (ctx, root) => {
+  const heading = document.createElement("h1")
+  heading.textContent = "Overview"
+  root.append(heading)
+}
+export default mount
+```
+
+在 Lite 插件管理器中加载 `plugin.json`，并为当前 Space 启用插件。点击侧栏的 **Overview**，应能看到标题。显示侧栏入口本身不会执行 `mount`；打开页面后才会加载内容。
+
+侧栏最多直接显示三个插件页面，其余在 **…** 菜单中。用户可以固定页面和调整顺序，这些选择按 Space 保存。
+
+## 2. 决定页面是否需要绑定文件
+
+如果你做的是日历、设备面板或工具首页，继续使用 page。如果你做的是 Markdown 阅读器、图片预览或配置文件编辑器，使用 file。
+
+| 用途                   | View 声明                                       | 入口                    |
+| ---------------------- | ----------------------------------------------- | ----------------------- |
+| 独立页面               | `kind: "page"`                                  | `navigation`            |
+| 插件设置页             | `kind: "page"`                                  | `plugin/settings`       |
+| 文本文件阅读器         | `kind: "file"`，`capabilities: ["document"]`    | `file/open`，指定扩展名 |
+| Eidos 表格的自定义展示 | `kind: "file"`，`capabilities: ["eidos/table"]` | `table/view`            |
+
+file View 通过 `ctx.binding.file` 得到当前文件的显示信息；page View 通过 `ctx.binding.route` 得到页面路由。使用前检查类型：
+
+```ts
+if (ctx.binding.kind === "file") {
+  root.textContent = ctx.binding.file.name ?? "File"
+} else {
+  root.textContent = ctx.binding.route
+}
+```
+
+这段代码放在 `mount` 内。文件的 ID 和路径用于描述当前上下文，不能代替权限。读取文本继续看[文件与文本](/zh-cn/plugins/files/)，读取表格看[Eidos 表格 View](/zh-cn/plugins/tables/)。
+
+## 3. 为自定义文件提供“新建”入口
+
+假设你的插件已经能打开 `.note` 文件。你可以提供一个初始内容，让用户通过 **新建文件** 创建它，而不用手工准备配置。
+
+在清单中要求 API `3.2.0`，并添加：
+
+```json
+{
+  "fileTemplates": [
+    {
+      "id": "note",
+      "title": "Note",
+      "extension": ".note",
+      "view": "main",
+      "content": "# Notes\n"
+    }
+  ]
+}
+```
+
+这是清单片段：`main` 必须是已声明的 file View，具有 `document` 能力，且存在匹配 `.note` 的 `file/open` 入口。模板内容是静态 UTF-8 文本，最多 256 KiB。Lite 创建新文件后打开对应 View，不会覆盖同名文件。
+
+## 4. 管理界面的生命周期
+
+用户打开 View 时，宿主调用 `mount(ctx, root)`；关闭 View 时，宿主终止该实例。将事件订阅和可释放句柄加入 `ctx.subscriptions`，并在异步读取结束后检查 `ctx.signal.aborted`，避免向已经关闭的界面写入结果。
+
+如果自己创建了定时器或界面资源，从 `mount` 返回 `dispose()` 进行清理。需要在页面关闭后继续持有连接的功能，应交给[后台任务](/zh-cn/plugins/background/)。
+
+要在文件视图中显示其他文件的预览，继续阅读[嵌入文件与表格视图](/zh-cn/plugins/resources/)。完整声明见 [Manifest](/zh-cn/plugins/api/manifest/)。

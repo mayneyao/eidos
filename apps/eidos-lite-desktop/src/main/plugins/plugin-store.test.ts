@@ -54,6 +54,25 @@ afterEach(async () => {
   await fs.rm(directory, { recursive: true, force: true })
 })
 
+it("persists background consent only for the approved Space and package revision", async () => {
+  const hash = await store.install(bytes(), "a")
+  await store.enable(manifest.id, true, "a")
+  await store.approveBackground(manifest.id, "a", hash)
+  const reopened = new PluginStore(directory)
+  expect(await reopened.backgroundApproved(manifest.id, "a", hash)).toBe(true)
+  expect(await reopened.backgroundApproved(manifest.id, "b", hash)).toBe(false)
+  const next = await store.install(bytes("1.0.1"), "a")
+  expect(await store.backgroundApproved(manifest.id, "a", next)).toBe(false)
+  await expect(
+    store.approveBackground(manifest.id, "a", hash)
+  ).rejects.toThrow()
+  await store.enable(manifest.id, false, "a")
+  expect(await store.backgroundApproved(manifest.id, "a", hash)).toBe(false)
+  await expect(
+    store.approveBackground(manifest.id, "a", next)
+  ).rejects.toThrow()
+})
+
 it("persists validated plugin settings per Space", async () => {
   await store.install(
     encodePackage(

@@ -14594,3 +14594,124 @@ body:has(.file-properties-window)
   font-size: 13px;
   text-align: center;
 }
+/* Host-owned Bluetooth permission picker. */
+.bluetooth-picker {
+  width: min(420px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  box-shadow: 0 16px 48px #0003;
+}
+.bluetooth-picker::backdrop {
+  background: #0005;
+}
+.bluetooth-picker header,
+.bluetooth-picker footer,
+.bluetooth-actions,
+.bluetooth-scan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bluetooth-picker h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.bluetooth-picker p {
+  margin: 12px 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.bluetooth-picker button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.bluetooth-picker button:disabled {
+  opacity: 0.45;
+}
+.bluetooth-picker input[type="search"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+.bluetooth-devices {
+  margin: 12px 0;
+  min-height: 180px;
+  max-height: 240px;
+  overflow: auto;
+  border-block: 1px solid var(--border);
+}
+.bluetooth-device {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  cursor: pointer;
+}
+.bluetooth-device input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.bluetooth-device:has(input:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.bluetooth-scan {
+  min-height: 28px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.bluetooth-scan button {
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+}
+.bluetooth-device:hover,
+.bluetooth-device:has(input:checked) {
+  background: var(--accent);
+}
+.bluetooth-device span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bluetooth-device small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.bluetooth-picker details {
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.bluetooth-picker summary {
+  cursor: pointer;
+}
+.bluetooth-picker footer {
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.bluetooth-actions {
+  flex-shrink: 0;
+  gap: 8px;
+}
+.bluetooth-picker .bluetooth-confirm {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}

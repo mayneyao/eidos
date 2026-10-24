@@ -7,7 +7,7 @@ not Codex plugins or retired Eidos extension packages.
 
 ## 1. Choose the host and extension point
 
-This checkout implements API 3.0.0: page/file views, metadata-only `ctx.binding`,
+This checkout implements Lite API 3.5.0 (CLI Serve remains 3.0.0): page/file views, metadata-only `ctx.binding`,
 and operations under `ctx.capabilities`. For existing plugins read the
 [migration guide](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.md)
 ([中文](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.zh.md)); in a checkout read
@@ -35,6 +35,14 @@ Source-tree contracts (SDK/tools 0.5.0; verify release availability):
 
 Generic file views (including media), custom commands, and formatters can use the installed SDK's
 declarations even when no dedicated starter exists. Do not invent template names.
+For host-mediated Worker-style `fetch` in Lite Views and ordinary commands,
+require API `3.5.0` and declare exact HTTPS `browser.networkOrigins`.
+Backgrounds use independent `background.networkOrigins` grants. Both support
+Request/Response, FormData, response streams/SSE and abort, without browser CORS
+or shared cookies. Uploads are buffered and limited to 1 MiB. Older requirements
+retain browser fetch behavior; do not raise existing plugins' requirements
+without checking their network and Blob Worker usage. See `plugins/api/fetch`
+in the documentation site and the API 3.5 migration notes.
 Lite and CLI Serve do not have feature parity. A Lite plugin need not pass the
 CLI profile; a request for both hosts requires checking both profiles and may
 require separate manifests/packages. Do not lower an API requirement merely to

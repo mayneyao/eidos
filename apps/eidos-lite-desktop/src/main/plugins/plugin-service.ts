@@ -6,7 +6,11 @@ import type { PluginResourceContent } from "../../shared/plugins"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
+import type { PluginBackgroundHost } from "./plugin-background"
+import type { JsonValue } from "@eidos.space/plugin-sandbox"
 import { readPluginNetwork } from "./plugin-network"
+import { PluginFetch } from "./plugin-fetch"
+import { usesWorkerFetch } from "@eidos.space/plugin-runtime/compatibility"
 import { fileMetaPatch } from "./filemeta"
 import {
   PLUGIN_PROTOCOL,
@@ -90,6 +94,7 @@ interface Instance {
     document?: TextDocument
     format?: { version: string; text: string; applying: boolean }
     finish(error?: Error): void
+    waitForHostDialog(): () => void
   }
   owner: number
   session: PluginDocumentSession
@@ -106,6 +111,7 @@ interface Instance {
   ids: Set<string>
 }
 export class PluginService {
+  private readonly fetches = new PluginFetch()
   private readonly storage = new Map<string, PluginStorage>()
   private formatterContexts = new Map<
     number,
@@ -148,8 +154,91 @@ export class PluginService {
       owner: number,
       input: FileExportRequest,
       authorize: () => Promise<void>
-    ) => Promise<FileExportResult>
+    ) => Promise<FileExportResult>,
+    private readonly backgrounds?: PluginBackgroundHost,
+    private readonly backgroundOwnerActive: (
+      owner: number,
+      space: string
+    ) => boolean = () => true
   ) {}
+  private async backgroundBinding(
+    owner: number,
+    space: string,
+    pluginId: string,
+    hash: string
+  ) {
+    const pkg = await this.store.read(hash)
+    if (!pkg.manifest.background)
+      throw new PluginError("PERMISSION_DENIED", "Background unavailable")
+    const authorize = async () => {
+      const current = await this.store.binding(pluginId, space)
+      if (
+        !current?.enabled ||
+        current.hash !== hash ||
+        !this.backgroundOwnerActive(owner, space)
+      )
+        throw new PluginError("PERMISSION_DENIED", "Background grant revoked")
+    }
+    await authorize()
+    return {
+      owner,
+      space: space,
+      hash: hash,
+      manifest: pkg.manifest,
+      code: pkg.modules[pkg.manifest.background.entry],
+      authorize,
+      storageRequest: async (
+        method: string,
+        params: unknown,
+        assertActive: () => void
+      ) => {
+        if (!pkg.manifest.storage)
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Plugin storage not granted"
+          )
+        let storage = this.storage.get(pluginId)
+        if (!storage) {
+          storage = new PluginStorage(
+            path.join(this.store.directory, "data", pluginId)
+          )
+          this.storage.set(pluginId, storage)
+        }
+        return storage.request(
+          method,
+          params,
+          pkg.manifest.storage.maxBytes,
+          assertActive
+        )
+      },
+    }
+  }
+  async autoStartBackgrounds(owner: number, space: string, pluginId?: string) {
+    const listing = await this.store.list(space)
+    for (const plugin of listing.plugins) {
+      if (
+        !plugin.enabled ||
+        !plugin.manifest.background?.autoStart ||
+        (pluginId && plugin.manifest.id !== pluginId)
+      )
+        continue
+      try {
+        const binding = await this.backgroundBinding(
+          owner,
+          space,
+          plugin.manifest.id,
+          plugin.hash
+        )
+        await this.backgrounds?.start(binding)
+      } catch (error) {
+        console.warn(
+          "Could not auto-start plugin background",
+          plugin.manifest.id,
+          error
+        )
+      }
+    }
+  }
   private armMount(owner: number, ticket: string) {
     const instance = this.instances.get(ticket)!
     const timer = setTimeout(() => this.close(owner, ticket), 10000)
@@ -225,7 +314,8 @@ export class PluginService {
         pkg.modules[pkg.manifest.extension]!,
         (pkg.manifest.actions ?? []).map((a) => a.id),
         (pkg.manifest.formatters ?? []).map((f) => f.id),
-        (pkg.manifest.hooks ?? []).map((h) => h.id)
+        (pkg.manifest.hooks ?? []).map((h) => h.id),
+        usesWorkerFetch(pkg.manifest)
       ),
       table,
       tableWritable:
@@ -233,7 +323,7 @@ export class PluginService {
         pkg.manifest.actions?.some(
           (a) => a.context === "table" && a.access === "write"
         ),
-      csp: sandboxCsp(pkg.manifest.browser),
+      csp: sandboxCsp(pkg.manifest.browser, usesWorkerFetch(pkg.manifest)),
       resource,
       scope,
       pluginId: id,
@@ -382,7 +472,35 @@ export class PluginService {
     })
     void completion.catch(() => {})
     let timer: ReturnType<typeof setTimeout> | undefined
+    let hostDialogs = 0
     const invocation: NonNullable<Instance["invocation"]> = {
+      waitForHostDialog: () => {
+        if (hostDialogs++ === 0) {
+          clearTimeout(timer)
+          timer = setTimeout(
+            () =>
+              invocation.finish(
+                new PluginError("TIMEOUT", "Device selection timed out")
+              ),
+            300000
+          )
+        }
+        let released = false
+        return () => {
+          if (released) return
+          released = true
+          if (--hostDialogs > 0) return
+          clearTimeout(timer)
+          if (!scope.signal.aborted)
+            timer = setTimeout(
+              () =>
+                invocation.finish(
+                  new PluginError("TIMEOUT", "Action timed out")
+                ),
+              30000
+            )
+        }
+      },
       id,
       access: declaration.access ?? "read",
       context: declaration.context,
@@ -579,6 +697,7 @@ export class PluginService {
       workspaceFiles: pkg.manifest.workspace?.files,
       workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       html: viewHtml(pkg.modules[view.entry]!, {
+        workerFetch: usesWorkerFetch(pkg.manifest),
         embedded,
         exportFile: !!this.exportFile,
         ...(table
@@ -592,7 +711,7 @@ export class PluginService {
       embedded,
       capabilities: view.capabilities,
       tableWritable: view.access === "write",
-      csp: sandboxCsp(pkg.manifest.browser),
+      csp: sandboxCsp(pkg.manifest.browser, usesWorkerFetch(pkg.manifest)),
       resource,
       scope,
       pluginId: id,
@@ -693,6 +812,7 @@ export class PluginService {
       capabilities: view.capabilities,
       tableWritable: !embedded && view.access === "write",
       html: viewHtml(pkg.modules[view.entry]!, {
+        workerFetch: usesWorkerFetch(pkg.manifest),
         embedded,
         resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
         exportFile: !!this.exportFile,
@@ -704,7 +824,7 @@ export class PluginService {
         capabilities: view.capabilities,
         connections: !!Object.keys(pkg.manifest.connections ?? {}).length,
       }),
-      csp: sandboxCsp(pkg.manifest.browser),
+      csp: sandboxCsp(pkg.manifest.browser, usesWorkerFetch(pkg.manifest)),
       document: copy?.bind(scope, embedded ? "read" : (view.access ?? "read")),
       pluginId: id,
       hash: binding.hash,
@@ -824,11 +944,13 @@ export class PluginService {
     }
   }
   closeOwner(owner: number) {
+    this.backgrounds?.closeOwner(owner)
     this.formatterContexts.delete(owner)
     for (const [ticket, instance] of this.instances)
       if (instance.owner === owner) this.close(owner, ticket)
   }
   revoke(pluginId: string, spaceId?: string) {
+    this.backgrounds?.revoke(pluginId, spaceId)
     for (const [ticket, instance] of this.instances)
       if (
         instance.pluginId === pluginId &&
@@ -1103,7 +1225,8 @@ export class PluginService {
       let capabilityScope = instance.scope
       if (
         instance.extension &&
-        (request.method === "network.read" ||
+        (request.method.startsWith("network.") ||
+          request.method.startsWith("background.") ||
           request.method.startsWith("storage.") ||
           request.method.startsWith("eidos.connection."))
       ) {
@@ -1124,13 +1247,119 @@ export class PluginService {
         capabilityScope.assertActive()
         capabilityParams = envelope.args
       }
+      if (request.method.startsWith("background.")) {
+        const pkg = await this.store.read(instance.hash)
+        if (!pkg.manifest.background || !this.backgrounds || instance.embedded)
+          throw new PluginError("PERMISSION_DENIED", "Background unavailable")
+        const backgroundBinding = await this.backgroundBinding(
+          owner,
+          session.canonical.id,
+          instance.pluginId,
+          instance.hash
+        )
+        const { authorize } = backgroundBinding
+        capabilityScope.assertActive()
+        if (
+          request.method === "background.observe" ||
+          request.method === "background.unobserve"
+        ) {
+          const p = object(capabilityParams)
+          if (typeof p.id !== "string" || !p.id || p.id.length > 128)
+            throw new PluginError(
+              "INVALID_REQUEST",
+              "Invalid background observer"
+            )
+          const observation = p.id
+          if (request.method === "background.unobserve") {
+            instance.observations.get(observation)?.dispose()
+            instance.observations.delete(observation)
+          } else {
+            if (
+              instance.observations.has(observation) ||
+              instance.observations.size >= 64
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Duplicate or excessive observers"
+              )
+            const resume = instance.invocation?.waitForHostDialog()
+            let background: Awaited<ReturnType<PluginBackgroundHost["start"]>>
+            try {
+              background = await this.backgrounds.start(
+                backgroundBinding,
+                capabilityScope.signal
+              )
+            } finally {
+              resume?.()
+            }
+            capabilityScope.assertActive()
+            const unsubscribe = background.onMessage((value) => {
+              if (!capabilityScope.signal.aborted)
+                emit({
+                  protocol: PLUGIN_PROTOCOL,
+                  apiVersion: 1,
+                  observation,
+                  value,
+                })
+            })
+            const subscription = {
+              dispose: () => {
+                unsubscribe()
+                instance.observations.delete(observation)
+              },
+            }
+            instance.observations.set(observation, subscription)
+            capabilityScope.subscriptions.add(subscription)
+          }
+          return { response: { ...base, result: null } }
+        }
+        const resume = [
+          "background.requestDevice",
+          "background.start",
+          "background.request",
+          "background.postMessage",
+        ].includes(request.method)
+          ? instance.invocation?.waitForHostDialog()
+          : undefined
+        let result: JsonValue
+        try {
+          result = await this.backgrounds.request(
+            backgroundBinding,
+            request.method,
+            (capabilityParams == null
+              ? null
+              : (object(capabilityParams).data ?? null)) as JsonValue,
+            capabilityScope.signal
+          )
+        } finally {
+          resume?.()
+        }
+        await authorize()
+        capabilityScope.assertActive()
+        return { response: { ...base, result } }
+      }
+      if (request.method.startsWith("network.fetch")) {
+        const pkg = await this.store.read(instance.hash)
+        if (binding.hash !== instance.hash)
+          throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
+        const result = await this.fetches.request(
+          request.method,
+          capabilityParams,
+          pkg.manifest.browser?.networkOrigins ??
+            (pkg.manifest.browser?.network ? ["*"] : []),
+          capabilityScope.signal
+        )
+        capabilityScope.assertActive()
+        return { response: { ...base, result } }
+      }
       if (request.method === "network.read") {
         const pkg = await this.store.read(instance.hash)
         if (binding.hash !== instance.hash)
           throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
         const result = await readPluginNetwork(
           capabilityParams,
-          pkg.manifest.browser?.networkOrigins ?? [],
+          pkg.manifest.browser?.networkOrigins ??
+            (pkg.manifest.browser?.network ? ["*"] : []),
           capabilityScope.signal
         )
         capabilityScope.assertActive()

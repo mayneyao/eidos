@@ -15,13 +15,16 @@ import type {
 } from "./contracts"
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
+import { createWorkerFetch } from "./worker-fetch"
 
 /** Runs only inside the isolated extension iframe. No host object is captured. */
 function activateGuest(
   activate: Activate,
   declared: string[],
   declaredFormatters: string[],
-  declaredHooks: string[]
+  declaredHooks: string[],
+  createFetch: typeof createWorkerFetch,
+  workerFetch: boolean
 ) {
   const parent = window.parent
   const lifetime = new AbortController()
@@ -55,10 +58,21 @@ function activateGuest(
       )
     const id = crypto.randomUUID()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        reject(failure("TIMEOUT", "Host request timed out"))
-      }, 30000)
+      const timer = setTimeout(
+        () => {
+          pending.delete(id)
+          reject(failure("TIMEOUT", "Host request timed out"))
+        },
+        [
+          "background.requestDevice",
+          "background.start",
+          "background.request",
+          "background.postMessage",
+          "background.observe",
+        ].includes(method)
+          ? 300000
+          : 30000
+      )
       pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -104,6 +118,7 @@ function activateGuest(
       controller.signal.aborted
         ? Promise.reject(failure("INSTANCE_CLOSED", "Action finished"))
         : call(method, { invocation: value.invocation, args })
+    if (workerFetch) globalThis.fetch = createFetch(invoke, controller.signal)
     const document: TextDocument = {
       read: () => invoke("document.read"),
       edit: (change) => invoke("document.edit", change),
@@ -276,6 +291,33 @@ function activateGuest(
       signal: controller.signal,
       subscriptions: { add: own },
       capabilities: {
+        background: {
+          isRunning: () => invoke("background.isRunning"),
+          requestDevice: () => invoke("background.requestDevice"),
+          start: () => invoke("background.start"),
+          stop: () => invoke("background.stop"),
+          postMessage: (data) => invoke("background.postMessage", { data }),
+          request: (data) => invoke("background.request", { data }),
+          async onMessage(listener) {
+            const id = crypto.randomUUID()
+            observers.set(id, (data) =>
+              listener(data as Parameters<typeof listener>[0])
+            )
+            const subscription = own({
+              dispose() {
+                observers.delete(id)
+                void invoke("background.unobserve", { id }).catch(() => {})
+              },
+            })
+            try {
+              await invoke("background.observe", { id })
+              return subscription
+            } catch (error) {
+              subscription.dispose()
+              throw error
+            }
+          },
+        },
         document: value.kind === "document" ? document : undefined,
         connections: {
           isConfigured: (connection) =>
@@ -676,7 +718,8 @@ export function extensionHtml(
   code: string,
   actions: string[],
   formatters: string[] = [],
-  hooks: string[] = []
+  hooks: string[] = [],
+  workerFetch = false
 ): string {
   // The view bootstrap supplies transport for its own mount only. The extension
   // bootstrap uses a separate channel state and never exposes a DOM root to Activate.
@@ -689,6 +732,6 @@ export function extensionHtml(
       allowJs: true,
     },
   }).outputText
-  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}); }`
-  return viewHtml(adapter, { kind: "page", route: "" })
+  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}, ${createWorkerFetch.toString()}, ${workerFetch}); }`
+  return viewHtml(adapter, { kind: "page", route: "", workerFetch })
 }

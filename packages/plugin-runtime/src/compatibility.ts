@@ -24,6 +24,13 @@ export function pluginHostInfo(host: PluginHost) {
     features: [...data.hosts[host].features],
   }
 }
+/** Keep existing browser Worker/CORS behavior until a plugin opts into API 3.5. */
+export function usesWorkerFetch(manifest: PluginManifest): boolean {
+  const required = version(manifest.requires?.pluginApi ?? "")
+  return (
+    !!required && (required[0]! > 3 || (required[0] === 3 && required[1]! >= 5))
+  )
+}
 function version(value: string): number[] | null {
   return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value) &&
     value.split(".").every((p) => Number.isSafeInteger(Number(p)))
@@ -46,6 +53,7 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
       features.add(rule.feature)
   }
   if (manifest.browser?.workers) features.add("browser.workers")
+  if (manifest.background?.fileHistory) features.add("background.fileHistory")
   if (manifest.workspace?.filemeta) features.add("filemeta")
   if (
     manifest.placements?.some(
@@ -55,6 +63,8 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
     features.add("sidebar.explorer")
   if (manifest.theme) features.add("theme.lite")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
+  if (manifest.browser?.network || manifest.background?.network)
+    features.add("network.public")
   return [...features].sort()
 }
 export function checkPluginCompatibility(

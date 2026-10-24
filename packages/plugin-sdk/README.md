@@ -36,7 +36,8 @@ const mount: Mount = async (ctx, root) => {
 export default mount
 ```
 
-Executable source-tree profiles require API 3.0.0. Lite supports page/file views,
+Declare the minimum plugin API required by your features: 3.0.0 for basic
+View/action profiles, or 3.4.0 for backgrounds. Lite supports page/file views,
 extensions, scoped filesystem, settings, private storage, network and connections.
 Serve supports file views with `eidos/table`, notification UI and generated-file export. Check the
 actual target with plugin-tools; do not assume feature parity. Themes retain
@@ -53,6 +54,16 @@ Declare namespaces and optional write permission in `workspace.filemeta`.
 Writes also require contribution write access. The host uses sqlite-fs-meta.
 
 Extensions retain activate and register through capabilities.actions/formatters.
+
+Lite API 3.4 supports a separate `background.entry` and
+`ctx.capabilities.background` in Views and action handlers:
+`start`, `stop`, `postMessage`, `request`, `onMessage`, and `requestDevice`.
+Startup and BLE device grants are approved by the host. Closing a View leaves
+the background alive; stopping, disabling, updating or leaving the Space ends it.
+See the [background guide](../../apps/docs/src/content/docs/plugins/background.mdx)
+([中文](../../apps/docs/src/content/docs/zh-cn/plugins/background.mdx)) and
+the runnable [counter](../plugin-sandbox/examples/lite-background/README.md) and
+[BLE](../plugin-sandbox/examples/lite-bluetooth/README.md) examples.
 
 Plugin API 3.3 adds `capabilities.hooks.register(id, handler)` for declared
 `document.saved` and `file.renamed` hooks. Handlers receive a versioned local

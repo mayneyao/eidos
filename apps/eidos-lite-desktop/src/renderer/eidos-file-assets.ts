@@ -16,6 +16,30 @@ import type {
 const objectUrlsByResource = new Map<string, string>()
 const resourcesByLease = new Map<string, string>()
 const mediaUrlsByResource = new Map<string, string>()
+const sessionsBySource = new WeakMap<
+  object,
+  {
+    fileId: string
+    session: EidosFileUIAssetSession
+  }
+>()
+
+/** Keep decoded covers alive while the host retains this Runtime data source. */
+export function retainedEidosLiteAssetSession(
+  source: { sessionId: string },
+  fileId: string,
+  refreshToken: number
+): EidosFileUIAssetSession {
+  const existing = sessionsBySource.get(source)
+  if (existing?.fileId === fileId) {
+    existing.session.thumbnailRevision = refreshToken
+    return existing.session
+  }
+  const session = createEidosLiteAssetSession(source.sessionId, fileId)
+  session.thumbnailRevision = refreshToken
+  sessionsBySource.set(source, { fileId, session })
+  return session
+}
 
 function releaseObjectUrl(leaseId: string): void {
   const resourceToken = resourcesByLease.get(leaseId)

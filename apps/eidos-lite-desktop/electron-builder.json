@@ -30,6 +30,11 @@
   ],
   "extraResources": [
     {
+      "from": "resources/plugin-sandbox",
+      "to": "plugin-sandbox",
+      "filter": ["**/*"]
+    },
+    {
       "from": "node_modules/typescript/lib",
       "to": "app.asar.unpacked/node_modules/typescript/lib",
       "filter": ["*.d.ts"]
@@ -77,6 +82,10 @@
     "icon": "assets/logo.icns",
     "forceCodeSigning": true,
     "hardenedRuntime": true,
+    "extendInfo": {
+      "NSBluetoothAlwaysUsageDescription": "Allow Eidos Lite to discover and connect to BLE devices that you explicitly grant to plugins.",
+      "NSBluetoothPeripheralUsageDescription": "Allow Eidos Lite to connect to BLE devices selected for plugins."
+    },
     "gatekeeperAssess": false,
     "notarize": true
   },

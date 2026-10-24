@@ -1,0 +1,127 @@
+---
+title: "侧边栏目录树"
+description: "制作一个侧栏文件列表，打开文件并响应 Space 的变化。"
+---
+
+想在 Lite 侧栏按项目、标签或自己的规则组织文件，可以用插件替换内置文件浏览器。本篇先做一个最小文件列表：显示当前目录的文件，点击后在主区域打开。
+
+这项能力仅用于 Lite，要求插件 API `3.1.0`。先准备一个测试 Space，放入几份普通文件。示例刻意只展示文件，不实现可展开目录树。
+
+## 1. 声明侧栏入口
+
+创建 `plugin.json` 和 `src/tree.ts`。清单内容为：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.file-list",
+  "name": "File List",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.1.0"
+  },
+  "workspace": {
+    "files": {
+      "read": true
+    }
+  },
+  "views": [
+    {
+      "id": "tree",
+      "title": "File List",
+      "kind": "page",
+      "entry": "./src/tree.ts"
+    }
+  ],
+  "placements": [
+    {
+      "location": "sidebar/explorer",
+      "view": "tree"
+    }
+  ]
+}
+```
+
+`sidebar/explorer` 告诉 Lite 这是可选的侧栏浏览器。`workspace.files.read` 允许它列出 Space 中的文件。它仍然是 page View，但和普通导航页面不同，会得到当前目录及选中文件的上下文。
+
+## 2. 列出文件并处理点击
+
+在 `src/tree.ts` 中填写：
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = async (ctx, root) => {
+  const { explorer, fs, ui } = ctx.capabilities
+  if (!explorer || !fs || !ui.openFile) throw new Error("Explorer unavailable")
+  const openFile = ui.openFile
+  const list = document.createElement("div")
+  const status = document.createElement("p")
+  status.setAttribute("role", "status")
+  root.append(list, status)
+  let revision = 0
+
+  const refresh = async () => {
+    const current = ++revision
+    try {
+      const state = explorer.read()
+      const files = await fs.list(state.rootDirectory ?? "", {
+        recursive: false,
+        includeDirectories: false,
+      })
+      if (ctx.signal.aborted || current !== revision) return
+      const buttons = files.map((file) => {
+        const button = document.createElement("button")
+        button.textContent = file.name
+        button.style.display = "block"
+        button.setAttribute(
+          "aria-current",
+          String(file.path === state.activePath)
+        )
+        button.onclick = () => {
+          void openFile(file.path).catch((error) => {
+            status.textContent = String(error)
+          })
+        }
+        return button
+      })
+      list.replaceChildren(...buttons)
+      status.textContent = files.length ? "" : "No files in this folder."
+    } catch (error) {
+      if (!ctx.signal.aborted && current === revision)
+        status.textContent = String(error)
+    }
+  }
+
+  ctx.subscriptions.add(explorer.watch(() => void refresh()))
+  ctx.subscriptions.add(await fs.watch("", () => void refresh()))
+  await refresh()
+}
+export default mount
+```
+
+`explorer.read()` 提供当前目录和打开的文件。`rootDirectory` 为 null 时，空路径表示 Space 根目录。`fs.list` 读取这一层的文件，点击时用 `ui.openFile` 交给主区域打开。
+
+两个订阅各负责一件事：`explorer.watch` 响应选中路径或浏览状态变化，`fs.watch` 响应文件变化。前者不发送初始回调，所以示例最后主动调用 `refresh()`。
+
+`revision` 用来忽略迟到的读取结果，避免快速切换目录时显示旧列表。刷新失败时保留已有列表，并显示错误。
+
+## 3. 在 Lite 中启用并验证
+
+1. 在插件管理器加载 `plugin.json`，为当前 Space 启用。
+2. 在 **插件 → 选择文件浏览器** 中选用 **File List**。
+3. 侧栏应显示当前目录文件。点击一项，主区域应使用已配置的 View 打开它。
+4. 在 Space 中增加或删除测试文件，列表应刷新。
+5. 在插件管理中切回内置浏览器。
+
+选择按 Space 保存。插件失败时，Lite 会恢复内置标题和目录树，并提供重试入口。
+
+## 从文件列表扩展为目录树
+
+将 `includeDirectories` 改为 true，可以同时得到目录，包括空目录。用户展开目录时，用该目录的路径再次调用 `fs.list(path, { recursive: false, includeDirectories: true })`，由插件保存展开状态。目录点击应展开或进入目录，只有文件点击调用 `ui.openFile`。
+
+排序依据可从 `explorer.read().sort` 读取；文件的 `modifiedAtMs` 可用于按时间排列。示例没有实现排序、目录导航或选中样式，这些需要在完整浏览器中补齐。
+
+插件接管整个探索器区域，包括标题、搜索、排序和文件工具栏。窗口导航与应用控制仍由 Lite 提供。全局 Space 文本搜索会临时覆盖侧栏，但不会卸载插件。浏览状态本身不授予文件权限，权限仍由宿主单独检查。
+
+接口详情见 [Explorer](/zh-cn/plugins/api/explorer/)和[文件访问](/zh-cn/plugins/api/fs/)。

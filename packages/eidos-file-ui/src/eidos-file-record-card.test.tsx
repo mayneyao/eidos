@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileRecordCard } from "./eidos-file-record-card"
+import { EidosFileTableActionsContext } from "./table-actions"
 
 const eidosFileUiMocks = vi.hoisted(() => {
   const translate = (
@@ -121,6 +122,96 @@ describe("EidosFileRecordCard", () => {
     container.remove()
   })
 
+  it.each([
+    ["gallery", "standard"],
+    ["gallery", "cover-only"],
+    ["kanban", "standard"],
+  ])(
+    "offers record and host actions from the %s %s context menu",
+    async (type, cardDisplay) => {
+      const row = {
+        _id: "photo",
+        title: "Holiday photo",
+        cover: encodeEidosFileAttachmentPaths(["photo.jpg"]),
+      }
+      const onOpen = vi.fn()
+      const onPreviewFile = vi.fn()
+      const onDelete = vi.fn()
+      const actions = {
+        list: vi.fn(async () => [{ id: "sidebar", title: "Open in sidebar" }]),
+        run: vi.fn(),
+      }
+      await act(async () =>
+        root.render(
+          <EidosFileTableActionsContext.Provider value={actions}>
+            <EidosFileRecordCard
+              row={row}
+              fields={fields}
+              view={{
+                ...view,
+                type,
+                properties: { ...view.properties, cardDisplay },
+              }}
+              onOpen={onOpen}
+              onPreviewFile={onPreviewFile}
+              onDelete={onDelete}
+            />
+          </EidosFileTableActionsContext.Provider>
+        )
+      )
+      expect(actions.list).not.toHaveBeenCalled()
+      const card = container.querySelector("article")!
+      const openMenu = async (keyboard = false) => {
+        await act(async () => {
+          card.dispatchEvent(
+            keyboard
+              ? new KeyboardEvent("keydown", {
+                  key: "F10",
+                  shiftKey: true,
+                  bubbles: true,
+                  cancelable: true,
+                })
+              : new MouseEvent("contextmenu", {
+                  bubbles: true,
+                  cancelable: true,
+                  button: 2,
+                })
+          )
+        })
+      }
+      const select = async (title: string) => {
+        const item = Array.from(
+          document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+        ).find((item) => item.textContent === title)!
+        expect(item).toBeTruthy()
+        await act(async () => item.click())
+      }
+      await openMenu()
+      expect(onOpen).not.toHaveBeenCalled()
+      expect(actions.list).toHaveBeenCalledWith({
+        ranges: null,
+        rowId: "photo",
+      })
+      await select("Open in sidebar")
+      expect(actions.run).toHaveBeenCalledWith("sidebar", {
+        ranges: null,
+        rowId: "photo",
+      })
+      await openMenu(true)
+      await select("Preview")
+      expect(onPreviewFile).toHaveBeenCalledWith(
+        row,
+        expect.objectContaining({ name: "photo.jpg" })
+      )
+      await openMenu()
+      await select("Open record")
+      expect(onOpen).toHaveBeenCalledWith(row)
+      await openMenu()
+      await select("Delete record")
+      expect(onDelete).toHaveBeenCalledWith(row)
+    }
+  )
+
   it.each(["desktop", "mobile"] as const)(
     "renders only a borderless cover in %s Gallery with a file preview trigger",
     async (interactionMode) => {
@@ -173,6 +264,180 @@ describe("EidosFileRecordCard", () => {
       }
     }
   )
+
+  it("opens Kanban move targets in a lazy submenu and moves only after selection", async () => {
+    const row = { _id: "task", title: "Task" }
+    const onMove = vi.fn()
+    await act(async () =>
+      root.render(
+        <EidosFileRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, type: "kanban" }}
+          onOpen={vi.fn()}
+          onMove={onMove}
+          disabledMoveOptionId="todo"
+          moveOptions={[
+            { id: "todo", label: "Todo" },
+            { id: "done", label: "Done" },
+            { id: "blocked", label: "Blocked", disabled: true },
+          ]}
+        />
+      )
+    )
+    await act(async () =>
+      container.querySelector("article")!.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+        })
+      )
+    )
+    const menu = document.querySelector<HTMLElement>(
+      "[data-eidos-file-record-menu]"
+    )!
+    const move = Array.from(
+      menu.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent === "Move to")!
+    expect(move).toBeTruthy()
+    expect(menu.textContent).not.toContain("Done")
+    const openSubmenu = async () => {
+      move.focus()
+      await act(async () =>
+        move.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "ArrowRight",
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+      )
+    }
+    await openSubmenu()
+    expect(onMove).not.toHaveBeenCalled()
+    const sub = document.querySelector<HTMLElement>(
+      '[role="menu"][aria-label="Move to"]'
+    )!
+    const targets = Array.from(
+      sub.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    )
+    expect(targets.map((item) => item.textContent)).toEqual([
+      "Todo",
+      "Done",
+      "Blocked",
+    ])
+    expect(targets[0]!.getAttribute("data-disabled")).not.toBeNull()
+    expect(targets[2]!.getAttribute("data-disabled")).not.toBeNull()
+    await act(async () =>
+      targets[1]!.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowLeft",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    )
+    expect(document.querySelector("[data-eidos-file-record-menu]")).toBe(menu)
+    await vi.waitFor(() => expect(document.activeElement).toBe(move))
+    await openSubmenu()
+    await act(async () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[role="menu"][aria-label="Move to"] [role="menuitem"]'
+        )
+      )
+        .find((item) => item.textContent === "Done")!
+        .click()
+    )
+    expect(onMove).toHaveBeenCalledOnce()
+    expect(onMove).toHaveBeenCalledWith(row, "done")
+    expect(document.querySelector("[data-eidos-file-record-menu]")).toBeNull()
+  })
+
+  it("filters many move targets and selects the result with the keyboard", async () => {
+    const onMove = vi.fn()
+    const row = { _id: "task", title: "Task" }
+    await act(async () =>
+      root.render(
+        <EidosFileRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, type: "kanban" }}
+          onOpen={vi.fn()}
+          onMove={onMove}
+          moveOptions={Array.from({ length: 40 }, (_, i) => ({
+            id: String(i),
+            label: `Group ${i}`,
+          }))}
+        />
+      )
+    )
+    await act(async () =>
+      container.querySelector("article")!.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+        })
+      )
+    )
+    const move = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-eidos-file-record-menu] [role="menuitem"]'
+      )
+    ).find((item) => item.textContent === "Move to")!
+    await act(async () =>
+      move.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    )
+    const sub = document.querySelector<HTMLElement>(
+      '[role="menu"][aria-label="Move to"]'
+    )!
+    const input = sub.querySelector("input")!
+    expect(input).toBeTruthy()
+    const search = async (text: string) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )!.set!.call(input, text)
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    }
+    await search("missing")
+    expect(sub.querySelector('[role="status"]')?.textContent).toBe("No results")
+    await search("group 39")
+    const items = sub.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    expect(items).toHaveLength(1)
+    expect(items[0]!.textContent).toBe("Group 39")
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    )
+    expect(document.activeElement).toBe(items[0])
+    await act(async () =>
+      items[0]!.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    )
+    expect(onMove).toHaveBeenCalledWith(row, "39")
+    expect(document.querySelector("[data-eidos-file-record-menu]")).toBeNull()
+  })
 
   it("offers mobile card actions and group moves in a bottom sheet", async () => {
     eidosFileUiMocks.useEidosFileUI.mockReturnValue({
@@ -732,7 +997,8 @@ describe("EidosFileRecordCard", () => {
         />
       )
     })
-    expect(eidosFileUiMocks.useEidosFileUI).toHaveBeenCalledTimes(1)
+    const initialCalls = eidosFileUiMocks.useEidosFileUI.mock.calls.length
+    expect(initialCalls).toBeGreaterThan(0)
 
     act(() => {
       root.render(
@@ -744,7 +1010,7 @@ describe("EidosFileRecordCard", () => {
         />
       )
     })
-    expect(eidosFileUiMocks.useEidosFileUI).toHaveBeenCalledTimes(1)
+    expect(eidosFileUiMocks.useEidosFileUI).toHaveBeenCalledTimes(initialCalls)
 
     act(() => {
       root.render(
@@ -756,7 +1022,9 @@ describe("EidosFileRecordCard", () => {
         />
       )
     })
-    expect(eidosFileUiMocks.useEidosFileUI).toHaveBeenCalledTimes(2)
+    expect(eidosFileUiMocks.useEidosFileUI.mock.calls.length).toBeGreaterThan(
+      initialCalls
+    )
   })
 
   it("keeps a large portable move menu unmounted until requested", async () => {

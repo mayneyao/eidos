@@ -201,6 +201,7 @@ export function parseManifest(input: unknown): PluginManifest {
     [
       "description",
       "extension",
+      "background",
       "views",
       "fileTemplates",
       "actions",
@@ -297,7 +298,16 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.browser !== undefined) {
     const browser = record(m.browser)
-    fields(browser, [], ["workers", "networkOrigins"])
+    fields(browser, [], ["workers", "network", "networkOrigins"])
+    if (browser.network !== undefined && browser.network !== true)
+      invalid("Expected network: true")
+    if (browser.network === true) {
+      const version = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (!(version[0]! > 3 || (version[0] === 3 && version[1]! >= 5)))
+        invalid("browser.network requires plugin API 3.5.0 or newer")
+    }
     if (browser.workers !== undefined && typeof browser.workers !== "boolean")
       invalid("Invalid worker capability")
     if (browser.networkOrigins !== undefined) {
@@ -318,6 +328,97 @@ export function parseManifest(input: unknown): PluginManifest {
           url!.password
         )
           invalid("Expected exact HTTPS origin")
+      }
+    }
+  }
+  if (m.background !== undefined) {
+    const background = record(m.background)
+    fields(
+      background,
+      ["entry"],
+      ["network", "networkOrigins", "bluetooth", "fileHistory", "autoStart"]
+    )
+    if (background.fileHistory !== undefined && background.fileHistory !== true)
+      invalid("Expected fileHistory: true")
+    if (background.autoStart !== undefined && background.autoStart !== true)
+      invalid("Expected autoStart: true")
+    if (background.fileHistory === true || background.autoStart === true) {
+      const version = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (!(version[0]! > 3 || (version[0] === 3 && version[1]! >= 6)))
+        invalid(
+          "background.fileHistory and autoStart require plugin API 3.6.0 or newer"
+        )
+    }
+    if (background.network !== undefined && background.network !== true)
+      invalid("Expected network: true")
+    if (background.bluetooth !== undefined && background.bluetooth !== true) {
+      const bluetooth = record(background.bluetooth)
+      fields(bluetooth, ["services"], [])
+      if (
+        !Array.isArray(bluetooth.services) ||
+        !bluetooth.services.length ||
+        bluetooth.services.length > 16
+      )
+        invalid("Expected 1..16 Bluetooth service grants")
+      const uuids = new Set<string>()
+      for (const raw of bluetooth.services) {
+        const service = record(raw)
+        fields(service, ["uuid"], ["read", "write", "notify"])
+        if (
+          typeof service.uuid !== "string" ||
+          !(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+              service.uuid
+            ) ||
+            ["battery_service", "heart_rate", "device_information"].includes(
+              service.uuid
+            )
+          )
+        )
+          invalid("Invalid Bluetooth service UUID")
+        const aliases: Record<string, string> = {
+          battery_service: "0000180f-0000-1000-8000-00805f9b34fb",
+          heart_rate: "0000180d-0000-1000-8000-00805f9b34fb",
+          device_information: "0000180a-0000-1000-8000-00805f9b34fb",
+        }
+        const canonical =
+          aliases[service.uuid as string] ?? (service.uuid as string)
+        if (uuids.has(canonical)) invalid("Duplicate Bluetooth service UUID")
+        uuids.add(canonical)
+        for (const op of ["read", "write", "notify"])
+          if (service[op] !== undefined && typeof service[op] !== "boolean")
+            invalid("Invalid Bluetooth operation")
+      }
+    }
+    entryPath(background.entry)
+    if (
+      background.entry === m.extension ||
+      (Array.isArray(m.views) &&
+        m.views.some((v) => record(v).entry === background.entry))
+    )
+      invalid("Background requires its own entry")
+    if (background.networkOrigins !== undefined) {
+      const origins = strings(background.networkOrigins)
+      if (origins.length > 8) invalid("Too many background network origins")
+      for (const origin of origins) {
+        let url: URL
+        try {
+          url = new URL(origin)
+        } catch {
+          invalid("Invalid background origin")
+        }
+        if (
+          (!["https:", "wss:"].includes(url!.protocol) &&
+            !(url!.protocol === "ws:" && url!.hostname === "127.0.0.1")) ||
+          url!.origin !== origin ||
+          url!.username ||
+          url!.password
+        )
+          invalid(
+            "Expected exact HTTPS/WSS origin or host-approved development WS loopback origin"
+          )
       }
     }
   }
@@ -447,6 +548,7 @@ export function parseManifest(input: unknown): PluginManifest {
     !actions.length &&
     !formatters.length &&
     !hooks.length &&
+    !m.background &&
     !m.theme
   )
     invalid("At least one contribution is required")
@@ -457,6 +559,7 @@ export function parseManifest(input: unknown): PluginManifest {
       formatters.length ||
       hooks.length ||
       m.extension ||
+      m.background ||
       m.placements ||
       m.settings ||
       m.storage ||

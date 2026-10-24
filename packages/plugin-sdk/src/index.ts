@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.3.
+// Public type-only SDK for Eidos Plugin API 3.6.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -26,6 +26,19 @@ export interface PluginManifest {
    */
   icon?: PluginIconDefinition
   extension?: string
+  /** A bundled Worker-style module. Started explicitly by a View or action. */
+  background?: {
+    entry: string
+    /** Public HTTPS/WSS access; networkOrigins optionally narrows this grant. */
+    network?: true
+    networkOrigins?: string[]
+    /** Access to the user-selected device, optionally restricted by service. */
+    bluetooth?: true | { services: BluetoothServicePermission[] }
+    /** Observe successful file opens in this window and Space; no content access. */
+    fileHistory?: true
+    /** Start when this Space opens, after the user authorizes this package revision. */
+    autoStart?: true
+  }
   views?: ViewDeclaration[]
   /** Static UTF-8 templates offered by the host's New File dialog. */
   fileTemplates?: FileTemplateDeclaration[]
@@ -35,7 +48,7 @@ export interface PluginManifest {
   hooks?: FileHookDeclaration[]
   placements?: Placement[]
   settings?: Record<string, SettingDeclaration>
-  browser?: { workers?: boolean; networkOrigins?: string[] }
+  browser?: { workers?: boolean; network?: true; networkOrigins?: string[] }
   storage?: { maxBytes: number }
   /** Explicit permission to access files in the current Space. */
   workspace?: {
@@ -192,13 +205,67 @@ export interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 export interface CommonCapabilities {
+  readonly background?: PluginBackground
   readonly fs?: PluginFileSystem
   readonly filemeta?: PluginFileMeta
   readonly storage?: PluginStorage
+  /** @deprecated Use global fetch. Retained for existing plugins. */
   readonly network?: PluginNetwork
   readonly settings?: Pick<PluginSettings, "get">
   readonly connections?: PluginConnections
   readonly ui: HostUI
+}
+
+export type BackgroundMessage =
+  | null
+  | boolean
+  | number
+  | string
+  | BackgroundMessage[]
+  | { [key: string]: BackgroundMessage }
+export interface PluginBackground {
+  /** Checks the current run without starting it or requesting permission. */
+  isRunning(): Promise<boolean>
+  /** Opens the host picker. Confirmation starts a fresh background with this device's grant. */
+  requestDevice(): Promise<{ id: string; name?: string }>
+  start(): Promise<void>
+  stop(): Promise<void>
+  postMessage(message: BackgroundMessage): Promise<void>
+  /** Background replies with { requestId, data } to { requestId, data }. */
+  request(message: BackgroundMessage): Promise<BackgroundMessage>
+  onMessage(listener: (message: BackgroundMessage) => void): Promise<Disposable>
+}
+export interface BluetoothServicePermission {
+  uuid: string
+  read?: boolean
+  write?: boolean
+  notify?: boolean
+}
+/** A successful workbench file open, not a filesystem read or View remount. */
+export interface FileOpenedEvent {
+  readonly id: string
+  readonly path: string
+  readonly timestamp: number
+}
+/** Host events available to a background in its current window and Space. */
+export interface PluginEventMap {
+  "file.opened": FileOpenedEvent
+}
+export interface PluginEvents {
+  /** Live events only. Requires the event's declared and approved permission. */
+  on<K extends keyof PluginEventMap>(
+    type: K,
+    listener: (event: PluginEventMap[K]) => void
+  ): Disposable
+}
+/** Lite injects this as globalThis.ctx in a background module. */
+export interface BackgroundHost {
+  readonly spaceId: string
+  /** Unique for this background run; useful for independent persistence keys. */
+  readonly instanceId: string
+  readonly events: PluginEvents
+  /** Same device-local, plugin-private store used by Views and actions. */
+  readonly storage?: PluginStorage
 }
 export interface CommonContext extends Lifetime {
   readonly capabilities: CommonCapabilities
@@ -295,8 +362,9 @@ export interface FileMetadata {
   readonly size: number
 }
 
-/** Anonymous bounded HTTPS GETs to manifest-declared network origins. */
+/** @deprecated Use global fetch. Retained for existing plugins. */
 export interface PluginNetwork {
+  /** @deprecated Use fetch with a Range header for byte ranges. Check response.status before reading the body. */
   read(request: {
     url: string
     range?: { offset: number; length: number }

@@ -1,0 +1,69 @@
+---
+title: fetch
+description: Worker-style HTTP requests in Lite Views, commands and backgrounds.
+---
+
+import { Badge } from "@astrojs/starlight/components"
+
+Supported hosts: <Badge text="Lite" variant="note" />
+
+Lite plugins requiring API **3.5.0** use the global Fetch API in page/file Views,
+ordinary commands and backgrounds. Use the standard DOM/Worker TypeScript types
+for `fetch`, `Request`, `Response`, `Headers`, `Blob`, `File`, `FormData` and
+`URLSearchParams`. These globals are not imported from the plugin SDK.
+
+`ctx.capabilities.network.read` is deprecated; use `fetch` for new HTTP code,
+including byte-range requests with a `Range` header. The old method remains
+available for existing plugins. Host-managed credential connections are a
+separate service and are not deprecated.
+
+## Permissions
+
+Declare `browser.network: true` for public HTTPS access from Views and commands,
+or `background.network: true` for backgrounds. Grants require host approval and are independent.
+Optionally restrict access with the corresponding `networkOrigins` list. The list
+takes precedence over `network: true`; an empty list denies all destinations.
+Existing exact-origin declarations still work without `network: true`.
+The host checks each redirect and the resolved destination. There is no browser
+CORS restriction or shared browser Cookie/login session. Set an explicit
+Authorization header when needed, or use host-managed `connections` for secrets.
+Cross-origin redirects strip Authorization. Cookie headers are unavailable.
+
+`credentials`, `cache` and referrer options do not enable a browser cookie jar,
+persistent cache or browser referrer. Requests remain bound to the caller lifetime,
+including requests with `keepalive`. CLI Serve uses browser networking and does
+not support the Lite 3.5 contract. Older Lite plugin requirements retain browser
+network behavior; use 3.5 when depending on this API.
+
+## Request and response bodies
+
+Request bodies accept strings, Blob/File, ArrayBuffer/views, URLSearchParams,
+FormData and ReadableStream. Uploads are buffered and limited to **1 MiB**, including
+stream inputs. This is not streaming upload transport.
+
+`fetch` resolves on headers. Consume `response.body` as a ReadableStream for SSE
+or large responses. The host reads on demand, with chunks of at most 16 KiB.
+`text()`, `json()`, `arrayBuffer()`, `bytes()`, `blob()` and `formData()` consume
+the body once; check `bodyUsed` or clone before consumption. QuickJS buffered
+helpers have a 16 MiB limit and remain subject to memory/CPU quotas. Use UTF-8
+`TextDecoderStream` to decode text split across network chunks.
+
+Always consume or cancel the body. Closing a View, finishing a command or stopping
+a background releases its own connections. Up to 16 concurrent network resources
+are allowed per caller; backgrounds share that budget with WebSockets. Header,
+read and idle-body waits have a 30-second deadline; active streams can last longer.
+The final-header deadline includes DNS, connections and the entire redirect chain;
+redirects do not reset it.
+
+## Errors and redirects
+
+HTTP 4xx/5xx resolve to Response objects; inspect `ok` and `status`. Network and
+permission failures reject. `AbortSignal` cancels both the initial request and
+later body reads. `redirect` supports `follow`, `error` and `manual`; manual mode
+returns an `opaqueredirect` response. Response headers are immutable. SHA-256/384/512
+integrity checks buffer and verify the response before exposing it.
+
+See [Fetch requests and streams](/plugins/services/#fetch-requests-and-streams)
+for code usable in both environments. The API follows the
+[Fetch Standard](https://fetch.spec.whatwg.org/); this Worker profile does not
+claim complete browser or Web Platform Test conformance.

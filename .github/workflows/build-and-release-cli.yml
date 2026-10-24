@@ -70,7 +70,11 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+        # The workspace includes the plugin sandbox's BlueZ backend on Linux.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libdbus-1-dev
+          cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
 
       - name: Run tests
         run: cargo test --workspace --locked --features eidos-mobile-host/ffi

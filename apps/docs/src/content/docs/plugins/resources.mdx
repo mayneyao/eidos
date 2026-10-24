@@ -1,0 +1,63 @@
+---
+title: "Embed files and table Views"
+description: "Use host previews to compose notes, images, and Eidos tables inside a plugin file View."
+---
+
+When a plugin needs to display notes, images, or Eidos tables together, Lite can render them inside containers in its interface. This guide covers host-provided resource embedding: the plugin owns the layout, while the host renders the previews.
+
+Start with an existing file View, a `notes.md` file, and a `downloads.eidos` file containing a saved View, all in the same Space. See [Page and file Views](/plugins/views/) if you need a file View first. This capability is available in Lite and requires a file binding; it cannot be used directly in an ordinary page View.
+
+## 1. Embed a file preview
+
+Declare `workspace.files.read` and require API `3.2.0`. Inside an async `mount(ctx, root)`, create a container with an explicit size and ask the host to mount a preview:
+
+```ts
+const resources = ctx.capabilities.ui.resources
+if (!resources) throw new Error("This host does not support embedded resources")
+const container = document.createElement("div")
+container.style.height = "320px"
+root.append(container)
+
+const panel = await resources.mount(container, {
+  kind: "file",
+  path: "./notes.md",
+})
+ctx.subscriptions.add(panel)
+```
+
+Put `notes.md` next to the bound file. Opening the plugin file View should show the note preview. Paths resolve relative to the bound file and must stay inside the current Space.
+
+## 2. Embed an Eidos table View
+
+For a saved View in an `.eidos` file, list the available Views and mount one:
+
+```ts
+const views = await resources.listViews("./downloads.eidos")
+const view = views.find((item) => item.kind !== "file")
+if (!view) throw new Error("No saved views")
+const panel = await resources.mount(container, {
+  kind: "eidos-view",
+  path: "./downloads.eidos",
+  tableId: view.tableId,
+  viewId: view.viewId,
+})
+ctx.subscriptions.add(panel)
+```
+
+Replace the previous `resources.mount` call with this code. For ordinary files, `listViews(path)` also lists available presentations. Pass the selected `editor` in `{ kind: "file", path, editor }`.
+
+## 3. Manage layout and cleanup
+
+Lite renders previews; the parent plugin receives no child-plugin handles. You can mount up to 12 read-only resources, without nested dashboards. Use plain rectangular containers without transforms or overlapping interactive controls.
+
+Use HTML `popover` for floating menus; Lite clips previews beneath them. During layout dragging or resizing, temporarily set `pointer-events: none` on resource containers, then restore it. Embedded Views can check `ctx.presentation?.mode === "embedded"` to simplify their own toolbar.
+
+Add mount handles to `ctx.subscriptions` for cleanup when the View closes. Call `panel.refresh()` to reload a reference.
+
+See [Manifest](/plugins/api/manifest/) for declarations and [UI](/plugins/api/ui/) for preview interfaces.
+
+## Example application: a Dashboard plugin
+
+A Dashboard plugin can store layout and resource paths in its own configuration file. It opens that file with a file View, creates containers according to the layout, and calls `resources.mount` to combine notes, images, and table previews.
+
+Layout editing, resource selection, and configuration saving belong to that plugin. File previews and table rendering are host capabilities. Other file Views can use the same embedding interface without implementing a Dashboard.

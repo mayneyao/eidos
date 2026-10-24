@@ -421,6 +421,86 @@ describe("EidosFileEntrySurface", () => {
     expect(releaseAsset).toHaveBeenCalledOnce()
   })
 
+  it("keeps every decoded cover when a file preview opens and closes", async () => {
+    const files = Array.from({ length: 3 }, (_, i) =>
+      entry(`photo-${i}`, `assets/photo-${i}.png`, `photo-${i}.png`)
+    )
+    const resolveThumbnail = vi.fn(
+      async (request: { entryId: string; size: number }) => ({
+        ...leaseFor(
+          files.find((file) => file.id === request.entryId)!,
+          "thumbnail"
+        ),
+        resourceToken: `thumbnail-${request.entryId}-${request.size}`,
+      })
+    )
+    const session = {
+      state: hostState(),
+      serviceCapabilities,
+      resolveThumbnail,
+      services: {
+        resolveAsset: vi.fn(
+          async (request: {
+            entryId: string
+            purpose: AssetLease["purpose"]
+          }) =>
+            leaseFor(
+              files.find((file) => file.id === request.entryId)!,
+              request.purpose
+            )
+        ),
+        releaseAsset: vi.fn(async () => undefined),
+      } as unknown as HostServices,
+    }
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ altText }) => <img alt={altText} />,
+      loadImage: vi.fn(
+        async () => ({ width: 128, height: 72 }) as unknown as CanvasImageSource
+      ),
+      activate: vi.fn(async () => undefined),
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider assetSession={session} assetPresenter={presenter}>
+          {files.map((file) => (
+            <EidosFileEntrySurface
+              key={file.id}
+              entry={file}
+              presentation="cover"
+            />
+          ))}
+        </EidosFileUIProvider>
+      )
+    )
+    expect(container.querySelectorAll("canvas")).toHaveLength(3)
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Preview photo-0.png"]')!
+        .click()
+    )
+    expect(
+      document.querySelector("[data-eidos-file-attachment-preview]")
+    ).toBeTruthy()
+    expect(container.querySelectorAll("canvas")).toHaveLength(3)
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[data-eidos-file-attachment-preview] [aria-label="Close"]'
+        )!
+        .click()
+    )
+    expect(container.querySelectorAll("canvas")).toHaveLength(3)
+    expect(container.querySelector(".animate-spin")).toBeNull()
+    expect(presenter.loadImage).toHaveBeenCalledTimes(3)
+    for (const file of files) {
+      expect(
+        resolveThumbnail.mock.calls.filter(
+          ([request]) => request.entryId === file.id && request.size === 512
+        )
+      ).toHaveLength(1)
+    }
+  })
+
   it("uses Host leases for relative, HTTPS, and Data thumbnails with zero direct URI fetch", async () => {
     const files = [
       entry("relative", "assets/a.png", "a.png"),

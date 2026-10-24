@@ -76,6 +76,7 @@ const bilingualFoundations = [
   "cli/publish.mdx",
   "plugins/index.mdx",
   "plugins/guide.mdx",
+  "plugins/background.mdx",
   "plugins/api.mdx",
   "specifications/index.mdx",
   "legacy/index.mdx",

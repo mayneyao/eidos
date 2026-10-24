@@ -1,22 +1,24 @@
 ## What's new
 
-### File thumbnails and video previews
+### Plugins that keep working in the background
 
-File fields can now show system-generated thumbnails for images, videos, PDFs and other supported files across Eidos tables. Thumbnails preserve their proportions and use sizes suited to lists, Gallery covers and previews. Files without a thumbnail keep their file icon, and cached images remain available as you scroll.
+Plugins can now keep a background instance running after you close their page or finish a command. Views and commands share that instance, so a connection or an ongoing task can continue without keeping a panel open.
 
-Open a video preview to see its thumbnail, then press Play to start playback. Image previews read the actual image format, including images whose filename extension does not match their contents.
+Plugins can request permission to start automatically when you open a Space and to receive file-open events. This enables tools such as an enhanced recent-file history that records visits while you work. Enable and authorize each plugin in the Space where you want it to run.
 
-### Browse Gallery as a photo album
+### Bluetooth devices and shared connections
 
-Turn on **Cover only** in a Gallery View's settings to show covers without card backgrounds, borders, titles or extra fields. Gallery fits the complete image by default while preserving an existing fitting preference. Configured covers remain visible when their fields are hidden from card details.
+Plugins can connect to BLE GATT devices through Lite's device picker and retain the connection in the background. Choose a device, then follow the connection status in the plugin. Bluetooth access requires your approval; this supports device services such as battery readings, not Bluetooth audio playback.
 
-Click a file cover to open its preview. Use the Left and Right arrow keys to browse files in the View's filtered and sorted order, and press Esc to close. The preview window stays the same size as you switch files, and videos wait for you to press Play.
+### Network access for plugins
+
+Plugin views, commands and backgrounds can use a consistent fetch API, including streamed responses and cancellation. Backgrounds can also maintain WebSocket connections shared by multiple views. Network access requires your approval and remains subject to host restrictions. Existing credential connections and network APIs remain available.
 
 ## Improvements
 
-- **File preview headers**: File type and size appear beside the title instead of taking a separate row. Right-click the sidebar title to open the file menu, including the system file-manager action; Shift+F10 also opens the menu.
-- **Calendar performance**: File-backed calendars share a scan across the displayed days, reducing repeated filesystem work when viewing a month.
+- **Record menus**: Table views share consistent record actions, with group destinations collected under a Move to submenu.
 
 ## Bug fixes
 
-- **File calendars**: Creating a Calendar View in the file manager no longer fails with “virtual tables may not be indexed.”
+- **File thumbnails**: Opening a file in its default application no longer clears the table's thumbnails during file refresh. Visible images stay in place while Lite checks for changes, and updated images replace them after loading.
+- **File menus**: When an attachment and a file action refer to the same file, the menu shows one Open with default application action.

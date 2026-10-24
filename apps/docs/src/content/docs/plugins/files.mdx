@@ -1,0 +1,126 @@
+---
+title: "Files and text"
+description: "Edit the current document, read Space files, and save file metadata."
+---
+
+After building the [text reader](/plugins/guide/), you might want a button that converts the current text to uppercase and saves it. Start with that change, then learn when to use the filesystem interface.
+
+## 1. Allow the View to edit text
+
+Add `access: "write"` to the reader's View in `plugin.json`:
+
+```json
+{
+  "id": "main",
+  "title": "Text Reader",
+  "kind": "file",
+  "entry": "./src/main.ts",
+  "capabilities": ["document"],
+  "access": "write"
+}
+```
+
+This is an entry in `views`, not a complete manifest. `document` provides the current text working copy; `write` allows changes. Keep the existing `file/open` placement.
+
+## 2. Edit, then save
+
+Replace `src/main.ts` with:
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = (ctx, root) => {
+  const textDocument = ctx.capabilities.document
+  if (!textDocument) throw new Error("Document capability required")
+  const button = document.createElement("button")
+  const status = document.createElement("p")
+  button.textContent = "Convert to uppercase and save"
+  root.append(button, status)
+
+  button.onclick = () => {
+    button.disabled = true
+    void (async () => {
+      const current = await textDocument.read()
+      const edited = await textDocument.edit({
+        text: current.text.toUpperCase(),
+        expectedVersion: current.version,
+      })
+      if (edited.status === "stale") {
+        status.textContent = "The text changed. Review it and try again."
+        return
+      }
+      const saved = await textDocument.save()
+      status.textContent =
+        saved.status === "conflict"
+          ? "The file changed on disk. Your draft is still available."
+          : "Saved."
+    })()
+      .catch((error) => {
+        status.textContent = String(error)
+      })
+      .finally(() => {
+        button.disabled = false
+      })
+  }
+}
+export default mount
+```
+
+Read the text and its version, submit an edit, then save to disk. Do not replace these steps with a direct file write: another interface may be editing the same document.
+
+## 3. Check saving and conflicts
+
+Reload the plugin and open a test `.txt` file with it. Clicking the button should uppercase the text and display **Saved.**.
+
+If the edit version is outdated, `edit` returns `stale`; the example stops before saving and asks the user to review. If the file changed on disk, `save` returns `conflict` and preserves the draft. A real editor should retain user input rather than automatically overwrite newer content. Serialize edits from continuous typing.
+
+For a live text display, keep using `document.observe` from the introductory guide. Add its subscription to `ctx.subscriptions` for cleanup. Use the document interface for undo and redo as well.
+
+## When should you use fs?
+
+Use `document` to edit the current text. Use `fs` to read other files, list directories, or play media. For example, inside an existing media file View's `mount`:
+
+```ts
+const fs = ctx.capabilities.fs
+if (!fs) throw new Error("Filesystem access required")
+const video = document.createElement("video")
+video.controls = true
+video.src = await fs.getUrl()
+root.append(video)
+```
+
+Omitting the path selects the bound file. For large media, use the streaming URL from `getUrl` instead of reading the entire file into memory. Text reads are limited to 2 MiB; binary reads and writes to 16 MiB.
+
+Default access is bounded by the file binding and its directory scope. To browse the Space, declare `workspace.files.read`. Writes also require the corresponding write permission and contribution `access: "write"`. Direct writes, deletes, or renames can return `BUSY` for managed working copies. Keep using document for current-text edits.
+
+## Save a rating or tags on a file
+
+File metadata is separate from file contents. You can rate a note without changing its Markdown. In Lite, this capability requires API `3.1.0`.
+
+Add this manifest fragment:
+
+```json
+{
+  "workspace": {
+    "files": { "read": true },
+    "filemeta": { "namespaces": ["space.eidos.meta"], "write": true }
+  }
+}
+```
+
+Set `access: "write"` on the View or Action performing the change. Inside its handler:
+
+```ts
+const filemeta = ctx.capabilities.filemeta
+if (!filemeta) throw new Error("File metadata unavailable")
+await filemeta.patch("notes/example.md", "space.eidos.meta", {
+  set: { rating: 4, tags: ["review"] },
+})
+const metadata = await filemeta.read("notes/example.md", "space.eidos.meta")
+```
+
+Create the file in your test Space first. Paths are Space-relative; without workspace file-read access, operations are restricted to the bound file. Metadata writes do not grant content writes.
+
+`patch` preserves unspecified keys. Remove a key with `remove: ["rating"]`; setting `null` retains a null-valued key. Changes reach the filesystem immediately. Reads return the complete namespace JSON, regardless of table field definitions, or an empty object when absent. The limit is 1 MiB, potentially lower on the filesystem. Invalid JSON, symlinks, and non-regular files fail. Coordinate concurrent writers.
+
+See [Document](/plugins/api/document/), [Filesystem](/plugins/api/fs/), and [File metadata](/plugins/api/filemeta/) for full parameters and errors.

@@ -62,6 +62,20 @@ Commands execute actions such as creating today's note or processing selected re
 
 A formatter receives document text and returns formatted text. Register it through `ctx.capabilities.formatters` so users can invoke it through Eidos's formatting operation.
 
+## Backgrounds: keep state after the caller closes
+
+A background is a separate Worker-style module declared with `background.entry`.
+Views and action handlers communicate with it through
+`ctx.capabilities.background`; it does not receive their binding or data capabilities.
+The extension module registers commands, while the background owns persistent
+in-memory state and connections.
+
+The host starts it on demand after approval. Closing a page releases that
+page's subscriptions, but leaves the background running. Stopping, disabling,
+updating or leaving its Space ends the run and revokes its grants.
+State and grants are not restored automatically after restart.
+See [Background tasks](/plugins/background/) for complete counter and BLE examples.
+
 ## Request access
 
 Views and actions default to `access: "read"`. Declare `access: "write"` when an operation changes data. Access to files throughout a Space also requires `workspace.files`, for example:

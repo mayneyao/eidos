@@ -1,0 +1,110 @@
+---
+title: "Page and file Views"
+description: "Choose a page or file View, declare entry points, read context, and manage the interface lifetime."
+---
+
+A View is where your plugin displays its interface. It can be a standalone page or an interface for a file the user opens. This guide starts with a page available from the sidebar, then introduces file Page and file Views.
+
+If you have not loaded a plugin before, follow [Create your first plugin](/plugins/guide/). Use the same directory structure here: `plugin.json` and `src/main.ts`.
+
+## 1. Add a standalone page
+
+Save this as `plugin.json`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.overview",
+  "name": "Overview",
+  "version": "0.1.0",
+  "requires": {
+    "pluginApi": "3.0.0"
+  },
+  "views": [
+    {
+      "id": "main",
+      "title": "Overview",
+      "kind": "page",
+      "entry": "./src/main.ts"
+    }
+  ],
+  "placements": [
+    {
+      "location": "navigation",
+      "view": "main"
+    }
+  ]
+}
+```
+
+The `views` entry declares the page; `placements` supplies its entry point. `kind: "page"` means it is independent of an open file. The `navigation` placement adds it to Lite's sidebar.
+
+Display the page in `src/main.ts`:
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = (ctx, root) => {
+  const heading = document.createElement("h1")
+  heading.textContent = "Overview"
+  root.append(heading)
+}
+export default mount
+```
+
+Load `plugin.json` in Lite's Plugin Manager and enable it for the current Space. Click **Overview** in the sidebar to see the heading. Showing an entry does not run `mount`; opening the page loads its content.
+
+The sidebar shows up to three plugin pages directly. The **…** menu contains the rest. Users can pin and reorder pages; Lite saves these choices per Space.
+
+## 2. Decide whether the View needs a file
+
+Use a page for a calendar, device panel, or tool homepage. Use a file View for a Markdown reader, image preview, or configuration editor.
+
+| Purpose                    | View declaration                                | Placement                   |
+| -------------------------- | ----------------------------------------------- | --------------------------- |
+| Standalone page            | `kind: "page"`                                  | `navigation`                |
+| Plugin settings            | `kind: "page"`                                  | `plugin/settings`           |
+| Text reader                | `kind: "file"`, `capabilities: ["document"]`    | `file/open` with extensions |
+| Custom Eidos table display | `kind: "file"`, `capabilities: ["eidos/table"]` | `table/view`                |
+
+A file View receives display information in `ctx.binding.file`; a page receives its route in `ctx.binding.route`. Check the kind first:
+
+```ts
+if (ctx.binding.kind === "file") {
+  root.textContent = ctx.binding.file.name ?? "File"
+} else {
+  root.textContent = ctx.binding.route
+}
+```
+
+Place this inside `mount`. File IDs and paths describe the current context; they do not grant access. Continue with [Files and text](/plugins/files/) for text or [Eidos table Views](/plugins/tables/) for table data.
+
+## 3. Offer a New File template
+
+Suppose your plugin already opens `.note` files. A template lets users create one through **New File** without writing the initial configuration themselves.
+
+Require API `3.2.0` and add this manifest fragment:
+
+```json
+{
+  "fileTemplates": [
+    {
+      "id": "note",
+      "title": "Note",
+      "extension": ".note",
+      "view": "main",
+      "content": "# Notes\n"
+    }
+  ]
+}
+```
+
+The referenced `main` must already be a file View with the `document` capability and a matching `.note` `file/open` placement. Content is static UTF-8 text, limited to 256 KiB. Lite creates the file and opens that View without overwriting an existing file.
+
+## 4. Manage the interface lifetime
+
+The host calls `mount(ctx, root)` when a user opens a View and ends that instance when it closes. Add subscriptions and disposable handles to `ctx.subscriptions`. After asynchronous reads, check `ctx.signal.aborted` before updating a closed interface.
+
+For timers or interface resources you create yourself, return a `dispose()` function from `mount`. Delegate connections that must survive page closure to a [background task](/plugins/background/).
+
+To display other files inside a file View, continue with [Embed files and table Views](/plugins/resources/). See [Manifest](/plugins/api/manifest/) for complete declarations.

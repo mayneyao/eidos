@@ -11,12 +11,24 @@ import type {
   ViewConfiguration,
 } from "@eidos.space/plugin-sdk"
 import type { OpenEidosFileResult, SpacePathMutationResult } from "./contracts"
+export interface BluetoothPickerState {
+  id: string
+  pluginName: string
+  pluginId: string
+  services: string[]
+  allServices?: boolean
+  networkOrigins: string[]
+  scanning: boolean
+  scanned: boolean
+  devices: { id: string; name: string | null }[]
+  error?: string
+}
 export interface PluginBinding {
   hash: string
   enabled: boolean
 }
 export interface PluginSpaceConfig {
-  plugins: Record<string, { enabled: boolean }>
+  plugins: Record<string, { enabled: boolean; backgroundApproval?: string }>
   associations: Record<string, string>
   formatters?: Record<string, string>
   explorer?: string
@@ -119,6 +131,14 @@ export interface PluginInstallTask {
   percent: number
 }
 export interface PluginApi {
+  onBluetoothPicker(
+    listener: (state: BluetoothPickerState | null) => void
+  ): () => void
+  bluetoothPickerAction(
+    id: string,
+    action: "scan" | "cancel" | "select",
+    deviceId?: string
+  ): Promise<void>
   createPluginFile(
     key: string,
     parent: string | null,
@@ -200,8 +220,12 @@ export interface PluginApi {
     request: PluginRequest
   ): Promise<PluginRpcResult>
   closePluginEditor(ticket: string): Promise<void>
+  reportFileOpened(spaceId: string, path: string): Promise<void>
 }
 export const PLUGIN_CHANNELS = {
+  fileOpened: "eidos-lite:plugins-file-opened",
+  bluetoothPicker: "eidos-lite:bluetooth-picker",
+  bluetoothPickerAction: "eidos-lite:bluetooth-picker-action",
   createFile: "eidos-lite:plugins-create-file",
   settings: "eidos-lite:plugins-settings",
   setSetting: "eidos-lite:plugins-set-setting",

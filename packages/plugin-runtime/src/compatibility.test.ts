@@ -1,6 +1,10 @@
 import { expect, it } from "vitest"
 import type { PluginManifest } from "@eidos.space/plugin-sdk"
-import { checkPluginCompatibility, pluginHostInfo } from "./compatibility"
+import {
+  checkPluginCompatibility,
+  pluginHostInfo,
+  usesWorkerFetch,
+} from "./compatibility"
 import { decodePackage, encodePackage, parsePackage } from "./package"
 
 const manifest: PluginManifest = {
@@ -19,6 +23,16 @@ const manifest: PluginManifest = {
   ],
   placements: [{ location: "table/view", view: "main" }],
 }
+it("opts into Worker fetch in API 3.5 without changing older browser consumers", () => {
+  expect(usesWorkerFetch(manifest)).toBe(false)
+  expect(
+    usesWorkerFetch({ ...manifest, requires: { pluginApi: "3.4.0" } })
+  ).toBe(false)
+  const current = { ...manifest, requires: { pluginApi: "3.5.0" } }
+  expect(usesWorkerFetch(current)).toBe(true)
+  expect(checkPluginCompatibility(current, "eidos-lite").compatible).toBe(true)
+  expect(checkPluginCompatibility(current, "eidos-cli").compatible).toBe(false)
+})
 it("limits explorer replacement and native properties to Lite", () => {
   const plugin: PluginManifest = {
     ...manifest,
@@ -50,7 +64,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.3.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.6.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],

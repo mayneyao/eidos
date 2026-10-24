@@ -8,6 +8,9 @@ import {
   RUNTIME_MUTATION_METHODS,
   type EidosLiteApi,
 } from "../shared/contracts"
+const observeAssetSession = vi.hoisted(() =>
+  vi.fn<(session: unknown) => void>()
+)
 
 vi.mock("@eidos.space/eidos-file-ui/plugins/csv-import", () => ({
   createEidosFileCsvImportPlugin: () => ({ id: "test.csv-import" }),
@@ -31,8 +34,13 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const Empty = () => null
   function SearchResultReporter({ view }: { view?: { id: string } }) {
     const navigation = actual.useEidosFileSearchNavigation()
-    const { activateUrl, markdownEditingMode, openRelationRecord } =
-      actual.useEidosFileUI()
+    const {
+      activateUrl,
+      markdownEditingMode,
+      openRelationRecord,
+      assetSession,
+    } = actual.useEidosFileUI()
+    observeAssetSession(assetSession)
     return React.createElement(
       React.Fragment,
       null,
@@ -235,6 +243,49 @@ describe("Eidos Lite Eidos File search navigation", () => {
     act(() => root.unmount())
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
+  })
+
+  it("keeps the asset session across preview navigation and revalidates it on file refresh", async () => {
+    const source = new IpcEidosFileDataSource("preview-runtime", snapshot)
+    const props = {
+      relativePath: "sample.eidos",
+      snapshot,
+      source,
+      activeTableId: "tasks",
+      disabled: false,
+      theme: "light" as const,
+      onTableSelect: vi.fn(),
+      onSnapshot: vi.fn(),
+      onError: vi.fn(),
+    }
+    await act(async () => root.render(createElement(EidosFileWorkbench, props)))
+    const original = observeAssetSession.mock.lastCall?.[0]
+    expect(original).toBeTruthy()
+    // Opening a file replaces the editor; returning reuses its cached Runtime.
+    await act(async () =>
+      root.render(createElement("div", null, "File preview"))
+    )
+    await act(async () => root.render(createElement(EidosFileWorkbench, props)))
+    expect(observeAssetSession.mock.lastCall?.[0]).toBe(original)
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, { ...props, refreshToken: 1 })
+      )
+    )
+    expect(observeAssetSession.mock.lastCall?.[0]).toBe(original)
+    expect(original).toMatchObject({ thumbnailRevision: 1 })
+    const refreshed = observeAssetSession.mock.lastCall?.[0]
+    // A different Runtime may have the same ID string after reconnecting.
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, {
+          ...props,
+          source: new IpcEidosFileDataSource("preview-runtime", snapshot),
+          refreshToken: 1,
+        })
+      )
+    )
+    expect(observeAssetSession.mock.lastCall?.[0]).not.toBe(refreshed)
   })
 
   it.each([

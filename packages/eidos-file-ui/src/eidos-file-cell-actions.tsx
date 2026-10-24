@@ -1,11 +1,24 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { GripVertical, RotateCcw } from "lucide-react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type ReactElement,
+} from "react"
+import { ChevronRight, GripVertical, RotateCcw } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import { mergeMenuOrder, orderMenuItems } from "./menu-order"
 import { SortableContainer } from "./ui/sortable"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu"
 
 export interface EidosFileCellAction {
   id: string
@@ -13,9 +26,154 @@ export interface EidosFileCellAction {
   icon: ReactNode
   group: "record" | "extension" | "destructive"
   disabled?: boolean
+  children?: () => EidosFileCellAction[]
   run(): void
 }
 const EMPTY_ORDER: readonly string[] = []
+
+function ActionSubmenu({
+  item,
+  disabled,
+  children,
+}: {
+  item: EidosFileCellAction
+  disabled: boolean
+  children: ReactElement
+}) {
+  const { translate: t } = useEidosFileUI()
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const keyboard = useRef(false)
+  const cancelClose = () => clearTimeout(timer.current)
+  const scheduleClose = () => {
+    cancelClose()
+    timer.current = setTimeout(() => setOpen(false), 150)
+  }
+  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => {
+    if (!open) setSearch("")
+  }, [open])
+  const options = open && !disabled ? (item.children?.() ?? []) : []
+  const searchable = options.length > 10
+  const query = search.trim().toLocaleLowerCase()
+  const filtered = options.filter((option) =>
+    option.title.toLocaleLowerCase().includes(query)
+  )
+  return (
+    <DropdownMenu open={open && !disabled} onOpenChange={setOpen} modal={false}>
+      <span
+        className="contents"
+        onPointerEnter={(event) => {
+          if (event.pointerType !== "mouse" || disabled) return
+          cancelClose()
+          keyboard.current = false
+          setOpen(true)
+        }}
+        onPointerLeave={scheduleClose}
+      >
+        <DropdownMenuTrigger
+          asChild
+          ref={trigger}
+          disabled={disabled}
+          onKeyDown={(event) => {
+            if (["ArrowRight", "ArrowDown", "Enter", " "].includes(event.key))
+              keyboard.current = true
+            if (event.key === "ArrowRight") {
+              cancelClose()
+              event.preventDefault()
+              event.stopPropagation()
+              setOpen(true)
+            }
+          }}
+        >
+          {children}
+        </DropdownMenuTrigger>
+      </span>
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        sideOffset={4}
+        collisionPadding={8}
+        aria-label={item.title}
+        className="flex w-56 flex-col overflow-hidden"
+        style={{
+          maxHeight:
+            "min(20rem, calc(100dvh - 1rem), var(--radix-dropdown-menu-content-available-height))",
+        }}
+        onPointerEnter={cancelClose}
+        onPointerLeave={scheduleClose}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (keyboard.current) trigger.current?.focus({ preventScroll: true })
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation()
+          if (event.key === "ArrowLeft") {
+            event.preventDefault()
+            event.stopPropagation()
+            keyboard.current = true
+            setOpen(false)
+          }
+        }}
+      >
+        {searchable ? (
+          <div className="mb-1 shrink-0 border-b pb-1">
+            <input
+              type="search"
+              aria-label={t("Search...")}
+              placeholder={t("Search...")}
+              value={search}
+              autoFocus={keyboard.current}
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-8 w-full rounded-sm bg-transparent px-2 text-xs outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+                event.preventDefault()
+                const items = event.currentTarget
+                  .closest('[role="menu"]')
+                  ?.querySelectorAll<HTMLElement>(
+                    '[role="menuitem"]:not([data-disabled])'
+                  )
+                const target =
+                  event.key === "ArrowDown"
+                    ? items?.[0]
+                    : items?.[items.length - 1]
+                target?.focus()
+              }}
+            />
+          </div>
+        ) : null}
+        <div
+          className="min-h-0 overflow-y-auto overscroll-contain"
+          data-eidos-file-submenu-options=""
+        >
+          {filtered.map((child) => (
+            <DropdownMenuItem
+              key={child.id}
+              disabled={child.disabled}
+              onSelect={child.run}
+              className="h-7 text-xs"
+            >
+              {child.icon}
+              {child.title}
+            </DropdownMenuItem>
+          ))}
+          {filtered.length === 0 ? (
+            <p
+              role="status"
+              className="px-2 py-3 text-xs text-muted-foreground"
+            >
+              {t("No results")}
+            </p>
+          ) : null}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 function ActionRow({
   item,
@@ -30,6 +188,31 @@ function ActionRow({
 }) {
   const { translate: t } = useEidosFileUI()
   const sortable = useSortable({ id: item.id, disabled: sortableDisabled })
+  const actionButton = (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={item.disabled}
+      aria-disabled={item.disabled || editing}
+      title={item.title}
+      className={cn(
+        "flex h-7 min-w-0 flex-1 items-center gap-2 rounded-[3px] px-2 text-left text-xs text-popover-foreground outline-hidden hover:bg-accent focus-visible:bg-accent disabled:opacity-45",
+        item.group === "destructive" && "text-destructive"
+      )}
+      onClick={(event) => {
+        if (!editing && !event.altKey && !item.children) item.run()
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+      >
+        {item.icon}
+      </span>
+      <span className="truncate">{item.title}</span>
+      {item.children ? <ChevronRight className="ml-auto h-3.5 w-3.5" /> : null}
+    </button>
+  )
   return (
     <div
       ref={sortable.setNodeRef}
@@ -62,31 +245,40 @@ function ActionRow({
         >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          role="menuitem"
-          disabled={item.disabled}
-          aria-disabled={item.disabled || editing}
-          title={item.title}
-          className={cn(
-            "flex h-7 min-w-0 flex-1 items-center gap-2 rounded-[3px] px-2 text-left text-xs text-popover-foreground outline-hidden hover:bg-accent focus-visible:bg-accent disabled:opacity-45",
-            item.group === "destructive" && "text-destructive"
-          )}
-          onClick={(event) => {
-            if (!editing && !event.altKey) item.run()
-          }}
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-          >
-            {item.icon}
-          </span>
-          <span className="truncate">{item.title}</span>
-        </button>
+        {item.children ? (
+          <ActionSubmenu item={item} disabled={!!item.disabled || editing}>
+            {actionButton}
+          </ActionSubmenu>
+        ) : (
+          actionButton
+        )}
       </div>
     </div>
   )
+}
+
+export function eidosFileMenuKeyDown(
+  event: ReactKeyboardEvent<HTMLDivElement>
+) {
+  if ((event.target as HTMLElement).closest("[data-menu-drag-handle]")) return
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+  event.preventDefault()
+  const items = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)'
+    )
+  )
+  if (items.length === 0) return
+  const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+  const nextIndex =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? (currentIndex + 1 + items.length) % items.length
+          : (currentIndex - 1 + items.length) % items.length
+  items[nextIndex]?.focus()
 }
 
 export function EidosFileCellActions({

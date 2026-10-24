@@ -33,6 +33,22 @@ the built-in SDK types; third-party dependencies require a matching lockfile and
 
 ## Lite development
 
+Complete background examples live in
+[`lite-background`](../plugin-sandbox/examples/lite-background/README.md) and
+[`lite-bluetooth`](../plugin-sandbox/examples/lite-bluetooth/README.md).
+They include a page, Cmd+K handlers and a separate Worker-style module.
+These are example directories, not additional `create --template` names.
+After the checkout setup above, validate them with:
+
+```sh
+node packages/plugin-tools/bin/eidos-plugin.mjs check packages/plugin-sandbox/examples/lite-background --target lite
+node packages/plugin-tools/bin/eidos-plugin.mjs check packages/plugin-sandbox/examples/lite-bluetooth --target lite
+```
+
+The public [background guide](../../apps/docs/src/content/docs/plugins/background.mdx)
+([中文](../../apps/docs/src/content/docs/zh-cn/plugins/background.mdx)) embeds the
+actual example sources so its code remains aligned with these projects.
+
 Start Lite with `pnpm dev:eidos-lite` from the root. Set
 `EIDOS_LITE_DEV_USER_DATA=/absolute/test/profile` for an isolated profile.
 Open a folder containing a CSV and load `plugin.json` or a TS/JS file with

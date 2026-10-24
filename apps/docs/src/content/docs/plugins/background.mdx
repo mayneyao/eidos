@@ -1,0 +1,404 @@
+---
+title: Plugin background instances
+description: Keep plugin state and connections in an instance independent of the UI, shared by pages, file Views, and commands.
+sidebar:
+  order: 4
+  badge:
+    text: Lite
+    variant: note
+---
+
+import PluginBackgroundExamples from "../../../components/PluginBackgroundExamples.astro"
+import { Badge } from "@astrojs/starlight/components"
+
+<Badge text="Lite" variant="note" />
+
+Plugin Views and actions have bounded lifetimes: a View is destroyed when it
+unmounts, and an action is destroyed when execution ends. They handle interface
+interactions and individual operations, but cannot host logic that must keep
+running after those entry points finish.
+
+A background provides that missing capability: an independent execution
+environment that can keep running after startup. It survives View unmounts and
+action completion, remaining alive until it is stopped.
+
+This lets a plugin keep long-lived state, WebSocket connections, or Bluetooth
+connections in its background, accessed through messages from pages, file Views,
+and commands. A connection can remain open after a View closes, and a reopened
+View can read the background's current state.
+
+For example, a Bluetooth battery plugin can let a Cmd+K command select a device,
+let the background maintain its connection and battery state, and display the
+result in a page. The page handles interaction; the background maintains device
+state. Each has its own lifetime. A plugin can also provide commands without a page.
+
+
+## Share one instance per plugin
+
+Within **one window and one Space**, a plugin has at most one running background.
+All callers in that plugin communicate with the same instance. Opening another
+file or invoking another command does not create a copy. Different windows,
+Spaces, and plugins have separate instances.
+
+```text
+Page View ────┐
+File View A ──┤            Plugin background
+File View B ──┼─ messages → In-memory state, WebSocket, Bluetooth connection
+Cmd+K action ─┘            Lives independently of individual callers
+```
+
+In-memory state is lost on stop or crash. Plugins explicitly write data to private
+storage to retain it across runs. The host does not persist memory automatically,
+provide automatic recovery, or wake backgrounds with alarms.
+
+## Example: enhanced recent files
+
+Record opening counts and last-opened times. The page displays and searches history,
+while the background collects opens after the page closes and saves changes every
+10 seconds. Require Lite plugin API **3.6.0** and declare:
+
+```json
+{
+  "requires": { "pluginApi": "3.6.0" },
+"background": { "entry": "./background.ts", "fileHistory": true, "autoStart": true },
+  "storage": { "maxBytes": 16777216 }
+}
+```
+
+Lite injects `globalThis.ctx`, typed by the SDK's `BackgroundHost`. With
+`fileHistory: true`, `ctx.events.on("file.opened", listener)` receives `{ id, path, timestamp }`
+for successful opens in the current window and Space. Paths are Space-relative;
+timestamps are Unix milliseconds. Events contain no file contents. Content reads,
+resource previews, View rerenders and failed opens do not produce events. There is
+no initial snapshot or replay of opens before startup.
+
+```ts
+import type { BackgroundHost } from "@eidos.space/plugin-sdk"
+declare const ctx: BackgroundHost
+
+const subscription = ctx.events.on("file.opened", (event) => {
+  console.log(event.path, event.timestamp)
+})
+// Dispose when no longer needed; stopping the background also releases it.
+// subscription.dispose()
+```
+
+
+See the [Host events API](/plugins/api/events/) for event fields, permissions, delivery and cleanup rules.
+
+With `storage.maxBytes`, `ctx.storage` supplies the same binary
+`list/read/write/delete` API as Views and actions. Storage is device-local and
+plugin-private, shared across Spaces. Use `ctx.spaceId` to partition Spaces and
+`ctx.instanceId` to identify a run. Multiple windows must avoid overwriting the
+same keys; a read followed by a write is not a transaction.
+
+Recent History is maintained as an independent plugin in
+`eidos-plugins/eidos-recent-history-plugin`.
+Load its `plugin.json`, enable it, and use Cmd+K:
+
+- **最近打开：打开面板**: search paths, inspect counts, and reopen files.
+
+The panel automatically connects to the background, starting it if needed. Recording
+is automatic, with no start/stop controls. Disable the plugin to stop recording.
+Close the panel, open other files, and reopen the panel. Its instance ID stays
+the same and counts keep increasing. Failed saves remain pending and retry on the
+next interval. Crashes or Space closure may lose unsaved events. After approval,
+recording starts whenever this Space opens. `background.isRunning()` checks the current
+run without starting it or requesting permission.
+
+## Declare the background entry
+
+Minimum plugin API version: `3.4.0`.
+
+Add `background` to `plugin.json`, pointing to a separate module. This is a
+manifest fragment:
+
+```json
+{
+  "requires": { "pluginApi": "3.4.0" },
+  "background": { "entry": "./background.ts" }
+}
+```
+
+`background.ts` holds shared state and handles messages. Declare page and file
+Views through `views` and register commands in `extension` as usual. They access
+the instance through `ctx.capabilities.background`.
+
+## Start and stop the instance
+
+With plugin API 3.6, declare `background.autoStart: true` to start when the plugin
+is enabled or its Space opens. Lite asks for approval and remembers it for this
+Space and exact package revision. Updates require renewed approval; disabling
+revokes approval. Installation alone does not start a disabled plugin.
+
+Startup runs once per Space opening. Stopping or crashing does not trigger a
+retry loop; use a command to resume, or reopen the Space. Lite does not run
+backgrounds while closed or restore memory. Bluetooth still requires device selection.
+
+By default, installing or enabling a plugin does not start its instance. The first call to
+`start()`, `request()`, `postMessage()`, or `onMessage()` from a View or command
+requests host approval and starts it on demand. If it is already running, these
+calls reuse it. `requestDevice()` uses a separate device approval flow and replaces
+the previous run.
+
+To let users decide when to connect to a device or service, make startup calls
+inside a button or command handler. `onMessage()` can also start the background;
+it is not a passive status query.
+
+| Event                                      | Result                                                            |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| Close a page or finish an action           | Release that caller's requests/subscriptions; keep the background |
+| Cancel pending device selection            | Grant nothing; preserve the previous run                          |
+| Confirm a device                           | Replace the run and its device grant                              |
+| `stop()`, disable, uninstall or update     | Stop the background and release connections                       |
+| Switch/close the Space or close its window | Stop that scope's background                                      |
+| Exit Lite                                  | Stop all backgrounds                                              |
+
+Development source reloads also revoke the old run. Reopen or invoke an entry
+point to request a new run. State is not restored after restart or a crash.
+Timer callbacks run only while the process is alive; they are not durable
+scheduled tasks or alarms that wake Lite.
+
+## Exchange messages
+
+`ctx.capabilities.background` is available to Views and action handlers.
+Register commands through `ExtensionContext.capabilities.actions`; use the
+background capability on the **action context** supplied to the handler.
+
+```ts
+const result = await ctx.capabilities.background!.request({
+  command: "increment",
+})
+```
+
+`request(data)` sends `{ requestId, data }`. The worker replies with the same
+`requestId` and places its result in `data`:
+
+```ts
+globalThis.onmessage = (event: MessageEvent) => {
+  const { requestId, data } = event.data
+  postMessage({ requestId, data: { received: data } })
+}
+export {}
+```
+
+This request/reply envelope is an Eidos host convention. For raw messages use
+`postMessage(data)` and `await onMessage(listener)`. Messages must be JSON;
+encode binary data explicitly. Application errors can be returned as data,
+for example `{ ok: false, error: "Device unavailable" }`; inspect that result.
+The request Promise rejects on host errors, cancellation, exit or timeout.
+
+Await replies before returning from an action. Its pending requests and
+subscriptions end with the action. View subscriptions end when that View
+closes, while the background continues running. A subscription belongs to
+one run: recreate it after a stop, device replacement or update.
+
+## Example: share a counter between a page and Cmd+K
+
+Create a directory containing the following four files. The code shown here
+comes directly from the runnable `packages/plugin-sandbox/examples/lite-background`
+example in the repository.
+
+<PluginBackgroundExamples kind="counter" />
+
+In a Lite build supporting API 3.4.0:
+
+1. Open a test Space and choose **Plugin Manager → Load development source…**.
+2. Select the directory's `plugin.json` and enable the plugin.
+3. Open **Background Counter** from navigation and approve startup.
+4. Click **Increment**, then close the page.
+5. Run **Increment background counter** from Cmd+K.
+6. Reopen the page. The count includes the command's increment.
+7. Run **Stop background counter**. The next start asks for permission again
+   and begins with fresh in-memory state.
+
+To run the example from the Eidos repository, start Lite with
+`pnpm dev:eidos-lite` at the repository root. This prepares the native
+sandbox executable. Use the current source-built plugin tools and SDK when
+checking a feature not yet present in your installed tools.
+
+## Allow a network connection
+
+Declare `network: true` in `background` to request public HTTPS/WSS access:
+
+```json
+{ "entry": "./background.ts", "network": true }
+```
+
+Optionally add `networkOrigins` to restrict destinations. A whitelist alone also works:
+
+```json
+{
+  "entry": "./background.ts",
+  "networkOrigins": ["https://api.example.com", "wss://events.example.com"]
+}
+```
+
+The approval dialog describes public access or lists the restricted origins.
+When both fields are present, the whitelist takes precedence. An empty list denies
+all destinations; omitting both fields grants no network access. Browser
+`browser.networkOrigins` grants do not authorize background access.
+Private addresses are not granted in normal runs; the local development example
+below requires a separate exact loopback grant. Redirects remain subject to the
+sandbox network policy. Replace example origins with your actual service.
+
+In the background module:
+
+```ts
+const socket = new WebSocket("wss://events.example.com")
+socket.onmessage = (event) => {
+  postMessage({ type: "server-message", data: String(event.data) })
+}
+socket.onclose = () => postMessage({ type: "connection-closed" })
+socket.onerror = () => postMessage({ type: "connection-error" })
+```
+
+Use `fetch("https://api.example.com/status")` for an HTTP request.
+Views and ordinary commands requiring Lite API 3.5 use the same
+[Worker-style fetch interface](/plugins/api/fetch/), including forms, response
+streams and cancellation, with independent origin declarations.
+A network grant does not provide an authenticated Eidos connection or account
+credentials. The host does not automatically reconnect a failed socket.
+
+## Example: choose and connect a BLE battery device
+
+Use a BLE peripheral exposing Battery Service (`0x180F`) and Battery Level
+(`0x2A19`). This example reads its battery level and subscribes when
+notifications are supported. BLE GATT does not route audio to Bluetooth speakers.
+
+Create another plugin directory with these five files. They are the runnable
+`packages/plugin-sandbox/examples/lite-bluetooth` example. The local types
+describe the Web Bluetooth-style subset used by the worker.
+
+<PluginBackgroundExamples kind="bluetooth" />
+
+1. Load its `plugin.json` through Plugin Manager and enable it.
+2. Open **Bluetooth Battery → 选择设备** (Choose device), or run
+   **蓝牙电量：选择并连接设备** in Cmd+K.
+3. Lite's device picker scans automatically when opened; allow operating-system Bluetooth access if prompted.
+   Put the peripheral into advertising mode.
+4. Select a device row and click **Connect** to authorize that device. You can scan again or cancel in the same picker.
+5. Lite starts a fresh background with that device's grant. The page or action
+   sends a connect message; the worker calls `getDevices()` and `gatt.connect()`.
+6. The page shows connection, service discovery, and battery-reading progress.
+   Success appears only after the battery read succeeds; failures retain the device
+   and offer retry or device selection. Cancel an in-flight connection to stop the
+   background. A disconnect hides the old battery value.
+   Close the page. Use **蓝牙电量：查看连接与电量** from Cmd+K to inspect the
+   retained connection. Reopen the page and click **恢复后台状态** (Resume background status)
+   to subscribe to the current run.
+7. Run **蓝牙电量：断开并停止后台** to end the process and revoke its grant.
+
+The example uses `"bluetooth": true`, allowing reads, writes and notifications on
+the user-selected device's GATT characteristics. Its code still only reads and
+subscribes to battery level, and the device must provide Battery Service.
+The manifest cannot supply device IDs. Only the selected device is returned by background
+`navigator.bluetooth.getDevices()`. The worker cannot open its own picker:
+`navigator.bluetooth.requestDevice()` is unavailable there.
+
+A service whitelist is an optional restriction. For example, to allow only Battery Service:
+
+```json
+{ "bluetooth": { "services": [{ "uuid": "battery_service" }] } }
+```
+
+Omitting operation fields allows the service's supported reads, writes and notifications.
+To narrow access further, declare `"read": true, "notify": true`. If any operation
+field is present, omitted operations are denied. Unsupported device operations still fail.
+
+Cancelling selection preserves the current run. Confirming a device replaces
+it, resetting memory and disconnecting the previous device. Other pages must
+resubscribe. If the new connection fails, the old one is not restored.
+Names and advertisements are not cryptographic proof of device identity, and
+an advertisement does not guarantee that a service is available.
+
+Grants are per run and are not persisted. A normal `start()` never grants
+Bluetooth. Device loss emits `gattserverdisconnected`; the example reports
+the loss without silently reconnecting.
+
+## File Views sharing a WebSocket
+
+**WebSocket Workbench** uses `.wsreq` text files as saved request fixtures.
+Load `packages/plugin-sandbox/examples/lite-file-websocket` as a development plugin,
+copy its `samples/*.wsreq` into your Space, and open both with this View.
+Click **Send sample** and approve the host's network permission dialog.
+
+Run the included Python server and the development host in separate terminals:
+
+```sh
+python3 packages/plugin-sandbox/examples/lite-file-websocket/server.py
+EIDOS_LITE_DEV_BACKGROUND_ORIGIN=ws://127.0.0.1:8787 pnpm dev:eidos-lite
+```
+
+Python uses only its standard library and listens on loopback. Opening a file sends
+nothing; Send reads the current document and sends its text without the path.
+The development grant must match the exact literal `127.0.0.1` origin and port,
+cannot be mixed with other origins, and still requires the host's permission dialog.
+Packaged Lite ignores this environment variable. For production, change both the
+background endpoint and manifest origin to public WSS; private addresses remain denied.
+The server must echo `{ id, text }` unchanged. The Python server supports this
+example's unfragmented text frames and is not a production WebSocket server.
+
+```text
+File A ─┐                                      ┌─ reply to A
+        ├─ background.request → one WebSocket ──┤
+File B ─┘                                      └─ reply to B
+```
+
+The background is shared within one window, Space and plugin. Concurrent connects
+share a promise; separate wire IDs map out-of-order echoes to host request IDs.
+`background.request()` returns each response to its caller, so no broadcast
+subscription or session API is needed. This routing is not a security boundary
+between Views of the same plugin.
+
+The connection card explicitly labels a newly created or reused socket, with its
+message number, connection ID and creation time. It describes the last successful
+response, rather than continuously monitoring connection health.
+Both responses show the same `connection` ID. Close one file and send the other:
+the ID stays the same while the server keeps the socket alive. Closing a View does
+not call `stop()`. CmdK's **WebSocket Workbench: stop shared connection** stops it
+for all Views; the next Send starts a fresh run. Server disconnects fail pending
+requests; later sends reconnect without replaying messages. Connection and echo
+timeouts are each eight seconds, with 16,000 characters per sample and 32 pending requests.
+
+<PluginBackgroundExamples kind="file-websocket" />
+
+## Runtime environment and limits
+
+The module runs in a Rust + QuickJS process with Worker-style messages, timers,
+`fetch` and `WebSocket`. It has no DOM, Node module loader, Electron access,
+filesystem API or Eidos data capabilities. Network and device access require
+explicit host grants. This is capability isolation, not an operating-system sandbox.
+
+The host checks Space authorization on every request and polls it at 500 ms
+intervals. A run has a 64 MiB JavaScript heap and a 100 ms execution budget per
+turn. Message requests have a 30-second deadline, with at most 64 pending
+requests per process and 16 backgrounds per application. Device selection
+has a five-minute deadline. Initial background approval also has a five-minute
+deadline and is excluded from the command's normal execution budget. Stopping,
+revoking, or closing the initiating caller cancels pending startup; a late
+confirmation cannot start that cancelled run. Closing a caller after startup
+does not stop the background.
+
+Messages and logs have no lifetime byte ceiling. Individual output frames are
+limited to 1 MiB. Each one-second output window permits 16 MiB of messages;
+exceeding this message rate terminates the run. Logs have a separate 1 MiB window;
+excess logs are dropped without terminating the run. The Node SDK additionally
+limits each output pipe to 32 MiB per second and bounds individual frames.
+Long work should yield between bounded steps.
+
+## Verify your plugin
+
+Test page close/reopen, commands without an open page, cancellation, permission
+denial, stop/restart, update, and Space switching. For BLE, also test duplicate
+device names, unsupported services, device loss, and choosing a replacement.
+Confirm that denied device IDs and undeclared services remain inaccessible.
+
+Native scanning requires a working BLE adapter and OS permission; Linux also
+requires BlueZ and D-Bus. Automated tests use a real QuickJS process with an
+explicit mock BLE backend. They do not establish real-device or signed-package
+permission acceptance. Check those on each platform you distribute.
+
+Use [development and distribution](/plugins/workflow/) to check and package
+the plugin. Exact manifest fields and methods are in the
+[API reference](/plugins/api/background/).

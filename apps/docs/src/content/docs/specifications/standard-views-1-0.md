@@ -190,20 +190,23 @@ most two decimal places for display.
 
 Gallery and Kanban share these keys:
 
-| Key               | Type                   | Read default | Meaning                                                            |
-| ----------------- | ---------------------- | ------------ | ------------------------------------------------------------------ |
-| `cardFields`      | unique Field-ID array  | `[]`         | ordered secondary card Fields; Record Label is always the title    |
-| `coverField`      | Field ID or `null`     | `null`       | File Field or image-display URL-capable scalar Field used as cover |
-| `coverFit`        | `cover\|contain`       | `cover`      | semantic cover fitting hint                                        |
-| `cardSize`        | `small\|medium\|large` | `medium`     | semantic card-size hint                                            |
-| `hideEmptyFields` | boolean                | `true`       | omit configured secondary Field when its logical value is empty    |
+| Key               | Type                   | Read default                        | Meaning                                                            |
+| ----------------- | ---------------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| `cardFields`      | unique Field-ID array  | `[]`                                | ordered secondary card Fields; Record Label is always the title    |
+| `coverField`      | Field ID or `null`     | `null`                              | File Field or image-display URL-capable scalar Field used as cover |
+| `coverFit`        | `cover\|contain`       | Gallery: `contain`; Kanban: `cover` | semantic cover fitting hint                                        |
+| `cardSize`        | `small\|medium\|large` | `medium`                            | semantic card-size hint                                            |
+| `hideEmptyFields` | boolean                | `true`                              | omit configured secondary Field when its logical value is empty    |
 
 `cardFields` is secondary content and the Table Record Label is the card
 title. A `cardFields` member also present in `hiddenFields` is omitted.
 
+Gallery defaults `coverFit` to `contain` (fit the complete image); Kanban defaults
+to `cover`. An explicit fitting preference, including legacy `fitContent`, is retained.
+
 A `coverField` is eligible when it is a File Field, or a scalar URL Field or
 scalar URL Formula/Lookup result whose Field settings declare
-`display.kind="image"`. Missing, hidden, ineligible, NULL, empty, denied, or
+`display.kind="image"`. Missing, ineligible, NULL, empty, denied, or
 unresolved cover values yield a non-persisted placeholder. Eligible URL covers
 follow Eidos UI 1.0 image-display rules and never convert the URL into a File
 entry.
@@ -218,8 +221,19 @@ members.
 ## 6. Gallery
 
 Gallery uses the common Field layout in Section 3.2 and the shared card layout
-in Section 5. It adds no version 1 layout key. Gallery remains interactive
-through bounded Runtime pages and MUST NOT materialize the entire row set.
+in Section 5. `cardDisplay` is `standard` (default) or `cover-only`. In
+`cover-only`, Gallery renders only the configured cover, with no card border,
+title, secondary Fields or action overlay. Cover controls retain accessible
+labels. Activating a File cover opens the Host-backed file preview, including
+explicit playback for videos; a cover without a File entry opens the Record.
+Cover fitting
+and card size continue to apply. Missing covers use the shared placeholder rules.
+Changing display mode preserves all card configuration. The configured cover
+remains independent of secondary-field visibility. Left/Right arrows navigate
+File previews in the current filtered/sorted Gallery order; Esc closes the preview.
+Navigation continues across bounded pages. Gallery remains interactive through
+bounded Runtime pages and MUST NOT materialize the entire
+row set; cover-only pages SHOULD omit secondary Fields from their projection.
 
 ## 7. Kanban
 
@@ -508,11 +522,15 @@ parsed `layout`. The envelope is not stored. UTF-8 byte limits and duplicate
           "default": {}
         },
         "cardFields": { "$ref": "#/$defs/fieldIdArray", "default": [] },
+        "cardDisplay": {
+          "enum": ["standard", "cover-only"],
+          "default": "standard"
+        },
         "coverField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
         },
-        "coverFit": { "enum": ["cover", "contain"], "default": "cover" },
+        "coverFit": { "enum": ["cover", "contain"] },
         "cardSize": {
           "enum": ["small", "medium", "large"],
           "default": "medium"

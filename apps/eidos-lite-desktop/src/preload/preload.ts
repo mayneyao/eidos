@@ -23,6 +23,22 @@ import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
+  onBluetoothPicker: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      state: import("../shared/plugins").BluetoothPickerState | null
+    ) => listener(state)
+    ipcRenderer.on(PLUGIN_CHANNELS.bluetoothPicker, handler)
+    return () =>
+      ipcRenderer.removeListener(PLUGIN_CHANNELS.bluetoothPicker, handler)
+  },
+  bluetoothPickerAction: (id, action, deviceId) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.bluetoothPickerAction,
+      id,
+      action,
+      deviceId
+    ),
   getSparkStatus: (refresh) =>
     ipcRenderer.invoke(IPC_CHANNELS.sparkStatus, refresh),
   activateSpark: (licenseId) =>
@@ -113,6 +129,8 @@ const api: EidosLiteApi = {
   setPluginDefault: (extension, editor) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
   pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),
+  reportFileOpened: (spaceId, path) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.fileOpened, spaceId, path),
   openPluginEditor: (path, explicit, draft) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.open, path, explicit, draft),
   onPluginEvent: (listener) => {

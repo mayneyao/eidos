@@ -207,6 +207,11 @@ describe("Eidos Lite package identity", () => {
     expect(builder.asarUnpack).toContain("**/node_modules/node-pty/**/*")
     expect(builder.extraResources).toEqual([
       {
+        from: "resources/plugin-sandbox",
+        to: "plugin-sandbox",
+        filter: ["**/*"],
+      },
+      {
         from: "node_modules/typescript/lib",
         to: "app.asar.unpacked/node_modules/typescript/lib",
         filter: ["*.d.ts"],
@@ -240,7 +245,7 @@ describe("Eidos Lite package identity", () => {
       expect(scripts[scriptName]).toContain("prepare:plugin-compiler")
     }
     expect(scripts["prepare:plugin-compiler"]).toBe(
-      "pnpm --filter @eidos.space/eidos-file build"
+      "pnpm --filter @eidos.space/eidos-file build && node scripts/prepare-plugin-sandbox.mjs"
     )
     for (const scriptName of [
       "package:dir",

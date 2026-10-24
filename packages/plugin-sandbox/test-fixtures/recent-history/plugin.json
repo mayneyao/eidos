@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "id": "example.recent-history",
+  "name": "最近打开",
+  "description": "在后台记录文件打开次数和最近打开时间，每 10 秒保存。",
+  "version": "1.0.0",
+  "requires": { "pluginApi": "3.6.0" },
+  "background": {
+    "entry": "./background.ts",
+    "fileHistory": true,
+    "autoStart": true
+  },
+  "storage": { "maxBytes": 16777216 },
+  "extension": "./extension.ts",
+  "views": [
+    {
+      "id": "history",
+      "title": "最近打开",
+      "kind": "page",
+      "entry": "./page.ts"
+    }
+  ],
+  "actions": [
+    { "id": "open", "title": "最近打开：打开面板", "context": "workspace" }
+  ],
+  "placements": [
+    { "location": "navigation", "view": "history" },
+    { "location": "command-palette", "action": "open" }
+  ]
+}

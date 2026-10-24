@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type AriaRole,
+  type ReactElement,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react"
@@ -37,6 +38,7 @@ import {
 } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
+import { EidosFileRecordContextMenu } from "./eidos-file-record-actions"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -390,12 +392,57 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     []
   )
 
+  const entry =
+    layout.coverField?.type === "file"
+      ? decodeEidosFileValues(row[layout.coverField.tableColumnName]).at(0)
+      : undefined
+  const withContextMenu = (card: ReactElement) => (
+    <EidosFileRecordContextMenu
+      row={row}
+      onOpen={onOpen}
+      onDelete={onDelete}
+      extraActions={() => [
+        ...(entry && onPreviewFile
+          ? [
+              {
+                id: "view/preview-file",
+                title: t("Preview"),
+                icon: <Eye className="h-3.5 w-3.5" />,
+                group: "record" as const,
+                run: () => onPreviewFile(row, entry),
+              },
+            ]
+          : []),
+        ...(onMove && moveOptions?.length
+          ? [
+              {
+                id: "view/move",
+                title: t("Move to"),
+                icon: <MoveRight className="h-3.5 w-3.5" />,
+                group: "record" as const,
+                disabled: moveDisabled,
+                run: () => {},
+                children: () =>
+                  moveOptions.map((option) => ({
+                    id: `view/move/${option.id}`,
+                    title: option.label,
+                    icon: null,
+                    group: "record" as const,
+                    disabled:
+                      option.disabled || option.id === disabledMoveOptionId,
+                    run: () => onMove(row, option.id),
+                  })),
+              },
+            ]
+          : []),
+      ]}
+    >
+      {card}
+    </EidosFileRecordContextMenu>
+  )
+
   if (view.type === "gallery" && layout.coverOnly) {
-    const entry =
-      layout.coverField?.type === "file"
-        ? decodeEidosFileValues(row[layout.coverField.tableColumnName]).at(0)
-        : undefined
-    return (
+    return withContextMenu(
       <article
         role={role}
         aria-posinset={role === "listitem" ? positionInSet : undefined}
@@ -634,7 +681,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
 
   return (
     <>
-      {card}
+      {withContextMenu(card)}
       {mobile && (
         <Dialog.Root open={actionsOpen} onOpenChange={setActionsOpen}>
           <Dialog.Portal>

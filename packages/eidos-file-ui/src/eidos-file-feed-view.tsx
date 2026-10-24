@@ -34,6 +34,9 @@ import {
   eidosFileRecordTitle,
 } from "./eidos-file-record-format"
 
+import { EidosFileRecordContextMenu } from "./eidos-file-record-actions"
+import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
+
 const FEED_PAGE_SIZE = 30
 const FEED_CONTENT_MAX_HEIGHT = 384
 
@@ -96,6 +99,7 @@ function EidosFileFeedEntry({
   fields,
   focused,
   onOpen,
+  onDelete,
   onError,
 }: {
   row: EidosFileRow
@@ -108,6 +112,7 @@ function EidosFileFeedEntry({
   }
   focused: boolean
   onOpen?: (row: EidosFileRow) => void
+  onDelete?: (row: EidosFileRow) => void
   onError?: (error: unknown) => void
 }) {
   const { timeZone, translate: t } = useEidosFileUI()
@@ -153,65 +158,75 @@ function EidosFileFeedEntry({
   }
 
   return (
-    <article
-      role="article"
-      aria-posinset={positionInSet}
-      aria-setsize={setSize}
-      aria-current={focused ? "true" : undefined}
-      data-eidos-file-feed-row={String(row._id)}
-      className={cn(
-        "group/feed-entry relative min-w-0 cursor-pointer rounded-lg border bg-card px-4 py-3 text-card-foreground shadow-xs outline-hidden transition-[border-color,box-shadow] hover:border-border hover:shadow-sm",
-        focused
-          ? "border-ring ring-2 ring-ring/45"
-          : "border-border/50 focus-visible:ring-2 focus-visible:ring-ring"
-      )}
-      onClick={open}
+    <EidosFileRecordContextMenu
+      row={row}
+      onOpen={onOpen}
+      onDelete={onDelete}
+      onError={onError}
     >
-      <div className="flex items-baseline gap-3">
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-6">
-          {title === "Empty" ? t("Untitled") : title}
-        </h2>
-        {displayDate && dateRaw ? (
-          <EidosFileRelativeTime value={dateRaw} title={displayDate} />
-        ) : null}
-      </div>
-      {contentMarkdown ? (
-        <div className="mt-2">
-          <div
-            className={cn("relative", !expanded && "max-h-96 overflow-hidden")}
-          >
-            <div ref={contentRef} data-eidos-file-feed-content="">
-              <EidosFileMarkdownPreview
-                markdown={contentMarkdown}
-                className="text-[14px] leading-6"
-                onError={onError}
-              />
-            </div>
-            {!expanded && overflowing ? (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card to-transparent"
-              />
-            ) : null}
-          </div>
-          {overflowing && !expanded ? (
-            <div className="mt-1 flex justify-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                aria-expanded={false}
-                onClick={() => setExpanded(true)}
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-                {t("See more")}
-              </Button>
-            </div>
+      <article
+        role="article"
+        aria-posinset={positionInSet}
+        aria-setsize={setSize}
+        aria-current={focused ? "true" : undefined}
+        data-eidos-file-feed-row={String(row._id)}
+        className={cn(
+          "group/feed-entry relative min-w-0 cursor-pointer rounded-lg border bg-card px-4 py-3 text-card-foreground shadow-xs outline-hidden transition-[border-color,box-shadow] hover:border-border hover:shadow-sm",
+          focused
+            ? "border-ring ring-2 ring-ring/45"
+            : "border-border/50 focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+        onClick={open}
+      >
+        <div className="flex items-baseline gap-3">
+          <h2 className="min-w-0 flex-1 truncate text-base font-semibold leading-6">
+            {title === "Empty" ? t("Untitled") : title}
+          </h2>
+          {displayDate && dateRaw ? (
+            <EidosFileRelativeTime value={dateRaw} title={displayDate} />
           ) : null}
         </div>
-      ) : null}
-    </article>
+        {contentMarkdown ? (
+          <div className="mt-2">
+            <div
+              className={cn(
+                "relative",
+                !expanded && "max-h-96 overflow-hidden"
+              )}
+            >
+              <div ref={contentRef} data-eidos-file-feed-content="">
+                <EidosFileMarkdownPreview
+                  markdown={contentMarkdown}
+                  className="text-[14px] leading-6"
+                  onError={onError}
+                />
+              </div>
+              {!expanded && overflowing ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card to-transparent"
+                />
+              ) : null}
+            </div>
+            {overflowing && !expanded ? (
+              <div className="mt-1 flex justify-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  aria-expanded={false}
+                  onClick={() => setExpanded(true)}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  {t("See more")}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </article>
+    </EidosFileRecordContextMenu>
   )
 }
 
@@ -223,6 +238,7 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
   searchResultIndex = null,
   loadPage,
   onOpenRecord,
+  onDeleteRow,
   onRowCountChange,
   onError,
   sidePanel,
@@ -239,11 +255,13 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
     cursor?: string
   ) => Promise<EidosFileRowPage>
   onOpenRecord?: (row: EidosFileRow) => void
+  onDeleteRow?: (row: EidosFileRow) => Promise<void>
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
   const { translate: t } = useEidosFileUI()
+  const [deleteRow, setDeleteRow] = useState<EidosFileRow | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const generationRef = useRef(0)
   const [rows, setRows] = useState<EidosFileRow[]>([])
@@ -395,7 +413,8 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
                   setSize={total}
                   fields={fields}
                   focused={focusedRowId === String(row._id)}
-                  onOpen={disabled ? undefined : onOpenRecord}
+                  onOpen={onOpenRecord}
+                  onDelete={!disabled && onDeleteRow ? setDeleteRow : undefined}
                   onError={onError}
                 />
               ))}
@@ -446,6 +465,22 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
           </div>
         )}
       </div>
+      {onDeleteRow ? (
+        <EidosFileRecordDeleteDialog
+          row={deleteRow}
+          fields={table.fields}
+          disabled={disabled}
+          onOpenChange={(open) => {
+            if (!open) setDeleteRow(null)
+          }}
+          onDelete={async (row) => {
+            if (disabled) return
+            await onDeleteRow(row)
+            await requestPage(0, "replace")
+          }}
+          onError={onError}
+        />
+      ) : null}
       {sidePanel}
     </div>
   )

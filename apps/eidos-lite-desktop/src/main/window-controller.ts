@@ -541,6 +541,8 @@ export class WindowController {
   private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
   private readonly detachSpaceListeners = new Map<number, () => void>()
   onSpaceReleased: (ownerId: number) => void = () => {}
+  pluginSpaceOpened?: (ownerId: number, spaceId: string) => Promise<void>
+  pluginSpaceClosed?: (ownerId: number) => void
   fileHookRunner?: (
     session: SpaceSession,
     event: FileHookEvent
@@ -1424,6 +1426,7 @@ export class WindowController {
       this.windowBySpaceId.delete(previous.canonical.id)
       this.clearPendingLaunchFiles(webContents.id)
       this.onSpaceReleased(webContents.id)
+      this.pluginSpaceClosed?.(webContents.id)
     }
     this.sessionByWebContents.set(webContents.id, session)
     session.fileHookRunner = (event) =>
@@ -1462,6 +1465,7 @@ export class WindowController {
     window.setTitle(`${session.canonical.name} — Eidos Lite`)
     const onClosed = () => {
       if (this.sessionByWebContents.get(webContents.id) !== session) return
+      this.pluginSpaceClosed?.(webContents.id)
       this.detachSpaceListeners.get(webContents.id)?.()
       this.sessionByWebContents.delete(webContents.id)
       this.clearPendingLaunchFiles(webContents.id)
@@ -1479,6 +1483,10 @@ export class WindowController {
       window.removeListener("closed", onClosed)
       this.detachSpaceListeners.delete(webContents.id)
     })
+    await this.pluginSpaceOpened?.(webContents.id, session.canonical.id).catch(
+      (error: unknown) =>
+        console.warn("Could not initialize plugin backgrounds", error)
+    )
     await this.recentSpaces()
       .record(session.canonical)
       .catch((error) => {

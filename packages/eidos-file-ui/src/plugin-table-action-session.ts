@@ -29,8 +29,20 @@ export class TableActionSession {
   ) {}
   async capture(
     query: EidosFileRowQuery,
-    ranges: readonly EidosFileRowRange[] | null
+    ranges: readonly EidosFileRowRange[] | null,
+    rowId?: string
   ) {
+    // Card/calendar rows have stable IDs but no index in the Grid query.
+    // Validate that ID through the same table-scoped Runtime read boundary.
+    if (ranges === null && rowId !== undefined) {
+      if (!this.source.getRow)
+        throw new Error("This host does not support table actions")
+      this.controller.signal.throwIfAborted()
+      const row = await this.source.getRow(this.tableId, rowId)
+      this.controller.signal.throwIfAborted()
+      this.ids = row?._id === rowId ? [rowId] : []
+      return
+    }
     if (!this.source.captureTableActionTarget)
       throw new Error("This host does not support table actions")
     this.ids = await this.source.captureTableActionTarget(

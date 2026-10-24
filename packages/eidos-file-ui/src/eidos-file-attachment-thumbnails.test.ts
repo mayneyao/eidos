@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { AssetPresenter, EidosFileUIAssetSession } from "./context"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
+import { sharedEidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
 
 const serviceCapabilities: HostServiceCapabilities = {
   canOpenSource: true,
@@ -75,6 +76,120 @@ function lease(): AssetLease {
 }
 
 describe("EidosFileAttachmentThumbnailManager", () => {
+  it("releases offscreen failed subscriptions at the Grid cache limit", async () => {
+    let fail: (cause: Error) => void = () => undefined
+    const session = {
+      services: {
+        resolveAsset: vi.fn(
+          () =>
+            new Promise<AssetLease>((_, reject) => {
+              fail = reject
+            })
+        ),
+        releaseAsset: vi.fn(async () => undefined),
+      } as unknown as HostServices,
+      serviceCapabilities,
+      state: hostState(),
+    }
+    const presenter = {
+      loadImage: vi.fn(),
+    } as unknown as AssetPresenter<unknown>
+    const cache = sharedEidosFileAttachmentSourceCache(session, presenter, 128)!
+    const subscribe = cache.subscribe.bind(cache)
+    const released = vi.fn()
+    vi.spyOn(cache, "subscribe").mockImplementation((entry, listener) => {
+      const stop = subscribe(entry, listener)
+      return () => {
+        released()
+        stop()
+      }
+    })
+    const manager = new EidosFileAttachmentThumbnailManager(
+      session,
+      presenter,
+      vi.fn(),
+      { entriesMax: 0 },
+      cache
+    )
+    manager.prepare([entry], 0, 0)
+    manager.retainVisibleRows(100, 10)
+    fail(new Error("Unavailable"))
+    await vi.waitFor(() => expect(released).toHaveBeenCalledOnce())
+    manager.clear()
+    cache.clear()
+  })
+  it.each([false, true])(
+    "retains shared decoded or in-flight work across Grid remounts (pending: %s)",
+    async (pending) => {
+      let finish: (value: AssetLease) => void = () => undefined
+      const resolveAsset = vi.fn(
+        () =>
+          new Promise<AssetLease>((resolve) => {
+            finish = resolve
+          })
+      )
+      const session = {
+        services: {
+          resolveAsset,
+          releaseAsset: vi.fn(async () => undefined),
+        } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+      }
+      const close = vi.fn()
+      const source = {
+        width: 128,
+        height: 72,
+        close,
+      } as unknown as CanvasImageSource
+      const presenter = {
+        loadImage: vi.fn(async () => source),
+      } as unknown as AssetPresenter<unknown>
+      const cache = sharedEidosFileAttachmentSourceCache(
+        session,
+        presenter,
+        128
+      )!
+      const firstReady = vi.fn()
+      const first = new EidosFileAttachmentThumbnailManager(
+        session,
+        presenter,
+        firstReady,
+        undefined,
+        cache
+      )
+      first.prepare([entry], 0, 0)
+      if (!pending) {
+        finish(lease())
+        await vi.waitFor(() => expect(firstReady).toHaveBeenCalledOnce())
+      }
+      first.clear()
+      expect(close).not.toHaveBeenCalled()
+      const nextReady = vi.fn()
+      const next = new EidosFileAttachmentThumbnailManager(
+        session,
+        presenter,
+        nextReady,
+        undefined,
+        cache
+      )
+      const initial = next.prepare([entry], 0, 0)
+      if (pending) {
+        expect(initial).toEqual([])
+        finish(lease())
+        await vi.waitFor(() => expect(nextReady).toHaveBeenCalledOnce())
+      } else {
+        expect(initial).toEqual([source])
+      }
+      expect(next.prepare([entry], 0, 0)).toEqual([source])
+      expect(resolveAsset).toHaveBeenCalledOnce()
+      expect(presenter.loadImage).toHaveBeenCalledOnce()
+      next.clear()
+      expect(close).not.toHaveBeenCalled()
+      cache.clear()
+      expect(close).toHaveBeenCalledOnce()
+    }
+  )
   it("finishes offscreen work into the cache and reuses it on scroll-back", async () => {
     let finish: (value: AssetLease) => void = () => undefined
     const resolveAsset = vi.fn(

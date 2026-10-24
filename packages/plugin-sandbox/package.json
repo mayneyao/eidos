@@ -1,0 +1,42 @@
+{
+  "name": "@eidos.space/plugin-sandbox",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Node host SDK for capability-controlled QuickJS plugin backgrounds",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "docs",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:web": "node scripts/build-web.mjs",
+    "check:web": "node scripts/build-web.mjs --check",
+    "build:native": "node scripts/build-native.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "example": "node examples/node-background.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "esbuild": "0.28.1",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "web-streams-polyfill": "4.2.0",
+    "whatwg-url": "14.2.0"
+  }
+}

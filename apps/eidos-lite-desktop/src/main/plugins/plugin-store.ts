@@ -49,6 +49,8 @@ function parseScope(value: unknown): PluginSpaceConfig {
     )
       throw new Error("Invalid plugin configuration")
     plugins[id] = { enabled: binding.enabled }
+    if (validHash(binding.backgroundApproval))
+      plugins[id].backgroundApproval = binding.backgroundApproval
   }
   const associations: Record<string, string> = {}
   for (const [ext, editor] of Object.entries(object(scope.associations))) {
@@ -435,6 +437,18 @@ export class PluginStore {
         throw new PluginError("INVALID_REQUEST", "Plugin is not installed")
       const space = (config.spaces[spaceId] ??= emptyScope())
       space.plugins[id] = { enabled }
+    })
+  }
+  async backgroundApproved(id: string, spaceId: string, hash: string) {
+    const config = await this.config()
+    return config.spaces[spaceId]?.plugins[id]?.backgroundApproval === hash
+  }
+  async approveBackground(id: string, spaceId: string, hash: string) {
+    await this.update((config) => {
+      const binding = config.spaces[spaceId]?.plugins[id]
+      if (!binding?.enabled || config.installed[id]?.hash !== hash)
+        throw new PluginError("STALE_REVISION", "Background grant changed")
+      binding.backgroundApproval = hash
     })
   }
   async uninstall(id: string) {

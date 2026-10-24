@@ -1,10 +1,85 @@
-# Eidos Plugins — API 3.3
+# Eidos Plugins — API 3.6
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.3.0
+Plugin API：3.6.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## Background 宿主服务
+
+API 3.6 接受可选的 `background.autoStart: true`。Lite 在打开 Space 或启用插件时
+尝试启动已启用的插件，复用显式启动的单例和权限。授权必须说明自动启动，并绑定
+Space 和精确插件包哈希。禁用撤销授权，更新后需重新授权。手动停止或失败不得导致
+本次 Space 会话内自动重试。关闭 Space 结束运行，不恢复内存或自动授权蓝牙设备。
+
+`ctx.events` 是后台的宿主事件入口，第一版仅支持 `file.opened`。事件名决定回调参数类型。未知事件、非法监听器或未声明的权限会同步抛错；订阅不会启动后台。每次订阅独立取消，一个监听器抛错不影响其他监听器。事件仅实时交付，不持久化或重放；后台停止时全部监听随之销毁。View 和 action 暂不提供此接口，通过现有 background 消息 API 获取后台状态。
+
+Lite API 3.6 在 background 模块注入 `globalThis.ctx`（`BackgroundHost`）。
+`spaceId` 标识当前 Space，`instanceId` 唯一标识本次运行。
+显式声明 `background.fileHistory: true` 后，`ctx.events.on("file.opened", listener)` 监听
+所属窗口和 Space 中成功的文件打开。事件包含宿主生成的 `id`、Space 相对路径
+`path` 和 Unix 毫秒时间 `timestamp`。宿主必须在后台授权中说明路径和时间的访问，
+排除内部受保护目录，拒绝子框架报告，并在发送前重新验证窗口、Space 和插件版本。
+打开失败、读取内容、资源预览和 View 重渲染不产生事件。仅已运行且授权的后台接收
+事件，不回放历史、不自动启动。取消订阅移除监听；撤销授权或停止后台结束发送。
+此权限不授予文件内容或文件系统访问。
+
+声明 `storage.maxBytes` 后，后台 `storage` 复用插件私有二进制对象 API 和配额。
+宿主必须验证当前授权，与 View/action 的存储操作串行执行，原子替换写入对象，
+并在撤销后拒绝写入。存储属于当前设备和插件，跨 Space 共享；读改写不构成事务，
+插件应按需划分键。定时器不提供持久化保证，停止时尚未保存的数据可能丢失。
+`background.isRunning()` 不得启动后台或请求授权。私有宿主服务消息不得送到应用消息监听器。
+
+## 蓝牙授权
+
+`background.bluetooth: true` 申请访问用户明确选中设备的 GATT 能力，不授予其他设备访问，
+也不自动连接。`background.bluetooth: { services: [...] }` 可收窄到指定服务。
+服务条目未声明操作字段时允许设备支持的 read/write/notify；声明任意操作字段后，
+只允许值为 `true` 的操作。Manifest 禁止指定设备 ID。普通启动不授予任何蓝牙设备。
+宿主在选择设备时说明通用设备访问范围，运行停止时撤销授权。取消选择保留当前运行，
+确认设备替换运行。设备实际能力与 BLE GATT 传输限制仍然有效。
+
+## Worker Fetch
+
+要求 API 3.5 或更高版本的 Lite 插件，在 page/file View 和普通命令中使用宿主代理的全局
+`fetch`。Background 提供相同的 Worker 风格接口：Request、Response、Headers、Blob、File、
+FormData、URLSearchParams、Body 方法、可读响应流与 AbortSignal。
+CLI Serve 保留浏览器网络契约，不声明 API 3.5；较旧要求的 Lite 插件保留原有浏览器网络行为。
+
+View 和命令使用 `browser`，background 使用 `background` 声明网络能力。
+`network: true` 申请公网 HTTPS 访问（background 同时支持 WSS），需要宿主明确授权。
+可选的 `networkOrigins` 白名单优先收窄授权，空数组禁止所有地址；白名单也可单独使用。
+两者均省略时禁止网络。`browser.network: true` 要求 API 3.5 或更新版本。
+两个环境不相互授权。宿主校验初始 URL 和每次重定向、固定已验证的 DNS 地址、拒绝私有及保留地址、
+过滤禁止的请求头、跨 origin 重定向时去除凭据，并隐藏响应 Cookie 头。
+这里没有浏览器 CORS 检查、Cookie jar、登录会话、持久 HTTP 缓存或 Service Worker。
+Request 的 credentials/cache/referrer 选项不授予浏览器环境权限，Authorization 是显式请求数据。
+启用宿主 fetch 的 View 通过 CSP 阻断外部直连；其中的 Blob Worker 不获得宿主 RPC 通道。
+
+`fetch` 收到响应头即返回。HTTP 错误码仍返回 Response，网络失败才拒绝 Promise。
+`redirect: manual` 返回 opaque redirect 响应。SHA-256/384/512 integrity 在暴露响应前校验，
+因此需要缓冲。Body 只能消费一次，clone 使用流 tee 语义。响应流按需从宿主读取，数据块和队列有界，
+收到响应头后仍可取消。关闭 View 或结束命令会关闭其 fetch，不停止独立 background；
+停止 background 会关闭其网络资源。
+
+宿主可设置资源限额。当前上传（包括 ReadableStream 输入）先缓冲，最多 1 MiB；响应流不再受
+旧的 1 MiB 响应总量限制。QuickJS 的缓冲读取方法最多 16 MiB，还受 JS 堆和单轮 CPU 预算限制。
+网络块最多 16 KiB，每个调用方最多 16 个 fetch 资源，background 与 WebSocket 共享限额。
+请求头最多 128 个，总计 32 KiB。等待响应头、读取等待和未消费 body 的空闲截止时间均为 30 秒；
+持续活跃的流可运行更久。调用方必须消费或取消 body。这是 Worker Fetch 接口契约，
+不代表完整浏览器行为或已通过全部 WPT。
+
+最终响应头的 30 秒截止时间包含 DNS、连接和整个重定向链，重定向不能重置期限。
+
+## Background 启动与输出
+
+首次启动授权可取消，最多等待五分钟，不计入普通命令的执行期限。就绪前停止、撤销授权
+或关闭发起调用的页面/命令会取消启动，迟到的确认不能创建进程；就绪后后台独立于调用方。
+
+输出没有生命周期累计字节上限，单帧仍最多 1 MiB。QuickJS 宿主在每个一秒窗口允许
+16 MiB 消息，超限终止运行；日志独立限制为每窗口 1 MiB，超额日志丢弃，不终止运行。
+Node SDK 另限制每条输出管道为每秒 32 MiB，并保证帧组装有界。
 
 ## 文件 hook
 
