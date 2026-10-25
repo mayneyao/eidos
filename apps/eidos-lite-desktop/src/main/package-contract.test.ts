@@ -477,7 +477,15 @@ describe("Eidos Lite package identity", () => {
       }
     ).jobs
     expect(releaseJobs["macos-performance"]).toBeUndefined()
-    expect(releaseJobs.release.needs).toEqual(["build", "deploy-update-router"])
+    expect(releaseJobs.release.needs).toEqual([
+      "build",
+      "build-mac-x64",
+      "deploy-update-router",
+    ])
+    expect(releaseJobs["build-mac-x64"]).toMatchObject({
+      needs: "verify",
+      uses: "./.github/workflows/build-lite-macos-x64.yml",
+    })
     expect(workflow.match(/lite-performance-report.mjs guard/g)).toHaveLength(2)
     const installedPerformance = parse(
       await fs.readFile(
