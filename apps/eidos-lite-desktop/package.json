@@ -72,7 +72,12 @@
     "@eidos.space/graft-darwin-x64": "0.3.35",
     "@eidos.space/graft-linux-arm64-gnu": "0.3.35",
     "@eidos.space/graft-linux-x64-gnu": "0.3.35",
-    "@eidos.space/graft-win32-x64-msvc": "0.3.35"
+    "@eidos.space/graft-win32-x64-msvc": "0.3.35",
+    "@esbuild/darwin-arm64": "0.28.1",
+    "@esbuild/darwin-x64": "0.28.1",
+    "@esbuild/linux-arm64": "0.28.1",
+    "@esbuild/linux-x64": "0.28.1",
+    "@esbuild/win32-x64": "0.28.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

@@ -136,10 +136,6 @@ jobs:
             architecture: arm64
             runner: macos-15
             artifact: lite-mac-arm64
-          - platform: mac
-            architecture: x64
-            runner: macos-15-intel
-            artifact: lite-mac-x64
           - platform: win
             architecture: x64
             runner: windows-latest
@@ -243,9 +239,7 @@ jobs:
           pnpm --filter @eidos.space/eidos-lite-desktop build:release
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:publish-engine
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
-          pnpm --filter @eidos.space/eidos-lite-desktop exec electron-builder \
-            --publish never \
-            --config electron-builder.json
+          node apps/eidos-lite-desktop/scripts/package-macos-release.mjs '${{ matrix.architecture }}'
 
       - name: Build unsigned Windows release
         if: matrix.platform == 'win'
@@ -393,6 +387,12 @@ jobs:
             apps/eidos-lite-desktop/dist-app/*.blockmap
             apps/eidos-lite-desktop/dist-app/latest*.yml
 
+  build-mac-x64:
+    name: Build and validate macOS x64
+    needs: verify
+    uses: ./.github/workflows/build-lite-macos-x64.yml
+    secrets: inherit
+
   deploy-update-router:
     name: Deploy Lite update router
     needs: verify
@@ -413,7 +413,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build, deploy-update-router]
+    needs: [build, build-mac-x64, deploy-update-router]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

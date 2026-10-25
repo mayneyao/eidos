@@ -264,6 +264,16 @@ Both record the contract timings, but their software or non-representative
 hosted graphics paths are not treated as end-user UI performance evidence. This
 single measurement is engineering evidence, not a performance SLA.
 
+The release publisher delegates macOS x64 to `build-lite-macos-x64.yml`.
+Compilation, signing and notarization run on Apple Silicon, then the same
+artifact runs on `macos-15-intel` for encrypted Sync, the actual bundled
+sandbox's isolation tests, packaged application smoke and real installer
+upgrade/rollback. The publisher depends on both jobs succeeding. This changes
+where compilation happens, not the Intel correctness or performance policy.
+Manual dispatch of the x64 workflow produces a non-publishing signed candidate.
+Transient packaging network errors have a maximum of three attempts; retries
+never rerun source compilation or bypass signature/notarization validation.
+
 The independent performance workflow records one macOS report per architecture
 on separate ephemeral machines, with indexing disabled before setup. It
 extracts the retained build, verifies its source and hashes for staging or its

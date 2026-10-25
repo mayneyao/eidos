@@ -480,6 +480,21 @@ importers:
       '@eidos.space/graft-win32-x64-msvc':
         specifier: 0.3.35
         version: 0.3.35
+      '@esbuild/darwin-arm64':
+        specifier: 0.28.1
+        version: 0.28.1
+      '@esbuild/darwin-x64':
+        specifier: 0.28.1
+        version: 0.28.1
+      '@esbuild/linux-arm64':
+        specifier: 0.28.1
+        version: 0.28.1
+      '@esbuild/linux-x64':
+        specifier: 0.28.1
+        version: 0.28.1
+      '@esbuild/win32-x64':
+        specifier: 0.28.1
+        version: 0.28.1
 
   apps/eidos-publish:
     dependencies:

@@ -189,6 +189,19 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.dependencies).not.toHaveProperty("better-sqlite3")
     expect(packageJson.dependencies).not.toHaveProperty("bindings")
     expect(packageJson.dependencies).not.toHaveProperty("file-uri-to-path")
+    // Keep target binaries reachable as direct optional dependencies: pnpm's
+    // transitive graph alone can omit them when packaging on another CPU.
+    for (const platform of [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-x64",
+      "win32-x64",
+    ]) {
+      expect(optionalDependencies[`@esbuild/${platform}`]).toBe(
+        dependencies.esbuild
+      )
+    }
     for (const platformPackage of [
       "@eidos.space/graft-darwin-arm64",
       "@eidos.space/graft-darwin-x64",
@@ -429,11 +442,12 @@ describe("Eidos Lite package identity", () => {
     )
     expect(macReleaseStep).toContain("prepare:publish-engine")
     expect(macReleaseStep).toContain("prepare:vtab")
+    expect(macReleaseStep).toContain("package-macos-release.mjs")
     expect(macReleaseStep?.indexOf("prepare:publish-engine")).toBeLessThan(
-      macReleaseStep?.indexOf("electron-builder") ?? -1
+      macReleaseStep?.indexOf("package-macos-release.mjs") ?? -1
     )
     expect(macReleaseStep?.indexOf("prepare:vtab")).toBeLessThan(
-      macReleaseStep?.indexOf("electron-builder") ?? -1
+      macReleaseStep?.indexOf("package-macos-release.mjs") ?? -1
     )
     expect(workflow).toContain("Build unsigned Windows release")
     expect(workflow).toContain("Build unsigned Linux release")
@@ -476,7 +490,15 @@ describe("Eidos Lite package identity", () => {
       }
     ).jobs
     expect(releaseJobs["macos-performance"]).toBeUndefined()
-    expect(releaseJobs.release.needs).toEqual(["build", "deploy-update-router"])
+    expect(releaseJobs.release.needs).toEqual([
+      "build",
+      "build-mac-x64",
+      "deploy-update-router",
+    ])
+    expect(releaseJobs["build-mac-x64"]).toMatchObject({
+      needs: "verify",
+      uses: "./.github/workflows/build-lite-macos-x64.yml",
+    })
     expect(workflow.match(/lite-performance-report.mjs guard/g)).toHaveLength(2)
     const installedPerformance = parse(
       await fs.readFile(
