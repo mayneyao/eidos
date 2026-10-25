@@ -429,11 +429,12 @@ describe("Eidos Lite package identity", () => {
     )
     expect(macReleaseStep).toContain("prepare:publish-engine")
     expect(macReleaseStep).toContain("prepare:vtab")
+    expect(macReleaseStep).toContain("package-macos-release.mjs")
     expect(macReleaseStep?.indexOf("prepare:publish-engine")).toBeLessThan(
-      macReleaseStep?.indexOf("electron-builder") ?? -1
+      macReleaseStep?.indexOf("package-macos-release.mjs") ?? -1
     )
     expect(macReleaseStep?.indexOf("prepare:vtab")).toBeLessThan(
-      macReleaseStep?.indexOf("electron-builder") ?? -1
+      macReleaseStep?.indexOf("package-macos-release.mjs") ?? -1
     )
     expect(workflow).toContain("Build unsigned Windows release")
     expect(workflow).toContain("Build unsigned Linux release")
