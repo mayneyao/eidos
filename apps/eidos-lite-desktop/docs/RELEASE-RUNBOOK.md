@@ -47,6 +47,26 @@ must pass `codesign` verification and stapler validation. Windows and Linux are
 published unsigned; the Windows job requires Authenticode status `NotSigned`
 before its artifacts can reach the Release job.
 
+macOS x64 packages are built and signed on Apple Silicon by
+`build-lite-macos-x64.yml`. JavaScript tools run natively on ARM; the Publish
+engine and plugin sandbox use Rust's `x86_64-apple-darwin` target. Electron,
+SQLite extensions and native optional dependencies must include x64. The
+resulting ZIP and DMG are then downloaded by a separate Intel runner for
+encrypted Sync, sandbox isolation, packaged application and installer
+upgrade/rollback checks. Publication waits for that Intel job to pass; an ARM
+build or Rosetta run does not replace Intel acceptance.
+
+The x64 workflow can also be dispatched directly on a source branch to create a
+signed candidate without publishing. It always builds that run's source and
+validates that run's artifacts; it does not reuse older build IDs or tags.
+Candidate execution uses the production release configuration. Dispatching this
+workflow creates no release tag, deployment or update-feed entry.
+
+macOS release packaging retries transient network failures at most twice after
+the initial attempt, with 10- and 20-second delays. Retries rerun packaging,
+signing and notarization without recompiling Rust or the renderer. Credential,
+signature, notarization-rejection and interrupted-process failures remain fatal.
+
 Prepare every Lite release through a PR containing the version, dependency
 changes and both release-note languages. Reuse that PR's functional CI results;
 run focused local tests for the changed code instead of repeating the full CI
@@ -60,8 +80,9 @@ confirm the target tag is absent locally and remotely. With existing release
 authorization, create one lightweight tag on that merge commit and push it. The
 publisher rejects tags without an associated merged PR and rechecks its major
 regression result immediately before publication. Monitor
-`build-and-release-eidos-lite.yml` through all five platform/architecture jobs,
-the Worker deployment, and the final Release job.
+`build-and-release-eidos-lite.yml` through all five platform/architecture builds,
+the separate Intel acceptance job, the Worker deployment, and the final Release
+job.
 
 The packaged smoke also typechecks a plugin against the SDK and TypeScript
 libraries inside the actual `app.asar`, rejects invalid source, and exercises
