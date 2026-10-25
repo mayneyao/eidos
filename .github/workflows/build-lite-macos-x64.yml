@@ -1,11 +1,6 @@
 name: Build and validate Lite macOS x64
 
 on:
-  push:
-    branches: [codex/lite-macos-cross-build-experiment]
-    paths:
-      - .github/workflows/build-lite-macos-x64.yml
-      - apps/eidos-lite-desktop/scripts/package-macos-release*.mjs
   workflow_call:
   workflow_dispatch:
 
