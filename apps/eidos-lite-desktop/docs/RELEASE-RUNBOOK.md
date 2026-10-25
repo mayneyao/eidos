@@ -56,6 +56,12 @@ encrypted Sync, sandbox isolation, packaged application and installer
 upgrade/rollback checks. Publication waits for that Intel job to pass; an ARM
 build or Rosetta run does not replace Intel acceptance.
 
+Keep each supported platform's `@esbuild/*` binary as a direct optional
+dependency at the same exact version as `esbuild`. The packager's pnpm dependency
+collector can omit transitive platform packages during cross-builds. The ARM
+build checks the shipped x64 binary before upload; Intel acceptance executes
+the packaged plugin compiler rather than accepting the binary's presence alone.
+
 The x64 workflow can also be dispatched directly on a source branch to create a
 signed candidate without publishing. It always builds that run's source and
 validates that run's artifacts; it does not reuse older build IDs or tags.

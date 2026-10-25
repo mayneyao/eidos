@@ -93,6 +93,9 @@ jobs:
           app='apps/eidos-lite-desktop/dist-app/mac/Eidos Lite.app'
           test -d "$app"
           lipo "$app/Contents/MacOS/Eidos Lite" -verify_arch x86_64
+          esbuild="$(find "$app/Contents/Resources/app.asar.unpacked" -path '*/@esbuild/darwin-x64/bin/esbuild' -type f -print -quit)"
+          test -n "$esbuild"
+          lipo "$esbuild" -verify_arch x86_64
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
       - uses: actions/upload-artifact@v4

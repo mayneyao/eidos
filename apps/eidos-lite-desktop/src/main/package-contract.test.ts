@@ -189,6 +189,19 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.dependencies).not.toHaveProperty("better-sqlite3")
     expect(packageJson.dependencies).not.toHaveProperty("bindings")
     expect(packageJson.dependencies).not.toHaveProperty("file-uri-to-path")
+    // Keep target binaries reachable as direct optional dependencies: pnpm's
+    // transitive graph alone can omit them when packaging on another CPU.
+    for (const platform of [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-x64",
+      "win32-x64",
+    ]) {
+      expect(optionalDependencies[`@esbuild/${platform}`]).toBe(
+        dependencies.esbuild
+      )
+    }
     for (const platformPackage of [
       "@eidos.space/graft-darwin-arm64",
       "@eidos.space/graft-darwin-x64",
