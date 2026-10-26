@@ -15,7 +15,7 @@ import { Badge } from "@astrojs/starlight/components"
 
 ## FileHookContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L165)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L171)
 
 ### FileHookContext.event
 
@@ -51,7 +51,7 @@ readonly settings: Readonly<Record<string, SettingValue>>;
 
 ## FileHookHandler
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L170)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L176)
 
 支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
@@ -65,7 +65,7 @@ export type FileHookHandler = (context: FileHookContext) => FileHookPlan | void 
 
 ## FormatterProvider
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L178)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L184)
 
 ### FormatterProvider.format
 
@@ -90,7 +90,7 @@ format(input: FormatterInput): {
 
 ## TableActionCapabilities
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L461)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L475)
 
 ### TableActionCapabilities.eidos
 
@@ -164,7 +164,7 @@ readonly task: {
 
 ## TableActionProvider
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L492)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L506)
 
 ### TableActionProvider.getItems
 
@@ -173,6 +173,7 @@ readonly task: {
 
 ```ts
 getItems(context: {
+    readonly i18n: PluginI18n;
     readonly signal: AbortSignal;
     readonly capabilities: Pick<TableActionCapabilities, "eidos">;
 }): Promise<TableActionItem[]> | TableActionItem[];
@@ -180,7 +181,7 @@ getItems(context: {
 
 | 参数 | 类型 | 必填 |
 | --- | --- | --- |
-| `context` | `{     readonly signal: AbortSignal;     readonly capabilities: Pick<TableActionCapabilities, "eidos">; }` | 是 |
+| `context` | `{     readonly i18n: PluginI18n;     readonly signal: AbortSignal;     readonly capabilities: Pick<TableActionCapabilities, "eidos">; }` | 是 |
 
 返回值: `Promise<TableActionItem[]> &#124; TableActionItem[]`.
 
@@ -200,4 +201,4 @@ run(context: TableActionContext, itemId: string): Promise<void>;
 
 返回值: `Promise<void>`.
 
-关联类型: [TableActionCapabilities](/zh-cn/plugins/api/actions/#tableactioncapabilities), [TableActionItem](/zh-cn/plugins/api/types/#tableactionitem), [TableActionContext](/zh-cn/plugins/api/context/#tableactioncontext).
+关联类型: [PluginI18n](/zh-cn/plugins/api/context/#plugini18n), [TableActionCapabilities](/zh-cn/plugins/api/actions/#tableactioncapabilities), [TableActionItem](/zh-cn/plugins/api/types/#tableactionitem), [TableActionContext](/zh-cn/plugins/api/context/#tableactioncontext).

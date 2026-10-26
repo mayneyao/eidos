@@ -67,6 +67,18 @@ version: string;
 ```
 
 
+### PluginManifest.i18n
+
+
+```ts
+i18n?: {
+    defaultLocale: string;
+    messages: Record<string, string>;
+    readme?: Record<string, string>;
+};
+```
+
+
 ### PluginManifest.requires
 
 
@@ -233,7 +245,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition),
 
 ## ThemeDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L66)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L72)
 
 ### ThemeDeclaration.stylesheet
 
@@ -245,7 +257,7 @@ stylesheet: string;
 
 ## FileTemplateDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L70)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L76)
 
 ### FileTemplateDeclaration.id
 
@@ -289,7 +301,7 @@ content: string;
 
 ## ViewDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L110)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L116)
 
 ### ViewDeclaration.id
 
@@ -359,7 +371,7 @@ Related types: [ViewCapability](/plugins/api/types/#viewcapability), [ViewConfig
 
 ## ViewConfiguration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L123)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L129)
 
 ### ViewConfiguration.type
 
@@ -383,7 +395,7 @@ Related types: [SettingDeclaration](/plugins/api/manifest/#settingdeclaration).
 
 ## ActionDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L127)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L133)
 
 ### ActionDeclaration.id
 
@@ -437,7 +449,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition).
 
 ## FormatterDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L136)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L142)
 
 ### FormatterDeclaration.id
 
@@ -465,7 +477,7 @@ extensions: string[];
 
 ## FileHookDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L143)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L149)
 
 ### FileHookDeclaration.id
 
@@ -511,7 +523,7 @@ Related types: [FileHookEventType](/plugins/api/types/#filehookeventtype).
 
 ## Placement
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L181)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L187)
 
 
 ```ts
@@ -556,7 +568,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L238)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L244)
 
 ### BluetoothServicePermission.uuid
 
@@ -592,7 +604,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L625)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L641)
 
 
 ```ts

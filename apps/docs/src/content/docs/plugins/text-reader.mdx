@@ -1,0 +1,112 @@
+---
+title: Build a text reader
+description: Build a text reader and load, debug and use it in Eidos Lite.
+sidebar:
+  order: 3
+---
+
+This tutorial builds a text reader. When finished, you can choose **Text Reader** from a `.txt` file's **Open with** menu and see its content update as the file changes.
+
+Prepare a test Space and a `.txt` file. Create this plugin directory:
+
+```text
+text-reader/
+├── plugin.json
+└── src/
+    └── main.ts
+```
+
+Eidos Lite compiles this example directly. You only need a text editor to get started.
+
+## 1. Declare the file view
+
+Add this to `plugin.json`:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.text-reader",
+  "name": "Text Reader",
+  "version": "0.1.0",
+  "requires": { "pluginApi": "3.0.0" },
+  "views": [
+    {
+      "id": "main",
+      "title": "Text Reader",
+      "entry": "./src/main.ts",
+      "kind": "file",
+      "capabilities": ["document"],
+      "access": "read"
+    }
+  ],
+  "placements": [
+    {
+      "location": "file/open",
+      "view": "main",
+      "extensions": [".txt"]
+    }
+  ]
+}
+```
+
+`kind: "file"` binds the view to the file the user opens. `capabilities: ["document"]` provides the text interface. `file/open` and `.txt` select the file menu in which the view appears.
+
+## 2. Show the text
+
+Add this to `src/main.ts`:
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = async (ctx, root) => {
+  const document = ctx.capabilities.document
+  if (!document) throw new Error("Document capability is required")
+  const pre = window.document.createElement("pre")
+  root.append(pre)
+  const observed = await document.observe(
+    (snapshot) => {
+      pre.textContent = snapshot.text
+    },
+    (error) => {
+      pre.textContent = error.message
+    }
+  )
+  ctx.subscriptions.add(observed.subscription)
+  pre.textContent = observed.snapshot.text
+  return {
+    dispose() {
+      pre.remove()
+    },
+  }
+}
+export default mount
+```
+
+Eidos calls mount with a context and an interface container. This code creates a `pre` element, reads the current text through `document.observe()`, and updates the text when content changes. Adding the subscription to `ctx.subscriptions` releases it automatically when the view closes.
+
+## 3. Open it in Eidos Lite
+
+1. Open your test Space and go to Plugin Manager.
+2. Choose **Load development source…** and select `text-reader/plugin.json`.
+3. Review access and enable the plugin for the current Space.
+4. Choose **Text Reader** from a `.txt` file's **Open with** menu.
+
+The view shows the file content. Change the test file and check that the reader updates.
+
+## 4. Change the interface
+
+Edit `main.ts` and save it. Eidos Lite recompiles and reloads the view.
+If compilation fails, use the error message to fix the code.
+The previous loaded interface remains visible while you work.
+
+Use CSS variables such as `--eidos-background`, `--eidos-foreground` and `--eidos-border` to match Eidos's light and dark themes.
+
+## Next steps
+
+To keep a connection or in-memory state after a page closes, follow
+[Background tasks](/plugins/background/). Its complete counter and BLE examples
+include a page, command registration, and a separate background module.
+
+To support editing, set access to write, add an input interface, use `document.edit()` to update content and `document.save()` to persist it. See the [API reference](/plugins/api/) for editing, conflict handling and undo methods.
+
+To create a tool opened from navigation, read about [page views](/plugins/concepts/#page-views-open-independently). When you are ready to share your plugin, follow [development and distribution](/plugins/workflow/) to check and package it.
