@@ -28,11 +28,24 @@ import {
   DEFAULT_EXPLORER_SORT,
   type ExplorerSort,
 } from "./explorer-sort"
+import {
+  matchesExplorerFileFilter,
+  hasExplorerPropertyFilter,
+  countExplorerFilterRules,
+  explorerFilterSignature,
+  filterExplorerEntries,
+  ALL_EXPLORER_FILES,
+  type ExplorerFileFilter,
+} from "./explorer-file-filter"
 
 interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
   rootDirectory?: string | null
   sort?: ExplorerSort
+  fileFilter?: ExplorerFileFilter
+  filtering?: boolean
+  filterError?: string
+  onRetryFilter?(): void
   activePath: string | null
   revealToken?: number
   disabled?: boolean
@@ -222,8 +235,14 @@ function eventTargetsRenameInput(event: SyntheticEvent<HTMLElement>): boolean {
 export function buildSpaceFileTreeModel(
   entries: SpaceTreeEntry[],
   rootDirectory?: string | null,
-  sort: ExplorerSort = DEFAULT_EXPLORER_SORT
+  sort: ExplorerSort = DEFAULT_EXPLORER_SORT,
+  fileFilter: ExplorerFileFilter = ALL_EXPLORER_FILES
 ): SpaceFileTreeModel {
+  // Property predicates are evaluated by the host Runtime. These entries are
+  // already filtered; the renderer has no property values to evaluate again.
+  const localFilter = hasExplorerPropertyFilter(fileFilter)
+    ? ALL_EXPLORER_FILES
+    : fileFilter
   const paths: string[] = []
   const initialExpandedPaths: string[] = []
   const entryByTreePath = new Map<string, SpaceTreeEntry>()
@@ -245,7 +264,7 @@ export function buildSpaceFileTreeModel(
       .forEach((child) => visit(child, depth + 1))
   }
 
-  entries
+  filterExplorerEntries(entries, localFilter)
     .slice()
     .sort((a, b) => compareExplorerEntries(a, b, sort))
     .forEach((entry) => visit(entry, 0))
@@ -317,6 +336,10 @@ export function SpaceFileTree({
   entries,
   rootDirectory = null,
   sort = DEFAULT_EXPLORER_SORT,
+  fileFilter = ALL_EXPLORER_FILES,
+  filtering = false,
+  filterError,
+  onRetryFilter,
   activePath,
   revealToken = 0,
   disabled,
@@ -376,8 +399,8 @@ export function SpaceFileTree({
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(
-    () => buildSpaceFileTreeModel(entries, rootDirectory, sort),
-    [entries, rootDirectory, sort]
+    () => buildSpaceFileTreeModel(entries, rootDirectory, sort, fileFilter),
+    [entries, rootDirectory, sort, fileFilter]
   )
   const spaceDirectory = (path: string | null): string | null =>
     rootDirectory ? (path ? `${rootDirectory}/${path}` : rootDirectory) : path
@@ -390,6 +413,7 @@ export function SpaceFileTree({
         : null
       : activePath
   const treeSignature = tree.paths.join("\u0000")
+  const fileFilterSignature = explorerFilterSignature(fileFilter)
   const sortSignature = `${sort.by}:${sort.direction}`
   const sortRef = useRef(sort)
   sortRef.current = sort
@@ -405,7 +429,7 @@ export function SpaceFileTree({
   const [expansionVersion, setExpansionVersion] = useState(0)
   useEffect(() => {
     bulkExpansionRef.current = null
-  }, [rootDirectory])
+  }, [fileFilterSignature, rootDirectory])
   const restoreSelectionRef = useRef<readonly string[] | null>(null)
   const rootDropTarget: FileTreeDropTarget = {
     kind: "root",
@@ -570,6 +594,7 @@ export function SpaceFileTree({
     model,
     path: activePath,
     revealToken,
+    fileFilterSignature,
     revealed: false,
   })
 
@@ -644,12 +669,14 @@ export function SpaceFileTree({
     if (
       activeRevealRef.current.model !== model ||
       activeRevealRef.current.path !== activePath ||
-      activeRevealRef.current.revealToken !== revealToken
+      activeRevealRef.current.revealToken !== revealToken ||
+      activeRevealRef.current.fileFilterSignature !== fileFilterSignature
     ) {
       activeRevealRef.current = {
         model,
         path: activePath,
         revealToken,
+        fileFilterSignature,
         revealed: false,
       }
     }
@@ -658,6 +685,16 @@ export function SpaceFileTree({
     if (activeRevealRef.current.revealed) return
     if (!visiblePath) return
     const activeTreePath = visiblePath
+    if (
+      hasExplorerPropertyFilter(fileFilter)
+        ? !tree.entryByTreePath.has(activeTreePath)
+        : !matchesExplorerFileFilter(
+            activeTreePath,
+            fileFilter,
+            activePath ?? activeTreePath
+          )
+    )
+      return
     for (const parentPath of parentTreePaths(activeTreePath)) {
       const parent = model.getItem(parentPath)
       if (parent && "expand" in parent && !parent.isExpanded()) parent.expand()
@@ -671,7 +708,7 @@ export function SpaceFileTree({
     if (!item.isSelected()) item.select()
     model.scrollToPath(activeTreePath, { offset: "nearest", focus: false })
     activeRevealRef.current.revealed = true
-  }, [activePath, model, treeSignature, revealToken])
+  }, [activePath, model, treeSignature, revealToken, fileFilterSignature])
 
   const requestDirectoryLoad = useCallback(
     (treePath: string, relativePath: string) => {
@@ -845,6 +882,28 @@ export function SpaceFileTree({
 
   return (
     <div className="space-file-tree-shell">
+      {countExplorerFilterRules(fileFilter) > 0 &&
+        (filterError || tree.paths.length === 0) && (
+          <p
+            className="explorer-filter-empty"
+            role={filterError ? "alert" : "status"}
+          >
+            {filterError
+              ? t("Could not filter files.")
+              : filtering
+                ? t("Filtering files…")
+                : t("No matching files")}
+            {filterError && (
+              <button
+                type="button"
+                className="quiet-button"
+                onClick={onRetryFilter}
+              >
+                {t("Retry")}
+              </button>
+            )}
+          </p>
+        )}
       <FileTree
         model={model}
         aria-label="Space files"

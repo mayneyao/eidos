@@ -9,6 +9,12 @@ import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
 import type { SparkFeature } from "../../shared/spark"
 import { searchSpaceText } from "./text-search"
+import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
+import {
+  filterExplorerEntries,
+  hasExplorerPropertyFilter,
+  type ExplorerFileFilter,
+} from "../../shared/explorer-file-filter"
 import type {
   TextSearchProgress,
   TextSearchOptions,
@@ -398,6 +404,10 @@ export class SpaceSession {
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
   private readonly pathIndex: SpacePathIndex
+  private readonly filteredTreeReads = new Map<
+    string,
+    Promise<SpaceTreeEntry[]>
+  >()
   private readonly repository: SpaceRepositoryCoordinator
   private readonly syncState: SpaceSyncStateStore
   private readonly syncConnection: SpaceSyncConnectionStore
@@ -636,6 +646,61 @@ export class SpaceSession {
     if (this.closed) throw new Error("Space is closed")
     await this.pathIndex.ensureScanned()
     return this.pathIndex.search(query, limit)
+  }
+
+  async filterFiles(
+    filter: ExplorerFileFilter,
+    directory: string | null
+  ): Promise<SpaceTreeEntry[]> {
+    if (this.closed) throw new Error("Space is closed")
+    const key = directory ?? ""
+    let read = this.filteredTreeReads.get(key)
+    if (!read) {
+      read = readSpaceFilterTree(this.canonical.root, directory).finally(() => {
+        if (this.filteredTreeReads.get(key) === read)
+          this.filteredTreeReads.delete(key)
+      })
+      this.filteredTreeReads.set(key, read)
+    }
+    const entries = await read
+    if (!hasExplorerPropertyFilter(filter))
+      return filterExplorerEntries(entries, filter)
+    const opened = await this.openExistingFileMetadata()
+    if (!opened) throw new Error("File properties are unavailable")
+    const table = opened.snapshot.tables.find(
+      ({ table }) => table.settings?.vtabModule === "fs_meta"
+    )
+    if (!table) throw new Error("File properties are unavailable")
+    const matches = await explorerPropertyMatches(filter, table, (...args) =>
+      this.runtimePool.call(opened.sessionId, "getPage", args)
+    )
+    return filterExplorerEntries(entries, filter, matches)
+  }
+
+  private async openExistingFileMetadata(): Promise<OpenEidosFileResult | null> {
+    const existing = await fs
+      .lstat(path.join(this.canonical.root, SPACE_FILE_METADATA_PATH))
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null
+        throw error
+      })
+    // Opening a filter must never create a catalog or request Spark activation.
+    return existing ? this.openFileMetadata(null) : null
+  }
+
+  async getExplorerFilterFields() {
+    if (this.closed) throw new Error("Space is closed")
+    const opened = await this.openExistingFileMetadata()
+    return (
+      opened?.snapshot.tables
+        .find(({ table }) => table.settings?.vtabModule === "fs_meta")
+        ?.fields.filter(
+          (field) =>
+            field.settings?.isSystem !== true &&
+            field.valueKind !== "system" &&
+            !field.isHidden
+        ) ?? []
+    )
   }
 
   async searchText(

@@ -5,7 +5,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react"
-import { X, Plus, Search, Database } from "lucide-react"
+import { X, Plus, Search, Database, Filter } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
 import type { ExplorerSort } from "./explorer-sort"
@@ -14,6 +14,11 @@ import {
   TreeExpansionMenu,
   type TreeExpansionActions,
 } from "./tree-expansion-menu"
+import {
+  ALL_EXPLORER_FILES,
+  countExplorerFilterRules,
+  type ExplorerFileFilter,
+} from "./explorer-file-filter"
 
 export function WorkspaceHeading({
   name,
@@ -35,6 +40,10 @@ export function WorkspaceHeading({
   navigationDisabled = false,
   sort,
   onSortChange,
+  fileFilter = ALL_EXPLORER_FILES,
+  onToggleFileFilter,
+  fileFilterOpen = false,
+  fileFilterRef,
   spaceSwitcher,
   onManageFiles,
   treeExpansionActions,
@@ -49,6 +58,10 @@ export function WorkspaceHeading({
   navigationDisabled?: boolean
   sort?: ExplorerSort
   onSortChange?: (sort: ExplorerSort) => void
+  fileFilter?: ExplorerFileFilter
+  onToggleFileFilter?(): void
+  fileFilterOpen?: boolean
+  fileFilterRef?: RefObject<HTMLButtonElement>
   searching: boolean
   searchRef: RefObject<HTMLButtonElement>
   shortcut: string
@@ -225,6 +238,25 @@ export function WorkspaceHeading({
           </button>
           {sort && onSortChange && (
             <ExplorerSortMenu sort={sort} onChange={onSortChange} />
+          )}
+          {onToggleFileFilter && (
+            <button
+              ref={fileFilterRef}
+              type="button"
+              className="icon-button explorer-filter-button"
+              aria-label={t("Filter files")}
+              title={t("Filter files")}
+              aria-expanded={fileFilterOpen}
+              aria-pressed={countExplorerFilterRules(fileFilter) > 0}
+              onClick={onToggleFileFilter}
+            >
+              <Filter size={14} />
+              {countExplorerFilterRules(fileFilter) > 0 && (
+                <span className="explorer-filter-count" aria-hidden="true">
+                  {countExplorerFilterRules(fileFilter)}
+                </span>
+              )}
+            </button>
           )}
           {onManageFiles ? (
             <button

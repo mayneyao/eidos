@@ -114,6 +114,8 @@ export const IPC_CHANNELS = {
   refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   searchPaths: "eidos-lite:space-paths-search",
+  filterFiles: "eidos-lite:space-files-filter",
+  explorerFilterFields: "eidos-lite:space-filter-fields",
   searchText: "eidos-lite:space-text-search",
   searchTextProgress: "eidos-lite:space-text-search-progress",
   cancelTextSearch: "eidos-lite:space-text-search-cancel",
@@ -1878,6 +1880,11 @@ export interface EidosLiteApi extends PluginApi {
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
+  filterSpaceFiles(
+    filter: import("./explorer-file-filter").ExplorerFileFilter,
+    directory: string | null
+  ): Promise<SpaceTreeEntry[]>
+  getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
   searchSpaceText(
     requestId: string,
     query: string,

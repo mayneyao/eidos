@@ -51,10 +51,16 @@ import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { WorkspaceHeading } from "./workspace-heading"
+import { ExplorerFilterBar } from "./explorer-filter-bar"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
 import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
 import { EXPLORER_SORT_STORAGE_KEY, readExplorerSort } from "./explorer-sort"
+import {
+  ALL_EXPLORER_FILES,
+  type ExplorerFileFilter,
+} from "./explorer-file-filter"
+import { useExplorerFileFilter } from "./use-explorer-file-filter"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
@@ -991,6 +997,12 @@ function WorkspaceApp({
   }, [])
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
+  const [explorerFileFilter, setExplorerFileFilter] =
+    useState<ExplorerFileFilter>(ALL_EXPLORER_FILES)
+  const [explorerFilterVisible, setExplorerFilterVisible] = useState(false)
+  const explorerFilterTrigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => setExplorerFilterVisible(false), [space?.id])
+  useEffect(() => setExplorerFileFilter(ALL_EXPLORER_FILES), [space?.id])
   const [textSearchQuery, setTextSearchQuery] = useState("")
   const [textSearchOptions, setTextSearchOptions] = useState<TextSearchOptions>(
     {}
@@ -1081,6 +1093,15 @@ function WorkspaceApp({
     explorerDirectoryEntry?.kind === "directory"
       ? explorerDirectoryEntry.relativePath
       : null
+  const filteredExplorer = useExplorerFileFilter(
+    space?.id ?? "",
+    explorerDirectory,
+    explorerFileFilter,
+    explorerDirectory
+      ? (explorerDirectoryEntry?.children ?? [])
+      : (space?.entries ?? []),
+    space?.externalChangePaths ?? space?.materializedPaths
+  )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
   useEffect(() => {
@@ -3775,6 +3796,14 @@ function WorkspaceApp({
         treeExpansionActions={treeExpansionActions}
         sort={explorerSort}
         onSortChange={setExplorerSort}
+        fileFilter={explorerFileFilter}
+        fileFilterOpen={explorerFilterVisible}
+        fileFilterRef={explorerFilterTrigger}
+        onToggleFileFilter={
+          !pluginExplorer.selected || pluginExplorer.error
+            ? () => setExplorerFilterVisible((visible) => !visible)
+            : undefined
+        }
         name={space.name}
         spaceSwitcher={
           <SpaceSwitcher
@@ -3950,6 +3979,21 @@ function WorkspaceApp({
           }
         >
           {workspaceSearchPanel}
+          {!textSearchVisible && (
+            <ExplorerFilterBar
+              key={space.id}
+              theme={theme}
+              timeZone={timeZone === "system" ? undefined : timeZone}
+              filter={explorerFileFilter}
+              entries={space.entries}
+              open={explorerFilterVisible}
+              triggerRef={explorerFilterTrigger}
+              onChange={setExplorerFileFilter}
+              onClose={() => {
+                setExplorerFilterVisible(false)
+              }}
+            />
+          )}
           <nav
             className="explorer"
             hidden={textSearchVisible && !!textSearchQuery}
@@ -3965,13 +4009,13 @@ function WorkspaceApp({
             >
               <SpaceFileTree
                 sort={explorerSort}
+                fileFilter={explorerFileFilter}
+                filtering={filteredExplorer.loading}
+                filterError={filteredExplorer.error}
+                onRetryFilter={filteredExplorer.retry}
                 key={`${space.id}:${explorerDirectory ?? ""}`}
                 rootDirectory={explorerDirectory}
-                entries={
-                  explorerDirectory
-                    ? (explorerDirectoryEntry?.children ?? [])
-                    : space.entries
-                }
+                entries={filteredExplorer.entries}
                 activePath={activeDocumentPath}
                 revealToken={treeRevealToken}
                 disabled={localInteractionBlocked || busyFile !== null}

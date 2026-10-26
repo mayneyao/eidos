@@ -1999,6 +1999,71 @@ body {
   background: var(--surface-selected);
 }
 
+.explorer-filter-button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+.explorer-filter-button {
+  position: relative;
+}
+.explorer-filter-count {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 12px;
+  padding-inline: 2px;
+  border-radius: 6px;
+  background: var(--ink-muted);
+  color: var(--surface);
+  font-size: 9px;
+  line-height: 12px;
+  text-align: center;
+}
+.explorer-suffix-values {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.explorer-suffix-values input {
+  flex: 1 1 70px;
+  width: 70px;
+}
+.explorer-suffix-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 1px 3px 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-size: 11px;
+}
+.explorer-suffix-chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.explorer-filter-empty {
+  position: absolute;
+  inset: 0.5rem 0.75rem auto;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
 .workspace-heading-search {
   position: absolute;
   inset: 0 0.625rem 0 0.75rem;

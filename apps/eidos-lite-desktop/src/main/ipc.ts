@@ -9,6 +9,7 @@ import { PeerService } from "./peer/peer-service"
 import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
+import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
 import { SparkService } from "./account/spark-service"
 import { accountStorageKey } from "../shared/service-environment"
 import { systemFileThumbnail } from "./space/file-thumbnails"
@@ -1433,6 +1434,20 @@ export function registerIpc(
         .requireSession(event.sender)
         .searchPaths(query, normalizedLimit)
     }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.filterFiles,
+    (event, filter: unknown, directory: unknown) => {
+      const normalized = normalizeExplorerFileFilter(filter)
+      if (directory !== null && typeof directory !== "string")
+        throw new Error("Invalid file filter")
+      return controller
+        .requireSession(event.sender)
+        .filterFiles(normalized, directory)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>
+    controller.requireSession(event.sender).getExplorerFilterFields()
   )
   ipcMain.handle(
     IPC_CHANNELS.searchText,
