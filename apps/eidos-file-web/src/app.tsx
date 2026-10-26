@@ -125,12 +125,6 @@ import {
   type EidosFileSessionClient,
 } from "./runtime/worker-client"
 import {
-  getEidosFileTemplateSource,
-  loadSampleEidosFile,
-  loadTemplateEidosFile,
-  type EidosFileTemplateId,
-} from "./sample-eidos-file"
-import {
   canAutoReloadExternalChange,
   canSaveToOriginal,
   hasUnsavedChanges,
@@ -331,8 +325,6 @@ export function App() {
     readonly CreateEidosFileFieldInput["type"][] | undefined
   >()
   const [viewReloadToken, setViewReloadToken] = useState(0)
-  const [openingTemplateId, setOpeningTemplateId] =
-    useState<EidosFileTemplateId | null>(null)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [pwaRegistration, setPwaRegistration] =
     useState<ServiceWorkerRegistration | null>(null)
@@ -644,11 +636,11 @@ export function App() {
   )
 
   const confirmSwitch = useCallback(() => {
-    if (!hasUnsavedChanges(saveState)) return true
+    if (!session || !hasUnsavedChanges(saveState)) return true
     return window.confirm(
       "Open another Eidos File and keep this recoverable working copy? The original file has not been updated."
     )
-  }, [saveState])
+  }, [saveState, session])
 
   const installOpenResult = useCallback(
     async (
@@ -707,17 +699,10 @@ export function App() {
   )
 
   const openPreparedFile = useCallback(
-    async (
-      opened: OpenedBrowserFile,
-      preferredTableName?: string,
-      options?: { boot?: boolean }
-    ) => {
-      // An explicit open (file picker, import, template, launch, recovery)
-      // always outranks the boot sample — even one that started earlier.
-      if (options?.boot && explicitOpenStartedRef.current) return
-      if (!options?.boot) explicitOpenStartedRef.current = true
+    async (opened: OpenedBrowserFile, preferredTableName?: string) => {
+      explicitOpenStartedRef.current = true
       // Every open supersedes the previous one; a slower open that finishes
-      // later must never clobber a newer session (boot sample vs. user open).
+      // later must never clobber a newer session.
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
       const client = new EidosFileWorkerClient()
@@ -747,6 +732,7 @@ export function App() {
         )
       } catch (error) {
         client.terminate()
+        if (generation !== openGenerationRef.current) return
         const message = errorMessage(error)
         setNotice(message)
         dispatch({ type: "OPEN_FAILURE", message })
@@ -792,8 +778,7 @@ export function App() {
     [installOpenResult]
   )
 
-  // A CLI-hosted session (eidos serve) always supersedes the boot sample: the
-  // server already owns one concrete file and opens it without any picker.
+  // A CLI-hosted session already owns one concrete file and needs no picker.
   const cliManifestRef = useRef<CliHostManifest | null>(null)
   const [cliHosted, setCliHosted] = useState(false)
   useEffect(() => {
@@ -823,7 +808,7 @@ export function App() {
       registerPwaEidosFileHandler({
         onOpen: async (opened) => {
           if (!confirmSwitch()) return
-          // A delivered file always supersedes the boot sample.
+          // A delivered file takes priority over automatic recovery.
           bootstrappedRef.current = true
           setNotice(null)
           await openPreparedFile(opened)
@@ -834,12 +819,13 @@ export function App() {
   )
 
   const chooseFile = useCallback(async () => {
-    if (!confirmSwitch()) return
-    setNotice(null)
     if (!supportsDirectFileAccess()) {
       inputRef.current?.click()
       return
     }
+    if (!confirmSwitch()) return
+    explicitOpenStartedRef.current = true
+    setNotice(null)
     try {
       const opened = await pickDirectEidosFile()
       if (opened) await openPreparedFile(opened)
@@ -848,108 +834,121 @@ export function App() {
     }
   }, [confirmSwitch, openPreparedFile])
 
-  const createBlankFile = useCallback(async () => {
-    if (!confirmSwitch()) return
-    setNotice(null)
-    dispatch({ type: "OPEN_START" })
-    const client = new EidosFileWorkerClient()
-    const id = crypto.randomUUID()
-    const createdAt = Date.now()
-    const copy =
-      locale === "zh"
-        ? {
-            fileName: "未命名.eidos",
-            title: "未命名",
-            tableName: "数据表",
-            labelFieldName: "名称",
-          }
-        : {
-            fileName: "untitled.eidos",
-            title: "Untitled",
-            tableName: "Table",
-            labelFieldName: "Name",
-          }
-    try {
-      const result = await client.createEditorSource(
-        copy.fileName,
-        id,
-        copy.title
-      )
-      const snapshotWithTable = await client.createTable({
-        name: copy.tableName,
-        fields: [
-          {
-            name: copy.labelFieldName,
-            type: "text",
-            isRecordLabel: true,
-          },
-        ],
-      })
-      await installOpenResult(
-        client,
-        {
-          id,
-          fileName: copy.fileName,
-          mode: "copy",
-          permission: "denied",
-          sourceVersion: {
-            size: 0,
-            lastModified: createdAt,
-            digest: "",
-          },
-        },
-        { ...result, snapshot: snapshotWithTable },
-        copy.tableName,
-        true
-      )
-    } catch (error) {
-      client.terminate()
-      const message = errorMessage(error)
-      setNotice(message)
-      dispatch({ type: "OPEN_FAILURE", message })
-    }
-  }, [confirmSwitch, installOpenResult, locale])
-
-  const openSample = useCallback(async () => {
-    if (!confirmSwitch()) return
-    setNotice(null)
-    try {
-      const source = getEidosFileTemplateSource("project-portfolio", locale)
-      const file = await loadSampleEidosFile(locale)
-      await openPreparedFile(
-        await openImportedEidosFile(file),
-        source.startTable,
-        { boot: true }
-      )
-    } catch (error) {
-      const message = errorMessage(error)
-      setNotice(message)
-      dispatch({ type: "OPEN_FAILURE", message })
-    }
-  }, [confirmSwitch, locale, openPreparedFile])
-
-  const openTemplate = useCallback(
-    async (templateId: EidosFileTemplateId) => {
+  const importFile = useCallback(
+    async (file: File) => {
       if (!confirmSwitch()) return
+      explicitOpenStartedRef.current = true
       setNotice(null)
-      setOpeningTemplateId(templateId)
       try {
-        const source = getEidosFileTemplateSource(templateId, locale)
-        const file = await loadTemplateEidosFile(templateId, locale)
-        await openPreparedFile(
-          await openImportedEidosFile(file),
-          source.startTable
+        await openPreparedFile(await openImportedEidosFile(file))
+      } catch (error) {
+        setNotice(errorMessage(error))
+      }
+    },
+    [confirmSwitch, openPreparedFile]
+  )
+
+  const createBlankFile = useCallback(
+    async (sample = false) => {
+      if (!confirmSwitch()) return
+      explicitOpenStartedRef.current = true
+      const generation = ++openGenerationRef.current
+      setNotice(null)
+      dispatch({ type: "OPEN_START" })
+      const client = new EidosFileWorkerClient()
+      const id = crypto.randomUUID()
+      const createdAt = Date.now()
+      const copy =
+        locale === "zh"
+          ? {
+              fileName: sample ? "示例.eidos" : "未命名.eidos",
+              title: sample ? "示例" : "未命名",
+              tableName: sample ? "待办事项" : "数据表",
+              labelFieldName: "名称",
+            }
+          : {
+              fileName: sample ? "sample.eidos" : "untitled.eidos",
+              title: sample ? "Sample" : "Untitled",
+              tableName: sample ? "Tasks" : "Table",
+              labelFieldName: "Name",
+            }
+      try {
+        const result = await client.createEditorSource(
+          copy.fileName,
+          id,
+          copy.title
+        )
+        const snapshotWithTable = await client.createTable({
+          name: copy.tableName,
+          fields: [
+            {
+              name: copy.labelFieldName,
+              type: "text",
+              isRecordLabel: true,
+            },
+            ...(sample
+              ? [
+                  {
+                    name: locale === "zh" ? "已完成" : "Done",
+                    type: "checkbox" as const,
+                  },
+                ]
+              : []),
+          ],
+        })
+        if (sample) {
+          const table = snapshotWithTable.tables[0]!
+          const nameField = table.fields.find(
+            (field) => field.name === copy.labelFieldName
+          )!
+          const rows =
+            locale === "zh"
+              ? ["双击单元格修改内容", "勾选已完成的事项", "保存你的文件"]
+              : [
+                  "Double-click a cell to edit",
+                  "Check off a completed task",
+                  "Save your file",
+                ]
+          for (const name of rows) {
+            await client.insertRow(table.table.id, { [nameField.id]: name })
+          }
+        }
+        if (generation !== openGenerationRef.current) {
+          client.terminate()
+          return
+        }
+        await installOpenResult(
+          client,
+          {
+            id,
+            fileName: copy.fileName,
+            mode: "copy",
+            permission: "denied",
+            sourceVersion: {
+              size: 0,
+              lastModified: createdAt,
+              digest: "",
+            },
+          },
+          {
+            ...result,
+            snapshot: sample ? await client.getSnapshot() : snapshotWithTable,
+          },
+          copy.tableName,
+          true
         )
       } catch (error) {
+        client.terminate()
+        if (generation !== openGenerationRef.current) return
         const message = errorMessage(error)
         setNotice(message)
         dispatch({ type: "OPEN_FAILURE", message })
-      } finally {
-        setOpeningTemplateId(null)
       }
     },
-    [confirmSwitch, locale, openPreparedFile]
+    [confirmSwitch, installOpenResult, locale]
   )
+
+  const openSample = useCallback(() => createBlankFile(true), [createBlankFile])
 
   const restoreRecoverySession = useCallback(
     async (
@@ -993,6 +992,7 @@ export function App() {
               target.handle,
               permission
             )
+            if (generation !== openGenerationRef.current) return true
             if (disk && !sameFileVersion(disk.version, target.sourceVersion)) {
               dispatch({
                 type: "CONFLICT",
@@ -1001,6 +1001,7 @@ export function App() {
               })
             }
           } catch (error) {
+            if (generation !== openGenerationRef.current) return true
             const currentSession = sessionRef.current
             if (currentSession?.id === target.id) {
               const nextSession = {
@@ -1021,6 +1022,7 @@ export function App() {
         return true
       } catch (error) {
         client.terminate()
+        if (generation !== openGenerationRef.current) return true
         const message = errorMessage(error)
         setNotice(message)
         dispatch({ type: "OPEN_FAILURE", message })
@@ -1094,24 +1096,15 @@ export function App() {
     if (
       !recoveryReady ||
       bootstrappedRef.current ||
+      explicitOpenStartedRef.current ||
       session ||
       saveState.phase === "opening"
     ) {
       return
     }
     bootstrappedRef.current = true
-    void (async () => {
-      if (recovery && (await restoreRecovery())) return
-      await openSample()
-    })()
-  }, [
-    openSample,
-    recovery,
-    recoveryReady,
-    restoreRecovery,
-    saveState.phase,
-    session,
-  ])
+    if (recovery) void restoreRecovery()
+  }, [recovery, recoveryReady, restoreRecovery, saveState.phase, session])
 
   const discardRecovery = useCallback(async () => {
     if (!recovery) return
@@ -2056,7 +2049,6 @@ export function App() {
             onNew={() => void createBlankFile()}
             onOpen={() => void chooseFile()}
             onOpenSample={() => void openSample()}
-            onOpenTemplate={(templateId) => void openTemplate(templateId)}
             onOpenRecent={(id) => void openRecentFile(id)}
             onClearRecentFiles={() => void clearRecentFileHistory()}
             onSave={() => void saveOriginal()}
@@ -2066,10 +2058,58 @@ export function App() {
           />
         )}
 
-        <div className="boot-loading" role="status">
-          <LoaderCircle className="spin" size={18} aria-hidden="true" />
-          <span>{t("openingEidosFile")}</span>
-        </div>
+        {saveState.phase === "opening" || !recoveryReady || cliHosted ? (
+          <div className="boot-loading" role="status">
+            <LoaderCircle className="spin" size={18} aria-hidden="true" />
+            <span>{t("openingEidosFile")}</span>
+          </div>
+        ) : (
+          <section
+            className="file-launch"
+            aria-labelledby="file-launch-title"
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes("Files")) {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "copy"
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              const file = event.dataTransfer.files[0]
+              if (file) void importFile(file)
+            }}
+          >
+            <div className="file-launch-content">
+              <h1 id="file-launch-title">Eidos File</h1>
+              <p>{t("launchIntro")}</p>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => void chooseFile()}
+              >
+                <FolderOpen size={16} aria-hidden="true" />
+                {t("openEidosFile")}
+              </button>
+              <p className="file-launch-hint">{t("launchDropHint")}</p>
+              <div className="file-launch-secondary">
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => void createBlankFile()}
+                >
+                  {t("createEidosFile")}
+                </button>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => void openSample()}
+                >
+                  {t("trySample")}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {recovery ? (
           <section
@@ -2118,9 +2158,7 @@ export function App() {
             const file = event.target.files?.[0]
             event.currentTarget.value = ""
             if (file) {
-              void openImportedEidosFile(file)
-                .then(openPreparedFile)
-                .catch((error) => setNotice(errorMessage(error)))
+              void importFile(file)
             }
           }}
         />
@@ -2159,7 +2197,6 @@ export function App() {
           onNew={() => void createBlankFile()}
           onOpen={() => void chooseFile()}
           onOpenSample={() => void openSample()}
-          onOpenTemplate={(templateId) => void openTemplate(templateId)}
           onOpenRecent={(id) => void openRecentFile(id)}
           onClearRecentFiles={() => void clearRecentFileHistory()}
           onSave={() => void saveOriginal()}
@@ -2495,7 +2532,7 @@ export function App() {
           const file = event.target.files?.[0]
           event.currentTarget.value = ""
           if (file) {
-            void openImportedEidosFile(file).then(openPreparedFile)
+            void importFile(file)
           }
         }}
       />

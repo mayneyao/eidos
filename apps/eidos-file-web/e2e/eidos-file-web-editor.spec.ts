@@ -276,7 +276,6 @@ async function emulateClassicScrollbarWidth(
 
 async function openDirectEidosFile(page: Page): Promise<void> {
   await page.goto("/")
-  await waitForSampleEditor(page)
   await clickFileMenuItem(page, "Open .eidos file")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Eidos File Web Editor"
@@ -292,11 +291,34 @@ async function waitForSampleEditor(page: Page): Promise<void> {
   })
 }
 
+async function openFixture(
+  page: Page,
+  asset: string,
+  table?: string
+): Promise<void> {
+  await page
+    .locator("input[type=file]")
+    .setInputFiles(
+      fileURLToPath(new URL(`../fixtures/${asset}.eidos`, import.meta.url))
+    )
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toBeAttached()
+  const primaryTable =
+    table ??
+    (
+      {
+        "feature-lab": "Experiments",
+        "project-tracker": "Projects",
+        "project-tracker.zh": "项目",
+      } as Record<string, string>
+    )[asset]
+  if (primaryTable)
+    await page.getByRole("tab", { name: primaryTable, exact: true }).click()
+}
+
 async function clickFileMenuItem(page: Page, name: string): Promise<void> {
   const trigger = page.locator(".title-file-menu .app-menu-trigger").first()
   const item = page.getByRole("menuitem", { name, exact: true })
-  // While the boot sample is still opening, items are disabled and the menu
-  // remounts when the file arrives — reopen and retry until it settles.
+  // File opening can replace the menu; retry until it settles.
   await expect(async () => {
     if (!(await item.isVisible().catch(() => false))) {
       const fileMenu = page.getByRole("menu", { name: /^(File|文件)$/ })
@@ -351,7 +373,7 @@ async function toggleFirstComplete(
   const bounds = await canvas.boundingBox()
   if (!bounds)
     throw new Error("The shared Eidos File Grid canvas is not visible")
-  // File opens can still be settling (boot sample vs. user-initiated open);
+  // File opens can still be settling;
   // a click issued mid-remount is lost.
   await page.waitForTimeout(250)
   await expect(page.locator(".save-status")).not.toContainText(
@@ -363,7 +385,9 @@ async function toggleFirstComplete(
   // 180px property columns. Click the first row's Complete checkbox.
   await page.mouse.click(bounds.x + 954, bounds.y + 54)
   if (expectSaveState) {
-    await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
+    await expect(page.locator(".save-status")).toContainText(
+      /Unsaved|Not saved to a file/
+    )
   }
   await expect(cell).toHaveText("true")
 }
@@ -430,7 +454,7 @@ test("keeps shared editor chrome on the active dark theme", async ({
   await installFallbackMode(page)
   await page.goto("/")
   await page.getByRole("button", { name: "Use dark theme" }).click()
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await waitForSampleEditor(page)
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark")
@@ -787,7 +811,7 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
     page.getByRole("tab", { name: "Grid", exact: true })
   ).toHaveAttribute("aria-selected", "true")
   await expect(page.locator(".save-status")).toContainText(
-    "Changes stay in browser"
+    "Not saved to a file"
   )
   await expect(
     page.locator(".title-file-menu").getByRole("button", { name: "File" })
@@ -821,13 +845,10 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
   ).toBeVisible()
 })
 
-test("opens the bundled sample without a picker", async ({ page }) => {
+test("searches and filters an imported project file", async ({ page }) => {
   await installFallbackMode(page)
-  const sampleResponse = page.waitForResponse((response) =>
-    response.url().includes("project-tracker")
-  )
   await page.goto("/")
-  await expect((await sampleResponse).status()).toBeLessThan(400)
+  await openFixture(page, "project-tracker")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Eidos File Web Editor"
   )
@@ -867,59 +888,16 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "1px"
   )
 
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Eidos File Web Editor"
   )
 })
 
-test("opens an advanced starter file from the template picker", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the template picker and SQLite worker handoff"
-  )
+test("imports an advanced starter file", async ({ page }) => {
   await installFallbackMode(page)
   await page.goto("/")
-  await waitForSampleEditor(page)
-
-  await page.locator(".title-file-menu .app-menu-trigger").first().click()
-  const menu = page.getByRole("menu", { name: "File" })
-  await expect(menu).toBeVisible()
-  await expect(menu.getByText("Templates", { exact: true })).toBeHidden()
-  await expect(menu.getByRole("menuitem")).toHaveCount(6)
-  await menu
-    .getByRole("menuitem", { name: "New from template…", exact: true })
-    .click()
-  await expect(menu.getByRole("menuitem")).toHaveCount(6)
-  await expect(
-    menu.getByRole("menuitem", { name: "Open .eidos file", exact: true })
-  ).toBeVisible()
-  const templateMenu = page.getByRole("menu", { name: "New from template…" })
-  await expect(
-    templateMenu.getByText("Templates", { exact: true })
-  ).toBeVisible()
-  await expect(templateMenu.getByRole("menuitem")).toHaveCount(8)
-  const [rootMenuBounds, templateMenuBounds] = await Promise.all([
-    menu.boundingBox(),
-    templateMenu.boundingBox(),
-  ])
-  expect(rootMenuBounds).not.toBeNull()
-  expect(templateMenuBounds).not.toBeNull()
-  expect(templateMenuBounds!.x).toBeGreaterThanOrEqual(
-    rootMenuBounds!.x + rootMenuBounds!.width
-  )
-  expect(templateMenuBounds!.x + templateMenuBounds!.width).toBeLessThanOrEqual(
-    page.viewportSize()!.width
-  )
-
-  const templateResponse = page.waitForResponse((response) =>
-    response.url().includes("personal-crm")
-  )
-  await templateMenu.getByRole("menuitem", { name: "Personal CRM" }).click()
-  await expect((await templateResponse).status()).toBeLessThan(400)
+  await openFixture(page, "personal-crm", "People")
 
   await expect(
     page.getByRole("tab", { name: "People", exact: true })
@@ -938,7 +916,7 @@ test("opens an advanced starter file from the template picker", async ({
   )
 })
 
-test("opens every additional template on its primary table", async ({
+test("imports every additional fixture on its primary table", async ({
   page,
   browserName,
 }) => {
@@ -989,12 +967,7 @@ test("opens every additional template on its primary table", async ({
 
   for (const template of templates) {
     await page.goto("/")
-    await waitForSampleEditor(page)
-    const templateResponse = page.waitForResponse((response) =>
-      response.url().includes(template.asset)
-    )
-    await clickFileMenuItem(page, template.button)
-    await expect((await templateResponse).status()).toBeLessThan(400)
+    await openFixture(page, template.asset, template.table)
     await expect(
       page.getByRole("tab", { name: template.table, exact: true })
     ).toHaveAttribute("aria-selected", "true")
@@ -1004,7 +977,7 @@ test("opens every additional template on its primary table", async ({
   }
 })
 
-test("opens every template with Chinese schema and sample data", async ({
+test("imports every fixture with Chinese schema and sample data", async ({
   page,
   browserName,
 }) => {
@@ -1064,12 +1037,7 @@ test("opens every template with Chinese schema and sample data", async ({
 
   for (const template of templates) {
     await page.goto("/")
-    await waitForSampleEditor(page)
-    const templateResponse = page.waitForResponse((response) =>
-      response.url().includes(template.asset)
-    )
-    await clickFileMenuItem(page, template.button)
-    await expect((await templateResponse).status()).toBeLessThan(400)
+    await openFixture(page, template.asset, template.table)
     await expect(
       page.getByRole("tab", { name: template.table, exact: true })
     ).toHaveAttribute("aria-selected", "true")
@@ -1084,7 +1052,7 @@ test("record content uses rich editing and retains its draft after save and reop
 }) => {
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
   await page
     .getByRole("tab", { name: "Experiments", exact: true })
     .click({ button: "right" })
@@ -1152,11 +1120,7 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
   )
   await installFallbackMode(page)
   await page.goto("/")
-  const response = page.waitForResponse((candidate) =>
-    candidate.url().includes("feature-lab")
-  )
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
-  await expect((await response).status()).toBeLessThan(400)
+  await openFixture(page, "feature-lab")
 
   await expect(
     page.getByRole("tab", { name: "Experiments", exact: true })
@@ -1376,7 +1340,9 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
     .locator(".eidos-file-record-field")
     .filter({ has: page.getByText("Relation-backed load", { exact: true }) })
   await expect(relationBackedLoad).toContainText("34")
-  await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
+  await expect(page.locator(".save-status")).toContainText(
+    /Unsaved|Not saved to a file/
+  )
 })
 
 test("persists a Grid multi-select edit when its popover closes", async ({
@@ -1389,7 +1355,7 @@ test("persists a Grid multi-select edit when its popover closes", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
   await expect(
     page.getByRole("tab", { name: "Experiments", exact: true })
   ).toHaveAttribute("aria-selected", "true")
@@ -1466,7 +1432,7 @@ test("exports the current Eidos File view as readable CSV", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
   await expect(
     page.getByRole("tab", { name: "Experiments", exact: true })
   ).toHaveAttribute("aria-selected", "true")
@@ -1543,7 +1509,7 @@ test("uses the filtered row count for the Grid virtual height", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1592,7 +1558,7 @@ test("keeps Grid field menus open after a touch header tap", async ({
   const page = await context.newPage()
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1626,16 +1592,16 @@ test("keeps navigation and editor controls usable on a phone", async ({
   await page.locator(".title-actions .app-menu-trigger").first().click()
   const moreMenu = page.getByRole("menu", { name: "More" })
   await expect(moreMenu).toBeVisible()
-  await expect(moreMenu.getByRole("menuitem")).toHaveCount(3)
+  await expect(moreMenu.getByRole("menuitem")).toHaveCount(1)
   await expect(
-    moreMenu.getByRole("menuitem", { name: "Open Format" })
+    moreMenu.getByRole("menuitem", { name: "Help & documentation" })
   ).toBeVisible()
   await expect(
     moreMenu.getByRole("menuitem", { name: "SQLite Inspector" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(
     moreMenu.getByRole("menuitem", { name: "Version Control" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await page.keyboard.press("Escape")
   expect(
     await page.evaluate(
@@ -1645,25 +1611,10 @@ test("keeps navigation and editor controls usable on a phone", async ({
     )
   ).toBe(true)
 
-  await waitForSampleEditor(page)
-  const fileTrigger = page.locator(".title-file-menu .app-menu-trigger").first()
-  await fileTrigger.click()
-  const mobileFileMenu = page.getByRole("menu", { name: "File" })
-  await mobileFileMenu
-    .getByRole("menuitem", { name: "New from template…", exact: true })
-    .click()
   await expect(
-    page.getByRole("menu", { name: "New from template…" })
-  ).toHaveCount(0)
-  await expect(
-    mobileFileMenu.getByRole("menuitem", { name: "Back to File" })
+    page.getByRole("heading", { name: "Eidos File", exact: true })
   ).toBeVisible()
-  await expect(
-    mobileFileMenu.getByRole("menuitem", { name: "Personal CRM" })
-  ).toBeVisible()
-  await mobileFileMenu.getByRole("menuitem", { name: "Back to File" }).click()
-
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator(".editor-titlebar").waitFor()
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
@@ -1759,7 +1710,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1818,7 +1769,9 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(page.locator("[data-testid='glide-cell-3-0']")).toHaveText(
     "true"
   )
-  await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
+  await expect(page.locator(".save-status")).toContainText(
+    /Unsaved|Not saved to a file/
+  )
 
   const downloadPromise = page.waitForEvent("download")
   await clickFileMenuItem(page, "Save As")
@@ -1854,7 +1807,7 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2006,7 +1959,7 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     })
   })
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2167,7 +2120,7 @@ test("shows Relation metadata as readable names instead of identifiers", async (
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2223,7 +2176,7 @@ test("clears an existing Relation while background reads settle", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   const rawRelation = page.locator("[data-testid='glide-cell-6-0']")
   await expect(rawRelation).toContainText(/\["[0-9a-f-]+"\]/i)
 
@@ -2285,7 +2238,7 @@ test("keeps the Formula editor focused and reachable in a dark touch viewport", 
     await installFallbackMode(page)
     await page.goto("/")
     await page.getByRole("button", { name: "Use dark theme" }).click()
-    await clickFileMenuItem(page, "Open sample Eidos File")
+    await openFixture(page, "project-tracker")
     await page.locator("[data-testid='glide-cell-1-0']").waitFor({
       state: "attached",
     })
@@ -2374,7 +2327,7 @@ test("calculates Grid column summaries through the browser runtime", async ({
     })
   })
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2458,7 +2411,7 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await expect(
     page.getByRole("tab", { name: "Teams", exact: true })
   ).toBeVisible()
@@ -2540,7 +2493,7 @@ test("does not reserve a blank scrollbar row when columns fit", async ({
   await emulateClassicScrollbarWidth(page)
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
 
   const scroller = page.locator(".eidos-file-content .dvn-scroller")
   await expect(scroller).toBeVisible()
@@ -2586,6 +2539,7 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   )
   await installFallbackMode(page)
   await page.goto("/")
+  await openFixture(page, "project-tracker")
   await waitForSampleEditor(page)
 
   await selectTitlebarLanguage(page, "简体中文")
@@ -2593,12 +2547,8 @@ test("switches the live Eidos File experience between English and Chinese", asyn
     page.locator(".title-file-menu .app-menu-trigger").first()
   ).toContainText("文件")
 
-  // The localized sample ships per locale; user data is never rewritten.
-  const chineseSample = page.waitForResponse((response) =>
-    response.url().includes("project-tracker.zh")
-  )
-  await clickFileMenuItem(page, "打开示例 Eidos File")
-  await expect((await chineseSample).status()).toBeLessThan(400)
+  // User data is never rewritten when switching the UI language.
+  await openFixture(page, "project-tracker.zh")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "发布 Eidos File Web 编辑器"
   )
@@ -2624,6 +2574,7 @@ test("keeps the editor first and links out to the Eidos File documentation", asy
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto("/")
+  await openFixture(page, "project-tracker")
   await waitForSampleEditor(page)
   await expect(
     page.locator(".title-file-menu .app-menu-trigger").first()
@@ -2633,14 +2584,14 @@ test("keeps the editor first and links out to the Eidos File documentation", asy
   const moreMenu = page.getByRole("menu", { name: "More" })
   await expect(moreMenu).toBeVisible()
   await expect(
-    moreMenu.getByRole("menuitem", { name: "Open Format" })
+    moreMenu.getByRole("menuitem", { name: "Help & documentation" })
   ).toBeVisible()
   await expect(
     moreMenu.getByRole("menuitem", { name: "SQLite Inspector" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(
     moreMenu.getByRole("menuitem", { name: "Version Control" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await page.keyboard.press("Escape")
 
   await selectTitlebarLanguage(page, "简体中文")
@@ -2651,14 +2602,14 @@ test("keeps the editor first and links out to the Eidos File documentation", asy
   const zhMoreMenu = page.getByRole("menu", { name: "更多" })
   await expect(zhMoreMenu).toBeVisible()
   await expect(
-    zhMoreMenu.getByRole("menuitem", { name: "开放格式" })
+    zhMoreMenu.getByRole("menuitem", { name: "帮助文档" })
   ).toBeVisible()
   await expect(
     zhMoreMenu.getByRole("menuitem", { name: "SQLite 检查器" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(
     zhMoreMenu.getByRole("menuitem", { name: "版本管理" })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await page.keyboard.press("Escape")
   expect(browserErrors).toEqual([])
 })

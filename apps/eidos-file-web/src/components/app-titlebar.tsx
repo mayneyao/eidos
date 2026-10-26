@@ -1,45 +1,21 @@
 import {
-  BookOpen,
-  BriefcaseBusiness,
-  CalendarRange,
   ChevronRight,
-  ContactRound,
   Download,
   Ellipsis,
   FileKey,
   FilePlus2,
   FileSpreadsheet,
   FolderOpen,
-  HeartPulse,
   History,
-  LayoutTemplate,
-  Microscope,
   Moon,
   Save,
   Sun,
-  TableProperties,
   Trash2,
-  WalletCards,
   type LucideIcon,
 } from "lucide-react"
 
 import { EIDOS_FILE_LOCALES, useI18n } from "../i18n"
-import {
-  EIDOS_FILE_TEMPLATES,
-  type EidosFileTemplateId,
-} from "../sample-eidos-file"
 import { AppMenu, type AppMenuSection } from "./app-menu"
-
-const templateIcons: Record<EidosFileTemplateId, LucideIcon> = {
-  "project-portfolio": BriefcaseBusiness,
-  "personal-crm": ContactRound,
-  "household-finance": WalletCards,
-  "reading-library": BookOpen,
-  "habit-journal": HeartPulse,
-  "content-calendar": CalendarRange,
-  "feature-lab": Microscope,
-  "field-capabilities": TableProperties,
-}
 
 interface AppTitlebarProps {
   fileOpen: boolean
@@ -59,7 +35,6 @@ interface AppTitlebarProps {
   onNew: () => void
   onOpen: () => void
   onOpenSample: () => void
-  onOpenTemplate: (id: EidosFileTemplateId) => void
   onOpenRecent?: (id: string) => void
   onClearRecentFiles?: () => void
   onSave: () => void
@@ -97,7 +72,6 @@ export function AppTitlebar({
   onNew,
   onOpen,
   onOpenSample,
-  onOpenTemplate,
   onOpenRecent,
   onClearRecentFiles,
   onSave,
@@ -107,20 +81,6 @@ export function AppTitlebar({
 }: AppTitlebarProps) {
   const { locale, setLocale, t } = useI18n()
   const resolvedPermissionActionLabel = permissionActionLabel ?? t("grantWrite")
-
-  const templateSections: AppMenuSection[] = [
-    {
-      id: "templates",
-      label: t("templatesHeading"),
-      items: EIDOS_FILE_TEMPLATES.map((template) => ({
-        id: template.id,
-        label: template.copy[locale].title,
-        icon: templateIcons[template.id],
-        disabled: opening,
-        onSelect: () => onOpenTemplate(template.id),
-      })),
-    },
-  ]
 
   const recentFileSections: AppMenuSection[] = [
     {
@@ -158,13 +118,6 @@ export function AppTitlebar({
           icon: FilePlus2,
           disabled: opening,
           onSelect: onNew,
-        },
-        {
-          id: "new-from-template",
-          label: t("newFromTemplate"),
-          icon: LayoutTemplate,
-          disabled: opening,
-          submenu: templateSections,
         },
       ],
     },
@@ -235,26 +188,6 @@ export function AppTitlebar({
               locale === "zh"
                 ? "https://eidos.space/zh/docs/"
                 : "https://eidos.space/docs/"
-          },
-        },
-        {
-          id: "sqlite",
-          label: `${t("navInspector")} ${t("navInspectorQualifier")}`,
-          onSelect: () => {
-            window.open("https://sqlite.eidos.space/", "_blank", "noreferrer")
-          },
-        },
-      ],
-    },
-    {
-      id: "ecosystem",
-      label: t("menuEcosystem"),
-      items: [
-        {
-          id: "graft",
-          label: t("navGraft"),
-          onSelect: () => {
-            window.location.href = "https://graft.eidos.space/"
           },
         },
       ],

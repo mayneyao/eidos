@@ -264,6 +264,52 @@
   font-size: 0.875rem;
 }
 
+.file-launch {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  overflow: auto;
+}
+
+.file-launch-content {
+  width: min(100%, 24rem);
+  margin-block: auto;
+}
+
+.file-launch h1 {
+  margin: 0 0 0.75rem;
+  color: var(--foreground);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.file-launch p {
+  margin: 0 0 1.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.file-launch .file-launch-hint {
+  margin: 0.75rem 0 1.5rem;
+  font-size: 0.75rem;
+}
+
+.file-launch-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.file-launch-secondary .text-button {
+  padding-inline: 0;
+  font-size: 0.8125rem;
+}
+
 .file-identity,
 .title-actions {
   display: flex;

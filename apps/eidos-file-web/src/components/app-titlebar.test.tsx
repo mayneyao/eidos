@@ -74,7 +74,6 @@ describe("AppTitlebar", () => {
             onNew={vi.fn()}
             onOpen={vi.fn()}
             onOpenSample={vi.fn()}
-            onOpenTemplate={vi.fn()}
             onSave={vi.fn()}
             onDownload={vi.fn()}
             onReauthorize={vi.fn()}
@@ -104,9 +103,7 @@ describe("AppTitlebar", () => {
       )
     )
     expect(moreItems.map((item) => item.textContent?.trim())).toEqual([
-      "Open Format",
-      "SQLite Inspector",
-      "Version Control",
+      "Help & documentation",
       "English",
       "简体中文",
     ])
@@ -125,7 +122,7 @@ describe("AppTitlebar", () => {
     expect(container.querySelector('button[aria-label="更多"]')).not.toBeNull()
   })
 
-  it("keeps templates behind a stable File-menu entry", () => {
+  it("keeps only file actions in the File menu", () => {
     act(() => {
       root.render(
         <I18nProvider initialLocale="en">
@@ -140,7 +137,6 @@ describe("AppTitlebar", () => {
             onNew={vi.fn()}
             onOpen={vi.fn()}
             onOpenSample={vi.fn()}
-            onOpenTemplate={vi.fn()}
             onSave={vi.fn()}
             onDownload={vi.fn()}
             onReauthorize={vi.fn()}
@@ -162,7 +158,6 @@ describe("AppTitlebar", () => {
     )
     expect(rootItems.map((item) => item.textContent?.trim())).toEqual([
       "New blank Eidos File",
-      "New from template…",
       "Open .eidos file⌘O",
       "Open sample Eidos File",
       "Save⌘S",
@@ -170,68 +165,10 @@ describe("AppTitlebar", () => {
     ])
     expect(container.textContent).not.toContain("Personal CRM")
     expect(container.querySelector(".app-menu-check")).toBeNull()
-
-    const templateEntry = rootItems.find((item) =>
-      item.textContent?.includes("New from template")
-    )
-    act(() => templateEntry?.click())
-
-    expect(container.textContent).toContain("Back to File")
-    expect(container.textContent).toContain("Personal CRM")
-    expect(
-      container.querySelectorAll('.title-file-menu [role="menuitem"]')
-    ).toHaveLength(9)
-  })
-
-  it("keeps the parent menu visible beside a desktop submenu", () => {
-    useDesktopMenuMode()
-    act(() => {
-      root.render(
-        <I18nProvider initialLocale="en">
-          <AppTitlebar
-            fileOpen
-            fileName="projects.eidos"
-            tableName="Projects"
-            opening={false}
-            canSave
-            saveLabel="Save"
-            theme="light"
-            onNew={vi.fn()}
-            onOpen={vi.fn()}
-            onOpenSample={vi.fn()}
-            onOpenTemplate={vi.fn()}
-            onSave={vi.fn()}
-            onDownload={vi.fn()}
-            onReauthorize={vi.fn()}
-            onThemeChange={vi.fn()}
-          />
-        </I18nProvider>
-      )
-    })
-
-    const fileTrigger = container.querySelector<HTMLButtonElement>(
-      ".title-file-menu .app-menu-trigger"
-    )
-    act(() => fileTrigger?.click())
-    const rootMenu = container.querySelector<HTMLElement>(
-      '[role="menu"][aria-label="File"]'
-    )
-    const templateEntry = Array.from(
-      rootMenu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
-    ).find((item) => item.textContent?.includes("New from template"))
-    act(() => templateEntry?.click())
-
-    const flyout = container.querySelector<HTMLElement>(
-      '[role="menu"][aria-label="New from template…"]'
-    )
-    expect(rootMenu?.textContent).toContain("Open .eidos file")
-    expect(rootMenu?.textContent).not.toContain("Personal CRM")
-    expect(flyout?.textContent).toContain("Personal CRM")
-    expect(container.textContent).not.toContain("Back to File")
-    expect(templateEntry?.getAttribute("aria-expanded")).toBe("true")
   })
 
   it("opens recent files from a compact submenu and can clear the list", () => {
+    useDesktopMenuMode()
     const onOpenRecent = vi.fn()
     const onClearRecentFiles = vi.fn()
     act(() => {
@@ -260,7 +197,6 @@ describe("AppTitlebar", () => {
             onNew={vi.fn()}
             onOpen={vi.fn()}
             onOpenSample={vi.fn()}
-            onOpenTemplate={vi.fn()}
             onOpenRecent={onOpenRecent}
             onClearRecentFiles={onClearRecentFiles}
             onSave={vi.fn()}

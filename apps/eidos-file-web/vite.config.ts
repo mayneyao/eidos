@@ -46,8 +46,7 @@ export default defineConfig({
         id: "./",
         name: "Eidos File",
         short_name: "Eidos File",
-        description:
-          "Open Eidos File 1.0 locally through the portable Runtime, Adapter, and UI contracts.",
+        description: "Open and edit local .eidos files in your browser.",
         start_url: "./",
         scope: "./",
         lang: "en",

@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url"
+
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 async function installFallbackMode(page: Page): Promise<void> {
@@ -7,6 +9,21 @@ async function installFallbackMode(page: Page): Promise<void> {
       showSaveFilePicker: { configurable: true, value: undefined },
     })
   })
+}
+
+async function openFixture(page: Page, asset: string): Promise<void> {
+  await page
+    .locator("input[type=file]")
+    .setInputFiles(
+      fileURLToPath(new URL(`../fixtures/${asset}.eidos`, import.meta.url))
+    )
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toBeAttached()
+  await page
+    .getByRole("tab", {
+      name: asset === "feature-lab" ? "Experiments" : "Projects",
+      exact: true,
+    })
+    .click()
 }
 
 async function clickFileMenuItem(page: Page, name: string): Promise<void> {
@@ -97,7 +114,7 @@ test("gates Feature Lab query controls by logical field capability", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
   await page.getByRole("tab", { name: "Quality signals", exact: true }).click()
 
   await page.getByRole("button", { name: "Search Eidos File rows" }).click()
@@ -174,7 +191,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   page.on("pageerror", (error) => pageErrors.push(error.message))
 
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
 
   await page.getByRole("tab", { name: "Quality signals", exact: true }).click()
   await expect(
@@ -371,7 +388,7 @@ test("keeps system fields read-only in the unified field manager", async ({
   await installFallbackMode(page)
 
   await page.goto("/")
-  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
+  await openFixture(page, "feature-lab")
   await page.getByRole("tab", { name: "Grid", exact: true }).click()
   await page
     .locator("[data-eidos-file-workbar-actions]")
@@ -441,7 +458,7 @@ test("replaces a Formula expression after inserting a function", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await clickFileMenuItem(page, "Open sample Eidos File")
+  await openFixture(page, "project-tracker")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
