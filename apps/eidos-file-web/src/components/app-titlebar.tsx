@@ -186,8 +186,8 @@ export function AppTitlebar({
           onSelect: () => {
             window.location.href =
               locale === "zh"
-                ? "https://eidos.space/zh/docs/"
-                : "https://eidos.space/docs/"
+                ? "https://docs.eidos.space/zh-cn/getting-started/browser/"
+                : "https://docs.eidos.space/getting-started/browser/"
           },
         },
       ],
