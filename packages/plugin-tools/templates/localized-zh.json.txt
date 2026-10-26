@@ -1,0 +1,5 @@
+{
+  "plugin.name": "多语言页面",
+  "plugin.description": "跟随界面语言的插件页面",
+  "search": "搜索…"
+}

@@ -8,6 +8,7 @@ import { expectConnectionPortConformance } from "./connection-port.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
+  NodeSqliteEidosFileConnection,
   NodeSqliteConnectionPort,
   openEidosFile,
 } from "./node-sqlite"
@@ -489,7 +490,7 @@ describe.runIf(supportsElectron43NodeSqlite)(
       }
     })
 
-    it("merges Graft snapshot files through the node:sqlite adapter", async () => {
+    it("merges a local new table and a remote metadata edit through node:sqlite", async () => {
       const directory = await mkdtemp(
         path.join(tmpdir(), "eidos-node-sqlite-system-merge-")
       )
@@ -511,6 +512,20 @@ describe.runIf(supportsElectron43NodeSqlite)(
         ])
 
         const ours = new DatabaseSync(oursPath)
+        const localRuntime = new EidosFileRuntime(
+          new NodeSqliteEidosFileConnection(ours),
+          false,
+          {
+            nowInstant: () => "2026-08-13T00:01:00.000Z",
+          }
+        )
+        const feedback = localRuntime.createTable({
+          name: "Feedback",
+          fields: [{ name: "Details", type: "text", isRecordLabel: true }],
+        })
+        localRuntime.insertRow(feedback.id, {
+          Details: "Keep this local feedback",
+        })
         ours.exec(
           "UPDATE eidos__meta SET title='From Ours',revision=2,updated_at='2026-08-13T00:01:00.000Z' WHERE singleton=1"
         )
@@ -535,6 +550,9 @@ describe.runIf(supportsElectron43NodeSqlite)(
 
         const result = new DatabaseSync(resultPath)
         try {
+          expect(result.prepare("SELECT Details FROM Feedback").all()).toEqual([
+            { Details: "Keep this local feedback" },
+          ])
           expect(
             result
               .prepare(

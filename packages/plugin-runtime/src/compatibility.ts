@@ -63,7 +63,11 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
     features.add("sidebar.explorer")
   if (manifest.theme) features.add("theme.lite")
   if (manifest.browser?.networkOrigins?.length) features.add("browser.network")
-  if (manifest.browser?.network || manifest.background?.network)
+  if (
+    manifest.browser?.network ||
+    manifest.background?.network ||
+    (usesWorkerFetch(manifest) && manifest.browser?.networkOrigins?.length)
+  )
     features.add("network.public")
   return [...features].sort()
 }

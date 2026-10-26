@@ -46,6 +46,70 @@ describe("MergeTableDiff", () => {
     host.remove()
   })
 
+  it("does not map a conflict-column subset onto full system rows", async () => {
+    const conflict: EidosSyncMergeConflict = {
+      ...rowConflict("meta", "eidos__meta", "File"),
+      key: { singleton: 1 },
+      columns: ["revision"],
+      rowColumns: [
+        "singleton",
+        "format_major",
+        "format_minor",
+        "file_id",
+        "title",
+        "default_table_id",
+        "revision",
+        "created_at",
+        "updated_at",
+      ],
+      baseRow: [1, 1, 0, "file-id", "File", null, 2523, "created", "base-time"],
+      oursRow: [
+        1,
+        1,
+        0,
+        "file-id",
+        "File",
+        null,
+        2537,
+        "created",
+        "local-time",
+      ],
+      theirsRow: [
+        1,
+        1,
+        0,
+        "file-id",
+        "File",
+        null,
+        2524,
+        "created",
+        "remote-time",
+      ],
+    }
+    const render = (item: EidosSyncMergeConflict) =>
+      act(async () =>
+        root.render(
+          createElement(MergeTableDiff, {
+            conflicts: [item],
+            showBase: true,
+            disabled: false,
+            identityKey: "file.eidos",
+            onResolveRow: vi.fn(),
+            onResolveTable: vi.fn(),
+          })
+        )
+      )
+    await render(conflict)
+    const header = host.querySelector("thead")!.textContent!
+    expect(header.match(/revision/g)).toHaveLength(1)
+    expect(header).toContain("updated_at")
+    expect(header).not.toContain("Column 7")
+    expect(header).not.toContain("Column 9")
+    await render({ ...conflict, rowColumns: undefined })
+    expect(host.querySelector("thead")!.textContent).toContain("Column 7")
+    expect(host.querySelector("thead")!.textContent).not.toContain("revision")
+  })
+
   it("groups conflicts by table and compares fields instead of serialized rows", async () => {
     const onResolveRow = vi.fn()
     const onResolveTable = vi.fn()

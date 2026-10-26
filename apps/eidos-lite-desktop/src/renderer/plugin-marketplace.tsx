@@ -7,6 +7,7 @@ import {
 } from "../shared/plugins"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { useEidosLiteI18n } from "./i18n"
+import { localizeMarketplacePlugin } from "./plugin-localization"
 
 export function PluginMarketplaceInstallButton({
   same,
@@ -114,17 +115,19 @@ export function PluginMarketplaceView({
   search?: string
   onSelectPlugin?(id: string, name?: string): void
 }) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const query = (search ?? "").trim().toLowerCase()
   const plugins =
-    catalog?.plugins.filter((p) => {
-      if (!query) return true
-      return (
-        p.name.toLowerCase().includes(query) ||
-        p.id.toLowerCase().includes(query) ||
-        p.description.toLowerCase().includes(query)
-      )
-    }) ?? []
+    catalog?.plugins
+      .map((plugin) => localizeMarketplacePlugin(plugin, locale))
+      .filter((p) => {
+        if (!query) return true
+        return (
+          p.name.toLowerCase().includes(query) ||
+          p.id.toLowerCase().includes(query) ||
+          p.description.toLowerCase().includes(query)
+        )
+      }) ?? []
   const unavailable = !listing || Boolean(catalog?.cached)
   return (
     <div>
@@ -134,7 +137,19 @@ export function PluginMarketplaceView({
             ? t("Showing a saved catalog. Connect to install plugins.")
             : t(
                 "Plugins available to install on this device. Enablement is managed separately in each Space."
-              )}
+              )}{" "}
+          <a
+            className="underline underline-offset-2"
+            href={`https://docs.eidos.space${locale === "zh" ? "/zh-cn" : ""}/plugins/guide/`}
+            onClick={(event) => {
+              event.preventDefault()
+              void window.eidosLite?.openExternalUrl?.(
+                `https://docs.eidos.space${locale === "zh" ? "/zh-cn" : ""}/plugins/guide/`
+              )
+            }}
+          >
+            {t("Create a plugin")}
+          </a>
         </p>
         <button
           className="settings-button settings-button-quiet"

@@ -1,9 +1,16 @@
 # Eidos Plugin SDK
 
-Type-only API for the [Plugin API 3.2 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+Type-only API for the [Plugin API 3.7 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+
+Plugins can declare `i18n.defaultLocale`, `i18n.messages` JSON paths and optional
+`i18n.readme` Markdown paths. Use `%message.key%` in manifest display fields and
+`ctx.i18n.t("message.key", { name: "value" })` in views/actions. Subscribe with
+`ctx.subscriptions.add(ctx.i18n.onDidChangeLocale(render))` to update mounted UI
+without clearing user state. Declare `requires.pluginApi: "3.7.0"`; check and pack
+bundle all declared text resources in format 3. Localization requires Eidos Lite
+0.29.0 or later and Plugin SDK/tools 0.9.0 or later.
 Import with `import type`; the host injects operations. There is no runtime SDK
-connection. This source revision requires matching SDK, tools and host builds;
-no published release is implied.
+connection. Use matching SDK and tools versions for checking and packaging.
 
 Lite 3.2 adds static `fileTemplates` (`id`, `title`, `extension`, `view`,
 `content`) to the New File dialog. Templates reference a document View and a

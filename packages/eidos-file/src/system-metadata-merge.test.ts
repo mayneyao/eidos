@@ -9,6 +9,7 @@ import {
 } from "./better-sqlite3"
 import type { EidosFileConnection } from "./connection"
 import { mergeEidosSystemMetadata } from "./system-metadata-merge"
+import { EidosFileRuntime } from "./runtime"
 
 const CREATED_AT = "2026-08-13T00:00:00.000Z"
 const OURS_AT = "2026-08-13T00:01:00.000Z"
@@ -121,6 +122,184 @@ describe("Eidos system metadata three-way merge", () => {
     copyFileSync(filePaths.base, filePaths.theirs)
     return filePaths
   }
+
+  function addFeedback(filePath: string) {
+    mutate(filePath, (connection) => {
+      const runtime = new EidosFileRuntime(connection, false, {
+        nowInstant: () => OURS_AT,
+      })
+      const table = runtime.createTable({
+        name: "Feedback",
+        fields: [{ name: "Details", type: "text", isRecordLabel: true }],
+      })
+      for (let i = 0; i < 257; i++)
+        runtime.insertRow(table.id, { Details: `Feedback ${i}` })
+    })
+  }
+
+  it.each([false, true])(
+    "validates a materialized single-sided table against its metadata seed, reversed=%s",
+    (reversed) => {
+      const filePaths = createSnapshots(true)
+      addFeedback(filePaths.ours)
+      mutate(filePaths.theirs, (connection) => {
+        connection.run(
+          "UPDATE eidos__meta SET title='Remote edit',revision=3,updated_at=?",
+          [THEIRS_AT]
+        )
+      })
+      copyFileSync(filePaths.ours, filePaths.result)
+      // Model Graft's already merged non-provider data.
+      mutate(filePaths.result, (connection) => {
+        connection.run(
+          "INSERT INTO items(_id,_created_at,_updated_at,Name) VALUES(?,?,?,?)",
+          [
+            "019fd571-54b1-7f4f-ab0f-ddff89a0070e",
+            THEIRS_AT,
+            THEIRS_AT,
+            "Remote row",
+          ]
+        )
+      })
+      if (reversed) {
+        mutate(filePaths.result, (connection) => {
+          connection.exec("PRAGMA defer_foreign_keys=ON")
+          connection.run(
+            "DELETE FROM eidos__views WHERE table_id=(SELECT id FROM eidos__tables WHERE name='Feedback')"
+          )
+          connection.run(
+            "DELETE FROM eidos__fields WHERE table_id=(SELECT id FROM eidos__tables WHERE name='Feedback')"
+          )
+          connection.run("DELETE FROM eidos__tables WHERE name='Feedback'")
+          connection.run(
+            "UPDATE eidos__meta SET title='Remote edit',revision=3,updated_at=?",
+            [THEIRS_AT]
+          )
+        })
+      }
+      withConnections(
+        reversed
+          ? { ...filePaths, ours: filePaths.theirs, theirs: filePaths.ours }
+          : filePaths,
+        (connections) => {
+          const outcome = mergeEidosSystemMetadata({
+            ...connections,
+            oursKey: "a",
+            theirsKey: "b",
+            operationInstant: MERGE_AT,
+          })
+          if (reversed) {
+            // The host has not rebuilt generated objects under the Ours metadata.
+            // Do not bypass structural validation to accept undeclared triggers.
+            expect(outcome).toMatchObject({
+              outcome: "invalid-input",
+              issues: [
+                expect.objectContaining({
+                  input: "result",
+                  code: "invalid-schema",
+                }),
+              ],
+            })
+            return
+          }
+          expect(outcome, JSON.stringify(outcome)).toMatchObject({
+            outcome: "merged",
+            validation: { errors: [] },
+          })
+          expect(
+            connections.result.get("SELECT count(*) AS n FROM Feedback")
+          ).toEqual({ n: 257 })
+          expect(connections.result.get("SELECT Name FROM items")).toEqual({
+            Name: "Remote row",
+          })
+          expect(
+            connections.result.get("SELECT title FROM eidos__meta")
+          ).toEqual({ title: "Remote edit" })
+          expect(
+            connections.result.query(
+              "SELECT name FROM eidos__fields WHERE table_id=(SELECT id FROM eidos__tables WHERE name='Feedback') ORDER BY name"
+            )
+          ).toEqual([
+            { name: "Details" },
+            { name: "_created_at" },
+            { name: "_id" },
+            { name: "_updated_at" },
+          ])
+        }
+      )
+    }
+  )
+
+  it.each([
+    "missing-table",
+    "missing-row",
+    "changed-row",
+    "extra-row",
+    "changed-schema",
+  ])("rejects an incomplete new-table projection: %s", (damage) => {
+    const filePaths = createSnapshots(true)
+    addFeedback(filePaths.ours)
+    copyFileSync(filePaths.ours, filePaths.result)
+    mutate(filePaths.result, (connection) => {
+      if (damage === "missing-table") connection.exec("DROP TABLE Feedback")
+      if (damage === "missing-row")
+        connection.exec("DELETE FROM Feedback WHERE Details='Feedback 256'")
+      if (damage === "changed-row")
+        connection.exec(
+          "UPDATE Feedback SET Details='Changed' WHERE Details='Feedback 256'"
+        )
+      if (damage === "extra-row")
+        connection.run(
+          "INSERT INTO Feedback(_id,_created_at,_updated_at,Details) VALUES(?,?,?,?)",
+          ["019fd571-54b1-7f4f-ab0f-ddff89a0070e", OURS_AT, OURS_AT, "Extra"]
+        )
+      if (damage === "changed-schema")
+        connection.exec("ALTER TABLE Feedback ADD COLUMN Unexpected TEXT")
+    })
+    withConnections(filePaths, (connections) => {
+      const before = connections.result.query("SELECT * FROM eidos__meta")
+      const outcome = mergeEidosSystemMetadata({
+        ...connections,
+        oursKey: "a",
+        theirsKey: "b",
+        operationInstant: MERGE_AT,
+      })
+      if (damage === "missing-table") {
+        expect(outcome).toMatchObject({ outcome: "invalid-input" })
+      } else
+        expect(outcome).toMatchObject({
+          outcome: "conflict",
+          conflicts: expect.arrayContaining([
+            expect.objectContaining({
+              objectKind: "table",
+              base: { state: "absent" },
+              ours: { state: "present", name: "Feedback" },
+              theirs: { state: "absent" },
+            }),
+          ]),
+        })
+      expect(connections.result.query("SELECT * FROM eidos__meta")).toEqual(
+        before
+      )
+    })
+  })
+
+  it("does not accept independently created same-name tables", () => {
+    const filePaths = createSnapshots(true)
+    addFeedback(filePaths.ours)
+    addFeedback(filePaths.theirs)
+    copyFileSync(filePaths.ours, filePaths.result)
+    withConnections(filePaths, (connections) => {
+      expect(
+        mergeEidosSystemMetadata({
+          ...connections,
+          oursKey: "a",
+          theirsKey: "b",
+          operationInstant: MERGE_AT,
+        }).outcome
+      ).toBe("conflict")
+    })
+  })
 
   it("never reports revision divergence and is invariant under role reversal", () => {
     const filePaths = createSnapshots()

@@ -1,112 +1,136 @@
 ---
-title: Create Your First Plugin
-description: Build a text reader and load, debug and use it in Eidos Lite.
+title: Create your first plugin
+description: Start from the official GitHub template, load a page in Eidos Lite, and package your first plugin.
 sidebar:
   order: 3
 ---
 
-This tutorial builds a text reader. When finished, you can choose **Text Reader** from a `.txt` file's **Open with** menu and see its content update as the file changes.
+Start with the [Eidos plugin template](https://github.com/eidos-space/eidos-plugin-template).
+It contains a working page, a command to open it, theme styles, tests, and a
+GitHub Actions workflow. You will open its counter, change its behavior, and
+build an installable package.
 
-Prepare a test Space and a `.txt` file. Create this plugin directory:
+You need Node.js **22.12 or later**, npm, Git, and Eidos Lite with Plugin API
+**3.0.0 or later**. Prepare a test Space. The template pins published SDK/tools
+dependencies; you do not need the Eidos source repository or a development server.
+
+## 1. Create your repository
+
+Open the [template](https://github.com/eidos-space/eidos-plugin-template) and choose
+**Use this template → Create a new repository**. Name it `my-eidos-plugin`, then
+clone your new repository. Replace `YOUR-NAME` with its GitHub owner:
+
+```sh
+git clone https://github.com/YOUR-NAME/my-eidos-plugin.git
+cd my-eidos-plugin
+npm ci
+```
 
 ```text
-text-reader/
-├── plugin.json
-└── src/
-    └── main.ts
+plugin.json                   Identity and contributions
+src/main.ts                   The page interface
+src/extension.ts              The command that opens the page
+src/style.css                 Host theme styles
+test/plugin.test.ts           Interaction and cleanup tests
+.github/workflows/plugin.yml  Check, package and release workflow
 ```
 
-Eidos Lite compiles this example directly. You only need a text editor to get started.
+## 2. Give the plugin its own identity
 
-## 1. Declare the file view
+Edit these fields in the existing `plugin.json`, keeping the other declarations:
 
-Add this to `plugin.json`:
+| Field | Example |
+| --- | --- |
+| `id` | `yourname.my-counter` |
+| `name` | `My Counter` |
+| `description` | `A counter for my workspace` |
+| `views[0].title` | `My Counter` |
+| `actions[0].title` | `My Counter: Open` |
 
-```json
-{
-  "apiVersion": 1,
-  "id": "example.text-reader",
-  "name": "Text Reader",
-  "version": "0.1.0",
-  "requires": { "pluginApi": "3.0.0" },
-  "views": [
-    {
-      "id": "main",
-      "title": "Text Reader",
-      "entry": "./src/main.ts",
-      "kind": "file",
-      "capabilities": ["document"],
-      "access": "read"
-    }
-  ],
-  "placements": [
-    {
-      "location": "file/open",
-      "view": "main",
-      "extensions": [".txt"]
-    }
-  ]
-}
+IDs use lowercase segments separated by dots. Choose your own namespace and
+keep the ID stable after distribution. Preserve contribution IDs `main` and
+`open`, which the command and placements reference.
+
+Change `package.json`'s `name` to your project name, then run
+`npm install --package-lock-only` to update the lockfile. Keep the `version`
+fields in both manifests at `0.1.0` for this exercise. `requires.pluginApi`
+declares the minimum API the code uses; raising it alone does not add a capability.
+
+## 3. Check and open the page
+
+```sh
+npm run typecheck
+npm test
+npm run check
 ```
 
-`kind: "file"` binds the view to the file the user opens. `capabilities: ["document"]` provides the text interface. `file/open` and `.txt` select the file menu in which the view appears.
+These commands check TypeScript, test page/command lifecycle, and validate
+declarations and Lite compatibility. A successful check does not exercise the
+host UI; open the plugin next:
 
-## 2. Show the text
+1. Open your test Space in Eidos Lite and go to Plugin Manager.
+2. Choose **Load development source…** and select your project's `plugin.json`.
+3. Review the declarations and enable the plugin for this Space.
+4. Open **My Counter** from navigation, or use Cmd/Ctrl+K → **My Counter: Open**.
 
-Add this to `src/main.ts`:
+The page shows **Add one** and **0**. Click twice; the count should be **2**.
+The starter requests no file, network, storage, or background access. Its page
+and command target Lite; CLI Serve does not support these entry points.
+
+## 4. Change the behavior
+
+Open `src/main.ts`. `mount(ctx, root)` builds the interface inside the host's
+container. Change its heading to your own text, then make every click add five:
 
 ```ts
-import type { Mount } from "@eidos.space/plugin-sdk"
-
-const mount: Mount = async (ctx, root) => {
-  const document = ctx.capabilities.document
-  if (!document) throw new Error("Document capability is required")
-  const pre = window.document.createElement("pre")
-  root.append(pre)
-  const observed = await document.observe(
-    (snapshot) => {
-      pre.textContent = snapshot.text
-    },
-    (error) => {
-      pre.textContent = error.message
-    }
-  )
-  ctx.subscriptions.add(observed.subscription)
-  pre.textContent = observed.snapshot.text
-  return {
-    dispose() {
-      pre.remove()
-    },
-  }
+const increment = () => {
+  value += 5
+  count.textContent = String(value)
 }
-export default mount
 ```
 
-Eidos calls mount with a context and an interface container. This code creates a `pre` element, reads the current text through `document.observe()`, and updates the text when content changes. Adding the subscription to `ctx.subscriptions` releases it automatically when the view closes.
+Save the file. Lite recompiles and reloads the source. The counter starts at **0**
+again; click once and check that it shows **5**. Update the test's expected counts
+if you keep this change, then rerun the checks.
 
-## 3. Open it in Eidos Lite
+The counter is page-local memory and resets when the page closes or reloads.
+`ctx.subscriptions` releases its listeners when the scope closes.
+`src/extension.ts` registers `open` and uses the command invocation's
+`ctx.capabilities.ui.navigate("main", "/")` to open the page.
 
-1. Open your test Space and go to Plugin Manager.
-2. Choose **Load development source…** and select `text-reader/plugin.json`.
-3. Review access and enable the plugin for the current Space.
-4. Choose **Text Reader** from a `.txt` file's **Open with** menu.
+If compilation fails, Lite keeps the last working revision visible. Fix the
+compiler error before assuming your change has loaded. Match the host theme
+with the `--eidos-*` variables used in `src/style.css`.
 
-The view shows the file content. Change the test file and check that the reader updates.
+## 5. Build an installable package
 
-## 4. Change the interface
+After the checks pass, run:
 
-Edit `main.ts` and save it. Eidos Lite recompiles and reloads the view.
-If compilation fails, use the error message to fix the code.
-The previous loaded interface remains visible while you work.
+```sh
+npm run pack:plugin
+```
 
-Use CSS variables such as `--eidos-background`, `--eidos-foreground` and `--eidos-border` to match Eidos's light and dark themes.
+With the example ID, the outputs are:
+
+```text
+dist/yourname.my-counter-0.1.0.eidos-plugin
+dist/yourname.my-counter-0.1.0.eidos-plugin.sha256
+```
+
+Install the archive through Plugin Manager, review its declarations, enable it,
+and reopen the page. Development loading is temporary; installing the package
+keeps that revision available after restart.
+
+The repository's Actions workflow runs the checks and uploads a `plugin-package`
+artifact. A matching version tag creates a GitHub Release only after checks pass.
+Read [development and distribution](/plugins/workflow/) before publishing or
+submitting the plugin to the registry.
 
 ## Next steps
 
-To keep a connection or in-memory state after a page closes, follow
-[Background tasks](/plugins/background/). Its complete counter and BLE examples
-include a page, command registration, and a separate background module.
-
-To support editing, set access to write, add an input interface, use `document.edit()` to update content and `document.save()` to persist it. See the [API reference](/plugins/api/) for editing, conflict handling and undo methods.
-
-To create a tool opened from navigation, read about [page views](/plugins/concepts/#page-views-open-independently). When you are ready to share your plugin, follow [development and distribution](/plugins/workflow/) to check and package it.
+- [Build a text reader](/plugins/text-reader/) to bind a View to a file.
+- [Work with files](/plugins/files/) for editing and filesystem access.
+- [Background tasks](/plugins/background/) for state that survives closing a page.
+- [Localization](/plugins/i18n/) for translated labels and documentation; match
+  the SDK, tools and host versions to the required API.
+- [API reference](/plugins/api/) for contexts, permissions and methods.

@@ -9,6 +9,12 @@ import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
 import type { SparkFeature } from "../../shared/spark"
 import { searchSpaceText } from "./text-search"
+import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
+import {
+  filterExplorerEntries,
+  hasExplorerPropertyFilter,
+  type ExplorerFileFilter,
+} from "../../shared/explorer-file-filter"
 import type {
   TextSearchProgress,
   TextSearchOptions,
@@ -301,15 +307,19 @@ function semanticDomainConflict(
 ): EidosSystemMergeDomainConflict | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   const conflict = value as Record<string, unknown>
-  const summary = (candidate: unknown) =>
-    Boolean(
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      ["absent", "present"].includes(
-        String((candidate as Record<string, unknown>).state)
-      )
+  const summary = (candidate: unknown) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+      return false
+    const value = candidate as Record<string, unknown>
+    return (
+      ["absent", "present"].includes(String(value.state)) &&
+      (value.name === undefined || typeof value.name === "string") &&
+      (value.type === undefined || typeof value.type === "string") &&
+      (value.changedGroups === undefined ||
+        (Array.isArray(value.changedGroups) &&
+          value.changedGroups.every((group) => typeof group === "string")))
     )
+  }
   if (
     typeof conflict.code !== "string" ||
     !EIDOS_SYSTEM_MERGE_CONFLICT_CODES.has(conflict.code) ||
@@ -394,6 +404,10 @@ export class SpaceSession {
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
   private readonly pathIndex: SpacePathIndex
+  private readonly filteredTreeReads = new Map<
+    string,
+    Promise<SpaceTreeEntry[]>
+  >()
   private readonly repository: SpaceRepositoryCoordinator
   private readonly syncState: SpaceSyncStateStore
   private readonly syncConnection: SpaceSyncConnectionStore
@@ -489,6 +503,8 @@ export class SpaceSession {
   private closeInFlight: Promise<void> | null = null
   private versioningEnabled = false
   private closed = false
+  private systemMergeRecovery: Promise<EidosSyncMergeStatus> | null = null
+  private systemMergeRecoveryAttempted = false
   get isClosed(): boolean {
     return this.closed || Boolean(this.closeInFlight)
   }
@@ -630,6 +646,61 @@ export class SpaceSession {
     if (this.closed) throw new Error("Space is closed")
     await this.pathIndex.ensureScanned()
     return this.pathIndex.search(query, limit)
+  }
+
+  async filterFiles(
+    filter: ExplorerFileFilter,
+    directory: string | null
+  ): Promise<SpaceTreeEntry[]> {
+    if (this.closed) throw new Error("Space is closed")
+    const key = directory ?? ""
+    let read = this.filteredTreeReads.get(key)
+    if (!read) {
+      read = readSpaceFilterTree(this.canonical.root, directory).finally(() => {
+        if (this.filteredTreeReads.get(key) === read)
+          this.filteredTreeReads.delete(key)
+      })
+      this.filteredTreeReads.set(key, read)
+    }
+    const entries = await read
+    if (!hasExplorerPropertyFilter(filter))
+      return filterExplorerEntries(entries, filter)
+    const opened = await this.openExistingFileMetadata()
+    if (!opened) throw new Error("File properties are unavailable")
+    const table = opened.snapshot.tables.find(
+      ({ table }) => table.settings?.vtabModule === "fs_meta"
+    )
+    if (!table) throw new Error("File properties are unavailable")
+    const matches = await explorerPropertyMatches(filter, table, (...args) =>
+      this.runtimePool.call(opened.sessionId, "getPage", args)
+    )
+    return filterExplorerEntries(entries, filter, matches)
+  }
+
+  private async openExistingFileMetadata(): Promise<OpenEidosFileResult | null> {
+    const existing = await fs
+      .lstat(path.join(this.canonical.root, SPACE_FILE_METADATA_PATH))
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null
+        throw error
+      })
+    // Opening a filter must never create a catalog or request Spark activation.
+    return existing ? this.openFileMetadata(null) : null
+  }
+
+  async getExplorerFilterFields() {
+    if (this.closed) throw new Error("Space is closed")
+    const opened = await this.openExistingFileMetadata()
+    return (
+      opened?.snapshot.tables
+        .find(({ table }) => table.settings?.vtabModule === "fs_meta")
+        ?.fields.filter(
+          (field) =>
+            field.settings?.isSystem !== true &&
+            field.valueKind !== "system" &&
+            !field.isHidden
+        ) ?? []
+    )
   }
 
   async searchText(
@@ -3081,6 +3152,7 @@ export class SpaceSession {
   }
 
   async getSyncMergeStatus(): Promise<EidosSyncMergeStatus> {
+    if (this.systemMergeRecovery) return this.systemMergeRecovery
     const initialized = await fs
       .stat(path.join(this.canonical.root, ".graft"))
       .then((stats) => stats.isDirectory())
@@ -3091,6 +3163,41 @@ export class SpaceSession {
       (signal) => this.graft.getMergeStatus(this.canonical.root, { signal }),
       { preemptible: true }
     )
+    if (this.systemMergeRecovery) return this.systemMergeRecovery
+    if (
+      merge.state === "merging" &&
+      merge.unmergedCount > 0 &&
+      !this.systemMergeRecoveryAttempted
+    ) {
+      this.systemMergeRecoveryAttempted = true
+      const recovery = this.materializeMergeOperation(
+        "acceptSemanticMergeResult",
+        "recover-system-merge",
+        "Resuming and validating synchronized changes",
+        merge.stateToken,
+        async (signal, onWorktreePaths) => {
+          const paths = new Set<string>()
+          const recovered = await this.resolveEidosSystemMetadataMerges(
+            merge,
+            signal,
+            (changed) => {
+              for (const relativePath of changed ?? []) paths.add(relativePath)
+            }
+          )
+          onWorktreePaths([...paths])
+          return recovered
+        }
+      ).then((recovered) => this.completeResolvedMerge(recovered))
+      this.systemMergeRecovery = recovery
+      try {
+        return await recovery
+      } catch (error) {
+        this.systemMergeRecoveryAttempted = false
+        throw error
+      } finally {
+        this.systemMergeRecovery = null
+      }
+    }
     return this.completeResolvedMerge(merge)
   }
 
@@ -3175,6 +3282,7 @@ export class SpaceSession {
           { signal, onWorktreePaths: capturePaths }
         )
         if (merge.state === "merging") {
+          this.systemMergeRecoveryAttempted = true
           merge = await this.resolveEidosSystemMetadataMerges(
             merge,
             signal,
@@ -3267,7 +3375,12 @@ export class SpaceSession {
                   kind: "domain",
                   reason: domain.code,
                   status: "unresolved" as const,
-                  name: domain.objectId,
+                  name:
+                    domain.ours.name ??
+                    domain.theirs.name ??
+                    domain.base.name ??
+                    domain.objectId,
+                  systemConflict: domain,
                   owner: domain.objectKind,
                   change: domain.group,
                   message: domain.message,
@@ -3276,26 +3389,15 @@ export class SpaceSession {
               nextCursor: null,
             }
           }
-          const opened = await this.runtimePool.open(normalized)
-          const tableColumns = new Map<string, string[]>()
-          for (const table of opened.snapshot.tables) {
-            const columns = table.fields.flatMap((field) =>
-              field.physicalName ? [field.physicalName] : []
-            )
-            if (columns.length === 0) continue
-            for (const name of [
-              table.table.name,
-              table.table.physicalName,
-              table.table.rawTableName,
-            ]) {
-              if (name) tableColumns.set(name, columns)
-            }
-          }
+          const tableColumns = await this.runtimePool.inspectMergeTableColumns(
+            normalized,
+            signal
+          )
           return {
             ...page,
             items: page.items.map((conflict) => {
               if (conflict.kind !== "row" || !conflict.table) return conflict
-              const rowColumns = tableColumns.get(conflict.table)
+              const rowColumns = tableColumns[conflict.table]
               const rowLength = Math.max(
                 conflict.baseRow?.length ?? 0,
                 conflict.oursRow?.length ?? 0,
@@ -5693,7 +5795,8 @@ export class SpaceSession {
       | "unresolveMergePath"
       | "writeAndStageTextResult"
       | "continueMerge"
-      | "abortMerge",
+      | "abortMerge"
+      | "acceptSemanticMergeResult",
     kind: string,
     detail: string,
     expectedStateToken: string | null,

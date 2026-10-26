@@ -102,7 +102,8 @@ const api: EidosLiteApi = {
   },
   pluginMarketplace: (refresh) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.marketplace, refresh),
-  pluginReadme: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id),
+  pluginReadme: (id, locale) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale),
   installMarketplacePlugin: (id) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, id),
   onPluginInstallProgress: (listener) => {
@@ -263,6 +264,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   searchSpacePaths: (query, limit) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
+  filterSpaceFiles: (filter, directory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filterFiles, filter, directory),
+  getExplorerFilterFields: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields),
   searchSpaceText: (requestId, query, options) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query, options),
   cancelTextSearch: (requestId) =>

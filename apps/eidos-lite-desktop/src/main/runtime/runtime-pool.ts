@@ -390,6 +390,27 @@ export class RuntimePool {
     relativePaths: readonly string[],
     signal: AbortSignal
   ): Promise<string[]> {
+    return this.inspectMergeFiles(relativePaths, signal, false) as Promise<
+      string[]
+    >
+  }
+
+  async inspectMergeTableColumns(
+    relativePath: string,
+    signal: AbortSignal
+  ): Promise<Record<string, string[]>> {
+    return this.inspectMergeFiles([relativePath], signal, true) as Promise<
+      Record<string, string[]>
+    >
+  }
+
+  private async inspectMergeFiles(
+    relativePaths: readonly string[],
+    signal: AbortSignal,
+    includeColumns = false
+  ): Promise<string[] | Record<string, string[]>> {
+    if (includeColumns && relativePaths.length !== 1)
+      throw new Error("Column inspection requires exactly one file")
     signal.throwIfAborted()
     const filePaths: string[] = []
     for (const relativePath of relativePaths) {
@@ -435,10 +456,23 @@ export class RuntimePool {
             Object.assign(error, { code: message.error.code })
           finish(() => reject(error))
         } else if (
+          !includeColumns &&
           Array.isArray(message.result) &&
           message.result.every((name) => typeof name === "string")
         ) {
           finish(() => resolve(message.result as string[]))
+        } else if (
+          includeColumns &&
+          message.result &&
+          typeof message.result === "object" &&
+          !Array.isArray(message.result) &&
+          Object.values(message.result).every(
+            (columns) =>
+              Array.isArray(columns) &&
+              columns.every((name) => typeof name === "string")
+          )
+        ) {
+          finish(() => resolve(message.result as Record<string, string[]>))
         } else
           finish(() =>
             reject(new Error("Invalid merge table inspection response"))
@@ -459,6 +493,7 @@ export class RuntimePool {
         type: "inspectMergeTables",
         requestId: 1,
         filePaths,
+        ...(includeColumns ? { includeColumns: true } : {}),
       } satisfies RuntimeWorkerRequest)
     })
   }

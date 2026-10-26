@@ -71,6 +71,16 @@ pub fn check(manifest: &Value) -> Value {
         .is_some_and(|v| !v.is_empty())
     {
         features.insert("browser.network".into());
+        if manifest["requires"]["pluginApi"]
+            .as_str()
+            .and_then(version)
+            .is_some_and(|v| v >= [3, 5, 0])
+        {
+            features.insert("network.public".into());
+        }
+    }
+    if manifest["browser"]["network"] == true || manifest["background"]["network"] == true {
+        features.insert("network.public".into());
     }
     let supported_features = host["features"].as_array().unwrap();
     let missing: Vec<_> = features

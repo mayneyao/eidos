@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./i18n": "./src/i18n.ts",
     "./view": "./src/view.ts",
     "./compatibility": "./src/compatibility.ts",
     ".": "./src/index.ts",

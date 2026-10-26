@@ -15,10 +15,12 @@ import { parseJson } from "./json"
 import { inlineManifest, validateSource } from "./source"
 import { encodePackage } from "./package"
 export { decodePackage } from "./package"
+export { pluginLanguageData, localizePluginManifest } from "./i18n"
 import { loadDependencyLock } from "./dependencies"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
 import { themeFontData } from "./theme"
 import { parseThemeStylesheet, themeStylesheetPath } from "./theme-stylesheet"
+import { pluginResourcePaths } from "./i18n"
 
 export interface Diagnostic {
   code: string
@@ -137,6 +139,12 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
   }
   if (hasDescriptor) raw = parseJson((await read(descriptor)).toString("utf8"))
   const manifest = parseManifest(raw)
+  const resources: Record<string, string> = {}
+  for (const resource of pluginResourcePaths(manifest)) {
+    resources[resource] = new TextDecoder("utf-8", { fatal: true }).decode(
+      await read(path.resolve(root, resource))
+    )
+  }
   const packageMetadata = path.join(root, "package.json")
   if (
     await fs.access(packageMetadata).then(
@@ -501,12 +509,13 @@ export async function compilePlugin(input: string): Promise<CompiledPlugin> {
       .update("\0")
   for (const [entry, code] of Object.entries(modules))
     hash.update(entry).update(code)
-  const bytes = encodePackage(finalManifest, modules)
+  const bytes = encodePackage(finalManifest, modules, resources)
   return {
     program: {
-      format: finalManifest.requires ? 2 : 1,
+      format: finalManifest.i18n ? 3 : finalManifest.requires ? 2 : 1,
       manifest: finalManifest,
       modules,
+      ...(finalManifest.i18n ? { resources } : {}),
     },
     bytes,
     revision: hash.digest("hex"),

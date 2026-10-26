@@ -43,6 +43,8 @@ pub struct PluginManifest {
     pub id: String,
     pub name: String,
     pub version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<serde_json::Value>,
     #[serde(default)]
     pub icon: Option<serde_json::Value>,
     #[serde(default)]
@@ -58,6 +60,8 @@ pub struct PluginPackage {
     pub format: u32,
     pub manifest: PluginManifest,
     pub modules: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resources: Option<HashMap<String, String>>,
 }
 
 #[derive(Default)]
@@ -69,6 +73,7 @@ const DEFAULT_SANDBOX_CSP: &str = "default-src 'none'; script-src 'self' 'unsafe
 
 const BOOTSTRAP_JS: &str = r#"
 function bootstrap(mount, binding) {
+  const i18n = createPluginI18n(binding.languageData || { defaultLocale: "en", messages: {} }, binding.locale || "en");
   const parent = window.parent;
   const controller = new AbortController();
   const subscriptions = new Set();
@@ -81,6 +86,7 @@ function bootstrap(mount, binding) {
     const r = event.data;
     if (event.source !== parent || !r || r.protocol !== "eidos-plugin" || r.apiVersion !== 1) return;
     if (typeof r.observation === "string") {
+      if (r.observation === "host.locale" && typeof r.value === "string") { if (!closed) i18n.setLocale(r.value); return; }
       if (r.observation === "host.theme" && r.value && typeof r.value === "object") {
         for (const name of [
           "background", "foreground", "muted", "border", "accent", "font-family", "color-scheme"
@@ -128,6 +134,7 @@ function bootstrap(mount, binding) {
   };
 
   const context = {
+    i18n,
     binding: { kind: "file", file: { id: "current" }, location: { kind: "eidos-table", tableId: binding.tableId, viewId: binding.viewId } },
     capabilities: {
       eidos: { table: {
@@ -211,18 +218,29 @@ impl CliPluginStore {
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
         let file = File::open(path)
             .with_context(|| format!("cannot open plugin file {}", path.display()))?;
-        let mut decoder = GzDecoder::new(file);
+        const LIMIT: u64 = 16 * 1024 * 1024;
+        if file.metadata()?.len() > LIMIT {
+            anyhow::bail!("Compressed plugin package exceeds 16 MiB");
+        }
+        let decoder = GzDecoder::new(file);
         let mut json_bytes = Vec::new();
         decoder
+            .take(LIMIT + 1)
             .read_to_end(&mut json_bytes)
             .with_context(|| format!("cannot decompress plugin file {}", path.display()))?;
+        if json_bytes.len() as u64 > LIMIT {
+            anyhow::bail!("Plugin package exceeds 16 MiB");
+        }
         let raw: serde_json::Value = serde_json::from_slice(&json_bytes)?;
-        if raw["format"] != 1 && raw["format"] != 2 {
+        if raw["format"] != 1 && raw["format"] != 2 && raw["format"] != 3 {
             anyhow::bail!("Unsupported plugin package format");
         }
-        if (raw["format"] == 2) != raw["manifest"].get("requires").is_some() {
-            anyhow::bail!("Packages declaring requires must use format 2; format 2 requires a minimum plugin API");
+        if (raw["format"] != 1) != raw["manifest"].get("requires").is_some() {
+            anyhow::bail!("Packages declaring requires must use format 2 or 3; both require a minimum plugin API; localization requires format 3");
         }
+        let envelope = serde_json::from_value(raw.clone())?;
+        eidos_publish::plugin_registry::validate_localization(&envelope)
+            .map_err(|error| anyhow::anyhow!("{}", error.message))?;
         crate::plugin_compatibility::ensure(&raw["manifest"]).map_err(anyhow::Error::msg)?;
         let package: PluginPackage = serde_json::from_value(raw)
             .with_context(|| format!("invalid plugin package JSON in {}", path.display()))?;
@@ -269,7 +287,8 @@ impl CliPluginStore {
                 json!({
                     "id": pkg.manifest.id,
                     "enabled": true,
-                    "manifest": pkg.manifest
+                    "manifest": pkg.manifest,
+                    "localization": language_data(pkg)
                 })
             })
             .collect();
@@ -328,12 +347,15 @@ impl CliPluginStore {
         view_id: &str,
         table_id: &str,
         table_view_id: &str,
+        locale: &str,
     ) -> Option<String> {
         let (pkg, _view) = self.get_view(plugin_id, view_id)?;
         let binding_json = json!({
             "kind": "table",
             "tableId": table_id,
-            "viewId": table_view_id
+            "viewId": table_view_id,
+            "languageData": language_data(pkg),
+            "locale": locale
         });
         let entry_url = format!("/api/plugins/{plugin_id}/entry/{view_id}");
 
@@ -351,15 +373,46 @@ impl CliPluginStore {
   <script type="module">
 const binding = {};
 {}
+{}
 import mount from "{}";
 bootstrap(mount, binding);
   </script>
 </body>
 </html>"#,
-            pkg.manifest.name, binding_json, BOOTSTRAP_JS, entry_url
+            pkg.manifest
+                .name
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;"),
+            binding_json.to_string().replace('<', "\\u003c"),
+            include_str!("../../../packages/plugin-runtime/src/guest-i18n.js"),
+            BOOTSTRAP_JS,
+            entry_url
         );
         Some(html)
     }
+}
+
+fn language_data(pkg: &PluginPackage) -> serde_json::Value {
+    let mut messages = serde_json::Map::new();
+    if let Some(locales) = pkg
+        .manifest
+        .i18n
+        .as_ref()
+        .and_then(|v| v["messages"].as_object())
+    {
+        for (locale, resource) in locales {
+            if let Some(text) = resource
+                .as_str()
+                .and_then(|key| pkg.resources.as_ref()?.get(key))
+            {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+                    messages.insert(locale.clone(), value);
+                }
+            }
+        }
+    }
+    json!({ "defaultLocale": pkg.manifest.i18n.as_ref().and_then(|v| v["defaultLocale"].as_str()).unwrap_or("en"), "messages": messages })
 }
 
 #[cfg(test)]
@@ -371,12 +424,39 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
+    fn localized_packages_keep_raw_labels_and_embed_safe_language_data() {
+        let package = json!({ "format": 3, "manifest": { "apiVersion": 1, "id": "test.localized", "name": "%name%", "version": "1.0.0", "requires": {"pluginApi":"3.7.0"}, "i18n": {"defaultLocale":"en", "messages":{"en":"./en.json","zh-CN":"./zh.json"}}, "views":[{"id":"table","title":"%name%","kind":"file","capabilities":["eidos/table"],"entry":"./page.js"}] }, "modules":{"./page.js":"export default function mount() {}"}, "resources":{"./en.json":"{\"name\":\"History\"}","./zh.json":"{\"name\":\"历史</script>\"}"} });
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder
+            .write_all(&serde_json::to_vec(&package).unwrap())
+            .unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&encoder.finish().unwrap()).unwrap();
+        let mut store = CliPluginStore::new();
+        store.load_file(file.path()).unwrap();
+        let listing = store.list_plugins_json();
+        assert_eq!(listing["plugins"][0]["manifest"]["name"], "%name%");
+        assert_eq!(
+            listing["plugins"][0]["localization"]["messages"]["en"]["name"],
+            "History"
+        );
+        let html = store
+            .render_sandbox_html("test.localized", "table", "table", "view", "zh-CN")
+            .unwrap();
+        assert!(html.contains("createPluginI18n"));
+        assert!(html.contains("zh-CN"));
+        assert!(!html.contains("历史</script>"));
+        assert!(html.contains("历史\\u003c/script>"));
+    }
+
+    #[test]
     fn test_load_plugin_and_render() {
         let manifest = PluginManifest {
             api_version: 1,
             id: "test.plugin".to_string(),
             name: "Test Plugin".to_string(),
             version: "1.0.0".to_string(),
+            i18n: None,
             icon: None,
             views: Some(vec![PluginViewDescriptor {
                 id: "test-view".to_string(),
@@ -404,6 +484,7 @@ mod tests {
         );
 
         let package = PluginPackage {
+            resources: None,
             format: 1,
             manifest,
             modules,
@@ -431,7 +512,7 @@ mod tests {
         assert!(csp.contains("connect-src https://api.example.com"));
 
         let html = store
-            .render_sandbox_html("test.plugin", "test-view", "tbl_1", "vw_1")
+            .render_sandbox_html("test.plugin", "test-view", "tbl_1", "vw_1", "en")
             .unwrap();
         assert!(html.contains("Test Plugin"));
         assert!(html.contains("/api/plugins/test.plugin/entry/test-view"));
@@ -474,6 +555,7 @@ mod tests {
 
         for id in ["plugin.beta", "plugin.alpha"] {
             let manifest = PluginManifest {
+                i18n: None,
                 api_version: 1,
                 id: id.to_string(),
                 name: format!("Name for {id}"),
@@ -498,6 +580,7 @@ mod tests {
             let mut modules = HashMap::new();
             modules.insert("./view.js".to_string(), format!("// {id} code"));
             let package = PluginPackage {
+                resources: None,
                 format: 1,
                 manifest,
                 modules,

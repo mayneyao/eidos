@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import {
   FileText,
   GripVertical,
@@ -48,6 +48,10 @@ export function SidebarPages({
     }
   })
   const [dragging, setDragging] = useState<string | null>(null)
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null)
+  const rows = useRef(new Map<string, HTMLDivElement>())
+  const previousPositions = useRef(new Map<string, number>())
+  const animations = useRef(new Map<string, Animation>())
   const keyboardOrder = useRef<string[] | null>(null)
   const [open, setOpen] = useState(false)
   const container = useRef<HTMLElement>(null)
@@ -66,7 +70,7 @@ export function SidebarPages({
   }, [open])
   const byKey = new Map(pages.map((page) => [page.key, page]))
   const ordered = [
-    ...new Set([...order, ...pages.map((page) => page.key)]),
+    ...new Set([...(previewOrder ?? order), ...pages.map((page) => page.key)]),
   ].flatMap((key) => {
     const page = byKey.get(key)
     return page ? [page] : []
@@ -86,14 +90,62 @@ export function SidebarPages({
       /* Session-only fallback. */
     }
   }
-  function move(source: string, target: string) {
+  useLayoutEffect(() => {
+    for (const [key, row] of rows.current) {
+      animations.current.get(key)?.cancel()
+      const top = row.getBoundingClientRect().top
+      const previous = previousPositions.current.get(key)
+      if (
+        previous !== undefined &&
+        previous !== top &&
+        row.animate &&
+        !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+      ) {
+        animations.current.set(
+          key,
+          row.animate(
+            [
+              { transform: `translateY(${previous - top}px)` },
+              { transform: "translateY(0)" },
+            ],
+            { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+          )
+        )
+      }
+    }
+    previousPositions.current.clear()
+    if (keyboardOrder.current && dragging) {
+      rows.current
+        .get(dragging)
+        ?.querySelector<HTMLButtonElement>(".sidebar-page-drag")
+        ?.focus({ preventScroll: true })
+    }
+  }, [order, previewOrder])
+  useEffect(
+    () => () => {
+      for (const animation of animations.current.values()) animation.cancel()
+    },
+    []
+  )
+  function capturePositions() {
+    previousPositions.current = new Map(
+      [...rows.current].map(([key, row]) => [
+        key,
+        row.getBoundingClientRect().top,
+      ])
+    )
+  }
+  function move(source: string, target: string, preview = false) {
     const next = ordered.map((page) => page.key)
     const from = next.indexOf(source),
       to = next.indexOf(target)
-    if (from < 0 || to < 0 || from === to) return
+    if (from < 0 || to < 0 || from === to) return next
     next.splice(from, 1)
     next.splice(to, 0, source)
-    saveOrder(next)
+    capturePositions()
+    if (preview) setPreviewOrder(next)
+    else saveOrder(next)
+    return next
   }
   function toggle(key: string) {
     if (!pinned.includes(key) && activePins.length >= 3) return
@@ -113,6 +165,7 @@ export function SidebarPages({
       className="sidebar-pages"
       aria-label={t("Plugin contributions")}
       onBlur={(event) => {
+        if (dragging) return
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
       }}
       onKeyDown={(event) => {
@@ -167,13 +220,30 @@ export function SidebarPages({
             <div
               className="sidebar-pages-choice"
               key={page.key}
+              ref={(element) => {
+                if (element) rows.current.set(page.key, element)
+                else rows.current.delete(page.key)
+              }}
+              data-current={activePage === page.key || undefined}
               data-dragging={dragging === page.key || undefined}
               onDragOver={(event) => {
-                if (dragging && !disabled) event.preventDefault()
+                if (!dragging || disabled) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "move"
+                const from = ordered.findIndex((item) => item.key === dragging)
+                const rect = event.currentTarget.getBoundingClientRect()
+                const midpoint = rect.top + rect.height / 2
+                if (
+                  (from < index && event.clientY >= midpoint) ||
+                  (from > index && event.clientY <= midpoint)
+                )
+                  move(dragging, page.key, true)
               }}
               onDrop={(event) => {
                 event.preventDefault()
-                if (dragging && !disabled) move(dragging, page.key)
+                if (dragging && !disabled)
+                  saveOrder(previewOrder ?? move(dragging, page.key, true))
+                setPreviewOrder(null)
                 setDragging(null)
               }}
             >
@@ -187,10 +257,16 @@ export function SidebarPages({
                 title={t("Drag to reorder; Space to pick up, arrows to move")}
                 onDragStart={(event) => {
                   setDragging(page.key)
+                  keyboardOrder.current = null
+                  setPreviewOrder(null)
                   event.dataTransfer.effectAllowed = "move"
                   event.dataTransfer.setData("text/plain", page.key)
                 }}
-                onDragEnd={() => setDragging(null)}
+                onDragEnd={() => {
+                  capturePositions()
+                  setPreviewOrder(null)
+                  setDragging(null)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === " " || event.key === "Enter") {
                     event.preventDefault()
@@ -212,7 +288,10 @@ export function SidebarPages({
                   } else if (dragging === page.key && event.key === "Escape") {
                     event.preventDefault()
                     event.stopPropagation()
-                    if (keyboardOrder.current) saveOrder(keyboardOrder.current)
+                    if (keyboardOrder.current) {
+                      capturePositions()
+                      saveOrder(keyboardOrder.current)
+                    }
                     keyboardOrder.current = null
                     setDragging(null)
                   }
@@ -231,7 +310,11 @@ export function SidebarPages({
                   onPage(page.key)
                 }}
               >
-                <FileText aria-hidden="true" />
+                {page.icon ? (
+                  <PluginIcon icon={page.icon} />
+                ) : (
+                  <FileText aria-hidden="true" />
+                )}
                 <span>{page.title}</span>
               </button>
               <button

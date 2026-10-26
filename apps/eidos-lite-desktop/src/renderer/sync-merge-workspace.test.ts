@@ -1142,6 +1142,27 @@ describe("SyncMergeWorkbench", () => {
   it("reviews file-level schema and opaque conflicts without exposing partial choices", async () => {
     const conflicts: EidosSyncMergeConflict[] = [
       {
+        id: "semantic:field:details:shape:0",
+        path: "records.eidos",
+        pathKind: "sqlite_database",
+        storage: "sqlite_snapshot",
+        kind: "domain",
+        reason: "unsupported-schema-change",
+        status: "unresolved",
+        name: "Details",
+        systemConflict: {
+          code: "unsupported-schema-change",
+          objectKind: "field",
+          objectId: "details",
+          group: "shape",
+          message: "The field projection is not available.",
+          base: { state: "absent" },
+          ours: { state: "present", name: "Details", type: "text" },
+          theirs: { state: "absent" },
+          resolutionScope: "schema",
+        },
+      },
+      {
         id: "schema:file:active_records",
         path: "records.eidos",
         pathKind: "sqlite_database",
@@ -1212,7 +1233,22 @@ describe("SyncMergeWorkbench", () => {
     )
 
     const review = host.querySelector("[data-sync-merge-schema-review]")
-    expect(review?.textContent).toContain("2 structure conflicts")
+    expect(review?.textContent).toContain("3 structure conflicts")
+    const domain = host.querySelector(
+      '[data-schema-conflict="semantic:field:details:shape:0"]'
+    )!
+    expect(
+      domain.querySelector('[data-schema-conflict-side="base"]')?.textContent
+    ).toContain("Not present")
+    expect(
+      domain.querySelector('[data-schema-conflict-side="hosted"]')?.textContent
+    ).toContain("Not present")
+    expect(
+      domain.querySelector('[data-schema-conflict-side="local"]')?.textContent
+    ).toContain("Added")
+    expect(domain.textContent).toContain("Details · text")
+    expect(domain.textContent).not.toContain("Opaque")
+    expect(domain.textContent).not.toContain("Changed structure")
     expect(review?.textContent).toContain("active_records")
     expect(review?.textContent).toContain("View")
     expect(review?.textContent).toContain("search_data")

@@ -2,11 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Blocks } from "lucide-react"
 import {
   EidosFileSchemaSettings,
+  useEidosFileUI,
   type EidosFilePlugin,
   type EidosFileViewRendererProps,
+  type EidosFileViewRenderer,
 } from "@eidos.space/eidos-file-ui"
 import { fetchPlugins, type PluginListing, type PluginManifest } from "./client"
 import { downloadPluginFile } from "./plugin-export"
+import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
+import type { PluginManifest as SdkPluginManifest } from "@eidos.space/plugin-sdk"
 
 const PLUGIN_PROTOCOL = "eidos-plugin"
 
@@ -106,7 +110,26 @@ function PluginFrame({
   schema?: any
 }) {
   const { view, table } = props
+  const { locale } = useEidosFileUI()
+  const localeRef = useRef(locale)
+  localeRef.current = locale
   const frameRef = useRef<HTMLIFrameElement>(null)
+  useEffect(() => {
+    const send = () =>
+      frameRef.current?.contentWindow?.postMessage(
+        {
+          protocol: PLUGIN_PROTOCOL,
+          apiVersion: 1,
+          observation: "host.locale",
+          value: locale === "zh" ? "zh-CN" : locale,
+        },
+        "*"
+      )
+    send()
+    const frame = frameRef.current
+    frame?.addEventListener("load", send)
+    return () => frame?.removeEventListener("load", send)
+  }, [locale, pluginId, viewId])
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const latestProps = useRef(props)
@@ -114,7 +137,7 @@ function PluginFrame({
 
   const src = useMemo(() => {
     if (!view || !table) return ""
-    return `/api/plugins/${encodeURIComponent(pluginId)}/views/${encodeURIComponent(viewId)}?tableId=${encodeURIComponent(table.table.id)}&viewId=${encodeURIComponent(view.id)}`
+    return `/api/plugins/${encodeURIComponent(pluginId)}/views/${encodeURIComponent(viewId)}?tableId=${encodeURIComponent(table.table.id)}&viewId=${encodeURIComponent(view.id)}&locale=${encodeURIComponent(localeRef.current === "zh" ? "zh-CN" : localeRef.current)}`
   }, [pluginId, viewId, table?.table?.id, view?.id])
 
   // Handle incoming postMessage from the sandboxed iframe
@@ -405,6 +428,16 @@ function PluginFrame({
 }
 
 export function usePluginTableViews(isPublish: boolean): EidosFilePlugin[] {
+  const renderers = useRef(
+    new Map<
+      string,
+      {
+        schema?: NonNullable<PluginManifest["views"]>[number]["configuration"]
+        render: EidosFileViewRenderer
+      }
+    >()
+  )
+  const { locale } = useEidosFileUI()
   const [listing, setListing] = useState<PluginListing | null>(null)
 
   useEffect(() => {
@@ -425,7 +458,14 @@ export function usePluginTableViews(isPublish: boolean): EidosFilePlugin[] {
     if (!listing?.plugins) return []
     return listing.plugins
       .filter((p) => p.enabled)
-      .flatMap(({ manifest }) => {
+      .flatMap(({ manifest: raw, localization }) => {
+        const manifest = localization
+          ? (localizePluginManifest(
+              raw as SdkPluginManifest,
+              localization,
+              locale === "zh" ? "zh-CN" : locale
+            ) as unknown as PluginManifest)
+          : raw
         const views = (manifest.views ?? []).filter(
           (view) =>
             view.kind === "file" &&
@@ -440,6 +480,30 @@ export function usePluginTableViews(isPublish: boolean): EidosFilePlugin[] {
             id: manifest.id,
             views: views.map((view) => {
               const contribution = `${manifest.id}/${view.id}`
+              const key = `${contribution}/${manifest.version}/${isPublish}`
+              let cached = renderers.current.get(key)
+              if (!cached) {
+                const entry: {
+                  schema?: NonNullable<
+                    PluginManifest["views"]
+                  >[number]["configuration"]
+                  render: EidosFileViewRenderer
+                } = {
+                  schema: view.configuration,
+                  render: (props) => (
+                    <PluginFrame
+                      {...props}
+                      pluginId={manifest.id}
+                      viewId={view.id}
+                      isPublish={isPublish}
+                      schema={entry.schema}
+                    />
+                  ),
+                }
+                cached = entry
+                renderers.current.set(key, entry)
+              }
+              cached.schema = view.configuration
               return {
                 type: `plugin:${contribution}`,
                 label: view.title,
@@ -475,19 +539,11 @@ export function usePluginTableViews(isPublish: boolean): EidosFilePlugin[] {
                       />
                     )
                   : undefined,
-                renderer: (props: EidosFileViewRendererProps) => (
-                  <PluginFrame
-                    {...props}
-                    pluginId={manifest.id}
-                    viewId={view.id}
-                    isPublish={isPublish}
-                    schema={view.configuration}
-                  />
-                ),
+                renderer: cached.render,
               }
             }),
           },
         ]
       })
-  }, [listing, isPublish])
+  }, [listing, isPublish, locale])
 }

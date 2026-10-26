@@ -363,7 +363,9 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
     case "inspectMergeTables": {
       if (openedRuntime)
         throw new Error("Table inspection requires a private Runtime worker")
-      return inspectEidosMergeTables(request.filePaths)
+      return request.includeColumns
+        ? inspectEidosMergeTables(request.filePaths, true)
+        : inspectEidosMergeTables(request.filePaths)
     }
     case "open": {
       if (!path.isAbsolute(request.filePath)) {

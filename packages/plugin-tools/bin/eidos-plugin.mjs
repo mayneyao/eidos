@@ -4,6 +4,11 @@ import path from "node:path"
 import { parseArgs } from "node:util"
 import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
+import {
+  isCheckoutToolchain,
+  snapshotToolchain,
+  templateDependencies,
+} from "./toolchain.mjs"
 import { compilePlugin, checkPluginCompatibility } from "../dist/compiler.js"
 const templates = fileURLToPath(new URL("../templates/", import.meta.url))
 export const templateCatalog = JSON.parse(
@@ -35,8 +40,20 @@ export async function create(directory, template = "document-view") {
     name,
     ...project.package,
     scripts: { ...project.package.scripts, ...definition.scripts },
+    devDependencies: await templateDependencies(),
   }
   await fs.mkdir(directory)
+  if (await isCheckoutToolchain()) {
+    const snapshots = await snapshotToolchain(
+      path.join(directory, ".eidos-toolchain")
+    )
+    pkg.devDependencies = Object.fromEntries(
+      Object.entries(snapshots).map(([name, file]) => [
+        name,
+        `file:./${path.relative(directory, file).split(path.sep).join("/")}`,
+      ])
+    )
+  }
   for (const [file, value] of [
     ["plugin.json", manifest],
     ["package.json", pkg],
@@ -59,10 +76,11 @@ export async function create(directory, template = "document-view") {
     path.join(directory, ".gitignore"),
     "node_modules/\ndist/\n"
   )
-  await fs.copyFile(
-    path.join(templates, "README.md"),
-    path.join(directory, "README.md")
-  )
+  if (!Object.hasOwn(definition.files, "README.md"))
+    await fs.copyFile(
+      path.join(templates, "README.md"),
+      path.join(directory, "README.md")
+    )
 }
 export async function check(source) {
   return (await compilePlugin(source)).program.manifest
@@ -193,9 +211,21 @@ export async function run(argv) {
     value = { output, checksum }
     human = output + "\nChecksum: " + checksum
   } else if (command === "registry") {
-    const { decodePackage } = await import("../dist/compiler.js")
+    const { decodePackage, pluginLanguageData, localizePluginManifest } =
+      await import("../dist/compiler.js")
     const bytes = await fs.readFile(source)
-    const { manifest } = decodePackage(bytes)
+    const pkg = decodePackage(bytes)
+    const { manifest } = pkg
+    const localization = manifest.i18n
+      ? pluginLanguageData(manifest, pkg.resources)
+      : undefined
+    const display = localization
+      ? localizePluginManifest(
+          manifest,
+          localization,
+          localization.defaultLocale
+        )
+      : manifest
     if (
       !/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(
         values.repo ?? ""
@@ -224,8 +254,33 @@ export async function run(argv) {
         )
     const entry = {
       id: manifest.id,
-      name: manifest.name,
-      description: values.description,
+      name: display.name,
+      description: localization
+        ? (display.description ?? values.description)
+        : values.description,
+      ...(localization
+        ? {
+            localization: {
+              ...localization,
+              messages: Object.fromEntries(
+                Object.entries(localization.messages).map(
+                  ([locale, messages]) => [
+                    locale,
+                    Object.fromEntries(
+                      Object.entries(messages).filter(([key]) =>
+                        [manifest.name, manifest.description].some(
+                          (label) => label === `%${key}%`
+                        )
+                      )
+                    ),
+                  ]
+                )
+              ),
+              name: manifest.name,
+              description: manifest.description,
+            },
+          }
+        : {}),
       category: values.category,
       repo: values.repo,
       version: manifest.version,

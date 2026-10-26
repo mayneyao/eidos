@@ -15,7 +15,7 @@ Signatures, parameters and return types are generated from the SDK. Optional mem
 
 ## FileHookContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L165)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L171)
 
 ### FileHookContext.event
 
@@ -51,7 +51,7 @@ Related types: [FileHookEvent](/plugins/api/types/#filehookevent), [SettingValue
 
 ## FileHookHandler
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L170)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L176)
 
 Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
@@ -65,7 +65,7 @@ Related types: [FileHookContext](/plugins/api/actions/#filehookcontext), [FileHo
 
 ## FormatterProvider
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L178)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L184)
 
 ### FormatterProvider.format
 
@@ -90,7 +90,7 @@ Related types: [FormatterInput](/plugins/api/types/#formatterinput).
 
 ## TableActionCapabilities
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L461)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L475)
 
 ### TableActionCapabilities.eidos
 
@@ -164,7 +164,7 @@ Related types: [EidosTable](/plugins/api/eidos/#eidostable), [EidosConfig](/plug
 
 ## TableActionProvider
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L492)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L506)
 
 ### TableActionProvider.getItems
 
@@ -173,6 +173,7 @@ Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" varia
 
 ```ts
 getItems(context: {
+    readonly i18n: PluginI18n;
     readonly signal: AbortSignal;
     readonly capabilities: Pick<TableActionCapabilities, "eidos">;
 }): Promise<TableActionItem[]> | TableActionItem[];
@@ -180,7 +181,7 @@ getItems(context: {
 
 | Parameter | Type | Required |
 | --- | --- | --- |
-| `context` | `{     readonly signal: AbortSignal;     readonly capabilities: Pick<TableActionCapabilities, "eidos">; }` | Yes |
+| `context` | `{     readonly i18n: PluginI18n;     readonly signal: AbortSignal;     readonly capabilities: Pick<TableActionCapabilities, "eidos">; }` | Yes |
 
 Returns: `Promise<TableActionItem[]> &#124; TableActionItem[]`.
 
@@ -200,4 +201,4 @@ run(context: TableActionContext, itemId: string): Promise<void>;
 
 Returns: `Promise<void>`.
 
-Related types: [TableActionCapabilities](/plugins/api/actions/#tableactioncapabilities), [TableActionItem](/plugins/api/types/#tableactionitem), [TableActionContext](/plugins/api/context/#tableactioncontext).
+Related types: [PluginI18n](/plugins/api/context/#plugini18n), [TableActionCapabilities](/plugins/api/actions/#tableactioncapabilities), [TableActionItem](/plugins/api/types/#tableactionitem), [TableActionContext](/plugins/api/context/#tableactioncontext).

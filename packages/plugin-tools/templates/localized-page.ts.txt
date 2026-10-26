@@ -1,0 +1,14 @@
+import type { Mount } from "@eidos.space/plugin-sdk"
+const mount: Mount = (ctx, root) => {
+  const search = document.createElement("input")
+  search.type = "search"
+  root.style.padding = "16px"
+  root.append(search)
+  const updateLabels = () => {
+    search.placeholder = ctx.i18n.t("search")
+    search.setAttribute("aria-label", ctx.i18n.t("search"))
+  }
+  updateLabels()
+  ctx.subscriptions.add(ctx.i18n.onDidChangeLocale(updateLabels))
+}
+export default mount

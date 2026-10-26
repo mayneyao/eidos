@@ -1,4 +1,6 @@
 import { viewResource } from "@eidos.space/plugin-runtime/view"
+import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
+import { localizeMarketplacePlugin } from "./plugin-localization"
 import {
   useState,
   useId,
@@ -98,7 +100,14 @@ export function PluginDetailView({
   onOpenPage,
   variant = "page",
 }: PluginDetailViewProps) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
+  marketplacePlugin = useMemo(
+    () =>
+      marketplacePlugin
+        ? localizeMarketplacePlugin(marketplacePlugin, locale)
+        : marketplacePlugin,
+    [marketplacePlugin, locale]
+  )
   const id = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const [isMobile, setIsMobile] = useState(variant === "settings")
@@ -121,7 +130,17 @@ export function PluginDetailView({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [activeScreenshot])
 
-  const manifest = plugin?.manifest
+  const manifest = useMemo(
+    () =>
+      plugin?.manifest && plugin.localization
+        ? localizePluginManifest(
+            plugin.sourceManifest ?? plugin.manifest,
+            plugin.localization,
+            locale === "zh" ? "zh-CN" : locale
+          )
+        : plugin?.manifest,
+    [plugin, locale]
+  )
   const isTheme = manifest?.kind === "theme"
   const compatibility =
     manifest && !plugin?.unavailable
@@ -184,6 +203,10 @@ export function PluginDetailView({
   }, [isTheme, activeTab])
 
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  const [readmeFallback, setReadmeFallback] = useState<string | null>(null)
+  const [readmeSource, setReadmeSource] = useState<string | null>(null)
+  const readmeKey = `${pluginId}:${plugin?.hash ?? marketplacePlugin?.version ?? ""}:${locale}`
+  const [readmeIdentity, setReadmeIdentity] = useState("")
   const [readmeLoading, setReadmeLoading] = useState(false)
 
   const repo = marketplacePlugin?.repo
@@ -191,17 +214,38 @@ export function PluginDetailView({
   useEffect(() => {
     if (!pluginId || !window.eidosLite?.pluginReadme) {
       setReadmeContent(null)
+      setReadmeFallback(null)
+      setReadmeSource(null)
+      setReadmeIdentity(readmeKey)
       return
     }
     let cancelled = false
     setReadmeLoading(true)
     void window.eidosLite
-      .pluginReadme(pluginId)
+      .pluginReadme(pluginId, locale === "zh" ? "zh-CN" : locale)
       .then((content) => {
-        if (!cancelled) setReadmeContent(content)
+        if (!cancelled) {
+          setReadmeIdentity(readmeKey)
+          setReadmeContent(
+            typeof content === "string" ? content : (content?.content ?? null)
+          )
+          setReadmeFallback(
+            typeof content === "object" && content?.fallback
+              ? content.locale
+              : null
+          )
+          setReadmeSource(
+            typeof content === "object" ? (content?.source ?? null) : null
+          )
+        }
       })
       .catch(() => {
-        if (!cancelled) setReadmeContent(null)
+        if (!cancelled) {
+          setReadmeIdentity(readmeKey)
+          setReadmeContent(null)
+          setReadmeFallback(null)
+          setReadmeSource(null)
+        }
       })
       .finally(() => {
         if (!cancelled) setReadmeLoading(false)
@@ -209,13 +253,13 @@ export function PluginDetailView({
     return () => {
       cancelled = true
     }
-  }, [pluginId])
+  }, [pluginId, readmeKey, locale])
 
   const readmeHtml = useMemo(() => {
-    if (!readmeContent) return null
+    if (!readmeContent || readmeIdentity !== readmeKey) return null
     let processed = readmeContent
-    if (repo) {
-      const rawBase = `https://raw.githubusercontent.com/${repo}/main/`
+    if (repo && readmeSource?.startsWith("https://")) {
+      const rawBase = new URL(".", readmeSource).href
       processed = processed.replace(
         /!\[([^\]]*)\]\((?!(?:https?:\/\/|data:))([^)]+)\)/g,
         (_match, alt, src) => {
@@ -229,7 +273,7 @@ export function PluginDetailView({
     } catch {
       return null
     }
-  }, [readmeContent, repo])
+  }, [readmeContent, repo, readmeSource, readmeIdentity, readmeKey])
 
   const settingsView = manifest?.placements?.find(
     (p) => p.location === "plugin/settings"
@@ -250,8 +294,78 @@ export function PluginDetailView({
   const formatters = manifest?.formatters ?? []
   const hooks = manifest?.hooks ?? []
   const placements = manifest?.placements ?? []
+  const background = manifest?.background
+  const backgroundNetwork =
+    background?.networkOrigins !== undefined
+      ? background.networkOrigins.join(", ") || t("No network access")
+      : background?.network
+        ? t("All public HTTPS/WSS services")
+        : t("No network access")
+  const publicPageNetwork =
+    manifest?.browser?.network && manifest.browser.networkOrigins === undefined
+  const execution = isTheme
+    ? "No executable code"
+    : background
+      ? "Isolated iframe sandbox and QuickJS background sandbox"
+      : "Isolated iframe sandbox (null origin)"
   const totalContributions =
-    views.length + actions.length + formatters.length + hooks.length
+    views.length +
+    actions.length +
+    formatters.length +
+    hooks.length +
+    (background ? 1 : 0)
+
+  const backgroundDetails = background && (
+    <section className="plugin-section-card">
+      <h2 className="plugin-section-title">
+        <Terminal size={16} aria-hidden="true" />
+        <span>{t("Background service")}</span>
+      </h2>
+      <p className="plugin-detail-description">
+        {t(
+          "Continues after its page closes, until stopped, disabled, updated, or this Space closes."
+        )}
+      </p>
+      <dl className="plugin-spec-grid">
+        {[
+          [t("Entry"), background.entry],
+          [
+            t("Startup"),
+            t(
+              background.autoStart
+                ? "Automatically when this Space opens, after approval"
+                : "Started by a plugin page or command, after approval"
+            ),
+          ],
+          [
+            t("File-open events"),
+            t(
+              background.fileHistory
+                ? "Paths and opening times in this Space; no file contents"
+                : "Not requested"
+            ),
+          ],
+          [
+            t("Background network access"),
+            backgroundNetwork || t("No network access"),
+          ],
+          [
+            t("Bluetooth"),
+            background.bluetooth === true
+              ? t("User-selected device")
+              : background.bluetooth
+                ? background.bluetooth.services.join(", ")
+                : t("Not requested"),
+          ],
+        ].map(([label, value]) => (
+          <div className="plugin-spec-item" key={label}>
+            <dt className="plugin-spec-label">{label}</dt>
+            <dd className="plugin-spec-value break-all">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
 
   const screenshots = useMemo(() => {
     if (!marketplacePlugin?.repo || !marketplacePlugin.screenshots?.length) {
@@ -420,6 +534,12 @@ export function PluginDetailView({
                 <dd>{hooks.length}</dd>
               </div>
             )}
+            {background && (
+              <div className="plugin-prop-item">
+                <dt>{t("Background service")}</dt>
+                <dd>1</dd>
+              </div>
+            )}
           </dl>
         </div>
       )}
@@ -430,19 +550,15 @@ export function PluginDetailView({
         <dl className="plugin-prop-list">
           <div className="plugin-prop-item">
             <dt>{t("Execution")}</dt>
-            <dd>
-              {t(
-                isTheme
-                  ? "No executable code"
-                  : "Isolated iframe sandbox (null origin)"
-              )}
-            </dd>
+            <dd>{t(execution)}</dd>
           </div>
           <div className="plugin-prop-item">
-            <dt>{t("Network Access")}</dt>
+            <dt>{t(background ? "Page network access" : "Network Access")}</dt>
             <dd>
               {isTheme ? (
                 <span>{t("No network access")}</span>
+              ) : publicPageNetwork ? (
+                <span>{t("All public HTTPS services")}</span>
               ) : hasConnections ? (
                 <span>{t("Authenticated connections")}</span>
               ) : manifest?.browser?.networkOrigins?.length ? (
@@ -454,6 +570,30 @@ export function PluginDetailView({
           </div>
         </dl>
       </div>
+
+      {background && (
+        <div className="plugin-sidebar-group">
+          <h3 className="plugin-sidebar-heading">{t("Background service")}</h3>
+          <dl className="plugin-prop-list">
+            <div className="plugin-prop-item">
+              <dt>{t("Startup")}</dt>
+              <dd>
+                {t(
+                  background.autoStart
+                    ? "Automatically when this Space opens, after approval"
+                    : "Started by a plugin page or command, after approval"
+                )}
+              </dd>
+            </div>
+            <div className="plugin-prop-item">
+              <dt>{t("Background network access")}</dt>
+              <dd className="break-all">
+                {backgroundNetwork || t("No network access")}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
 
       {/* Resources & Links */}
       <div className="plugin-sidebar-group">
@@ -613,9 +753,7 @@ export function PluginDetailView({
                       aria-hidden="true"
                     />
                     <span>
-                      {manifest?.theme
-                        ? t("Active theme")
-                        : t("Enabled in this Space")}
+                      {manifest?.theme ? t("Active theme") : t("Enabled")}
                     </span>
                   </>
                 ) : (
@@ -809,6 +947,14 @@ export function PluginDetailView({
         >
           {activeTab === "details" && (
             <div className="plugin-tab-details space-y-6">
+              {readmeFallback && readmeIdentity === readmeKey && (
+                <p className="plugin-detail-description">
+                  {t(
+                    "This documentation is not available in your language. Showing {locale}.",
+                    { locale: readmeFallback }
+                  )}
+                </p>
+              )}
               {screenshots.length > 0 && (
                 <PluginScreenshotCarousel
                   key={marketplacePlugin?.id}
@@ -818,7 +964,8 @@ export function PluginDetailView({
               )}
               {builtin ? (
                 <div className="plugin-builtin-content">{builtin.details}</div>
-              ) : readmeLoading && !readmeHtml ? (
+              ) : (readmeLoading || readmeIdentity !== readmeKey) &&
+                !readmeHtml ? (
                 <div className="plugin-readme-loading">
                   <p role="status">{t("Loading documentation…")}</p>
                 </div>
@@ -961,6 +1108,7 @@ export function PluginDetailView({
 
           {activeTab === "features" && (
             <div className="plugin-tab-features space-y-6">
+              {backgroundDetails}
               {/* Views */}
               {views.length > 0 && (
                 <section className="plugin-section-card">
@@ -1167,6 +1315,7 @@ export function PluginDetailView({
 
           {activeTab === "runtime" && (
             <div className="plugin-tab-runtime space-y-6">
+              {backgroundDetails}
               {/* Security & Sandbox Spec */}
               {isTheme ? (
                 <section className="plugin-section-card">
@@ -1191,9 +1340,7 @@ export function PluginDetailView({
                       <span className="plugin-spec-label">
                         {t("Execution")}
                       </span>
-                      <span className="plugin-spec-value">
-                        {t("Isolated iframe sandbox (null origin)")}
-                      </span>
+                      <span className="plugin-spec-value">{t(execution)}</span>
                     </div>
                     <div className="plugin-spec-item">
                       <span className="plugin-spec-label">
@@ -1205,9 +1352,23 @@ export function PluginDetailView({
                     </div>
                     <div className="plugin-spec-item">
                       <span className="plugin-spec-label">
-                        {t("Network Access")}
+                        {t(
+                          background ? "Page network access" : "Network Access"
+                        )}
                       </span>
                       <span className="plugin-spec-value">
+                        {publicPageNetwork && (
+                          <span>{t("All public HTTPS services")}</span>
+                        )}
+                        {!!manifest?.browser?.networkOrigins?.length && (
+                          <div className="space-y-1">
+                            {manifest.browser.networkOrigins.map((origin) => (
+                              <code key={origin} className="block text-xs">
+                                {origin}
+                              </code>
+                            ))}
+                          </div>
+                        )}
                         {hasConnections ? (
                           <div className="space-y-1">
                             {Object.values(manifest?.connections ?? {}).map(
@@ -1221,19 +1382,12 @@ export function PluginDetailView({
                               )
                             )}
                           </div>
-                        ) : manifest?.browser?.networkOrigins?.length ? (
-                          <div className="space-y-1">
-                            {manifest.browser.networkOrigins.map((origin) => (
-                              <code key={origin} className="block text-xs">
-                                {origin}
-                              </code>
-                            ))}
-                          </div>
-                        ) : (
+                        ) : !publicPageNetwork &&
+                          !manifest?.browser?.networkOrigins?.length ? (
                           <span>
                             {t("No external network access (100% offline)")}
                           </span>
-                        )}
+                        ) : null}
                       </span>
                     </div>
                     <div className="plugin-spec-item">

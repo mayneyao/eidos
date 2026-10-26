@@ -1,5 +1,6 @@
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import { isCanonicalEidosFileInstant } from "./temporal"
+import { quoteIdentifier } from "./identifiers"
 import type {
   EidosFileValidationIssue,
   EidosFileValidationResult,
@@ -46,6 +47,8 @@ export type EidosSystemMergeConflictCode =
 
 export interface EidosSystemMergeSummary {
   state: "absent" | "present"
+  name?: string
+  type?: string
   changedGroups?: string[]
 }
 
@@ -328,8 +331,18 @@ function summary(
   row: object | undefined,
   groups: string[] = []
 ): EidosSystemMergeSummary {
+  const definition = row as { name?: unknown; type?: unknown } | undefined
   return row
-    ? { state: "present", ...(groups.length ? { changedGroups: groups } : {}) }
+    ? {
+        state: "present",
+        ...(typeof definition?.name === "string"
+          ? { name: definition.name }
+          : {}),
+        ...(typeof definition?.type === "string"
+          ? { type: definition.type }
+          : {}),
+        ...(groups.length ? { changedGroups: groups } : {}),
+      }
     : { state: "absent" }
 }
 
@@ -484,12 +497,20 @@ function mergeExistingTables(
   plan: MergePlan,
   oursKey: string,
   theirsKey: string,
-  operationInstant: string
+  operationInstant: string,
+  materializedAdditions: ReadonlySet<string>
 ): void {
   for (const id of ids(base.tables, ours.tables, theirs.tables)) {
     const baseRow = base.tables.get(id)
     const oursRow = ours.tables.get(id)
     const theirsRow = theirs.tables.get(id)
+    if (!baseRow && materializedAdditions.has(id)) {
+      plan.tables.set(id, {
+        ...(oursRow ?? theirsRow)!,
+        updated_at: operationInstant,
+      })
+      continue
+    }
     if (!baseRow || !oursRow || !theirsRow) {
       const code =
         baseRow && (!oursRow || !theirsRow)
@@ -503,7 +524,7 @@ function mergeExistingTables(
           "physical-identity",
           code === "delete-update"
             ? "Table deletion cannot be combined without proving its schema and dependency effects."
-            : "Table creation requires physical schema reconstruction and is not automatic in this implementation.",
+            : "The new Table cannot be merged until the candidate preserves its complete schema and rows without an identity or name collision.",
           baseRow,
           oursRow,
           theirsRow,
@@ -625,12 +646,24 @@ function mergeExistingFields(
   plan: MergePlan,
   oursKey: string,
   theirsKey: string,
-  operationInstant: string
+  operationInstant: string,
+  materializedAdditions: ReadonlySet<string>
 ): void {
   for (const id of ids(base.fields, ours.fields, theirs.fields)) {
     const baseRow = base.fields.get(id)
     const oursRow = ours.fields.get(id)
     const theirsRow = theirs.fields.get(id)
+    const added = oursRow ?? theirsRow
+    if (
+      !baseRow &&
+      !(oursRow && theirsRow) &&
+      added &&
+      materializedAdditions.has(added.table_id)
+    ) {
+      plan.fields.set(id, { ...added, updated_at: operationInstant })
+      setFieldSubtype(plan, id, fieldSubtype(oursRow ? ours : theirs, id))
+      continue
+    }
     if (!baseRow || !oursRow || !theirsRow) {
       const code =
         baseRow && (!oursRow || !theirsRow)
@@ -1058,13 +1091,67 @@ function viewNameConflicts(plan: MergePlan): void {
   }
 }
 
+/** Only accept complete single-sided Tables already materialized by the host.
+ * This does not authorize missing DDL, partial row copies, or name collisions.
+ */
+function materializedTableAdditions(
+  input: EidosSystemMergeInput,
+  base: SystemSnapshot,
+  ours: SystemSnapshot,
+  theirs: SystemSnapshot
+): Set<string> {
+  const accepted = new Set<string>()
+  for (const id of ids(ours.tables, theirs.tables)) {
+    if (base.tables.has(id) || (ours.tables.has(id) && theirs.tables.has(id)))
+      continue
+    const table = (ours.tables.get(id) ?? theirs.tables.get(id))!
+    const other = ours.tables.has(id) ? theirs : ours
+    if (
+      [...other.tables.values()].some(
+        (row) =>
+          row.name.toLowerCase() === table.name.toLowerCase() ||
+          row.physical_name.toLowerCase() === table.physical_name.toLowerCase()
+      )
+    )
+      continue
+    const source = ours.tables.has(id) ? input.ours : input.theirs
+    const schema = (connection: EidosFileConnection) =>
+      connection.query(
+        "SELECT type,name,sql FROM sqlite_schema WHERE tbl_name=? ORDER BY type,name",
+        [table.physical_name]
+      )
+    try {
+      if (!equal(schema(source), schema(input.result))) continue
+      const name = quoteIdentifier(table.physical_name)
+      let after: string | undefined
+      let complete = true
+      while (true) {
+        const sql = `SELECT * FROM ${name}${after === undefined ? "" : ' WHERE "_id" COLLATE BINARY > ?'} ORDER BY "_id" COLLATE BINARY LIMIT 256`
+        const params = after === undefined ? [] : [after]
+        const rows = source.query<{ _id: string }>(sql, params)
+        if (!equal(rows, input.result.query(sql, params))) {
+          complete = false
+          break
+        }
+        if (rows.length < 256) break
+        after = rows.at(-1)!._id
+      }
+      if (complete) accepted.add(id)
+    } catch {
+      // A missing/unreadable physical table is an unresolved structural change.
+    }
+  }
+  return accepted
+}
+
 function buildPlan(
   base: SystemSnapshot,
   ours: SystemSnapshot,
   theirs: SystemSnapshot,
   oursKey: string,
   theirsKey: string,
-  operationInstant: string
+  operationInstant: string,
+  materializedAdditions: ReadonlySet<string>
 ): MergePlan | "revision-exhausted" {
   const automaticResolutions: EidosSystemMergeAutomaticResolution[] = []
   const conflicts: EidosSystemMergeDomainConflict[] = []
@@ -1138,7 +1225,8 @@ function buildPlan(
     plan,
     oursKey,
     theirsKey,
-    operationInstant
+    operationInstant,
+    materializedAdditions
   )
   mergeExistingFields(
     base,
@@ -1147,7 +1235,8 @@ function buildPlan(
     plan,
     oursKey,
     theirsKey,
-    operationInstant
+    operationInstant,
+    materializedAdditions
   )
   mergeViews(base, ours, theirs, plan, oursKey, theirsKey, operationInstant)
   mergeFeatures(base, ours, theirs, plan)
@@ -1472,7 +1561,8 @@ export function mergeEidosSystemMetadata(
     theirs,
     input.oursKey,
     input.theirsKey,
-    input.operationInstant
+    input.operationInstant,
+    materializedTableAdditions(input, base, ours, theirs)
   )
   if (plan === "revision-exhausted") return { outcome: "failed", code: plan }
   if (plan.conflicts.length) {

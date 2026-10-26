@@ -6,6 +6,7 @@ import { GraftClient } from "../graft/graft-client"
 import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { createEidosLiteFileRuntime } from "../../runtime/eidos-file-runtime"
 import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
+import type { EidosFileDataSource } from "@eidos.space/eidos-file"
 
 it("reads basic file properties without Spark or a metadata catalog", async () => {
   const root = await fs.mkdtemp(
@@ -26,6 +27,7 @@ it("reads basic file properties without Spark or a metadata catalog", async () =
       requireSparkFeature,
     })
     const stats = await fs.stat(path.join(root, "proof.md"))
+    expect(await session.getExplorerFilterFields()).toEqual([])
     expect(await session.statFile("proof.md")).toMatchObject({
       path: "proof.md",
       extension: ".md",
@@ -85,7 +87,13 @@ it("creates one Space catalog, shares fields and views, and leaves legacy catalo
       }
     )
     vi.spyOn(session.runtimePool, "call").mockImplementation(
-      async () => ({ connectionId: "test", dataVersion: "1" }) as never
+      async (_sessionId, method, args) => {
+        if (method === "getPage")
+          return runtime!.source.getPage(
+            ...(args as Parameters<EidosFileDataSource["getPage"]>)
+          ) as never
+        return { connectionId: "test", dataVersion: "1" } as never
+      }
     )
     const create = vi
       .spyOn(session.runtimePool, "create")
@@ -112,6 +120,109 @@ it("creates one Space catalog, shares fields and views, and leaves legacy catalo
     expect(table.settings?.vtabConfig).toMatchObject({ root: ".." })
     await runtime!.source.addField(table.id, { name: "Status", type: "text" })
     const opened = await session.openFileMetadata("assets/nested")
+    const status = opened.snapshot.tables[0]!.fields.find(
+      (field) => field.name === "Status"
+    )!
+    await runtime!.source.updateRow(table.id, "assets/nested/proof.txt", {
+      [status.id]: "Active",
+    })
+    expect(
+      (await session.getExplorerFilterFields()).map((field) => field.name)
+    ).toContain("Status")
+    const propertyFilter = {
+      type: "group" as const,
+      id: "root",
+      conjunction: "and" as const,
+      children: [
+        {
+          type: "rule" as const,
+          id: "status",
+          field: "property" as const,
+          operator: "matches" as const,
+          value: {
+            type: "rule" as const,
+            field: status.id,
+            operator: "equals" as const,
+            value: "Active",
+          },
+        },
+      ],
+    }
+    const filtered = await session.filterFiles(propertyFilter, null)
+    expect(filtered.map((entry) => entry.relativePath)).toEqual(["assets"])
+    expect(
+      filtered[0]!.children?.[0]?.children?.map((entry) => entry.relativePath)
+    ).toEqual(["assets/nested/proof.txt"])
+    expect(
+      await session.filterFiles(
+        {
+          ...propertyFilter,
+          children: [
+            ...propertyFilter.children,
+            {
+              type: "rule",
+              id: "suffix",
+              field: "suffix",
+              operator: "in",
+              value: [".md"],
+            },
+          ],
+        },
+        null
+      )
+    ).toEqual([])
+    const either = await session.filterFiles(
+      {
+        ...propertyFilter,
+        conjunction: "or",
+        children: [
+          ...propertyFilter.children,
+          {
+            type: "rule",
+            id: "suffix",
+            field: "suffix",
+            operator: "in",
+            value: [".eidos"],
+          },
+        ],
+      },
+      null
+    )
+    expect(either[0]!.children?.map((entry) => entry.relativePath)).toEqual([
+      "assets/nested",
+      "assets/files.eidos",
+    ])
+    expect(
+      await session.filterFiles(
+        {
+          ...propertyFilter,
+          children: [
+            {
+              ...propertyFilter.children[0]!,
+              value: { ...propertyFilter.children[0]!.value, value: "Done" },
+            },
+          ],
+        },
+        null
+      )
+    ).toEqual([])
+    await expect(
+      session.filterFiles(
+        {
+          ...propertyFilter,
+          children: [
+            {
+              ...propertyFilter.children[0]!,
+              value: {
+                ...propertyFilter.children[0]!.value,
+                field: "missing-field",
+              },
+            },
+          ],
+        },
+        null
+      )
+    ).rejects.toThrow("no longer available")
     expect(
       opened.snapshot.tables[0]!.fields.some((field) => field.name === "Status")
     ).toBe(true)

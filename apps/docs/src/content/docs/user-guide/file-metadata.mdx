@@ -60,6 +60,16 @@ Without Spark activation, an existing configuration remains available for readin
 Adding or editing properties, changing filters or sorting, and changing view configuration require Spark.
 Filters and sorting are saved view settings; a temporary search does not modify the view.
 
+## Filter the Space Explorer
+
+Select the filter icon beside the Space heading, then search for a property. Start with **File name**, **File suffix**, or **File path**; custom properties from an existing file management configuration appear in the same picker.
+
+Choose an operator and value using the same controls as table filters. For suffixes, select multiple values or enter your own, such as `.md` or `.tar.gz`. Add another condition to combine properties; **All match** requires every condition, while **Any match** accepts any one of them.
+
+Results update as you edit. Parent folders remain visible when they contain matching files, including files in collapsed folders. Filtering keeps the current editor open. Close the panel to return to browsing; the filter icon shows the number of active conditions. Open it again to edit, remove, or clear conditions.
+
+Explorer filters are temporary and do not change saved table views. They do not require Spark activation. Opening the filter does not create a file management configuration.
+
 ## Filter MP4 files from a column heading
 
 Start directly from the field you want to filter:
@@ -86,11 +96,11 @@ Scanning does not follow symbolic links and excludes private directories such as
 
 ## Where the data is stored
 
-| Data | Location |
-| --- | --- |
-| Field definitions, options, saved views, filters, and sorting | `.eidos/files.eidos` inside the Space |
-| Each file's tags, ratings, and other custom values | The file's own attributes: extended attributes on macOS/Linux, NTFS alternate data streams on Windows |
-| File contents | The original physical file |
+| Data                                                          | Location                                                                                              |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Field definitions, options, saved views, filters, and sorting | `.eidos/files.eidos` inside the Space                                                                 |
+| Each file's tags, ratings, and other custom values            | The file's own attributes: extended attributes on macOS/Linux, NTFS alternate data streams on Windows |
+| File contents                                                 | The original physical file                                                                            |
 
 Editing a custom value does not change the file's content bytes.
 The private `.eidos` directory stays out of the Explorer, file search, and the management table's scan results.

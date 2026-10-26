@@ -32,6 +32,7 @@ const SHA256 = /^[0-9a-f]{64}$/
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/
 const MEDIA_TYPE = /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/
 const CONTROL = /[\u0000-\u001f\u007f]/
+const MULTILINE_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/
 
 interface ResolvedFormPublication {
   publication: {
@@ -570,7 +571,12 @@ function normalizeSubmission(
       }
       continue
     }
-    const value = normalizeFieldValue(field.type, raw, field.constraints)
+    const value = normalizeFieldValue(
+      field.type,
+      raw,
+      field.constraints,
+      field.multiline
+    )
     if (value === INVALID) {
       return formProblem(400, "submission_invalid", `${field.label} is invalid`)
     }
@@ -584,7 +590,8 @@ const INVALID = Symbol("invalid")
 function normalizeFieldValue(
   type: PublishedFormFieldType,
   value: unknown,
-  constraints: Record<string, unknown>
+  constraints: Record<string, unknown>,
+  multiline: boolean
 ): unknown | typeof INVALID {
   if (type === "checkbox") return typeof value === "boolean" ? value : INVALID
   if (type === "number" || type === "rating") {
@@ -608,7 +615,8 @@ function normalizeFieldValue(
       ? INVALID
       : value
   }
-  if (typeof value !== "string" || CONTROL.test(value)) return INVALID
+  const control = type === "text" && multiline ? MULTILINE_CONTROL : CONTROL
+  if (typeof value !== "string" || control.test(value)) return INVALID
   const maxBytes =
     typeof constraints.maxBytes === "number" &&
     Number.isSafeInteger(constraints.maxBytes) &&

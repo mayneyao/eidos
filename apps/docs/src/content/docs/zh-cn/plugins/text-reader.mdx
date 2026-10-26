@@ -1,0 +1,110 @@
+---
+title: 制作文本阅读器
+description: 制作一个文本阅读器，并在 Eidos Lite 中加载、调试和使用。
+sidebar:
+  order: 3
+---
+
+这个示例会制作一个文本阅读器。完成后，你可以在 `.txt` 文件的“打开方式”中选择 **Text Reader**，并看到随文件更新的内容。
+
+准备一个测试 Space 和一份 `.txt` 文件。用下面的结构创建插件目录：
+
+```text
+text-reader/
+├── plugin.json
+└── src/
+    └── main.ts
+```
+
+Eidos Lite 可以直接编译这个示例。你只需要文本编辑器，无需先搭建构建项目。
+
+## 1. 声明文件视图
+
+在 `plugin.json` 中填写：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "example.text-reader",
+  "name": "Text Reader",
+  "version": "0.1.0",
+  "requires": { "pluginApi": "3.0.0" },
+  "views": [
+    {
+      "id": "main",
+      "title": "Text Reader",
+      "entry": "./src/main.ts",
+      "kind": "file",
+      "capabilities": ["document"],
+      "access": "read"
+    }
+  ],
+  "placements": [
+    {
+      "location": "file/open",
+      "view": "main",
+      "extensions": [".txt"]
+    }
+  ]
+}
+```
+
+`kind: "file"` 将视图绑定到用户打开的文件。`capabilities: ["document"]` 提供文本读取接口。`file/open` 和 `.txt` 指定视图出现的文件菜单。
+
+## 2. 显示文本
+
+在 `src/main.ts` 中填写：
+
+```ts
+import type { Mount } from "@eidos.space/plugin-sdk"
+
+const mount: Mount = async (ctx, root) => {
+  const document = ctx.capabilities.document
+  if (!document) throw new Error("Document capability is required")
+  const pre = window.document.createElement("pre")
+  root.append(pre)
+  const observed = await document.observe(
+    (snapshot) => {
+      pre.textContent = snapshot.text
+    },
+    (error) => {
+      pre.textContent = error.message
+    }
+  )
+  ctx.subscriptions.add(observed.subscription)
+  pre.textContent = observed.snapshot.text
+  return {
+    dispose() {
+      pre.remove()
+    },
+  }
+}
+export default mount
+```
+
+Eidos 调用 `mount` 时传入上下文和界面容器。这里创建一个 `pre` 元素，通过 `document.observe()` 取得当前文本，并在内容变化时更新显示。订阅加入 `ctx.subscriptions` 后，会随视图关闭自动释放。
+
+## 3. 在 Eidos Lite 中打开
+
+1. 打开测试 Space，进入插件管理器。
+2. 选择 **Load development source…**，打开 `text-reader/plugin.json`。
+3. 查看访问权限，为当前 Space 启用插件。
+4. 在 `.txt` 文件的“打开方式”中选择 **Text Reader**。
+
+界面会显示文件内容。尝试修改测试文件，检查阅读器随之更新。
+
+## 4. 修改界面
+
+修改 `main.ts` 并保存，Eidos Lite 会重新编译、加载视图。
+如果编译失败，查看错误提示并修正代码。界面会暂时保留上一次成功加载的内容。
+
+可以通过 `--eidos-background`、`--eidos-foreground` 和 `--eidos-border` 等 CSS 变量适配 Eidos 的亮暗主题。
+
+## 接下来
+
+需要在页面关闭后保持连接或内存状态时，阅读[后台任务](/zh-cn/plugins/background/)。
+其中的完整计数器和 BLE 示例包含页面、命令注册，以及独立的后台模块。
+
+要让用户编辑文本，将声明中的 `access` 设为 `write`，添加输入界面，再用 `document.edit()` 更新内容、`document.save()` 保存。编辑、冲突处理和撤销方法见 [API 参考](/zh-cn/plugins/api/)。
+
+要制作从导航打开的工具页面，请看[页面视图](/zh-cn/plugins/concepts/#页面视图独立打开)。准备分享插件时，按[开发与分发](/zh-cn/plugins/workflow/)完成检查和打包。

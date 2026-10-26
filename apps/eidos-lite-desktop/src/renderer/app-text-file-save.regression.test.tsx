@@ -339,10 +339,10 @@ it.each(["root", "folder", "restore", "recent"])(
             button.textContent?.trim()
           )
         ).toEqual([
-          "Show this folder",
-          "Manage files",
           "New File",
           "New folder",
+          "Show this folder",
+          "Manage files",
           "Rename",
           "Reveal in Finder",
           "Copy Relative Path",

@@ -29,6 +29,7 @@ export const pages = [
       "Mount",
       "Activate",
       "CommonContext",
+      "PluginI18n",
       "Lifetime",
       "ViewContext",
       "ActionContext",

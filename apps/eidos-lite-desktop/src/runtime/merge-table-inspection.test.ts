@@ -7,6 +7,55 @@ import {
   openEidosFile,
 } from "@eidos.space/eidos-file/node-sqlite"
 import { inspectEidosMergeTables } from "./merge-table-inspection"
+
+it("reads system and user column names in physical order without changing the file", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "lite-merge-columns-"))
+  const file = path.join(root, "columns.eidos")
+  try {
+    const runtime = createEidosFile(file)
+    runtime.createTable({
+      name: "Tasks",
+      fields: [
+        { name: "Title", type: "text" },
+        { name: "Status", type: "text" },
+      ],
+    })
+    runtime.connection.run(
+      "UPDATE eidos__fields SET position=-10 WHERE name='Status'"
+    )
+    runtime.close()
+    const before = await readFile(file)
+    const columns = inspectEidosMergeTables([file], true)
+    expect(columns.eidos__meta).toEqual([
+      "singleton",
+      "format_major",
+      "format_minor",
+      "file_id",
+      "title",
+      "default_table_id",
+      "revision",
+      "created_at",
+      "updated_at",
+    ])
+    const db = new DatabaseSync(file, { readOnly: true })
+    try {
+      expect(columns.Tasks).toEqual(
+        db
+          .prepare("PRAGMA table_info(Tasks)")
+          .all()
+          .map((column) => column.name)
+      )
+      expect(columns.Tasks.indexOf("Title")).toBeLessThan(
+        columns.Tasks.indexOf("Status")
+      )
+    } finally {
+      db.close()
+    }
+    expect(await readFile(file)).toEqual(before)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 import { createFsMetaEidosFile } from "./fs-meta-file"
 
 it("discovers custom physical names and observes new and renamed tables without modifying files", async () => {

@@ -15,7 +15,7 @@ import { Badge } from "@astrojs/starlight/components"
 
 ## Lifetime
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L203)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L209)
 
 ### Lifetime.signal
 
@@ -39,7 +39,7 @@ readonly subscriptions: {
 
 ## CommonCapabilities
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L207)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L213)
 
 ### CommonCapabilities.background
 
@@ -111,11 +111,19 @@ readonly ui: HostUI;
 
 ## CommonContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L270)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
 
 
 ```ts
 interface CommonContext extends Lifetime { /* members below */ }
+```
+
+
+### CommonContext.i18n
+
+
+```ts
+readonly i18n: PluginI18n;
 ```
 
 
@@ -127,11 +135,54 @@ readonly capabilities: CommonCapabilities;
 ```
 
 
-关联类型: [CommonCapabilities](/zh-cn/plugins/api/context/#commoncapabilities), [Lifetime](/zh-cn/plugins/api/context/#lifetime).
+关联类型: [PluginI18n](/zh-cn/plugins/api/context/#plugini18n), [CommonCapabilities](/zh-cn/plugins/api/context/#commoncapabilities), [Lifetime](/zh-cn/plugins/api/context/#lifetime).
+
+## PluginI18n
+
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L280)
+
+### PluginI18n.locale
+
+
+```ts
+readonly locale: string;
+```
+
+
+### PluginI18n.t
+
+
+```ts
+t(key: string, values?: Record<string, string | number>): string;
+```
+
+| 参数 | 类型 | 必填 |
+| --- | --- | --- |
+| `key` | `string` | 是 |
+| `values` | `Record<string, string &#124; number>` | 否 |
+
+返回值: `string`.
+
+### PluginI18n.onDidChangeLocale
+
+
+```ts
+onDidChangeLocale(listener: (event: {
+    locale: string;
+}) => void): Disposable;
+```
+
+| 参数 | 类型 | 必填 |
+| --- | --- | --- |
+| `listener` | `(event: {     locale: string; }) => void` | 是 |
+
+返回值: `Disposable`.
+
+关联类型: [Disposable](/zh-cn/plugins/api/types/#disposable).
 
 ## ViewCapabilities
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L393)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L405)
 
 
 ```ts
@@ -167,7 +218,7 @@ readonly eidos?: EidosCapabilities;
 
 ## ViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L400)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L412)
 
 
 ```ts
@@ -205,7 +256,7 @@ readonly capabilities: ViewCapabilities;
 
 ## TextFileViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L405)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L417)
 
 
 ```ts
@@ -224,7 +275,7 @@ export type TextFileViewContext = ViewContext & {
 
 ## TableFileViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L409)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L421)
 
 
 ```ts
@@ -245,7 +296,7 @@ export type TableFileViewContext = ViewContext & {
 
 ## ActionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L418)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L430)
 
 
 ```ts
@@ -276,11 +327,19 @@ readonly capabilities: CommonCapabilities & {
 
 ## ExtensionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L425)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L437)
 
 
 ```ts
 interface ExtensionContext extends Lifetime { /* members below */ }
+```
+
+
+### ExtensionContext.i18n
+
+
+```ts
+readonly i18n: PluginI18n;
 ```
 
 
@@ -303,11 +362,19 @@ readonly capabilities: {
 ```
 
 
-关联类型: [FileHookHandler](/zh-cn/plugins/api/actions/#filehookhandler), [Disposable](/zh-cn/plugins/api/types/#disposable), [FormatterProvider](/zh-cn/plugins/api/actions/#formatterprovider), [TableActionProvider](/zh-cn/plugins/api/actions/#tableactionprovider), [ActionContext](/zh-cn/plugins/api/context/#actioncontext), [Lifetime](/zh-cn/plugins/api/context/#lifetime).
+关联类型: [PluginI18n](/zh-cn/plugins/api/context/#plugini18n), [FileHookHandler](/zh-cn/plugins/api/actions/#filehookhandler), [Disposable](/zh-cn/plugins/api/types/#disposable), [FormatterProvider](/zh-cn/plugins/api/actions/#formatterprovider), [TableActionProvider](/zh-cn/plugins/api/actions/#tableactionprovider), [ActionContext](/zh-cn/plugins/api/context/#actioncontext), [Lifetime](/zh-cn/plugins/api/context/#lifetime).
 
 ## TableActionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L457)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L470)
+
+### TableActionContext.i18n
+
+
+```ts
+readonly i18n: PluginI18n;
+```
+
 
 ### TableActionContext.signal
 
@@ -325,11 +392,11 @@ readonly capabilities: TableActionCapabilities;
 ```
 
 
-关联类型: [TableActionCapabilities](/zh-cn/plugins/api/actions/#tableactioncapabilities).
+关联类型: [PluginI18n](/zh-cn/plugins/api/context/#plugini18n), [TableActionCapabilities](/zh-cn/plugins/api/actions/#tableactioncapabilities).
 
 ## Mount
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L499)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L514)
 
 
 ```ts
@@ -341,7 +408,7 @@ export type Mount = (ctx: ViewContext, root: HTMLElement) => void | Disposable |
 
 ## Activate
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L503)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L518)
 
 
 ```ts

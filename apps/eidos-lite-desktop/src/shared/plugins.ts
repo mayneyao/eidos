@@ -11,6 +11,10 @@ import type {
   ViewConfiguration,
 } from "@eidos.space/plugin-sdk"
 import type { OpenEidosFileResult, SpacePathMutationResult } from "./contracts"
+import type {
+  PluginLanguageData,
+  PluginReadme,
+} from "@eidos.space/plugin-runtime/i18n"
 export interface BluetoothPickerState {
   id: string
   pluginName: string
@@ -36,10 +40,12 @@ export interface PluginSpaceConfig {
 export interface PluginListing {
   plugins: {
     manifest: PluginManifest
+    sourceManifest?: PluginManifest
     hash: string
     enabled: boolean
     developmentPath?: string
     unavailable?: boolean
+    localization?: PluginLanguageData
   }[]
   space: PluginSpaceConfig | null
   associations?: Record<string, string>
@@ -50,6 +56,10 @@ export interface MarketplaceScreenshot {
   alt: string
 }
 export interface MarketplacePlugin {
+  localization?: PluginLanguageData & {
+    name: string
+    description?: string
+  }
   kind?: "theme"
   id: string
   name: string
@@ -151,7 +161,10 @@ export interface PluginApi {
     value: SettingValue | null
   ): Promise<void>
   pluginMarketplace(refresh?: boolean): Promise<PluginMarketplace>
-  pluginReadme(id: string): Promise<string | null>
+  pluginReadme(
+    id: string,
+    locale?: string
+  ): Promise<PluginReadme | string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
   onPluginInstallProgress(
     listener: (progress: PluginInstallProgress) => void

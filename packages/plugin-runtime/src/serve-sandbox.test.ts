@@ -23,7 +23,11 @@ it("exposes the Serve contract and disposes observers independently", async () =
   )![1]
   document.body.innerHTML = '<div id="app"></div>'
   document.body.dataset.events = ""
-  window.eval(`${bootstrap}
+  const i18n = readFileSync(
+    path.resolve(__dirname, "guest-i18n.js"),
+    "utf8"
+  ).replaceAll("export function", "function")
+  window.eval(`${i18n}\n${bootstrap}
     bootstrap((ctx) => {
       if (ctx.binding.kind !== 'file' || ctx.binding.location.tableId !== 'table') throw Error('Invalid binding');
       if ('table' in ctx || 'table' in ctx.binding || 'settings' in ctx.capabilities || 'fs' in ctx.capabilities) throw Error('Unexpected alias or placeholder');

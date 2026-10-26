@@ -13,6 +13,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react"
 import { flushSync } from "react-dom"
+import {
+  TreeExpansionMenu,
+  type TreeExpansionActions,
+} from "./tree-expansion-menu"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import type { ThemeDeclaration } from "@eidos.space/plugin-sdk"
@@ -47,10 +51,16 @@ import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { WorkspaceHeading } from "./workspace-heading"
+import { ExplorerFilterBar } from "./explorer-filter-bar"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
 import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
 import { EXPLORER_SORT_STORAGE_KEY, readExplorerSort } from "./explorer-sort"
+import {
+  ALL_EXPLORER_FILES,
+  type ExplorerFileFilter,
+} from "./explorer-file-filter"
+import { useExplorerFileFilter } from "./use-explorer-file-filter"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
@@ -987,6 +997,12 @@ function WorkspaceApp({
   }, [])
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [textSearchVisible, setTextSearchVisible] = useState(false)
+  const [explorerFileFilter, setExplorerFileFilter] =
+    useState<ExplorerFileFilter>(ALL_EXPLORER_FILES)
+  const [explorerFilterVisible, setExplorerFilterVisible] = useState(false)
+  const explorerFilterTrigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => setExplorerFilterVisible(false), [space?.id])
+  useEffect(() => setExplorerFileFilter(ALL_EXPLORER_FILES), [space?.id])
   const [textSearchQuery, setTextSearchQuery] = useState("")
   const [textSearchOptions, setTextSearchOptions] = useState<TextSearchOptions>(
     {}
@@ -1077,6 +1093,15 @@ function WorkspaceApp({
     explorerDirectoryEntry?.kind === "directory"
       ? explorerDirectoryEntry.relativePath
       : null
+  const filteredExplorer = useExplorerFileFilter(
+    space?.id ?? "",
+    explorerDirectory,
+    explorerFileFilter,
+    explorerDirectory
+      ? (explorerDirectoryEntry?.children ?? [])
+      : (space?.entries ?? []),
+    space?.externalChangePaths ?? space?.materializedPaths
+  )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
   useEffect(() => {
@@ -1098,7 +1123,23 @@ function WorkspaceApp({
     entries: SpaceTreeEntry[]
     x: number
     y: number
+    expansionActions?: TreeExpansionActions
   } | null>(null)
+  const [treeExpansionActions, setTreeExpansionActions] =
+    useState<TreeExpansionActions | null>(null)
+  const entryContextMenuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    for (const ref of [entryContextMenuRef]) {
+      const menu = ref.current
+      if (!menu) continue
+      const bounds = menu.getBoundingClientRect()
+      menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
+      menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
+    }
+  }, [contextMenu])
+  useEffect(() => {
+    setContextMenu(null)
+  }, [space?.id, explorerDirectory])
   const [publishPanel, setPublishPanel] = useState<{
     entry: SpaceTreeEntry
     x: number
@@ -1715,7 +1756,9 @@ function WorkspaceApp({
 
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
+    const close = () => {
+      setContextMenu(null)
+    }
     const unsubscribePreviewPointer =
       window.eidosLite.onHtmlPreviewPointerDown(close)
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -3624,7 +3667,8 @@ function WorkspaceApp({
     entry: SpaceTreeEntry,
     x: number,
     y: number,
-    entries: SpaceTreeEntry[] = [entry]
+    entries: SpaceTreeEntry[] = [entry],
+    expansionActions?: TreeExpansionActions
   ) => {
     setSelectedEntry(entries.length === 1 ? entry : null)
     void refreshPublicationBindings()
@@ -3632,6 +3676,7 @@ function WorkspaceApp({
     setContextMenu({
       entry,
       entries,
+      expansionActions,
       x: Math.max(8, Math.min(x, window.innerWidth - 200)),
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
@@ -3748,8 +3793,17 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
+        treeExpansionActions={treeExpansionActions}
         sort={explorerSort}
         onSortChange={setExplorerSort}
+        fileFilter={explorerFileFilter}
+        fileFilterOpen={explorerFilterVisible}
+        fileFilterRef={explorerFilterTrigger}
+        onToggleFileFilter={
+          !pluginExplorer.selected || pluginExplorer.error
+            ? () => setExplorerFilterVisible((visible) => !visible)
+            : undefined
+        }
         name={space.name}
         spaceSwitcher={
           <SpaceSwitcher
@@ -3925,6 +3979,21 @@ function WorkspaceApp({
           }
         >
           {workspaceSearchPanel}
+          {!textSearchVisible && (
+            <ExplorerFilterBar
+              key={space.id}
+              theme={theme}
+              timeZone={timeZone === "system" ? undefined : timeZone}
+              filter={explorerFileFilter}
+              entries={space.entries}
+              open={explorerFilterVisible}
+              triggerRef={explorerFilterTrigger}
+              onChange={setExplorerFileFilter}
+              onClose={() => {
+                setExplorerFilterVisible(false)
+              }}
+            />
+          )}
           <nav
             className="explorer"
             hidden={textSearchVisible && !!textSearchQuery}
@@ -3940,13 +4009,13 @@ function WorkspaceApp({
             >
               <SpaceFileTree
                 sort={explorerSort}
+                fileFilter={explorerFileFilter}
+                filtering={filteredExplorer.loading}
+                filterError={filteredExplorer.error}
+                onRetryFilter={filteredExplorer.retry}
                 key={`${space.id}:${explorerDirectory ?? ""}`}
                 rootDirectory={explorerDirectory}
-                entries={
-                  explorerDirectory
-                    ? (explorerDirectoryEntry?.children ?? [])
-                    : space.entries
-                }
+                entries={filteredExplorer.entries}
                 activePath={activeDocumentPath}
                 revealToken={treeRevealToken}
                 disabled={localInteractionBlocked || busyFile !== null}
@@ -3956,7 +4025,10 @@ function WorkspaceApp({
                 onLoadDirectory={(relativePath) => {
                   return window.eidosLite
                     .loadSpaceDirectory(relativePath)
-                    .then(acceptSpaceSnapshot)
+                    .then((snapshot) => {
+                      if (launchSpace.current?.id === snapshot.id)
+                        acceptSpaceSnapshot(snapshot)
+                    })
                 }}
                 onMove={moveTreeEntries}
                 onImportFiles={async (files, targetDirectory) => {
@@ -3985,6 +4057,7 @@ function WorkspaceApp({
                   setError(`Could not rename item. ${errorMessage(cause)}`)
                 }
                 onContextMenu={openEntryContextMenu}
+                onExpansionActionsChange={setTreeExpansionActions}
               />
             </Suspense>
             {busyFile ? (
@@ -4471,7 +4544,7 @@ function WorkspaceApp({
               navigationVisible={!!sidebarPagesTarget}
               navigationTarget={sidebarPagesTarget}
               spaceId={space.id}
-              activePage={pluginPage}
+              activePage={pluginsVisible ? null : pluginPage}
               disabled={
                 pathMutationBusy || localInteractionBlocked || !!pathDialog
               }
@@ -5414,6 +5487,7 @@ function WorkspaceApp({
       ) : null}
       {contextMenu ? (
         <div
+          ref={entryContextMenuRef}
           className="space-context-menu"
           role="menu"
           data-submenu-side={
@@ -5429,6 +5503,23 @@ function WorkspaceApp({
                   count: contextMenu.entries.length,
                 })}
               </p>
+              {contextMenu.expansionActions && (
+                <>
+                  <TreeExpansionMenu
+                    actions={contextMenu.expansionActions}
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClose={() => setContextMenu(null)}
+                  />
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                </>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -5532,42 +5623,6 @@ function WorkspaceApp({
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void navigateExplorerDirectory(
-                        contextMenu.entry.relativePath
-                      )
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderOpen /> {t("Show this folder")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void openFileMetadata(contextMenu.entry.relativePath)
-                      setContextMenu(null)
-                    }}
-                  >
-                    <Database /> {t("Manage files")}
-                  </button>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
                     disabled={pathMutationBusy || localInteractionBlocked}
                     onClick={() => {
                       setPathDialog({
@@ -5592,6 +5647,53 @@ function WorkspaceApp({
                     }}
                   >
                     <FolderPlus /> {t("New folder")}
+                  </button>
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void navigateExplorerDirectory(
+                        contextMenu.entry.relativePath
+                      )
+                      setContextMenu(null)
+                    }}
+                  >
+                    <FolderOpen /> {t("Show this folder")}
+                  </button>
+                  {contextMenu.expansionActions && (
+                    <TreeExpansionMenu
+                      actions={contextMenu.expansionActions}
+                      disabled={
+                        pathMutationBusy ||
+                        localInteractionBlocked ||
+                        busyFile !== null
+                      }
+                      onClose={() => setContextMenu(null)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void openFileMetadata(contextMenu.entry.relativePath)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <Database /> {t("Manage files")}
                   </button>
                 </>
               ) : null}

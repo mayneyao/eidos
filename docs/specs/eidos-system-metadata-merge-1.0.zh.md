@@ -246,6 +246,11 @@ details 中，但不得进入 domain conflict array，也不得要求用户确�
 
 - **Create Table**：单边创建只有在 name、physical schema、required system Fields 与
   label Field 保持有效时才自动处理。
+  对于 host 已物化的 Table，Runtime 必须先证明其 physical schema（包括 generated
+  objects）和每条 stored row 与创建侧一致，且不存在 identity 或 name 竞争，才能复用。
+  Fields 与 subtype definitions 必须整体采用，其他已合并的用户记录必须保留，并继续
+  执行完整 candidate validation。这不豁免 Ours-derived seed contract，也不允许接受
+  未声明的 generated objects；host 无法提供有效投影时，必须保留未解决的结构变更。
 - **并发创建相同 ID**：不相等 insert 是 `identity-collision`。
 - **并发创建不同 ID 但同名**：`name-collision`。
 - **单边 rename**：只有 physical table rename 与所有 metadata references 都可投影且

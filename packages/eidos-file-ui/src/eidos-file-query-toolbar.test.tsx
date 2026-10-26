@@ -270,8 +270,14 @@ describe("shared EidosFileQueryToolbar", () => {
 
   it("builds filter state in an anchored popover", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    expect(
+      Array.from(document.querySelectorAll("[cmdk-item]")).some(
+        (item) => item.textContent?.trim() === "Add group"
+      )
+    ).toBe(true)
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     await act(async () => button("Apply")?.click())
     expect(onFilterChange).toHaveBeenCalledWith({
       type: "group",
@@ -287,10 +293,21 @@ describe("shared EidosFileQueryToolbar", () => {
     })
   })
 
-  it("builds nested groups like the original table filter", async () => {
+  it("creates a group from the empty state only after its first field is chosen", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add group")?.click())
+    await act(async () =>
+      Array.from(document.querySelectorAll<HTMLElement>("[cmdk-item]"))
+        .find((item) => item.textContent?.trim() === "Add group")
+        ?.click()
+    )
+    expect(document.querySelectorAll(".eidos-filter-group")).toHaveLength(1)
+    const back = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Back"]'
+    )
+    expect(back).toBeTruthy()
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     await act(async () => button("Apply")?.click())
     expect(onFilterChange).toHaveBeenCalledWith({
       type: "group",
@@ -314,10 +331,11 @@ describe("shared EidosFileQueryToolbar", () => {
 
   it("offers derived formula and lookup-style fields to the filter UI", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const fieldSelect =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[0]
     await act(async () => fieldSelect?.click())
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).some(
@@ -391,10 +409,11 @@ describe("shared EidosFileQueryToolbar", () => {
     })
 
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const filterField =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[0]
     await act(async () => filterField?.click())
     const filterOptions = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
@@ -407,7 +426,7 @@ describe("shared EidosFileQueryToolbar", () => {
     ).find((option) => option.textContent?.trim() === "Owner")
     await act(async () => owner?.click())
     const operator =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
     await act(async () => operator?.click())
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).map(
@@ -496,10 +515,11 @@ describe("shared EidosFileQueryToolbar", () => {
     })
 
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const operator =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
     await act(async () => operator?.click())
     const anyOf = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
@@ -638,8 +658,9 @@ describe("shared EidosFileQueryToolbar", () => {
       )
     })
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const valueTrigger = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>(
         'button[role="combobox"]'
@@ -660,10 +681,11 @@ describe("shared EidosFileQueryToolbar", () => {
 
   it("offers system timestamps to filter and sort controls", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const filterField =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[0]
     await act(async () => filterField?.click())
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).some(
@@ -687,10 +709,11 @@ describe("shared EidosFileQueryToolbar", () => {
 
   it("saves rolling date shortcuts without freezing an absolute date", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const filterField =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[0]
     await act(async () => filterField?.click())
     const createdAt = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
@@ -698,7 +721,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => createdAt?.click())
 
     const operator =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[2]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
     await act(async () => operator?.click())
     const relative = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
@@ -741,10 +764,11 @@ describe("shared EidosFileQueryToolbar", () => {
 
   it("converts a datetime filter operand to the canonical UTC instant", async () => {
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     const fieldSelect =
-      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[0]
     await act(async () => fieldSelect?.click())
     const createdAt = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
@@ -849,8 +873,9 @@ describe("shared EidosFileQueryToolbar", () => {
   it("keeps a failed filter draft open and retries it in place", async () => {
     onFilterChange.mockRejectedValueOnce(new Error("Eidos File is read-only"))
     await act(async () => button("Filter")?.click())
-    await act(async () => button("Add filter")?.click())
-    await act(async () => button("Add condition")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
     await act(async () => {
       button("Apply")?.click()
       await Promise.resolve()

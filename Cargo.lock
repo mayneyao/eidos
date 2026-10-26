@@ -1050,6 +1050,7 @@ dependencies = [
  "anyhow",
  "base64",
  "chrono",
+ "eidos-publish",
  "flate2",
  "futures-util",
  "open",

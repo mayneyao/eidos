@@ -12,6 +12,91 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+it("retains collapsed folders and the open document when a type filter hides its file", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const resets = vi.spyOn(FileTree.prototype, "resetPaths")
+  const onOpen = vi.fn()
+  const file = (name: string, relativePath = name): SpaceTreeEntry => ({
+    name,
+    relativePath,
+    kind: "file",
+    size: 0,
+    modifiedAtMs: 0,
+  })
+  const props = {
+    entries: [
+      file("note.md"),
+      {
+        ...file("docs"),
+        kind: "directory" as const,
+        childrenLoaded: true,
+        children: [file("photo.png", "docs/photo.png")],
+      },
+      {
+        ...file("notes"),
+        kind: "directory" as const,
+        childrenLoaded: true,
+        children: [file("nested.md", "notes/nested.md")],
+      },
+    ],
+    activePath: "note.md",
+    renameRequest: null,
+    onOpen,
+    onSelect: vi.fn(),
+    onMove: vi.fn(),
+    onMoveError: vi.fn(),
+    onRename: vi.fn(),
+    onRenameError: vi.fn(),
+    onContextMenu: vi.fn(),
+    onLoadDirectory: vi.fn(),
+  }
+  try {
+    await act(async () => root.render(<SpaceFileTree {...props} />))
+    const model = resets.mock.contexts[0]!
+    if (!(model instanceof FileTree)) throw new Error("Missing tree model")
+    const folder = model.getItem("docs/")!
+    if (!("collapse" in folder)) throw new Error("Missing folder")
+    await act(async () => folder.collapse())
+    expect(model.getItem("note.md")!.isSelected()).toBe(true)
+    await act(async () =>
+      root.render(<SpaceFileTree {...props} fileFilter={[".png"]} />)
+    )
+    expect(model.getItem("note.md")).toBeNull()
+    expect(model.getItem("notes/")).toBeNull()
+    expect(model.getItem("docs/photo.png")).not.toBeNull()
+    const retained = model.getItem("docs/")!
+    expect("isExpanded" in retained && retained.isExpanded()).toBe(false)
+    await act(async () =>
+      root.render(<SpaceFileTree {...props} fileFilter={[]} />)
+    )
+    expect(model.getItem("note.md")!.isSelected()).toBe(true)
+    const restored = model.getItem("notes/")!
+    expect("isExpanded" in restored && restored.isExpanded()).toBe(true)
+    expect(onOpen).not.toHaveBeenCalled()
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
+})
+
 it("rehydrates an expanded directory when a refresh invalidates its children", async () => {
   vi.stubGlobal(
     "ResizeObserver",

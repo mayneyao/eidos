@@ -1,0 +1,87 @@
+---
+title: 插件多语言
+description: 为插件名称、界面和 README 使用统一的语言选择与回退。
+---
+
+多语言需要插件 API **3.7.0**，请使用 Eidos Lite **0.29.0** 及以上版本，
+以及 **0.9.0** 及以上版本的 Plugin SDK 和工具。
+
+在 `plugin.json` 中声明默认语言、消息文件和各语言的完整 README：
+
+`localized-page` 模板已包含这一结构：
+`eidos-plugin create my-localized-page --template localized-page`。
+源码工具生成的项目在 `.eidos-toolchain/` 中包含配套的 SDK 和工具快照，请随项目
+提交。然后运行 `npm install`、`npm run check -- --target lite` 和
+`npm run pack:plugin`。
+
+```json
+{
+  "name": "%plugin.name%",
+  "description": "%plugin.description%",
+  "requires": { "pluginApi": "3.7.0" },
+  "i18n": {
+    "defaultLocale": "en",
+    "messages": {
+      "en": "./locales/en.json",
+      "zh-CN": "./locales/zh-CN.json"
+    },
+    "readme": {
+      "en": "./README.md",
+      "zh-CN": "./README.zh-CN.md"
+    }
+  }
+}
+```
+
+上面是配置片段；保留插件原有的 ID、版本与贡献声明。消息文件使用扁平字符串表：
+
+```json
+{
+  "plugin.name": "最近打开",
+  "plugin.description": "自动记录文件的打开历史",
+  "search": "搜索文件路径…",
+  "resultCount": "找到 {count} 个文件"
+}
+```
+
+在展示字段中以完整的 `%key%` 引用消息，支持插件名称和描述、贡献标题、设置标题
+与说明、连接标题。ID、路径、权限、默认值和存储值不翻译。默认语言必须包含所有
+被声明引用的 key；其他语言缺少某项时，单独回退到默认语言。
+
+## 切换语言并保留操作状态
+
+宿主提供最终解析的界面语言。视图与动作上下文通过 `ctx.i18n` 访问，无需网络或
+额外权限：
+
+```ts
+const input = document.createElement("input")
+root.append(input)
+const updateLabels = () => {
+  input.placeholder = ctx.i18n.t("search")
+  input.setAttribute("aria-label", ctx.i18n.t("search"))
+}
+updateLabels()
+ctx.subscriptions.add(ctx.i18n.onDidChangeLocale(updateLabels))
+```
+
+更新现有控件的文字，不要重建整个页面。保留查询、排序、选择与草稿。
+`ctx.i18n.t("resultCount", { count: 12 })` 支持命名参数；日期和数字格式使用
+`ctx.i18n.locale`。消息不解释 HTML、ICU 或复数规则。命令和表格动作执行期间
+保留开始时的语言；后台服务不重启，也不提供此展示 API。
+
+## README 与回退
+
+语言按精确标签、语言与文字体系、基础语言、插件默认语言依次匹配，中文不在简繁体
+之间自动替换。README 选择完整的一篇，不拼接不同语言段落；只能显示默认语言时，
+宿主会提示实际语言。
+
+`check` 检查声明和默认消息；`pack` 将消息表与 README 打入格式 3 安装包。
+安装后的说明离线可读，并与安装版本一致。资源须为源码目录内的 UTF-8 文件，每个
+最多 1 MiB。相对路径图片不会自动打包；需要图片时可使用明确的绝对 URL。
+
+使用 `eidos-plugin registry` 从同一个安装包生成市场条目，名称和描述的翻译来自
+包内词典。未声明 `i18n` 的旧插件继续显示原文。
+
+Lite 使用解析后的应用语言，社区站点使用页面语言。两处都从生成的市场元数据读取
+名称和描述，再从经过校验的发布包中选择一篇 README。缺少翻译时提示回退，不拼接
+不同语言段落。社区的后台能力摘要表示插件声明，不代表某位用户当前已授权或正在运行。

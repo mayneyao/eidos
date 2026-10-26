@@ -166,6 +166,7 @@ export default defineConfig({
                     "plugins/concepts",
                     "plugins/guide",
                     "plugins/workflow",
+                    "plugins/i18n",
                   ],
                 },
                 {
@@ -173,6 +174,7 @@ export default defineConfig({
                   translations: { "zh-CN": "构建界面" },
                   items: [
                     "plugins/views",
+                    "plugins/text-reader",
                     "plugins/explorer",
                     "plugins/tables",
                   ],

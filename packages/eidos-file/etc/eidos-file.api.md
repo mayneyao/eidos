@@ -2897,7 +2897,11 @@ export interface EidosSystemMergeSummary {
     // (undocumented)
     changedGroups?: string[];
     // (undocumented)
+    name?: string;
+    // (undocumented)
     state: "absent" | "present";
+    // (undocumented)
+    type?: string;
 }
 
 // @public (undocumented)

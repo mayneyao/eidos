@@ -1,110 +1,127 @@
 ---
 title: 创建第一个插件
-description: 制作一个文本阅读器，并在 Eidos Lite 中加载、调试和使用。
+description: 从官方 GitHub 模板开始，在 Eidos Lite 中打开页面、修改功能并打包插件。
 sidebar:
   order: 3
 ---
 
-这个示例会制作一个文本阅读器。完成后，你可以在 `.txt` 文件的“打开方式”中选择 **Text Reader**，并看到随文件更新的内容。
+从 [Eidos 插件模板](https://github.com/eidos-space/eidos-plugin-template)开始。
+它包含可运行的页面、打开页面的命令、主题样式、测试和 GitHub Actions 工作流。
+本教程会带你打开计数器、修改行为，再生成可安装的插件包。
 
-准备一个测试 Space 和一份 `.txt` 文件。用下面的结构创建插件目录：
+需要 **Node.js 22.12 及以上**、npm、Git，以及支持插件 API **3.0.0 或更高版本**
+的 Eidos Lite。准备一个测试 Space。模板通过锁文件固定已发布的 SDK 和工具，
+不需要克隆 Eidos 源码或另配开发服务器。
+
+## 1. 创建自己的仓库
+
+打开[模板仓库](https://github.com/eidos-space/eidos-plugin-template)，点击
+**Use this template → Create a new repository**，将新仓库命名为
+`my-eidos-plugin`。随后克隆它；将 `YOUR-NAME` 换成自己的 GitHub 用户或组织名：
+
+```sh
+git clone https://github.com/YOUR-NAME/my-eidos-plugin.git
+cd my-eidos-plugin
+npm ci
+```
 
 ```text
-text-reader/
-├── plugin.json
-└── src/
-    └── main.ts
+plugin.json                   插件身份与贡献声明
+src/main.ts                   页面界面
+src/extension.ts              打开页面的命令
+src/style.css                 宿主主题样式
+test/plugin.test.ts           交互和清理测试
+.github/workflows/plugin.yml  检查、打包和发布工作流
 ```
 
-Eidos Lite 可以直接编译这个示例。你只需要文本编辑器，无需先搭建构建项目。
+## 2. 设置插件身份
 
-## 1. 声明文件视图
+在现有 `plugin.json` 中修改以下字段，保留其余声明：
 
-在 `plugin.json` 中填写：
+| 字段 | 示例 |
+| --- | --- |
+| `id` | `yourname.my-counter` |
+| `name` | `我的计数器` |
+| `description` | `工作区中的简单计数器` |
+| `views[0].title` | `我的计数器` |
+| `actions[0].title` | `我的计数器：打开` |
 
-```json
-{
-  "apiVersion": 1,
-  "id": "example.text-reader",
-  "name": "Text Reader",
-  "version": "0.1.0",
-  "requires": { "pluginApi": "3.0.0" },
-  "views": [
-    {
-      "id": "main",
-      "title": "Text Reader",
-      "entry": "./src/main.ts",
-      "kind": "file",
-      "capabilities": ["document"],
-      "access": "read"
-    }
-  ],
-  "placements": [
-    {
-      "location": "file/open",
-      "view": "main",
-      "extensions": [".txt"]
-    }
-  ]
-}
+ID 使用小写、以点分隔的命名空间。使用自己的前缀，分发后保持 ID 稳定。
+保留贡献 ID `main` 和 `open`，命令与挂载位置会引用它们。
+
+将 `package.json` 的 `name` 改为自己的项目名，运行
+`npm install --package-lock-only` 更新锁文件。两个文件的 `version` 必须相同，
+本次练习都保留为 `0.1.0`。`requires.pluginApi` 表示所需的最低 API；
+只提高数字并不会获得能力。
+
+## 3. 检查并打开页面
+
+```sh
+npm run typecheck
+npm test
+npm run check
 ```
 
-`kind: "file"` 将视图绑定到用户打开的文件。`capabilities: ["document"]` 提供文本读取接口。`file/open` 和 `.txt` 指定视图出现的文件菜单。
+三个命令分别检查 TypeScript、测试页面与命令的生命周期，以及验证声明和 Lite
+兼容性。检查通过不代表真实宿主界面已经验证；接下来打开它：
 
-## 2. 显示文本
+1. 在 Eidos Lite 中打开测试 Space，进入插件管理器。
+2. 选择 **Load development source…**，打开项目的 `plugin.json`。
+3. 查看声明，并为当前 Space 启用插件。
+4. 从导航打开 **我的计数器**，或按 Cmd/Ctrl+K 执行 **我的计数器：打开**。
 
-在 `src/main.ts` 中填写：
+页面会显示 **Add one** 按钮和数字 **0**。点击两次，数字应变成 **2**。
+此模板未申请文件、网络、存储或后台权限；独立页面和命令面向 Lite，
+CLI Serve 不支持这两个入口。
+
+## 4. 修改第一个功能
+
+打开 `src/main.ts`。`mount(ctx, root)` 在宿主提供的容器中创建界面。
+将标题和按钮文字改为自己的内容，再将 `increment` 改为每次加五：
 
 ```ts
-import type { Mount } from "@eidos.space/plugin-sdk"
-
-const mount: Mount = async (ctx, root) => {
-  const document = ctx.capabilities.document
-  if (!document) throw new Error("Document capability is required")
-  const pre = window.document.createElement("pre")
-  root.append(pre)
-  const observed = await document.observe(
-    (snapshot) => {
-      pre.textContent = snapshot.text
-    },
-    (error) => {
-      pre.textContent = error.message
-    }
-  )
-  ctx.subscriptions.add(observed.subscription)
-  pre.textContent = observed.snapshot.text
-  return {
-    dispose() {
-      pre.remove()
-    },
-  }
+const increment = () => {
+  value += 5
+  count.textContent = String(value)
 }
-export default mount
 ```
 
-Eidos 调用 `mount` 时传入上下文和界面容器。这里创建一个 `pre` 元素，通过 `document.observe()` 取得当前文本，并在内容变化时更新显示。订阅加入 `ctx.subscriptions` 后，会随视图关闭自动释放。
+保存后，Lite 会重新编译和加载。计数器从 **0** 重新开始，点击一次应显示 **5**。
+保留这个改动时，也要更新测试中的预期计数，再运行检查。
 
-## 3. 在 Eidos Lite 中打开
+计数只存在于当前页面内存，关闭或重载页面后重置。`ctx.subscriptions`
+在作用域关闭时清理监听器。`src/extension.ts` 注册 `open` 命令，并在命令调用
+上下文中通过 `ctx.capabilities.ui.navigate("main", "/")` 打开页面。
 
-1. 打开测试 Space，进入插件管理器。
-2. 选择 **Load development source…**，打开 `text-reader/plugin.json`。
-3. 查看访问权限，为当前 Space 启用插件。
-4. 在 `.txt` 文件的“打开方式”中选择 **Text Reader**。
+编译失败时，Lite 会保留上一次可用界面。先根据错误修复源码，不能仅凭界面仍可见
+就认为新代码已加载。样式通过 `src/style.css` 中的 `--eidos-*` 变量适配宿主主题。
 
-界面会显示文件内容。尝试修改测试文件，检查阅读器随之更新。
+## 5. 打包插件
 
-## 4. 修改界面
+检查通过后运行：
 
-修改 `main.ts` 并保存，Eidos Lite 会重新编译、加载视图。
-如果编译失败，查看错误提示并修正代码。界面会暂时保留上一次成功加载的内容。
+```sh
+npm run pack:plugin
+```
 
-可以通过 `--eidos-background`、`--eidos-foreground` 和 `--eidos-border` 等 CSS 变量适配 Eidos 的亮暗主题。
+使用示例 ID 时，会生成：
+
+```text
+dist/yourname.my-counter-0.1.0.eidos-plugin
+dist/yourname.my-counter-0.1.0.eidos-plugin.sha256
+```
+
+通过插件管理器安装此包，查看声明、启用并重新打开页面。开发加载是临时的；
+安装插件包后，重启仍能使用该修订。
+
+仓库的 Actions 工作流也会执行检查，并提供 `plugin-package` 构建产物。
+推送匹配版本的 tag 后，只有检查通过才会创建 GitHub Release。
+正式发布或提交市场目录前，请阅读[开发与分发](/zh-cn/plugins/workflow/)。
 
 ## 接下来
 
-需要在页面关闭后保持连接或内存状态时，阅读[后台任务](/zh-cn/plugins/background/)。
-其中的完整计数器和 BLE 示例包含页面、命令注册，以及独立的后台模块。
-
-要让用户编辑文本，将声明中的 `access` 设为 `write`，添加输入界面，再用 `document.edit()` 更新内容、`document.save()` 保存。编辑、冲突处理和撤销方法见 [API 参考](/zh-cn/plugins/api/)。
-
-要制作从导航打开的工具页面，请看[页面视图](/zh-cn/plugins/concepts/#页面视图独立打开)。准备分享插件时，按[开发与分发](/zh-cn/plugins/workflow/)完成检查和打包。
+- [制作文本阅读器](/zh-cn/plugins/text-reader/)：将 View 绑定到文件。
+- [操作文件](/zh-cn/plugins/files/)：编辑文档与访问文件系统。
+- [后台任务](/zh-cn/plugins/background/)：在页面关闭后保留运行状态。
+- [多语言](/zh-cn/plugins/i18n/)：翻译界面与说明，先匹配所需 API 的宿主、SDK 和工具版本。
+- [API 参考](/zh-cn/plugins/api/)：查看上下文、权限与方法。
