@@ -802,6 +802,20 @@
 .eidos-mobile-settings-body .eidos-filter-value:empty {
   display: none;
 }
+
+@media (max-width: 520px) {
+  [data-eidos-file-filter-popover] .eidos-filter-rule {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+  }
+  [data-eidos-file-filter-popover] .eidos-filter-value {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+  [data-eidos-file-filter-popover] .eidos-filter-remove {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
 .eidos-mobile-settings-body .eidos-filter-remove {
   grid-column: 3;
   grid-row: 1;

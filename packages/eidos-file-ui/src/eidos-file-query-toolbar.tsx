@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileFilterGroup,
@@ -39,6 +39,10 @@ import {
   Button,
   CommandGroup,
   CommandItem,
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
   Input,
   Select,
   SelectContent,
@@ -60,6 +64,39 @@ import {
 } from "./eidos-file-field-visibility"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { SelectOptionItem } from "./ui/select-option-item"
+import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import { Select as SelectPrimitive } from "radix-ui"
+
+function FilterFieldIcon({ field }: { field: EidosFileFieldInfo }) {
+  const Icon = eidosFileFieldTypeIcon(field.type)
+  return Icon ? (
+    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+  ) : null
+}
+
+export interface EidosFileFilterEditorOptions {
+  fieldGroup?: (field: EidosFileFieldInfo) => string
+  getOperators?: (field: EidosFileFieldInfo) => EidosFileFilterOperator[]
+  renderValue?: (
+    field: EidosFileFieldInfo,
+    rule: EidosFileFilterRule,
+    onChange: (value: EidosFileFilterRuleValue) => void
+  ) => ReactNode | undefined
+}
+
+function groupedFilterFields(
+  fields: EidosFileFieldInfo[],
+  fieldGroup?: EidosFileFilterEditorOptions["fieldGroup"]
+) {
+  const groups = new Map<string, EidosFileFieldInfo[]>()
+  for (const field of fields) {
+    const label = fieldGroup?.(field) ?? ""
+    const group = groups.get(label) ?? []
+    group.push(field)
+    groups.set(label, group)
+  }
+  return [...groups].map(([label, fields]) => ({ label, fields }))
+}
 
 const operatorLabels: Record<EidosFileFilterOperator, string> = {
   equals: "is",
@@ -175,11 +212,14 @@ function fieldOptions(field: EidosFileFieldInfo) {
   return eidosFileSelectOptions(field)
 }
 
-function defaultRule(field: EidosFileFieldInfo): EidosFileFilterRule {
+function defaultRule(
+  field: EidosFileFieldInfo,
+  getOperators = operatorsForField
+): EidosFileFilterRule {
   return {
     type: "rule",
     field: eidosFileFieldKey(field),
-    operator: operatorsForField(field)[0] ?? "equals",
+    operator: getOperators(field)[0] ?? "equals",
     value: fieldDisplayType(field) === "checkbox" ? true : "",
   }
 }
@@ -199,6 +239,45 @@ function filterInstantFromDatetimeLocal(
   timeZone?: string
 ): string {
   return eidosFileInstantFromInputValue(value, timeZone)?.toISOString() ?? ""
+}
+
+function FilterTextInput({
+  value,
+  onChange,
+  numeric,
+}: {
+  value: string
+  onChange(value: string): void
+  numeric: boolean
+}) {
+  const { translate: t } = useEidosFileUI()
+  const [draft, setDraft] = useState(value)
+  const composing = useRef(false)
+  useEffect(() => {
+    if (!composing.current) setDraft(value)
+  }, [value])
+  return (
+    <Input
+      autoFocus
+      className="h-7 min-w-0 text-xs"
+      type={numeric ? "number" : "text"}
+      value={draft}
+      placeholder={t("Value")}
+      aria-label={t("Value")}
+      onCompositionStart={() => {
+        composing.current = true
+      }}
+      onCompositionEnd={(event) => {
+        composing.current = false
+        setDraft(event.currentTarget.value)
+        onChange(event.currentTarget.value)
+      }}
+      onChange={(event) => {
+        setDraft(event.target.value)
+        if (!composing.current) onChange(event.target.value)
+      }}
+    />
+  )
 }
 
 function FilterValueEditor({
@@ -532,22 +611,18 @@ function FilterValueEditor({
     )
   }
   return (
-    <Input
-      className="h-7 min-w-0 text-xs"
-      type={
-        displayType === "number" || displayType === "rating" ? "number" : "text"
-      }
+    <FilterTextInput
+      numeric={displayType === "number" || displayType === "rating"}
       value={String(
         Array.isArray(rule.value) ? (rule.value[0] ?? "") : (rule.value ?? "")
       )}
-      placeholder={t("Value")}
-      onChange={(event) =>
+      onChange={(value) =>
         onChange(
           displayType === "number" || displayType === "rating"
-            ? event.target.value === ""
+            ? value === ""
               ? ""
-              : Number(event.target.value)
-            : event.target.value
+              : Number(value)
+            : value
         )
       }
     />
@@ -555,6 +630,17 @@ function FilterValueEditor({
 }
 
 const MAX_FILTER_GROUP_DEPTH = 2
+
+function countFilterNodes(group: EidosFileFilterGroup): number {
+  return (
+    1 +
+    group.children.reduce(
+      (count, child) =>
+        count + (child.type === "group" ? countFilterNodes(child) : 1),
+      0
+    )
+  )
+}
 
 function countFilterRules(group: EidosFileFilterGroup): number {
   return group.children.reduce(
@@ -571,6 +657,9 @@ function EidosFileFilterRuleEditor({
   fixedField = false,
   onChange,
   onRemove,
+  getOperators = operatorsForField,
+  renderValue,
+  fieldGroup,
 }: {
   fields: EidosFileFieldInfo[]
   rule: EidosFileFilterRule
@@ -578,19 +667,35 @@ function EidosFileFilterRuleEditor({
   fixedField?: boolean
   onChange: (rule: EidosFileFilterRule) => void
   onRemove?: () => void
-}) {
+} & EidosFileFilterEditorOptions) {
   const { translate: t } = useEidosFileUI()
-  const field =
-    fields.find((candidate) => eidosFileFieldKey(candidate) === rule.field) ??
-    fields[0]
-  if (!field) return null
+  const field = fields.find(
+    (candidate) => eidosFileFieldKey(candidate) === rule.field
+  )
+  if (!field)
+    return (
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        {t("Filtered property unavailable")}
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label={t("Remove filter")}
+            onClick={onRemove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    )
   return (
     <div
       className={cn(
         "grid items-start gap-1.5",
         fixedField
           ? "grid-cols-1"
-          : "eidos-filter-rule grid-cols-[110px_172px_minmax(120px,1fr)_28px]"
+          : "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_28px]"
       )}
     >
       {!fixedField && (
@@ -600,20 +705,37 @@ function EidosFileFilterRuleEditor({
             const nextField = fields.find(
               (candidate) => eidosFileFieldKey(candidate) === fieldId
             )
-            if (nextField) onChange(defaultRule(nextField))
+            if (nextField) onChange(defaultRule(nextField, getOperators))
           }}
         >
-          <SelectTrigger className="h-7 min-w-0 text-xs">
+          <SelectTrigger
+            className="h-7 min-w-0 gap-1 text-xs [&>span]:min-w-0 [&>span]:truncate"
+            aria-label={t("Field")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {fields.map((candidate) => (
-              <SelectItem
-                key={eidosFileFieldKey(candidate)}
-                value={eidosFileFieldKey(candidate)}
-              >
-                {eidosFileFieldDisplayName(candidate)}
-              </SelectItem>
+            {groupedFilterFields(fields, fieldGroup).map((group) => (
+              <SelectPrimitive.Group key={group.label}>
+                {group.label && (
+                  <SelectPrimitive.Label className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    {group.label}
+                  </SelectPrimitive.Label>
+                )}
+                {group.fields.map((candidate) => (
+                  <SelectItem
+                    key={eidosFileFieldKey(candidate)}
+                    value={eidosFileFieldKey(candidate)}
+                  >
+                    <span className="inline-flex max-w-full items-center gap-1.5">
+                      <FilterFieldIcon field={candidate} />
+                      <span className="truncate">
+                        {eidosFileFieldDisplayName(candidate)}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectPrimitive.Group>
             ))}
           </SelectContent>
         </Select>
@@ -656,11 +778,14 @@ function EidosFileFilterRuleEditor({
           })
         }}
       >
-        <SelectTrigger className="h-7 min-w-0 text-xs">
+        <SelectTrigger
+          className="h-7 min-w-0 text-xs"
+          aria-label={t("Filter operator")}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {operatorsForField(field).map((operator) => (
+          {getOperators(field).map((operator) => (
             <SelectItem key={operator} value={operator}>
               {t(operatorLabel(field, operator))}
             </SelectItem>
@@ -671,13 +796,17 @@ function EidosFileFilterRuleEditor({
         className={fixedField ? "min-w-0" : "eidos-filter-value"}
         data-eidos-file-filter-value={fixedField ? "" : undefined}
       >
-        <FilterValueEditor
-          field={field}
-          rule={rule}
-          source={source}
-          compact={fixedField}
-          onChange={(value) => onChange({ ...rule, value })}
-        />
+        {renderValue?.(field, rule, (value) =>
+          onChange({ ...rule, value })
+        ) ?? (
+          <FilterValueEditor
+            field={field}
+            rule={rule}
+            source={source}
+            compact
+            onChange={(value) => onChange({ ...rule, value })}
+          />
+        )}
       </div>
       {onRemove && (
         <Button
@@ -874,32 +1003,104 @@ export function EidosFileFieldFilterEditor({
 }
 
 function EidosFileFilterAddMenu({
+  fields,
+  fieldGroup,
+  empty,
   canAddGroup,
   onAddRule,
   onAddGroup,
 }: {
+  fields: EidosFileFieldInfo[]
+  fieldGroup?: EidosFileFilterEditorOptions["fieldGroup"]
+  empty: boolean
   canAddGroup: boolean
-  onAddRule: () => void
-  onAddGroup: () => void
+  onAddRule: (field: EidosFileFieldInfo) => void
+  onAddGroup: (field: EidosFileFieldInfo) => void
 }) {
-  const { translate: t, interactionMode } = useEidosFileUI()
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
-  if (interactionMode === "mobile")
-    return (
-      <div className="eidos-mobile-filter-add">
-        <Button type="button" variant="ghost" onClick={onAddRule}>
-          <Plus size={18} />
-          {t("Add condition")}
-        </Button>
-        {canAddGroup && (
-          <Button type="button" variant="ghost" onClick={onAddGroup}>
-            {t("Add group")}
+  const [addingGroup, setAddingGroup] = useState(false)
+  const choices = (
+    <Command key={addingGroup ? "group" : "condition"}>
+      {addingGroup && (
+        <div className="flex items-center gap-1 border-b px-1 py-1 text-xs">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label={t("Back")}
+            onClick={() => setAddingGroup(false)}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
+          {t("Add group")}
+        </div>
+      )}
+      <CommandInput
+        autoFocus
+        placeholder={t("Find a field…")}
+        className="h-8 text-xs"
+      />
+      <CommandList>
+        <CommandEmpty>{t("No results")}</CommandEmpty>
+        {groupedFilterFields(fields, fieldGroup).map((group) => (
+          <CommandGroup
+            key={group.label}
+            heading={group.label || undefined}
+            className={
+              group.label
+                ? "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                : undefined
+            }
+          >
+            {group.fields.map((field) => (
+              <CommandItem
+                key={eidosFileFieldKey(field)}
+                value={eidosFileFieldKey(field)}
+                keywords={[eidosFileFieldDisplayName(field)]}
+                onSelect={() => {
+                  if (addingGroup) onAddGroup(field)
+                  else onAddRule(field)
+                  setAddingGroup(false)
+                  setOpen(false)
+                }}
+                className="gap-2 text-xs"
+              >
+                <FilterFieldIcon field={field} />
+                <span className="truncate">
+                  {eidosFileFieldDisplayName(field)}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ))}
+        {canAddGroup && !addingGroup && (
+          <CommandGroup>
+            <CommandItem
+              value="add-filter-group"
+              keywords={[t("Add group")]}
+              onSelect={() => {
+                setAddingGroup(true)
+              }}
+              className="gap-2 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("Add group")}
+            </CommandItem>
+          </CommandGroup>
         )}
-      </div>
-    )
+      </CommandList>
+    </Command>
+  )
+  if (empty) return choices
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setAddingGroup(false)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -911,48 +1112,33 @@ function EidosFileFilterAddMenu({
           {t("Add filter")}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-40 p-1">
-        <button
-          type="button"
-          className="flex h-7 w-full items-center rounded-sm px-2 text-left text-xs hover:bg-accent"
-          onClick={() => {
-            onAddRule()
-            setOpen(false)
-          }}
-        >
-          {t("Add condition")}
-        </button>
-        {canAddGroup ? (
-          <button
-            type="button"
-            className="flex h-7 w-full items-center rounded-sm px-2 text-left text-xs hover:bg-accent"
-            onClick={() => {
-              onAddGroup()
-              setOpen(false)
-            }}
-          >
-            {t("Add group")}
-          </button>
-        ) : null}
+      <PopoverContent align="start" className="w-64 p-0">
+        {choices}
       </PopoverContent>
     </Popover>
   )
 }
 
-function EidosFileFilterGroupEditor({
+export function EidosFileFilterGroupEditor({
   fields,
   group,
   depth,
   source,
   onChange,
+  getOperators = operatorsForField,
+  renderValue,
+  fieldGroup,
+  canAdd = true,
 }: {
   fields: EidosFileFieldInfo[]
   group: EidosFileFilterGroup
   depth: number
   source?: EidosFileEditorDataSource
   onChange: (group: EidosFileFilterGroup) => void
-}) {
-  const { translate: t, interactionMode } = useEidosFileUI()
+  canAdd?: boolean
+} & EidosFileFilterEditorOptions) {
+  const { translate: t } = useEidosFileUI()
+  const allowAdd = canAdd && countFilterNodes(group) < 64
   const updateChild = (
     index: number,
     child: EidosFileFilterRule | EidosFileFilterGroup
@@ -970,7 +1156,6 @@ function EidosFileFilterGroupEditor({
       children: group.children.filter((_, childIndex) => childIndex !== index),
     })
   }
-  const firstField = fields[0]
   return (
     <div
       className={cn(
@@ -978,37 +1163,28 @@ function EidosFileFilterGroupEditor({
         depth > 0 && "rounded-md border bg-muted/20 p-2"
       )}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">
-          {depth === 0
-            ? t(
-                interactionMode === "mobile"
-                  ? "Match conditions"
-                  : "Show rows where"
-              )
-            : t("Group where")}
-        </span>
-        <Select
-          value={group.conjunction}
-          onValueChange={(conjunction: "and" | "or") =>
-            onChange({ ...group, conjunction })
-          }
-        >
-          <SelectTrigger className="h-7 w-28 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="and">{t("All match")}</SelectItem>
-            <SelectItem value="or">{t("Any match")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {group.children.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {t(depth === 0 ? "Match conditions" : "Group where")}
+          </span>
+          <Select
+            value={group.conjunction}
+            onValueChange={(conjunction: "and" | "or") =>
+              onChange({ ...group, conjunction })
+            }
+          >
+            <SelectTrigger className="h-7 w-28 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="and">{t("All match")}</SelectItem>
+              <SelectItem value="or">{t("Any match")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="space-y-2">
-        {group.children.length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">
-            {t("No conditions in this group.")}
-          </p>
-        ) : null}
         {group.children.map((child, index) =>
           child.type === "rule" ? (
             <EidosFileFilterRuleEditor
@@ -1016,6 +1192,9 @@ function EidosFileFilterGroupEditor({
               fields={fields}
               rule={child}
               source={source}
+              getOperators={getOperators}
+              renderValue={renderValue}
+              fieldGroup={fieldGroup}
               onChange={(next) => updateChild(index, next)}
               onRemove={() => removeChild(index)}
             />
@@ -1029,6 +1208,10 @@ function EidosFileFilterGroupEditor({
                 group={child}
                 depth={depth + 1}
                 source={source}
+                getOperators={getOperators}
+                renderValue={renderValue}
+                fieldGroup={fieldGroup}
+                canAdd={allowAdd}
                 onChange={(next) => updateChild(index, next)}
               />
               <Button
@@ -1045,30 +1228,35 @@ function EidosFileFilterGroupEditor({
           )
         )}
       </div>
-      <EidosFileFilterAddMenu
-        canAddGroup={depth < MAX_FILTER_GROUP_DEPTH}
-        onAddRule={() => {
-          if (!firstField) return
-          onChange({
-            ...group,
-            children: [...group.children, defaultRule(firstField)],
-          })
-        }}
-        onAddGroup={() => {
-          if (!firstField) return
-          onChange({
-            ...group,
-            children: [
-              ...group.children,
-              {
-                type: "group",
-                conjunction: "and",
-                children: [defaultRule(firstField)],
-              },
-            ],
-          })
-        }}
-      />
+      {allowAdd && (
+        <EidosFileFilterAddMenu
+          fields={fields}
+          fieldGroup={fieldGroup}
+          empty={depth === 0 && group.children.length === 0}
+          canAddGroup={
+            depth < MAX_FILTER_GROUP_DEPTH && countFilterNodes(group) < 63
+          }
+          onAddRule={(field) => {
+            onChange({
+              ...group,
+              children: [...group.children, defaultRule(field, getOperators)],
+            })
+          }}
+          onAddGroup={(field) => {
+            onChange({
+              ...group,
+              children: [
+                ...group.children,
+                {
+                  type: "group",
+                  conjunction: "and",
+                  children: [defaultRule(field, getOperators)],
+                },
+              ],
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1158,7 +1346,10 @@ export function EidosFileFilterPopover({
         data-eidos-file-filter-popover
         aria-label={t("Filter")}
         align="end"
-        className="max-h-[min(640px,calc(100vh-32px))] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto p-3"
+        className={cn(
+          "max-h-[min(640px,calc(100vh-32px))] max-w-[calc(100vw-32px)] overflow-y-auto",
+          draft.children.length ? "w-[560px] p-3" : "w-64 p-1"
+        )}
         aria-busy={pendingAction ? "true" : undefined}
       >
         <fieldset
@@ -1180,49 +1371,54 @@ export function EidosFileFilterPopover({
               {error}
             </p>
           ) : null}
-          <div className="eidos-query-footer mt-3 flex justify-end border-t pt-3">
-            <div className="flex gap-1.5">
-              {value || mobile ? (
+          {(draft.children.length > 0 || value) && (
+            <div className="eidos-query-footer mt-3 flex justify-end border-t pt-3">
+              <div className="flex gap-1.5">
+                {value || mobile ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-xs"
+                    onClick={() =>
+                      mobile
+                        ? setDraft({
+                            type: "group",
+                            conjunction: "and",
+                            children: [],
+                          })
+                        : void commit(null, "clear")
+                    }
+                  >
+                    {pendingAction === "clear" ? (
+                      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                    ) : null}
+                    {pendingAction === "clear"
+                      ? t("Clearing…")
+                      : t(mobile ? "Reset" : "Clear")}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
-                  variant="ghost"
                   size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
+                  className="h-7 gap-1.5 text-xs"
                   onClick={() =>
-                    mobile
-                      ? setDraft({
-                          type: "group",
-                          conjunction: "and",
-                          children: [],
-                        })
-                      : void commit(null, "clear")
+                    void commit(
+                      draft.children.length > 0 ? draft : null,
+                      "apply"
+                    )
                   }
                 >
-                  {pendingAction === "clear" ? (
+                  {pendingAction === "apply" ? (
                     <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                   ) : null}
-                  {pendingAction === "clear"
-                    ? t("Clearing…")
-                    : t(mobile ? "Reset" : "Clear")}
+                  {pendingAction === "apply"
+                    ? t("Applying…")
+                    : t(mobile ? "Apply filters" : "Apply")}
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={() =>
-                  void commit(draft.children.length > 0 ? draft : null, "apply")
-                }
-              >
-                {pendingAction === "apply" ? (
-                  <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-                ) : null}
-                {pendingAction === "apply"
-                  ? t("Applying…")
-                  : t(mobile ? "Apply filters" : "Apply")}
-              </Button>
+              </div>
             </div>
-          </div>
+          )}
         </fieldset>
       </PopoverContent>
     </Popover>

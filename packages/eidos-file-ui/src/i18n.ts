@@ -4,6 +4,9 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
+  "Find a field…": "搜索属性…",
+  "Filtered property unavailable": "筛选的属性已不可用",
+  "Filter operator": "筛选运算符",
   "Cover only": "仅封面",
   "Previous file": "上一个文件",
   "Next file": "下一个文件",
