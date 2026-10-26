@@ -12,8 +12,8 @@ or standalone TS/JS sources, without executing plugin code or build configuratio
 ## Checkout setup
 
 The `localized-page` template demonstrates Plugin API 3.7: localized manifest
-labels, `ctx.i18n`, and bilingual README files in a format 3 archive. Use matching
-checkout SDK/tools and host builds until that API is released. Run
+labels, `ctx.i18n`, and bilingual README files in a format 3 archive. It requires
+Lite 0.29.0 or later and SDK/tools 0.9.0 or later. Run
 `create /tmp/localized-example --template localized-page` after building the tools.
 Projects created from this checkout include SDK/tools candidate tarballs in
 `.eidos-toolchain/`, referenced by their `package.json`. Keep that directory in
