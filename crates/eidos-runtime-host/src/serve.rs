@@ -1998,11 +1998,13 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                 let view_id = parts[2];
                 let table_id = query_parameter(&request_url, "tableId").unwrap_or_default();
                 let table_view_id = query_parameter(&request_url, "viewId").unwrap_or_default();
+                let locale = query_parameter(&request_url, "locale").unwrap_or_else(|| "en".into());
                 let response = match plugin_store.render_sandbox_html(
                     plugin_id,
                     view_id,
                     &table_id,
                     &table_view_id,
+                    &locale,
                 ) {
                     Some(html) => {
                         let csp = plugin_store.csp_header(plugin_id);

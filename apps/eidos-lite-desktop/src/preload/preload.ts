@@ -102,7 +102,8 @@ const api: EidosLiteApi = {
   },
   pluginMarketplace: (refresh) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.marketplace, refresh),
-  pluginReadme: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id),
+  pluginReadme: (id, locale) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale),
   installMarketplacePlugin: (id) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, id),
   onPluginInstallProgress: (listener) => {

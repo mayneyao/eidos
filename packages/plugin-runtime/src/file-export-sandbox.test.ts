@@ -44,7 +44,7 @@ it.each(["Lite", "Serve"])(
         /const BOOTSTRAP_JS: &str = r#"([\s\S]*?)"#;/
       )![1]
       window.eval(
-        `${bootstrap}\nbootstrap(${mount}, { tableId: 'table', viewId: 'view' });`
+        `${readFileSync(path.resolve(__dirname, "guest-i18n.js"), "utf8").replaceAll("export function", "function")}\n${bootstrap}\nbootstrap(${mount}, { tableId: 'table', viewId: 'view' });`
       )
     }
     await vi.waitFor(() =>

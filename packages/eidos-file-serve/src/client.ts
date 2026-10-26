@@ -9,6 +9,8 @@ import type {
   RuntimeClient,
   UrlImageLease,
 } from "@eidos.space/eidos-file"
+import type { PluginManifest as SdkPluginManifest } from "@eidos.space/plugin-sdk"
+import type { PluginLanguageData } from "@eidos.space/plugin-runtime/i18n"
 import {
   EidosRuntimeEditorDataSource,
   type EidosFileEditorDataSource,
@@ -972,6 +974,7 @@ export interface PluginPlacement {
 }
 
 export interface PluginManifest {
+  i18n?: SdkPluginManifest["i18n"]
   apiVersion?: number
   id: string
   name: string
@@ -990,6 +993,7 @@ export interface PluginListing {
     id: string
     enabled: boolean
     manifest: PluginManifest
+    localization?: PluginLanguageData
   }[]
 }
 

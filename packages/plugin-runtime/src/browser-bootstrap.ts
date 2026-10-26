@@ -14,6 +14,11 @@ import type {
   ResourceViewInfo,
 } from "./contracts"
 import type { createWorkerFetch } from "./worker-fetch"
+import type {
+  createPluginI18n,
+  pluginLocaleCandidates,
+  PluginLanguageData,
+} from "./i18n"
 
 export const SANDBOX_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: eidos-space-media:; font-src data:; media-src blob: eidos-space-media: eidos-media: data:; connect-src eidos-space-media:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts"
@@ -42,6 +47,8 @@ export function sandboxCsp(
     )
 }
 export type BrowserBinding = {
+  languageData?: PluginLanguageData
+  locale?: string
   workerFetch?: boolean
   resources?: boolean
   embedded?: boolean
@@ -78,9 +85,16 @@ export type BrowserBinding = {
 export function bootstrap(
   mount: Mount,
   binding: BrowserBinding,
-  createFetch: typeof createWorkerFetch
+  createFetch: typeof createWorkerFetch,
+  createI18n: typeof createPluginI18n,
+  localeCandidates: typeof pluginLocaleCandidates
 ) {
   const parent = window.parent
+  const i18n = createI18n(
+    binding.languageData ?? { defaultLocale: "en", messages: {} },
+    binding.locale ?? "en",
+    localeCandidates
+  )
   const controller = new AbortController()
   const subscriptions = new Set<Disposable>()
   const pending = new Map<
@@ -116,6 +130,11 @@ export function bootstrap(
     )
       return
     if (typeof r.observation === "string") {
+      if (r.observation === "host.locale" && typeof r.value === "string") {
+        if (closed) return
+        i18n.setLocale(r.value)
+        return
+      }
       if (r.observation === "host.save" && binding.kind === "document") {
         const active = window.document.activeElement
         const target =
@@ -347,6 +366,7 @@ export function bootstrap(
       throw error("PERMISSION_DENIED", "Config is outside the bound table")
   }
   const context: ViewContext = {
+    i18n,
     presentation: { mode: binding.embedded ? "embedded" : "standalone" },
     capabilities: {
       background: {

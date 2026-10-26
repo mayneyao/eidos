@@ -8,6 +8,11 @@ import { parseJson } from "./json"
 import { validateSource } from "./source"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
 import { parseThemeStylesheet } from "./theme-stylesheet"
+import {
+  pluginResourcePaths,
+  pluginLanguageData,
+  localizePluginManifest,
+} from "./i18n"
 
 export function packageHash(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")
@@ -15,17 +20,60 @@ export function packageHash(bytes: Uint8Array): string {
 export function parsePackage(value: unknown): PluginPackage {
   const p = record(value)
   if (
-    (p.format !== 1 && p.format !== 2) ||
-    Object.keys(p).sort().join() !== "format,manifest,modules"
+    (p.format !== 1 && p.format !== 2 && p.format !== 3) ||
+    Object.keys(p).sort().join() !==
+      (p.format === 3
+        ? "format,manifest,modules,resources"
+        : "format,manifest,modules")
   )
     invalid("Invalid plugin package envelope")
   const manifest = parseManifest(p.manifest)
   if (manifest.theme) parseThemeStylesheet(manifest.theme.stylesheet, true)
-  if ((p.format === 2) !== Boolean(manifest.requires))
+  if (
+    (p.format !== 1) !== Boolean(manifest.requires) ||
+    (p.format === 3) !== Boolean(manifest.i18n)
+  )
     invalid(
-      "Packages declaring requires must use format 2; format 2 requires a minimum plugin API"
+      "Packages declaring requires must use format 2 or 3; both require a minimum plugin API; localization requires format 3"
     )
   const modules = record(p.modules)
+  let resources: Record<string, string> | undefined
+  if (p.format === 3) {
+    const raw = record(p.resources)
+    const paths = pluginResourcePaths(manifest)
+    if (
+      Object.keys(raw).length !== paths.length ||
+      paths.some(
+        (path) =>
+          typeof raw[path] !== "string" ||
+          Buffer.byteLength(raw[path] as string) > 1024 * 1024
+      )
+    )
+      invalid(
+        "Package resources must match declared localization files (at most 1 MiB each)"
+      )
+    resources = raw as Record<string, string>
+    for (const resource of Object.values(manifest.i18n!.messages)) {
+      const messages = record(parseJson(resources[resource]))
+      if (
+        Object.keys(messages).length > 4096 ||
+        Object.entries(messages).some(
+          ([key, value]) =>
+            !/^[a-zA-Z][\w.-]{0,127}$/.test(key) ||
+            typeof value !== "string" ||
+            value.length > 4096 ||
+            /[\u0000-\u001f\u007f]/.test(value)
+        )
+      )
+        invalid("Invalid plugin messages")
+    }
+    const data = pluginLanguageData(manifest, resources)
+    localizePluginManifest(manifest, data, data.defaultLocale, (key) => {
+      if (!Object.hasOwn(data.messages[data.defaultLocale], key))
+        invalid(`Missing default message: ${key}`)
+      return data.messages[data.defaultLocale][key]
+    })
+  }
   const entries = new Set([
     ...(manifest.views ?? []).map((v) => v.entry),
     ...(manifest.extension ? [manifest.extension] : []),
@@ -63,6 +111,7 @@ export function parsePackage(value: unknown): PluginPackage {
     format: p.format,
     manifest,
     modules: { ...modules } as Record<string, string>,
+    ...(resources ? { resources: { ...resources } } : {}),
   }
 }
 export function decodePackage(bytes: Uint8Array): PluginPackage {
@@ -85,12 +134,14 @@ export function decodePackage(bytes: Uint8Array): PluginPackage {
 }
 export function encodePackage(
   manifest: PluginManifest,
-  modules: Record<string, string>
+  modules: Record<string, string>,
+  resources?: Record<string, string>
 ): Uint8Array {
   const pkg = parsePackage({
-    format: manifest.requires ? 2 : 1,
+    format: manifest.i18n ? 3 : manifest.requires ? 2 : 1,
     manifest,
     modules,
+    ...(manifest.i18n ? { resources: resources ?? {} } : {}),
   })
   const raw = Buffer.from(JSON.stringify(pkg))
   if (raw.length > PACKAGE_LIMIT)

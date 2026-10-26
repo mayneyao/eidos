@@ -23,6 +23,7 @@ import type { TextChange } from "@eidos.space/plugin-runtime/rpc"
 import { PluginEditor } from "./plugin-editor"
 import { SidebarPages } from "./sidebar-pages"
 import { useEidosLiteI18n } from "./i18n"
+import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
 import { pluginShortcutBindings } from "./plugin-shortcuts"
 import {
   eidosLiteShortcutLabel,
@@ -66,7 +67,7 @@ export function PluginWorkspace({
   activePage?: string | null
   commands?: { key: string; title: string; shortcut?: string; run(): void }[]
 }) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const renderNavigation = (node: ReactNode) =>
     navigationTarget ? createPortal(node, navigationTarget) : node
   const [listing, setListing] = useState<PluginListing | null>(null)
@@ -147,7 +148,20 @@ export function PluginWorkspace({
     }
   }, [])
   const plugins =
-    listing?.plugins.filter((p) => p.enabled && !p.unavailable) ?? []
+    listing?.plugins
+      .filter((p) => p.enabled && !p.unavailable)
+      .map((plugin) =>
+        plugin.localization
+          ? {
+              ...plugin,
+              manifest: localizePluginManifest(
+                plugin.sourceManifest ?? plugin.manifest,
+                plugin.localization,
+                locale === "zh" ? "zh-CN" : locale
+              ),
+            }
+          : plugin
+      ) ?? []
   const pages = plugins.flatMap(({ manifest }) =>
     (manifest.views ?? [])
       .filter((view) => {

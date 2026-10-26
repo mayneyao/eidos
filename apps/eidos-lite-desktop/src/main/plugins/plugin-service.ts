@@ -27,6 +27,11 @@ import {
 } from "@eidos.space/plugin-runtime/working-copy"
 import { Scope } from "@eidos.space/plugin-runtime/lifecycle"
 import { viewHtml, sandboxCsp } from "@eidos.space/plugin-runtime/sandbox"
+import {
+  pluginLanguageData,
+  localizePluginManifest,
+} from "@eidos.space/plugin-runtime/i18n"
+import type { PluginPackage } from "@eidos.space/plugin-sdk"
 import { extensionHtml } from "@eidos.space/plugin-runtime/extension-sandbox"
 import type {
   TextDocument,
@@ -111,6 +116,14 @@ interface Instance {
   ids: Set<string>
 }
 export class PluginService {
+  locale = "en"
+  private displayManifest(pkg: PluginPackage) {
+    return localizePluginManifest(
+      pkg.manifest,
+      pluginLanguageData(pkg.manifest, pkg.resources),
+      this.locale
+    )
+  }
   private readonly fetches = new PluginFetch()
   private readonly storage = new Map<string, PluginStorage>()
   private formatterContexts = new Map<
@@ -184,7 +197,7 @@ export class PluginService {
       owner,
       space: space,
       hash: hash,
-      manifest: pkg.manifest,
+      manifest: this.displayManifest(pkg),
       code: pkg.modules[pkg.manifest.background.entry],
       authorize,
       storageRequest: async (
@@ -315,7 +328,9 @@ export class PluginService {
         (pkg.manifest.actions ?? []).map((a) => a.id),
         (pkg.manifest.formatters ?? []).map((f) => f.id),
         (pkg.manifest.hooks ?? []).map((h) => h.id),
-        usesWorkerFetch(pkg.manifest)
+        usesWorkerFetch(pkg.manifest),
+        pluginLanguageData(pkg.manifest, pkg.resources),
+        this.locale
       ),
       table,
       tableWritable:
@@ -351,8 +366,8 @@ export class PluginService {
         url: `eidos-plugin://${resource}/index.html`,
         editor: {
           key: id,
-          label: pkg.manifest.name,
-          pluginName: pkg.manifest.name,
+          label: this.displayManifest(pkg).name,
+          pluginName: this.displayManifest(pkg).name,
         },
       },
     }
@@ -697,6 +712,8 @@ export class PluginService {
       workspaceFiles: pkg.manifest.workspace?.files,
       workspaceFileMeta: pkg.manifest.workspace?.filemeta,
       html: viewHtml(pkg.modules[view.entry]!, {
+        languageData: pluginLanguageData(pkg.manifest, pkg.resources),
+        locale: this.locale,
         workerFetch: usesWorkerFetch(pkg.manifest),
         embedded,
         exportFile: !!this.exportFile,
@@ -725,7 +742,13 @@ export class PluginService {
       instance: {
         ticket,
         url: `eidos-plugin://${resource}/index.html`,
-        editor: { key, label: view.title, pluginName: pkg.manifest.name },
+        editor: {
+          key,
+          label: this.displayManifest(pkg).views!.find(
+            (item) => item.id === view.id
+          )!.title,
+          pluginName: this.displayManifest(pkg).name,
+        },
       },
     }
   }
@@ -812,6 +835,8 @@ export class PluginService {
       capabilities: view.capabilities,
       tableWritable: !embedded && view.access === "write",
       html: viewHtml(pkg.modules[view.entry]!, {
+        languageData: pluginLanguageData(pkg.manifest, pkg.resources),
+        locale: this.locale,
         workerFetch: usesWorkerFetch(pkg.manifest),
         embedded,
         resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
@@ -839,8 +864,10 @@ export class PluginService {
         url: `eidos-plugin://${resource}/index.html`,
         editor: {
           ...selected.editor,
-          label: view.title,
-          pluginName: pkg.manifest.name,
+          label: this.displayManifest(pkg).views!.find(
+            (item) => item.id === view.id
+          )!.title,
+          pluginName: this.displayManifest(pkg).name,
         },
       },
     }

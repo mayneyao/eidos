@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.6.
+// Public type-only SDK for Eidos Plugin API 3.7.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -14,6 +14,12 @@ export interface PluginManifest {
   /** Plain-text summary for plugin management; one line, at most 1024 UTF-16 code units. */
   description?: string
   version: string
+  /** Local UTF-8 resources bundled by plugin-tools. Requires Plugin API 3.7.0. */
+  i18n?: {
+    defaultLocale: string
+    messages: Record<string, string>
+    readme?: Record<string, string>
+  }
   /** Minimum plugin API contract (stable major.minor.patch, not the SDK npm version). */
   requires?: { pluginApi: string }
   /**
@@ -268,7 +274,13 @@ export interface BackgroundHost {
   readonly storage?: PluginStorage
 }
 export interface CommonContext extends Lifetime {
+  readonly i18n: PluginI18n
   readonly capabilities: CommonCapabilities
+}
+export interface PluginI18n {
+  readonly locale: string
+  t(key: string, values?: Record<string, string | number>): string
+  onDidChangeLocale(listener: (event: { locale: string }) => void): Disposable
 }
 export interface FileStat {
   readonly path: string
@@ -423,6 +435,7 @@ export interface ActionContext extends CommonContext {
   }
 }
 export interface ExtensionContext extends Lifetime {
+  readonly i18n: PluginI18n
   readonly capabilities: {
     readonly hooks: {
       register(id: string, handler: FileHookHandler): Disposable
@@ -455,6 +468,7 @@ export interface TableActionRecord {
   readToken: string
 }
 export interface TableActionContext {
+  readonly i18n: PluginI18n
   readonly signal: AbortSignal
   readonly capabilities: TableActionCapabilities
 }
@@ -491,6 +505,7 @@ export interface TableActionCapabilities {
 }
 export interface TableActionProvider {
   getItems(context: {
+    readonly i18n: PluginI18n
     readonly signal: AbortSignal
     readonly capabilities: Pick<TableActionCapabilities, "eidos">
   }): Promise<TableActionItem[]> | TableActionItem[]
@@ -505,9 +520,10 @@ export type Activate = (
 ) => void | Disposable | Promise<void | Disposable>
 
 export interface PluginPackage {
-  format: 1 | 2
+  format: 1 | 2 | 3
   manifest: PluginManifest
   modules: Record<string, string> // entry key -> self-contained ESM JavaScript
+  resources?: Record<string, string> // declared localization paths -> UTF-8 content
 }
 
 export interface TextSnapshot {

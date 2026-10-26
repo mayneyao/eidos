@@ -34,6 +34,12 @@ import { normalizeMutableRelativePath } from "../space/space-paths"
 import { PluginConnections } from "./plugin-connections"
 import { PluginRegistry } from "./plugin-registry"
 import {
+  localizedPluginReadme,
+  localizePluginManifest,
+  pluginLanguageData,
+} from "@eidos.space/plugin-runtime/i18n"
+import { resolveEidosLiteLocale } from "../../shared/i18n"
+import {
   ensureOwnerOnlyDirectory,
   migrateLegacyPluginsDirectory,
   resolveEidosHome,
@@ -188,6 +194,18 @@ export function registerPluginIpc(controller: WindowController): {
     }
   )
   const owners = new Set<number>()
+  const updatePluginLocale = (preferences: {
+    language: Parameters<typeof resolveEidosLiteLocale>[0]
+  }) => {
+    const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+    service.locale = locale === "zh" ? "zh-CN" : locale
+    catalogChanged()
+  }
+  void controller
+    .getPreferences()
+    .then(updatePluginLocale)
+    .catch(() => {})
+  const stopLocale = controller.onPreferencesChanged(updatePluginLocale)
   const watchers = new Map<string, FSWatcher>()
   const pendingReloads = new Map<
     string,
@@ -315,9 +333,25 @@ export function registerPluginIpc(controller: WindowController): {
       return undefined
     }
   }
-  ipcMain.handle(PLUGIN_CHANNELS.list, (event) => {
+  ipcMain.handle(PLUGIN_CHANNELS.list, async (event) => {
     caller(event)
-    return store.list(currentSpace(event))
+    const listing = await store.list(currentSpace(event))
+    return {
+      ...listing,
+      plugins: listing.plugins.map((plugin) =>
+        plugin.localization
+          ? {
+              ...plugin,
+              sourceManifest: plugin.manifest,
+              manifest: localizePluginManifest(
+                plugin.manifest,
+                plugin.localization,
+                service.locale
+              ),
+            }
+          : plugin
+      ),
+    }
   })
   ipcMain.handle(
     PLUGIN_CHANNELS.createFile,
@@ -402,12 +436,39 @@ export function registerPluginIpc(controller: WindowController): {
       throw new Error("Invalid refresh request")
     return registry.list(refresh === true)
   })
-  ipcMain.handle(PLUGIN_CHANNELS.readme, async (event, id: unknown) => {
-    caller(event)
-    if (typeof id !== "string" || !id || id.length > 128)
-      throw new PluginError("INVALID_REQUEST", "Invalid plugin")
-    return registry.readme(id)
-  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.readme,
+    async (event, id: unknown, locale: unknown) => {
+      caller(event)
+      if (typeof id !== "string" || !id || id.length > 128)
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin")
+      if (
+        locale !== undefined &&
+        (typeof locale !== "string" || locale.length > 64)
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid locale")
+      const installed = await store.installed(id)
+      if (installed) {
+        const pkg = await store.read(installed.hash)
+        const readme = localizedPluginReadme(
+          pkg,
+          typeof locale === "string" ? locale : service.locale
+        )
+        if (readme) return readme
+        // An installed revision must never display another release's documentation.
+        if (pkg.manifest.i18n) return null
+        return registry.readme(
+          id,
+          typeof locale === "string" ? locale : service.locale,
+          pkg.manifest.version
+        )
+      }
+      return registry.readme(
+        id,
+        typeof locale === "string" ? locale : service.locale
+      )
+    }
+  )
   ipcMain.handle(
     PLUGIN_CHANNELS.table,
     (event, key: unknown, tableId: unknown, viewId: unknown) => {
@@ -780,6 +841,11 @@ export function registerPluginIpc(controller: WindowController): {
       compiled?.bytes ??
       (await store.readBytes(selected.filePaths[0]))
     const pkg = decodePackage(bytes)
+    const display = localizePluginManifest(
+      pkg.manifest,
+      pluginLanguageData(pkg.manifest, pkg.resources),
+      service.locale
+    )
     assertPluginCompatibility(pkg.manifest, "eidos-lite")
     const existing = await store.installed(pkg.manifest.id)
     let existingVersion: string | undefined
@@ -803,10 +869,10 @@ export function registerPluginIpc(controller: WindowController): {
     const review = await dialog.showMessageBox(owner, {
       type: "question",
       title: isUpdate ? "Update plugin" : "Install plugin",
-      message: `${pkg.manifest.name} ${versionLabel}${
+      message: `${display.name} ${versionLabel}${
         Object.values(pkg.manifest.connections ?? {}).length
           ? `\nAuthenticated connections: ${Object.values(
-              pkg.manifest.connections ?? {}
+              display.connections ?? {}
             )
               .map((c) =>
                 c.configurable
@@ -1017,7 +1083,12 @@ export function registerPluginIpc(controller: WindowController): {
     if (!owner) throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
     const installed = await store.installed(id)
     if (!installed) return false
-    const { manifest } = await store.read(installed.hash)
+    const pkg = await store.read(installed.hash)
+    const manifest = localizePluginManifest(
+      pkg.manifest,
+      pluginLanguageData(pkg.manifest, pkg.resources),
+      service.locale
+    )
     const review = await dialog.showMessageBox(owner, {
       type: "question",
       title: "Uninstall plugin",
@@ -1081,7 +1152,7 @@ export function registerPluginIpc(controller: WindowController): {
     caller(event)
     if (typeof file !== "string")
       throw new PluginError("INVALID_REQUEST", "Invalid path")
-    return store.editors(file, currentSpace(event))
+    return store.editors(file, currentSpace(event), service.locale)
   })
   ipcMain.handle(
     PLUGIN_CHANNELS.open,
@@ -1165,9 +1236,10 @@ export function registerPluginIpc(controller: WindowController): {
         throw new Error(
           "Choose a read-only file View using plugin API 3.0.0 without local workspace, settings, storage, connections, or View capabilities"
         )
-      return encodePackage(pkg.manifest, pkg.modules)
+      return encodePackage(pkg.manifest, pkg.modules, pkg.resources)
     },
     close() {
+      stopLocale()
       controller.pluginSpaceOpened = undefined
       controller.pluginSpaceClosed = undefined
       backgrounds.close()

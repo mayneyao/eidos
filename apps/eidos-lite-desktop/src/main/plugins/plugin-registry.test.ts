@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { gzipSync } from "node:zlib"
 import { createHash } from "node:crypto"
+import { encodePackage } from "@eidos.space/plugin-runtime/package"
 import {
   PluginRegistry,
   parsePluginRegistry,
@@ -176,6 +177,73 @@ it("checks both checksum and manifest identity", async () => {
   await expect(registry.download(item.id)).rejects.toThrow("kind")
 })
 
+it("reads localized documentation from the verified release and selects languages offline", async () => {
+  const dir = await directory()
+  const manifest = {
+    apiVersion: 1 as const,
+    id: entry.id,
+    name: "%name%",
+    views: [
+      {
+        id: "main",
+        title: "%name%",
+        kind: "page" as const,
+        entry: "./page.js",
+      },
+    ],
+    version: entry.version,
+    requires: { pluginApi: "3.7.0" },
+    i18n: {
+      defaultLocale: "en",
+      messages: { en: "./en.json", "zh-CN": "./zh.json" },
+      readme: { en: "./README.md", "zh-CN": "./README.zh.md" },
+    },
+  }
+  const bytes = encodePackage(
+    manifest,
+    { "./page.js": "export default function mount() {}" },
+    {
+      "./en.json": '{"name":"History"}',
+      "./zh.json": '{"name":"历史"}',
+      "./README.md": "# English",
+      "./README.zh.md": "# 中文",
+    }
+  )
+  const localized = {
+    ...entry,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    localization: {
+      defaultLocale: "en",
+      messages: { en: { name: "History" }, "zh-CN": { name: "历史" } },
+      name: "%name%",
+    },
+  }
+  const fetcher = vi.fn<typeof fetch>(async (url) =>
+    String(url).includes("plugins.registry.json")
+      ? Response.json({ schemaVersion: 1, plugins: [localized] })
+      : new Response(bytes)
+  )
+  const registry = new PluginRegistry(dir, fetcher)
+  expect(await registry.readme(entry.id, "zh-CN")).toMatchObject({
+    content: "# 中文",
+    locale: "zh-CN",
+    fallback: false,
+  })
+  expect(
+    fetcher.mock.calls.some(([url]) => String(url).includes("/main/README"))
+  ).toBe(false)
+  const offline = new PluginRegistry(
+    dir,
+    vi.fn<typeof fetch>().mockRejectedValue(new Error("offline"))
+  )
+  expect(await offline.readme(entry.id, "fr-FR")).toMatchObject({
+    content: "# English",
+    locale: "en",
+    fallback: true,
+  })
+  expect(await offline.readme(entry.id, "zh-CN", "0.1.0")).toBeNull()
+})
+
 it("fetches and caches plugin README markdown from GitHub", async () => {
   const dir = await directory()
   const fetcher = vi.fn<typeof fetch>(async (url) => {
@@ -183,17 +251,21 @@ it("fetches and caches plugin README markdown from GitHub", async () => {
     if (target.includes("plugins.registry.json")) {
       return Response.json({ schemaVersion: 1, plugins: [entry] })
     }
-    if (target.includes("main/README.md")) {
+    if (target.includes(`${entry.tag}/README.md`)) {
       return new Response("# Map Documentation\n\nSample readme.")
     }
     return new Response(null, { status: 404 })
   })
   const registry = new PluginRegistry(dir, fetcher)
   const readme = await registry.readme(entry.id)
-  expect(readme).toBe("# Map Documentation\n\nSample readme.")
+  expect(readme).toMatchObject({
+    content: "# Map Documentation\n\nSample readme.",
+    locale: null,
+    fallback: false,
+  })
 
   // Verify cached on disk
-  const cachedFile = path.join(dir, "readme", `${entry.id}.md`)
+  const cachedFile = path.join(dir, "readme", `${entry.id}-${entry.sha256}.md`)
   expect(await fs.readFile(cachedFile, "utf8")).toBe(
     "# Map Documentation\n\nSample readme."
   )
@@ -203,7 +275,7 @@ it("fetches and caches plugin README markdown from GitHub", async () => {
     .fn<typeof fetch>()
     .mockRejectedValue(new Error("offline"))
   const offlineRegistry = new PluginRegistry(dir, offlineFetcher)
-  expect(await offlineRegistry.readme(entry.id)).toBe(
-    "# Map Documentation\n\nSample readme."
-  )
+  expect(await offlineRegistry.readme(entry.id)).toMatchObject({
+    content: "# Map Documentation\n\nSample readme.",
+  })
 })

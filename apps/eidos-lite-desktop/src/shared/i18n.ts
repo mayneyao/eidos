@@ -513,6 +513,7 @@ const zh: Record<string, string> = {
     "安装此插件后可查看其视图、命令和设置。",
   "No plugins found": "未找到插件",
   Enabled: "已启用",
+  "Create a plugin": "创建插件",
   Disabled: "已禁用",
   Page: "页面",
   Command: "命令",
@@ -554,6 +555,29 @@ const zh: Record<string, string> = {
     "此插件通过可定制的视图、命令和格式化工具扩展 Eidos。所有操作均在本地设备运行。",
   "How to Use": "使用指南",
   Capabilities: "扩展能力",
+  "This documentation is not available in your language. Showing {locale}.":
+    "此说明暂未提供当前语言版本，正在显示 {locale}。",
+  "Background service": "后台服务",
+  "Continues after its page closes, until stopped, disabled, updated, or this Space closes.":
+    "关闭插件页面后继续运行，直到停止、禁用、更新插件或关闭此 Space。",
+  Entry: "入口",
+  Startup: "启动方式",
+  "Automatically when this Space opens, after approval":
+    "授权后，在打开此 Space 时自动启动",
+  "Started by a plugin page or command, after approval":
+    "授权后，由插件页面或命令启动",
+  "File-open events": "文件打开事件",
+  "Paths and opening times in this Space; no file contents":
+    "此 Space 内的文件路径与打开时间，不含文件内容",
+  "Not requested": "未申请",
+  "Background network access": "后台网络访问",
+  "Page network access": "页面网络访问",
+  "All public HTTPS/WSS services": "所有公共 HTTPS/WSS 服务",
+  "All public HTTPS services": "所有公共 HTTPS 服务",
+  Bluetooth: "蓝牙",
+  "User-selected device": "用户选择的设备",
+  "Isolated iframe sandbox and QuickJS background sandbox":
+    "独立 iframe 沙箱与 QuickJS 后台沙箱",
   Properties: "属性信息",
   Identifier: "唯一标识",
   Version: "版本",
@@ -590,7 +614,6 @@ const zh: Record<string, string> = {
   "Can update the current document and its filename.":
     "可修改当前文档及其文件名。",
   Placements: "挂载点",
-  "Enabled in this Space": "当前 Space 已启用",
   Unavailable: "不可用",
   "Unknown version": "版本未知",
   "Installed plugin cannot be read. Reinstall or uninstall it.":

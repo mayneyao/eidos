@@ -8,6 +8,7 @@ description = "Run the TypeScript Eidos File runtime inside QuickJS over a rusql
 [features]
 default = []
 serve = [
+  "dep:eidos-publish",
   "dep:flate2",
   "dep:tiny_http",
   "dep:open",
@@ -19,6 +20,7 @@ serve = [
 ]
 
 [dependencies]
+eidos-publish = { workspace = true, optional = true }
 rquickjs = "0.12"
 rusqlite = { workspace = true, features = ["serialize", "functions", "limits"] }
 serde = { version = "1.0", features = ["derive"] }

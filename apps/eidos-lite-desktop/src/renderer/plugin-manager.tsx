@@ -33,6 +33,8 @@ import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { PluginMarketplaceView } from "./plugin-marketplace"
 import { PluginDropZone } from "./plugin-drop-zone"
 import { isMarkdownTextFile } from "./text-editor-options"
+import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
+import { localizeMarketplacePlugin } from "./plugin-localization"
 import { ExplorerPicker, explorerChoices } from "./plugin-explorer"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
@@ -68,7 +70,7 @@ export function PluginManager({
   installRequest?: { id: string; sequence: number } | null
   onInstallRequestHandled?(sequence: number): void
 }) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const buttonClass = variant === "settings" ? "settings-button" : undefined
   const id = useId()
   const [tab, setTab] = useState<PluginTab>(
@@ -145,7 +147,21 @@ export function PluginManager({
     }
   }
   const [search, setSearch] = useState("")
-  const [marketplace, setMarketplace] = useState<PluginMarketplace | null>(null)
+  const [rawMarketplace, setMarketplace] = useState<PluginMarketplace | null>(
+    null
+  )
+  const marketplace = useMemo(
+    () =>
+      rawMarketplace
+        ? {
+            ...rawMarketplace,
+            plugins: rawMarketplace.plugins.map((plugin) =>
+              localizeMarketplacePlugin(plugin, locale)
+            ),
+          }
+        : null,
+    [rawMarketplace, locale]
+  )
   const [marketplaceLoading, setMarketplaceLoading] = useState(true)
   const [marketplaceError, setMarketplaceError] = useState("")
   const loadMarketplace = useCallback(async (refresh = false) => {
@@ -273,7 +289,22 @@ export function PluginManager({
     )
   }
 
-  const plugins = listing?.plugins ?? []
+  const plugins = useMemo(
+    () =>
+      (listing?.plugins ?? []).map((plugin) =>
+        plugin.localization
+          ? {
+              ...plugin,
+              manifest: localizePluginManifest(
+                plugin.sourceManifest ?? plugin.manifest,
+                plugin.localization,
+                locale === "zh" ? "zh-CN" : locale
+              ),
+            }
+          : plugin
+      ),
+    [listing, locale]
+  )
   const explorers = explorerChoices(listing)
   const selectedExplorer =
     explorers.find((choice) => choice.key === listing?.space?.explorer)?.key ??
@@ -324,7 +355,7 @@ export function PluginManager({
       ? [
           {
             key: "enabled" as const,
-            label: t("Enabled in this Space"),
+            label: t("Enabled"),
             count: query ? filteredEnabled.length : enabled.length,
           },
         ]
@@ -804,7 +835,7 @@ export function PluginManager({
                               {t(
                                 plugin.manifest.theme
                                   ? "Active theme"
-                                  : "Enabled in this Space"
+                                  : "Enabled"
                               )}
                             </span>
                           ) : null}
@@ -961,7 +992,7 @@ export function PluginManager({
                               {t(
                                 plugin.manifest.theme
                                   ? "Active theme"
-                                  : "Enabled in this Space"
+                                  : "Enabled"
                               )}
                             </span>
                           ) : null}

@@ -7,6 +7,7 @@ import type {
 } from "./contracts"
 import { invalid, PluginError } from "./errors"
 import { parseThemeStylesheet, themeStylesheetPath } from "./theme-stylesheet"
+import { canonicalPluginLocale } from "./i18n"
 
 const localId = /^[a-z][a-z0-9-]*$/
 export function record(value: unknown): Record<string, unknown> {
@@ -217,8 +218,57 @@ export function parseManifest(input: unknown): PluginManifest {
       "requires",
       "theme",
       "kind",
+      "i18n",
     ]
   )
+  if (m.i18n !== undefined) {
+    const declaration = record(m.i18n)
+    fields(declaration, ["defaultLocale", "messages"], ["readme"])
+    const version = String(record(m.requires).pluginApi).split(".").map(Number)
+    if (!(version[0] > 3 || (version[0] === 3 && version[1] >= 7)))
+      invalid("i18n requires plugin API 3.7.0 or newer")
+    for (const [kind, raw] of [
+      ["messages", declaration.messages],
+      ["readme", declaration.readme],
+    ] as const) {
+      if (raw === undefined) continue
+      const locales = record(raw)
+      if (!Object.keys(locales).length || Object.keys(locales).length > 32)
+        invalid("Expected 1–32 locales")
+      for (const [locale, resource] of Object.entries(locales)) {
+        try {
+          if (canonicalPluginLocale(locale) !== locale)
+            invalid("Use canonical locale tags")
+        } catch {
+          invalid("Invalid locale")
+        }
+        if (
+          typeof resource !== "string" ||
+          !resource.startsWith("./") ||
+          ["./plugin.json", "./package.json", "./tsconfig.json"].includes(
+            resource
+          ) ||
+          /[\\?#\u0000-\u001f]/.test(resource) ||
+          resource
+            .slice(2)
+            .split("/")
+            .some(
+              (part) =>
+                !part || part === "." || part === ".." || part.includes(":")
+            ) ||
+          !(kind === "messages"
+            ? resource.endsWith(".json")
+            : resource.endsWith(".md"))
+        )
+          invalid("Invalid localization resource path")
+      }
+      if (
+        typeof declaration.defaultLocale !== "string" ||
+        !Object.hasOwn(locales, declaration.defaultLocale)
+      )
+        invalid("Default locale resource is required")
+    }
+  }
   if (m.icon !== undefined) {
     validateIconDefinition(m.icon)
   }

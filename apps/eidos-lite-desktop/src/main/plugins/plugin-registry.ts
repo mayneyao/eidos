@@ -2,6 +2,11 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { decodePackage } from "@eidos.space/plugin-runtime/package"
+import {
+  localizedPluginReadme,
+  parsePluginLanguageData,
+  type PluginReadme,
+} from "@eidos.space/plugin-runtime/i18n"
 import type { MarketplacePlugin, PluginMarketplace } from "../../shared/plugins"
 
 export const PLUGIN_REGISTRY_URL =
@@ -148,6 +153,29 @@ export function parsePluginRegistry(value: unknown): MarketplacePlugin[] {
       ...(p.kind === "theme" ? { kind: "theme" } : {}),
       ...(p.icon ? { icon: p.icon } : {}),
       ...(screenshots.length ? { screenshots } : {}),
+      ...(p.localization
+        ? {
+            localization: (() => {
+              const data = parsePluginLanguageData(p.localization)
+              const metadata = p.localization as Record<string, unknown>
+              if (
+                typeof metadata.name !== "string" ||
+                metadata.name.length > 128 ||
+                (metadata.description !== undefined &&
+                  (typeof metadata.description !== "string" ||
+                    metadata.description.length > 1024))
+              )
+                throw new Error("Invalid localized metadata")
+              return {
+                ...data,
+                name: metadata.name,
+                ...(typeof metadata.description === "string"
+                  ? { description: metadata.description }
+                  : {}),
+              }
+            })(),
+          }
+        : {}),
     } as MarketplacePlugin
   })
 }
@@ -303,20 +331,66 @@ export class PluginRegistry {
       throw new Error("Plugin kind does not match the registry")
     return bytes
   }
-  async readme(id: string): Promise<string | null> {
+  async readme(
+    id: string,
+    locale = "en",
+    installedVersion?: string
+  ): Promise<PluginReadme | string | null> {
     const catalog = await this.list(false)
     const entry = catalog.plugins.find((plugin) => plugin.id === id)
     if (!entry || !entry.repo) return null
-    const cacheDir = path.join(this.directory, "readme")
-    const cacheFile = path.join(cacheDir, `${id}.md`)
-    if (catalog.cached) {
+    if (installedVersion && entry.version !== installedVersion) return null
+    if (entry.localization) {
+      const archive = path.join(
+        this.directory,
+        "readme",
+        `${entry.sha256}.eidos-plugin`
+      )
       try {
-        return await fs.readFile(cacheFile, "utf8")
+        let bytes: Uint8Array
+        try {
+          bytes = await fs.readFile(archive)
+        } catch {
+          bytes = await registryDownload(
+            `https://github.com/${entry.repo}/releases/download/${entry.tag}/${entry.asset}`,
+            16 * 1024 * 1024,
+            this.fetcher
+          )
+        }
+        if (
+          bytes.length > 16 * 1024 * 1024 ||
+          createHash("sha256").update(bytes).digest("hex") !== entry.sha256
+        )
+          throw new Error("Documentation package checksum mismatch")
+        const pkg = decodePackage(bytes)
+        if (
+          pkg.manifest.id !== entry.id ||
+          pkg.manifest.version !== entry.version
+        )
+          throw new Error("Documentation package identity mismatch")
+        await fs.mkdir(path.dirname(archive), { recursive: true, mode: 0o700 })
+        await fs.writeFile(archive, bytes, { mode: 0o600 })
+        return localizedPluginReadme(pkg, locale)
       } catch {
         return null
       }
     }
-    for (const branch of ["main", "master"]) {
+    const cacheDir = path.join(this.directory, "readme")
+    const cacheFile = path.join(cacheDir, `${id}-${entry.sha256}.md`)
+    const legacy = (content: string): PluginReadme => ({
+      content,
+      locale: null,
+      fallback: false,
+      source: `https://raw.githubusercontent.com/${entry.repo}/${entry.tag}/README.md`,
+    })
+    if (catalog.cached) {
+      try {
+        return legacy(await fs.readFile(cacheFile, "utf8"))
+      } catch {
+        return null
+      }
+    }
+    for (const branch of [entry.tag]) {
       try {
         const url = `https://raw.githubusercontent.com/${entry.repo}/${branch}/README.md`
         const bytes = await registryDownload(url, 1024 * 1024, this.fetcher)
@@ -326,11 +400,11 @@ export class PluginRegistry {
           .then(() => fs.writeFile(`${cacheFile}.tmp`, content, "utf8"))
           .then(() => fs.rename(`${cacheFile}.tmp`, cacheFile))
           .catch(() => {})
-        return content
+        return legacy(content)
       } catch {}
     }
     try {
-      return await fs.readFile(cacheFile, "utf8")
+      return legacy(await fs.readFile(cacheFile, "utf8"))
     } catch {
       return null
     }

@@ -31,7 +31,13 @@ it("opts into Worker fetch in API 3.5 without changing older browser consumers",
   const current = { ...manifest, requires: { pluginApi: "3.5.0" } }
   expect(usesWorkerFetch(current)).toBe(true)
   expect(checkPluginCompatibility(current, "eidos-lite").compatible).toBe(true)
-  expect(checkPluginCompatibility(current, "eidos-cli").compatible).toBe(false)
+  expect(checkPluginCompatibility(current, "eidos-cli").compatible).toBe(true)
+  expect(
+    checkPluginCompatibility(
+      { ...current, browser: { networkOrigins: ["https://example.com"] } },
+      "eidos-cli"
+    ).missingFeatures
+  ).toContain("network.public")
 })
 it("limits explorer replacement and native properties to Lite", () => {
   const plugin: PluginManifest = {
@@ -64,7 +70,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.6.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.7.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],

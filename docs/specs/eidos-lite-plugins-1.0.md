@@ -1,10 +1,65 @@
-# Eidos Plugins — API 3.6
+# Eidos Plugins — API 3.7
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.6.0
+Plugin API: 3.7.0
 
 Canonical language: English
+
+## Localization
+
+API 3.7 supports `i18n: { defaultLocale, messages, readme? }`. `messages` maps
+canonical BCP 47 locale tags to local `.json` paths; `readme` maps tags to local
+`.md` paths. Each supplied map MUST contain the default locale and 1–32 locales.
+Paths MUST begin with `./`, remain inside the source root, and contain no symlink,
+parent traversal, URL, query or fragment. Each resource is UTF-8 and at most 1 MiB.
+Message files contain at most 4096 string entries; keys match
+`[a-zA-Z][\w.-]{0,127}`, values contain at most 4096 UTF-16 code units and no
+control characters. Empty translations are permitted.
+
+An entire display string matching `%key%` references a message. Supported fields
+are plugin name/description, View/action/formatter/hook/template titles, setting
+titles/descriptions (including View configuration), and connection titles.
+Other fields, including IDs, paths, permissions, URLs, defaults and enum values,
+MUST NOT be localized. Every referenced key MUST exist in the default dictionary;
+checking and decoding MUST reject missing default messages. Literal strings and
+packages without `i18n` retain their original behavior.
+
+The host supplies its resolved language, not the raw “system” setting. Resolution
+tries the exact tag, language plus script, base language, then the plugin default.
+For Chinese, inferred script distinguishes Simplified and Traditional; matching
+MUST NOT cross scripts, except when the author explicitly chooses such a default
+or supplies a generic `zh` resource. A missing message falls back independently.
+README resolution selects one whole document, never paragraphs from multiple
+languages. When the default document is used because no requested-language
+candidate exists, the host MUST disclose its actual language. Unknown legacy
+document languages MUST NOT be guessed.
+
+Views, extensions, action invocations, table-action discovery and table-action
+runs receive `ctx.i18n` with `locale`, `t(key, values?)`, and
+`onDidChangeLocale(listener)`. Messages interpolate named `{parameter}` values
+as plain strings; there is no HTML, pluralization or ICU evaluation. Missing
+runtime keys return the key. Observers return disposables. Hosts deliver language
+changes to mounted guests without remounting, changing routes, or restarting a
+background. Action invocations and table-action runs capture their starting
+language. Backgrounds do not receive this presentation API. Source manifests and
+package hashes remain unchanged by language selection.
+
+Localized packages require `requires.pluginApi >= 3.7.0` and envelope format 3:
+`{ format: 3, manifest, modules, resources }`. `resources` maps exactly the declared
+paths to UTF-8 contents. Undeclared, missing or oversized resources are rejected;
+the existing 16 MiB compressed/uncompressed package limits still apply. Formats
+1 and 2 remain supported. Source watches and revision hashes include resources.
+Older hosts reject the new format instead of executing unresolved declarations.
+
+Installed documentation MUST come from the installed package revision. Market
+documentation comes from the checksum-verified release archive; caches are keyed
+by its immutable hash, and language selection occurs within that archive. Legacy
+README retrieval uses the release tag and a hash-specific cache, never a mutable
+branch; if the installed version differs from the catalog, unrelated documentation
+MUST NOT be substituted. Registry tooling derives localized display metadata from
+the same package dictionaries. Markdown remains subject to host sanitization;
+relative image assets are not implicitly bundled by these text resources.
 
 ## Background host services
 
@@ -381,10 +436,11 @@ it MUST NOT execute plugin code, build configuration or install scripts. Externa
 dependencies require a matching installed identity and supported lockfile.
 Dependency checks do not authenticate publishers.
 
-Packages remain bounded gzip UTF-8 JSON with `format`, `manifest`, and `modules`.
+Packages remain bounded gzip UTF-8 JSON with `format`, `manifest`, and `modules`;
+format 3 additionally contains the declared localization `resources`.
 Declared entries and module coverage must match. Compressed and decompressed
 payloads are limited to 16 MiB. Duplicate JSON keys, invalid module syntax and
-external module imports are rejected by the shared packager. Format 2 carries
+external module imports are rejected by the shared packager. Formats 2 and 3 carry
 `requires`; format 1 must not carry it. Hashes identify exact package bytes.
 Old hosts must reject new incompatible manifests rather than substitute old APIs.
 

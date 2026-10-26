@@ -1,4 +1,8 @@
 import { viewResource } from "@eidos.space/plugin-runtime/view"
+import {
+  pluginLanguageData,
+  localizePluginManifest,
+} from "@eidos.space/plugin-runtime/i18n"
 import fs from "node:fs/promises"
 import {
   assertPluginCompatibility,
@@ -90,10 +94,10 @@ export class PluginStore {
   private packageBytes = 0
   private remember(hash: string, value: PluginPackage): PluginPackage {
     if (this.packages.has(hash)) return value
-    const size = Object.values(value.modules).reduce(
-      (total, code) => total + Buffer.byteLength(code),
-      0
-    )
+    const size = [
+      ...Object.values(value.modules),
+      ...Object.values(value.resources ?? {}),
+    ].reduce((total, code) => total + Buffer.byteLength(code), 0)
     // Keep the cache bounded when switching among large plugins/dev versions.
     while (this.packageBytes + size > 32 * 1024 * 1024 && this.packages.size) {
       const oldest = this.packages.keys().next().value!
@@ -111,6 +115,23 @@ export class PluginStore {
     string,
     Promise<PluginPackage["manifest"]>
   >()
+  private async languageData(
+    hash: string,
+    manifest: PluginPackage["manifest"]
+  ) {
+    if (!manifest.i18n) return undefined
+    if (!this.packages.has(hash)) {
+      try {
+        await this.read(hash)
+      } catch (error) {
+        if (!this.packages.has(hash)) throw error
+      }
+    }
+    return pluginLanguageData(
+      manifest,
+      this.packages.get(hash)!.value.resources
+    )
+  }
   private manifest(hash: string): Promise<PluginPackage["manifest"]> {
     const cached = this.manifests.get(hash)
     if (cached) return cached
@@ -560,8 +581,10 @@ export class PluginStore {
     for (const [id, binding] of Object.entries(config.installed)) {
       const hash = this.trials.get(id) ?? binding.hash
       let manifest: PluginPackage["manifest"]
+      let localization: PluginListing["plugins"][number]["localization"]
       try {
         manifest = await this.manifest(hash)
+        localization = await this.languageData(hash, manifest)
         if (manifest.id !== id)
           throw new PluginError(
             "INVALID_REQUEST",
@@ -580,6 +603,7 @@ export class PluginStore {
       }
       plugins.push({
         manifest,
+        ...(localization ? { localization } : {}),
         hash,
         enabled:
           (manifest.theme
@@ -637,7 +661,8 @@ export class PluginStore {
   }
   async editors(
     relativePath: string,
-    spaceId?: string
+    spaceId?: string,
+    locale = "en"
   ): Promise<PluginEditorChoice[]> {
     const extension = path.extname(relativePath).toLowerCase()
     const config = await this.config()
@@ -646,9 +671,12 @@ export class PluginStore {
     for (const [id, binding] of Object.entries(bindings)) {
       if (spaceId && !config.spaces[spaceId]?.plugins[id]?.enabled) continue
       try {
-        const manifest = await this.manifest(
-          this.trials.get(id) ?? binding.hash
+        const raw = await this.manifest(this.trials.get(id) ?? binding.hash)
+        const data = await this.languageData(
+          this.trials.get(id) ?? binding.hash,
+          raw
         )
+        const manifest = data ? localizePluginManifest(raw, data, locale) : raw
         if (manifest.id !== id) continue
         if (!checkPluginCompatibility(manifest, "eidos-lite").compatible)
           continue

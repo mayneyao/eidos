@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { PluginManager, PluginFileActions } from "./plugin-manager"
 import { PluginDetailView } from "./plugin-detail-view"
 import type { PluginListing } from "../shared/plugins"
+import { EidosLiteI18nProvider } from "./i18n"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let container: HTMLDivElement
@@ -83,6 +84,196 @@ async function click(text: string) {
   expect(button).toBeDefined()
   await act(async () => button!.click())
 }
+
+it("shows public page requests, API connections and legacy background origins independently", async () => {
+  await act(async () =>
+    root.render(
+      <PluginDetailView
+        plugin={{
+          hash: "network",
+          enabled: true,
+          manifest: {
+            apiVersion: 1,
+            id: "test.network",
+            name: "Network",
+            version: "1.0.0",
+            requires: { pluginApi: "3.7.0" },
+            browser: { network: true },
+            background: {
+              entry: "./background.js",
+              networkOrigins: ["wss://background.example.com"],
+            },
+            connections: {
+              api: { title: "API", url: "https://api.example.com/v1" },
+            },
+          },
+        }}
+        onBack={() => {}}
+        onToggleEnable={() => {}}
+        onUninstall={() => {}}
+      />
+    )
+  )
+  await click("Runtime & Security")
+  const content = container.querySelector('[role="tabpanel"]')!.textContent
+  expect(content).toContain("All public HTTPS services")
+  expect(content).toContain("https://api.example.com/v1")
+  expect(content).toContain("wss://background.example.com")
+  expect(content).not.toContain("100% offline")
+})
+
+it("switches localized metadata and README while ignoring a late previous-language response", async () => {
+  let changeLanguage:
+    | ((preferences: { language: "en" | "zh" }) => void)
+    | undefined
+  let finishEnglish:
+    | ((value: {
+        content: string
+        locale: string
+        fallback: boolean
+        source: string
+      }) => void)
+    | undefined
+  Object.assign(window.eidosLite, {
+    getPreferences: async () => ({ language: "en" }),
+    onPreferencesChanged: (listener: typeof changeLanguage) => {
+      changeLanguage = listener
+      return () => {}
+    },
+    pluginReadme: vi.fn(async (_id: string, locale: string) =>
+      locale === "zh-CN"
+        ? {
+            content: "# 中文说明",
+            locale: "zh-CN",
+            fallback: false,
+            source: "./README.zh.md",
+          }
+        : new Promise((resolve) => {
+            finishEnglish = resolve
+          })
+    ),
+  })
+  const plugin: PluginListing["plugins"][number] = {
+    hash: "localized",
+    enabled: true,
+    manifest: {
+      apiVersion: 1,
+      id: "test.localized",
+      name: "%name%",
+      version: "1.0.0",
+      requires: { pluginApi: "3.7.0" },
+      i18n: {
+        defaultLocale: "en",
+        messages: { en: "./en.json", "zh-CN": "./zh.json" },
+      },
+    },
+    localization: {
+      defaultLocale: "en",
+      messages: { en: { name: "History" }, "zh-CN": { name: "最近打开" } },
+    },
+  }
+  await act(async () =>
+    root.render(
+      <EidosLiteI18nProvider>
+        <PluginDetailView
+          plugin={plugin}
+          onBack={() => {}}
+          onToggleEnable={() => {}}
+          onUninstall={() => {}}
+        />
+      </EidosLiteI18nProvider>
+    )
+  )
+  expect(container.querySelector("h1")!.textContent).toBe("History")
+  await act(async () => changeLanguage!({ language: "zh" }))
+  expect(container.querySelector("h1")!.textContent).toBe("最近打开")
+  expect(container.textContent).toContain("中文说明")
+  await act(async () =>
+    finishEnglish!({
+      content: "# English documentation",
+      locale: "en",
+      fallback: false,
+      source: "./README.md",
+    })
+  )
+  expect(container.textContent).toContain("中文说明")
+  expect(container.textContent).not.toContain("English documentation")
+  await act(async () => changeLanguage!({ language: "en" }))
+  expect(container.textContent).not.toContain("中文说明")
+  await act(async () =>
+    finishEnglish!({
+      content: "# English documentation",
+      locale: "en",
+      fallback: false,
+      source: "./README.md",
+    })
+  )
+  expect(container.textContent).toContain("English documentation")
+})
+
+it.each([true, false])(
+  "shows background declarations and counts the service (automatic: %s)",
+  async (automatic) => {
+    await act(async () =>
+      root.render(
+        <PluginDetailView
+          plugin={{
+            hash: "background",
+            enabled: true,
+            manifest: {
+              apiVersion: 1,
+              id: "example.background",
+              name: "Background test",
+              version: "1.0.0",
+              requires: { pluginApi: "3.6.0" },
+              background: {
+                entry: "./background.ts",
+                ...(automatic
+                  ? { autoStart: true as const, fileHistory: true as const }
+                  : {}),
+                network: true,
+                ...(automatic
+                  ? { networkOrigins: ["https://example.com"] }
+                  : {}),
+                bluetooth: true,
+              },
+            },
+          }}
+          onBack={() => {}}
+          onToggleEnable={() => {}}
+          onUninstall={() => {}}
+        />
+      )
+    )
+    const features = [...container.querySelectorAll('[role="tab"]')].find(
+      (tab) => tab.textContent?.startsWith("Features")
+    )!
+    expect(features.textContent).toBe("Features1")
+    await click("Features")
+    const content = () =>
+      container.querySelector('[role="tabpanel"]')!.textContent
+    expect(content()).toContain("Background service")
+    expect(content()).toContain("./background.ts")
+    expect(content()).toContain(
+      automatic
+        ? "Automatically when this Space opens, after approval"
+        : "Started by a plugin page or command, after approval"
+    )
+    expect(content()).toContain(
+      automatic
+        ? "Paths and opening times in this Space; no file contents"
+        : "Not requested"
+    )
+    expect(content()).toContain(
+      automatic ? "https://example.com" : "All public HTTPS/WSS services"
+    )
+    expect(content()).toContain("User-selected device")
+    await click("Runtime & Security")
+    expect(content()).toContain("QuickJS background sandbox")
+    expect(content()).toContain("Background network access")
+    expect(content()).toContain("File-open events")
+  }
+)
 
 async function drop(files: File[], type = "drop") {
   const event = new Event(type, { bubbles: true, cancelable: true })

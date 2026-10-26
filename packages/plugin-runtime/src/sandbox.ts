@@ -2,6 +2,7 @@ import { browserModule } from "./browser-module"
 import type { FileMetadata } from "./contracts"
 import { bootstrap, type BrowserBinding } from "./browser-bootstrap"
 import { createWorkerFetch } from "./worker-fetch"
+import { createPluginI18n, pluginLocaleCandidates } from "./i18n"
 export { SANDBOX_CSP, sandboxCsp } from "./browser-bootstrap"
 
 export function documentViewHtml(code: string, file?: FileMetadata): string {
@@ -26,7 +27,7 @@ export function viewHtml(code: string, binding: BrowserBinding): string {
   // Archive modules are validated self-contained ESM. CommonJS here is only a
   // local exports object inside the iframe closure; no require/Node is supplied.
   const compiled = browserModule(code)
-  const script = `(()=>{(${bootstrap.toString()})((ctx, root)=>{const module = {exports: {}}; const exports = module.exports;\n${compiled}\nreturn module.exports.default(ctx, root);}, ${JSON.stringify(binding)}, ${createWorkerFetch.toString()});})()`
+  const script = `(()=>{(${bootstrap.toString()})((ctx, root)=>{const module = {exports: {}}; const exports = module.exports;\n${compiled}\nreturn module.exports.default(ctx, root);}, ${JSON.stringify(binding)}, ${createWorkerFetch.toString()}, ${createPluginI18n.toString()}, ${pluginLocaleCandidates.toString()});})()`
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 html{color-scheme:var(--eidos-color-scheme,light);background:var(--eidos-background,transparent);}
 html,body,#app{width:100%;height:100%;margin:0;padding:0;}

@@ -16,6 +16,12 @@ import type {
 import { viewHtml } from "./sandbox"
 import { loadTypeScript } from "./toolchain"
 import { createWorkerFetch } from "./worker-fetch"
+import {
+  createPluginI18n,
+  pluginLocaleCandidates,
+  type PluginLanguageData,
+} from "./i18n"
+import type { PluginI18n } from "./contracts"
 
 /** Runs only inside the isolated extension iframe. No host object is captured. */
 function activateGuest(
@@ -24,7 +30,11 @@ function activateGuest(
   declaredFormatters: string[],
   declaredHooks: string[],
   createFetch: typeof createWorkerFetch,
-  workerFetch: boolean
+  workerFetch: boolean,
+  i18n: PluginI18n,
+  languageData: PluginLanguageData,
+  createI18n: typeof createPluginI18n,
+  localeCandidates: typeof pluginLocaleCandidates
 ) {
   const parent = window.parent
   const lifetime = new AbortController()
@@ -285,6 +295,7 @@ function activateGuest(
         }
       : undefined
     const ctx: ActionContext = {
+      i18n: createI18n(languageData, i18n.locale, localeCandidates),
       binding: fileContext
         ? { kind: "file", file: { id: fileContext.path, ...fileContext } }
         : { kind: "workspace" },
@@ -481,6 +492,7 @@ function activateGuest(
         return call(method, { runId: value.id, args })
       }
       const context: TableActionContext = {
+        i18n: createI18n(languageData, i18n.locale, localeCandidates),
         signal: controller.signal,
         capabilities: {
           eidos: {
@@ -524,6 +536,7 @@ function activateGuest(
           const items =
             value.operation === "list"
               ? await provider.getItems({
+                  i18n: context.i18n,
                   signal: context.signal,
                   capabilities: { eidos: context.capabilities.eidos },
                 })
@@ -590,6 +603,7 @@ function activateGuest(
   void Promise.resolve()
     .then(() =>
       activate({
+        i18n,
         signal: lifetime.signal,
         subscriptions: { add: own },
         capabilities: {
@@ -719,7 +733,9 @@ export function extensionHtml(
   actions: string[],
   formatters: string[] = [],
   hooks: string[] = [],
-  workerFetch = false
+  workerFetch = false,
+  languageData: PluginLanguageData = { defaultLocale: "en", messages: {} },
+  locale = "en"
 ): string {
   // The view bootstrap supplies transport for its own mount only. The extension
   // bootstrap uses a separate channel state and never exposes a DOM root to Activate.
@@ -732,6 +748,12 @@ export function extensionHtml(
       allowJs: true,
     },
   }).outputText
-  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount() { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}, ${createWorkerFetch.toString()}, ${workerFetch}); }`
-  return viewHtml(adapter, { kind: "page", route: "", workerFetch })
+  const adapter = `const activate = (() => { const exports = {}; ${compiled}; return exports.default; })(); export default function mount(ctx) { (${activateGuest.toString()})(activate, ${JSON.stringify(actions)}, ${JSON.stringify(formatters)}, ${JSON.stringify(hooks)}, ${createWorkerFetch.toString()}, ${workerFetch}, ctx.i18n, ${JSON.stringify(languageData)}, ${createPluginI18n.toString()}, ${pluginLocaleCandidates.toString()}); }`
+  return viewHtml(adapter, {
+    kind: "page",
+    route: "",
+    workerFetch,
+    languageData,
+    locale,
+  })
 }

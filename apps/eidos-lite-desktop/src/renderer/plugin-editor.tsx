@@ -47,8 +47,24 @@ export function PluginEditor({
   hostEvent?: { observation: string; value: unknown }
   onError?(message: string): void
 }) {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const frame = useRef<HTMLIFrameElement>(null)
+  useEffect(() => {
+    const element = frame.current
+    const sendLocale = () =>
+      element?.contentWindow?.postMessage(
+        {
+          protocol: PLUGIN_PROTOCOL,
+          apiVersion: 1,
+          observation: "host.locale",
+          value: locale === "zh" ? "zh-CN" : locale,
+        },
+        "*"
+      )
+    sendLocale()
+    element?.addEventListener("load", sendLocale)
+    return () => element?.removeEventListener("load", sendLocale)
+  }, [locale, instance.ticket])
   const loads = useRef(0)
   const lease = useRef<string | null>(null)
   const callbacks = useRef({

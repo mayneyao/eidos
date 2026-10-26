@@ -7,6 +7,7 @@ import type { ViewConfiguration } from "@eidos.space/plugin-runtime/contracts"
 import type {
   EidosFilePlugin,
   EidosFileViewRendererProps,
+  EidosFileViewRenderer,
 } from "@eidos.space/eidos-file-ui"
 import type { PluginRequest } from "@eidos.space/plugin-runtime/rpc"
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
@@ -223,6 +224,12 @@ function TableView({
 }
 
 export function usePluginTableViews(): EidosFilePlugin[] {
+  const renderers = useRef(
+    new Map<
+      string,
+      { schema?: ViewConfiguration; render: EidosFileViewRenderer }
+    >()
+  )
   const [listing, setListing] = useState<PluginListing | null>(null)
   useEffect(() => {
     if (!window.eidosLite?.listPlugins) return
@@ -252,7 +259,7 @@ export function usePluginTableViews(): EidosFilePlugin[] {
     () =>
       (listing?.plugins ?? [])
         .filter((plugin) => plugin.enabled)
-        .flatMap(({ manifest }) => {
+        .flatMap(({ manifest, hash }) => {
           const views = (manifest.views ?? []).filter(
             (view) =>
               viewResource(view) === "table" &&
@@ -266,6 +273,26 @@ export function usePluginTableViews(): EidosFilePlugin[] {
                   id: manifest.id,
                   views: views.map((view) => {
                     const contribution = `${manifest.id}/${view.id}`
+                    const key = `${contribution}/${hash}`
+                    let cached = renderers.current.get(key)
+                    if (!cached) {
+                      const entry: {
+                        schema?: ViewConfiguration
+                        render: EidosFileViewRenderer
+                      } = {
+                        schema: view.configuration,
+                        render: (props) => (
+                          <TableView
+                            {...props}
+                            contribution={contribution}
+                            schema={entry.schema}
+                          />
+                        ),
+                      }
+                      cached = entry
+                      renderers.current.set(key, entry)
+                    }
+                    cached.schema = view.configuration
                     return {
                       type: `plugin:${contribution}`,
                       label: view.title,
@@ -299,13 +326,7 @@ export function usePluginTableViews(): EidosFilePlugin[] {
                             />
                           )
                         : undefined,
-                      renderer: (props: EidosFileViewRendererProps) => (
-                        <TableView
-                          {...props}
-                          contribution={contribution}
-                          schema={view.configuration}
-                        />
-                      ),
+                      renderer: cached.render,
                     }
                   }),
                 },

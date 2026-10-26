@@ -28,6 +28,7 @@ vi.mock("electron", () => ({
     getPath: (name?: string) =>
       name === "appData" ? `${mock.directory}-app-data` : mock.directory,
     getName: () => "Eidos Lite",
+    getLocale: () => "en-US",
     getAppPath: () => process.cwd(),
   },
   ipcMain: {
@@ -142,6 +143,8 @@ beforeEach(async () => {
     ])
   )
   registered = registerPluginIpc({
+    getPreferences: async () => ({ language: "en" }),
+    onPreferencesChanged: () => () => {},
     showSettingsWindow: () => mock.windows[2],
     requireSession: (sender: { id: number }) => {
       const session = sessions.get(sender.id)

@@ -311,7 +311,12 @@ pub fn unpack_package_modules(
     })?;
 
     // Write modules
-    for (entry, code) in &envelope.modules {
+    for (entry, code) in envelope.modules.iter().chain(
+        envelope
+            .resources
+            .iter()
+            .flat_map(|resources| resources.iter()),
+    ) {
         let clean_path = module_path(entry)?;
         let out_path = plugin_dir.join(clean_path);
         if let Some(parent) = out_path.parent() {
