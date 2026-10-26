@@ -7,6 +7,58 @@ vi.mock("./i18n", () => ({
   useEidosLiteI18n: () => ({ t: (text: string) => text }),
 }))
 
+it("shows whole-tree actions only in the Space context menu", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  const expandAll = vi.fn()
+  try {
+    await act(async () =>
+      root.render(
+        <WorkspaceHeading
+          name="Space"
+          path="/Space"
+          searching={false}
+          searchRef={createRef<HTMLButtonElement>()}
+          shortcut=""
+          onSearch={vi.fn()}
+          onBack={vi.fn()}
+          query=""
+          onQueryChange={vi.fn()}
+          focusToken={0}
+          actions={[]}
+          treeExpansionActions={{
+            scope: "all",
+            isExpanded: () => false,
+            toggle: expandAll,
+          }}
+        />
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Create"]')!.click()
+    )
+    expect(host.textContent).not.toContain("Expand all folders")
+    await act(async () => {
+      host
+        .querySelector(".space-heading")!
+        .dispatchEvent(
+          new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+        )
+    })
+    expect(host.textContent).toContain("Expand all folders")
+    expect(host.textContent).not.toContain("Collapse all folders")
+    expect(host.textContent).not.toContain("Expand subfolders")
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click()
+    )
+    expect(expandAll).toHaveBeenCalledOnce()
+    expect(host.querySelector('[role="group"]')).toBeNull()
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("navigates each folder breadcrumb and marks the current location", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement("div")

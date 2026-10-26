@@ -10,6 +10,10 @@ import { useEidosLiteI18n } from "./i18n"
 import type { TextSearchOptions } from "../shared/text-search"
 import type { ExplorerSort } from "./explorer-sort"
 import { ExplorerSortMenu } from "./explorer-sort-menu"
+import {
+  TreeExpansionMenu,
+  type TreeExpansionActions,
+} from "./tree-expansion-menu"
 
 export function WorkspaceHeading({
   name,
@@ -33,7 +37,9 @@ export function WorkspaceHeading({
   onSortChange,
   spaceSwitcher,
   onManageFiles,
+  treeExpansionActions,
 }: {
+  treeExpansionActions?: TreeExpansionActions | null
   spaceSwitcher?: ReactNode
   onManageFiles?: () => void
   name: string
@@ -87,8 +93,13 @@ export function WorkspaceHeading({
     <div
       className="space-heading"
       onContextMenu={
-        onManageFiles
+        onManageFiles || treeExpansionActions
           ? (event) => {
+              if (
+                event.target instanceof HTMLElement &&
+                event.target.closest("input, textarea")
+              )
+                return
               event.preventDefault()
               setMenuOpen("context")
             }
@@ -264,19 +275,6 @@ export function WorkspaceHeading({
                   menuOpen === "context" ? "Manage files" : "Create"
                 )}
               >
-                {onManageFiles && menuOpen === "context" ? (
-                  <button
-                    type="button"
-                    disabled={navigationDisabled}
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onManageFiles()
-                    }}
-                  >
-                    <Database />
-                    {t("Manage files")}
-                  </button>
-                ) : null}
                 {actions.map((action) => (
                   <button
                     type="button"
@@ -298,6 +296,34 @@ export function WorkspaceHeading({
                     {action.label}
                   </button>
                 ))}
+                {menuOpen === "context" &&
+                actions.length > 0 &&
+                (treeExpansionActions || onManageFiles) ? (
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                ) : null}
+                {menuOpen === "context" && treeExpansionActions ? (
+                  <TreeExpansionMenu
+                    actions={treeExpansionActions}
+                    disabled={navigationDisabled}
+                    onClose={() => setMenuOpen(false)}
+                  />
+                ) : null}
+                {onManageFiles && menuOpen === "context" ? (
+                  <button
+                    type="button"
+                    disabled={navigationDisabled}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onManageFiles()
+                    }}
+                  >
+                    <Database />
+                    {t("Manage files")}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>

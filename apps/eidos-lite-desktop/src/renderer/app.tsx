@@ -13,6 +13,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react"
 import { flushSync } from "react-dom"
+import {
+  TreeExpansionMenu,
+  type TreeExpansionActions,
+} from "./tree-expansion-menu"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import type { ThemeDeclaration } from "@eidos.space/plugin-sdk"
@@ -1098,7 +1102,23 @@ function WorkspaceApp({
     entries: SpaceTreeEntry[]
     x: number
     y: number
+    expansionActions?: TreeExpansionActions
   } | null>(null)
+  const [treeExpansionActions, setTreeExpansionActions] =
+    useState<TreeExpansionActions | null>(null)
+  const entryContextMenuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    for (const ref of [entryContextMenuRef]) {
+      const menu = ref.current
+      if (!menu) continue
+      const bounds = menu.getBoundingClientRect()
+      menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
+      menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
+    }
+  }, [contextMenu])
+  useEffect(() => {
+    setContextMenu(null)
+  }, [space?.id, explorerDirectory])
   const [publishPanel, setPublishPanel] = useState<{
     entry: SpaceTreeEntry
     x: number
@@ -1715,7 +1735,9 @@ function WorkspaceApp({
 
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
+    const close = () => {
+      setContextMenu(null)
+    }
     const unsubscribePreviewPointer =
       window.eidosLite.onHtmlPreviewPointerDown(close)
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -3624,7 +3646,8 @@ function WorkspaceApp({
     entry: SpaceTreeEntry,
     x: number,
     y: number,
-    entries: SpaceTreeEntry[] = [entry]
+    entries: SpaceTreeEntry[] = [entry],
+    expansionActions?: TreeExpansionActions
   ) => {
     setSelectedEntry(entries.length === 1 ? entry : null)
     void refreshPublicationBindings()
@@ -3632,6 +3655,7 @@ function WorkspaceApp({
     setContextMenu({
       entry,
       entries,
+      expansionActions,
       x: Math.max(8, Math.min(x, window.innerWidth - 200)),
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
@@ -3748,6 +3772,7 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
+        treeExpansionActions={treeExpansionActions}
         sort={explorerSort}
         onSortChange={setExplorerSort}
         name={space.name}
@@ -3956,7 +3981,10 @@ function WorkspaceApp({
                 onLoadDirectory={(relativePath) => {
                   return window.eidosLite
                     .loadSpaceDirectory(relativePath)
-                    .then(acceptSpaceSnapshot)
+                    .then((snapshot) => {
+                      if (launchSpace.current?.id === snapshot.id)
+                        acceptSpaceSnapshot(snapshot)
+                    })
                 }}
                 onMove={moveTreeEntries}
                 onImportFiles={async (files, targetDirectory) => {
@@ -3985,6 +4013,7 @@ function WorkspaceApp({
                   setError(`Could not rename item. ${errorMessage(cause)}`)
                 }
                 onContextMenu={openEntryContextMenu}
+                onExpansionActionsChange={setTreeExpansionActions}
               />
             </Suspense>
             {busyFile ? (
@@ -5414,6 +5443,7 @@ function WorkspaceApp({
       ) : null}
       {contextMenu ? (
         <div
+          ref={entryContextMenuRef}
           className="space-context-menu"
           role="menu"
           data-submenu-side={
@@ -5429,6 +5459,23 @@ function WorkspaceApp({
                   count: contextMenu.entries.length,
                 })}
               </p>
+              {contextMenu.expansionActions && (
+                <>
+                  <TreeExpansionMenu
+                    actions={contextMenu.expansionActions}
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClose={() => setContextMenu(null)}
+                  />
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                </>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -5532,42 +5579,6 @@ function WorkspaceApp({
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void navigateExplorerDirectory(
-                        contextMenu.entry.relativePath
-                      )
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderOpen /> {t("Show this folder")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void openFileMetadata(contextMenu.entry.relativePath)
-                      setContextMenu(null)
-                    }}
-                  >
-                    <Database /> {t("Manage files")}
-                  </button>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
                     disabled={pathMutationBusy || localInteractionBlocked}
                     onClick={() => {
                       setPathDialog({
@@ -5592,6 +5603,53 @@ function WorkspaceApp({
                     }}
                   >
                     <FolderPlus /> {t("New folder")}
+                  </button>
+                  <div
+                    role="separator"
+                    className="space-context-menu-separator"
+                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void navigateExplorerDirectory(
+                        contextMenu.entry.relativePath
+                      )
+                      setContextMenu(null)
+                    }}
+                  >
+                    <FolderOpen /> {t("Show this folder")}
+                  </button>
+                  {contextMenu.expansionActions && (
+                    <TreeExpansionMenu
+                      actions={contextMenu.expansionActions}
+                      disabled={
+                        pathMutationBusy ||
+                        localInteractionBlocked ||
+                        busyFile !== null
+                      }
+                      onClose={() => setContextMenu(null)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={
+                      pathMutationBusy ||
+                      localInteractionBlocked ||
+                      busyFile !== null
+                    }
+                    onClick={() => {
+                      void openFileMetadata(contextMenu.entry.relativePath)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <Database /> {t("Manage files")}
                   </button>
                 </>
               ) : null}
