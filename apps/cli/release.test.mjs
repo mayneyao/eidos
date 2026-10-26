@@ -303,6 +303,8 @@ test("Rust consumers share one workspace and mobile excludes Serve by default", 
     "eidos",
     "eidos-file-core",
     "eidos-mobile-host",
+    "eidos-plugin-sandbox",
+    "eidos-plugin-sandbox-cli",
     "eidos-publish",
     "eidos-runtime-host",
   ])
@@ -320,6 +322,17 @@ test("Rust consumers share one workspace and mobile excludes Serve by default", 
   assert.deepEqual(cliRuntime.features, ["serve"])
   for (const entry of packages.values()) {
     assert.deepEqual(entry.publish, [])
+    if (entry.name === "eidos-plugin-sandbox-cli") {
+      assert.equal(
+        entry.manifest_path,
+        path.join(process.cwd(), "apps/plugin-sandbox/Cargo.toml")
+      )
+      assert.deepEqual(
+        entry.targets.map((target) => target.name),
+        ["plugin-sandbox"]
+      )
+      continue
+    }
     if (entry.name !== "eidos") {
       assert.ok(
         entry.manifest_path.startsWith(
