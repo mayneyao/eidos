@@ -1331,6 +1331,18 @@ describe("Eidos Publish control plane", () => {
           multiline: true,
           required: true,
           nullable: false,
+          constraints: { maxBytes: 65536 },
+        },
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000016",
+          inputKey: "input_contact_0000001",
+          type: "text",
+          label: "Contact",
+          description: null,
+          placeholder: null,
+          multiline: false,
+          required: false,
+          nullable: true,
           constraints: { maxBytes: 320 },
         },
         {
@@ -1660,6 +1672,42 @@ describe("Eidos Publish control plane", () => {
     expect(publicDefinition.fields[0]).not.toHaveProperty("fieldId")
     expect(publicDefinition.fields[0]?.multiline).toBe(true)
 
+    const feedbackText =
+      "Error invoking remote method 'eidos-lite:checkpoint-create': Error: Other files are already staged.\r\n" +
+      "\t在变更很多的情况下，commit 失败了。\n\n" +
+      "关闭 eidos\u00a0lite 后再次 commit 报错。"
+    for (const [index, values] of [
+      ...["\u0000", "\u000b", "\u000c", "\u001b", "\u007f"].map((control) => ({
+        input_email_00000001: `Feedback${control}text`,
+      })),
+      { input_email_00000001: "x".repeat(65537) },
+      ...["\n", "\r", "\t"].map((control) => ({
+        input_email_00000001: "Feedback",
+        input_contact_0000001: `Contact${control}text`,
+      })),
+    ].entries()) {
+      const rejected = await SELF.fetch(
+        `${publicOrigin}/_eidos/forms/${slug}/submissions/init`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: respondentCookie,
+          },
+          body: JSON.stringify({
+            intent: publicDefinition.submissionIntent,
+            idempotencyKey: `invalid-feedback-${index}`,
+            values,
+            attachments: [],
+          }),
+        }
+      )
+      expect(rejected.status).toBe(400)
+      expect(await rejected.json()).toMatchObject({
+        error: { code: "submission_invalid" },
+      })
+    }
+
     const attachment = new TextEncoder().encode("same screenshot bytes")
     const attachmentSha256 = await digestHex(attachment)
     const attachmentId = "attachment00000001"
@@ -1674,7 +1722,7 @@ describe("Eidos Publish control plane", () => {
         body: JSON.stringify({
           intent: publicDefinition.submissionIntent,
           idempotencyKey: "submission-feedback-0001",
-          values: { input_email_00000001: "person@example.com" },
+          values: { input_email_00000001: feedbackText },
           attachments: [
             {
               attachmentId,
@@ -1771,7 +1819,7 @@ describe("Eidos Publish control plane", () => {
       }>
     }
     expect(JSON.parse(inbox.submissions[0]!.payloadJson)).toEqual({
-      [EMAIL_FIELD_ID]: "person@example.com",
+      [EMAIL_FIELD_ID]: feedbackText,
       [FILE_FIELD_ID]: { attachments: [attachmentId] },
     })
 
