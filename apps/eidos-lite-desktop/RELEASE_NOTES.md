@@ -1,24 +1,19 @@
 ## What's new
 
-### Plugins that keep working in the background
+### Filter your Space without leaving the Explorer
 
-Plugins can now keep a background instance running after you close their page or finish a command. Views and commands share that instance, so a connection or an ongoing task can continue without keeping a panel open.
+Find files by name, path, suffix, or extended properties using the same filter editor as tables. Combine conditions with AND/OR and nested groups, including multiple or compound suffixes. Matching files keep their parent folders visible, and filtering also finds files inside collapsed folders. Conditions stay in the filter menu, with a count on the toolbar button.
 
-Plugins can request permission to start automatically when you open a Space and to receive file-open events. This enables tools such as an enhanced recent-file history that records visits while you work. Enable and authorize each plugin in the Space where you want it to run.
+### Plugins in your language
 
-### Bluetooth devices and shared connections
-
-Plugins can connect to BLE GATT devices through Lite's device picker and retain the connection in the background. Choose a device, then follow the connection status in the plugin. Bluetooth access requires your approval; this supports device services such as battery readings, not Bluetooth audio playback.
-
-### Network access for plugins
-
-Plugin views, commands and backgrounds can use a consistent fetch API, including streamed responses and cancellation. Backgrounds can also maintain WebSocket connections shared by multiple views. Network access requires your approval and remains subject to host restrictions. Existing credential connections and network APIs remain available.
+Plugins can now bundle translated names, descriptions, contribution labels, and separate README documents. Plugin details select the matching language instead of mixing translations in one document, and supported plugin interfaces can respond when you change the app language. Plugin developers can start with the new localized-page template and Plugin API 3.7.
 
 ## Improvements
 
-- **Record menus**: Table views share consistent record actions, with group destinations collected under a Move to submenu.
+- **Explorer**: Right-click a Space to expand or collapse all folders, or a folder to control only its subtree, using one contextual menu item.
+- **Plugins**: Details identify background services alongside other contributions. Enabled labels are shorter, and sidebar reordering shows the new position as you drag.
 
 ## Bug fixes
 
-- **File thumbnails**: Opening a file in its default application no longer clears the table's thumbnails during file refresh. Visible images stay in place while Lite checks for changes, and updated images replace them after loading.
-- **File menus**: When an attachment and a file action refer to the same file, the menu shows one Open with default application action.
+- **Sync**: Recover validated system-metadata merges safely, show clearer table and field conflict summaries, and retain a resumable recovery state when a merge cannot finish.
+- **Plugin sidebar**: Highlight the selected plugin entry correctly when multiple entries share a name.
