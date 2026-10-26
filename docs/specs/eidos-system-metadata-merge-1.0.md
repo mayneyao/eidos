@@ -272,6 +272,14 @@ One Table object is identified by `id`.
 
 - **Create Table**: one-sided creation is automatic when its name, physical
   schema, required system Fields, and label Field remain valid.
+  A host-materialized Table may be reused only after Runtime proves that its
+  physical schema (including generated objects) and every stored row match
+  the creating side, with no competing identity or name. Its Fields and
+  subtype definitions are adopted together. Other pre-merged user rows must
+  remain intact, and full candidate validation is still required. This does
+  not waive the Ours-derived seed contract or authorize accepting undeclared
+  generated objects; a host unable to supply that valid projection must keep
+  the structural change unresolved.
 - **Concurrent same-ID creation**: unequal inserts are `identity-collision`.
 - **Concurrent different-ID same-name creation**: `name-collision`.
 - **Rename on one side**: automatic only when the physical table rename and

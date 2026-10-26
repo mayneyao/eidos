@@ -58,7 +58,7 @@ function conflictColumns(conflict: EidosSyncMergeConflict): string[] {
   return Array.from({ length: rowLength }, (_, index) =>
     conflict.rowColumns?.[index]
       ? conflict.rowColumns[index]!
-      : conflict.columns?.[index]
+      : conflict.columns?.length === rowLength && conflict.columns?.[index]
         ? conflict.columns[index]!
         : `Column ${index + 1}`
   )

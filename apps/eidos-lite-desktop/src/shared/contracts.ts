@@ -15,6 +15,7 @@ import type {
   EidosFileSnapshot,
   EidosFileFieldInfo,
   EidosSystemMergeResult,
+  EidosSystemMergeDomainConflict,
   FileEntry,
   SchemaPreflightResult,
   UrlImageLease,
@@ -1278,6 +1279,8 @@ export interface EidosSyncMergeSchemaColumnChange {
 }
 
 export interface EidosSyncMergeConflict {
+  /** Canonical Runtime summaries; keep existence and logical names intact. */
+  systemConflict?: EidosSystemMergeDomainConflict
   id: string
   path: string
   pathKind: EidosSyncMergePathKind
@@ -1736,6 +1739,7 @@ export type RuntimeWorkerRequest =
       type: "inspectMergeTables"
       requestId: number
       filePaths: string[]
+      includeColumns?: boolean
     }
   | {
       type: "create"

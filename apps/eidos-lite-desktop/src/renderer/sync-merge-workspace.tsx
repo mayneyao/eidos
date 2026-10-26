@@ -1492,7 +1492,7 @@ function ResolvedPathNotice({ title }: { title: string }) {
 }
 
 function readableMergeTerm(value: string | undefined): string {
-  if (!value) return "Changed structure"
+  if (!value) return "Details unavailable"
   return value
     .replaceAll(/[_-]+/g, " ")
     .replaceAll(/\b\w/g, (character) => character.toUpperCase())
@@ -1608,54 +1608,113 @@ function SchemaConflictReview({
                         ? "Needs validation"
                         : conflict.kind === "schema"
                           ? "Schema"
-                          : "Opaque"}
+                          : conflict.systemConflict
+                            ? readableMergeTerm(
+                                conflict.systemConflict.objectKind
+                              )
+                            : "Opaque"}
                   </span>
                 </div>
                 <p>{readableMergeTerm(conflict.reason)}</p>
               </header>
               <div className="sync-merge-schema-versions">
-                <section data-schema-conflict-side="base">
-                  <header>Base</header>
-                  <strong>Common ancestor</strong>
-                  <p>
-                    {conflict.entryType
-                      ? `${readableMergeTerm(conflict.entryType)} structure before both edits.`
-                      : "The shared structure used to detect these incompatible edits."}
-                  </p>
-                </section>
-                {hasWholeFileRecommendation ? (
-                  <>
-                    <section data-schema-conflict-side="local">
-                      <header>Local</header>
-                      <strong>
-                        {conflict.recommendedResult === "ours"
-                          ? "Recommended result"
-                          : "Changed version"}
-                      </strong>
-                      <p>Contains the meaningful logical changes.</p>
-                    </section>
-                    <section data-schema-conflict-side="hosted">
-                      <header>Hosted</header>
-                      <strong>
-                        {conflict.recommendedResult === "theirs"
-                          ? "Recommended result"
-                          : "Logically equivalent to Base"}
-                      </strong>
-                      <p>Only SQLite storage bytes differ from the ancestor.</p>
-                    </section>
-                  </>
+                {conflict.systemConflict ? (
+                  (["base", "ours", "theirs"] as const).map((side) => {
+                    const domain = conflict.systemConflict!
+                    const summary = domain[side]
+                    const operation =
+                      summary.state === "absent"
+                        ? "Not present"
+                        : side === "base"
+                          ? "Present in common ancestor"
+                          : domain.base.state === "absent"
+                            ? "Added"
+                            : summary.changedGroups?.length
+                              ? "Changed"
+                              : "Present"
+                    return (
+                      <section
+                        key={side}
+                        data-schema-conflict-side={
+                          side === "ours"
+                            ? "local"
+                            : side === "theirs"
+                              ? "hosted"
+                              : "base"
+                        }
+                      >
+                        <header>
+                          {side === "ours"
+                            ? "Local"
+                            : side === "theirs"
+                              ? "Hosted"
+                              : "Base"}
+                        </header>
+                        <strong>{operation}</strong>
+                        {summary.name && (
+                          <p>
+                            {summary.name}
+                            {summary.type ? ` · ${summary.type}` : ""}
+                          </p>
+                        )}
+                        {summary.changedGroups?.length ? (
+                          <p>
+                            {summary.changedGroups
+                              .map(readableMergeTerm)
+                              .join(", ")}
+                          </p>
+                        ) : null}
+                      </section>
+                    )
+                  })
                 ) : (
                   <>
-                    <SchemaConflictSide
-                      label="Local"
-                      operation={conflict.oursOperation}
-                      changes={localChanges}
-                    />
-                    <SchemaConflictSide
-                      label="Hosted"
-                      operation={conflict.theirsOperation}
-                      changes={hostedChanges}
-                    />
+                    <section data-schema-conflict-side="base">
+                      <header>Base</header>
+                      <strong>Common ancestor</strong>
+                      <p>
+                        {conflict.entryType
+                          ? `${readableMergeTerm(conflict.entryType)} structure before both edits.`
+                          : "The shared structure used to detect these incompatible edits."}
+                      </p>
+                    </section>
+                    {hasWholeFileRecommendation ? (
+                      <>
+                        <section data-schema-conflict-side="local">
+                          <header>Local</header>
+                          <strong>
+                            {conflict.recommendedResult === "ours"
+                              ? "Recommended result"
+                              : "Changed version"}
+                          </strong>
+                          <p>Contains the meaningful logical changes.</p>
+                        </section>
+                        <section data-schema-conflict-side="hosted">
+                          <header>Hosted</header>
+                          <strong>
+                            {conflict.recommendedResult === "theirs"
+                              ? "Recommended result"
+                              : "Logically equivalent to Base"}
+                          </strong>
+                          <p>
+                            Only SQLite storage bytes differ from the ancestor.
+                          </p>
+                        </section>
+                      </>
+                    ) : (
+                      <>
+                        <SchemaConflictSide
+                          label="Local"
+                          operation={conflict.oursOperation}
+                          changes={localChanges}
+                        />
+                        <SchemaConflictSide
+                          label="Hosted"
+                          operation={conflict.theirsOperation}
+                          changes={hostedChanges}
+                        />
+                      </>
+                    )}
                   </>
                 )}
               </div>
