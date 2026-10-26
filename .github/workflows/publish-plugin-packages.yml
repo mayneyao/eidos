@@ -87,6 +87,7 @@ jobs:
       - name: Test Plugin Tools
         env:
           EIDOS_PLUGIN_CLI: ${{ github.workspace }}/target/debug/eidos
+          EIDOS_PLUGIN_INSTALL_SMOKE: "1"
         run: pnpm --filter @eidos.space/plugin-tools test
 
       - name: Pack reviewed artifacts

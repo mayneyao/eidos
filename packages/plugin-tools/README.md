@@ -11,6 +11,16 @@ or standalone TS/JS sources, without executing plugin code or build configuratio
 
 ## Checkout setup
 
+The `localized-page` template demonstrates Plugin API 3.7: localized manifest
+labels, `ctx.i18n`, and bilingual README files in a format 3 archive. Use matching
+checkout SDK/tools and host builds until that API is released. Run
+`create /tmp/localized-example --template localized-page` after building the tools.
+Projects created from this checkout include SDK/tools candidate tarballs in
+`.eidos-toolchain/`, referenced by their `package.json`. Keep that directory in
+version control: `npm install`, check, pack and CI then use the same candidate
+without requiring an npm publication or a sibling Eidos checkout. Published
+tools instead generate dependencies matching their own package version.
+
 ```sh
 pnpm install
 pnpm --filter @eidos.space/eidos-file build

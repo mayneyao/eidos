@@ -1,4 +1,36 @@
 {
+  "localized-page": {
+    "description": "English and Simplified Chinese page with bundled documentation",
+    "manifest": {
+      "name": "%plugin.name%",
+      "description": "%plugin.description%",
+      "requires": { "pluginApi": "3.7.0" },
+      "i18n": {
+        "defaultLocale": "en",
+        "messages": {
+          "en": "./locales/en.json",
+          "zh-CN": "./locales/zh-CN.json"
+        },
+        "readme": { "en": "./README.md", "zh-CN": "./README.zh-CN.md" }
+      },
+      "views": [
+        {
+          "id": "main",
+          "title": "%plugin.name%",
+          "kind": "page",
+          "entry": "./src/main.ts"
+        }
+      ],
+      "placements": [{ "location": "navigation", "view": "main" }]
+    },
+    "files": {
+      "src/main.ts": "localized-page.ts.txt",
+      "locales/en.json": "localized-en.json.txt",
+      "locales/zh-CN.json": "localized-zh.json.txt",
+      "README.md": "localized-readme.md.txt",
+      "README.zh-CN.md": "localized-readme.zh.md.txt"
+    }
+  },
   "theme": {
     "description": "Standalone Eidos Lite host theme with light and dark palettes",
     "manifest": {

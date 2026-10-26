@@ -1,0 +1,5 @@
+{
+  "plugin.name": "Localized Page",
+  "plugin.description": "A page that follows your interface language",
+  "search": "Search…"
+}

@@ -9,10 +9,6 @@
     "scripts": {
       "check": "eidos-plugin check .",
       "pack:plugin": "eidos-plugin pack ."
-    },
-    "devDependencies": {
-      "@eidos.space/plugin-sdk": "0.8.0",
-      "@eidos.space/plugin-tools": "0.8.0"
     }
   },
   "tsconfig": {
