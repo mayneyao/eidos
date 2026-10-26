@@ -4471,7 +4471,7 @@ function WorkspaceApp({
               navigationVisible={!!sidebarPagesTarget}
               navigationTarget={sidebarPagesTarget}
               spaceId={space.id}
-              activePage={pluginPage}
+              activePage={pluginsVisible ? null : pluginPage}
               disabled={
                 pathMutationBusy || localInteractionBlocked || !!pathDialog
               }

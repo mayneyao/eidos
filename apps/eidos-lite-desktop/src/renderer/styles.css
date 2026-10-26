@@ -2345,11 +2345,13 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-pages button:hover {
+.sidebar-pages > button:hover,
+.sidebar-pages-choice:hover {
   color: var(--ink);
   background: var(--surface-hover);
 }
-.sidebar-pages button[aria-current="page"] {
+.sidebar-pages > button[aria-current="page"],
+.sidebar-pages-choice[data-current] {
   color: var(--ink);
   background: var(--surface-selected);
 }
@@ -2373,6 +2375,7 @@ body {
 }
 .sidebar-pages-choice {
   display: flex;
+  border-radius: 0.35rem;
 }
 .sidebar-pages-choice > .sidebar-page-open {
   flex: 1;
@@ -2384,7 +2387,11 @@ body {
   cursor: grab;
 }
 .sidebar-pages-choice[data-dragging] {
-  background: var(--surface-selected);
+  opacity: 0.5;
+}
+.sidebar-pages-choice:hover button,
+.sidebar-pages-choice[data-current] button {
+  color: var(--ink);
 }
 .sidebar-pages-choice > button:last-child {
   flex: 0 0 2rem;
