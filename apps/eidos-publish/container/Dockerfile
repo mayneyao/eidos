@@ -4,6 +4,7 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY apps/cli ./apps/cli
+COPY apps/plugin-sandbox ./apps/plugin-sandbox
 COPY skills/eidos /build/skills/eidos
 COPY packages/eidos-file/src ./packages/eidos-file/src
 COPY packages/eidos-file/package.json ./packages/eidos-file/package.json
