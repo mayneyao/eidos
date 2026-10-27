@@ -42,7 +42,7 @@ export function parsePluginLanguageData(value: unknown): PluginLanguageData {
 }
 
 export function canonicalPluginLocale(locale: string): string {
-  return Intl.getCanonicalLocales(locale)[0]
+  return Intl.getCanonicalLocales(locale)[0]!
 }
 
 export function pluginResourcePaths(manifest: PluginManifest): string[] {
@@ -60,7 +60,7 @@ export function pluginLanguageData(
 ): PluginLanguageData {
   const messages: PluginMessages = {}
   for (const [locale, path] of Object.entries(manifest.i18n?.messages ?? {})) {
-    messages[locale] = JSON.parse(resources[path]) as Record<string, string>
+    messages[locale] = JSON.parse(resources[path]!) as Record<string, string>
   }
   return { defaultLocale: manifest.i18n?.defaultLocale ?? "en", messages }
 }
