@@ -225,7 +225,7 @@ export function parseManifest(input: unknown): PluginManifest {
     const declaration = record(m.i18n)
     fields(declaration, ["defaultLocale", "messages"], ["readme"])
     const version = String(record(m.requires).pluginApi).split(".").map(Number)
-    if (!(version[0] > 3 || (version[0] === 3 && version[1] >= 7)))
+    if (!(version[0]! > 3 || (version[0] === 3 && version[1]! >= 7)))
       invalid("i18n requires plugin API 3.7.0 or newer")
     for (const [kind, raw] of [
       ["messages", declaration.messages],
