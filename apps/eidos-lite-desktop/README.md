@@ -31,6 +31,13 @@ Use the Space name at the top of the Explorer to switch recent Spaces, open
 or create a folder, or open a synced Space. Switching Spaces checks unsaved
 text drafts before releasing the previous local session.
 
+Lite reopens the most recently opened Space on startup. The Space selector appears
+on first use, when there is no remembered Space, or when the last folder is
+unavailable or cannot be opened. Closing a Space window keeps the selector closed;
+on macOS, clicking the Dock icon with no windows open reopens the last Space.
+Opening a file or installing a plugin from outside Lite takes priority over
+reopening the last Space.
+
 File editor plugins: [specification](../../docs/specs/eidos-lite-plugins-1.0.md),
 [SDK](../../packages/plugin-sdk/README.md), and
 [developer quick start](../../packages/plugin-tools/README.md).
