@@ -158,6 +158,13 @@ export class RuntimePool {
     }
     const existingSession = this.sessionByCanonicalPath.get(canonicalPath)
     if (existingSession) {
+      if (this.entriesBySession.get(existingSession)?.closed) {
+        // A watcher can still be draining the old worker after this path has
+        // been restored. Wait for its exit, then validate the path again and
+        // allocate a fresh session rather than reusing the closing handle.
+        await this.invalidateSession(existingSession)
+        return this.open(relativePath)
+      }
       const entry = this.requireEntry(existingSession)
       this.touch(entry)
       const reopenedSnapshot = await this.ensureResident(entry)
