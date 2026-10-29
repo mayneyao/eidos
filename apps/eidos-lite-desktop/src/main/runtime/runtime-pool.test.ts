@@ -251,6 +251,53 @@ describe("RuntimePool LRU policy", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+  it("waits for an invalidated runtime to exit before reopening a restored path", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-restored-open-"))
+    )
+    const original = path.join(root, "note.eidos")
+    const moved = path.join(root, "moved.eidos")
+    await writeFile(original, "fixture")
+    const previous = new DelayedExitRuntimeUtilityProcess()
+    const replacement = new FakeRuntimeUtilityProcess()
+    const killed = vi.spyOn(previous, "kill")
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(previous as unknown as UtilityProcess)
+      .mockReturnValueOnce(replacement as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/tmp/runtime-worker.js")
+    let invalidation: Promise<unknown> | undefined
+    try {
+      const opened = await pool.open("note.eidos")
+      await rename(original, moved)
+      invalidation = pool.reconcilePaths()
+      await vi.waitFor(() => expect(killed).toHaveBeenCalledOnce())
+      await rename(moved, original)
+      const retry = pool.open("note.eidos").then(
+        (value) => ({ value, error: null }),
+        (error: unknown) => ({ value: null, error })
+      )
+      // Give filesystem checks time to reach the still-closing runtime.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(utilityProcess.fork).toHaveBeenCalledOnce()
+      previous.exit()
+      await invalidation
+      const result = await retry
+      expect(result.error).toBeNull()
+      expect(result.value?.relativePath).toBe("note.eidos")
+      expect(result.value?.sessionId).not.toBe(opened.sessionId)
+      expect(utilityProcess.fork).toHaveBeenCalledTimes(2)
+      await expect(
+        pool.call(opened.sessionId, "getSnapshot", [])
+      ).rejects.toThrow("Unknown or closed")
+    } finally {
+      previous.exit()
+      await invalidation
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("validates a batch privately without initializing editor runtimes", async () => {
     const root = await realpath(
       await mkdtemp(path.join(tmpdir(), "eidos-lite-pool-validate-"))
