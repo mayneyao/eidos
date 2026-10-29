@@ -1,4 +1,5 @@
-## Bug fixes
+## Improvements
 
-- **LAN pairing**: Pairing codes prefer local-network interfaces and include alternative addresses, preventing VPN or virtual adapters from making a computer unreachable to a phone. Update the mobile app as well, then generate a new code in Device connection.
-- **Pairing QR codes**: Larger, sharper codes with more surrounding space improve recognition when connecting a phone.
+### Start in your last Space
+
+Eidos Lite now opens your most recently used Space when you launch the app. The Space selector appears on first use or when that folder cannot be opened. Closing a Space window no longer brings the selector back; switch Spaces anytime from the Space name at the top of the Explorer.
