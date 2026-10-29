@@ -300,15 +300,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 var accepted = false
                 try {
                     val invitation = PeerInvitation.parse(code)
-                    val connection =
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            PeerConnection(
-                                invitation.url,
-                                invitation.fingerprint,
-                                invitation.ticket,
-                                invitation.name,
-                            )
-                        }
+                    val connection = PeerConnection.forInvitation(getApplication(), invitation)
                     val known =
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             PeerConnection.load(
@@ -360,7 +352,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                     val trusted =
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             PeerConnection(
-                                invitation.url,
+                                connection.url,
                                 invitation.fingerprint,
                                 approved.getString("token"),
                                 invitation.name,

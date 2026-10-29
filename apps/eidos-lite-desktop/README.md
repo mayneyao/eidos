@@ -13,6 +13,11 @@ codes or editor windows. Explicitly stopping the LAN service disables restart
 restoration and stops sharing all Spaces. Unavailable or replaced folders are
 not shared; an unavailable folder is retried on the next app launch.
 
+Pairing codes use private IPv4 addresses, prefer physical network adapters, and
+include alternatives for computers with multiple adapters. Android verifies the
+computer's certificate before choosing an endpoint and requesting approval. Generate
+a new code after changing networks; allow Eidos Lite through the computer's firewall.
+
 After a phone submits the pairing code, it shows **等待电脑授权** and the computer
 name. Eidos Lite presents a native dialog identifying the phone, with Accept and
 Reject actions. Each request sends one system notification with the default system

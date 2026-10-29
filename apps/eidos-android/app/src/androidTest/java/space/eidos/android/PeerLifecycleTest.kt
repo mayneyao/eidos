@@ -12,6 +12,29 @@ import org.junit.Test
 
 class PeerLifecycleTest {
     @Test
+    fun stoppingPairingInterruptsCertificateProbe() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val entered = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        var socket: Socket? = null
+        val accepted = scope.launch { socket = server.accept(); entered.countDown() }
+        val invitation = PeerInvitation("https://127.0.0.1:${server.localPort}", "0".repeat(64), "b".repeat(43), "device", "Computer")
+        val pairing = scope.launch { PeerConnection.forInvitation(app, invitation) }
+        pairing.invokeOnCompletion { stopped.countDown() }
+        try {
+            assertTrue(entered.await(3, TimeUnit.SECONDS))
+            pairing.cancel()
+            assertTrue("Cancelling pairing must close the TLS probe", stopped.await(1, TimeUnit.SECONDS))
+            assertTrue(pairing.isCancelled)
+        } finally {
+            socket?.close(); server.close(); scope.cancel()
+            runBlocking { pairing.join(); accepted.join() }
+        }
+    }
+
+    @Test
     fun tunnelWaitsForCapacityAndCancellationClosesQueuedSocket() {
         val server = ServerSocket(0, 16, InetAddress.getByName("127.0.0.1"))
         val upstream = java.util.Collections.synchronizedList(mutableListOf<Socket>())

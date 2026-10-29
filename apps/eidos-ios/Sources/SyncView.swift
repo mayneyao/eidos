@@ -424,7 +424,8 @@ struct SyncView: View {
         let cancellation = SyncCancellation()
         run(success: tr("请选择要下载的 Space"), cancellation: cancellation) { progress in
             let invitation = try PeerInvitation.parse(entered)
-            let tunnel = try PeerTunnel(url: invitation.url, fingerprint: invitation.fingerprint)
+            let address = try invitation.resolvedURL()
+            let tunnel = try PeerTunnel(url: address, fingerprint: invitation.fingerprint)
             defer { tunnel.close() }
             var accepted = false
             defer {
@@ -451,7 +452,7 @@ struct SyncView: View {
                 Thread.sleep(forTimeInterval: 1)
             }
             guard let token, !token.isEmpty else { throw LocalError.message(tr("设备配对超时，请重新生成配对码")) }
-            let profile = PeerProfile(url: invitation.url, fingerprint: invitation.fingerprint, token: token, name: invitation.name, space: invitation.space)
+            let profile = PeerProfile(url: address, fingerprint: invitation.fingerprint, token: token, name: invitation.name, space: invitation.space)
             try PeerSync.saveDevice(profile)
             let available = try PeerSync.availableSpaces(profile)
             DispatchQueue.main.async { peerSpaces = peerSpaces.filter { $0.fingerprint != profile.fingerprint } + available; selectedFingerprint = profile.fingerprint; availability[profile.fingerprint] = .online(Set(available.map(\.space))); enteringCode = false; addingComputer = false; code = "" }

@@ -395,6 +395,7 @@ const zh: Record<string, string> = {
     "输入此 Space 的同步密码，即可在此设备打开。",
   "Choose another Space": "选择其他 Space",
   "Set up LAN sync": "设置局域网同步",
+  "Connect this computer to a local network first": "请先将电脑连接到局域网。",
   "Connect your devices to sync this Space over the same local network.":
     "连接设备，即可在同一局域网内同步此 Space。",
   "Choose which Spaces to share in their Sync panels. Turning off LAN sync here stops sharing for all Spaces.":

@@ -37,6 +37,8 @@ final class PeerScannerTests: XCTestCase {
         XCTAssertThrowsError(try PeerQRCode.invitation(in: image("https://example.com")))
         let invitation = PeerInvitation(version: 1, url: "https://8.8.8.8:12345", fingerprint: String(repeating: "a", count: 64), ticket: String(repeating: "b", count: 43), space: "project", name: "My computer")
         let code = "eidos-peer:" + (try JSONEncoder().encode(invitation)).base64EncodedString()
-        XCTAssertThrowsError(try PeerQRCode.invitation(in: image(code)))
+        // Recognition retains the identity for discovery; the transport still rejects public IPs.
+        XCTAssertEqual(try PeerQRCode.invitation(in: image(code)), code)
+        XCTAssertThrowsError(try PeerTunnel.endpoint(invitation.url))
     }
 }

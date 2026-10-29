@@ -1,33 +1,31 @@
-# Eidos Android 0.2.1
+# Eidos Android 0.3.0
 
-This update fixes the language of new Eidos files and improves connections to
-paired computers and Markdown editing. Android 9 or newer is required.
-
-## Improvements
-
-- Paired computers are detected sooner after returning to the app or changing
-  networks. Saved addresses and local-network discovery are checked in parallel,
-  and the first verified connection is used.
+This update fixes initial LAN pairing when a computer advertises an unreachable
+VPN or virtual-network address. Android 9 or newer is required.
 
 ## Bug fixes
 
-- New Eidos files use the selected app language for their default table and
-  field names. English creates Records, Title and Notes. Existing table and field
-  names remain unchanged when switching languages. Fixes #327.
-- Tapping below the last Markdown block places the caret at the end without
-  marking an unchanged document as edited or saving an extra blank line. Typing,
-  Enter and undo continue to use normal editing history.
+- Pairing tries alternative local-network addresses and verifies the computer's
+  certificate before sending pairing credentials. Older codes can recover through
+  local-network discovery. Connection failures give actionable guidance.
+- Deleting a favorite also removes its entry from the favorites list.
+
+## Improvements
+
+- The shared Eidos File editor adds column-header filtering, clearer filter
+  editing and consistent record context menus. File previews retain loaded
+  images while checking for changes.
 
 ## Install
 
-Download `eidos-android-0.2.1.apk` and verify it against `SHA256SUMS`. The APK
-supports ARM64 and x86-64. Install it over the previous stable APK to retain local
-data; the signing identity and application ID are unchanged. The development
-app remains separate.
+Download `eidos-android-0.3.0.apk` and verify it against `SHA256SUMS`. Install over
+the previous stable APK to retain local data. The APK supports ARM64 and x86-64;
+the development app remains separate. Distribution uses GitHub APKs, not Google Play.
 
-## Compatibility and scope
+## LAN pairing
 
-Device sync requires the paired computer and phone to be on the same local
-network with device sync enabled in Eidos Lite. Keep the app in the foreground
-during transfers. Distribution uses the GitHub APK channel; Google Play
-publication is not configured.
+Update Eidos Lite to 0.29.1 and generate a fresh code in Device connection.
+Keep both devices on the same local network and allow Eidos Lite through the
+computer's firewall. Keep the phone in the foreground during transfers.
+The address recovery fix was tested on an Android emulator and a Pixel 6a;
+physical-camera scanning and a Windows computer were not part of those tests.
