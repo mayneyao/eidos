@@ -166,6 +166,13 @@ builds.
 
 ## File association and launch routing
 
+On a normal launch, Lite reopens the most recently opened Space. Welcome appears
+only when there is no recent Space or that folder cannot be opened. Explicit file
+and plugin launch requests take priority. Closing a Space window releases its
+editor session without showing Welcome; on macOS, Dock activation with no windows
+open restores the last Space again. Shared Device Sync sessions retain their
+existing background lifecycle.
+
 The package registers the `.eidos` extension and the
 `eidos-lite://plugins/install/<plugin-id>` URL scheme. Plugin links are accepted
 from macOS `open-url` events, Windows/Linux second-instance arguments, and

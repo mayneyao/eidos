@@ -73,7 +73,7 @@ function fixture() {
   })
   const window = Object.assign(new EventEmitter(), {
     webContents: contents,
-    isDestroyed: () => false,
+    isDestroyed: (): boolean => false,
     isMinimized: () => false,
     show: vi.fn(),
     focus: vi.fn(),
@@ -127,6 +127,165 @@ it("keeps Space runtime loading out of the Welcome controller", () => {
   expect(mocks.sessionModuleLoads).toBe(0)
   fixture()
   expect(mocks.sessionModuleLoads).toBe(0)
+})
+
+function defaultWindowFixture() {
+  const setup = fixture()
+  const internals = setup.controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow): Promise<void>
+  }
+  const create = vi
+    .spyOn(internals, "createWindow")
+    .mockReturnValue(setup.window as unknown as BrowserWindow)
+  const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  const welcome = vi
+    .spyOn(setup.controller, "createWelcomeWindow")
+    .mockReturnValue(setup.window as unknown as BrowserWindow)
+  const focus = vi
+    .spyOn(setup.controller, "focusAnyWindow")
+    .mockReturnValue(null)
+  const recents = vi
+    .spyOn(setup.controller, "listRecentSpaces")
+    .mockResolvedValue([
+      {
+        id: "last",
+        name: "Last",
+        path: "last",
+        available: true,
+        lastOpenedAt: "2026-10-29T00:00:00Z",
+      },
+      {
+        id: "older",
+        name: "Older",
+        path: "older",
+        available: true,
+        lastOpenedAt: "2026-10-28T00:00:00Z",
+      },
+    ])
+  return { ...setup, create, load, welcome, focus, recents }
+}
+
+it("restores the most recently opened Space before loading its renderer", async () => {
+  const setup = defaultWindowFixture()
+  const last = session("last")
+  mocks.create.mockResolvedValueOnce(last)
+  await setup.controller.openDefaultWindow()
+  expect(setup.controller.sessionFor(setup.owner)).toBe(last)
+  expect(setup.create).toHaveBeenCalledExactlyOnceWith(true, "welcome")
+  expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window)
+  expect(last.snapshot.mock.invocationCallOrder[0]).toBeLessThan(
+    setup.load.mock.invocationCallOrder[0]!
+  )
+  expect(setup.welcome).not.toHaveBeenCalled()
+})
+
+it.each(["empty", "unavailable"])(
+  "shows Welcome for %s recents without choosing an older Space",
+  async (kind) => {
+    const setup = defaultWindowFixture()
+    if (kind === "empty") setup.recents.mockResolvedValue([])
+    else
+      setup.recents.mockResolvedValue([
+        {
+          id: "last",
+          name: "Last",
+          path: "last",
+          available: false,
+          lastOpenedAt: "2026-10-29T00:00:00Z",
+        },
+        {
+          id: "older",
+          name: "Older",
+          path: "older",
+          available: true,
+          lastOpenedAt: "2026-10-28T00:00:00Z",
+        },
+      ])
+    await setup.controller.openDefaultWindow()
+    expect(setup.welcome).toHaveBeenCalledOnce()
+    expect(setup.create).not.toHaveBeenCalled()
+  }
+)
+
+it("uses the same window as Welcome when the last Space fails to open", async () => {
+  const setup = defaultWindowFixture()
+  mocks.create.mockRejectedValueOnce(new Error("Space is locked"))
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
+  try {
+    await setup.controller.openDefaultWindow()
+    expect(setup.controller.sessionFor(setup.owner)).toBeNull()
+    expect(setup.create).toHaveBeenCalledOnce()
+    expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window)
+    expect(setup.welcome).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      "Could not reopen the last Space",
+      expect.any(Error)
+    )
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it("falls back to the selector if recent Space history cannot be read", async () => {
+  const setup = defaultWindowFixture()
+  setup.recents.mockRejectedValueOnce(new SyntaxError("Invalid recent Spaces"))
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
+  try {
+    await setup.controller.openDefaultWindow()
+    expect(setup.welcome).toHaveBeenCalledOnce()
+    expect(setup.create).not.toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(
+      "Could not read the last Space",
+      expect.any(SyntaxError)
+    )
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it("coalesces overlapping startup and activation requests", async () => {
+  const setup = defaultWindowFixture()
+  mocks.create.mockResolvedValueOnce(session("last"))
+  const first = setup.controller.openDefaultWindow()
+  const second = setup.controller.openDefaultWindow()
+  expect(first).toBe(second)
+  await Promise.all([first, second])
+  expect(setup.create).toHaveBeenCalledOnce()
+})
+
+it("keeps a window opened during the recent Space lookup", async () => {
+  const setup = defaultWindowFixture()
+  setup.recents.mockImplementation(async () => {
+    setup.focus.mockReturnValue(setup.window as unknown as BrowserWindow)
+    return []
+  })
+  await setup.controller.openDefaultWindow()
+  expect(setup.create).not.toHaveBeenCalled()
+  expect(setup.welcome).not.toHaveBeenCalled()
+})
+
+it("does not create a default window after shutdown starts", async () => {
+  const setup = defaultWindowFixture()
+  setup.recents.mockImplementation(async () => {
+    await setup.controller.closeAll()
+    return []
+  })
+  await setup.controller.openDefaultWindow()
+  expect(setup.create).not.toHaveBeenCalled()
+  expect(setup.welcome).not.toHaveBeenCalled()
+})
+
+it("releases a closed Space without reopening the selector", async () => {
+  const setup = defaultWindowFixture()
+  const last = session("last")
+  mocks.create.mockResolvedValueOnce(last)
+  await setup.controller.openRecentSpace(setup.owner, "last")
+  vi.spyOn(setup.window, "isDestroyed").mockReturnValue(true)
+  setup.window.emit("closed")
+  expect(setup.controller.sessionFor(setup.owner)).toBeNull()
+  expect(last.close).toHaveBeenCalledOnce()
+  expect(setup.welcome).not.toHaveBeenCalled()
 })
 
 function encryptedCloneFixture() {

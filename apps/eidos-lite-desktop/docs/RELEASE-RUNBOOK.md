@@ -148,9 +148,10 @@ After publication, require all of the following before reporting success:
 1. Install the published artifact using the platform-native package. Replace
    only the application binary; do not choose any Space folder as an install
    target.
-2. Launch the app without a file argument. Confirm the Welcome screen,
-   environment badge for non-production builds, and the expected version in
-   **Copy diagnostics**.
+2. Launch the app without a file argument. Confirm that the last available Space
+   reopens, or that Welcome appears for a fresh profile or an unavailable folder.
+   Check the environment badge for non-production builds and the expected version
+   in **Copy diagnostics**.
 3. Open a representative existing Space. Confirm Explorer count, one active
    editor, Local checkpoint status, History, and a clean operation phase.
 4. Open a root and nested `.eidos` file from the OS shell. Confirm that the

@@ -28,6 +28,7 @@ import {
   type EidosLitePreferences,
   type EidosLiteSettingsDestination,
   type EidosSyncRecoveryResult,
+  type RecentSpaceEntry,
   type SpaceSnapshot,
 } from "../shared/contracts"
 import { resolveEidosLiteAppearance } from "../shared/appearance"
@@ -90,7 +91,6 @@ import {
   macosTrafficLightPosition,
   type LiteWindowKind,
 } from "./window-chrome"
-import { welcomeWindowActionAfterSpaceClosed } from "./window-lifecycle"
 import { TextDraftCloseCoordinator } from "./text-draft-close"
 import { writeTextDraftCopy } from "./space/text-draft-copy"
 import {
@@ -537,6 +537,7 @@ export class WindowController {
     ...DEFAULT_EIDOS_LITE_PREFERENCES.builtInPlugins,
   }
   private closing = false
+  private defaultWindowOpening: Promise<void> | null = null
   private readonly bindingOwners = new Set<number>()
   private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
   private readonly detachSpaceListeners = new Map<number, () => void>()
@@ -561,6 +562,46 @@ export class WindowController {
     beforeLoad?.(window)
     void this.loadRenderer(window)
     return window
+  }
+
+  openDefaultWindow(): Promise<void> {
+    this.defaultWindowOpening ??= this.openDefaultWindowOnce().finally(() => {
+      this.defaultWindowOpening = null
+    })
+    return this.defaultWindowOpening
+  }
+
+  private async openDefaultWindowOnce(): Promise<void> {
+    let recent: RecentSpaceEntry | undefined
+    try {
+      if (this.closing || this.focusAnyWindow()) return
+      recent = (await this.listRecentSpaces())[0]
+    } catch (error) {
+      console.warn("Could not read the last Space", error)
+    }
+    if (this.closing || this.focusAnyWindow()) return
+    if (!recent?.available) {
+      this.createWelcomeWindow()
+      return
+    }
+
+    // Keep one hidden window through restoration and fallback. Destroying a
+    // failed Space window could quit the app on Windows/Linux before Welcome.
+    const window = this.createWindow(true, "welcome")
+    try {
+      const snapshot = await this.bindSpace(window.webContents, recent.path)
+      if (!snapshot) {
+        window.destroy()
+        return
+      }
+    } catch (error) {
+      console.warn("Could not reopen the last Space", error)
+    }
+    if (this.closing) {
+      window.destroy()
+      return
+    }
+    await this.loadRenderer(window)
   }
 
   showPluginInstall(id: string): BrowserWindow {
@@ -1475,7 +1516,6 @@ export class WindowController {
       void this.closeEditorSession(session).catch((error: unknown) => {
         console.error("Failed to close Space session", error)
       })
-      this.showWelcomeAfterSpaceClosed()
     }
     window.once("closed", onClosed)
     this.detachSpaceListeners.set(webContents.id, () => {
@@ -1564,26 +1604,6 @@ export class WindowController {
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
-  }
-
-  private showWelcomeAfterSpaceClosed(): void {
-    const windows = BrowserWindow.getAllWindows().filter(
-      (window) => !window.isDestroyed()
-    )
-    const action = welcomeWindowActionAfterSpaceClosed(
-      this.closing,
-      windows.map((window) => this.windowKind.get(window) ?? "space")
-    )
-    if (action === "create") {
-      this.createWelcomeWindow()
-      return
-    }
-    if (action === "focus") {
-      const welcome = windows.find(
-        (window) => this.windowKind.get(window) === "welcome"
-      )
-      if (welcome) this.focusWindow(welcome)
-    }
   }
 
   private queueLaunchFile(

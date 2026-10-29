@@ -291,7 +291,7 @@ app.on("second-instance", (_event, commandLine, workingDirectory) => {
     !controller.focusAnyWindow() &&
     launchRoutingReady
   ) {
-    controller.createWelcomeWindow()
+    void controller.openDefaultWindow()
   }
 })
 
@@ -315,13 +315,15 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (
+    launchRoutingReady &&
+    !shutdownStarted &&
     app.isReady() &&
     BrowserWindow.getAllWindows().length === 0 &&
     pendingLaunchFiles.length === 0 &&
     pendingPluginInstallIds.length === 0 &&
     !launchRoutingInFlight
   ) {
-    controller.createWelcomeWindow()
+    void controller.openDefaultWindow()
   }
 })
 
@@ -492,7 +494,7 @@ void app.whenReady().then(async () => {
   if (pendingLaunchFiles.length > 0) {
     await drainLaunchFiles()
   } else if (pendingPluginInstallIds.length === 0) {
-    controller.createWelcomeWindow()
+    await controller.openDefaultWindow()
   }
   drainPluginInstalls()
   const preferences = await controller.getPreferences()
