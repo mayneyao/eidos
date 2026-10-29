@@ -322,8 +322,10 @@ export function DevicesSettings() {
           {code && (
             <div className="flex basis-full flex-wrap items-start gap-4">
               <img
-                width={200}
-                height={200}
+                width={320}
+                height={320}
+                className="h-auto max-w-full"
+                style={{ imageRendering: "pixelated" }}
                 src={code.qr}
                 alt={t("Pairing QR code")}
               />

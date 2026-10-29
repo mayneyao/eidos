@@ -10,6 +10,12 @@ struct PeerInvitation: Codable {
     let ticket: String
     let space: String
     let name: String
+    var urls: [String]? = nil
+
+    var candidates: [String] {
+        var seen = Set<String>()
+        return ([url] + (urls ?? [])).filter { seen.insert($0).inserted }
+    }
 
     static func parse(_ code: String) throws -> PeerInvitation {
         let value = code.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -20,8 +26,36 @@ struct PeerInvitation: Codable {
         let invitation = try JSONDecoder().decode(Self.self, from: data)
         guard invitation.version == 1, invitation.fingerprint.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
               invitation.ticket.range(of: "^[A-Za-z0-9_-]{43}$", options: .regularExpression) != nil else { throw LocalError.message(tr("无效配对凭据")) }
-        _ = try PeerTunnel.endpoint(invitation.url)
+        guard (invitation.urls?.count ?? 0) <= 8 else { throw LocalError.message(tr("无效设备地址")) }
+        for address in invitation.candidates { _ = try PeerTunnel.address(address) }
         return invitation
+    }
+
+    /// No ticket is sent until one allowed address verifies the invited certificate.
+    func resolvedURL(cancellation: String? = Runtime.cancellation) throws -> String {
+        func verify(_ url: String, _ identity: String) throws -> String? {
+            let tunnel = try PeerTunnel(url: url, fingerprint: fingerprint)
+            defer { tunnel.close() }
+            var request = URLRequest(url: URL(string: tunnel.baseURL + "/")!)
+            request.httpMethod = "HEAD"
+            request.timeoutInterval = 2
+            _ = try SyncHTTP.request(request, cancellation: identity, probe: true)
+            return url
+        }
+        let allowed = candidates.filter { (try? PeerTunnel.endpoint($0)) != nil }
+        if let address = try PeerRace.first(cancellation: cancellation, probes: allowed.map { url in
+            { identity in try verify(url, identity) }
+        }) { return address }
+        let profile = PeerProfile(url: url, fingerprint: fingerprint, token: "", name: name, space: space)
+        if let address = try PeerDiscovery.find(profile, space: space, cancellation: cancellation, verify: { url in
+            try SyncHTTP.checkCancellation(cancellation)
+            do { return try verify(url, cancellation ?? UUID().uuidString) }
+            catch { try SyncHTTP.checkCancellation(cancellation); return nil }
+        }) { return address }
+        if allowed.isEmpty {
+            throw LocalError.message(tr("配对地址 {0} 无法用于局域网连接。请在电脑上重新生成配对码。", URLComponents(string: url)?.host ?? url))
+        }
+        throw LocalError.message(tr("无法连接电脑。请确认两台设备在同一局域网、电脑已开启设备同步，并允许 Eidos Lite 通过防火墙。"))
     }
 }
 
@@ -71,13 +105,22 @@ final class PeerTunnel {
     var remoteURL: String { "graft+http://127.0.0.1:\(port)/peer/space" }
     var baseURL: String { "http://127.0.0.1:\(port)" }
 
-    static func endpoint(_ text: String) throws -> (String, UInt16) {
+    static func address(_ text: String) throws -> (String, UInt16) {
         guard let url = URLComponents(string: text), url.scheme == "https", let host = url.host,
               let port = url.port, (1...65535).contains(port), url.user == nil, url.password == nil,
               url.query == nil, url.fragment == nil, url.path.isEmpty else { throw LocalError.message(tr("无效设备地址")) }
-        let bytes = host.split(separator: ".").compactMap { UInt8($0) }
-        guard bytes.count == 4, bytes[0] == 10 || bytes[0] == 127 || (bytes[0] == 192 && bytes[1] == 168) || (bytes[0] == 172 && (16...31).contains(bytes[1])) else { throw LocalError.message(tr("设备同步仅支持局域网 IPv4 地址")) }
         return (host, UInt16(port))
+    }
+    static func endpoint(_ text: String) throws -> (String, UInt16) {
+        let (host, port) = try address(text)
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts.allSatisfy({ part in
+            !part.isEmpty && part.allSatisfy { $0 >= "0" && $0 <= "9" } &&
+                (part.count == 1 || part.first != "0") && UInt8(part) != nil
+        }) else { throw LocalError.message(tr("设备同步仅支持局域网 IPv4 地址")) }
+        let bytes = parts.compactMap { UInt8($0) }
+        guard bytes.count == 4, bytes[0] == 10 || bytes[0] == 127 || (bytes[0] == 192 && bytes[1] == 168) || (bytes[0] == 172 && (16...31).contains(bytes[1])) else { throw LocalError.message(tr("设备同步仅支持局域网 IPv4 地址")) }
+        return (host, port)
     }
 
     init(url: String, fingerprint: String, onTransfer: @escaping (Int64, Int64) -> Void = { _, _ in }) throws {
@@ -167,7 +210,7 @@ final class SyncHTTP: NSObject, URLSessionTaskDelegate {
         if cancelled { throw URLError(.cancelled) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
-    static func request(_ request: URLRequest, cancellation: String? = Runtime.cancellation) throws -> [String: Any] {
+    static func request(_ request: URLRequest, cancellation: String? = Runtime.cancellation, probe: Bool = false) throws -> [String: Any] {
         let done = DispatchSemaphore(value: 0)
         var outcome: Result<[String: Any], Error> = .failure(LocalError.message(tr("请求超时")))
         let session = URLSession(configuration: .ephemeral, delegate: SyncHTTP(), delegateQueue: nil)
@@ -183,6 +226,10 @@ final class SyncHTTP: NSObject, URLSessionTaskDelegate {
             do {
                 if let error { throw error }
                 guard let response = response as? HTTPURLResponse else { throw LocalError.message(tr("服务响应无效")) }
+                if probe {
+                    guard !(300...399).contains(response.statusCode) else { throw LocalError.message(tr("服务响应无效")) }
+                    outcome = .success([:]); return
+                }
                 guard let data, data.count <= 4 * 1024 * 1024, let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw LocalError.message(tr("服务响应无效")) }
                 guard (200...299).contains(response.statusCode) else { throw LocalError.message(value["error"] as? String ?? tr("服务请求失败（{0}）", response.statusCode)) }
                 outcome = .success(value)

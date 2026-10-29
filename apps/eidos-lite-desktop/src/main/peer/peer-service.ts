@@ -21,6 +21,7 @@ import {
 } from "@eidos.space/graft-remote"
 import { PeerObjectStore } from "./object-store"
 import { PeerAdvertisement } from "./peer-discovery"
+import { peerLanAddresses } from "./peer-addresses"
 import type { SpaceSession } from "../space/space-session"
 import type * as Selfsigned from "selfsigned"
 import type { AddressInfo } from "node:net"
@@ -29,6 +30,10 @@ import { TransformStream, type ReadableStream } from "node:stream/web"
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex")
 const secret = () => randomBytes(32).toString("base64url")
+export function renderPeerPairingCode(value: string): Promise<string> {
+  // Integer module pixels and a full quiet zone remain readable with several endpoints.
+  return QRCode.toDataURL(value, { scale: 4, margin: 4 })
+}
 type Device = {
   id: string
   name: string
@@ -260,14 +265,12 @@ export class PeerService {
       String((this.tls.address() as AddressInfo).port),
       { mode: 0o600 }
     )
-    const ip = Object.values(networkInterfaces())
-      .flat()
-      .find(
-        (entry) => entry && entry.family === "IPv4" && !entry.internal
-      )?.address
+    const ip = peerLanAddresses(networkInterfaces())[0]
     if (!ip) {
       await this.close()
-      throw new Error("Connect this computer to a local network first")
+      throw new Error(
+        this.translate("Connect this computer to a local network first")
+      )
     }
     this.address = `https://${ip}:${(this.tls.address() as AddressInfo).port}`
     this.host.services.add(this)
@@ -280,6 +283,17 @@ export class PeerService {
     return this.status()
   }
   async invite(): Promise<PeerStatus> {
+    const port = (this.tls?.address() as AddressInfo | null)?.port
+    const urls = port
+      ? peerLanAddresses(networkInterfaces()).map(
+          (ip) => `https://${ip}:${port}`
+        )
+      : []
+    if (!urls.length)
+      throw new Error(
+        this.translate("Connect this computer to a local network first")
+      )
+    this.address = urls[0]
     this.pairingChanged(null)
     this.invitation = {
       id: randomUUID(),
@@ -292,6 +306,7 @@ export class PeerService {
         JSON.stringify({
           version: 1,
           url: this.address,
+          urls,
           fingerprint: this.fingerprint,
           ticket: this.invitation.ticket,
           space: this.session?.canonical.id ?? "device",
@@ -301,7 +316,7 @@ export class PeerService {
     return {
       ...this.status(),
       invitation: value,
-      qr: await QRCode.toDataURL(value, { width: 280, margin: 2 }),
+      qr: await renderPeerPairingCode(value),
     }
   }
   status(): PeerStatus {

@@ -21,6 +21,7 @@ internal data class PeerInvitation(
     val ticket: String,
     val space: String,
     val name: String,
+    val urls: List<String> = listOf(url),
 ) {
     companion object {
         fun parse(code: String): PeerInvitation {
@@ -37,27 +38,38 @@ internal data class PeerInvitation(
                     )
                 )
             require(value.getInt("version") == 1) { tr("不支持此配对版本") }
-            val uri = URI(value.getString("url"))
-            require(
-                uri.scheme == "https" &&
-                    uri.host != null &&
-                    uri.port in 1..65535 &&
-                    uri.rawUserInfo == null &&
-                    uri.rawQuery == null &&
-                    uri.rawFragment == null &&
-                    uri.path.isNullOrEmpty()
-            ) {
-                tr("无效的设备地址")
+            fun endpoint(text: String): String {
+                val uri = URI(text)
+                require(
+                    uri.scheme == "https" &&
+                        uri.host != null &&
+                        uri.port in 1..65535 &&
+                        uri.rawUserInfo == null &&
+                        uri.rawQuery == null &&
+                        uri.rawFragment == null &&
+                        uri.path.isNullOrEmpty()
+                ) {
+                    tr("无效的设备地址")
+                }
+                return uri.toString()
             }
+            val url = endpoint(value.getString("url"))
+            val alternatives = value.optJSONArray("urls")
+            require(!value.has("urls") || alternatives != null) { tr("无效的设备地址") }
+            require((alternatives?.length() ?: 0) <= 8) { tr("无效的设备地址") }
+            val urls = (listOf(url) + (0 until (alternatives?.length() ?: 0)).map {
+                endpoint(alternatives!!.getString(it))
+            }).distinct()
             val fingerprint = value.getString("fingerprint")
             require(fingerprint.matches(Regex("[a-f0-9]{64}"))) { tr("无效的设备指纹") }
             require(value.getString("ticket").matches(Regex("[A-Za-z0-9_-]{43}"))) { tr("无效的配对凭据") }
             return PeerInvitation(
-                uri.toString(),
+                url,
                 fingerprint,
                 value.getString("ticket"),
                 value.getString("space"),
                 value.getString("name"),
+                urls,
             )
         }
     }
@@ -84,8 +96,11 @@ internal class PeerConnection(
     }
     private val uri = URI(url)
     private val address: InetAddress =
-        InetAddress.getByName(uri.host).also {
-            require(it.isSiteLocalAddress || it.isLoopbackAddress) { tr("第一版设备同步仅支持局域网") }
+        run {
+            require(isPeerLanHost(uri.host)) {
+                tr("配对地址 {0} 无法用于局域网连接。请在电脑上重新生成配对码。", uri.host)
+            }
+            InetAddress.getByName(uri.host)
         }
     private val tls =
         SSLContext.getInstance("TLS").apply {
@@ -135,6 +150,26 @@ internal class PeerConnection(
         MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") {
             "%02x".format(it)
         } == fingerprint
+    }
+
+    /** Verify pinned TLS without submitting a ticket or consuming a pairing invitation. */
+    private fun probe() {
+        val connection = URI(url + "/").toURL().openConnection() as HttpsURLConnection
+        connection.sslSocketFactory = socketFactory
+        connection.hostnameVerifier = hostnameVerifier
+        connection.instanceFollowRedirects = false
+        connection.connectTimeout = 2000
+        connection.readTimeout = 2000
+        connection.requestMethod = "HEAD"
+        requests.add(connection)
+        try {
+            // The unauthenticated gateway responds 401. Any HTTP response here
+            // has already passed certificate validation; redirects are not followed.
+            connection.responseCode
+        } finally {
+            requests.remove(connection)
+            connection.disconnect()
+        }
     }
 
     fun call(
@@ -360,6 +395,28 @@ internal class PeerConnection(
     }
 
     companion object {
+        suspend fun forInvitation(context: Context, invitation: PeerInvitation): PeerConnection {
+            suspend fun verify(url: String): PeerConnection? = withContext(Dispatchers.IO) {
+                try {
+                    val connection = PeerConnection(url, invitation.fingerprint, invitation.ticket, invitation.name)
+                    connection.cancellable { connection.probe() }
+                    connection
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            val candidates = invitation.urls.filter { isPeerLanHost(URI(it).host) }
+            val direct = firstPeerResult(candidates.map { url -> suspend { verify(url) } })
+            if (direct != null) return direct
+            // Legacy codes may contain a VPN address, or a LAN address may have changed.
+            return PeerDiscovery.find(context, invitation.fingerprint, invitation.space, ::verify)
+                ?: error(if (candidates.isEmpty())
+                    tr("配对地址 {0} 无法用于局域网连接。请在电脑上重新生成配对码。", URI(invitation.url).host)
+                else tr("无法连接电脑。请确认两台设备在同一局域网、电脑已开启设备同步，并允许 Eidos Lite 通过防火墙。"))
+        }
+
         suspend fun reconnect(
             context: Context,
             saved: PeerConnection,

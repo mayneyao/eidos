@@ -567,6 +567,12 @@ open **Sync**, scan the QR code or paste the pairing code, then approve
 the device on the desktop. Pairing codes expire after five minutes and are
 single-use. Trust belongs to the computer, independently of each Space. After
 pairing, select an available Space on Android to create its separate local copy.
+On computers with several network adapters, pairing tries the available private
+IPv4 addresses and verifies the computer's certificate before requesting approval.
+If an address is unavailable, Android can locate the same computer through local
+DNS-SD. Keep both devices on the same LAN and allow Eidos Lite through the computer's
+firewall. If the network blocks discovery, generate a new pairing code after connecting
+the computer to the intended network.
 Use **Connect a device → Choose Space** to add another Space without pairing again.
 Only Spaces with device sync enabled on the desktop appear in this list.
 

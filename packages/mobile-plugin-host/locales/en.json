@@ -891,6 +891,8 @@
   "目标表已不存在，请重新选择": "Destination table no longer exists. Choose another.",
   "目标附件字段不可写入": "Destination attachment field is not writable",
   "第一版设备同步仅支持局域网": "Device sync currently only supports local networks",
+  "配对地址 {0} 无法用于局域网连接。请在电脑上重新生成配对码。": "Pairing address {0} cannot be used for a local network connection. Generate a new pairing code on the computer.",
+  "无法连接电脑。请确认两台设备在同一局域网、电脑已开启设备同步，并允许 Eidos Lite 通过防火墙。": "Cannot connect to the computer. Check that both devices are on the same local network, device sync is enabled, and Eidos Lite is allowed through the firewall.",
   "等待 Android 调度自动同步": "Waiting for Android to schedule auto sync",
   "等待电脑授权超时，请在电脑上生成新的配对码后重试": "Computer approval timed out. Generate a new pairing code and try again.",
   "等待网络和后台运行条件": "Waiting for network and background execution conditions",
