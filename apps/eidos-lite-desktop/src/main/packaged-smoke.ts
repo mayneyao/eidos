@@ -52,6 +52,7 @@ const enforcePackagedPerformance = shouldEnforcePackagedPerformance()
 interface RendererSmokeResult {
   fileMetadataTable?: boolean
   releaseNotes?: boolean
+  startupWindowClosed?: boolean
   fileProperties?: Awaited<ReturnType<typeof verifyPackagedProperties>>
   performance: {
     coldStartMs: number
@@ -2429,6 +2430,18 @@ export async function runPackagedSmoke(
     if (notesLanguageAfter !== notesLanguage)
       throw new Error("Release notes switch changed the app language")
     report.releaseNotes = true
+    // Restore the already-open recent Space into a startup window. The
+    // controller must discard this redundant native window without accessing
+    // its destroyed webContents from the startup snapshot cleanup callback.
+    const redundantStartup = await controller.createStartupWindow()
+    try {
+      await controller.openDefaultWindow(redundantStartup)
+      if (!redundantStartup.isDestroyed())
+        throw new Error("Redundant startup window was not closed")
+      report.startupWindowClosed = true
+    } finally {
+      if (!redundantStartup.isDestroyed()) redundantStartup.destroy()
+    }
     if (report.inlineError) failures.push(`UI: ${report.inlineError}`)
     if (failures.length) throw new Error(failures.join("\n"))
     await fs.mkdir(path.dirname(resultPath), { recursive: true })

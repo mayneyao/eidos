@@ -621,9 +621,12 @@ export class WindowController {
         return null
       }
     )
-    this.initialSpaceSnapshots.set(window.webContents.id, opening)
+    // BrowserWindow getters throw once the native window has been destroyed.
+    // Capture the key while it is alive; `closed` must only use plain data.
+    const webContentsId = window.webContents.id
+    this.initialSpaceSnapshots.set(webContentsId, opening)
     window.once("closed", () =>
-      this.initialSpaceSnapshots.delete(window.webContents.id)
+      this.initialSpaceSnapshots.delete(webContentsId)
     )
     // Load the workbench while the filesystem session is initialized. Its
     // initial getSpace request joins this promise instead of reading twice.
