@@ -65,6 +65,7 @@ import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { LaunchNotificationRetry } from "./launch-notification-retry"
 import { eidosLiteLogSummary, logCorrelationKey } from "./logging"
+import { startupDocument } from "./startup-document"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
   canonicalizeSpaceRoot,
@@ -538,6 +539,10 @@ export class WindowController {
   }
   private closing = false
   private defaultWindowOpening: Promise<void> | null = null
+  private readonly initialSpaceSnapshots = new Map<
+    number,
+    Promise<SpaceSnapshot | null>
+  >()
   private readonly bindingOwners = new Set<number>()
   private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
   private readonly detachSpaceListeners = new Map<number, () => void>()
@@ -564,44 +569,77 @@ export class WindowController {
     return window
   }
 
-  openDefaultWindow(): Promise<void> {
-    this.defaultWindowOpening ??= this.openDefaultWindowOnce().finally(() => {
+  async createStartupWindow(): Promise<BrowserWindow> {
+    const window = this.createWindow(false, "welcome")
+    // Render independently of the application bundle and Space initialization.
+    await window.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(startupDocument(app.getLocale()))}`
+    )
+    if (!window.isDestroyed() && !this.closing) window.show()
+    return window
+  }
+
+  openDefaultWindow(startupWindow?: BrowserWindow): Promise<void> {
+    this.defaultWindowOpening ??= this.openDefaultWindowOnce(
+      startupWindow
+    ).finally(() => {
       this.defaultWindowOpening = null
     })
     return this.defaultWindowOpening
   }
 
-  private async openDefaultWindowOnce(): Promise<void> {
+  private async openDefaultWindowOnce(
+    startupWindow?: BrowserWindow
+  ): Promise<void> {
+    const unavailable = () =>
+      this.closing ||
+      (startupWindow
+        ? startupWindow.isDestroyed()
+        : Boolean(this.focusAnyWindow()))
     let recent: RecentSpaceEntry | undefined
     try {
-      if (this.closing || this.focusAnyWindow()) return
-      recent = (await this.listRecentSpaces())[0]
+      if (unavailable()) return
+      recent = (await this.listRecentSpaces(1))[0]
     } catch (error) {
       console.warn("Could not read the last Space", error)
     }
-    if (this.closing || this.focusAnyWindow()) return
+    if (unavailable()) return
     if (!recent?.available) {
-      this.createWelcomeWindow()
+      if (startupWindow) await this.loadRenderer(startupWindow)
+      else this.createWelcomeWindow()
       return
     }
 
-    // Keep one hidden window through restoration and fallback. Destroying a
+    // Keep one window through restoration and fallback. Destroying a
     // failed Space window could quit the app on Windows/Linux before Welcome.
-    const window = this.createWindow(true, "welcome")
-    try {
-      const snapshot = await this.bindSpace(window.webContents, recent.path)
-      if (!snapshot) {
-        window.destroy()
-        return
+    const window = startupWindow ?? this.createWindow(true, "welcome")
+    let failed = false
+    const opening = this.bindSpace(window.webContents, recent.path).catch(
+      (error: unknown) => {
+        failed = true
+        console.warn("Could not reopen the last Space", error)
+        return null
       }
-    } catch (error) {
-      console.warn("Could not reopen the last Space", error)
-    }
-    if (this.closing) {
-      window.destroy()
+    )
+    this.initialSpaceSnapshots.set(window.webContents.id, opening)
+    window.once("closed", () =>
+      this.initialSpaceSnapshots.delete(window.webContents.id)
+    )
+    // Load the workbench while the filesystem session is initialized. Its
+    // initial getSpace request joins this promise instead of reading twice.
+    const rendering = this.loadRenderer(window, "/opening")
+    // Attach a rejection handler immediately while Space initialization runs.
+    void rendering.catch(() => {})
+    const snapshot = await opening
+    if (!snapshot && !failed) {
+      if (!window.isDestroyed()) window.destroy()
       return
     }
-    await this.loadRenderer(window)
+    if (this.closing || window.isDestroyed()) {
+      if (!window.isDestroyed()) window.destroy()
+      return
+    }
+    await rendering
   }
 
   showPluginInstall(id: string): BrowserWindow {
@@ -950,8 +988,19 @@ export class WindowController {
     return result
   }
 
-  listRecentSpaces() {
-    return this.recentSpaces().list()
+  listRecentSpaces(limit = 20) {
+    return this.recentSpaces().list(limit)
+  }
+
+  spaceSnapshot(
+    webContents: WebContents,
+    initial = false
+  ): Promise<SpaceSnapshot | null> {
+    if (initial) {
+      const opening = this.initialSpaceSnapshots.get(webContents.id)
+      if (opening) return opening
+    }
+    return this.sessionFor(webContents)?.snapshot() ?? Promise.resolve(null)
   }
 
   async openRecentSpace(
@@ -1284,6 +1333,7 @@ export class WindowController {
       this.sessionCloses.close(session)
     this.sharedSessions.clear()
     this.sessionByWebContents.clear()
+    this.initialSpaceSnapshots.clear()
     this.windowBySpaceId.clear()
     this.pendingLaunchFilesByWebContents.clear()
     for (const retry of this.launchNotificationRetriesByWebContents.values()) {
@@ -1384,6 +1434,7 @@ export class WindowController {
     root: string,
     assertAdmission?: () => void
   ): Promise<SpaceSnapshot | null> {
+    this.initialSpaceSnapshots.delete(webContents.id)
     assertAdmission?.()
     if (this.closing) throw new Error("Eidos Lite is closing")
     const canonical = await canonicalizeSpaceRoot(root)
@@ -1500,6 +1551,7 @@ export class WindowController {
         !webContents.isDestroyed() &&
         this.sessionByWebContents.get(webContents.id) === session
       ) {
+        this.initialSpaceSnapshots.delete(webContents.id)
         webContents.send(IPC_CHANNELS.spaceChanged, snapshot)
       }
     })
@@ -1523,15 +1575,17 @@ export class WindowController {
       window.removeListener("closed", onClosed)
       this.detachSpaceListeners.delete(webContents.id)
     })
-    await this.pluginSpaceOpened?.(webContents.id, session.canonical.id).catch(
-      (error: unknown) =>
-        console.warn("Could not initialize plugin backgrounds", error)
-    )
-    await this.recentSpaces()
-      .record(session.canonical)
-      .catch((error) => {
-        console.warn("Could not update recent Spaces", error)
-      })
+    await Promise.all([
+      this.pluginSpaceOpened?.(webContents.id, session.canonical.id).catch(
+        (error: unknown) =>
+          console.warn("Could not initialize plugin backgrounds", error)
+      ),
+      this.recentSpaces()
+        .record(session.canonical)
+        .catch((error) => {
+          console.warn("Could not update recent Spaces", error)
+        }),
+    ])
     return snapshot
   }
 

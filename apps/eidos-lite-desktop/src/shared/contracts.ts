@@ -1875,7 +1875,7 @@ export interface EidosLiteApi extends PluginApi {
   listRecentSpaces(): Promise<RecentSpaceEntry[]>
   openRecentSpace(id: string): Promise<SpaceSnapshot | null>
   removeRecentSpace(id: string): Promise<RecentSpaceEntry[]>
-  getSpace(): Promise<SpaceSnapshot | null>
+  getSpace(initial?: boolean): Promise<SpaceSnapshot | null>
   refreshSpace(): Promise<SpaceSnapshot | null>
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>

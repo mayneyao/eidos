@@ -10,6 +10,12 @@ import type { FilePropertiesContentHandle } from "./file-properties-content"
 import { useEidosLiteI18n } from "./i18n"
 import type { ResolvedAppearance } from "./app-appearance"
 import { hasSparkFeature } from "../shared/spark"
+import { useAppTheme } from "./use-app-theme"
+
+export function FilePropertiesApp() {
+  const theme = useAppTheme()
+  return <FilePropertiesWindow theme={theme} />
+}
 
 export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
   const { t } = useEidosLiteI18n()

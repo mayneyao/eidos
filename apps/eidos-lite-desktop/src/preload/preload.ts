@@ -257,7 +257,7 @@ const api: EidosLiteApi = {
   openRecentSpace: (id) => ipcRenderer.invoke(IPC_CHANNELS.openRecentSpace, id),
   removeRecentSpace: (id) =>
     ipcRenderer.invoke(IPC_CHANNELS.removeRecentSpace, id),
-  getSpace: () => ipcRenderer.invoke(IPC_CHANNELS.getSpace),
+  getSpace: (initial) => ipcRenderer.invoke(IPC_CHANNELS.getSpace, initial),
   refreshSpace: () => ipcRenderer.invoke(IPC_CHANNELS.refreshSpace),
   refreshExplorer: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExplorer),
   loadSpaceDirectory: (relativePath) =>

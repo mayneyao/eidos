@@ -1405,9 +1405,8 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.removeRecentSpace, (_event, id: unknown) =>
     controller.removeRecentSpace(requiredString(id, "recent Space"))
   )
-  ipcMain.handle(
-    IPC_CHANNELS.getSpace,
-    (event) => controller.sessionFor(event.sender)?.snapshot() ?? null
+  ipcMain.handle(IPC_CHANNELS.getSpace, (event, initial: unknown) =>
+    controller.spaceSnapshot(event.sender, initial === true)
   )
   ipcMain.handle(
     IPC_CHANNELS.refreshSpace,

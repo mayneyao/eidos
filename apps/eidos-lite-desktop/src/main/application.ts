@@ -127,6 +127,7 @@ if (smokeResult) {
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
+  console.info("Eidos Lite launch forwarded to the running instance")
   if (isPackagedSmoke) {
     console.error(
       "Packaged smoke could not acquire the Eidos Lite single-instance lock"
@@ -153,6 +154,17 @@ logger.info("app.started", {
   electronVersion: process.versions.electron,
 })
 const controller = new WindowController(services)
+app.on("browser-window-created", (_event, window) => {
+  const context = () => ({
+    windowId: window.id,
+    elapsedMs: Date.now() - bootstrapStartedAtMs,
+  })
+  logger.info("window.created", context())
+  window.once("show", () => logger.info("window.shown", context()))
+  window.once("ready-to-show", () =>
+    logger.info("window.ready-to-show", context())
+  )
+})
 let shutdownStarted = false
 let shutdownPromise: Promise<void> | null = null
 let closeIpc = (): Promise<void> => Promise.resolve()
@@ -281,6 +293,11 @@ function drainLaunchFiles(): Promise<void> {
 }
 
 app.on("second-instance", (_event, commandLine, workingDirectory) => {
+  logger.info("app.second-instance", {
+    elapsedMs: Date.now() - bootstrapStartedAtMs,
+    windowCount: BrowserWindow.getAllWindows().length,
+    launchRoutingReady,
+  })
   const pluginIds = pluginInstallIdsFromArguments(commandLine)
   if (pluginIds.length > 0) enqueuePluginInstallUrls(commandLine)
   const paths = launchFilePathsFromArguments(commandLine, workingDirectory)
@@ -483,20 +500,29 @@ void app.whenReady().then(async () => {
   if (pluginInstallProtocolRegistered === false) {
     logger.warn("plugins.install-protocol.registration-failed")
   }
+  const startupWindow =
+    pendingLaunchFiles.length === 0 && pendingPluginInstallIds.length === 0
+      ? await controller.createStartupWindow()
+      : undefined
   await controller.recoverCloneOperations()
+  if (shutdownStarted) return
   const registeredIpc = registerIpc(controller, services, syncControl, updater)
   closeIpc = registeredIpc.close
   openPluginPackage = registeredIpc.openPluginPackage
-  await registeredIpc.restoreDeviceSync()
   await installApplicationMenu()
   controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true
+  if (startupWindow) await controller.openDefaultWindow(startupWindow)
+  if (shutdownStarted) return
   if (pendingLaunchFiles.length > 0) {
     await drainLaunchFiles()
-  } else if (pendingPluginInstallIds.length === 0) {
+  } else if (!startupWindow && pendingPluginInstallIds.length === 0) {
     await controller.openDefaultWindow()
   }
   drainPluginInstalls()
+  void registeredIpc.restoreDeviceSync().catch((error: unknown) => {
+    logger.error("app.device-sync.restore-failed", undefined, error)
+  })
   const preferences = await controller.getPreferences()
   setTimeout(() => {
     void updater.start(preferences.automaticUpdates)

@@ -166,18 +166,83 @@ function defaultWindowFixture() {
   return { ...setup, create, load, welcome, focus, recents }
 }
 
-it("restores the most recently opened Space before loading its renderer", async () => {
+it("loads the renderer in parallel with restoration and reuses the initial snapshot", async () => {
   const setup = defaultWindowFixture()
   const last = session("last")
   mocks.create.mockResolvedValueOnce(last)
   await setup.controller.openDefaultWindow()
   expect(setup.controller.sessionFor(setup.owner)).toBe(last)
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(true, "welcome")
-  expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window)
-  expect(last.snapshot.mock.invocationCallOrder[0]).toBeLessThan(
+  expect(setup.recents).toHaveBeenCalledExactlyOnceWith(1)
+  expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window, "/opening")
+  expect(last.snapshot.mock.invocationCallOrder[0]).toBeGreaterThan(
     setup.load.mock.invocationCallOrder[0]!
   )
   expect(setup.welcome).not.toHaveBeenCalled()
+  await setup.controller.spaceSnapshot(setup.owner, true)
+  await setup.controller.spaceSnapshot(setup.owner, true)
+  expect(last.snapshot).toHaveBeenCalledOnce()
+  await setup.controller.spaceSnapshot(setup.owner)
+  expect(last.snapshot).toHaveBeenCalledTimes(2)
+})
+
+it("shows a lightweight startup page without waiting for Space initialization", async () => {
+  const setup = defaultWindowFixture()
+  const loadURL = vi.fn(async (_url: string) => {})
+  Object.assign(setup.window, { loadURL })
+  await setup.controller.createStartupWindow()
+  expect(setup.create).toHaveBeenCalledExactlyOnceWith(false, "welcome")
+  expect(decodeURIComponent(loadURL.mock.calls[0]![0])).toContain("Opening…")
+  expect(setup.window.show).toHaveBeenCalledOnce()
+  expect(setup.recents).not.toHaveBeenCalled()
+  expect(setup.load).not.toHaveBeenCalled()
+})
+
+it("reuses the visible startup window while a slow Space opens", async () => {
+  const setup = defaultWindowFixture()
+  let finish!: (value: ReturnType<typeof session>) => void
+  mocks.create.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve
+    })
+  )
+  const startup = setup.window as unknown as BrowserWindow
+  setup.focus.mockReturnValue(startup)
+  const opening = setup.controller.openDefaultWindow(startup)
+  await vi.waitFor(() => expect(mocks.create).toHaveBeenCalled())
+  expect(setup.load).toHaveBeenCalledExactlyOnceWith(startup, "/opening")
+  let resolved = false
+  const initial = setup.controller.spaceSnapshot(setup.owner, true).then(() => {
+    resolved = true
+  })
+  await Promise.resolve()
+  expect(resolved).toBe(false)
+  expect(setup.create).not.toHaveBeenCalled()
+  finish(session("last"))
+  await opening
+  await initial
+  expect(resolved).toBe(true)
+  expect(setup.load).toHaveBeenCalledExactlyOnceWith(startup, "/opening")
+})
+
+it("loads Welcome in the startup window when recents are empty", async () => {
+  const setup = defaultWindowFixture()
+  setup.recents.mockResolvedValue([])
+  await setup.controller.openDefaultWindow(
+    setup.window as unknown as BrowserWindow
+  )
+  expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window)
+  expect(setup.welcome).not.toHaveBeenCalled()
+})
+
+it("does not reopen a startup window closed during recovery", async () => {
+  const setup = defaultWindowFixture()
+  setup.window.isDestroyed = () => true
+  await setup.controller.openDefaultWindow(
+    setup.window as unknown as BrowserWindow
+  )
+  expect(setup.recents).not.toHaveBeenCalled()
+  expect(setup.load).not.toHaveBeenCalled()
 })
 
 it.each(["empty", "unavailable"])(
@@ -216,7 +281,10 @@ it("uses the same window as Welcome when the last Space fails to open", async ()
     await setup.controller.openDefaultWindow()
     expect(setup.controller.sessionFor(setup.owner)).toBeNull()
     expect(setup.create).toHaveBeenCalledOnce()
-    expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window)
+    expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window, "/opening")
+    await expect(
+      setup.controller.spaceSnapshot(setup.owner, true)
+    ).resolves.toBeNull()
     expect(setup.welcome).not.toHaveBeenCalled()
     expect(warning).toHaveBeenCalledWith(
       "Could not reopen the last Space",
