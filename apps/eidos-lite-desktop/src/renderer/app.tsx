@@ -2376,6 +2376,10 @@ function WorkspaceApp({
       setError(null)
       setFileIssue(null)
       try {
+        for (const stage of ["eviction", "runtime", "workbench", "plugin"]) {
+          performance.clearMeasures?.(`lite:file-open:${stage}`)
+        }
+        const evictionStarted = performance.now()
         let availableCachedFiles = cachedFiles
         const alreadyCached = cachedFiles.some(
           (file) => file.relativePath === entry.relativePath
@@ -2391,12 +2395,32 @@ function WorkspaceApp({
             )
           }
         }
-        const opened =
+        performance.measure?.("lite:file-open:eviction", {
+          start: evictionStarted,
+        })
+        const runtimeStarted = performance.now()
+        const opening =
           entry.relativePath === SPACE_FILE_METADATA_PATH
-            ? await window.eidosLite.openFileMetadata(
+            ? window.eidosLite.openFileMetadata(
                 options.metadataDirectory || null
               )
-            : await window.eidosLite.openEidosFile(entry.relativePath)
+            : window.eidosLite.openEidosFile(entry.relativePath)
+        // Loading editor code is independent of opening the native file. Start
+        // both together, while still validating the file before plugin routing.
+        const workbenchStarted = performance.now()
+        const [opened] = await Promise.all([
+          opening.then((result) => {
+            performance.measure?.("lite:file-open:runtime", {
+              start: runtimeStarted,
+            })
+            return result
+          }),
+          loadEidosFileWorkbench().then(() => {
+            performance.measure?.("lite:file-open:workbench", {
+              start: workbenchStarted,
+            })
+          }),
+        ])
         const tableId =
           options.tableId ?? opened.snapshot.tables[0]?.table.id ?? ""
         if (
@@ -2404,9 +2428,9 @@ function WorkspaceApp({
           !opened.snapshot.tables.some((table) => table.table.id === tableId)
         )
           throw new Error("This table is no longer available in the file.")
-        await loadEidosFileWorkbench()
         // The host-owned catalog is opened by openFileMetadata, never by the
         // plugin service, whose private-directory guard also applies to builtin.
+        const pluginStarted = performance.now()
         const filePlugin: PluginOpenResult =
           entry.relativePath === SPACE_FILE_METADATA_PATH
             ? { instance: null }
@@ -2414,6 +2438,7 @@ function WorkspaceApp({
                 entry.relativePath,
                 options.pluginEditor
               )
+        performance.measure?.("lite:file-open:plugin", { start: pluginStarted })
         if (!tableId && !filePlugin.instance)
           throw new Error("This Eidos File has no tables")
         if (filePlugin.warning) setError(filePlugin.warning)

@@ -1897,9 +1897,12 @@ export class WindowController {
   }
 
   private loadRenderer(window: BrowserWindow, route?: string): Promise<void> {
+    const document =
+      route === "/file-properties" ? "file-properties.html" : "index.html"
     const developmentUrl = process.env.VITE_DEV_SERVER_URL
     if (developmentUrl) {
       const url = new URL(developmentUrl)
+      if (document !== "index.html") url.pathname = `/${document}`
       if (route) url.hash = route
       return window.loadURL(url.toString()).then(() => {
         console.info("[lite:dev] Renderer loaded:", window.webContents.getURL())
@@ -1908,7 +1911,7 @@ export class WindowController {
     return window.loadFile(
       path.join(
         path.dirname(fileURLToPath(import.meta.url)),
-        "../dist/index.html"
+        `../dist/${document}`
       ),
       route ? { hash: route } : undefined
     )

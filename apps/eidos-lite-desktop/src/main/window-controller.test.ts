@@ -166,6 +166,45 @@ function defaultWindowFixture() {
   return { ...setup, create, load, welcome, focus, recents }
 }
 
+it.each([true, false])(
+  "routes properties to its own HTML entry (development: %s)",
+  async (development) => {
+    const setup = fixture()
+    const loadURL = vi.fn(async () => {})
+    const loadFile = vi.fn(async () => {})
+    const window = {
+      loadURL,
+      loadFile,
+      webContents: {
+        getURL: () =>
+          "http://localhost:5179/file-properties.html#/file-properties",
+      },
+    } as unknown as BrowserWindow
+    const controller = setup.controller as unknown as {
+      loadRenderer(window: BrowserWindow, route?: string): Promise<void>
+    }
+    vi.stubEnv(
+      "VITE_DEV_SERVER_URL",
+      development ? "http://localhost:5179/" : ""
+    )
+    try {
+      await controller.loadRenderer(window, "/file-properties")
+      if (development) {
+        expect(loadURL).toHaveBeenCalledWith(
+          "http://localhost:5179/file-properties.html#/file-properties"
+        )
+      } else {
+        expect(loadFile).toHaveBeenCalledWith(
+          expect.stringContaining("/dist/file-properties.html"),
+          { hash: "/file-properties" }
+        )
+      }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  }
+)
+
 it("loads the renderer in parallel with restoration and reuses the initial snapshot", async () => {
   const setup = defaultWindowFixture()
   const last = session("last")

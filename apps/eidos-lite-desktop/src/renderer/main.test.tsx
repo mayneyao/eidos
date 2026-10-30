@@ -28,7 +28,7 @@ beforeEach(() => {
 
 it("opens the inspector without evaluating the workspace entry", async () => {
   window.location.hash = "/file-properties"
-  await import("./main")
+  await import("./file-properties-main")
   await vi.waitFor(() => expect(entry.render).toHaveBeenCalledOnce())
   expect(entry.properties).toHaveBeenCalledOnce()
   expect(entry.workspace).not.toHaveBeenCalled()

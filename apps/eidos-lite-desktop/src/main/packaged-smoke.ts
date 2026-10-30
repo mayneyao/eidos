@@ -66,6 +66,7 @@ interface RendererSmokeResult {
     foreground?: PackagedSmokeForegroundDiagnostics
     utilityOpenStages: {
       relativePath: string
+      openStages?: Record<string, number>
       clickDispatchMs: number
       cachedFileWaitMs: number
       activeEditorWaitMs: number
@@ -892,6 +893,12 @@ const rendererProbe = `
     utilityOpenMs.push(performance.now() - openStartedAt)
     utilityOpenStages.push({
       relativePath,
+      openStages: Object.fromEntries(
+        ["eviction", "runtime", "workbench", "plugin"].map(stage => [
+          stage,
+          performance.getEntriesByName("lite:file-open:" + stage).at(-1)?.duration ?? 0,
+        ])
+      ),
       clickDispatchMs,
       cachedFileWaitMs,
       activeEditorWaitMs,
