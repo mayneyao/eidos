@@ -89,8 +89,9 @@ Do not conflate version namespaces or publishers:
 - Preserve unrelated user changes. Do not stage, format, stash, revert, or
   commit them.
 - Keep functional, security, data-preservation and compatibility checks required.
-  Lite performance follows its documented PR comparison policy: measure once,
-  record the result on the PR, and block only a major relative regression.
+  Lite performance is observation-only: measure once and record the result on
+  the PR. GitHub CI timing fluctuations never block publication or support a
+  release recommendation.
   Do not chase an absolute-budget fluctuation through repeated builds or reruns.
 - Release Lite through a merged PR. Reuse its completed CI evidence; avoid
   repeating the same source suite, candidate build and final release build

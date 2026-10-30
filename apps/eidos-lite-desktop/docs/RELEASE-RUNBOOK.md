@@ -77,15 +77,14 @@ Prepare every Lite release through a PR containing the version, dependency
 changes and both release-note languages. Reuse that PR's functional CI results;
 run focused local tests for the changed code instead of repeating the full CI
 matrix locally. The independent performance workflow comments one measurement
-per architecture and compares it with the previous release's PR. Ordinary
-absolute-budget overruns are observations; only the documented major relative
-regression blocks release. Do not rerun measurements to chase a green result.
+per architecture and compares it with the previous release's PR. All timing results are observations only: GitHub CI machine variability makes
+them unsuitable for release recommendations or release blocking. Do not rerun measurements to chase a green result.
 
 After merging the PR, require a clean checkout of its exact merge commit and
 confirm the target tag is absent locally and remotely. With existing release
 authorization, create one lightweight tag on that merge commit and push it. The
-publisher rejects tags without an associated merged PR and rechecks its major
-regression result immediately before publication. Monitor
+publisher rejects tags without an associated merged PR and rechecks the exact
+merge commit immediately before publication; it does not read performance reports. Monitor
 `build-and-release-eidos-lite.yml` through all five platform/architecture builds,
 the separate Intel acceptance job, the Worker deployment, and the final Release
 job.

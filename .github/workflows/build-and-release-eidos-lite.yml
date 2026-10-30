@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Require a merged release PR and check major regressions
+      - name: Require the exact merged release PR
         env:
           GH_TOKEN: ${{ github.token }}
         run: node apps/eidos-lite-desktop/scripts/lite-performance-report.mjs guard

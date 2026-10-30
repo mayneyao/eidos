@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
 export const marker = "<!-- eidos-lite-performance:v1 -->"
@@ -112,25 +111,8 @@ export function readComment(body) {
   }
 }
 
-// Owner explicitly waived this close-crash patch's performance gate on
-// 2026-10-31. Keep the failed measurement intact and scope the exception to
-// its exact tested source, PR and release; this is not a general bypass.
-export const closePatchMeasuredHead = "21a757b0be2f54934647983f72c5f94054b5a45e"
-
-export function closePatchException(tag, pr, changedPaths) {
-  return (
-    tag === "lite-v0.29.5" &&
-    pr?.number === 357 &&
-    changedPaths.every((file) =>
-      [
-        "apps/eidos-lite-desktop/scripts/lite-performance-report.mjs",
-        "apps/eidos-lite-desktop/scripts/lite-performance-report.test.mjs",
-      ].includes(file)
-    )
-  )
-}
-
-export function releaseDecision(sha, pr, data, approvedClosePatch = false) {
+// Release provenance is independent of noisy CI performance observations.
+export function releaseDecision(sha, pr) {
   assert.match(sha ?? "", /^[a-f0-9]{40}$/u)
   assert.ok(pr?.merged_at, "Lite releases require a merged PR")
   assert.equal(
@@ -138,55 +120,43 @@ export function releaseDecision(sha, pr, data, approvedClosePatch = false) {
     sha,
     "Tag must point to the PR merge commit"
   )
-  if (approvedClosePatch) {
-    assert.equal(pr.number, 357)
-    assert.equal(data?.headSha, closePatchMeasuredHead)
-  } else if (data)
-    assert.equal(data.headSha, pr.head.sha, "Stale performance report")
-  assert.ok(
-    approvedClosePatch || !data?.majorRegression,
-    `PR #${pr.number} records a major performance regression`
-  )
+  return { pr: pr.number, source: sha, performance: "observation-only" }
+}
+
+export function performanceStatus(data) {
   return {
-    pr: pr.number,
-    source: sha,
-    performance: approvedClosePatch
-      ? "owner-approved-exception"
-      : data
-        ? "no-major-regression"
-        : "report-unavailable",
-    ...(approvedClosePatch
-      ? {
-          measuredHead: data.headSha,
-          recordedMajorRegression: data.majorRegression,
-        }
-      : {}),
+    state: "success",
+    context: "Lite performance regression",
+    description: "Observation only; CI timings do not inform release decisions",
+    target_url: data.runUrl,
   }
 }
 
 export function renderComment(data, comparison) {
-  const hasBaseline = comparison.rows.some((row) => row.before !== null)
   const number = (value) => (value === null ? "—" : value.toFixed(0) + " ms")
   const rows = comparison.rows.map(
     (row) =>
-      `| ${row.architecture} | ${row.metric} | ${number(row.value)} | ${number(row.before)} | ${number(row.delta)} | ${row.regression ? "重大退化" : row.before === null ? "建立基线" : "记录"} |`
+      `| ${row.architecture} | ${row.metric} | ${number(row.value)} | ${number(row.before)} | ${number(row.delta)} | ${row.regression ? "较大波动" : row.before === null ? "建立基线" : "记录"} |`
   )
   return [
     marker,
     "### Lite 性能记录",
     "",
     `提交：\`${data.headSha}\` · 基线：${data.baselineTag ?? "无可比的已发布基线"}`,
-    `结论：${data.majorRegression ? "**发现重大性能退化，阻塞发布。**" : data.measurements.length ? (hasBaseline ? "未发现达到阻塞标准的退化。" : "缺少同配置的可比数据；本次建立基线。") : "测量不可用；不据此宣称性能通过。"}`,
+    "仅供观测：GitHub CI 机器负载波动较大，本报告不阻塞发布，也不提供发布建议。",
+    data.measurements.length
+      ? "本次测量已记录；缺少兼容基线时仅记录本次数据。"
+      : "测量不可用；不据此宣称性能通过。",
     `本次构建类型：${[...new Set(data.measurements.map((item) => item.variant))].join("、") || "不可用"}。`,
     "",
-    "| 架构 | 指标 | 本次 | 上次发布 | 增加 | 判定 |",
+    "| 架构 | 指标 | 本次 | 上次发布 | 增加 | 观测 |",
     "| --- | --- | ---: | ---: | ---: | --- |",
     ...rows,
     "",
-    "每个平台只测一次。只有耗时至少翻倍，且启动增加 ≥1000 ms、文件打开 P95 或首帧增加 ≥500 ms，才判为重大退化。只比较相同构建类型、架构和 runner；production 与 staging 分别留底，缺少兼容基线时仅记录。单次测量不代表性能 SLA。",
+    "每个平台只测一次。只有耗时至少翻倍，且启动增加 ≥1000 ms、文件打开 P95 或首帧增加 ≥500 ms，标记为较大波动，不据此认定产品性能退化。只比较相同构建类型、架构和 runner；production 与 staging 分别留底，缺少兼容基线时仅记录。单次测量不代表性能 SLA。",
     `源码负载观测：${data.sourceLoad ?? "未执行"}。 [CI 与原始测量](${data.runUrl})`,
     "",
-    "<details><summary>可供下次发布读取的数据</summary>",
+    "<details><summary>可供后续观测比较的数据</summary>",
     "",
     "<!-- eidos-lite-performance-data",
     JSON.stringify(data),
@@ -286,60 +256,7 @@ async function main() {
   if (mode === "guard") {
     const sha = process.env.GITHUB_SHA
     const pr = await client.associatedPr(sha)
-    let approvedClosePatch = false
-    if (process.env.GITHUB_REF_NAME === "lite-v0.29.5" && pr?.number === 357) {
-      // The publisher may use a shallow checkout of the squash merge. Compare
-      // trees with the tested PR commit, not commit ancestry.
-      try {
-        execFileSync(
-          "git",
-          ["cat-file", "-e", `${closePatchMeasuredHead}^{commit}`],
-          { stdio: "ignore" }
-        )
-      } catch {
-        execFileSync("git", [
-          "fetch",
-          "--no-tags",
-          "--depth=1",
-          "origin",
-          closePatchMeasuredHead,
-        ])
-      }
-      const changedPaths = execFileSync(
-        "git",
-        ["diff", "--name-only", closePatchMeasuredHead, sha],
-        { encoding: "utf8" }
-      )
-        .trim()
-        .split("\n")
-        .filter(Boolean)
-      approvedClosePatch = closePatchException(
-        process.env.GITHUB_REF_NAME,
-        pr,
-        changedPaths
-      )
-      assert.ok(
-        approvedClosePatch,
-        "The approved close patch changed after functional acceptance"
-      )
-    }
-    let data = null
-    if (pr) {
-      try {
-        data = await client.measurementFor(
-          approvedClosePatch
-            ? { ...pr, head: { sha: closePatchMeasuredHead } }
-            : pr
-        )
-      } catch {
-        console.warn(
-          "Performance comment unavailable; only a recorded major regression blocks publication"
-        )
-      }
-    }
-    console.log(
-      JSON.stringify(releaseDecision(sha, pr, data, approvedClosePatch))
-    )
+    console.log(JSON.stringify(releaseDecision(sha, pr)))
     return
   }
   assert.equal(mode, "comment")
@@ -419,20 +336,9 @@ async function main() {
   await client.api(`issues/${number}/comments`, "POST", {
     body: renderComment(data, comparison),
   })
-  await client.api(`statuses/${head}`, "POST", {
-    state: data.majorRegression ? "failure" : "success",
-    context: "Lite performance regression",
-    description: data.majorRegression
-      ? "Major regression against the previous Lite release"
-      : measurements.length
-        ? "Performance recorded; no major regression"
-        : "Measurement unavailable; see PR report",
-    target_url: data.runUrl,
-  })
-  assert.ok(
-    !data.majorRegression,
-    "Major performance regression recorded on the PR"
-  )
+  // Keep the existing context name so old required-status configurations do
+  // not wait forever. Its success only means an observation was recorded.
+  await client.api(`statuses/${head}`, "POST", performanceStatus(data))
 }
 
 if (

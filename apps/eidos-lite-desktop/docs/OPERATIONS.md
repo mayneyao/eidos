@@ -287,15 +287,13 @@ extracts the retained build, verifies its source and hashes for staging or its
 signature and notarization for production, and never rebuilds it on the
 measurement machine. This report is separate from the tagged release workflow:
 publication requires functional, security, signing and installer validation.
-It checks the merged PR's performance comment before building and again before
-publishing. Only a recorded major regression blocks publication: the same
-architecture and runner must show at least a 2× increase and at least 1000 ms
-additional startup time, or 500 ms for utility-open P95 or first frame. The
-previous published Lite release's merged PR provides the baseline. Missing or
-incompatible baseline data is explicitly reported and establishes a new baseline.
-Missing measurements are marked unavailable; they do not erase an existing
-major-regression result for the same commit. Source workload checks run in the
-performance workflow too, with their outcomes retained as reference observations.
+Performance reports never block publication or provide release recommendations:
+GitHub-hosted machines vary too much for that purpose. The previous published
+Lite release's merged PR provides a comparison baseline, with missing or
+incompatible data explicitly marked unavailable. Large changes remain visible
+as observations, not product regression verdicts. Source workload outcomes and
+raw measurements are retained for investigation. The publisher validates merged
+PR provenance without reading performance comments.
 
 Before creating an immutable release tag, the Desktop Gates workflow can also
 build actual signed and notarized production candidates on both Mac

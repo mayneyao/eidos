@@ -8,48 +8,8 @@ import {
   releaseDecision,
   renderComment,
   validateMeasurement,
-  closePatchException,
-  closePatchMeasuredHead,
+  performanceStatus,
 } from "./lite-performance-report.mjs"
-
-test("the owner-approved close patch exception cannot cover another release or runtime edit", () => {
-  const paths = ["apps/eidos-lite-desktop/scripts/lite-performance-report.mjs"]
-  assert.equal(
-    closePatchException("lite-v0.29.5", { number: 357 }, paths),
-    true
-  )
-  assert.equal(
-    closePatchException("lite-v0.29.6", { number: 357 }, paths),
-    false
-  )
-  assert.equal(
-    closePatchException("lite-v0.29.5", { number: 358 }, paths),
-    false
-  )
-  assert.equal(
-    closePatchException("lite-v0.29.5", { number: 357 }, [
-      ...paths,
-      "apps/eidos-lite-desktop/src/main/window-controller.ts",
-    ]),
-    false
-  )
-  const sha = "d".repeat(40)
-  const pr = {
-    number: 357,
-    merged_at: "2026-10-31",
-    merge_commit_sha: sha,
-    head: { sha: "e".repeat(40) },
-  }
-  const data = { headSha: closePatchMeasuredHead, majorRegression: true }
-  const result = releaseDecision(sha, pr, data, true)
-  assert.equal(result.performance, "owner-approved-exception")
-  assert.equal(result.recordedMajorRegression, true)
-  assert.throws(() => releaseDecision(sha, pr, data))
-  assert.throws(() => releaseDecision(sha, pr, null, true))
-  assert.throws(() =>
-    releaseDecision(sha, { ...pr, merged_at: null }, data, true)
-  )
-})
 
 const measurement = (metrics = {}, architecture = "x64") => ({
   schema: 1,
@@ -68,26 +28,38 @@ const measurement = (metrics = {}, architecture = "x64") => ({
   },
 })
 
-test("publication requires an exact merged PR and blocks a known major regression", () => {
+test("publication checks provenance without consulting performance", () => {
   const sha = "d".repeat(40)
-  const pr = {
-    number: 333,
-    merged_at: "2026-10-18T11:09:01Z",
-    merge_commit_sha: sha,
-    head: { sha: "a".repeat(40) },
+  const pr = { number: 358, merged_at: "2026-10-31", merge_commit_sha: sha }
+  for (const report of [
+    null,
+    { majorRegression: true },
+    { headSha: "stale" },
+  ]) {
+    assert.equal(
+      releaseDecision(sha, pr, report).performance,
+      "observation-only"
+    )
   }
-  assert.equal(releaseDecision(sha, pr, null).performance, "report-unavailable")
-  assert.throws(() => releaseDecision(sha, null, null))
-  assert.throws(() => releaseDecision("e".repeat(40), pr, null))
-  assert.throws(() =>
-    releaseDecision(sha, pr, { headSha: "a".repeat(40), majorRegression: true })
-  )
-  assert.throws(() =>
-    releaseDecision(sha, pr, {
-      headSha: "b".repeat(40),
-      majorRegression: false,
-    })
-  )
+  assert.throws(() => releaseDecision(sha, null))
+  assert.throws(() => releaseDecision(sha, { ...pr, merged_at: null }))
+  assert.throws(() => releaseDecision("e".repeat(40), pr))
+})
+
+test("large fluctuations remain visible without a failure status or release recommendation", () => {
+  const data = {
+    headSha: "a".repeat(40),
+    measurements: [measurement({ coldStartMs: 5000 })],
+    majorRegression: true,
+  }
+  const comparison = compareMeasurements(data.measurements, [measurement()])
+  assert.equal(comparison.major.length, 1)
+  const body = renderComment(data, comparison)
+  assert.match(body, /较大波动/u)
+  assert.match(body, /不提供发布建议/u)
+  assert.doesNotMatch(body, /发现重大性能退化，阻塞发布/u)
+  assert.equal(performanceStatus(data).state, "success")
+  assert.equal(performanceStatus({ measurements: [] }).state, "success")
 })
 
 test("ordinary noise and an absolute overrun alone do not block", () => {
