@@ -197,6 +197,12 @@ export default defineConfig(({ mode, command }) => {
       reportCompressedSize: false,
       outDir: "dist",
       emptyOutDir: true,
+      rolldownOptions: {
+        input: {
+          main: path.join(appRoot, "index.html"),
+          properties: path.join(appRoot, "file-properties.html"),
+        },
+      },
     },
     server: {
       host: "127.0.0.1",

@@ -235,6 +235,36 @@ it("reports a missing filesystem target even without Spark", async () => {
   )
 })
 
+it("presents basic information while custom properties are still loading", async () => {
+  vi.mocked(window.eidosLite.openFileMetadata).mockReturnValue(
+    new Promise(() => {})
+  )
+  const frames = new Map<number, FrameRequestCallback>()
+  let id = 0
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  )
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    frames.set(++id, callback)
+    return id
+  })
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id))
+  const height = vi.fn()
+  props = { ...props, onContentHeight: height }
+  await render()
+  expect(element.textContent).toContain("42 bytes")
+  expect(
+    element.querySelector(".file-properties-content")?.getAttribute("aria-busy")
+  ).toBe("true")
+  expect(frames.size).toBe(1)
+  for (const callback of frames.values()) callback(0)
+  expect(height).toHaveBeenCalledOnce()
+})
+
 it("coalesces form layout measurements before reporting a native window height", async () => {
   let resized!: ResizeObserverCallback
   let frame = 0

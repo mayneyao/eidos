@@ -1,9 +1,8 @@
 ## Improvements
 
-### Start in your last Space
-
-Eidos Lite now opens your most recently used Space when you launch the app. The Space selector appears on first use or when that folder cannot be opened. Closing a Space window no longer brings the selector back; switch Spaces anytime from the Space name at the top of the Explorer.
+- **Opening Spaces**: The Space interface loads alongside folder initialization and reuses the initial snapshot, reducing duplicate work when restoring your last Space.
+- **File properties**: Basic file information can appear while extended properties are still loading. The properties window loads independently of the main workspace interface.
 
 ## Bug fixes
 
-- **File recovery**: Reopening an Eidos File after restoring it to its original path now waits for the previous file session to finish closing, avoiding a temporary "could not be opened" error.
+- **Startup feedback**: A lightweight loading window appears before Space recovery and initialization, so launching Lite no longer leaves you waiting for a hidden window. The logo animation completes quickly and never delays entering your Space.

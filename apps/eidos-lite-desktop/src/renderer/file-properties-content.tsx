@@ -316,8 +316,12 @@ export const FilePropertiesContent = forwardRef<
     const element = contentRef.current
     if (
       !element ||
-      ((!model || !current) && !basic && !error && !basicError) ||
-      loading ||
+      // Basic filesystem information is already usable while the metadata
+      // Runtime is opening. Do not keep the native window hidden for it.
+      ((!model || !current) &&
+        basic?.path !== props.relativePath &&
+        !error &&
+        !basicError) ||
       !props.onContentHeight ||
       typeof ResizeObserver === "undefined"
     )

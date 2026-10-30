@@ -19,7 +19,6 @@ import {
 } from "./tree-expansion-menu"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
-import type { ThemeDeclaration } from "@eidos.space/plugin-sdk"
 import {
   ArrowLeft,
   ArrowRight,
@@ -75,7 +74,6 @@ import {
 
 import type {
   EidosFileIssue,
-  EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLiteMarkdownEditingMode,
   EidosLiteMarkdownCompatibilityProfile,
@@ -100,13 +98,11 @@ import {
   type EidosLiteShortcutCommand,
 } from "../shared/keyboard-shortcuts"
 import {
-  applyAppearance,
   DEFAULT_RENDERER_PREFERENCES,
-  resolveAppearance,
   toggledAppearance,
   type ResolvedAppearance,
 } from "./app-appearance"
-import { applyPluginHostTheme } from "./plugin-host-theme"
+import { useAppTheme } from "./use-app-theme"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
 import { isMarkdownTextFile } from "./text-editor-options"
@@ -258,66 +254,6 @@ interface CachedFile {
 interface RecentFileState {
   spaceId: string | null
   files: RecentFileEntry[]
-}
-
-function useAppTheme(): ResolvedAppearance {
-  const media = useMemo(
-    () => window.matchMedia("(prefers-color-scheme: dark)"),
-    []
-  )
-  const [systemDark, setSystemDark] = useState(media.matches)
-  const [appearance, setAppearance] = useState<EidosLiteAppearance>(
-    DEFAULT_RENDERER_PREFERENCES.appearance
-  )
-  const [pluginTheme, setPluginTheme] = useState<ThemeDeclaration | null>(null)
-  useEffect(() => {
-    const update = () => setSystemDark(media.matches)
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [media])
-  useEffect(() => {
-    void window.eidosLite
-      .getPreferences()
-      .then((preferences) => setAppearance(preferences.appearance))
-    return window.eidosLite.onPreferencesChanged((preferences) =>
-      setAppearance(preferences.appearance)
-    )
-  }, [])
-  const theme = resolveAppearance(appearance, systemDark)
-  useLayoutEffect(() => {
-    applyAppearance(document.documentElement, appearance, systemDark)
-  }, [appearance, systemDark])
-  useEffect(() => {
-    let generation = 0
-    const update = () => {
-      const current = ++generation
-      void window.eidosLite
-        .listPlugins()
-        .then((listing) => {
-          if (current !== generation) return
-          const selected = listing.plugins.find(
-            (plugin) => plugin.manifest.id === listing.activeThemeId
-          )
-          setPluginTheme(selected?.manifest.theme ?? null)
-        })
-        .catch(() => {
-          if (current === generation) setPluginTheme(null)
-        })
-    }
-    update()
-    const unsubscribe = window.eidosLite.onPluginEvent(({ event }) => {
-      if (event.observation === "host.catalog") update()
-    })
-    return () => {
-      generation++
-      unsubscribe()
-    }
-  }, [])
-  useLayoutEffect(
-    () => applyPluginHostTheme(document.documentElement, pluginTheme),
-    [pluginTheme]
-  )
-  return theme
 }
 
 function errorMessage(error: unknown): string {
@@ -906,6 +842,9 @@ function WorkspaceApp({
     keyboardShortcuts
   )
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
+  const [initialSpaceOpening, setInitialSpaceOpening] = useState(
+    window.location.hash === "#/opening"
+  )
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const cachedFilesRef = useRef(cachedFiles)
   cachedFilesRef.current = cachedFiles
@@ -1604,19 +1543,30 @@ function WorkspaceApp({
   )
 
   useEffect(() => {
+    let active = true
+    let receivedSpace = false
     void window.eidosLite
       .getAppInfo()
       .then(setAppInfo, (cause) => setError(errorMessage(cause)))
-    void window.eidosLite.getSpace().then(
+    void window.eidosLite.getSpace(true).then(
       (snapshot) => {
-        if (snapshot) acceptSpaceSnapshot(snapshot)
+        if (!active) return
+        if (snapshot && !receivedSpace) acceptSpaceSnapshot(snapshot)
+        setInitialSpaceOpening(false)
       },
-      (cause) => setError(errorMessage(cause))
+      (cause) => {
+        if (active) {
+          setError(errorMessage(cause))
+          setInitialSpaceOpening(false)
+        }
+      }
     )
     void window.eidosLite
       .listRecentSpaces()
       .then(setRecentSpaces, (cause) => setError(errorMessage(cause)))
-    return window.eidosLite.onSpaceChanged((snapshot) => {
+    const stop = window.eidosLite.onSpaceChanged((snapshot) => {
+      receivedSpace = true
+      setInitialSpaceOpening(false)
       if (snapshot.materializedPaths?.length) {
         void refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
         return
@@ -1630,6 +1580,10 @@ function WorkspaceApp({
       }
       acceptSpaceSnapshot(snapshot)
     })
+    return () => {
+      active = false
+      stop()
+    }
   }, [
     acceptSpaceSnapshot,
     refreshExternallyChangedEidosFiles,
@@ -2422,6 +2376,10 @@ function WorkspaceApp({
       setError(null)
       setFileIssue(null)
       try {
+        for (const stage of ["eviction", "runtime", "workbench", "plugin"]) {
+          performance.clearMeasures?.(`lite:file-open:${stage}`)
+        }
+        const evictionStarted = performance.now()
         let availableCachedFiles = cachedFiles
         const alreadyCached = cachedFiles.some(
           (file) => file.relativePath === entry.relativePath
@@ -2437,12 +2395,32 @@ function WorkspaceApp({
             )
           }
         }
-        const opened =
+        performance.measure?.("lite:file-open:eviction", {
+          start: evictionStarted,
+        })
+        const runtimeStarted = performance.now()
+        const opening =
           entry.relativePath === SPACE_FILE_METADATA_PATH
-            ? await window.eidosLite.openFileMetadata(
+            ? window.eidosLite.openFileMetadata(
                 options.metadataDirectory || null
               )
-            : await window.eidosLite.openEidosFile(entry.relativePath)
+            : window.eidosLite.openEidosFile(entry.relativePath)
+        // Loading editor code is independent of opening the native file. Start
+        // both together, while still validating the file before plugin routing.
+        const workbenchStarted = performance.now()
+        const [opened] = await Promise.all([
+          opening.then((result) => {
+            performance.measure?.("lite:file-open:runtime", {
+              start: runtimeStarted,
+            })
+            return result
+          }),
+          loadEidosFileWorkbench().then(() => {
+            performance.measure?.("lite:file-open:workbench", {
+              start: workbenchStarted,
+            })
+          }),
+        ])
         const tableId =
           options.tableId ?? opened.snapshot.tables[0]?.table.id ?? ""
         if (
@@ -2450,9 +2428,9 @@ function WorkspaceApp({
           !opened.snapshot.tables.some((table) => table.table.id === tableId)
         )
           throw new Error("This table is no longer available in the file.")
-        await loadEidosFileWorkbench()
         // The host-owned catalog is opened by openFileMetadata, never by the
         // plugin service, whose private-directory guard also applies to builtin.
+        const pluginStarted = performance.now()
         const filePlugin: PluginOpenResult =
           entry.relativePath === SPACE_FILE_METADATA_PATH
             ? { instance: null }
@@ -2460,6 +2438,7 @@ function WorkspaceApp({
                 entry.relativePath,
                 options.pluginEditor
               )
+        performance.measure?.("lite:file-open:plugin", { start: pluginStarted })
         if (!tableId && !filePlugin.instance)
           throw new Error("This Eidos File has no tables")
         if (filePlugin.warning) setError(filePlugin.warning)
@@ -3561,6 +3540,12 @@ function WorkspaceApp({
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
+    if (initialSpaceOpening)
+      return (
+        <main className="editor-empty" role="status">
+          {t("Loading Space Explorer…")}
+        </main>
+      )
     if (whatsNew.open)
       return (
         <main className="whats-new-welcome">

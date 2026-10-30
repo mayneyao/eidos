@@ -1,8 +1,8 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
+import { App } from "./app"
 import "@glideapps/glide-data-grid/dist/index.css"
 
-import { App } from "./app"
 import { PluginBluetoothPicker } from "./plugin-bluetooth-picker"
 import { EidosLiteI18nProvider } from "./i18n"
 import "./styles.css"

@@ -36,14 +36,14 @@ export class RecentSpacesStore {
 
   constructor(private readonly filePath: string) {}
 
-  async list(): Promise<RecentSpaceEntry[]> {
+  async list(limit = 20): Promise<RecentSpaceEntry[]> {
     const stored = await this.read()
     return Promise.all(
       stored
         .sort((left, right) =>
           right.lastOpenedAt.localeCompare(left.lastOpenedAt)
         )
-        .slice(0, 20)
+        .slice(0, limit)
         .map(async (entry) => ({
           ...entry,
           available: await fs

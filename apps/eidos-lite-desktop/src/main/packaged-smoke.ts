@@ -13,6 +13,7 @@ import {
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
 import { RuntimePool } from "./runtime/runtime-pool"
+import { verifyPackagedProperties } from "./packaged-properties-smoke"
 import {
   ensurePackagedSmokeForeground,
   type PackagedSmokeDocumentState,
@@ -51,6 +52,7 @@ const enforcePackagedPerformance = shouldEnforcePackagedPerformance()
 interface RendererSmokeResult {
   fileMetadataTable?: boolean
   releaseNotes?: boolean
+  fileProperties?: Awaited<ReturnType<typeof verifyPackagedProperties>>
   performance: {
     coldStartMs: number
     budgets: {
@@ -64,6 +66,7 @@ interface RendererSmokeResult {
     foreground?: PackagedSmokeForegroundDiagnostics
     utilityOpenStages: {
       relativePath: string
+      openStages?: Record<string, number>
       clickDispatchMs: number
       cachedFileWaitMs: number
       activeEditorWaitMs: number
@@ -890,6 +893,12 @@ const rendererProbe = `
     utilityOpenMs.push(performance.now() - openStartedAt)
     utilityOpenStages.push({
       relativePath,
+      openStages: Object.fromEntries(
+        ["eviction", "runtime", "workbench", "plugin"].map(stage => [
+          stage,
+          performance.getEntriesByName("lite:file-open:" + stage).at(-1)?.duration ?? 0,
+        ])
+      ),
       clickDispatchMs,
       cachedFileWaitMs,
       activeEditorWaitMs,
@@ -2305,6 +2314,11 @@ export async function runPackagedSmoke(
       throw new Error("Packaged fs_meta update lost metadata")
     report.fileMetadataTable = true
     await session.closeEidosFile(metadataRuntime.sessionId)
+    report.fileProperties = await verifyPackagedProperties(
+      controller,
+      window,
+      failures
+    )
     const externalProbe = await session.createEidosFile(
       null,
       "External Rename Probe"
