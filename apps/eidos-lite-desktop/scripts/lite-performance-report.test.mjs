@@ -8,7 +8,48 @@ import {
   releaseDecision,
   renderComment,
   validateMeasurement,
+  closePatchException,
+  closePatchMeasuredHead,
 } from "./lite-performance-report.mjs"
+
+test("the owner-approved close patch exception cannot cover another release or runtime edit", () => {
+  const paths = ["apps/eidos-lite-desktop/scripts/lite-performance-report.mjs"]
+  assert.equal(
+    closePatchException("lite-v0.29.5", { number: 357 }, paths),
+    true
+  )
+  assert.equal(
+    closePatchException("lite-v0.29.6", { number: 357 }, paths),
+    false
+  )
+  assert.equal(
+    closePatchException("lite-v0.29.5", { number: 358 }, paths),
+    false
+  )
+  assert.equal(
+    closePatchException("lite-v0.29.5", { number: 357 }, [
+      ...paths,
+      "apps/eidos-lite-desktop/src/main/window-controller.ts",
+    ]),
+    false
+  )
+  const sha = "d".repeat(40)
+  const pr = {
+    number: 357,
+    merged_at: "2026-10-31",
+    merge_commit_sha: sha,
+    head: { sha: "e".repeat(40) },
+  }
+  const data = { headSha: closePatchMeasuredHead, majorRegression: true }
+  const result = releaseDecision(sha, pr, data, true)
+  assert.equal(result.performance, "owner-approved-exception")
+  assert.equal(result.recordedMajorRegression, true)
+  assert.throws(() => releaseDecision(sha, pr, data))
+  assert.throws(() => releaseDecision(sha, pr, null, true))
+  assert.throws(() =>
+    releaseDecision(sha, { ...pr, merged_at: null }, data, true)
+  )
+})
 
 const measurement = (metrics = {}, architecture = "x64") => ({
   schema: 1,
