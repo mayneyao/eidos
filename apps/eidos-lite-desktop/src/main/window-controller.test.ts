@@ -225,6 +225,34 @@ it("loads the renderer in parallel with restoration and reuses the initial snaps
   expect(last.snapshot).toHaveBeenCalledTimes(2)
 })
 
+it.each([false, true])(
+  "cleans startup snapshots after native window destruction (failed restore: %s)",
+  async (failed) => {
+    const setup = defaultWindowFixture()
+    if (failed)
+      mocks.create.mockRejectedValueOnce(new Error("Unavailable Space"))
+    else mocks.create.mockResolvedValueOnce(session("last"))
+    await setup.controller.openDefaultWindow()
+    const snapshots = (
+      setup.controller as unknown as {
+        initialSpaceSnapshots: Map<number, Promise<SpaceSnapshot | null>>
+      }
+    ).initialSpaceSnapshots
+    expect(snapshots.has(setup.owner.id)).toBe(true)
+    setup.window.isDestroyed = () => true
+    Object.defineProperty(setup.window, "webContents", {
+      get() {
+        throw new TypeError("Object has been destroyed")
+      },
+    })
+    expect(() => setup.window.emit("closed")).not.toThrow()
+    expect(snapshots.has(setup.owner.id)).toBe(false)
+    await expect(
+      setup.controller.spaceSnapshot(setup.owner, true)
+    ).resolves.toBeNull()
+  }
+)
+
 it("shows a lightweight startup page without waiting for Space initialization", async () => {
   const setup = defaultWindowFixture()
   const loadURL = vi.fn(async (_url: string) => {})

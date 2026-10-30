@@ -112,7 +112,25 @@ export function readComment(body) {
   }
 }
 
-export function releaseDecision(sha, pr, data) {
+// Owner explicitly waived this close-crash patch's performance gate on
+// 2026-10-31. Keep the failed measurement intact and scope the exception to
+// its exact tested source, PR and release; this is not a general bypass.
+export const closePatchMeasuredHead = "21a757b0be2f54934647983f72c5f94054b5a45e"
+
+export function closePatchException(tag, pr, changedPaths) {
+  return (
+    tag === "lite-v0.29.5" &&
+    pr?.number === 357 &&
+    changedPaths.every((file) =>
+      [
+        "apps/eidos-lite-desktop/scripts/lite-performance-report.mjs",
+        "apps/eidos-lite-desktop/scripts/lite-performance-report.test.mjs",
+      ].includes(file)
+    )
+  )
+}
+
+export function releaseDecision(sha, pr, data, approvedClosePatch = false) {
   assert.match(sha ?? "", /^[a-f0-9]{40}$/u)
   assert.ok(pr?.merged_at, "Lite releases require a merged PR")
   assert.equal(
@@ -120,15 +138,29 @@ export function releaseDecision(sha, pr, data) {
     sha,
     "Tag must point to the PR merge commit"
   )
-  if (data) assert.equal(data.headSha, pr.head.sha, "Stale performance report")
+  if (approvedClosePatch) {
+    assert.equal(pr.number, 357)
+    assert.equal(data?.headSha, closePatchMeasuredHead)
+  } else if (data)
+    assert.equal(data.headSha, pr.head.sha, "Stale performance report")
   assert.ok(
-    !data?.majorRegression,
+    approvedClosePatch || !data?.majorRegression,
     `PR #${pr.number} records a major performance regression`
   )
   return {
     pr: pr.number,
     source: sha,
-    performance: data ? "no-major-regression" : "report-unavailable",
+    performance: approvedClosePatch
+      ? "owner-approved-exception"
+      : data
+        ? "no-major-regression"
+        : "report-unavailable",
+    ...(approvedClosePatch
+      ? {
+          measuredHead: data.headSha,
+          recordedMajorRegression: data.majorRegression,
+        }
+      : {}),
   }
 }
 
@@ -254,17 +286,60 @@ async function main() {
   if (mode === "guard") {
     const sha = process.env.GITHUB_SHA
     const pr = await client.associatedPr(sha)
+    let approvedClosePatch = false
+    if (process.env.GITHUB_REF_NAME === "lite-v0.29.5" && pr?.number === 357) {
+      // The publisher may use a shallow checkout of the squash merge. Compare
+      // trees with the tested PR commit, not commit ancestry.
+      try {
+        execFileSync(
+          "git",
+          ["cat-file", "-e", `${closePatchMeasuredHead}^{commit}`],
+          { stdio: "ignore" }
+        )
+      } catch {
+        execFileSync("git", [
+          "fetch",
+          "--no-tags",
+          "--depth=1",
+          "origin",
+          closePatchMeasuredHead,
+        ])
+      }
+      const changedPaths = execFileSync(
+        "git",
+        ["diff", "--name-only", closePatchMeasuredHead, sha],
+        { encoding: "utf8" }
+      )
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+      approvedClosePatch = closePatchException(
+        process.env.GITHUB_REF_NAME,
+        pr,
+        changedPaths
+      )
+      assert.ok(
+        approvedClosePatch,
+        "The approved close patch changed after functional acceptance"
+      )
+    }
     let data = null
     if (pr) {
       try {
-        data = await client.measurementFor(pr)
+        data = await client.measurementFor(
+          approvedClosePatch
+            ? { ...pr, head: { sha: closePatchMeasuredHead } }
+            : pr
+        )
       } catch {
         console.warn(
           "Performance comment unavailable; only a recorded major regression blocks publication"
         )
       }
     }
-    console.log(JSON.stringify(releaseDecision(sha, pr, data)))
+    console.log(
+      JSON.stringify(releaseDecision(sha, pr, data, approvedClosePatch))
+    )
     return
   }
   assert.equal(mode, "comment")
