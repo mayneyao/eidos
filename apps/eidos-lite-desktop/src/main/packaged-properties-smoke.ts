@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks"
-import { app, BrowserWindow } from "electron"
+import { app, type BrowserWindow } from "electron"
 import type { WindowController } from "./window-controller"
 import { observePackagedSmokeWindow } from "./packaged-startup-smoke"
 
