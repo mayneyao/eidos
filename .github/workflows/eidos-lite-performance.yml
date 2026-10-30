@@ -134,7 +134,7 @@ jobs:
         with:
           pattern: installed-macos-performance-*
           path: ${{ runner.temp }}/performance-reports
-      - name: Store the report and only fail on a major regression
+      - name: Store observations without a release recommendation
         env:
           GH_TOKEN: ${{ github.token }}
           PERF_PR_NUMBER: ${{ needs.resolve.outputs.pr-number }}
