@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { runInNewContext } from "node:vm"
-import { startupDocument } from "./startup-document"
+import { startupDocument, withStartupShell } from "./startup-document"
 
 it.each([false, true])(
   "settles the logo and stops scheduling frames (reduced motion: %s)",
@@ -29,12 +29,15 @@ it.each([false, true])(
     runInNewContext(script, {
       document: {
         hidden: false,
-        querySelector: (selector: string) =>
-          selector === ".art"
-            ? art
-            : selector === "canvas"
-              ? { getContext: () => context }
-              : { getAttribute: () => "M0 0" },
+        getElementById: () => ({
+          dataset: {},
+          querySelector: (selector: string) =>
+            selector === ".art"
+              ? art
+              : selector === "canvas"
+                ? { getContext: () => context, style: {} }
+                : { getAttribute: () => "M0 0" },
+        }),
         addEventListener: vi.fn(),
       },
       window: { addEventListener: vi.fn() },
@@ -48,7 +51,7 @@ it.each([false, true])(
       requestAnimationFrame: schedule,
       cancelAnimationFrame: vi.fn(),
     })
-    for (let time = 1; pending && time <= 401; time += 40) {
+    for (let time = 1; pending && time <= 801; time += 40) {
       const callback = pending
       pending = undefined
       callback(time)
@@ -59,3 +62,18 @@ it.each([false, true])(
     if (reduced) expect(schedule).not.toHaveBeenCalled()
   }
 )
+
+it("places the logo ahead of React without a second document or animation timer", () => {
+  const html = withStartupShell(
+    `<meta content="script-src 'self';"><div id="root"></div>`
+  )
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1]!
+  expect(() => new Function(script)).not.toThrow()
+  expect(html).toContain(
+    `'sha256-${createHash("sha256").update(script).digest("base64")}'`
+  )
+  expect(html.indexOf('id="lite-startup"')).toBeLessThan(
+    html.indexOf('id="root"')
+  )
+  expect(script).not.toContain("setTimeout")
+})

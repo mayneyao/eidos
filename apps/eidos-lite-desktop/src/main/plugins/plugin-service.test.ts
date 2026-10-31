@@ -95,6 +95,34 @@ it("auto-starts only enabled declarations without a View and rechecks owner auth
   }
 })
 
+it("does not start backgrounds when their owner closes during catalog loading", async () => {
+  const backgrounds = new PluginBackgroundHost("/unused", async () => true)
+  const start = vi.spyOn(backgrounds, "start")
+  service = new PluginService(store, undefined, undefined, backgrounds)
+  const listing = await store.list("space-a")
+  listing.plugins.push({
+    hash: "test",
+    enabled: true,
+    manifest: {
+      ...manifest,
+      background: { entry: "./background.ts", autoStart: true },
+    },
+  })
+  let finish!: (value: typeof listing) => void
+  vi.spyOn(store, "list").mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  const opening = service.autoStartBackgrounds(1, "space-a")
+  service.closeOwner(1)
+  finish(listing)
+  await opening
+  expect(start).not.toHaveBeenCalled()
+  backgrounds.close()
+})
+
 it("does not charge background approval wait to the command deadline", async () => {
   const backgrounds = new PluginBackgroundHost("/unused", async () => true)
   let approve!: () => void

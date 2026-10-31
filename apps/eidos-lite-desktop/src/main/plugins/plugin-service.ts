@@ -116,6 +116,7 @@ interface Instance {
   ids: Set<string>
 }
 export class PluginService {
+  private readonly backgroundGenerations = new Map<number, object>()
   locale = "en"
   private displayManifest(pkg: PluginPackage) {
     return localizePluginManifest(
@@ -227,8 +228,15 @@ export class PluginService {
     }
   }
   async autoStartBackgrounds(owner: number, space: string, pluginId?: string) {
+    let generation = this.backgroundGenerations.get(owner)
+    if (!generation) {
+      generation = {}
+      this.backgroundGenerations.set(owner, generation)
+    }
+    const active = () => this.backgroundGenerations.get(owner) === generation
     const listing = await this.store.list(space)
     for (const plugin of listing.plugins) {
+      if (!active()) return
       if (
         !plugin.enabled ||
         !plugin.manifest.background?.autoStart ||
@@ -242,6 +250,7 @@ export class PluginService {
           plugin.manifest.id,
           plugin.hash
         )
+        if (!active()) return
         await this.backgrounds?.start(binding)
       } catch (error) {
         console.warn(
@@ -971,6 +980,7 @@ export class PluginService {
     }
   }
   closeOwner(owner: number) {
+    this.backgroundGenerations.delete(owner)
     this.backgrounds?.closeOwner(owner)
     this.formatterContexts.delete(owner)
     for (const [ticket, instance] of this.instances)

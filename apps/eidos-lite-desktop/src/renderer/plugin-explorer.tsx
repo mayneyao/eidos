@@ -237,18 +237,28 @@ export function PluginExplorerPanel({
   overlay?: ReactNode
 }) {
   const { t } = useEidosLiteI18n()
-  const pending =
-    explorer.loading ||
-    Boolean(explorer.selected && !explorer.instance && !explorer.error)
-  const [showPending, setShowPending] = useState(false)
-  useEffect(() => {
-    setShowPending(false)
-    if (!pending) return
-    const timer = setTimeout(() => setShowPending(true), 200)
-    return () => clearTimeout(timer)
-  }, [pending])
+  // Catalog/background initialization must never hide the usable local tree.
+  const [interacted, setInteracted] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+  const keepCurrentTree = () => {
+    if (!explorer.instance) setInteracted(true)
+  }
+  const showPlugin = Boolean(
+    explorer.instance && !explorer.error && (!interacted || accepted)
+  )
   return (
-    <div className="plugin-explorer" id="workspace-files-panel">
+    <div
+      className="plugin-explorer"
+      id="workspace-files-panel"
+      onPointerDownCapture={keepCurrentTree}
+      onKeyDownCapture={keepCurrentTree}
+      onWheelCapture={keepCurrentTree}
+    >
+      {explorer.instance && !explorer.error && !showPlugin ? (
+        <button type="button" onClick={() => setAccepted(true)}>
+          {t("Show saved explorer")}
+        </button>
+      ) : null}
       {explorer.error && (
         <div className="plugin-explorer-error" role="alert">
           <span>
@@ -264,7 +274,7 @@ export function PluginExplorerPanel({
       )}
       {overlay && <div className="plugin-explorer-overlay">{overlay}</div>}
       <div className="plugin-explorer-content" hidden={Boolean(overlay)}>
-        {explorer.instance && !explorer.error ? (
+        {showPlugin && explorer.instance ? (
           <PluginEditor
             key={explorer.instance.ticket}
             instance={explorer.instance}
@@ -276,12 +286,6 @@ export function PluginExplorerPanel({
             onNavigate={onNavigate}
             hostEvent={{ observation: "host.explorer", value: state }}
           />
-        ) : pending ? (
-          showPending ? (
-            <p className="explorer-busy" role="status">
-              {t("Loading Space Explorer…")}
-            </p>
-          ) : null
         ) : (
           children
         )}
