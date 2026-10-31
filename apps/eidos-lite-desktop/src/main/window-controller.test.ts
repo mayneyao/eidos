@@ -177,6 +177,7 @@ it.each([true, false])(
     const loadURL = vi.fn(async () => {})
     const loadFile = vi.fn(async () => {})
     const window = {
+      isDestroyed: () => false,
       loadURL,
       loadFile,
       webContents: {
@@ -203,6 +204,47 @@ it.each([true, false])(
           { hash: "/file-properties" }
         )
       }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  }
+)
+
+it.each([true, false])(
+  "passes the saved startup theme before the document loads (development: %s)",
+  async (development) => {
+    const { controller } = fixture()
+    vi.mocked(controller.getPreferences).mockResolvedValue({
+      ...DEFAULT_EIDOS_LITE_PREFERENCES,
+      appearance: "dark",
+    })
+    const window = {
+      isDestroyed: () => false,
+      loadURL: vi.fn(async () => {}),
+      loadFile: vi.fn(async () => {}),
+      webContents: {
+        getURL: () => "http://localhost:5179/?appearance=dark#/opening",
+      },
+    }
+    vi.stubEnv(
+      "VITE_DEV_SERVER_URL",
+      development ? "http://localhost:5179/" : ""
+    )
+    try {
+      await (
+        controller as unknown as {
+          loadRenderer(window: unknown, route: string): Promise<void>
+        }
+      ).loadRenderer(window, "/opening")
+      if (development)
+        expect(window.loadURL).toHaveBeenCalledWith(
+          "http://localhost:5179/?appearance=dark#/opening"
+        )
+      else
+        expect(window.loadFile).toHaveBeenCalledWith(
+          expect.stringContaining("/dist/index.html"),
+          { hash: "/opening", query: { appearance: "dark" } }
+        )
     } finally {
       vi.unstubAllEnvs()
     }

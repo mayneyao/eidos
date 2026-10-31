@@ -77,3 +77,27 @@ it("places the logo ahead of React without a second document or animation timer"
   )
   expect(script).not.toContain("setTimeout")
 })
+
+it.each(["light", "dark", "system"])(
+  "uses the saved %s appearance before React starts",
+  (appearance) => {
+    const html = withStartupShell('<div id="root"></div>')
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)![1]!
+    const style: Record<string, string> = {}
+    runInNewContext(script, {
+      URLSearchParams,
+      location: { hash: "#/opening", search: `?appearance=${appearance}` },
+      navigator: { language: "en" },
+      document: {
+        documentElement: { style },
+        querySelector: () => ({}),
+        getElementById: () => ({
+          querySelector: () => ({ getContext: () => null }),
+        }),
+      },
+    })
+    expect(style.colorScheme).toBe(
+      appearance === "system" ? undefined : appearance
+    )
+  }
+)

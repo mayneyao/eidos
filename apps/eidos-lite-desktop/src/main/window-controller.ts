@@ -1947,7 +1947,18 @@ export class WindowController {
     })
   }
 
-  private loadRenderer(window: BrowserWindow, route?: string): Promise<void> {
+  private async loadRenderer(
+    window: BrowserWindow,
+    route?: string
+  ): Promise<void> {
+    const appearance =
+      route === "/opening"
+        ? await this.getPreferences().then(
+            (value) => value.appearance,
+            () => "system"
+          )
+        : undefined
+    if (window.isDestroyed()) return
     const document =
       route === "/file-properties" ? "file-properties.html" : "index.html"
     const developmentUrl = process.env.VITE_DEV_SERVER_URL
@@ -1955,7 +1966,9 @@ export class WindowController {
       const url = new URL(developmentUrl)
       if (document !== "index.html") url.pathname = `/${document}`
       if (route) url.hash = route
+      if (appearance) url.searchParams.set("appearance", appearance)
       return window.loadURL(url.toString()).then(() => {
+        if (window.isDestroyed()) return
         console.info("[lite:dev] Renderer loaded:", window.webContents.getURL())
       })
     }
@@ -1964,7 +1977,9 @@ export class WindowController {
         path.dirname(fileURLToPath(import.meta.url)),
         `../dist/${document}`
       ),
-      route ? { hash: route } : undefined
+      route
+        ? { hash: route, ...(appearance ? { query: { appearance } } : {}) }
+        : undefined
     )
   }
 }

@@ -78,7 +78,8 @@ if (ctx) {
 `
 
 const styles = `
-#lite-startup{position:fixed;inset:0;z-index:2147483647;background:light-dark(#f7f7f5,#202020);color:light-dark(#555,#bbb);font:13px system-ui;display:grid;place-content:center;justify-items:center;-webkit-app-region:drag;color-scheme:light dark}
+:root{color-scheme:light dark}
+#lite-startup{position:fixed;inset:0;z-index:2147483647;background:light-dark(#f7f7f5,#202020);color:light-dark(#555,#bbb);font:13px system-ui;display:grid;place-content:center;justify-items:center;-webkit-app-region:drag}
 #lite-startup .art{position:relative;width:192px;height:192px}
 #lite-startup svg{position:absolute;inset:10%;width:80%;height:80%}
 #lite-startup canvas{width:100%;height:100%;opacity:0}
@@ -105,6 +106,8 @@ export function startupDocument(locale: string): string {
 export function withStartupShell(html: string): string {
   const script = `
 if (!/^#\\/settings(?:\\/|$)/.test(location.hash)) {
+  const appearance = new URLSearchParams(location.search).get("appearance");
+  if (appearance === "light" || appearance === "dark") document.documentElement.style.colorScheme = appearance;
   document.querySelector("#lite-startup p").textContent = navigator.language.startsWith("zh") ? "正在打开…" : "Opening…";
   ${animation}
 } else document.getElementById("lite-startup").remove();
