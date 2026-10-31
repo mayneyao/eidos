@@ -326,7 +326,7 @@ describe("Eidos Lite package identity", () => {
     expect(source).not.toContain('fill="#828282"')
   })
 
-  it("keeps both macOS packaged smoke architectures in the Lite-only gate", async () => {
+  it("keeps macOS and Linux packaged smoke architectures in the Lite-only gate", async () => {
     const workflow = await fs.readFile(
       path.resolve(
         appRoot,
@@ -349,6 +349,30 @@ describe("Eidos Lite package identity", () => {
       }
     ).jobs
     expect(jobs["macos-performance"]).toBeUndefined()
+    expect(jobs["packaged-linux"]).toMatchObject({
+      strategy: {
+        matrix: {
+          include: [
+            { architecture: "x64", runner: "ubuntu-latest" },
+            { architecture: "arm64", runner: "ubuntu-24.04-arm" },
+          ],
+        },
+      },
+      steps: expect.arrayContaining([
+        expect.objectContaining({
+          run: "pnpm build:eidos-lite:release:linux",
+        }),
+        expect.objectContaining({
+          env: {
+            EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: "production",
+            EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: "observe",
+          },
+          run: expect.stringContaining(
+            'EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged'
+          ),
+        }),
+      ]),
+    })
     expect(workflow).not.toContain("name: Enforce packaged performance")
     expect(workflow).toContain(
       "if: ${{ steps.staging-archive.outcome == 'success' }}"
