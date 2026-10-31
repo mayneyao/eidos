@@ -15,9 +15,14 @@ export function useAppTheme(): ResolvedAppearance {
     []
   )
   const [systemDark, setSystemDark] = useState(media.matches)
-  const [appearance, setAppearance] = useState<EidosLiteAppearance>(
-    DEFAULT_RENDERER_PREFERENCES.appearance
-  )
+  const [appearance, setAppearance] = useState<EidosLiteAppearance>(() => {
+    const initial = new URLSearchParams(window.location.search).get(
+      "appearance"
+    )
+    return initial === "light" || initial === "dark"
+      ? initial
+      : DEFAULT_RENDERER_PREFERENCES.appearance
+  })
   const [pluginTheme, setPluginTheme] = useState<ThemeDeclaration | null>(null)
   useEffect(() => {
     const update = () => setSystemDark(media.matches)
