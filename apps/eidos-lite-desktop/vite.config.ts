@@ -17,6 +17,8 @@ import { cleanElectronOutput } from "./src/main/electron-output-cleaner"
 import { readGraftSourceSnapshotPolicy } from "./scripts/graft-snapshot-policy.mjs"
 import { resolveSparkPublicKey } from "./scripts/spark-key-policy.mjs"
 
+import { withStartupShell } from "./src/main/startup-document"
+
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
 
 function buildEnvironmentManifest(
@@ -115,6 +117,15 @@ export default defineConfig(({ mode, command }) => {
   return {
     define: environmentDefine,
     plugins: [
+      {
+        name: "lite-startup-shell",
+        transformIndexHtml(html, context) {
+          return path.resolve(context.filename) ===
+            path.resolve(appRoot, "index.html")
+            ? withStartupShell(html)
+            : html
+        },
+      },
       react(),
       tailwindcss(),
       electron({

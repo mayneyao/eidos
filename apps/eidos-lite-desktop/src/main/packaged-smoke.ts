@@ -720,6 +720,9 @@ const rendererProbe = `
   }
   if (!window.eidosLite) throw new Error("window.eidosLite preload API is missing")
   window.__eidosLiteSmokeStep = "startup"
+  await waitFor(() =>
+    document.documentElement.dataset.startupState === "ready" &&
+    !document.getElementById("lite-startup"), "usable workspace after startup shell")
   const appInfo = await window.eidosLite.getAppInfo()
   if (
     appInfo.services.name !== expectedServices.name ||

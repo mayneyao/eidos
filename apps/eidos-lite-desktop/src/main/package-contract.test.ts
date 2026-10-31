@@ -354,24 +354,6 @@ describe("Eidos Lite package identity", () => {
       "if: ${{ steps.staging-archive.outcome == 'success' }}"
     )
     expect(workflow).not.toContain("test:performance")
-    const performanceWorkflow = await fs.readFile(
-      path.resolve(
-        appRoot,
-        "../../.github/workflows/eidos-lite-performance.yml"
-      ),
-      "utf8"
-    )
-    expect(performanceWorkflow).toContain(
-      'workflows: ["Eidos Lite Desktop Gates"]'
-    )
-    expect(performanceWorkflow).toContain("test:performance")
-    expect(performanceWorkflow).toContain("lite-performance-report.mjs comment")
-    expect(performanceWorkflow).toContain(
-      "ref: ${{ github.event.repository.default_branch }}"
-    )
-    expect(performanceWorkflow).toContain(
-      "run.head_repository.id !== context.payload.repository.id"
-    )
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
 
@@ -500,56 +482,6 @@ describe("Eidos Lite package identity", () => {
       uses: "./.github/workflows/build-lite-macos-x64.yml",
     })
     expect(workflow.match(/lite-performance-report.mjs guard/g)).toHaveLength(2)
-    const installedPerformance = parse(
-      await fs.readFile(
-        path.resolve(
-          appRoot,
-          "../../.github/workflows/eidos-lite-macos-performance.yml"
-        ),
-        "utf8"
-      )
-    ) as {
-      jobs: Record<
-        string,
-        {
-          strategy: {
-            matrix: { include: { architecture: string; runner: string }[] }
-          }
-          steps: {
-            name: string
-            if?: string
-            run?: string
-            env?: Record<string, string>
-            "continue-on-error"?: boolean
-          }[]
-        }
-      >
-    }
-    const performanceJob = installedPerformance.jobs["installed-performance"]
-    expect(performanceJob.strategy.matrix.include).toEqual([
-      expect.objectContaining({ architecture: "arm64", runner: "macos-15" }),
-      expect.objectContaining({
-        architecture: "x64",
-        runner: "macos-15-intel",
-      }),
-    ])
-    const measurement = performanceJob.steps.find(
-      (step) => step.name === "Record one installed performance report"
-    )
-    expect(measurement?.run).toContain("set -euo pipefail")
-    expect(
-      measurement?.run?.match(/pnpm smoke:eidos-lite-packaged/g)
-    ).toHaveLength(1)
-    expect(measurement?.env).toEqual({
-      EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT:
-        "${{ inputs.staging-artifacts && 'staging' || 'production' }}",
-      EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: "observe",
-    })
-    expect(measurement?.if).toBeUndefined()
-    expect(measurement?.["continue-on-error"]).toBeUndefined()
-    expect(
-      performanceJob.steps.some((step) => step.run?.includes("for sample"))
-    ).toBe(false)
     expect(workflow).not.toContain("Enforce packaged release performance")
     expect(workflow).not.toContain("Enforce packaged Linux release performance")
     expect(workflow).toContain("dbus-run-session -- xvfb-run")

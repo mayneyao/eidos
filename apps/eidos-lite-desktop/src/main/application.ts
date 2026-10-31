@@ -500,15 +500,25 @@ void app.whenReady().then(async () => {
   if (pluginInstallProtocolRegistered === false) {
     logger.warn("plugins.install-protocol.registration-failed")
   }
+  // Register the bridge before loading the single startup document. Its
+  // initial Space request waits on the controller's startup promise.
+  const registeredIpc = registerIpc(controller, services, syncControl, updater)
+  closeIpc = registeredIpc.close
+  openPluginPackage = registeredIpc.openPluginPackage
   const startupWindow =
     pendingLaunchFiles.length === 0 && pendingPluginInstallIds.length === 0
       ? await controller.createStartupWindow()
       : undefined
-  await controller.recoverCloneOperations()
+  try {
+    await controller.recoverCloneOperations()
+  } catch (error) {
+    const recoveryWindow =
+      startupWindow ?? (await controller.createStartupWindow())
+    controller.failStartup(recoveryWindow, error)
+    logger.error("app.recovery.failed", undefined, error)
+    return
+  }
   if (shutdownStarted) return
-  const registeredIpc = registerIpc(controller, services, syncControl, updater)
-  closeIpc = registeredIpc.close
-  openPluginPackage = registeredIpc.openPluginPackage
   await installApplicationMenu()
   controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true

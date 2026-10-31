@@ -1435,6 +1435,8 @@ const zh: Record<string, string> = {
   "Import into Space root": "导入到空间根目录",
   "Move to Space root": "移动到空间根目录",
   "Refresh Space Explorer": "刷新空间资源管理器",
+  "Could not open your Space": "无法打开你的空间",
+  "Show saved explorer": "切换到已保存的资源管理器",
   "Loading Space Explorer…": "正在加载空间资源管理器…",
   "Loading folder…": "正在加载文件夹…",
   "Loading…": "正在加载…",

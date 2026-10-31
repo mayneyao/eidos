@@ -51,8 +51,8 @@ the command, keeping obsolete hashes and test code out of `app.asar`.
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and
 `macos-15-intel`. Each architecture runs a fresh-package functional pass and
-retains its exact artifact. The separate `eidos-lite-performance.yml` workflow
-measures it once and comments on the PR; ordinary latency overruns do not block release.
+retains its exact artifact. CI does not run a separate performance measurement
+workflow or post performance comments on PRs. Timing does not block release.
 The workflow has read-only repository permissions and no signing, release, or
 production-service step. A manual run with `retain_staging_packages=true`
 retains both macOS staging apps for three days after verifying registry-only

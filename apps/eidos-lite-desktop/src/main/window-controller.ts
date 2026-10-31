@@ -65,7 +65,6 @@ import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { LaunchNotificationRetry } from "./launch-notification-retry"
 import { eidosLiteLogSummary, logCorrelationKey } from "./logging"
-import { startupDocument } from "./startup-document"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
   canonicalizeSpaceRoot,
@@ -538,10 +537,15 @@ export class WindowController {
     ...DEFAULT_EIDOS_LITE_PREFERENCES.builtInPlugins,
   }
   private closing = false
+  private startupRecoveryError: Error | null = null
   private defaultWindowOpening: Promise<void> | null = null
   private readonly initialSpaceSnapshots = new Map<
     number,
     Promise<SpaceSnapshot | null>
+  >()
+  private readonly startupResolvers = new Map<
+    number,
+    (value: SpaceSnapshot | null | PromiseLike<SpaceSnapshot | null>) => void
   >()
   private readonly bindingOwners = new Set<number>()
   private readonly spaceCloseInstalled = new WeakSet<BrowserWindow>()
@@ -569,14 +573,60 @@ export class WindowController {
     return window
   }
 
-  async createStartupWindow(): Promise<BrowserWindow> {
-    const window = this.createWindow(false, "welcome")
-    // Render independently of the application bundle and Space initialization.
-    await window.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(startupDocument(app.getLocale()))}`
-    )
-    if (!window.isDestroyed() && !this.closing) window.show()
+  async createStartupWindow(
+    beforeLoad?: (window: BrowserWindow) => void
+  ): Promise<BrowserWindow> {
+    const window = this.createWindow(false, "space")
+    beforeLoad?.(window)
+    await this.loadStartupWindow(window)
     return window
+  }
+
+  private async loadStartupWindow(window: BrowserWindow): Promise<void> {
+    const id = window.webContents.id
+    const preferences = this.getPreferences()
+      .then((value) => {
+        if (window.isDestroyed() || this.closing) return
+        window.webContents.setZoomFactor(value.uiZoom)
+        this.updateWindowControls(window, value.appearance)
+      })
+      .catch((error: unknown) => {
+        console.warn("Could not restore window appearance", error)
+      })
+    const initial = new Promise<SpaceSnapshot | null>((resolve) => {
+      this.startupResolvers.set(id, resolve)
+    })
+    // Failure is delivered to the renderer; it must not become an unhandled
+    // rejection if the window closes before the renderer has subscribed.
+    void initial.catch(() => {})
+    this.initialSpaceSnapshots.set(id, initial)
+    window.once("closed", () => {
+      this.startupResolvers.get(id)?.(null)
+      this.startupResolvers.delete(id)
+      this.initialSpaceSnapshots.delete(id)
+    })
+    // One document for both the tiny inline logo and the eventual workspace.
+    await Promise.all([this.loadRenderer(window, "/opening"), preferences])
+    if (!window.isDestroyed() && !this.closing) window.show()
+  }
+
+  private settleStartup(
+    window: BrowserWindow,
+    opening: Promise<SpaceSnapshot | null>
+  ): void {
+    void opening.catch(() => {})
+    if (window.isDestroyed() || this.closing) return
+    const id = window.webContents.id
+    this.startupResolvers.get(id)?.(opening)
+    this.startupResolvers.delete(id)
+    this.initialSpaceSnapshots.set(id, opening)
+  }
+
+  failStartup(window: BrowserWindow, cause: unknown): void {
+    this.startupRecoveryError = new Error(
+      `Startup recovery failed. Restart Eidos Lite to retry. ${cause instanceof Error ? cause.message : String(cause)}`
+    )
+    this.settleStartup(window, Promise.reject(this.startupRecoveryError))
   }
 
   openDefaultWindow(startupWindow?: BrowserWindow): Promise<void> {
@@ -597,52 +647,43 @@ export class WindowController {
         ? startupWindow.isDestroyed()
         : Boolean(this.focusAnyWindow()))
     let recent: RecentSpaceEntry | undefined
+    let lookupError: unknown
     try {
       if (unavailable()) return
       recent = (await this.listRecentSpaces(1))[0]
     } catch (error) {
+      lookupError = error
       console.warn("Could not read the last Space", error)
     }
     if (unavailable()) return
-    if (!recent?.available) {
-      if (startupWindow) await this.loadRenderer(startupWindow)
-      else this.createWelcomeWindow()
+    const window = startupWindow ?? (await this.createStartupWindow())
+    if (window.isDestroyed() || this.closing) return
+    if (lookupError || (recent && !recent.available)) {
+      this.settleStartup(
+        window,
+        Promise.reject(
+          lookupError ??
+            new Error(
+              "The last Space is unavailable. Check its folder or choose another Space."
+            )
+        )
+      )
       return
     }
-
-    // Keep one window through restoration and fallback. Destroying a
-    // failed Space window could quit the app on Windows/Linux before Welcome.
-    const window = startupWindow ?? this.createWindow(true, "welcome")
-    let failed = false
-    const opening = this.bindSpace(window.webContents, recent.path).catch(
-      (error: unknown) => {
-        failed = true
-        console.warn("Could not reopen the last Space", error)
-        return null
-      }
-    )
-    // BrowserWindow getters throw once the native window has been destroyed.
-    // Capture the key while it is alive; `closed` must only use plain data.
-    const webContentsId = window.webContents.id
-    this.initialSpaceSnapshots.set(webContentsId, opening)
-    window.once("closed", () =>
-      this.initialSpaceSnapshots.delete(webContentsId)
-    )
-    // Load the workbench while the filesystem session is initialized. Its
-    // initial getSpace request joins this promise instead of reading twice.
-    const rendering = this.loadRenderer(window, "/opening")
-    // Attach a rejection handler immediately while Space initialization runs.
-    void rendering.catch(() => {})
-    const snapshot = await opening
-    if (!snapshot && !failed) {
-      if (!window.isDestroyed()) window.destroy()
+    if (!recent) {
+      this.settleStartup(window, Promise.resolve(null))
       return
     }
-    if (this.closing || window.isDestroyed()) {
-      if (!window.isDestroyed()) window.destroy()
-      return
+    const opening = this.bindSpace(window.webContents, recent.path)
+    this.settleStartup(window, opening)
+    try {
+      const snapshot = await opening
+      // A null result means another window already owns this Space.
+      if (!snapshot && !window.isDestroyed()) window.destroy()
+    } catch (error) {
+      // Preserve the rejection for getSpace(true), so recovery displays it.
+      console.warn("Could not reopen the last Space", error)
     }
-    await rendering
   }
 
   showPluginInstall(id: string): BrowserWindow {
@@ -719,24 +760,30 @@ export class WindowController {
     beforeLoad?: (window: BrowserWindow) => void,
     initialEidosFile?: string
   ): Promise<BrowserWindow> {
-    const window = this.createWindow(beforeLoad === undefined, "space")
+    const window = this.createWindow(false, "space")
     beforeLoad?.(window)
-    const snapshot = await this.bindSpace(window.webContents, root)
+    const rendering = this.loadStartupWindow(window)
+    void rendering.catch(() => {})
+    const opening = this.bindSpace(window.webContents, root).then(
+      (snapshot) => {
+        if (snapshot && initialEidosFile && !window.isDestroyed()) {
+          this.queueLaunchFile(window.webContents, initialEidosFile)
+        }
+        return snapshot
+      }
+    )
+    this.settleStartup(window, opening)
+    const snapshot = await opening
     if (!snapshot) {
-      window.destroy()
+      if (!window.isDestroyed()) window.destroy()
       const existing = await this.windowForSpaceRoot(root)
-      if (!existing) {
+      if (!existing)
         throw new Error("The Space is already opening in another window")
-      }
-      if (initialEidosFile) {
+      if (initialEidosFile)
         this.queueLaunchFile(existing.webContents, initialEidosFile)
-      }
       return existing
     }
-    if (initialEidosFile) {
-      this.queueLaunchFile(window.webContents, initialEidosFile)
-    }
-    await this.loadRenderer(window)
+    await rendering
     return window
   }
 
@@ -1336,6 +1383,8 @@ export class WindowController {
       this.sessionCloses.close(session)
     this.sharedSessions.clear()
     this.sessionByWebContents.clear()
+    for (const resolve of this.startupResolvers.values()) resolve(null)
+    this.startupResolvers.clear()
     this.initialSpaceSnapshots.clear()
     this.windowBySpaceId.clear()
     this.pendingLaunchFilesByWebContents.clear()
@@ -1439,6 +1488,7 @@ export class WindowController {
   ): Promise<SpaceSnapshot | null> {
     this.initialSpaceSnapshots.delete(webContents.id)
     assertAdmission?.()
+    if (this.startupRecoveryError) throw this.startupRecoveryError
     if (this.closing) throw new Error("Eidos Lite is closing")
     const canonical = await canonicalizeSpaceRoot(root)
     assertAdmission?.()
@@ -1578,17 +1628,15 @@ export class WindowController {
       window.removeListener("closed", onClosed)
       this.detachSpaceListeners.delete(webContents.id)
     })
-    await Promise.all([
-      this.pluginSpaceOpened?.(webContents.id, session.canonical.id).catch(
-        (error: unknown) =>
-          console.warn("Could not initialize plugin backgrounds", error)
-      ),
-      this.recentSpaces()
-        .record(session.canonical)
-        .catch((error) => {
-          console.warn("Could not update recent Spaces", error)
-        }),
-    ])
+    void this.pluginSpaceOpened?.(webContents.id, session.canonical.id).catch(
+      (error: unknown) =>
+        console.warn("Could not initialize plugin backgrounds", error)
+    )
+    await this.recentSpaces()
+      .record(session.canonical)
+      .catch((error) => {
+        console.warn("Could not update recent Spaces", error)
+      })
     return snapshot
   }
 
@@ -1899,7 +1947,18 @@ export class WindowController {
     })
   }
 
-  private loadRenderer(window: BrowserWindow, route?: string): Promise<void> {
+  private async loadRenderer(
+    window: BrowserWindow,
+    route?: string
+  ): Promise<void> {
+    const appearance =
+      route === "/opening"
+        ? await this.getPreferences().then(
+            (value) => value.appearance,
+            () => "system"
+          )
+        : undefined
+    if (window.isDestroyed()) return
     const document =
       route === "/file-properties" ? "file-properties.html" : "index.html"
     const developmentUrl = process.env.VITE_DEV_SERVER_URL
@@ -1907,7 +1966,9 @@ export class WindowController {
       const url = new URL(developmentUrl)
       if (document !== "index.html") url.pathname = `/${document}`
       if (route) url.hash = route
+      if (appearance) url.searchParams.set("appearance", appearance)
       return window.loadURL(url.toString()).then(() => {
+        if (window.isDestroyed()) return
         console.info("[lite:dev] Renderer loaded:", window.webContents.getURL())
       })
     }
@@ -1916,7 +1977,9 @@ export class WindowController {
         path.dirname(fileURLToPath(import.meta.url)),
         `../dist/${document}`
       ),
-      route ? { hash: route } : undefined
+      route
+        ? { hash: route, ...(appearance ? { query: { appearance } } : {}) }
+        : undefined
     )
   }
 }

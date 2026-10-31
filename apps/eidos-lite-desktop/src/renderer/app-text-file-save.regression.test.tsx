@@ -157,6 +157,49 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
+it("retains the startup shell until the initial Space tree is available", async () => {
+  window.history.replaceState(null, "", "#/opening")
+  const shell = document.createElement("section")
+  shell.id = "lite-startup"
+  document.body.append(shell)
+  let finish!: (space: SpaceSnapshot) => void
+  installHost({
+    getSpace: () =>
+      new Promise<SpaceSnapshot>((resolve) => {
+        finish = resolve
+      }),
+  })
+  try {
+    await act(async () => root!.render(<App />))
+    expect(document.getElementById("lite-startup")).toBe(shell)
+    expect(host.textContent).toBe("")
+    await act(async () => finish(staleSpace))
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-test-folder-menu]")).not.toBeNull()
+    )
+    await vi.waitFor(() =>
+      expect(document.getElementById("lite-startup")).toBeNull()
+    )
+  } finally {
+    shell.remove()
+  }
+})
+
+it("shows recovery instead of the selector when initial restoration fails", async () => {
+  window.history.replaceState(null, "", "#/opening")
+  installHost({
+    getSpace: async () => {
+      throw new Error("Space disk unavailable")
+    },
+  })
+  await act(async () => root!.render(<App />))
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    "Space disk unavailable"
+  )
+  expect(host.textContent).toContain("Could not open your Space")
+  expect(host.textContent).toContain("Choose another Space")
+})
+
 function installHost(overrides: Record<string, unknown>) {
   const methods: Record<string, unknown> = {
     getPreferences: async () => DEFAULT_RENDERER_PREFERENCES,

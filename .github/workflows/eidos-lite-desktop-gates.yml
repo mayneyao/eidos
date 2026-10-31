@@ -14,7 +14,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
-      - ".github/workflows/eidos-lite-macos-performance.yml"
       - "apps/eidos-lite-desktop/**"
       - "apps/eidos-file-web/fixtures/**"
       - "packages/eidos-file/**"
@@ -399,7 +398,7 @@ jobs:
               "genericPackagedSmoke": {
                   "observe": os.environ["OBSERVED_SMOKE_OUTCOME"],
               },
-              "performanceAcceptance": "separate distribution performance job; one measurement report",
+              "performanceAcceptance": "not evaluated by CI",
               "e2eeAcceptance": "not run by this workflow; requires separate installed acceptance",
           }
           manifest = output / "identity.json"

@@ -842,9 +842,8 @@ function WorkspaceApp({
     keyboardShortcuts
   )
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
-  const [initialSpaceOpening, setInitialSpaceOpening] = useState(
-    window.location.hash === "#/opening"
-  )
+  const [initialSpaceOpening, setInitialSpaceOpening] = useState(true)
+  const [startupFailure, setStartupFailure] = useState(false)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const cachedFilesRef = useRef(cachedFiles)
   cachedFilesRef.current = cachedFiles
@@ -1557,6 +1556,7 @@ function WorkspaceApp({
       (cause) => {
         if (active) {
           setError(errorMessage(cause))
+          setStartupFailure(true)
           setInitialSpaceOpening(false)
         }
       }
@@ -3540,15 +3540,44 @@ function WorkspaceApp({
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
-    if (initialSpaceOpening)
+    if (initialSpaceOpening) return null
+    if (startupFailure)
       return (
-        <main className="editor-empty" role="status">
-          {t("Loading Space Explorer…")}
+        <main className="editor-empty" role="alert">
+          <StartupComplete />
+          <h2>{t("Could not open your Space")}</h2>
+          <p>{error}</p>
+          <button
+            type="button"
+            className="editor-empty-action"
+            disabled={openingSpace}
+            onClick={() =>
+              void bindSpace(async () => {
+                const latest = (await window.eidosLite.listRecentSpaces())[0]
+                if (!latest) {
+                  setStartupFailure(false)
+                  return null
+                }
+                return window.eidosLite.openRecentSpace(latest.id)
+              })
+            }
+          >
+            {t("Retry")}
+          </button>
+          <button
+            type="button"
+            className="editor-empty-action"
+            disabled={openingSpace}
+            onClick={() => void openSpace()}
+          >
+            {t("Choose another Space")}
+          </button>
         </main>
       )
     if (whatsNew.open)
       return (
         <main className="whats-new-welcome">
+          <StartupComplete />
           <header className="file-titlebar">
             <strong>RELEASE_NOTES.md</strong>
             <button
@@ -3565,6 +3594,7 @@ function WorkspaceApp({
       )
     return (
       <>
+        <StartupComplete />
         <Welcome
           appInfo={appInfo}
           opening={openingSpace}
@@ -3940,7 +3970,11 @@ function WorkspaceApp({
             onForward={() => navigateHistory(1)}
           />
         </header>
+        {pluginExplorer.instance && !pluginExplorer.error ? (
+          <StartupComplete />
+        ) : null}
         <PluginExplorerPanel
+          key={space.id}
           explorer={pluginExplorer}
           state={pluginExplorerState}
           onNavigate={navigatePluginPage}
@@ -3992,6 +4026,7 @@ function WorkspaceApp({
                 </p>
               }
             >
+              <StartupComplete />
               <SpaceFileTree
                 sort={explorerSort}
                 fileFilter={explorerFileFilter}
@@ -5862,6 +5897,20 @@ function WorkspaceApp({
       ) : null}
     </div>
   )
+}
+
+function StartupComplete() {
+  useLayoutEffect(() => {
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("lite-startup-finished"))
+        document.getElementById("lite-startup")?.remove()
+        document.documentElement.dataset.startupState = "ready"
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  return null
 }
 
 export function App() {
