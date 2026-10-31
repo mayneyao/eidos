@@ -65,7 +65,7 @@ import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { LaunchNotificationRetry } from "./launch-notification-retry"
 import { eidosLiteLogSummary, logCorrelationKey } from "./logging"
-import { startupDocument } from "./startup-document"
+import { StartupCover } from "./startup-cover"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
   canonicalizeSpaceRoot,
@@ -540,6 +540,7 @@ export class WindowController {
   private closing = false
   private defaultWindowOpening: Promise<void> | null = null
   private readonly startupShownAt = new WeakMap<BrowserWindow, number>()
+  private readonly startupCovers = new WeakMap<BrowserWindow, StartupCover>()
   private readonly initialSpaceSnapshots = new Map<
     number,
     Promise<SpaceSnapshot | null>
@@ -572,15 +573,30 @@ export class WindowController {
 
   async createStartupWindow(): Promise<BrowserWindow> {
     const window = this.createWindow(false, "welcome")
-    // Render independently of the application bundle and Space initialization.
-    await window.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(startupDocument(app.getLocale()))}`
-    )
+    // The cover has its own document: loading the workbench cannot clear it.
+    const cover = new StartupCover(window)
+    this.startupCovers.set(window, cover)
+    try {
+      await cover.load(app.getLocale())
+    } catch (error) {
+      cover.dispose()
+      throw error
+    }
     if (!window.isDestroyed() && !this.closing) {
       this.startupShownAt.set(window, Date.now())
       window.show()
     }
     return window
+  }
+
+  startupReady(sender: WebContents): void {
+    const window = BrowserWindow.fromWebContents(sender)
+    if (!window || window.isDestroyed() || window.webContents !== sender) return
+    const cover = this.startupCovers.get(window)
+    this.startupCovers.delete(window)
+    void cover?.reveal().catch((error: unknown) => {
+      console.warn("Could not capture the initial workspace frame", error)
+    })
   }
 
   openDefaultWindow(startupWindow?: BrowserWindow): Promise<void> {

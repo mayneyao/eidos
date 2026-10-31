@@ -5867,6 +5867,12 @@ function StartupComplete() {
   useLayoutEffect(() => {
     window.dispatchEvent(new Event("lite-startup-finished"))
     document.getElementById("lite-startup")?.remove()
+    // A layout effect precedes paint. Keep the native cover until at least
+    // one frame containing the committed workspace has been presented.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => window.eidosLite.startupReady())
+    })
+    return () => cancelAnimationFrame(frame)
   }, [])
   return null
 }

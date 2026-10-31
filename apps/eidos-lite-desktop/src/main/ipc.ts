@@ -1408,6 +1408,10 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.getSpace, (event, initial: unknown) =>
     controller.spaceSnapshot(event.sender, initial === true)
   )
+  ipcMain.on(IPC_CHANNELS.startupReady, (event) => {
+    if (event.senderFrame === event.sender.mainFrame)
+      controller.startupReady(event.sender)
+  })
   ipcMain.handle(
     IPC_CHANNELS.refreshSpace,
     (event) => controller.sessionFor(event.sender)?.refresh() ?? null

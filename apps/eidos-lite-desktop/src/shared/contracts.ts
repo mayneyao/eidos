@@ -1,4 +1,5 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
+import type { ExplorerFileFilter } from "./explorer-file-filter"
 import type { FileMetaPatch } from "@eidos.space/plugin-sdk"
 import type { EidosLiteMenuOrders } from "./menu-orders"
 import type {
@@ -110,6 +111,7 @@ export const IPC_CHANNELS = {
   openRecentSpace: "eidos-lite:space-recent-open",
   removeRecentSpace: "eidos-lite:space-recent-remove",
   getSpace: "eidos-lite:space-get",
+  startupReady: "eidos-lite:startup-ready",
   refreshSpace: "eidos-lite:space-refresh",
   refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
@@ -1876,12 +1878,13 @@ export interface EidosLiteApi extends PluginApi {
   openRecentSpace(id: string): Promise<SpaceSnapshot | null>
   removeRecentSpace(id: string): Promise<RecentSpaceEntry[]>
   getSpace(initial?: boolean): Promise<SpaceSnapshot | null>
+  startupReady(): void
   refreshSpace(): Promise<SpaceSnapshot | null>
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
   filterSpaceFiles(
-    filter: import("./explorer-file-filter").ExplorerFileFilter,
+    filter: ExplorerFileFilter,
     directory: string | null
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>

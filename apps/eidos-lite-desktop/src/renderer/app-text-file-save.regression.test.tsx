@@ -169,6 +169,7 @@ function installHost(overrides: Record<string, unknown>) {
     setFormatterContext: vi.fn(async () => undefined),
     setPluginShortcuts: vi.fn(async () => []),
     getSpace: async () => staleSpace,
+    startupReady: vi.fn(),
     listPlugins: async () => ({ plugins: [], space: { id: "s" } }),
     listRecentSpaces: async () => [],
     listPublicationBindings: async () => [],

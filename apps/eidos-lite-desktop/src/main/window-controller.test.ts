@@ -6,6 +6,9 @@ import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { SpaceCloneCoordinator } from "./sync/space-clone-coordinator"
 
 const mocks = vi.hoisted(() => ({
+  coverLoad: vi.fn(async (_locale: string) => {}),
+  coverDispose: vi.fn(),
+  coverReveal: vi.fn(async () => {}),
   sessionModuleLoads: 0,
   window: null as unknown,
   create: vi.fn(),
@@ -23,6 +26,13 @@ const mocks = vi.hoisted(() => ({
     name: root,
     displayPath: root,
   })),
+}))
+vi.mock("./startup-cover", () => ({
+  StartupCover: class {
+    load = mocks.coverLoad
+    dispose = mocks.coverDispose
+    reveal = mocks.coverReveal
+  },
 }))
 vi.mock("electron", () => ({
   app: {
@@ -261,7 +271,8 @@ it("shows a lightweight startup page without waiting for Space initialization", 
   Object.assign(setup.window, { loadURL })
   await setup.controller.createStartupWindow()
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(false, "welcome")
-  expect(decodeURIComponent(loadURL.mock.calls[0]![0])).toContain("Opening…")
+  expect(mocks.coverLoad).toHaveBeenCalledWith("en")
+  expect(loadURL).not.toHaveBeenCalled()
   expect(setup.window.show).toHaveBeenCalledOnce()
   expect(setup.recents).not.toHaveBeenCalled()
   expect(setup.load).not.toHaveBeenCalled()

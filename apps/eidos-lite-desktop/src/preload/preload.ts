@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
-import { PLUGIN_CHANNELS } from "../shared/plugins"
+import { PLUGIN_CHANNELS, type BluetoothPickerState } from "../shared/plugins"
 import type { TextSearchProgress } from "../shared/text-search"
 
 import {
@@ -26,7 +26,7 @@ const api: EidosLiteApi = {
   onBluetoothPicker: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      state: import("../shared/plugins").BluetoothPickerState | null
+      state: BluetoothPickerState | null
     ) => listener(state)
     ipcRenderer.on(PLUGIN_CHANNELS.bluetoothPicker, handler)
     return () =>
@@ -258,6 +258,7 @@ const api: EidosLiteApi = {
   removeRecentSpace: (id) =>
     ipcRenderer.invoke(IPC_CHANNELS.removeRecentSpace, id),
   getSpace: (initial) => ipcRenderer.invoke(IPC_CHANNELS.getSpace, initial),
+  startupReady: () => ipcRenderer.send(IPC_CHANNELS.startupReady),
   refreshSpace: () => ipcRenderer.invoke(IPC_CHANNELS.refreshSpace),
   refreshExplorer: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExplorer),
   loadSpaceDirectory: (relativePath) =>
