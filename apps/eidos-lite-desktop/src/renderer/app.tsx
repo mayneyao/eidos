@@ -842,9 +842,7 @@ function WorkspaceApp({
     keyboardShortcuts
   )
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
-  const [initialSpaceOpening, setInitialSpaceOpening] = useState(
-    window.location.hash === "#/opening"
-  )
+  const [initialSpaceOpening, setInitialSpaceOpening] = useState(true)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const cachedFilesRef = useRef(cachedFiles)
   cachedFilesRef.current = cachedFiles
@@ -3540,15 +3538,11 @@ function WorkspaceApp({
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
-    if (initialSpaceOpening)
-      return (
-        <main className="editor-empty" role="status">
-          {t("Loading Space Explorer…")}
-        </main>
-      )
+    if (initialSpaceOpening) return null
     if (whatsNew.open)
       return (
         <main className="whats-new-welcome">
+          <StartupComplete />
           <header className="file-titlebar">
             <strong>RELEASE_NOTES.md</strong>
             <button
@@ -3565,6 +3559,7 @@ function WorkspaceApp({
       )
     return (
       <>
+        <StartupComplete />
         <Welcome
           appInfo={appInfo}
           opening={openingSpace}
@@ -3940,6 +3935,9 @@ function WorkspaceApp({
             onForward={() => navigateHistory(1)}
           />
         </header>
+        {pluginExplorer.instance && !pluginExplorer.error ? (
+          <StartupComplete />
+        ) : null}
         <PluginExplorerPanel
           explorer={pluginExplorer}
           state={pluginExplorerState}
@@ -3992,6 +3990,7 @@ function WorkspaceApp({
                 </p>
               }
             >
+              <StartupComplete />
               <SpaceFileTree
                 sort={explorerSort}
                 fileFilter={explorerFileFilter}
@@ -5862,6 +5861,14 @@ function WorkspaceApp({
       ) : null}
     </div>
   )
+}
+
+function StartupComplete() {
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event("lite-startup-finished"))
+    document.getElementById("lite-startup")?.remove()
+  }, [])
+  return null
 }
 
 export function App() {

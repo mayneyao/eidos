@@ -131,6 +131,7 @@ it("keeps Space runtime loading out of the Welcome controller", () => {
 
 function defaultWindowFixture() {
   const setup = fixture()
+  Object.assign(setup.window, { loadURL: vi.fn(async () => {}) })
   const internals = setup.controller as unknown as {
     createWindow(show: boolean, kind: string): BrowserWindow
     loadRenderer(window: BrowserWindow): Promise<void>
@@ -211,7 +212,8 @@ it("loads the renderer in parallel with restoration and reuses the initial snaps
   mocks.create.mockResolvedValueOnce(last)
   await setup.controller.openDefaultWindow()
   expect(setup.controller.sessionFor(setup.owner)).toBe(last)
-  expect(setup.create).toHaveBeenCalledExactlyOnceWith(true, "welcome")
+  expect(setup.create).toHaveBeenCalledExactlyOnceWith(false, "welcome")
+  expect(setup.window.show).toHaveBeenCalledOnce()
   expect(setup.recents).toHaveBeenCalledExactlyOnceWith(1)
   expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window, "/opening")
   expect(last.snapshot.mock.invocationCallOrder[0]).toBeGreaterThan(
@@ -351,7 +353,7 @@ it("uses the same window as Welcome when the last Space fails to open", async ()
     expect(setup.load).toHaveBeenCalledExactlyOnceWith(setup.window, "/opening")
     await expect(
       setup.controller.spaceSnapshot(setup.owner, true)
-    ).resolves.toBeNull()
+    ).rejects.toThrow("Space is locked")
     expect(setup.welcome).not.toHaveBeenCalled()
     expect(warning).toHaveBeenCalledWith(
       "Could not reopen the last Space",

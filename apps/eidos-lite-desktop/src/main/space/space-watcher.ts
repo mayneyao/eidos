@@ -21,6 +21,25 @@ export class SpaceWatcher {
 
   start(): void {
     if (this.watcher || this.closed) return
+    // macOS can interrupt watch registration during launch. Retry the native
+    // operation, not the whole Space initialization or its Graft/runtime work.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        this.startWatching()
+        return
+      } catch (error) {
+        if (
+          attempt === 2 ||
+          !(error instanceof Error) ||
+          !("code" in error) ||
+          error.code !== "EINTR"
+        )
+          throw error
+      }
+    }
+  }
+
+  private startWatching(): void {
     this.watcher = fs.watch(
       this.root,
       { recursive: true, persistent: false },

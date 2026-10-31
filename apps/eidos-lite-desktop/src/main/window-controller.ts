@@ -539,6 +539,7 @@ export class WindowController {
   }
   private closing = false
   private defaultWindowOpening: Promise<void> | null = null
+  private readonly startupShownAt = new WeakMap<BrowserWindow, number>()
   private readonly initialSpaceSnapshots = new Map<
     number,
     Promise<SpaceSnapshot | null>
@@ -575,7 +576,10 @@ export class WindowController {
     await window.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(startupDocument(app.getLocale()))}`
     )
-    if (!window.isDestroyed() && !this.closing) window.show()
+    if (!window.isDestroyed() && !this.closing) {
+      this.startupShownAt.set(window, Date.now())
+      window.show()
+    }
     return window
   }
 
@@ -612,15 +616,19 @@ export class WindowController {
 
     // Keep one window through restoration and fallback. Destroying a
     // failed Space window could quit the app on Windows/Linux before Welcome.
-    const window = startupWindow ?? this.createWindow(true, "welcome")
+    const window = startupWindow ?? (await this.createStartupWindow())
+    if (this.closing || window.isDestroyed()) return
     let failed = false
     const opening = this.bindSpace(window.webContents, recent.path).catch(
       (error: unknown) => {
         failed = true
         console.warn("Could not reopen the last Space", error)
-        return null
+        throw error
       }
     )
+    // Observe failure immediately, while preserving it for the renderer's
+    // initial request so recovery shows the cause rather than a silent selector.
+    const restored = opening.catch(() => null)
     // BrowserWindow getters throw once the native window has been destroyed.
     // Capture the key while it is alive; `closed` must only use plain data.
     const webContentsId = window.webContents.id
@@ -633,7 +641,7 @@ export class WindowController {
     const rendering = this.loadRenderer(window, "/opening")
     // Attach a rejection handler immediately while Space initialization runs.
     void rendering.catch(() => {})
-    const snapshot = await opening
+    const snapshot = await restored
     if (!snapshot && !failed) {
       if (!window.isDestroyed()) window.destroy()
       return
@@ -1903,8 +1911,11 @@ export class WindowController {
     const document =
       route === "/file-properties" ? "file-properties.html" : "index.html"
     const developmentUrl = process.env.VITE_DEV_SERVER_URL
+    const startupAt = this.startupShownAt.get(window)
+    const query = startupAt ? { startupAt: String(startupAt) } : undefined
     if (developmentUrl) {
       const url = new URL(developmentUrl)
+      if (query) url.searchParams.set("startupAt", query.startupAt)
       if (document !== "index.html") url.pathname = `/${document}`
       if (route) url.hash = route
       return window.loadURL(url.toString()).then(() => {
@@ -1916,7 +1927,9 @@ export class WindowController {
         path.dirname(fileURLToPath(import.meta.url)),
         `../dist/${document}`
       ),
-      route ? { hash: route } : undefined
+      route || query
+        ? { ...(route ? { hash: route } : {}), ...(query ? { query } : {}) }
+        : undefined
     )
   }
 }

@@ -190,6 +190,66 @@ function installHost(overrides: Record<string, unknown>) {
   }) as unknown as EidosLiteApi
 }
 
+it.each(["darwin", "win32"])(
+  "keeps the startup logo until a delayed Space is ready on %s, without Welcome",
+  async (platform) => {
+    let finish!: (snapshot: SpaceSnapshot) => void
+    const pending = new Promise<SpaceSnapshot>((resolve) => {
+      finish = resolve
+    })
+    installHost({
+      getSpace: () => pending,
+      getAppInfo: async () => ({
+        platform,
+        version: "0.29.5",
+        services: { name: "staging" },
+      }),
+    })
+    window.history.replaceState(null, "", "/")
+    const logo = document.createElement("section")
+    logo.id = "lite-startup"
+    document.body.append(logo)
+    try {
+      await act(async () => root!.render(<App />))
+      expect(document.getElementById("lite-startup")).toBe(logo)
+      expect(host.textContent).not.toContain("Open Space")
+      expect(host.textContent).not.toContain("Loading Space Explorer")
+      await act(async () => finish(staleSpace))
+      await vi.waitFor(() =>
+        expect(document.getElementById("lite-startup")).toBeNull()
+      )
+      expect(
+        host.querySelector('[aria-label="my-eidos-space files"]')
+      ).not.toBeNull()
+      expect(host.textContent).not.toContain("Open Space")
+    } finally {
+      logo.remove()
+    }
+  }
+)
+
+it("shows recovery with the restore failure instead of silently returning to Welcome", async () => {
+  let fail!: (error: Error) => void
+  const pending = new Promise<SpaceSnapshot>((_resolve, reject) => {
+    fail = reject
+  })
+  installHost({ getSpace: () => pending })
+  window.history.replaceState(null, "", "/#/opening")
+  const logo = document.createElement("section")
+  logo.id = "lite-startup"
+  document.body.append(logo)
+  try {
+    await act(async () => root!.render(<App />))
+    expect(host.textContent).not.toContain("Open Space")
+    await act(async () => fail(new Error("Space is locked")))
+    expect(host.textContent).toContain("Space is locked")
+    expect(host.textContent).toContain("Open Space")
+    expect(document.getElementById("lite-startup")).toBeNull()
+  } finally {
+    logo.remove()
+  }
+})
+
 it.each(["toolbar", "recent"])(
   "shows Spark activation guidance instead of missing-file recovery when catalog creation is denied from %s",
   async (mode) => {
