@@ -46,16 +46,11 @@ the changes and rely on Desktop Gates for the full functional matrix. Do not
 manually repeat the same full suite or build signed candidates for each CI-only
 iteration. Use signed candidates only to investigate a concrete package issue.
 
-Performance is independent of publishing. `eidos-lite-performance.yml` consumes
-the PR's retained apps, measures each architecture once, and comments the
-metrics and comparison on that PR. It reads the previous published Lite
-release's merged PR for the baseline. Compare the same build variant: unsigned
-staging and signed production packages establish separate baselines. All timing
-results, including large relative changes, are observations only. GitHub-hosted
-runner variability makes them unsuitable for release recommendations or release
-blocking. Missing measurements are reported as unavailable. Preserve raw data;
-do not rerun to chase a better number. Publication does not read performance
-comments and still requires functional, security, signing and installer checks.
+CI does not run a separate performance measurement workflow or post performance
+comments on PRs. GitHub-hosted runner variability makes timing unsuitable for
+release recommendations or blocking. Use local performance tools for targeted
+investigations. Publication still requires functional, security, signing and
+installer checks.
 
 Require a clean worktree for version preparation. Update the exact base version
 in `apps/eidos-lite-desktop/package.json`, refresh `pnpm-lock.yaml`, rewrite the
