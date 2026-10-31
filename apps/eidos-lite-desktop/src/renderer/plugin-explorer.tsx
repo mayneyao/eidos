@@ -39,6 +39,9 @@ export function usePluginExplorer(
   const [instance, setInstance] = useState<PluginOpenResult["instance"]>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [explicitSelection, setExplicitSelection] = useState<string | null>(
+    null
+  )
   const stateRef = useRef(state)
   stateRef.current = state
   const spaceRef = useRef(spaceId)
@@ -112,7 +115,10 @@ export function usePluginExplorer(
     try {
       await window.eidosLite.setPluginExplorer(key)
       await refresh()
-      if (spaceRef.current === spaceId) setRetry((value) => value + 1)
+      if (spaceRef.current === spaceId) {
+        setExplicitSelection(spaceId ?? null)
+        setRetry((value) => value + 1)
+      }
     } catch (cause) {
       if (spaceRef.current === spaceId) setError(String(cause))
     }
@@ -121,6 +127,7 @@ export function usePluginExplorer(
     choices,
     selected: key ?? null,
     loading: Boolean(spaceId) && !listing && !error,
+    explicitlySelected: Boolean(spaceId) && explicitSelection === spaceId,
     instance: listing && key ? instance : null,
     error,
     select,
@@ -244,7 +251,9 @@ export function PluginExplorerPanel({
     if (!explorer.instance) setInteracted(true)
   }
   const showPlugin = Boolean(
-    explorer.instance && !explorer.error && (!interacted || accepted)
+    explorer.instance &&
+    !explorer.error &&
+    (!interacted || accepted || explorer.explicitlySelected)
   )
   return (
     <div

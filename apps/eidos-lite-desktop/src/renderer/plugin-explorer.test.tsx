@@ -221,52 +221,59 @@ it("keeps the built-in explorer usable during plugin mounting and failure", asyn
   }
 })
 
-it("keeps an actively used tree when the saved plugin arrives late", async () => {
-  const host = document.createElement("div")
-  document.body.append(host)
-  const root = createRoot(host)
-  const explorer: ReturnType<typeof usePluginExplorer> = {
-    choices: [],
-    selected: "example.tree/tree",
-    loading: true,
-    instance: null,
-    error: null,
-    select: vi.fn(async () => {}),
-    fail: vi.fn(),
-    retry: vi.fn(),
+it.each([false, true])(
+  "only replaces an actively used tree after an explicit choice (explicit: %s)",
+  async (explicit) => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const explorer: ReturnType<typeof usePluginExplorer> = {
+      choices: [],
+      selected: "example.tree/tree",
+      explicitlySelected: false,
+      loading: true,
+      instance: null,
+      error: null,
+      select: vi.fn(async () => {}),
+      fail: vi.fn(),
+      retry: vi.fn(),
+    }
+    const render = () =>
+      root.render(
+        <PluginExplorerPanel
+          explorer={explorer}
+          state={state}
+          onOpenFile={() => {}}
+        >
+          <div data-builtin>Tree</div>
+        </PluginExplorerPanel>
+      )
+    try {
+      await act(async () => render())
+      await act(async () =>
+        host
+          .querySelector("[data-builtin]")!
+          .dispatchEvent(new Event("pointerdown", { bubbles: true }))
+      )
+      explorer.instance = instance
+      explorer.loading = false
+      explorer.explicitlySelected = explicit
+      await act(async () => render())
+      if (!explicit) {
+        expect(host.querySelector("[data-builtin]")).not.toBeNull()
+        expect(host.querySelector("[data-plugin]")).toBeNull()
+        await act(async () =>
+          [...host.querySelectorAll("button")]
+            .find((button) => button.textContent === "Show saved explorer")!
+            .click()
+        )
+      }
+      expect(host.querySelector("[data-plugin]")).not.toBeNull()
+    } finally {
+      await act(async () => root.unmount())
+    }
   }
-  const render = () =>
-    root.render(
-      <PluginExplorerPanel
-        explorer={explorer}
-        state={state}
-        onOpenFile={() => {}}
-      >
-        <div data-builtin>Tree</div>
-      </PluginExplorerPanel>
-    )
-  try {
-    await act(async () => render())
-    await act(async () =>
-      host
-        .querySelector("[data-builtin]")!
-        .dispatchEvent(new Event("pointerdown", { bubbles: true }))
-    )
-    explorer.instance = instance
-    explorer.loading = false
-    await act(async () => render())
-    expect(host.querySelector("[data-builtin]")).not.toBeNull()
-    expect(host.querySelector("[data-plugin]")).toBeNull()
-    await act(async () =>
-      [...host.querySelectorAll("button")]
-        .find((button) => button.textContent === "Show saved explorer")!
-        .click()
-    )
-    expect(host.querySelector("[data-plugin]")).not.toBeNull()
-  } finally {
-    await act(async () => root.unmount())
-  }
-})
+)
 
 it("keeps the plugin mounted behind a temporary host search overlay", async () => {
   const host = document.createElement("div")
@@ -275,6 +282,7 @@ it("keeps the plugin mounted behind a temporary host search overlay", async () =
   const explorer: ReturnType<typeof usePluginExplorer> = {
     choices: [],
     selected: "example.tree/tree",
+    explicitlySelected: false,
     loading: false,
     instance,
     error: null,
