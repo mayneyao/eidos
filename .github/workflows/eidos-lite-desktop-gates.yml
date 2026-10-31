@@ -168,6 +168,67 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  packaged-linux:
+    name: Linux packaged smoke (${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            runner: ubuntu-latest
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Install native and display dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config dbus-x11 xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Linux candidate without publishing
+        run: pnpm build:eidos-lite:release:linux
+
+      - name: Install Debian candidate
+        env:
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          package="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$package"
+          package="$(realpath "$package")"
+          expected_architecture="$EXPECTED_ARCHITECTURE"
+          if [[ "$expected_architecture" == x64 ]]; then
+            expected_architecture=amd64
+          fi
+          test "$(dpkg-deb --field "$package" Package)" = eidos-lite
+          test "$(dpkg-deb --field "$package" Architecture)" = "$expected_architecture"
+          sudo apt-get install -y "$package"
+          test "$(dpkg-query --show --showformat='${Status}' eidos-lite)" = "install ok installed"
+
+      - name: Validate installed Linux startup and windows
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: |
+          executable="$(command -v eidos-lite-desktop)"
+          test -x "$executable"
+          test "$(realpath "$executable")" = /opt/eidos-lite/eidos-lite-desktop
+          EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
+
   source-and-real-graft:
     name: Source and real Graft SDK
     runs-on: ubuntu-latest
