@@ -573,8 +573,11 @@ export class WindowController {
     return window
   }
 
-  async createStartupWindow(): Promise<BrowserWindow> {
+  async createStartupWindow(
+    beforeLoad?: (window: BrowserWindow) => void
+  ): Promise<BrowserWindow> {
     const window = this.createWindow(false, "space")
+    beforeLoad?.(window)
     await this.loadStartupWindow(window)
     return window
   }

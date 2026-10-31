@@ -45,6 +45,8 @@ const welcomeProbe = `
     )
     if (
       welcome &&
+      !document.getElementById("lite-startup") &&
+      document.documentElement.dataset.startupState === "ready" &&
       [...welcome.querySelectorAll("button")].some((button) =>
         button.textContent?.includes("New Space")
       ) &&
@@ -127,19 +129,47 @@ export async function runPackagedStartupSmoke(
     const welcomeDidLoad = new Promise<void>((resolve) => {
       welcomeLoaded = resolve
     })
-    welcomeWindow = controller.createWelcomeWindow((candidate) => {
+    let documentLoads = 0
+    welcomeWindow = await controller.createStartupWindow((candidate) => {
       observePackagedSmokeWindow(candidate, failures)
+      candidate.webContents.on("did-finish-load", () => {
+        documentLoads++
+      })
       candidate.webContents.once("did-finish-load", () => {
         rendererLoadedAtMs = Date.now()
         welcomeLoaded?.()
       })
     })
     await welcomeDidLoad
+    // Observe a rendered frame before restoration settles. The shell must
+    // remain until real content is ready, without an interim selector.
+    await welcomeWindow.webContents.executeJavaScript(`
+      (async () => {
+        window.__startupDocumentToken = "single-startup-document";
+        const assertPending = () => {
+          const shell = document.getElementById("lite-startup");
+          if (!shell || getComputedStyle(shell).display === "none" ||
+              document.querySelector('[data-welcome-ready="true"]'))
+            throw new Error("Startup shell disappeared before restoration settled");
+        };
+        assertPending();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        assertPending();
+      })()
+    `)
+    await controller.openDefaultWindow(welcomeWindow)
     const welcomeReady = (await welcomeWindow.webContents.executeJavaScript(
       welcomeProbe,
       true
     )) as boolean
     if (!welcomeReady) throw new Error("Welcome window did not become usable")
+    if (
+      documentLoads !== 1 ||
+      !(await welcomeWindow.webContents.executeJavaScript(
+        'window.__startupDocumentToken === "single-startup-document"'
+      ))
+    )
+      throw new Error("Startup replaced the initial document")
 
     const timings = measureStartupTimings(
       milestones,
