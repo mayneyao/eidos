@@ -338,8 +338,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eidos-file-ui
       '@eidos.space/graft':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@eidos.space/graft-remote':
         specifier: 0.2.5
         version: 0.2.5
@@ -466,20 +466,20 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.12.2)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jsdom@26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5))(vite@8.1.5(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
     optionalDependencies:
       '@eidos.space/graft-darwin-arm64':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@eidos.space/graft-darwin-x64':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@eidos.space/graft-linux-arm64-gnu':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@eidos.space/graft-linux-x64-gnu':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@eidos.space/graft-win32-x64-msvc':
-        specifier: 0.3.35
-        version: 0.3.35
+        specifier: 0.3.36
+        version: 0.3.36
       '@esbuild/darwin-arm64':
         specifier: 0.28.1
         version: 0.28.1
@@ -2167,27 +2167,27 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@eidos.space/graft-darwin-arm64@0.3.35':
-    resolution: {integrity: sha512-wVO/2nA61QFxR9RTm3iOooE1vjYiOjTcPxeXb+gTerUxGrvkLb1uoEeV+p4JCLr+J8o6Jua1XZK6zq44sUk/WQ==}
+  '@eidos.space/graft-darwin-arm64@0.3.36':
+    resolution: {integrity: sha512-bFNX4bCoM2EQwlLCa7MfTqjivF3qoixh9N8o/1quCwVyuNLS6D7zcODCaHOdFvx90BsiS96QOW69/prBPXyarQ==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [darwin]
 
-  '@eidos.space/graft-darwin-x64@0.3.35':
-    resolution: {integrity: sha512-rBoUhDtW4YA9Uj1k+dZxGcEVCccYDe5G1PQ735uWHMYfYklGsjQ9981EPnYjhCWnRc11nU2UwPXCFDzBnum4vg==}
+  '@eidos.space/graft-darwin-x64@0.3.36':
+    resolution: {integrity: sha512-/Gtgyg4c7eeifh/9RdfhoQzl5UGqMYb/d8x+9PxGdYDmyQFE0X9xnM81qrvd7bRz0WF9YSKf3mHF5X/ztrd1tQ==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [darwin]
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.35':
-    resolution: {integrity: sha512-/ArfvIs8sHvsziR6cgERmzg6u8tRlzAmg9wdJA5K95rSAczytqQbNDuKw3/Ug9Q2QFtOxeGXvQY+Pg6zr3/JWA==}
+  '@eidos.space/graft-linux-arm64-gnu@0.3.36':
+    resolution: {integrity: sha512-0ioEHxdHtQT6melRC1Fx8ncjh04FZkRi6ExIeeS909+uXjRqIl5fpRuRS3li1s9iYCHES5lFh465l16Iq1XXRg==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@eidos.space/graft-linux-x64-gnu@0.3.35':
-    resolution: {integrity: sha512-RlzCXkbfBBTaeATw4oCVWX7kdRXvKW5Q29vNTNaMaqrepcjtB2Lqjh5fjwOUxmA3THZd6F5UZ5DZFUiqSNNg9A==}
+  '@eidos.space/graft-linux-x64-gnu@0.3.36':
+    resolution: {integrity: sha512-w5UUrmx/j3DHz+HQKdSU65qFNxFKnt4zM3pvpjdE9DMIE98g8n3nedBJ84n7NY1F10358eRaifPQJu5KjJPY+A==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [linux]
@@ -2209,14 +2209,14 @@ packages:
     resolution: {integrity: sha512-xb+TrKsHMrZu7lRfSvH3NyfOM+CY/rXLSKT3UFHGR2jLIrsjGWqMQzP7BO3T/h0nnwMizMu06ZY2ap0fXhjhaQ==}
     engines: {node: '>=20'}
 
-  '@eidos.space/graft-win32-x64-msvc@0.3.35':
-    resolution: {integrity: sha512-q6ZaCJ4SirBFbWznBsY/RllWzcKxm18B9vV+2c0rdQWfV8u9gYFWA0VqTvN2JnZ1N6iumYjTqM/p1NZyvncaag==}
+  '@eidos.space/graft-win32-x64-msvc@0.3.36':
+    resolution: {integrity: sha512-HcFji4md3a8TYSwTdhBt5XzLxHhci86XibHA6ZvirhmzIfHb1Aa7Tk16nOTqjUe0p9PxckL08DNkO7p62xiGxw==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [win32]
 
-  '@eidos.space/graft@0.3.35':
-    resolution: {integrity: sha512-Du/GWw1iyn2ZxR9ywLB1G8dumiYLHRBTqaj91JivtO9W3nD8QC2p0fNWBYNwUZa8rUwiGM/LoiNxwkLrXUqbOA==}
+  '@eidos.space/graft@0.3.36':
+    resolution: {integrity: sha512-NhlbLAx5SIoDHydkwymlEym71GCq6hWCe22/QKM2gIe9qur9OCLLVzpSc9mRDhWtjvewUn3u+eZIXQY671r3Nw==}
     engines: {node: '>=20'}
 
   '@electron-internal/extract-zip@1.0.5':
@@ -10440,16 +10440,16 @@ snapshots:
       react: 18.3.1
       tslib: 2.8.1
 
-  '@eidos.space/graft-darwin-arm64@0.3.35':
+  '@eidos.space/graft-darwin-arm64@0.3.36':
     optional: true
 
-  '@eidos.space/graft-darwin-x64@0.3.35':
+  '@eidos.space/graft-darwin-x64@0.3.36':
     optional: true
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.35':
+  '@eidos.space/graft-linux-arm64-gnu@0.3.36':
     optional: true
 
-  '@eidos.space/graft-linux-x64-gnu@0.3.35':
+  '@eidos.space/graft-linux-x64-gnu@0.3.36':
     optional: true
 
   '@eidos.space/graft-remote-cloudflare@0.2.5(@cloudflare/workers-types@5.20260727.1)':
@@ -10464,16 +10464,16 @@ snapshots:
 
   '@eidos.space/graft-remote@0.2.5': {}
 
-  '@eidos.space/graft-win32-x64-msvc@0.3.35':
+  '@eidos.space/graft-win32-x64-msvc@0.3.36':
     optional: true
 
-  '@eidos.space/graft@0.3.35':
+  '@eidos.space/graft@0.3.36':
     optionalDependencies:
-      '@eidos.space/graft-darwin-arm64': 0.3.35
-      '@eidos.space/graft-darwin-x64': 0.3.35
-      '@eidos.space/graft-linux-arm64-gnu': 0.3.35
-      '@eidos.space/graft-linux-x64-gnu': 0.3.35
-      '@eidos.space/graft-win32-x64-msvc': 0.3.35
+      '@eidos.space/graft-darwin-arm64': 0.3.36
+      '@eidos.space/graft-darwin-x64': 0.3.36
+      '@eidos.space/graft-linux-arm64-gnu': 0.3.36
+      '@eidos.space/graft-linux-x64-gnu': 0.3.36
+      '@eidos.space/graft-win32-x64-msvc': 0.3.36
 
   '@electron-internal/extract-zip@1.0.5': {}
 
