@@ -16,7 +16,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: lite-offline-candidate-${{ github.ref }}
+  group: lite-offline-candidate-${{ github.ref }}-${{ inputs.target || 'all' }}
   cancel-in-progress: false
 
 jobs:
