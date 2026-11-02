@@ -64,6 +64,7 @@ import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
 import { PluginManager } from "./plugin-manager"
+import { TerminalPluginDetails } from "./terminal-plugin-details"
 import type { PluginOpenResult } from "../shared/plugins"
 import {
   resolveTextSearchTarget,
@@ -4693,6 +4694,17 @@ function WorkspaceApp({
                 <PluginManager
                   key={space.id}
                   spaceAvailable
+                  builtins={[
+                    {
+                      id: "builtin.terminal",
+                      name: t("Terminal"),
+                      description: t(
+                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+                      ),
+                      enabled: builtInPlugins.terminal,
+                      details: <TerminalPluginDetails />,
+                    },
+                  ]}
                   onOpenPage={navigatePluginPage}
                   selectedPluginId={pluginDetailId}
                   onSelectPlugin={handleSelectPlugin}

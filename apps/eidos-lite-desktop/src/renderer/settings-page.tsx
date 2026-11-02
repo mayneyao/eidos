@@ -6,7 +6,6 @@ import { DevicesSettings } from "./peer-sync-panel"
 import { SyncPasswordSettings } from "./sync-password-settings"
 import { supportsEncryptedSync } from "../shared/sync-encryption"
 import {
-  Blocks,
   Cloud,
   Laptop,
   Copy,
@@ -79,13 +78,12 @@ const SETTINGS_PAGES = [
   { id: "devices", label: "Devices", icon: Laptop },
   { id: "account-sync", label: "Account & Services", icon: Cloud },
   { id: "files", label: "Files", icon: FileText },
-  { id: "plugins", label: "Plugins", icon: Blocks },
   { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
 ] as const
 
-type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"]
+type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"] | "plugins"
 
 function platformLabel(appInfo: EidosLiteAppInfo): string {
   const platform =
@@ -109,6 +107,7 @@ export function SettingsPage() {
   const { t } = useEidosLiteI18n()
   const readPage = (): SettingsPageId => {
     const section = window.location.hash.split("/")[2]
+    if (section === "plugins") return "plugins"
     return (
       SETTINGS_PAGES.find((page) => page.id === section)?.id ?? "preferences"
     )

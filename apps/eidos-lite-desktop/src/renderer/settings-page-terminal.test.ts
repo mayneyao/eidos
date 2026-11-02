@@ -107,7 +107,11 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   const pluginsPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
   ].find((button) => button.textContent === "Plugins")
-  await act(async () => pluginsPage?.click())
+  expect(pluginsPage).toBeUndefined()
+  await act(async () => {
+    window.location.hash = "#/settings/plugins"
+    window.dispatchEvent(new HashChangeEvent("hashchange"))
+  })
   expect(host.querySelector("[data-terminal-layout]")).toBeNull()
   await act(async () => {
     Array.from(host.querySelectorAll<HTMLButtonElement>(".plugin-list-entry"))

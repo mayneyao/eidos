@@ -327,6 +327,10 @@ export function PluginManager({
   const filteredBuiltins = builtins.filter((item) =>
     matchesSearch(item.id, item.name)
   )
+  const visibleBuiltins =
+    tab === "enabled"
+      ? filteredBuiltins.filter((item) => item.enabled)
+      : filteredBuiltins
 
   const builtin = builtins.find((item) => item.id === selected)
   const plugin = plugins.find((item) => item.manifest.id === selected)
@@ -356,7 +360,10 @@ export function PluginManager({
           {
             key: "enabled" as const,
             label: t("Enabled"),
-            count: query ? filteredEnabled.length : enabled.length,
+            count: query
+              ? filteredEnabled.length +
+                visibleBuiltins.filter((item) => item.enabled).length
+              : enabled.length + builtins.filter((item) => item.enabled).length,
           },
         ]
       : []),
@@ -656,7 +663,7 @@ export function PluginManager({
             </div>
             {listing &&
               visible.length === 0 &&
-              !(tab === "installed" && filteredBuiltins.length) && (
+              visibleBuiltins.length === 0 && (
                 <div className="plugin-manager-empty">
                   {query ? (
                     <>
@@ -707,53 +714,52 @@ export function PluginManager({
               )}
             {layout === "card" ? (
               <div className="plugin-manager-grid">
-                {tab === "installed" &&
-                  filteredBuiltins.map((item) => (
-                    <button
-                      type="button"
-                      className="plugin-card plugin-list-entry"
-                      key={item.id}
-                      data-plugin-id={item.id}
-                      aria-label={item.name}
-                      onClick={() => setSelected(item.id, item.name)}
-                    >
-                      <div className="plugin-card-header">
-                        <div
-                          className="plugin-card-icon-box"
-                          style={getPluginIconBadgeStyle(item.id, item.name)}
-                        >
-                          <Blocks
-                            className="plugin-manager-icon"
-                            aria-hidden="true"
-                          />
-                        </div>
-                        <div className="plugin-card-title-group">
-                          <strong className="plugin-card-title">
-                            {item.name}
-                          </strong>
-                          <span className="plugin-card-id">{item.id}</span>
-                        </div>
-                      </div>
-                      <div className="plugin-card-footer">
-                        <div className="plugin-card-badges">
-                          <span className="plugin-pill-status is-builtin">
-                            {t("Built-in")}
-                          </span>
-                          <span
-                            className={`plugin-pill-status ${
-                              item.enabled ? "is-enabled" : "is-disabled"
-                            }`}
-                          >
-                            {item.enabled ? t("Enabled") : t("Disabled")}
-                          </span>
-                        </div>
-                        <ChevronRight
-                          className="plugin-card-chevron"
+                {visibleBuiltins.map((item) => (
+                  <button
+                    type="button"
+                    className="plugin-card plugin-list-entry"
+                    key={item.id}
+                    data-plugin-id={item.id}
+                    aria-label={item.name}
+                    onClick={() => setSelected(item.id, item.name)}
+                  >
+                    <div className="plugin-card-header">
+                      <div
+                        className="plugin-card-icon-box"
+                        style={getPluginIconBadgeStyle(item.id, item.name)}
+                      >
+                        <Blocks
+                          className="plugin-manager-icon"
                           aria-hidden="true"
                         />
                       </div>
-                    </button>
-                  ))}
+                      <div className="plugin-card-title-group">
+                        <strong className="plugin-card-title">
+                          {item.name}
+                        </strong>
+                        <span className="plugin-card-id">{item.id}</span>
+                      </div>
+                    </div>
+                    <div className="plugin-card-footer">
+                      <div className="plugin-card-badges">
+                        <span className="plugin-pill-status is-builtin">
+                          {t("Built-in")}
+                        </span>
+                        <span
+                          className={`plugin-pill-status ${
+                            item.enabled ? "is-enabled" : "is-disabled"
+                          }`}
+                        >
+                          {item.enabled ? t("Enabled") : t("Disabled")}
+                        </span>
+                      </div>
+                      <ChevronRight
+                        className="plugin-card-chevron"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </button>
+                ))}
                 {visible.map((plugin) => {
                   const matched = marketplace?.plugins.find(
                     (p) => p.id === plugin.manifest.id
@@ -853,59 +859,58 @@ export function PluginManager({
               <div
                 className={`plugin-manager-list${variant === "settings" && (visible.length || (tab === "installed" && filteredBuiltins.length)) ? " settings-group" : ""}`}
               >
-                {tab === "installed" &&
-                  filteredBuiltins.map((item) => (
-                    <button
-                      type="button"
-                      className={
-                        variant === "settings"
-                          ? "settings-row plugin-list-entry"
-                          : "plugin-manager-row plugin-list-entry"
-                      }
-                      key={item.id}
-                      data-plugin-id={item.id}
-                      aria-label={item.name}
-                      onClick={() => setSelected(item.id, item.name)}
+                {visibleBuiltins.map((item) => (
+                  <button
+                    type="button"
+                    className={
+                      variant === "settings"
+                        ? "settings-row plugin-list-entry"
+                        : "plugin-manager-row plugin-list-entry"
+                    }
+                    key={item.id}
+                    data-plugin-id={item.id}
+                    aria-label={item.name}
+                    onClick={() => setSelected(item.id, item.name)}
+                  >
+                    <div
+                      className="plugin-row-icon-box"
+                      style={getPluginIconBadgeStyle(item.id, item.name)}
                     >
-                      <div
-                        className="plugin-row-icon-box"
-                        style={getPluginIconBadgeStyle(item.id, item.name)}
-                      >
-                        <Blocks
-                          className="plugin-manager-icon"
-                          aria-hidden="true"
-                        />
-                      </div>
-                      <div
-                        className={
-                          variant === "settings"
-                            ? "settings-row-copy plugin-manager-copy"
-                            : "plugin-manager-copy"
-                        }
-                      >
-                        <div className="plugin-row-title-line">
-                          <strong>{item.name}</strong>
-                          <span className="plugin-row-id">{item.id}</span>
-                        </div>
-                        <div className="plugin-row-meta-line">
-                          <span className="plugin-pill-status is-builtin">
-                            {t("Built-in")}
-                          </span>
-                          <span
-                            className={`plugin-pill-status ${
-                              item.enabled ? "is-enabled" : "is-disabled"
-                            }`}
-                          >
-                            {item.enabled ? t("Enabled") : t("Disabled")}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight
-                        className="plugin-row-chevron"
+                      <Blocks
+                        className="plugin-manager-icon"
                         aria-hidden="true"
                       />
-                    </button>
-                  ))}
+                    </div>
+                    <div
+                      className={
+                        variant === "settings"
+                          ? "settings-row-copy plugin-manager-copy"
+                          : "plugin-manager-copy"
+                      }
+                    >
+                      <div className="plugin-row-title-line">
+                        <strong>{item.name}</strong>
+                        <span className="plugin-row-id">{item.id}</span>
+                      </div>
+                      <div className="plugin-row-meta-line">
+                        <span className="plugin-pill-status is-builtin">
+                          {t("Built-in")}
+                        </span>
+                        <span
+                          className={`plugin-pill-status ${
+                            item.enabled ? "is-enabled" : "is-disabled"
+                          }`}
+                        >
+                          {item.enabled ? t("Enabled") : t("Disabled")}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight
+                      className="plugin-row-chevron"
+                      aria-hidden="true"
+                    />
+                  </button>
+                ))}
                 {visible.map((plugin) => {
                   const matched = marketplace?.plugins.find(
                     (p) => p.id === plugin.manifest.id
