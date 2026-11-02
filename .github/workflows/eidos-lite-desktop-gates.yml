@@ -74,7 +74,8 @@ jobs:
           pnpm prepare:terminal
           pnpm prepare:vtab
           pnpm typecheck
-          node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts --pool=threads src/main/graft/encrypted-graft-host.local.integration.test.ts src/main/graft/graft-sync-progress.test.ts src/main/sync/sync-run-tracker.test.ts src/renderer/sync-progress-presentation.test.tsx
+          node ../../scripts/run-electron-node.mjs ../../verification/windows-environment.mjs
+          node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts --pool=forks src/main/graft/encrypted-graft-host.local.integration.test.ts src/main/graft/graft-sync-progress.test.ts src/main/sync/sync-run-tracker.test.ts src/renderer/sync-progress-presentation.test.tsx
       - name: Build actual production-address candidate without publishing
         env:
           CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MACOS_CERTIFICATE || '' }}
