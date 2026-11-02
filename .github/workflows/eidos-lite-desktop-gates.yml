@@ -1,477 +1,127 @@
-name: Eidos Lite Desktop Gates
+name: Eidos Lite Offline Candidate Acceptance
 
+# Replace this EXISTING registered workflow only on the dedicated candidate
+# branch. No default-branch change, tag, pull_request or push trigger.
 on:
   workflow_dispatch:
-    inputs:
-      retain_staging_packages:
-        description: "Retain unsigned macOS staging apps for separate installed E2EE acceptance"
-        type: boolean
-        default: false
-      signed_mac_candidates:
-        description: "Verify production candidates, including signed macOS and Windows installers; never publish"
-        type: boolean
-        default: false
-  pull_request:
-    paths:
-      - ".github/workflows/eidos-lite-desktop-gates.yml"
-      - "apps/eidos-lite-desktop/**"
-      - "apps/eidos-file-web/fixtures/**"
-      - "packages/eidos-file/**"
-      - "packages/eidos-file-ui/**"
-      - "packages/plugin-*/**"
-      - "crates/eidos-plugin-sandbox/**"
-      - "apps/plugin-sandbox/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: eidos-lite-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION: ${{ vars.EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION }}
+  group: lite-offline-candidate-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  macos-clone-fixture:
-    name: Prepare macOS clone fixture
-    runs-on: macos-15
-    timeout-minutes: 15
+  candidate:
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name == 'codex/sync-progress-candidate-20261103'
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION: ${{ vars.EIDOS_LITE_SPARK_PUBLIC_KEY_PRODUCTION }}
+      EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+      EIDOS_TEST_PLANNED_PROGRESS: "1"
+      EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS: "1"
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/setup@v2
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prepare committed macOS Graft Space
-        run: >-
-          node apps/eidos-lite-desktop/scripts/prepare-cross-platform-clone-fixture.mjs
-          "${{ runner.temp }}/eidos-lite-clone-fixture"
-
-      - name: Upload committed macOS Graft Space
-        uses: actions/upload-artifact@v4
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
         with:
-          name: macos-graft-space
-          path: ${{ runner.temp }}/eidos-lite-clone-fixture
-          include-hidden-files: true
-          if-no-files-found: error
-
-  windows-clone-validation:
-    name: Windows packaged and clone validation
-    needs: macos-clone-fixture
-    runs-on: windows-latest
-    timeout-minutes: 35
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+          version: 12.0.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/setup@v2
-        with:
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Download committed macOS Graft Space
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-graft-space
-          path: ${{ runner.temp }}/eidos-lite-clone-fixture
-
-      - name: Test native Windows encrypted Sync host
+          toolchain: "1.99.1"
+      - name: Install normal Linux build and desktop services
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libdbus-1-dev pkg-config dbus-x11 xvfb xauth gnome-keyring libgtk-3-0 libnss3 libxss1 libasound2t64 libgbm1 libnotify4 libxtst6 xdg-utils
+      - name: Verify immutable private SDK cohort and prepare portable inputs
+        run: |
+          git merge-base --is-ancestor 5038d986a16d3470ba5e8422bf2616f3086326d6 HEAD
+          git diff --exit-code 5038d986a16d3470ba5e8422bf2616f3086326d6 HEAD -- apps/eidos-lite-desktop/src apps/eidos-lite-desktop/scripts apps/eidos-lite-desktop/electron-builder.json apps/eidos-lite-desktop/electron-builder.linux.json crates packages apps/cli Cargo.toml Cargo.lock
+          node verification/prepare-candidate.mjs
+          pnpm install --frozen-lockfile
+      - name: Prove formal registry release guard remains blocked
+        run: |
+          node - <<'NODE'
+          const {spawnSync}=require('node:child_process');
+          const fs=require('node:fs');
+          const result=spawnSync(process.execPath,['apps/eidos-lite-desktop/scripts/verify-graft-release.mjs'],{encoding:'utf8'});
+          fs.writeFileSync('candidate-evidence/registry-guard.txt',result.stdout+result.stderr);
+          if(result.status===0 || !/override for @eidos\.space\/graft.*must be removed/.test(result.stderr)) throw new Error('Expected intact registry guard to reject unpublished overrides');
+          NODE
+      - name: Test source bridge and actual native encrypted operations
         working-directory: apps/eidos-lite-desktop
-        run: node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/encrypted-graft-host.local.integration.test.ts
-
-      - name: Typecheck
-        run: pnpm --filter "@eidos.space/eidos-lite-desktop" typecheck
-
-      - name: Prepare file metadata extension
-        run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:vtab
-
-      - name: Verify clone validation is read-only
+        run: |
+          pnpm prepare:terminal
+          pnpm prepare:vtab
+          pnpm typecheck
+          node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts --pool=threads src/main/graft/encrypted-graft-host.local.integration.test.ts src/main/graft/graft-sync-progress.test.ts src/main/sync/sync-run-tracker.test.ts src/renderer/sync-progress-presentation.test.tsx
+      - name: Build actual production-address candidate without publishing
         env:
-          EIDOS_LITE_CROSS_PLATFORM_FIXTURE: ${{ runner.temp }}/eidos-lite-clone-fixture
-        run: >-
-          pnpm --filter "@eidos.space/eidos-lite-desktop" exec node
-          ../../scripts/run-electron-node.mjs
-          ../../node_modules/vitest/vitest.mjs run
-          --config vitest.config.ts
-          src/main/runtime/runtime-pool.test.ts
-          src/runtime/eidos-file-runtime.test.ts
-          src/runtime/cross-platform-clone.test.ts
-
-      - name: Build unsigned staging package
-        if: ${{ !inputs.signed_mac_candidates }}
-        run: pnpm build:eidos-lite:dev
-
-      - name: Build unsigned production candidate
-        id: production-package
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        run: pnpm build:eidos-lite:release
-
-      - name: Observe fresh packaged smoke
-        env:
-          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
-        run: pnpm smoke:eidos-lite-packaged
-
-      - name: Verify production candidate installation and rollback
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        shell: pwsh
+          CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MACOS_CERTIFICATE || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MACOS_CERTIFICATE_PWD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.platform == 'darwin' && 'true' || 'false' }}
+        run: node verification/candidate-driver.mjs build
+      - name: Accept install upgrade rollback restart and bundled native network progress
+        if: matrix.platform != 'linux'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $installer = Get-ChildItem apps/eidos-lite-desktop/dist-app -Filter '*.exe' | Select-Object -First 1
-          if (-not $installer) { throw 'Production installer is missing' }
-          $version = node -p 'require("./apps/eidos-lite-desktop/package.json").version'
-          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs `
-            --previous-tag=lite-v0.25.0 "--candidate=$($installer.FullName)" `
-            "--version=$version" "--evidence=$env:RUNNER_TEMP/production-candidate-installation"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Retain Windows production candidate for diagnosis
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates && steps.production-package.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: lite-production-candidate-windows-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/eidos-lite-desktop/dist-app/*.exe
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Retain Windows installation evidence
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-candidate-installation-windows
-          path: ${{ runner.temp }}/production-candidate-installation
-          if-no-files-found: warn
-          retention-days: 7
-
-  packaged-linux:
-    name: Linux packaged smoke (${{ matrix.architecture }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 50
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: x64
-            runner: ubuntu-latest
-          - architecture: arm64
-            runner: ubuntu-24.04-arm
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/setup@v2
-        with:
-          install: false
-
-      - name: Install native and display dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config dbus-x11 xvfb
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Linux candidate without publishing
-        run: pnpm build:eidos-lite:release:linux
-
-      - name: Install Debian candidate
-        env:
-          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
-        run: |
-          package="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.deb' -print -quit)"
-          test -n "$package"
-          package="$(realpath "$package")"
-          expected_architecture="$EXPECTED_ARCHITECTURE"
-          if [[ "$expected_architecture" == x64 ]]; then
-            expected_architecture=amd64
-          fi
-          test "$(dpkg-deb --field "$package" Package)" = eidos-lite
-          test "$(dpkg-deb --field "$package" Architecture)" = "$expected_architecture"
-          sudo apt-get install -y "$package"
-          test "$(dpkg-query --show --showformat='${Status}' eidos-lite)" = "install ok installed"
-
-      - name: Validate installed Linux startup and windows
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
-          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
-        run: |
-          executable="$(command -v eidos-lite-desktop)"
-          test -x "$executable"
-          test "$(realpath "$executable")" = /opt/eidos-lite/eidos-lite-desktop
-          EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
-
-  source-and-real-graft:
-    name: Source and real Graft SDK
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/setup@v2
-        with:
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
-
-      - name: Test Graft release dependency and packaging guards
-        run: node --test apps/eidos-lite-desktop/scripts/verify-graft-release.test.mjs apps/eidos-lite-desktop/scripts/graft-snapshot-policy.test.mjs apps/eidos-lite-desktop/scripts/electron-builder-config.test.mjs apps/eidos-lite-desktop/scripts/lite-performance-report.test.mjs apps/eidos-lite-desktop/scripts/spark-key-policy.test.mjs apps/eidos-lite-desktop/scripts/prepare-plugin-sandbox.test.mjs
-
-      - name: Test node:sqlite EA-Connection contract
-        run: pnpm --filter @eidos.space/eidos-file test:node-sqlite
-
-      - name: Setup Rust for plugin background tests
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Prepare and test the plugin sandbox
-        run: |
-          sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-          pnpm --filter @eidos.space/eidos-lite-desktop prepare:plugin-compiler
-          node --test packages/plugin-sandbox/scripts/build-web.test.mjs
-          pnpm --filter @eidos.space/plugin-sandbox check:web
-          cargo test -p eidos-plugin-sandbox --locked
-          python3 packages/plugin-sandbox/tests/smoke.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
-          python3 packages/plugin-sandbox/tests/network.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
-          python3 packages/plugin-sandbox/tests/bluetooth.py apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
-          pnpm --filter @eidos.space/plugin-runtime test
-
-      - name: Test source and real Graft SDK
-        env:
-          EIDOS_PLUGIN_SANDBOX_BINARY: ${{ github.workspace }}/apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
-        run: pnpm test:eidos-lite
-
-  packaged-macos:
-    name: Packaged smoke (${{ matrix.architecture }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 50
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: apple-silicon
-            runner: macos-15
-          - architecture: intel
-            runner: macos-15-intel
-    steps:
-      - name: Disable background indexing on the ephemeral benchmark runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo mdutil -a -i off
-          index_status="$(mdutil -a -s)"
-          printf '%s\n' "$index_status"
-          if [[ "$index_status" == *"Indexing enabled."* || "$index_status" != *"disabled"* ]]; then
-            exit 1
-          fi
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/setup@v2
-        with:
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build unsigned staging package
-        id: staging-package
-        if: ${{ !inputs.signed_mac_candidates }}
-        run: pnpm build:eidos-lite:dev
-
-      - name: Build signed production candidate
-        id: signed-package
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        env:
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: true
-        shell: bash
-        run: |
-          test -n "$CSC_LINK"
-          test -n "$CSC_KEY_PASSWORD"
-          test -n "$APPLE_ID"
-          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
-          test -n "$APPLE_TEAM_ID"
-          pnpm build:eidos-lite:release
-          application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
-          test -n "$application"
-          codesign --verify --deep --strict "$application"
-          for attempt in 1 2 3; do
-            if xcrun stapler validate "$application"; then break; fi
-            if [ "$attempt" -eq 3 ]; then exit 1; fi
-            sleep "$((attempt * 3))"
-          done
-
-      - name: Observe fresh packaged smoke
-        id: observed-smoke
-        env:
-          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.signed_mac_candidates && 'production' || 'staging' }}
-        run: pnpm smoke:eidos-lite-packaged
-
-      - name: Verify signed candidate installation and rollback
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        shell: bash
+          EIDOS_LITE_SPARK_TEST_CERTIFICATE: ${{ secrets.EIDOS_LITE_SPARK_TEST_CERTIFICATE }}
+        run: node verification/candidate-driver.mjs accept
+      - name: Accept native Linux desktop with normal Chromium sandbox
+        if: matrix.platform == 'linux'
         env:
           GH_TOKEN: ${{ github.token }}
-          EVIDENCE: ${{ runner.temp }}/signed-candidate-installation
+          EIDOS_LITE_SPARK_TEST_CERTIFICATE: ${{ secrets.EIDOS_LITE_SPARK_TEST_CERTIFICATE }}
         run: |
-          installer="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.dmg' -print -quit)"
-          test -n "$installer"
-          installer="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$installer")"
-          version="$(node -p 'require("./apps/eidos-lite-desktop/package.json").version')"
-          node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
-            --previous-tag=lite-v0.25.0 "--candidate=$installer" \
-            "--version=$version" "--evidence=$EVIDENCE"
-
-      - name: Retain signed candidate for diagnosis
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates && steps.signed-package.outcome == 'success' }}
+          dbus-run-session -- bash -c 'head -c 32 /dev/urandom | base64 | gnome-keyring-daemon --unlock --components=secrets >/dev/null; exec xvfb-run --auto-servernum node verification/candidate-driver.mjs accept'
+      - name: Check retained evidence does not contain credentials
+        id: privacy
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EIDOS_LITE_SPARK_TEST_CERTIFICATE: ${{ secrets.EIDOS_LITE_SPARK_TEST_CERTIFICATE }}
+        run: node verification/check-artifact-privacy.mjs
+      - name: Retain unpublished installers and evidence
+        if: always() && steps.privacy.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: lite-signed-candidate-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: lite-unpublished-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
+            candidate-evidence/
             apps/eidos-lite-desktop/dist-app/*.dmg
-            apps/eidos-lite-desktop/dist-app/*.zip
-            apps/eidos-lite-desktop/dist-app/*.blockmap
-            apps/eidos-lite-desktop/dist-app/latest*.yml
+            apps/eidos-lite-desktop/dist-app/*.exe
+            apps/eidos-lite-desktop/dist-app/*.deb
           if-no-files-found: error
-          retention-days: 3
-
-      - name: Retain signed candidate installation evidence
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-candidate-installation-${{ matrix.architecture }}
-          path: ${{ runner.temp }}/signed-candidate-installation
-          if-no-files-found: warn
           retention-days: 7
-
-      - name: Archive staging app and exact build identity
-        id: staging-archive
-        if: ${{ steps.staging-package.outcome == 'success' }}
-        env:
-          PACKAGE_ARCHITECTURE: ${{ matrix.architecture }}
-          OBSERVED_SMOKE_OUTCOME: ${{ steps.observed-smoke.outcome }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node apps/eidos-lite-desktop/scripts/verify-build-environment.mjs staging
-          node apps/eidos-lite-desktop/scripts/verify-graft-release.mjs
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          import pathlib
-          import plistlib
-          import subprocess
-
-          root = pathlib.Path.cwd()
-          app_root = root / "apps/eidos-lite-desktop"
-          applications = list((app_root / "dist-app").glob("mac*/Eidos Lite.app"))
-          if len(applications) != 1:
-              raise RuntimeError(f"Expected one built staging app, found {len(applications)}")
-          application = applications[0]
-          resources = application / "Contents/Resources"
-          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "lite-staging-package"
-          output.mkdir()
-          archive = output / f"eidos-lite-staging-macos-{os.environ['PACKAGE_ARCHITECTURE']}.zip"
-          subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(application), str(archive)], check=True)
-
-          def digest(filename):
-              value = hashlib.sha256()
-              with filename.open("rb") as source:
-                  for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                      value.update(chunk)
-              return value.hexdigest()
-
-          native_files = sorted(resources.rglob("graft-sdk.*.node"))
-          if not native_files:
-              raise RuntimeError("Packaged Graft native addon is missing")
-          package = json.loads((app_root / "package.json").read_text())
-          with (application / "Contents/Info.plist").open("rb") as source:
-              bundle = plistlib.load(source)
-          identity = {
-              "sourceCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-              "repository": os.environ["GITHUB_REPOSITORY"],
-              "workflowRunId": os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "architecture": os.environ["PACKAGE_ARCHITECTURE"],
-              "bundleIdentifier": bundle["CFBundleIdentifier"],
-              "bundleVersion": bundle["CFBundleShortVersionString"],
-              "signingPolicy": "unsigned staging; not a production release",
-              "buildEnvironment": json.loads((app_root / "dist-electron/eidos-lite-build-environment.json").read_text()),
-              "graftBuildPolicy": json.loads((app_root / "dist-electron/graft-sdk-build-policy.json").read_text()),
-              "registryDependenciesVerified": True,
-              "declaredGraftVersion": package["dependencies"]["@eidos.space/graft"],
-              "lockfileSha256": digest(root / "pnpm-lock.yaml"),
-              "appAsarSha256": digest(resources / "app.asar"),
-              "nativeSha256": {str(p.relative_to(application)): digest(p) for p in native_files},
-              "archive": {"name": archive.name, "sha256": digest(archive)},
-              "genericPackagedSmoke": {
-                  "observe": os.environ["OBSERVED_SMOKE_OUTCOME"],
-              },
-              "performanceAcceptance": "not evaluated by CI",
-              "e2eeAcceptance": "not run by this workflow; requires separate installed acceptance",
-          }
-          manifest = output / "identity.json"
-          manifest.write_text(json.dumps(identity, indent=2) + "\n")
-          (output / "SHA256SUMS").write_text("".join(f"{digest(p)}  {p.name}\n" for p in [archive, manifest]))
-          PY
-
-      - name: Retain staging app for installed acceptance
-        if: ${{ steps.staging-archive.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: eidos-lite-staging-macos-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/lite-staging-package
-          if-no-files-found: error
-          retention-days: ${{ inputs.retain_staging_packages && 3 || 1 }}

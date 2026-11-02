@@ -1,0 +1,50 @@
+{
+  "candidateVersion": "0.3.38-sync-progress.20261103.1",
+  "sourceBase": "bae54776ef1e66d314e69379425a82c63718c7ed",
+  "reviewedPatchSha256": "55da17bd3740fd10b2c87026306128c5207700a727d0207b76bfa137bfebbc5d",
+  "packages": [
+    {
+      "name": "@eidos.space/graft-darwin-arm64",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "1de49d1b788fbd42c36837ff73141e69fdf2bff3ee1450bd619b694836863f25",
+      "nativeSha256": "f573762214183f799d1d627118935aa8edfa23b717b12383ba0dc80ecb6cfd32"
+    },
+    {
+      "name": "@eidos.space/graft-darwin-x64",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "0a1f059a4f92075811407e7229360dfac0d9505bb348f6416f00760e4fe7d25e",
+      "nativeSha256": "3161a46fbc33ca0a655cb6862ad5d564dd975a5a87d20460d2ddd66495dfc04b"
+    },
+    {
+      "name": "@eidos.space/graft-linux-arm64-gnu",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "a38f656bb8375b9aac4a6da714c426ad183e5bef5588fd296964f2771ab029e9",
+      "nativeSha256": "1e1334fdcc14757d8394c0d9826687427e59fd6d32f40bf9dd31ac9a32d15ced"
+    },
+    {
+      "name": "@eidos.space/graft-linux-x64-gnu",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-linux-x64-gnu-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "754b4ae12afaad18aecde354bb53022b151705d6fdb7a7b4d2b279c709b46811",
+      "nativeSha256": "e28624b7cc7c77fe3b149124f3e00ef38b5b89579a504a85479c7f7f65eb6152"
+    },
+    {
+      "name": "@eidos.space/graft-win32-x64-msvc",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-win32-x64-msvc-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "a1e46db8ffc3955c372cd22bf362c65a74c6e47b3bca125b667654c1f9242d5a",
+      "nativeSha256": "b4a21791c107a341f8d49480610f9ae47cd45d5303690554da8fd4c3078126a7"
+    },
+    {
+      "name": "@eidos.space/graft",
+      "version": "0.3.38-sync-progress.20261103.1",
+      "filename": "eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz",
+      "sha256": "83ee4368c2c5c12b99ccd8bf79b054de9b93e86613a0940cf514c3c35725bf37"
+    }
+  ],
+  "completePlatformSet": true,
+  "published": false
+}
