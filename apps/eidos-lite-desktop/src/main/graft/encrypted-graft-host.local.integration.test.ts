@@ -4,7 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
-import { GraftClient } from "./graft-client"
+import { GraftClient, GRAFT_SDK_VERSION } from "./graft-client"
 import { GraftInProcessTransport } from "./graft-in-process-transport"
 import { graftSyncProgressOptions } from "./graft-sync-progress"
 import {
@@ -99,7 +99,7 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       ? JSON.parse(
           await fs.readFile(path.join(sdkPackage, "package.json"), "utf8")
         ).version
-      : "0.3.37"
+      : GRAFT_SDK_VERSION
     expect(sdk.sdkVersion()).toBe(expectedVersion)
     await fs.mkdir(spaceA)
     await fs.mkdir(spaceB)

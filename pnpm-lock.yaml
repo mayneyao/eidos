@@ -5,6 +5,12 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@eidos.space/graft': file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz
+  '@eidos.space/graft-darwin-arm64': file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz
+  '@eidos.space/graft-darwin-x64': file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz
+  '@eidos.space/graft-linux-arm64-gnu': file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz
+  '@eidos.space/graft-linux-x64-gnu': 0.3.37
+  '@eidos.space/graft-win32-x64-msvc': 0.3.37
   '@eidos.space/bashkit': ^0.6.5
   '@babel/core': 7.29.6
   '@protobufjs/utf8': 1.1.1
@@ -338,8 +344,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eidos-file-ui
       '@eidos.space/graft':
-        specifier: 0.3.37
-        version: 0.3.37
+        specifier: file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz
+        version: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz
       '@eidos.space/graft-remote':
         specifier: 0.2.5
         version: 0.2.5
@@ -466,14 +472,14 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.12.2)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jsdom@26.1.0(bufferutil@4.0.9)(supports-color@10.2.2)(utf-8-validate@6.0.5))(vite@8.1.5(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
     optionalDependencies:
       '@eidos.space/graft-darwin-arm64':
-        specifier: 0.3.37
-        version: 0.3.37
+        specifier: file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz
+        version: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz
       '@eidos.space/graft-darwin-x64':
-        specifier: 0.3.37
-        version: 0.3.37
+        specifier: file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz
+        version: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz
       '@eidos.space/graft-linux-arm64-gnu':
-        specifier: 0.3.37
-        version: 0.3.37
+        specifier: file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz
+        version: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz
       '@eidos.space/graft-linux-x64-gnu':
         specifier: 0.3.37
         version: 0.3.37
@@ -1934,6 +1940,7 @@ packages:
 
   '@cloudflare/vitest-pool-workers@0.18.8':
     resolution: {integrity: sha512-O1kOMZqapidlezNFiBZ7Lbd+8mMEpkGmWwPj+nPLvOngxSL11lmWq7xl7vxyjDxbeD/7l22KqgvRGM7XFaYd9w==}
+    deprecated: '@cloudflare/vitest-pool-workers has been renamed to @cloudflare/vitest-plugin. This package will not receive future updates.'
     peerDependencies:
       '@vitest/runner': ^4.1.0
       '@vitest/snapshot': ^4.1.0
@@ -1941,6 +1948,7 @@ packages:
 
   '@cloudflare/vitest-pool-workers@0.20.3':
     resolution: {integrity: sha512-aCMvM5zQ3MTz8SorSZB6ZxjVK2Gof6UhIc2Z1z9zbX/obucSYwDUkx8A0MUOod4I7clfB0QLarKBjRdIczK3vg==}
+    deprecated: '@cloudflare/vitest-pool-workers has been renamed to @cloudflare/vitest-plugin. This package will not receive future updates.'
     peerDependencies:
       '@vitest/runner': ^4.1.0
       '@vitest/snapshot': ^4.1.0
@@ -1948,6 +1956,7 @@ packages:
 
   '@cloudflare/vitest-pool-workers@0.22.0':
     resolution: {integrity: sha512-OJv/qikkOgxnKxJ5xrLS7zuOLZhc/6iziU+llqZm4tiQf2CJUYwlMuXN68VaWIQebORd1AUx4w6A0oy8XRbuaQ==}
+    deprecated: '@cloudflare/vitest-pool-workers has been renamed to @cloudflare/vitest-plugin. This package will not receive future updates.'
     peerDependencies:
       '@vitest/runner': ^4.1.0
       '@vitest/snapshot': ^4.1.0
@@ -2167,20 +2176,23 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@eidos.space/graft-darwin-arm64@0.3.37':
-    resolution: {integrity: sha512-jx9UWZETjZyfsw3YmPvms0dG9luHUmwIkbZ2j1YP3Jiis12c0Yv8f0Vcd3MIILbcgtZjEWzrYYQ+QeAieNStQQ==}
+  '@eidos.space/graft-darwin-arm64@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz':
+    resolution: {integrity: sha512-+rtDKRYwYfSGKQtEsJhglLdUTihqU4zB82/sOM4PuIgG4b69uekXW5JEHYlwR0esQO8mVFXY1DGhBZ5+axi0GQ==, tarball: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz}
+    version: 0.3.38-sync-progress.20261103.1
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [darwin]
 
-  '@eidos.space/graft-darwin-x64@0.3.37':
-    resolution: {integrity: sha512-7NMkK8/mJWMsRgCOiPsx33JAoF9sPdcF/yEGOQuI0eC0wCMzDgGq/wniFlduT5F3RnktbMfTaXfTICtzUMgZNg==}
+  '@eidos.space/graft-darwin-x64@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz':
+    resolution: {integrity: sha512-hohrQ2P438BOzC9fFYxqdt6qF1gNCyNMyQz623QLyi5Gxg2YcqgJeJfz1u8Qt7OqRhCuKlmz9GDaArHjNh9baw==, tarball: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz}
+    version: 0.3.38-sync-progress.20261103.1
     engines: {node: '>=20'}
     cpu: [x64]
     os: [darwin]
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.37':
-    resolution: {integrity: sha512-eI9WnE2TlsBWDHHSpE144S5YX64Zd5efYqwATnixU2lBdCcudIPuSAttRAmzIz815ADJh97TenYgDNo8/4hukw==}
+  '@eidos.space/graft-linux-arm64-gnu@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz':
+    resolution: {integrity: sha512-+HGxohmmmm7mPZzyLflVskBprXRy7jpANf7kQalxy7CQLiAWrzBTlgfo7gZzqR6DMMbY5N/r3ltswppdzOJWHQ==, tarball: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz}
+    version: 0.3.38-sync-progress.20261103.1
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [linux]
@@ -2215,8 +2227,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@eidos.space/graft@0.3.37':
-    resolution: {integrity: sha512-O2Rs+a3p1SLJdkSsSc8NnRdounZfT0ISnBN+xbZD4AtFFGp3mkDe29Q7zGxWNmJTjXR6DPp2ebkT3wOQ5Zei+w==}
+  '@eidos.space/graft@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz':
+    resolution: {integrity: sha512-50h7NXUO7Cvj/zc0XJk3hrNxGE699Cap2IHnsQGqbhd4DOnYl9n0ZJqpWhqUpgEFBcnyEMzJhqrFKKqr9DSecA==, tarball: file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz}
+    version: 0.3.38-sync-progress.20261103.1
     engines: {node: '>=20'}
 
   '@electron-internal/extract-zip@1.0.5':
@@ -10440,13 +10453,13 @@ snapshots:
       react: 18.3.1
       tslib: 2.8.1
 
-  '@eidos.space/graft-darwin-arm64@0.3.37':
+  '@eidos.space/graft-darwin-arm64@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz':
     optional: true
 
-  '@eidos.space/graft-darwin-x64@0.3.37':
+  '@eidos.space/graft-darwin-x64@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz':
     optional: true
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.37':
+  '@eidos.space/graft-linux-arm64-gnu@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz':
     optional: true
 
   '@eidos.space/graft-linux-x64-gnu@0.3.37':
@@ -10467,11 +10480,11 @@ snapshots:
   '@eidos.space/graft-win32-x64-msvc@0.3.37':
     optional: true
 
-  '@eidos.space/graft@0.3.37':
+  '@eidos.space/graft@file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz':
     optionalDependencies:
-      '@eidos.space/graft-darwin-arm64': 0.3.37
-      '@eidos.space/graft-darwin-x64': 0.3.37
-      '@eidos.space/graft-linux-arm64-gnu': 0.3.37
+      '@eidos.space/graft-darwin-arm64': file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz
+      '@eidos.space/graft-darwin-x64': file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz
+      '@eidos.space/graft-linux-arm64-gnu': file:../../../Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz
       '@eidos.space/graft-linux-x64-gnu': 0.3.37
       '@eidos.space/graft-win32-x64-msvc': 0.3.37
 

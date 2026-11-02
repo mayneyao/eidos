@@ -61,6 +61,10 @@ describe("SettingsPage Files - Default file editors", () => {
           ...patch,
         })),
         onPreferencesChanged: vi.fn(() => () => {}),
+        getSyncPasswordSettings: vi.fn(async () => ({
+          available: true,
+          configured: false,
+        })),
         listTerminalShells: vi.fn(async () => []),
         getUpdateStatus: vi.fn(async () => ({
           state: "unavailable",
@@ -143,6 +147,10 @@ describe("SettingsPage Files - Default file editors", () => {
         getPreferences: vi.fn(async () => DEFAULT_RENDERER_PREFERENCES),
         updatePreferences: vi.fn(async () => DEFAULT_RENDERER_PREFERENCES),
         onPreferencesChanged: vi.fn(() => () => {}),
+        getSyncPasswordSettings: vi.fn(async () => ({
+          available: true,
+          configured: false,
+        })),
         listTerminalShells: vi.fn(async () => []),
         getUpdateStatus: vi.fn(async () => ({
           state: "unavailable",
@@ -226,6 +234,10 @@ describe("SettingsPage Files - Default file editors", () => {
         getPreferences: vi.fn(async () => DEFAULT_RENDERER_PREFERENCES),
         updatePreferences,
         onPreferencesChanged: vi.fn(() => () => {}),
+        getSyncPasswordSettings: vi.fn(async () => ({
+          available: true,
+          configured: false,
+        })),
         listTerminalShells: vi.fn(async () => []),
         getUpdateStatus: vi.fn(async () => ({
           state: "unavailable",
@@ -358,6 +370,10 @@ describe("SettingsPage Files - Default file editors", () => {
           listPlugins,
           setPluginDefault,
           onPreferencesChanged: vi.fn(() => () => {}),
+          getSyncPasswordSettings: vi.fn(async () => ({
+            available: true,
+            configured: false,
+          })),
           listTerminalShells: vi.fn(async () => []),
           getUpdateStatus: vi.fn(async () => ({
             state: "unavailable",

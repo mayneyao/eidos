@@ -70,6 +70,12 @@ allowBuilds:
   workerd: false
 
 overrides:
+  "@eidos.space/graft": "file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-0.3.38-sync-progress.20261103.1.tgz"
+  "@eidos.space/graft-darwin-arm64": "file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-arm64-0.3.38-sync-progress.20261103.1.tgz"
+  "@eidos.space/graft-darwin-x64": "file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-darwin-x64-0.3.38-sync-progress.20261103.1.tgz"
+  "@eidos.space/graft-linux-arm64-gnu": "file:/Users/mayne/Documents/Codex/2026-11-02/graft-sync-progress/outputs/cross-platform-candidate/packages/eidos.space-graft-linux-arm64-gnu-0.3.38-sync-progress.20261103.1.tgz"
+  "@eidos.space/graft-linux-x64-gnu": "0.3.37"
+  "@eidos.space/graft-win32-x64-msvc": "0.3.37"
   "@eidos.space/bashkit": "^0.6.5"
   "@babel/core": "7.29.6"
   "@protobufjs/utf8": "1.1.1"

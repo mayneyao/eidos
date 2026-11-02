@@ -355,7 +355,9 @@ try {
     ) ||
     !report.graft?.available ||
     report.graft?.backend !== "sdk" ||
-    report.graft?.version !== "0.3.37" ||
+    report.graft?.version !==
+      JSON.parse(await fs.readFile(path.join(appRoot, "package.json"), "utf8"))
+        .dependencies["@eidos.space/graft"] ||
     report.mutation?.afterInsertCount !== report.mutation?.beforeCount + 1 ||
     report.mutation?.afterDeleteCount !== report.mutation?.beforeCount ||
     report.mutation?.checkpointCount !== report.mutation?.beforeCount + 1 ||

@@ -233,7 +233,9 @@ describe("Settings account continuity", () => {
     expect(
       host.querySelector(".settings-account-summary")?.textContent
     ).not.toContain("test@example.com")
-    expect(syncSection().querySelector(".sync-password-settings")).toBeNull()
+    expect(
+      syncSection().querySelector(".sync-password-settings")?.textContent
+    ).toContain("Saved on this device")
     expect(syncSection().textContent).toContain("Sign in to use Sync")
   })
 

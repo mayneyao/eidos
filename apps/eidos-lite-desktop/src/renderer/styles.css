@@ -11605,7 +11605,7 @@ body:has(.file-properties-window)
 .version-panel-changes .version-summary {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.5rem;
-  padding: 0.625rem 1rem;
+  padding: 0.6rem 0.25rem 0.6rem 0.65rem;
 }
 
 .version-panel-changes .version-summary strong {

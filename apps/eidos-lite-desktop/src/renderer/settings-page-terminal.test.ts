@@ -32,6 +32,10 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
       getPreferences: vi.fn(async () => preferences),
       updatePreferences,
       onPreferencesChanged: vi.fn(() => () => {}),
+      getSyncPasswordSettings: vi.fn(async () => ({
+        available: true,
+        configured: false,
+      })),
       listTerminalShells: vi.fn(async () => [
         { executable: "/bin/zsh", name: "Zsh", systemDefault: true },
         { executable: "/bin/bash", name: "Bash", systemDefault: false },
