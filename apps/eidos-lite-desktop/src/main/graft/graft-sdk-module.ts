@@ -18,6 +18,9 @@ type PublishedGraftSdk = typeof publishedGraftSdk
 
 interface TransferProgressOptions {
   onProgress?: (progress: GraftTransferProgress) => void
+  onSyncProgress?: (
+    progress: import("./graft-sync-progress").GraftSyncProgress
+  ) => void
 }
 
 export type EidosGraftRepositorySession = Omit<
@@ -30,6 +33,9 @@ export type EidosGraftRepositorySession = Omit<
   | "pushInitialBranch"
 > &
   GraftMergeRepositorySession & {
+    fetchForCheckout?(
+      options?: RemoteOperationOptions & TransferProgressOptions
+    ): Promise<unknown>
     push(
       options?: RemoteOperationOptions & TransferProgressOptions
     ): Promise<unknown>

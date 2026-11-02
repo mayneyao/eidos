@@ -1,5 +1,7 @@
 import { createPublicKey, randomUUID } from "node:crypto"
 import { createRememberedSyncUnlocks } from "./sync/create-remembered-sync-unlocks"
+import { canRememberSyncUnlock } from "./sync/remembered-sync-unlocks"
+import { CustomSyncServers } from "./sync/custom-sync-servers"
 import type { SpaceSession } from "./space/space-session"
 import type { EidosSyncStatus } from "../shared/contracts"
 import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
@@ -11,6 +13,7 @@ import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
 import { SparkService } from "./account/spark-service"
+import { hasSparkFeature, type SparkStatus } from "../shared/spark"
 import { accountStorageKey } from "../shared/service-environment"
 import { systemFileThumbnail } from "./space/file-thumbnails"
 import {
@@ -32,6 +35,7 @@ import {
   ipcMain,
   nativeImage,
   powerMonitor,
+  safeStorage,
   shell,
 } from "electron"
 import type { AssetLease, UrlImageLease } from "@eidos.space/eidos-file"
@@ -74,7 +78,10 @@ import {
   type SpaceWorkingChangesDiscardRequest,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
-import { supportsEncryptedSync } from "../shared/sync-encryption"
+import {
+  supportsEncryptedSync,
+  customSyncOrigin,
+} from "../shared/sync-encryption"
 import {
   eidosSyncHelpUrl,
   requiredEidosLiteExternalUrl,
@@ -95,6 +102,7 @@ import { requiredMergeStateToken } from "./sync/merge-token"
 import type { SyncControlPlane } from "./sync/sync-control-plane"
 import {
   classifySyncFailure,
+  classifyCustomSyncFailure,
   type PackagedSyncFault,
 } from "./sync/sync-failure"
 import { SyncExecutor } from "./sync/sync-executor"
@@ -105,6 +113,7 @@ import {
   SyncSessionLifecycle,
 } from "./sync/sync-session-lifecycle"
 import { SyncAccountAdmission } from "./sync/sync-account-admission"
+import { readSyncStatus } from "./sync/sync-status-query"
 import type { WindowController } from "./window-controller"
 import { HtmlPreviewViewManager } from "./html-preview-view"
 import { eidosLitePreferencesPatch } from "./preferences-patch"
@@ -632,6 +641,9 @@ function syncPreflightApproval(value: unknown): EidosSyncPreflightApproval {
   }
   return {
     manifestId: candidate.manifestId,
+    ...(typeof candidate.switchFrom === "string"
+      ? { switchFrom: candidate.switchFrom }
+      : {}),
   }
 }
 
@@ -696,9 +708,40 @@ export function registerIpc(
     },
   })
   controller.setSparkFeatureGuard((feature) => spark.require(feature))
-  void spark.status(true).catch(() => undefined)
+  const customServers = new CustomSyncServers(
+    path.join(app.getPath("userData"), "custom-sync", "servers.bin"),
+    {
+      isAvailable: () =>
+        canRememberSyncUnlock(
+          process.platform,
+          safeStorage.isEncryptionAvailable(),
+          process.platform === "linux"
+            ? safeStorage.getSelectedStorageBackend()
+            : undefined
+        ),
+      encrypt: (value) => safeStorage.encryptString(value),
+      decrypt: (value) => safeStorage.decryptString(value),
+    },
+    {
+      requireAccess: () => spark.require("custom-graft-sync"),
+      allowLoopbackHttp:
+        !app.isPackaged &&
+        process.env.EIDOS_LITE_ALLOW_CUSTOM_SYNC_LOOPBACK === "1",
+    }
+  )
+  syncControl.setCustomServers(customServers)
+  let observeSparkStatus: (
+    status: SparkStatus
+  ) => Promise<SparkStatus> = async (status) => status
+  void spark
+    .status(true)
+    .then((status) => observeSparkStatus(status))
+    .catch(() => undefined)
   const sparkRefreshTimer = setInterval(() => {
-    void spark.status(true).catch(() => undefined)
+    void spark
+      .status(true)
+      .then((status) => observeSparkStatus(status))
+      .catch(() => undefined)
   }, 30 * 60_000)
   sparkRefreshTimer.unref()
   let lastSparkRefreshAt = 0
@@ -706,14 +749,23 @@ export function registerIpc(
     const now = Date.now()
     const shouldRefresh = refresh === true && now - lastSparkRefreshAt >= 5_000
     if (shouldRefresh) lastSparkRefreshAt = now
-    return spark.status(shouldRefresh)
+    return spark
+      .status(shouldRefresh)
+      .then((status) => observeSparkStatus(status))
   })
   ipcMain.handle(IPC_CHANNELS.sparkActivate, (_event, id: unknown) => {
     if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)
       throw new Error("Invalid Spark license")
-    return spark.activate(id)
+    return spark.activate(id).then((status) => observeSparkStatus(status))
   })
-  ipcMain.handle(IPC_CHANNELS.sparkDeactivate, () => spark.deactivate())
+  ipcMain.handle(IPC_CHANNELS.sparkDeactivate, async () => {
+    try {
+      return await observeSparkStatus(await spark.deactivate())
+    } catch (error) {
+      await observeSparkStatus(await spark.status())
+      throw error
+    }
+  })
   ipcMain.handle(IPC_CHANNELS.sparkOpen, async () => {
     const locale = await controller.locale()
     return shell.openExternal(
@@ -726,19 +778,22 @@ export function registerIpc(
   const peers = new Map<string, PeerService>()
   const rememberedUnlocks = createRememberedSyncUnlocks(syncControl, services)
   const syncAccountAdmission = new SyncAccountAdmission()
-  const manualSyncOperations = new Set<AbortController>()
+  const manualSyncOperations = new Map<AbortController, boolean>()
   const disconnectingSpaces = new Set<string>()
   const assertCloudConnectionAvailable = (session: SpaceSession) => {
     if (disconnectingSpaces.has(session.canonical.id))
       throw new Error("This Space is disconnecting from cloud sync")
   }
-  const cancelManualSyncOperations = () => {
-    for (const operation of manualSyncOperations) operation.abort()
+  const cancelManualSyncOperations = (officialOnly = false) => {
+    for (const [operation, custom] of manualSyncOperations)
+      if (!officialOnly || !custom) operation.abort()
   }
-  const beginManualSyncOperation = () => {
-    const assertAccountCurrent = syncAccountAdmission.capture()
+  const beginManualSyncOperation = (custom = false) => {
+    const assertAccountCurrent = custom
+      ? () => undefined
+      : syncAccountAdmission.capture()
     const operation = new AbortController()
-    manualSyncOperations.add(operation)
+    manualSyncOperations.set(operation, custom)
     return {
       signal: operation.signal,
       assertCurrent: () => {
@@ -748,9 +803,9 @@ export function registerIpc(
       finish: () => manualSyncOperations.delete(operation),
     }
   }
-  const lockAndDrainSync = async (disconnect = false) => {
+  const lockAndDrainSync = async (disconnect = false, officialOnly = false) => {
     const outcomes = await Promise.allSettled([
-      controller.lockEncryptedSyncSessions(disconnect),
+      controller.lockEncryptedSyncSessions(disconnect, officialOnly),
       rememberedUnlocks.drainPendingUnlocks(),
     ])
     const failed = outcomes.find((outcome) => outcome.status === "rejected")
@@ -809,7 +864,7 @@ export function registerIpc(
     connection: {
       url,
       uuid: encryption.uuid,
-      authenticationDomain: services.accountOrigin,
+      authenticationDomain: customSyncOrigin(url) ?? services.accountOrigin,
       accountSubject,
       bearerToken: token,
       stateDirectory: path.join(
@@ -820,6 +875,94 @@ export function registerIpc(
     },
     password: Buffer.from(password),
   })
+  const customSelection = (value: unknown): string | undefined => {
+    if (value === undefined) return undefined
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("provider" in value) ||
+      value.provider !== "custom" ||
+      !("serverId" in value) ||
+      typeof value.serverId !== "string" ||
+      !value.serverId
+    )
+      throw new Error("Invalid custom sync server selection")
+    return value.serverId
+  }
+  ipcMain.handle(IPC_CHANNELS.syncCustomServers, () => customServers.list())
+  ipcMain.handle(
+    IPC_CHANNELS.syncCustomServerSave,
+    async (_event, value: unknown) => {
+      await spark.require("custom-graft-sync")
+      if (
+        !value ||
+        typeof value !== "object" ||
+        !("name" in value) ||
+        typeof value.name !== "string" ||
+        !("origin" in value) ||
+        typeof value.origin !== "string"
+      )
+        throw new Error("Invalid custom sync server settings")
+      const id =
+        "id" in value && typeof value.id === "string" ? value.id : undefined
+      const previous = id
+        ? (await customServers.list()).find((profile) => profile.id === id)
+        : undefined
+      if (previous && [...manualSyncOperations.values()].some(Boolean))
+        throw new Error(
+          "Wait for the current custom synchronization to finish before updating a server"
+        )
+      const finish = previous
+        ? syncControl.beginCustomServerChange(previous.origin)
+        : () => undefined
+      try {
+        const saved = await customServers.save({
+          name: value.name,
+          origin: value.origin,
+          ...(id ? { id } : {}),
+          ...("token" in value && typeof value.token === "string"
+            ? { token: value.token }
+            : {}),
+        })
+        if (
+          previous &&
+          "token" in value &&
+          typeof value.token === "string" &&
+          value.token
+        )
+          for (const session of await controller.customSyncSessions(
+            previous.origin
+          )) {
+            await syncQueue.clear(session.canonical.id)
+            await session.clearHostedSyncCredentials()
+          }
+        return saved
+      } finally {
+        finish()
+      }
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.syncCustomServerRemove,
+    async (_event, value: unknown) => {
+      const id = requiredString(value, "Custom server")
+      const profile = (await customServers.list()).find(
+        (item) => item.id === id
+      )
+      if (
+        profile &&
+        ((await controller.customSyncSessions(profile.origin)).length ||
+          [...manualSyncOperations.values()].some(Boolean))
+      )
+        throw new Error(
+          "Disconnect this server's open Spaces and finish downloads before removing it"
+        )
+      return customServers.remove(id)
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.syncCustomRepositories, (_event, id: unknown) =>
+    customServers.repositories(requiredString(id, "Custom server"))
+  )
   const peerNames = new Map<string, string>()
   const peerPreferences = new PeerPreferencesStore(app.getPath("userData"))
   // Native dialogs and background services resolve copy synchronously, so cache
@@ -883,6 +1026,9 @@ export function registerIpc(
                 break
               case "devices-invite":
                 status = await startDevices(true)
+                break
+              case "devices-cancel-invite":
+                status = devices.cancelInvite()
                 break
               case "devices-stop":
                 await peerPreferences.write({ enabled: false, spaces: [] })
@@ -996,7 +1142,10 @@ export function registerIpc(
   const publishEngine = new EidosPublishEngine(services, syncControl)
   const broadcastAccountStatus = (status: SyncAccountStatus) => {
     if (status.state === "signed-in")
-      void spark.status(true).catch(() => undefined)
+      void spark
+        .status(true)
+        .then((result) => observeSparkStatus(result))
+        .catch(() => undefined)
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.webContents.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.accountChanged, status)
@@ -1006,6 +1155,29 @@ export function registerIpc(
   const syncQueue = new BackgroundSyncQueue({
     store: new SyncQueueStore(path.join(app.getPath("userData"))),
   })
+  let customSparkActive = false
+  let sparkObservationTail: Promise<unknown> = Promise.resolve()
+  observeSparkStatus = (status) => {
+    const task = sparkObservationTail.then(async () => {
+      const active = hasSparkFeature(status, "custom-graft-sync")
+      const revoked = customSparkActive && !active
+      customSparkActive = active
+      if (active) rememberedUnlocks.reconnectCustom()
+      if (revoked) {
+        syncControl.invalidateCustomOperations()
+        for (const [operation, custom] of manualSyncOperations)
+          if (custom) operation.abort()
+        rememberedUnlocks.blockCustomAutomatic()
+        const sessions = await controller.customSyncSessions()
+        await controller.lockEncryptedSyncSessions(true, false, true)
+        for (const session of sessions)
+          await syncQueue.clear(session.canonical.id)
+      }
+      return status
+    })
+    sparkObservationTail = task.catch(() => undefined)
+    return task
+  }
   const attachedSenders = new Set<number>()
   const spaceChangeUnsubscribers = new Map<number, () => void>()
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
@@ -1147,10 +1319,16 @@ export function registerIpc(
         event.sender.send(IPC_CHANNELS.syncQueueChanged, status)
       }
     }
+    const bindingRevision = await session.syncBindingRevision()
     const status = await syncQueue.attach({
       spaceId: session.canonical.id,
-      execute: (action) =>
-        syncExecutor.run(
+      bindingRevision,
+      execute: async (action) => {
+        if ((await session.syncBindingRevision()) !== bindingRevision)
+          throw new Error(
+            "The Sync connection changed; its queued task was discarded"
+          )
+        return syncExecutor.run(
           session,
           (progress) => {
             if (!event.sender.isDestroyed()) {
@@ -1158,7 +1336,8 @@ export function registerIpc(
             }
           },
           action
-        ),
+        )
+      },
       emit: emitStatus,
     })
     if (!attachedSenders.has(event.sender.id)) {
@@ -2408,16 +2587,21 @@ export function registerIpc(
     remote: string | null,
     status: EidosSyncStatus
   ): Promise<EidosSyncStatus> => {
-    const assertAccountCurrent = syncAccountAdmission.capture()
-    const generation = rememberedUnlocks.captureGeneration()
+    const custom = status.provider === "custom"
+    const assertAccountCurrent = custom
+      ? () => undefined
+      : syncAccountAdmission.capture()
+    const generation = rememberedUnlocks.captureGeneration(custom)
     const projected = {
       ...status,
       deviceUnlockAvailable: rememberedUnlocks.available(),
-      defaultPasswordConfigured: (await rememberedUnlocks.defaultStatus())
-        .configured,
+      defaultPasswordConfigured:
+        (await rememberedUnlocks.deviceDefaultStatus()).configured ||
+        (!custom && (await rememberedUnlocks.defaultStatus()).configured),
       ...(session && remote
         ? {
             encryption:
+              (custom && status.canClone) ||
               status.account.state === "signed-in"
                 ? await rememberedUnlocks.status(session, remote)
                 : await session.encryptedSyncStatus(),
@@ -2430,96 +2614,124 @@ export function registerIpc(
   }
   ipcMain.handle(IPC_CHANNELS.accountStatus, () => syncControl.accountStatus())
   ipcMain.handle(IPC_CHANNELS.syncPasswordSettings, () =>
-    rememberedUnlocks.defaultStatus()
+    rememberedUnlocks.deviceDefaultStatus()
   )
   ipcMain.handle(
     IPC_CHANNELS.syncPasswordSave,
     async (_event, value: unknown) => {
-      syncAccountAdmission.capture()
       const password = readSyncPassword(value)
       if (!password) throw new Error("A sync password is required")
       try {
-        await rememberedUnlocks.setDefaultPassword(password)
+        await rememberedUnlocks.setDeviceDefaultPassword(password)
       } finally {
         password.fill(0)
       }
     }
   )
   ipcMain.handle(IPC_CHANNELS.syncPasswordForget, () => {
-    syncAccountAdmission.capture()
-    return rememberedUnlocks.forgetDefaultPassword()
+    return rememberedUnlocks.forgetDeviceDefaultPassword()
   })
-  ipcMain.handle(IPC_CHANNELS.syncStatus, async (event) => {
-    const assertAccountCurrent = syncAccountAdmission.capture()
-    const generation = rememberedUnlocks.captureGeneration()
-    const session = controller.sessionFor(event.sender)
-    const remoteUrl = (await session?.storedHostedSyncRemoteUrl()) ?? null
-    const status = await syncControl.status(remoteUrl)
-    if (
-      session &&
-      remoteUrl &&
-      status.account.state === "signed-in" &&
-      ["read-only", "read-write"].includes(status.entitlement.state) &&
-      (await session.encryptedSyncStatus())?.state === "locked"
-    ) {
-      try {
-        const access = await syncControl.repositoryAccess(remoteUrl)
-        await rememberedUnlocks.autoUnlock(
+  ipcMain.handle(IPC_CHANNELS.syncStatus, async (event, selection: unknown) =>
+    readSyncStatus(selection, {
+      status: (remoteUrl, serverId) =>
+        serverId === undefined
+          ? syncControl.status(remoteUrl)
+          : syncControl.status(remoteUrl, serverId),
+      projectPreview: (status) =>
+        projectEncryptedStatus(undefined, null, status),
+      currentConnection: async (serverId) => {
+        const session = controller.sessionFor(event.sender)
+        const remoteUrl = (await session?.storedHostedSyncRemoteUrl()) ?? null
+        const custom =
+          syncControl.isCustomRemote(remoteUrl) ||
+          (!remoteUrl && Boolean(serverId))
+        const assertAccountCurrent = custom
+          ? () => undefined
+          : syncAccountAdmission.capture()
+        const generation = rememberedUnlocks.captureGeneration(custom)
+        const status = await syncControl.status(
+          remoteUrl,
+          remoteUrl ? undefined : serverId
+        )
+        if (
+          session &&
+          remoteUrl &&
+          ((status.provider === "custom" && status.canClone) ||
+            (status.account.state === "signed-in" &&
+              ["read-only", "read-write"].includes(
+                status.entitlement.state
+              ))) &&
+          (await session.encryptedSyncStatus())?.state === "locked"
+        ) {
+          try {
+            const access = await syncControl.repositoryAccess(remoteUrl)
+            await rememberedUnlocks.autoUnlock(
+              session,
+              remoteUrl,
+              access.accessToken
+            )
+            if ((await session.encryptedSyncStatus())?.state === "unlocked") {
+              const attached = await attachSyncQueue(event)
+              await syncQueue.clearResolvedFailure(
+                attached.session.canonical.id,
+                "encryption-locked"
+              )
+            }
+          } catch {}
+        }
+        if (session && remoteUrl && status.entitlement.state === "read-write") {
+          const spaceKey = logCorrelationKey(session.canonical.id)
+          const displayName = cloudDisplayNameForLocalSpace(
+            session.canonical.name
+          )
+          const repairKey = `${remoteUrl}\0${displayName}`
+          if (!repositoryDisplayNameRepairs.has(repairKey)) {
+            repositoryDisplayNameRepairs.add(repairKey)
+            void syncControl
+              .repairLegacyRepositoryDisplayName(remoteUrl, displayName)
+              .then((repaired) => {
+                if (repaired) {
+                  eidosLiteLogger()?.info(
+                    "sync.repository-display-name.repaired",
+                    {
+                      spaceKey,
+                    }
+                  )
+                }
+              })
+              .catch((error) => {
+                repositoryDisplayNameRepairs.delete(repairKey)
+                eidosLiteLogger()?.warn(
+                  "sync.repository-display-name.repair-failed",
+                  { spaceKey },
+                  error
+                )
+              })
+          }
+        }
+        const projected = await projectEncryptedStatus(
           session,
           remoteUrl,
-          access.accessToken
+          status
         )
-        if ((await session.encryptedSyncStatus())?.state === "unlocked") {
-          const attached = await attachSyncQueue(event)
-          await syncQueue.clearResolvedFailure(
-            attached.session.canonical.id,
-            "encryption-locked"
-          )
-        }
-      } catch {}
-    }
-    if (session && remoteUrl && status.entitlement.state === "read-write") {
-      const spaceKey = logCorrelationKey(session.canonical.id)
-      const displayName = cloudDisplayNameForLocalSpace(session.canonical.name)
-      const repairKey = `${remoteUrl}\0${displayName}`
-      if (!repositoryDisplayNameRepairs.has(repairKey)) {
-        repositoryDisplayNameRepairs.add(repairKey)
-        void syncControl
-          .repairLegacyRepositoryDisplayName(remoteUrl, displayName)
-          .then((repaired) => {
-            if (repaired) {
-              eidosLiteLogger()?.info("sync.repository-display-name.repaired", {
-                spaceKey,
-              })
-            }
-          })
-          .catch((error) => {
-            repositoryDisplayNameRepairs.delete(repairKey)
-            eidosLiteLogger()?.warn(
-              "sync.repository-display-name.repair-failed",
-              { spaceKey },
-              error
-            )
-          })
-      }
-    }
-    const projected = await projectEncryptedStatus(session, remoteUrl, status)
-    assertAccountCurrent()
-    rememberedUnlocks.assertCurrent(session ?? undefined, generation)
-    return projected
-  })
+        assertAccountCurrent()
+        rememberedUnlocks.assertCurrent(session ?? undefined, generation)
+        return projected
+      },
+    })
+  )
   ipcMain.handle(IPC_CHANNELS.syncSignIn, async (event) => {
     const accountChange = syncAccountAdmission.beginChange()
     try {
-      cancelManualSyncOperations()
-      rememberedUnlocks.blockAutomatic()
-      await lockAndDrainSync(true)
+      cancelManualSyncOperations(true)
+      rememberedUnlocks.blockOfficialAutomatic()
+      await lockAndDrainSync(true, true)
       accountChange.assertCurrent()
       const remoteUrl = await currentRemoteUrl(event)
       accountChange.assertCurrent()
       const status = await syncControl.signIn(remoteUrl)
       accountChange.assertCurrent()
-      rememberedUnlocks.reconnect()
+      rememberedUnlocks.reconnectOfficial()
       broadcastAccountStatus(status.account)
       return { ...status, deviceUnlockAvailable: rememberedUnlocks.available() }
     } finally {
@@ -2529,16 +2741,16 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncSignOut, async (event) => {
     const accountChange = syncAccountAdmission.beginChange()
     try {
-      cancelManualSyncOperations()
-      rememberedUnlocks.blockAutomatic()
+      cancelManualSyncOperations(true)
+      rememberedUnlocks.blockOfficialAutomatic()
       const session = controller.sessionFor(event.sender)
       const remoteUrl = await currentRemoteUrl(event)
       accountChange.assertCurrent()
-      await lockAndDrainSync(true)
+      await lockAndDrainSync(true, true)
       accountChange.assertCurrent()
       const status = await syncControl.signOut(remoteUrl)
       accountChange.assertCurrent()
-      if (session && remoteUrl) {
+      if (session && remoteUrl && !syncControl.isCustomRemote(remoteUrl)) {
         const attached = await attachSyncQueue(event)
         accountChange.assertCurrent()
         const failure = classifySyncFailure(
@@ -2570,53 +2782,76 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncPreflight, (event) =>
     controller.requireSession(event.sender).syncPreflight()
   )
-  ipcMain.handle(IPC_CHANNELS.syncDisconnect, async (event) => {
-    const session = controller.requireSession(event.sender)
-    assertCloudConnectionAvailable(session)
-    disconnectingSpaces.add(session.canonical.id)
-    try {
-      const parent = BrowserWindow.fromWebContents(event.sender)
-      if (!parent || parent.isDestroyed())
-        throw new Error("The Space window is closed")
-      const confirmation = await dialog.showMessageBox(parent, {
-        type: "question",
-        message: mainText("Disconnect cloud sync?"),
-        detail: mainText(
-          "Local files and Graft history will stay on this computer. The cloud copy will not be deleted. Enabling sync again will create a new encrypted cloud copy."
-        ),
-        buttons: [mainText("Cancel"), mainText("Disconnect cloud sync")],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-      })
-      if (confirmation.response !== 1) return null
-      await rememberedUnlocks.disconnect(session)
-      await syncQueue.clear(session.canonical.id)
-      return await session.disconnectHostedSync()
-    } finally {
-      disconnectingSpaces.delete(session.canonical.id)
+  ipcMain.handle(
+    IPC_CHANNELS.syncDisconnect,
+    async (event, switchTarget: unknown) => {
+      if (
+        switchTarget !== undefined &&
+        (typeof switchTarget !== "string" ||
+          !switchTarget.trim() ||
+          switchTarget.length > 80 ||
+          /\p{Cc}/u.test(switchTarget))
+      )
+        throw new Error("Invalid sync service name")
+      const session = controller.requireSession(event.sender)
+      assertCloudConnectionAvailable(session)
+      disconnectingSpaces.add(session.canonical.id)
+      try {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        if (!parent || parent.isDestroyed())
+          throw new Error("The Space window is closed")
+        const confirmation = await dialog.showMessageBox(parent, {
+          type: "question",
+          message: switchTarget
+            ? mainText("Switch to {service}?", { service: switchTarget })
+            : mainText("Disconnect cloud sync?"),
+          detail: mainText(
+            switchTarget
+              ? "The current connection will be disconnected before the new encrypted copy is created. If setup fails, reconnect the previous service to resume sync. Local files, history and the previous cloud copy will be kept."
+              : "Local files and Graft history will stay on this computer. The cloud copy will not be deleted. Enabling sync again will create a new encrypted cloud copy."
+          ),
+          buttons: [
+            mainText("Cancel"),
+            mainText(switchTarget ? "Switch service" : "Disconnect cloud sync"),
+          ],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        })
+        if (confirmation.response !== 1) return null
+        await rememberedUnlocks.disconnect(session)
+        await syncQueue.clear(session.canonical.id)
+        return await session.disconnectHostedSync()
+      } finally {
+        disconnectingSpaces.delete(session.canonical.id)
+      }
     }
-  })
+  )
   ipcMain.handle(IPC_CHANNELS.syncUnlock, async (event, value: unknown) => {
-    const generation = rememberedUnlocks.captureGeneration()
+    const session = controller.requireSession(event.sender)
+    const remote = await session.officialSyncRemoteUrl()
+    if (!remote) throw new Error("This Space is not connected")
+    const custom = syncControl.isCustomRemote(remote)
+    const generation = rememberedUnlocks.captureGeneration(custom)
     let password: Buffer | undefined
     let encryptionRequest: GraftEncryptedInput | undefined
-    const operation = beginManualSyncOperation()
+    const operation = beginManualSyncOperation(custom)
     try {
       password = readSyncPassword(value)
       if (!password) throw new Error("Sync password is required")
-      const session = controller.requireSession(event.sender)
       assertCloudConnectionAvailable(session)
-      const context = await syncControl.operationContext()
+      const context = await syncControl.operationContext(remote)
       const assertCurrent = () => {
         operation.assertCurrent()
         context.assertCurrent()
         rememberedUnlocks.assertCurrent(session, generation)
       }
       assertCurrent()
-      const remote = await session.officialSyncRemoteUrl()
-      if (!remote) throw new Error("This Space is not connected")
-      const access = await syncControl.repositoryAccess(remote, context)
+      const access = await syncControl.repositoryAccess(
+        remote,
+        context,
+        await session.syncEncryptionUuid()
+      )
       const repository = (
         await syncControl.repositories(context)
       ).repositories.find((entry) => entry.remoteUrl === remote)
@@ -2675,11 +2910,20 @@ export function registerIpc(
   })
   ipcMain.handle(
     IPC_CHANNELS.syncEnable,
-    async (event, value: unknown, encryptionValue: unknown) => {
-      const generation = rememberedUnlocks.captureGeneration()
+    async (
+      event,
+      value: unknown,
+      encryptionValue: unknown,
+      selectionValue: unknown
+    ) => {
+      const serverId = customSelection(selectionValue)
+      const generation = rememberedUnlocks.captureGeneration(Boolean(serverId))
       const session = controller.requireSession(event.sender)
       assertCloudConnectionAvailable(session)
       const spaceKey = logCorrelationKey(session.canonical.id)
+      const releaseCustomAdmission = serverId
+        ? controller.retainCustomSyncAdmission(session)
+        : () => undefined
       const tracker = new SyncRunTracker(
         randomUUID(),
         (progress) => {
@@ -2698,13 +2942,16 @@ export function registerIpc(
       let stage = "existing-remote"
       let password: Buffer | undefined
       let encryptionRequest: GraftEncryptedInput | undefined
-      const operation = beginManualSyncOperation()
+      const operation = beginManualSyncOperation(Boolean(serverId))
       eidosLiteLogger()?.info("sync.enable.started", { spaceKey })
       return session.withHostedSyncConnectionChange(async () => {
         try {
           password = readSyncPassword(encryptionValue)
           transition("authorization", "Checking account access")
-          const context = await syncControl.operationContext()
+          const context = await syncControl.operationContext(
+            undefined,
+            serverId
+          )
           const assertCurrent = () => {
             operation.assertCurrent()
             context.assertCurrent()
@@ -2712,7 +2959,49 @@ export function registerIpc(
           }
           assertCurrent()
           const existing = await session.officialSyncRemoteUrl()
-          if (existing) {
+          const approval = syncPreflightApproval(value)
+          let replacement:
+            | { remoteUrl: string; encryptionUuid: string }
+            | undefined
+          if (approval.switchFrom) {
+            if (existing !== approval.switchFrom)
+              throw new Error(
+                "The current connection changed. Review the switch again."
+              )
+            let previousUuid = await session.syncEncryptionUuid()
+            if (!previousUuid) {
+              const previousContext =
+                await syncControl.operationContext(existing)
+              const previous = (
+                await syncControl.repositories(previousContext)
+              ).repositories.find(
+                (repository) => repository.remoteUrl === existing
+              )
+              previousContext.assertCurrent()
+              previousUuid = previous?.encryption?.uuid
+            }
+            if (!previousUuid)
+              throw new Error(
+                "Safe switching requires an encrypted current connection"
+              )
+            replacement = { remoteUrl: existing, encryptionUuid: previousUuid }
+            assertCurrent()
+          }
+          if (existing && !replacement) {
+            if (
+              context.provider === "custom" &&
+              customSyncOrigin(existing) !== context.authenticationDomain
+            )
+              throw new Error(
+                "Disconnect the current server before changing this Space's connection"
+              )
+            if (
+              context.provider !== "custom" &&
+              syncControl.isCustomRemote(existing)
+            )
+              throw new Error(
+                "Disconnect the current server before changing this Space's connection"
+              )
             if (password && !(await session.hasEncryptedSync()))
               throw new Error(
                 "Encrypted Sync requires a new Space; existing remote migration is not enabled"
@@ -2730,24 +3019,67 @@ export function registerIpc(
               "New cloud connections require encrypted Sync on macOS, Windows or Linux"
             )
           if (!password) {
-            password = await rememberedUnlocks.readDefaultPassword(
-              generation,
-              context.subject
-            )
+            password =
+              await rememberedUnlocks.readDeviceDefaultPassword(generation)
+            if (!password && context.provider !== "custom")
+              password = await rememberedUnlocks.readDefaultPassword(
+                generation,
+                context.subject
+              )
             if (!password)
               throw new Error(
-                "Set up your sync password in Settings before connecting this Space"
+                context.provider === "custom"
+                  ? "Enter a sync password for this custom server"
+                  : "Set up your sync password in Settings before connecting this Space"
               )
           }
           stage = "preflight"
           transition("analyze", "Preparing this Space")
-          const approval = syncPreflightApproval(value)
           await session.prepareHostedSync(approval, Boolean(password))
           assertCurrent()
+          if (replacement) {
+            const parent = BrowserWindow.fromWebContents(event.sender)
+            if (!parent || parent.isDestroyed())
+              throw new Error("The Space window is closed")
+            const confirmed = await dialog.showMessageBox(parent, {
+              type: "question",
+              message: mainText("Switch sync server?"),
+              detail:
+                mainText("From {current} to {target}.", {
+                  current: new URL(replacement.remoteUrl).host,
+                  target:
+                    context.authenticationDomain ?? services.syncRemoteOrigin,
+                }) +
+                "\n\n" +
+                mainText(
+                  "A new encrypted copy will be uploaded. If the upload fails, the previous connection is restored. Local files and the previous cloud copy are kept."
+                ),
+              buttons: [mainText("Cancel"), mainText("Switch server")],
+              defaultId: 0,
+              cancelId: 0,
+              noLink: true,
+            })
+            if (confirmed.response !== 1)
+              return {
+                ok: true as const,
+                status: await projectEncryptedStatus(
+                  session,
+                  replacement.remoteUrl,
+                  await syncControl.status(replacement.remoteUrl)
+                ),
+                telemetry: tracker.complete("Switch cancelled"),
+              }
+            assertCurrent()
+          }
           stage = "provision"
           transition("authorization", "Creating secure cloud access")
           const provisioned = await syncControl.provisionRepository(
-            await session.hostedSyncRepositoryName(),
+            replacement
+              ? await session.hostedSyncReplacementName(
+                  replacement.remoteUrl,
+                  context.authenticationDomain ?? services.syncRemoteOrigin
+                )
+              : await session.hostedSyncRepositoryName(),
             cloudDisplayNameForLocalSpace(session.canonical.name),
             Boolean(password),
             context
@@ -2777,8 +3109,10 @@ export function registerIpc(
             (progress) => tracker.transfer(progress),
             encryptionRequest,
             assertCurrent,
-            operation.signal
+            operation.signal,
+            replacement
           )
+          if (replacement) await syncQueue.clear(session.canonical.id)
           if (password && encryptionRequest)
             await rememberedUnlocks.finishManual(
               session,
@@ -2805,7 +3139,9 @@ export function registerIpc(
             telemetry,
           }
         } catch (error) {
-          const failure = classifySyncFailure(error, currentPhase)
+          const failure = serverId
+            ? classifyCustomSyncFailure(error, currentPhase)
+            : classifySyncFailure(error, currentPhase)
           const telemetry = tracker.fail(failure.message)
           eidosLiteLogger()?.error(
             "sync.enable.failed",
@@ -2825,6 +3161,7 @@ export function registerIpc(
             telemetry,
           }
         } finally {
+          releaseCustomAdmission()
           operation.finish()
           password?.fill(0)
           encryptionRequest?.password.fill(0)
@@ -2844,11 +3181,14 @@ export function registerIpc(
       event,
       remoteUrl: unknown,
       displayName: unknown,
-      encryptionValue: unknown
+      encryptionValue: unknown,
+      selectionValue: unknown
     ) => {
-      const encryptedTicket = controller.captureEncryptedCloneTicket()
       const remote = requiredString(remoteUrl, "Hosted Remote")
-      const generation = rememberedUnlocks.captureGeneration()
+      const serverId = customSelection(selectionValue)
+      const custom = syncControl.isCustomRemote(remote)
+      const encryptedTicket = controller.captureEncryptedCloneTicket(custom)
+      const generation = rememberedUnlocks.captureGeneration(custom)
       const suggestedName =
         displayName === undefined
           ? undefined
@@ -2868,7 +3208,7 @@ export function registerIpc(
       let currentPhase: EidosSyncPhase = "authorization"
       let password: Buffer | undefined
       let encryptionRequest: GraftEncryptedInput | undefined
-      const operation = beginManualSyncOperation()
+      const operation = beginManualSyncOperation(custom)
       const transition = (phase: EidosSyncPhase, detail: string) => {
         currentPhase = phase
         tracker.transition(phase, detail)
@@ -2877,7 +3217,12 @@ export function registerIpc(
       try {
         password = readSyncPassword(encryptionValue)
         transition("authorization", "Checking account access")
-        const context = await syncControl.operationContext()
+        const context = await syncControl.operationContext(remote, serverId)
+        if (
+          context.provider === "custom" &&
+          customSyncOrigin(remote) !== context.authenticationDomain
+        )
+          throw new Error("The selected server does not own this repository")
         const assertCurrent = () => {
           operation.assertCurrent()
           context.assertCurrent()
@@ -2892,11 +3237,15 @@ export function registerIpc(
           repository?.encryption &&
           !password &&
           rememberedUnlocks.available()
-        )
-          password = await rememberedUnlocks.readDefaultPassword(
-            generation,
-            context.subject
-          )
+        ) {
+          password =
+            await rememberedUnlocks.readDeviceDefaultPassword(generation)
+          if (!password && context.provider !== "custom")
+            password = await rememberedUnlocks.readDefaultPassword(
+              generation,
+              context.subject
+            )
+        }
         if (Boolean(repository?.encryption) !== Boolean(password))
           throw Object.assign(
             new Error("Encrypted Spaces require their sync password"),
@@ -2955,7 +3304,9 @@ export function registerIpc(
         })
         return { ok: true as const, snapshot: result, telemetry }
       } catch (error) {
-        const failure = classifySyncFailure(error, currentPhase)
+        const failure = custom
+          ? classifyCustomSyncFailure(error, currentPhase)
+          : classifySyncFailure(error, currentPhase)
         const telemetry = tracker.fail(failure.message)
         eidosLiteLogger()?.error(
           "sync.clone.failed",
@@ -2984,7 +3335,12 @@ export function registerIpc(
   ipcMain.handle(
     IPC_CHANNELS.syncRun,
     async (event, action: unknown = "fetch") => {
-      if (action !== "fetch" && action !== "pull" && action !== "push") {
+      if (
+        action !== "fetch" &&
+        action !== "pull" &&
+        action !== "push" &&
+        action !== "sync"
+      ) {
         throw new Error("Invalid Sync action")
       }
       const { session } = await attachSyncQueue(event)
@@ -3000,7 +3356,11 @@ export function registerIpc(
         const remoteUrl = await session.officialSyncRemoteUrl()
         if (!remoteUrl)
           throw new Error("This Space is not connected to Eidos Sync")
-        await syncControl.repositoryAccess(remoteUrl)
+        await syncControl.repositoryAccess(
+          remoteUrl,
+          undefined,
+          await session.syncEncryptionUuid()
+        )
       })
     } catch (error) {
       // Preserve the saved failure if access still cannot be verified.
@@ -3012,22 +3372,78 @@ export function registerIpc(
     const session = controller.requireSession(event.sender)
     const remoteUrl = await session.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
-    const access = await syncControl.repositoryAccess(remoteUrl)
+    const access = await syncControl.repositoryAccess(
+      remoteUrl,
+      undefined,
+      await session.syncEncryptionUuid()
+    )
     await session.assertHostedDivergence(access.accessToken)
     return controller.copyLocalRecoverySpace(event.sender)
   })
-  ipcMain.handle(IPC_CHANNELS.syncRecoverHosted, async (event) => {
-    const session = controller.requireSession(event.sender)
-    const remoteUrl = await session.officialSyncRemoteUrl()
-    if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
-    const access = await syncControl.repositoryAccess(remoteUrl)
-    await session.assertHostedDivergence(access.accessToken)
-    return controller.cloneHostedRecoverySpace(
-      event.sender,
-      remoteUrl,
-      access.accessToken
-    )
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.syncRecoverHosted,
+    async (event, encryptionValue: unknown) => {
+      const session = controller.requireSession(event.sender)
+      const remoteUrl = await session.officialSyncRemoteUrl()
+      if (!remoteUrl)
+        throw new Error("This Space is not connected to Eidos Sync")
+      const custom = syncControl.isCustomRemote(remoteUrl)
+      const operation = beginManualSyncOperation(custom)
+      let password: Buffer | undefined
+      let encryptionRequest: GraftEncryptedInput | undefined
+      try {
+        password = readSyncPassword(encryptionValue)
+        const context = await syncControl.operationContext(remoteUrl)
+        const assertCurrent = () => {
+          operation.assertCurrent()
+          context.assertCurrent()
+        }
+        const expectedUuid = await session.syncEncryptionUuid()
+        const access = await syncControl.repositoryAccess(
+          remoteUrl,
+          context,
+          expectedUuid
+        )
+        assertCurrent()
+        if (custom || password) {
+          const repository = (
+            await syncControl.repositories(context)
+          ).repositories.find((entry) => entry.remoteUrl === remoteUrl)
+          if (
+            !repository?.encryption ||
+            (expectedUuid && repository.encryption.uuid !== expectedUuid)
+          )
+            throw new Error(
+              "The recovery repository encryption identity changed"
+            )
+          if (!password)
+            throw new Error(
+              "Enter the Space sync password to download an encrypted recovery copy"
+            )
+          encryptionRequest = encryptedInput(
+            remoteUrl,
+            repository.encryption,
+            access.accessToken,
+            password,
+            context.subject
+          )
+        }
+        await session.assertHostedDivergence(access.accessToken)
+        assertCurrent()
+        return await controller.cloneHostedRecoverySpace(
+          event.sender,
+          remoteUrl,
+          access.accessToken,
+          encryptionRequest,
+          assertCurrent
+        )
+      } finally {
+        operation.finish()
+        password?.fill(0)
+        encryptionRequest?.password.fill(0)
+      }
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.syncMergeStatus, (event) =>
     mergeResponse(() =>
       controller.requireSession(event.sender).getSyncMergeStatus()
@@ -3036,20 +3452,60 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncMergePlan, (event) =>
     mergeResponse(async () => {
       const session = controller.requireSession(event.sender)
-      const remoteUrl = await session.officialSyncRemoteUrl()
-      if (!remoteUrl) {
-        throw new Error("This Space is not connected to Eidos Sync")
+      const tracker = new SyncRunTracker(randomUUID(), (progress) => {
+        if (
+          !event.sender.isDestroyed() &&
+          controller.sessionFor(event.sender) === session
+        )
+          event.sender.send(IPC_CHANNELS.syncProgress, progress)
+      })
+      tracker.transition("authorization", "Checking account access")
+      try {
+        const remoteUrl = await session.officialSyncRemoteUrl()
+        if (!remoteUrl) {
+          throw new Error("This Space is not connected to Eidos Sync")
+        }
+        const access = await syncControl.repositoryAccess(
+          remoteUrl,
+          undefined,
+          await session.syncEncryptionUuid()
+        )
+        tracker.transition("fetch", "Receiving data from server")
+        const plan = await session.planHostedMerge(
+          access.accessToken,
+          (progress) => tracker.transfer(progress)
+        )
+        tracker.complete("Merge ready")
+        return plan
+      } catch (error) {
+        tracker.fail("Could not prepare merge")
+        throw error
       }
-      const access = await syncControl.repositoryAccess(remoteUrl)
-      return session.planHostedMerge(access.accessToken)
     })
   )
   ipcMain.handle(IPC_CHANNELS.syncMergeApply, (event, value: unknown) =>
-    mergeResponse(() =>
-      controller
-        .requireSession(event.sender)
-        .applyHostedMerge(mergeApplyRequest(value))
-    )
+    mergeResponse(async () => {
+      const session = controller.requireSession(event.sender)
+      const tracker = new SyncRunTracker(randomUUID(), (progress) => {
+        if (
+          !event.sender.isDestroyed() &&
+          controller.sessionFor(event.sender) === session
+        )
+          event.sender.send(IPC_CHANNELS.syncProgress, progress)
+      })
+      tracker.transition("pull", "Applying downloaded data")
+      try {
+        const result = await session.applyHostedMerge(
+          mergeApplyRequest(value),
+          (progress) => tracker.transfer(progress)
+        )
+        tracker.complete("Merge ready")
+        return result
+      } catch (error) {
+        tracker.fail("Could not apply merge")
+        throw error
+      }
+    })
   )
   ipcMain.handle(IPC_CHANNELS.syncMergePaths, (event, value: unknown) =>
     mergeResponse(() => {

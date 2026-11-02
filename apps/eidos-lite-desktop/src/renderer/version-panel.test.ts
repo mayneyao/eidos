@@ -2492,6 +2492,10 @@ describe("VersionPanel table diff", () => {
         })
       )
     })
+    expect(host.querySelector(".commit-row")?.textContent).toContain("1 file")
+    expect(host.querySelector(".commit-row")?.textContent).not.toContain(
+      "1 files"
+    )
     await act(async () => {
       host
         .querySelector<HTMLButtonElement>(".commit-row")
@@ -3653,6 +3657,84 @@ describe("VersionPanel table diff", () => {
     host.remove()
   })
 
+  it("explains why a dirty Space cannot restore a version from the context menu", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const head = "c".repeat(64)
+    const commit: SpaceVersionCommit = {
+      id: "a".repeat(64),
+      parent: null,
+      message: "Earlier",
+      timestampMs: 1,
+      files: 1,
+      changes: [],
+      tables: [],
+      changedTables: 0,
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: head,
+          currentBranch: null,
+          commits: [commit],
+          hasMore: false,
+        }),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...unversionedSpace,
+            graft: {
+              ...unversionedSpace.graft,
+              initialized: true,
+              clean: false,
+              currentHead: head,
+            },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: vi.fn().mockResolvedValue(undefined),
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(host.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+        .find((button) => button.textContent === "History")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>(".commit-row")?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "F10",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(
+      document.querySelector<HTMLButtonElement>(".version-restore-menu button")
+        ?.disabled
+    ).toBe(true)
+    expect(
+      document.querySelector(".version-restore-menu")?.textContent
+    ).toContain("Save a version of local changes before restoring")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("refreshes open Eidos Files after restoring a Space checkpoint", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")
@@ -3700,7 +3782,10 @@ describe("VersionPanel table diff", () => {
     await act(async () => {
       root.render(
         createElement(VersionPanel, {
-          space: restoredSpace,
+          space: {
+            ...restoredSpace,
+            graft: { ...restoredSpace.graft, currentHead },
+          },
           refreshKey: 0,
           onClose: () => undefined,
           onSpaceChange,
@@ -3713,16 +3798,65 @@ describe("VersionPanel table diff", () => {
     await act(async () => {
       host
         .querySelector<HTMLButtonElement>(".commit-row")
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+        ?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }))
     })
     await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(".restore-action")
+      document
+        .querySelector<HTMLButtonElement>(".version-restore-menu button")
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
+    expect(
+      document.querySelector(".restore-version-dialog")?.textContent
+    ).toContain(selectedCommit.message)
     await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(".restore-confirm .danger-action")
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...restoredSpace,
+            graft: { ...restoredSpace.graft, currentHead: "e".repeat(64) },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>(
+          ".restore-version-dialog .danger-action"
+        )
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(restoreCheckpoint).not.toHaveBeenCalled()
+    expect(
+      document.querySelector(".restore-version-dialog [role=alert]")
+        ?.textContent
+    ).toContain("Space changed")
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...restoredSpace,
+            graft: { ...restoredSpace.graft, currentHead },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>(
+          ".restore-version-dialog .danger-action"
+        )
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
 

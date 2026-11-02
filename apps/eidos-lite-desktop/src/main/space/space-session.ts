@@ -8,6 +8,7 @@ import {
 import { restoreTextVersion } from "./restore-text-version"
 import type { RestoreTextVersionRequest } from "../../shared/path-history"
 import type { SparkFeature } from "../../shared/spark"
+import { customSyncOrigin } from "../../shared/sync-encryption"
 import { searchSpaceText } from "./text-search"
 import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
 import {
@@ -142,8 +143,13 @@ import {
   normalizeFileMetadataDirectory,
   SPACE_FILE_METADATA_PATH,
 } from "../../shared/file-metadata"
-import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
+import {
+  type SpaceSyncState,
+  SpaceSyncStateStore,
+  isKnownOfficialSyncRemote,
+} from "./sync-state"
 import { SpaceSyncConnectionStore } from "./sync-connection"
+import { SyncSwitchJournal } from "./sync-switch"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
 import {
   decodeText,
@@ -595,6 +601,12 @@ export class SpaceSession {
     )
     try {
       await session.gate.recoverInterruptedOperation()
+      await session.recoverSyncSwitch().catch((error) => {
+        console.warn(
+          "Sync switch recovery is pending; local files remain available",
+          error
+        )
+      })
       if ((await session.syncConnection.read())?.disconnecting) {
         await session.finishHostedSyncDisconnect().catch((error) => {
           console.warn(
@@ -2389,6 +2401,7 @@ export class SpaceSession {
   }
 
   async officialSyncRemoteUrl(): Promise<string | null> {
+    if (this.syncSwitchRecoveryError) throw this.syncSwitchRecoveryError
     const state = await this.syncState.read()
     if (!state) return null
     const configured = await this.repository.runForeground(() =>
@@ -2402,15 +2415,56 @@ export class SpaceSession {
     return state.remoteUrl
   }
 
+  private configureHostedSyncRemote(
+    remote: string,
+    token: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<void> {
+    return customSyncOrigin(remote)
+      ? this.graft.configureCustomRemote(
+          this.canonical.root,
+          remote,
+          token,
+          options
+        )
+      : this.graft.configureOfficialRemote(
+          this.canonical.root,
+          remote,
+          token,
+          options
+        )
+  }
+
   async hostedSyncRepositoryName(): Promise<string> {
     const name = await this.syncConnection.repository()
     this.cloudSyncConnection = true
     this.emitCachedOperationSnapshot()
     return name
   }
+  hostedSyncReplacementName(from: string, target: string): Promise<string> {
+    return this.syncConnection.replacementRepository(from, target)
+  }
 
   async storedHostedSyncRemoteUrl(): Promise<string | null> {
     return (await this.syncState.read())?.remoteUrl ?? null
+  }
+
+  async storedHostedSyncRemoteUrlForDisconnect(): Promise<string | null> {
+    return (await this.syncState.readForDisconnect())?.remoteUrl ?? null
+  }
+
+  async syncEncryptionUuid(): Promise<string | undefined> {
+    return (await this.syncState.read())?.encryptionUuid
+  }
+  async syncBindingRevision(): Promise<string | undefined> {
+    const state = await this.syncState.read()
+    return state?.provider === "custom"
+      ? JSON.stringify([
+          state.remoteUrl,
+          state.encryptionUuid,
+          state.bindingRevision,
+        ])
+      : undefined
   }
 
   /** Includes a connection whose origin was removed manually. Never contacts the server. */
@@ -2423,12 +2477,14 @@ export class SpaceSession {
       await this.gate.withRepositoryOperation(
         "Disconnecting cloud sync",
         async () => {
-          const current = await this.syncState.read()
+          const current = await this.syncState.readForDisconnect()
           const origin = await this.graft.remoteUrl(this.canonical.root)
           if (!current && !origin && !(await this.syncConnection.read())) return
           if (
             origin &&
-            (!isOfficialRemoteUrl(origin, this.graft.syncRemoteOrigin) ||
+            ((!isOfficialRemoteUrl(origin, this.graft.syncRemoteOrigin) &&
+              !isKnownOfficialSyncRemote(origin) &&
+              !customSyncOrigin(origin)) ||
               (current && current.remoteUrl !== origin))
           )
             throw new Error(
@@ -2465,6 +2521,36 @@ export class SpaceSession {
     return this.withSyncTask(action)
   }
 
+  private syncSwitchRecoveryError: Error | null = null
+  private async recoverSyncSwitch(): Promise<void> {
+    try {
+      await new SyncSwitchJournal(this.stateDirectory).recover(
+        async () => (await this.syncState.read())?.remoteUrl ?? null,
+        async ({ previous, target, encryptionUuid }) => {
+          const origin = await this.graft.remoteUrl(this.canonical.root)
+          if (origin && origin !== previous && origin !== target)
+            throw new Error(
+              "Another remote was configured during Sync recovery"
+            )
+          await this.graft.removeRemote(this.canonical.root)
+          await this.graft.restoreEncryptedSyncBinding(
+            this.canonical.root,
+            previous,
+            encryptionUuid,
+            this.stateDirectory
+          )
+        }
+      )
+      this.syncSwitchRecoveryError = null
+    } catch (cause) {
+      this.syncSwitchRecoveryError = new Error(
+        "Sync switch recovery could not finish. Reopen this Space to retry. Local files remain available.",
+        { cause }
+      )
+      throw this.syncSwitchRecoveryError
+    }
+  }
+
   syncPreflight(): Promise<EidosSyncPreflight> {
     return createSyncPreflight(this.canonical.root, {
       inspectIgnores: (relativePaths) => this.inspectIgnores(relativePaths),
@@ -2486,12 +2572,20 @@ export class SpaceSession {
     reportTransfer: SyncTransferProgressReporter = () => undefined,
     encryption?: GraftEncryptedInput,
     assertCurrent: () => void = () => undefined,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    replacement?: { remoteUrl: string; encryptionUuid: string }
   ): Promise<SpaceSnapshot> {
     signal?.throwIfAborted()
     assertCurrent()
     const existing = await this.syncState.read()
-    if (existing) {
+    if (
+      replacement &&
+      (!existing || existing.remoteUrl !== replacement.remoteUrl || !encryption)
+    )
+      throw new Error(
+        "The current connection changed. Review the switch again."
+      )
+    if (existing && !replacement) {
       if (existing.remoteUrl !== remoteUrl) {
         throw new Error("This Space is already connected to another Remote")
       }
@@ -2529,29 +2623,41 @@ export class SpaceSession {
         }
         operationSignal.throwIfAborted()
         assertCurrent()
-        if (encryption) {
-          await this.graft.encryptedSync(
-            this.canonical.root,
-            "initialize",
-            encryption,
-            { signal: operationSignal, onProgress: reportTransfer }
-          )
-        } else {
-          await this.graft.configureOfficialRemote(
-            this.canonical.root,
-            remoteUrl,
-            accessToken
-          )
-          operationSignal.throwIfAborted()
-          assertCurrent()
-          await this.graft.push(this.canonical.root, accessToken, {
-            onProgress: reportTransfer,
-            signal: operationSignal,
+        if (replacement) {
+          await new SyncSwitchJournal(this.stateDirectory).begin({
+            previous: replacement.remoteUrl,
+            encryptionUuid: replacement.encryptionUuid,
+            target: remoteUrl,
           })
         }
-        operationSignal.throwIfAborted()
-        assertCurrent()
-        this.syncHistoryState = await this.syncState.markFirstPush(remoteUrl)
+        try {
+          if (replacement) await this.graft.removeRemote(this.canonical.root)
+          if (encryption) {
+            await this.graft.encryptedSync(
+              this.canonical.root,
+              "initialize",
+              encryption,
+              { signal: operationSignal, onProgress: reportTransfer }
+            )
+          } else {
+            await this.configureHostedSyncRemote(remoteUrl, accessToken)
+            operationSignal.throwIfAborted()
+            assertCurrent()
+            await this.graft.push(this.canonical.root, accessToken, {
+              onProgress: reportTransfer,
+              signal: operationSignal,
+            })
+          }
+          operationSignal.throwIfAborted()
+          assertCurrent()
+          this.syncHistoryState = await this.syncState.markFirstPush(
+            remoteUrl,
+            new Date(),
+            encryption?.connection.uuid
+          )
+        } finally {
+          if (replacement) await this.recoverSyncSwitch()
+        }
       }
     )
     return this.freshSnapshotAndEmit(true)
@@ -2780,12 +2886,7 @@ export class SpaceSession {
     await this.gate.withRepositoryOperation(
       "Authenticating Eidos Sync",
       async (signal) => {
-        await this.graft.configureOfficialRemote(
-          this.canonical.root,
-          remoteUrl,
-          accessToken,
-          { signal }
-        )
+        await this.configureHostedSyncRemote(remoteUrl, accessToken, { signal })
       },
       { preemptible: true }
     )
@@ -2828,7 +2929,7 @@ export class SpaceSession {
           this.graftStatusOptions(signal)
         )
         this.assertGraftPathsSafeForMerge(before)
-        if (before.dirty && action === "pull") {
+        if (before.dirty && (action === "pull" || action === "sync")) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
         // Explicit uploads use the known remote head. The server still enforces
@@ -2837,6 +2938,9 @@ export class SpaceSession {
         await this.graft.fetch(this.canonical.root, {
           signal,
           onProgress: reportTransfer,
+          ...(action === "pull" || action === "sync"
+            ? { forCheckout: true }
+            : {}),
         })
         await this.recordSyncHistoryCheck()
         return this.graft.status(
@@ -3117,12 +3221,7 @@ export class SpaceSession {
     const relation = await this.gate.withRepositoryOperation(
       "Refreshing conflict state",
       async (signal) => {
-        await this.graft.configureOfficialRemote(
-          this.canonical.root,
-          remoteUrl,
-          accessToken,
-          { signal }
-        )
+        await this.configureHostedSyncRemote(remoteUrl, accessToken, { signal })
         const before = await this.graft.status(
           this.canonical.root,
           this.graftStatusOptions(signal)
@@ -3201,18 +3300,16 @@ export class SpaceSession {
     return this.completeResolvedMerge(merge)
   }
 
-  async planHostedMerge(accessToken: string): Promise<EidosSyncMergePlan> {
+  async planHostedMerge(
+    accessToken: string,
+    reportTransfer?: (progress: GraftTransferProgress) => void
+  ): Promise<EidosSyncMergePlan> {
     const remoteUrl = await this.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
     return this.gate.withRepositoryOperation(
       "Analyzing Local and Hosted merge",
       async (signal) => {
-        await this.graft.configureOfficialRemote(
-          this.canonical.root,
-          remoteUrl,
-          accessToken,
-          { signal }
-        )
+        await this.configureHostedSyncRemote(remoteUrl, accessToken, { signal })
         const before = await this.graft.status(
           this.canonical.root,
           this.graftStatusOptions(signal)
@@ -3222,7 +3319,11 @@ export class SpaceSession {
             "Create a checkpoint for local changes before analyzing a merge"
           )
         }
-        await this.graft.fetch(this.canonical.root, { signal })
+        await this.graft.fetch(this.canonical.root, {
+          signal,
+          forCheckout: true,
+          onProgress: reportTransfer,
+        })
         await this.recordSyncHistoryCheck()
         const status = await this.graft.status(
           this.canonical.root,
@@ -3251,14 +3352,16 @@ export class SpaceSession {
   }
 
   async applyHostedMerge(
-    request: EidosSyncMergeApplyRequest
+    request: EidosSyncMergeApplyRequest,
+    reportTransfer?: (progress: GraftTransferProgress) => void
   ): Promise<EidosSyncMergeStatus> {
-    return this.applySyncMerge("origin/main", request)
+    return this.applySyncMerge("origin/main", request, reportTransfer)
   }
 
   private async applySyncMerge(
     revision: string,
-    request: EidosSyncMergeApplyRequest
+    request: EidosSyncMergeApplyRequest,
+    reportTransfer?: (progress: GraftTransferProgress) => void
   ): Promise<EidosSyncMergeStatus> {
     const merge = await this.materializeMergeOperation(
       "applyMerge",
@@ -3279,7 +3382,7 @@ export class SpaceSession {
           revision,
           request.expectedHead,
           request.planToken,
-          { signal, onWorktreePaths: capturePaths }
+          { signal, onWorktreePaths: capturePaths, onProgress: reportTransfer }
         )
         if (merge.state === "merging") {
           this.systemMergeRecoveryAttempted = true

@@ -1,8 +1,34 @@
 import type { EidosSyncFailureCode } from "../../shared/contracts"
-import { classifySyncFailure, shouldReconcileHostedPush } from "./sync-failure"
+import {
+  classifySyncFailure,
+  classifyCustomSyncFailure,
+  shouldReconcileHostedPush,
+} from "./sync-failure"
 
 const missingLocalSnapshotSegment =
   "local snapshot hydrate failed: Object store error: NotFound (permanent) at read, context: { service: memory, path: segments/private-segment-id, range: 0- } => memory doesn't have this path"
+
+describe("custom synchronization recovery guidance", () => {
+  it("directs Spark and server-key failures to their own authority without official Sync billing", () => {
+    const spark = classifyCustomSyncFailure(
+      new Error("Activate Spark in Settings"),
+      "authorization"
+    )
+    expect(spark.title).toContain("Spark")
+    expect(spark.action).toBe("work-locally")
+    const key = classifyCustomSyncFailure(
+      Object.assign(new Error("Invalid access key"), { status: 401 }),
+      "authorization"
+    )
+    expect(key.message).toContain("server's access key")
+    expect(key.action).toBe("work-locally")
+    const changed = classifyCustomSyncFailure(
+      new Error("The repository encryption identity changed")
+    )
+    expect(changed.code).toBe("repository-invalid")
+    expect(changed.localSafe).toBe(true)
+  })
+})
 
 describe("classifySyncFailure", () => {
   it.each([

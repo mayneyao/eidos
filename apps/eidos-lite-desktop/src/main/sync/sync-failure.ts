@@ -258,6 +258,49 @@ function statusFromMessage(message: string): number | undefined {
   return match ? Number(match[1]) : undefined
 }
 
+export function classifyCustomSyncFailure(
+  error: unknown,
+  phase?: EidosSyncPhase
+): EidosSyncFailure {
+  const projected = classifySyncFailure(error, phase)
+  const message = errorMessage(error)
+  if (/spark/i.test(message))
+    return {
+      ...failure("entitlement-inactive"),
+      title: "Spark activation is required",
+      message:
+        "Activate or refresh Spark on this computer to use custom synchronization. Local files and history remain available.",
+      action: "work-locally",
+      actionLabel: "Keep working locally",
+    }
+  if (/encryption identity changed/i.test(message))
+    return {
+      ...failure("repository-invalid"),
+      title: "The custom repository identity changed",
+      message:
+        "The server no longer matches this Space's verified encryption identity. Its local files and history have been preserved.",
+      action: "work-locally",
+      actionLabel: "Keep working locally",
+    }
+  if (["authentication-required", "device-revoked"].includes(projected.code))
+    return {
+      ...projected,
+      title: "Custom server access is required",
+      message:
+        "Check this server's access key and saved connection. Local files and history remain available.",
+      action: "work-locally",
+      actionLabel: "Keep working locally",
+    }
+  return {
+    ...projected,
+    title: projected.title.replaceAll("Eidos Sync", "Custom Sync"),
+    message: projected.message.replaceAll("Eidos Sync", "the custom server"),
+    ...(projected.action === "manage-account"
+      ? { action: "work-locally" as const, actionLabel: "Keep working locally" }
+      : {}),
+  }
+}
+
 export function classifySyncFailure(
   error: unknown,
   phase?: EidosSyncPhase

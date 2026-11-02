@@ -6,12 +6,15 @@ import type { EidosSyncEncryption } from "../../shared/contracts"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import type { SpaceSession } from "../space/space-session"
 import type { SyncControlPlane } from "./sync-control-plane"
+import { isOfficialRemoteUrl } from "../graft/graft-client"
+import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
 import {
   windowsSyncSecretFiles,
   type WindowsSyncSecretFiles,
 } from "./windows-sync-secret-files"
 import {
   assertSyncEncryptionBinding,
+  customSyncOrigin,
   isSyncEncryptionAccountDomain,
 } from "../../shared/sync-encryption"
 
@@ -261,9 +264,14 @@ export class RememberedSyncUnlockStore {
 export class RememberedSyncUnlocks {
   private generation = 0
   private invalidatedAt = 0
+  private officialInvalidatedAt = 0
+  private customInvalidatedAt = 0
   private readonly forgottenAt = new Map<string, number>()
   private readonly operations = new Map<string, Promise<void>>()
   private automaticBlocked = false
+  private officialAutomaticBlocked = false
+  private customAutomaticBlocked = false
+  private readonly automaticRemotes = new Map<string, string>()
   private powerSuspended = false
   private readonly blockedSpaces = new Set<string>()
   private readonly pending = new Map<string, Promise<void>>()
@@ -274,7 +282,8 @@ export class RememberedSyncUnlocks {
     private readonly control: Pick<
       SyncControlPlane,
       "accountSubject" | "repositories"
-    >,
+    > &
+      Partial<Pick<SyncControlPlane, "syncIdentity" | "operationContext">>,
     private readonly domain: string,
     private readonly stateDirectory: string,
     private readonly store: RememberedSyncUnlockStore
@@ -282,6 +291,62 @@ export class RememberedSyncUnlocks {
 
   available(): boolean {
     return isSyncEncryptionAccountDomain(this.domain) && this.store.available()
+  }
+  private deviceDefaultIdentity(): DefaultSyncIdentity {
+    return {
+      domain: this.domain,
+      account: "device-default",
+      kind: "default-password",
+    }
+  }
+  async deviceDefaultStatus() {
+    if (!this.available()) return { available: false, configured: false }
+    return {
+      available: true,
+      configured: await this.store.has(this.deviceDefaultIdentity()),
+    }
+  }
+  async setDeviceDefaultPassword(password: Uint8Array): Promise<void> {
+    const generation = this.captureGeneration(true)
+    const secret = Buffer.from(password)
+    return this.serializeDefault(async () => {
+      try {
+        this.assertCurrent(undefined, generation)
+        if (!this.available())
+          throw new Error("System secure storage is unavailable")
+        const identity = this.deviceDefaultIdentity()
+        await this.store.write(identity, secret)
+        try {
+          this.assertCurrent(undefined, generation)
+        } catch (error) {
+          await this.store.forget(identity)
+          throw error
+        }
+      } finally {
+        secret.fill(0)
+      }
+    })
+  }
+  async readDeviceDefaultPassword(
+    generation = this.captureGeneration(true)
+  ): Promise<Buffer | undefined> {
+    this.assertCurrent(undefined, generation)
+    const password = await this.store.read(this.deviceDefaultIdentity())
+    try {
+      this.assertCurrent(undefined, generation)
+      return password ?? undefined
+    } catch (error) {
+      password?.fill(0)
+      throw error
+    }
+  }
+  async forgetDeviceDefaultPassword(): Promise<void> {
+    const generation = this.captureGeneration(true)
+    await this.serializeDefault(async () => {
+      this.assertCurrent(undefined, generation)
+      await this.store.forget(this.deviceDefaultIdentity())
+      this.assertCurrent(undefined, generation)
+    })
   }
   private async defaultIdentity(): Promise<DefaultSyncIdentity> {
     if (!isSyncEncryptionAccountDomain(this.domain))
@@ -375,15 +440,19 @@ export class RememberedSyncUnlocks {
       await this.assertDefaultCurrent(identity, generation)
     })
   }
-  captureGeneration(): number {
-    return ++this.generation
+  captureGeneration(custom = false): number {
+    const generation = ++this.generation
+    return custom ? -generation : generation
   }
   assertCurrent(session: SpaceSession | undefined, generation: number): void {
     if (
       this.powerSuspended ||
-      generation <= this.invalidatedAt ||
+      Math.abs(generation) <= this.invalidatedAt ||
+      (generation > 0 && generation <= this.officialInvalidatedAt) ||
+      (generation < 0 && Math.abs(generation) <= this.customInvalidatedAt) ||
       (session &&
-        generation <= (this.forgottenAt.get(session.canonical.id) ?? 0))
+        Math.abs(generation) <=
+          (this.forgottenAt.get(session.canonical.id) ?? 0))
     ) {
       throw new Error("Sync unlock was interrupted")
     }
@@ -397,6 +466,28 @@ export class RememberedSyncUnlocks {
     this.invalidatedAt = ++this.generation
     this.automaticBlocked = false
     this.cancelAutomaticOperations()
+  }
+  /** Account changes affect official credentials only; custom hosts retain their own identity. */
+  blockOfficialAutomatic(): void {
+    this.officialInvalidatedAt = ++this.generation
+    this.officialAutomaticBlocked = true
+    for (const [space, operation] of this.automaticOperations) {
+      if (!customSyncOrigin(this.automaticRemotes.get(space) ?? ""))
+        operation.abort()
+    }
+  }
+  reconnectOfficial(): void {
+    this.officialAutomaticBlocked = false
+  }
+  blockCustomAutomatic(): void {
+    this.customInvalidatedAt = ++this.generation
+    this.customAutomaticBlocked = true
+    for (const [space, operation] of this.automaticOperations)
+      if (customSyncOrigin(this.automaticRemotes.get(space) ?? ""))
+        operation.abort()
+  }
+  reconnectCustom(): void {
+    this.customAutomaticBlocked = false
   }
   suspendAutomatic(): void {
     this.invalidatedAt = ++this.generation
@@ -419,8 +510,10 @@ export class RememberedSyncUnlocks {
   private current(session: SpaceSession, generation: number): boolean {
     return (
       !this.powerSuspended &&
-      generation > this.invalidatedAt &&
-      generation > (this.forgottenAt.get(session.canonical.id) ?? 0)
+      Math.abs(generation) > this.invalidatedAt &&
+      (generation < 0 || generation > this.officialInvalidatedAt) &&
+      (generation > 0 || Math.abs(generation) > this.customInvalidatedAt) &&
+      Math.abs(generation) > (this.forgottenAt.get(session.canonical.id) ?? 0)
     )
   }
   private async serialize(
@@ -442,15 +535,31 @@ export class RememberedSyncUnlocks {
     session: SpaceSession,
     remote: string
   ): Promise<RememberedSyncIdentity> {
-    assertSyncEncryptionBinding(remote, this.domain)
-    const account = await this.control.accountSubject()
-    const repository = (await this.control.repositories()).repositories.find(
-      (entry) => entry.remoteUrl === remote
-    )
+    const custom = customSyncOrigin(remote)
+    const verified = custom
+      ? await this.control.syncIdentity?.(remote)
+      : undefined
+    if (custom && !verified)
+      throw new Error("The custom Sync identity is unavailable")
+    const domain = verified?.domain ?? this.domain
+    assertSyncEncryptionBinding(remote, domain)
+    const account = verified?.subject ?? (await this.control.accountSubject())
+    const context = custom
+      ? await this.control.operationContext?.(remote)
+      : undefined
+    const repository = (
+      await this.control.repositories(context)
+    ).repositories.find((entry) => entry.remoteUrl === remote)
     if (!repository?.encryption)
       throw new Error("This Space has no verified encrypted identity")
+    if (
+      custom &&
+      typeof session.syncEncryptionUuid === "function" &&
+      repository.encryption.uuid !== (await session.syncEncryptionUuid())
+    )
+      throw new Error("The custom repository encryption identity changed")
     return {
-      domain: this.domain,
+      domain,
       account,
       remote,
       space: session.canonical.root,
@@ -542,19 +651,27 @@ export class RememberedSyncUnlocks {
     if (
       !isSyncEncryptionAccountDomain(this.domain) ||
       this.automaticBlocked ||
+      (this.officialAutomaticBlocked && !customSyncOrigin(remote)) ||
+      (this.customAutomaticBlocked && Boolean(customSyncOrigin(remote))) ||
       this.powerSuspended ||
       this.blockedSpaces.has(session.canonical.id)
     )
       return
     const existing = this.pending.get(session.canonical.id)
     if (existing) return existing
-    const generation = this.captureGeneration()
+    const generation = this.captureGeneration(Boolean(customSyncOrigin(remote)))
     const operation = new AbortController()
     this.automaticOperations.set(session.canonical.id, operation)
+    this.automaticRemotes.set(session.canonical.id, remote)
     const assertCurrent = () => {
       operation.signal.throwIfAborted()
       this.assertCurrent(session, generation)
-      if (this.automaticBlocked || this.blockedSpaces.has(session.canonical.id))
+      if (
+        this.automaticBlocked ||
+        (this.officialAutomaticBlocked && !customSyncOrigin(remote)) ||
+        (this.customAutomaticBlocked && Boolean(customSyncOrigin(remote))) ||
+        this.blockedSpaces.has(session.canonical.id)
+      )
         throw new Error("Sync unlock was interrupted")
     }
     const task = (async () => {
@@ -599,12 +716,15 @@ export class RememberedSyncUnlocks {
         this.pending.delete(session.canonical.id)
       if (this.automaticOperations.get(session.canonical.id) === operation)
         this.automaticOperations.delete(session.canonical.id)
+      this.automaticRemotes.delete(session.canonical.id)
     }
   }
 
   async status(session: SpaceSession, remote: string) {
-    const generation = this.captureGeneration()
-    const subject = await this.control.accountSubject()
+    const generation = this.captureGeneration(Boolean(customSyncOrigin(remote)))
+    const subject = customSyncOrigin(remote)
+      ? "personal"
+      : await this.control.accountSubject()
     this.assertCurrent(session, generation)
     let remembered = false
     try {
@@ -615,7 +735,10 @@ export class RememberedSyncUnlocks {
     } catch {}
     this.assertCurrent(session, generation)
     const state = await session.encryptedSyncStatus()
-    if ((await this.control.accountSubject()) !== subject)
+    if (
+      !customSyncOrigin(remote) &&
+      (await this.control.accountSubject()) !== subject
+    )
       throw new Error("The Sync account changed while reading its password")
     this.assertCurrent(session, generation)
     if (!state) return undefined
@@ -633,8 +756,10 @@ export class RememberedSyncUnlocks {
       await this.pending.get(session.canonical.id)
       await session.lockEncryptedSync()
       await this.store.forgetSpace({
-        domain: this.domain,
-        account: await this.control.accountSubject(),
+        domain: customSyncOrigin(remote) ?? this.domain,
+        account: customSyncOrigin(remote)
+          ? "personal"
+          : await this.control.accountSubject(),
         space: session.canonical.root,
       })
       this.errors.delete(session.canonical.id)
@@ -643,16 +768,34 @@ export class RememberedSyncUnlocks {
 
   /** Local revocation must also work offline and after signing out. */
   async disconnect(session: SpaceSession): Promise<void> {
+    const remote =
+      typeof session.storedHostedSyncRemoteUrlForDisconnect === "function"
+        ? await session.storedHostedSyncRemoteUrlForDisconnect()
+        : typeof session.storedHostedSyncRemoteUrl === "function"
+          ? await session.storedHostedSyncRemoteUrl()
+          : null
+    const custom = remote ? customSyncOrigin(remote) : null
+    const foreignOfficial =
+      remote &&
+      Object.values(EIDOS_LITE_SERVICE_ENVIRONMENTS).some(
+        (environment) =>
+          environment.accountOrigin !== this.domain &&
+          isOfficialRemoteUrl(remote, environment.syncRemoteOrigin)
+      )
     this.blockedSpaces.add(session.canonical.id)
     this.forgottenAt.set(session.canonical.id, ++this.generation)
     this.automaticOperations.get(session.canonical.id)?.abort()
     await this.serialize(session, async () => {
       await this.pending.get(session.canonical.id)?.catch(() => undefined)
       await session.clearHostedSyncCredentials()
-      const account = await this.control.accountSubject().catch(() => null)
+      const account = custom
+        ? "personal"
+        : foreignOfficial
+          ? null
+          : await this.control.accountSubject().catch(() => null)
       if (account)
         await this.store.forgetSpace({
-          domain: this.domain,
+          domain: custom ?? this.domain,
           account,
           space: session.canonical.root,
         })

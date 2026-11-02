@@ -8,6 +8,7 @@ interface SyncConnectionIntent {
   disconnecting: boolean
   provisioning?: boolean
   previousRemote: string | null
+  replacement?: { from: string; target: string; repository: string }
 }
 
 /** Cloud connection identity is independent of the folder and its local history. */
@@ -36,7 +37,13 @@ export class SpaceSyncConnectionStore {
       (value.provisioning !== undefined &&
         typeof value.provisioning !== "boolean") ||
       (value.previousRemote !== null &&
-        typeof value.previousRemote !== "string")
+        typeof value.previousRemote !== "string") ||
+      (value.replacement !== undefined &&
+        (!value.replacement ||
+          typeof value.replacement.from !== "string" ||
+          typeof value.replacement.target !== "string" ||
+          typeof value.replacement.repository !== "string" ||
+          !/^[a-zA-Z0-9_-]{8,64}$/.test(value.replacement.repository)))
     )
       throw new Error("The Space cloud connection state is invalid")
     return value as SyncConnectionIntent
@@ -63,6 +70,30 @@ export class SpaceSyncConnectionStore {
       }
       await this.write(intent)
       return intent.repository
+    })
+  }
+
+  replacementRepository(from: string, target: string): Promise<string> {
+    return this.serialize(async () => {
+      const current = await this.read()
+      if (current?.disconnecting)
+        throw new Error("Finish disconnecting before switching servers")
+      if (
+        current?.replacement?.from === from &&
+        current.replacement.target === target
+      )
+        return current.replacement.repository
+      const replacement = { from, target, repository: randomUUID() }
+      await this.write({
+        ...(current ?? {
+          version: 1 as const,
+          repository: randomUUID(),
+          disconnecting: false,
+          previousRemote: null,
+        }),
+        replacement,
+      })
+      return replacement.repository
     })
   }
 

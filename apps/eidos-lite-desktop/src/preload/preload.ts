@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
-import { PLUGIN_CHANNELS } from "../shared/plugins"
+import { PLUGIN_CHANNELS, type BluetoothPickerState } from "../shared/plugins"
 import type { TextSearchProgress } from "../shared/text-search"
 
 import {
@@ -26,7 +26,7 @@ const api: EidosLiteApi = {
   onBluetoothPicker: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      state: import("../shared/plugins").BluetoothPickerState | null
+      state: BluetoothPickerState | null
     ) => listener(state)
     ipcRenderer.on(PLUGIN_CHANNELS.bluetoothPicker, handler)
     return () =>
@@ -563,13 +563,32 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.accountChanged, handler)
   },
-  getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),
+  getSyncStatus: (selection) =>
+    selection === undefined
+      ? ipcRenderer.invoke(IPC_CHANNELS.syncStatus)
+      : ipcRenderer.invoke(IPC_CHANNELS.syncStatus, selection),
+  listCustomSyncServers: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncCustomServers),
+  saveCustomSyncServer: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncCustomServerSave, input),
+  removeCustomSyncServer: (serverId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncCustomServerRemove, serverId),
+  listCustomSyncRepositories: (serverId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncCustomRepositories, serverId),
   beginSyncSignIn: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignIn),
   signOutSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignOut),
   getSyncPreflight: () => ipcRenderer.invoke(IPC_CHANNELS.syncPreflight),
-  enableSync: (approval, encryption) =>
-    ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval, encryption),
-  disconnectSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncDisconnect),
+  enableSync: (approval, encryption, selection) =>
+    selection === undefined
+      ? ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval, encryption)
+      : ipcRenderer.invoke(
+          IPC_CHANNELS.syncEnable,
+          approval,
+          encryption,
+          selection
+        ),
+  disconnectSync: (switchTarget) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncDisconnect, switchTarget),
   unlockSync: (encryption) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncUnlock, encryption),
   forgetSyncUnlock: () => ipcRenderer.invoke(IPC_CHANNELS.syncForgetUnlock),
@@ -580,13 +599,21 @@ const api: EidosLiteApi = {
   forgetDefaultSyncPassword: () =>
     ipcRenderer.invoke(IPC_CHANNELS.syncPasswordForget),
   listSyncRepositories: () => ipcRenderer.invoke(IPC_CHANNELS.syncRepositories),
-  cloneSyncRepository: (remoteUrl, displayName, encryption) =>
-    ipcRenderer.invoke(
-      IPC_CHANNELS.syncClone,
-      remoteUrl,
-      displayName,
-      encryption
-    ),
+  cloneSyncRepository: (remoteUrl, displayName, encryption, selection) =>
+    selection === undefined
+      ? ipcRenderer.invoke(
+          IPC_CHANNELS.syncClone,
+          remoteUrl,
+          displayName,
+          encryption
+        )
+      : ipcRenderer.invoke(
+          IPC_CHANNELS.syncClone,
+          remoteUrl,
+          displayName,
+          encryption,
+          selection
+        ),
   runSync: (action = "fetch") =>
     ipcRenderer.invoke(IPC_CHANNELS.syncRun, action),
   peerSync: (action, deviceId) =>
@@ -611,8 +638,10 @@ const api: EidosLiteApi = {
   },
   copyLocalRecoverySpace: () =>
     ipcRenderer.invoke(IPC_CHANNELS.syncRecoverLocal),
-  cloneHostedRecoverySpace: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.syncRecoverHosted),
+  cloneHostedRecoverySpace: (encryption) =>
+    encryption === undefined
+      ? ipcRenderer.invoke(IPC_CHANNELS.syncRecoverHosted)
+      : ipcRenderer.invoke(IPC_CHANNELS.syncRecoverHosted, encryption),
   getSyncMergeStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncMergeStatus),
   planSyncMerge: () => ipcRenderer.invoke(IPC_CHANNELS.syncMergePlan),
   applySyncMerge: (request) =>

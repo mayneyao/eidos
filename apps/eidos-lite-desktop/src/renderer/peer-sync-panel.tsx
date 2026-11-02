@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
+import { ChevronDown, Wifi } from "lucide-react"
 import type { EidosLiteApi } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
+import { IndeterminateSyncProgress } from "./sync-connect-shared"
 
 type Status = Awaited<ReturnType<EidosLiteApi["peerSync"]>>
 type Action = Parameters<EidosLiteApi["peerSync"]>[0]
@@ -35,6 +37,7 @@ function usePeerStatus(global: boolean) {
   const [code, setCode] = useState<{ value: string; qr: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [pollError, setPollError] = useState("")
   useEffect(() => {
     if (typeof window.eidosLite.peerSync !== "function") return
     let active = true
@@ -47,10 +50,13 @@ function usePeerStatus(global: boolean) {
         const next = await window.eidosLite.peerSync(
           global ? "devices-status" : "status"
         )
-        if (active && requested === revision.current) setStatus(next)
+        if (active && requested === revision.current) {
+          setStatus(next)
+          setPollError("")
+        }
       } catch (error) {
-        if (active)
-          setError(error instanceof Error ? error.message : String(error))
+        if (active && requested === revision.current)
+          setPollError(error instanceof Error ? error.message : String(error))
       } finally {
         pending = false
       }
@@ -63,7 +69,7 @@ function usePeerStatus(global: boolean) {
     }
   }, [global])
   const run = async (action: Action, id?: string) => {
-    if (acting.current) return
+    if (acting.current) return false
     acting.current = true
     revision.current += 1
     setBusy(true)
@@ -71,20 +77,28 @@ function usePeerStatus(global: boolean) {
     try {
       const next = await window.eidosLite.peerSync(action, id)
       setStatus(next)
+      setPollError("")
       if (next.invitation && next.qr)
         setCode({ value: next.invitation, qr: next.qr })
       if (
-        ["devices-stop", "devices-approve", "devices-reject"].includes(action)
+        [
+          "devices-stop",
+          "devices-approve",
+          "devices-reject",
+          "devices-cancel-invite",
+        ].includes(action)
       )
         setCode(null)
+      return true
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error))
+      return false
     } finally {
       acting.current = false
       setBusy(false)
     }
   }
-  return { status, code, busy, error, run }
+  return { status, code, busy, error: error || pollError, run }
 }
 
 export function PeerSyncPanel({
@@ -92,13 +106,217 @@ export function PeerSyncPanel({
 }: {
   standalone?: boolean
 }) {
+  return standalone ? <StandalonePeerSyncPanel /> : <LegacyPeerSyncPanel />
+}
+
+function StandalonePeerSyncPanel() {
+  const { t, locale } = useEidosLiteI18n()
+  const space = usePeerStatus(false)
+  const devices = usePeerStatus(true)
+  const [pairing, setPairing] = useState(false)
+  const status = space.status
+  const error = space.error || devices.error
+
+  const invite = async () => {
+    if (await devices.run("devices-invite")) setPairing(true)
+  }
+
+  return (
+    <section
+      className="peer-sync-design"
+      aria-label={t("LAN sync for this Space")}
+    >
+      {pairing && devices.code ? (
+        <div className="peer-sync-hero">
+          <div className="peer-sync-heading">
+            <Wifi aria-hidden="true" />
+            <div>
+              <strong>{t("Pair your phone or tablet")}</strong>
+              <p>{t("Open Sync on your phone and scan the code.")}</p>
+            </div>
+          </div>
+          <img
+            className="peer-sync-qr"
+            src={devices.code.qr}
+            alt={t("Pairing QR code")}
+          />
+          <div className="peer-sync-actions">
+            <button
+              className="secondary-action"
+              onClick={() =>
+                void navigator.clipboard.writeText(devices.code!.value)
+              }
+            >
+              {t("Copy pairing code")}
+            </button>
+            <button
+              disabled={devices.busy}
+              onClick={() =>
+                void devices.run("devices-cancel-invite").then((cancelled) => {
+                  if (cancelled) setPairing(false)
+                })
+              }
+            >
+              {t("Cancel")}
+            </button>
+          </div>
+          {devices.status.pending ? (
+            <div role="status">
+              <p>
+                {t(
+                  "Allow “{name}” to connect? It can read and write the Spaces you share.",
+                  { name: devices.status.pending }
+                )}
+              </p>
+              <div className="peer-sync-actions">
+                <button
+                  className="primary-action"
+                  disabled={devices.busy}
+                  onClick={() =>
+                    void devices.run("devices-approve").then((approved) => {
+                      if (approved) setPairing(false)
+                    })
+                  }
+                >
+                  {t("Allow pairing")}
+                </button>
+                <button
+                  disabled={devices.busy}
+                  onClick={() => void devices.run("devices-reject")}
+                >
+                  {t("Reject")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="peer-sync-sharing">
+            <strong>{t("Share this Space")}</strong>
+            <button
+              type="button"
+              className="settings-switch"
+              role="switch"
+              aria-label={t("Share this Space")}
+              aria-checked={status.running}
+              disabled={space.busy || devices.busy}
+              onClick={() => {
+                void (async () => {
+                  if (
+                    !status.running &&
+                    !status.serviceRunning &&
+                    !devices.status.running
+                  ) {
+                    if (!(await devices.run("devices-start"))) return
+                  }
+                  await space.run(status.running ? "stop" : "start")
+                })()
+              }}
+            >
+              <span />
+            </button>
+          </div>
+        </>
+      )}
+      {!pairing ? (
+        <div className="peer-sync-devices">
+          <div className="peer-sync-devices-heading">
+            <span>{t("Devices")}</span>
+            <button
+              disabled={devices.busy || !status.running}
+              onClick={() => void invite()}
+            >
+              {t("Pair a new device")}
+            </button>
+          </div>
+          {status.devices.length === 0 ? (
+            <p className="peer-sync-empty">{t("No paired devices")}</p>
+          ) : null}
+          {status.devices.map((device) => {
+            const transfer = status.transfers?.find(
+              (item) => item.id === device.id
+            )
+            return (
+              <details key={device.id}>
+                <summary>
+                  <span className="peer-sync-avatar">
+                    {device.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="peer-sync-device-label">
+                    <strong>{device.name}</strong>
+                    {transfer?.error || transfer?.activeRequests ? (
+                      <small>
+                        {transfer?.error
+                          ? t("Transfer interrupted")
+                          : `${t(TRANSFER_STAGES[transfer!.stage])}${
+                              transfer!.stage === "merging"
+                                ? ""
+                                : ` · ${transferSize(
+                                    transfer!.stage === "sending"
+                                      ? transfer!.sentBytes
+                                      : transfer!.receivedBytes,
+                                    locale
+                                  )}`
+                            }`}
+                      </small>
+                    ) : null}
+                    {transfer?.activeRequests && !transfer.error ? (
+                      <IndeterminateSyncProgress
+                        label={t("Transfer progress")}
+                      />
+                    ) : null}
+                  </div>
+                  <ChevronDown aria-hidden="true" />
+                </summary>
+                {transfer ? (
+                  <div className="peer-sync-device-details">
+                    <div>
+                      {t("Received on this computer")}{" "}
+                      <span>
+                        {transferSize(transfer.receivedBytes, locale)}
+                      </span>
+                    </div>
+                    <div>
+                      {t("Sent to device")}{" "}
+                      <span>{transferSize(transfer.sentBytes, locale)}</span>
+                    </div>
+                    <div>
+                      {t("Last activity")}{" "}
+                      <span>
+                        {new Date(transfer.updatedAt).toLocaleString(locale)}
+                      </span>
+                    </div>
+                    {transfer.error ? (
+                      <p role="alert">{t(transfer.error)}</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="peer-sync-device-details">
+                    {t("No transfer in progress")}
+                  </div>
+                )}
+              </details>
+            )
+          })}
+        </div>
+      ) : null}
+      {error ? (
+        <p className="peer-sync-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+function LegacyPeerSyncPanel() {
   const { t, locale } = useEidosLiteI18n()
   const { status, busy, error, run } = usePeerStatus(false)
   const activity = status.activity
   return (
     <section
       className="peer-sync-panel p-4 text-sm"
-      data-standalone={standalone || undefined}
       aria-label={t("LAN sync for this Space")}
     >
       <div className="flex items-center justify-between gap-4">

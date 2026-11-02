@@ -211,8 +211,8 @@ const SpaceFileTree = lazy(async () => {
   return { default: module.SpaceFileTree }
 })
 const SyncPanel = lazy(async () => {
-  const module = await import("./sync-panel")
-  return { default: module.SyncPanel }
+  const module = await import("./sync-entry")
+  return { default: module.SyncEntry }
 })
 const SyncLocalVersionGate = lazy(async () => {
   const module = await import("./sync-panel")
@@ -5322,8 +5322,9 @@ function WorkspaceApp({
       ) : null}
       {workbenchSurfaces.right === "sync" && syncPanelMode ? (
         <Suspense fallback={null}>
-          {space.graft.initialized ? (
+          {space.graft.initialized || syncPanelMode === "clone" ? (
             <SyncPanel
+              key={space.id}
               mode={syncPanelMode}
               variant="inspector"
               platform={platform}
@@ -5372,6 +5373,7 @@ function WorkspaceApp({
             <SyncLocalVersionGate
               variant="inspector"
               platform={platform}
+              onSpaceChange={acceptSpaceSnapshot}
               onClose={() => setSyncPanelMode(null)}
               onOpenVersions={() => {
                 setSyncPanelMode(null)

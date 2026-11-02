@@ -4,6 +4,7 @@ import type { PluginListing } from "../shared/plugins"
 import { PluginManager } from "./plugin-manager"
 import { DevicesSettings } from "./peer-sync-panel"
 import { SyncPasswordSettings } from "./sync-password-settings"
+import { CustomSyncSettings } from "./custom-sync-settings"
 import { supportsEncryptedSync } from "../shared/sync-encryption"
 import {
   Cloud,
@@ -1342,12 +1343,6 @@ export function SettingsPage() {
                           {syncAccessNotice}
                         </p>
                       ) : null}
-                      {syncSignedIn &&
-                      supportsEncryptedSync(appInfo?.platform ?? "unknown") ? (
-                        <SyncPasswordSettings
-                          key={`${syncEnvironment}:${syncSubject ?? "signed-in"}`}
-                        />
-                      ) : null}
                       {syncQuotaBytes !== undefined &&
                       syncUsedBytes !== undefined ? (
                         <UsageMeter
@@ -1394,6 +1389,12 @@ export function SettingsPage() {
                       </div>
                     </div>
                   )}
+                  {supportsEncryptedSync(appInfo?.platform ?? "unknown") ? (
+                    <SyncPasswordSettings />
+                  ) : null}
+                  {activePage === "account-sync" ? (
+                    <CustomSyncSettings />
+                  ) : null}
                 </div>
               </div>
               <div className="settings-service" data-settings-publish>

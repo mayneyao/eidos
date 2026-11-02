@@ -8,6 +8,7 @@ import type {
   GraftEncryptedInput,
 } from "../../shared/graft-sdk-contracts"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
+import { customSyncOrigin } from "../../shared/sync-encryption"
 import { canonicalizeSpaceRoot } from "../space/space-paths"
 import { SpaceSyncStateStore } from "../space/sync-state"
 
@@ -40,6 +41,7 @@ interface CloneJournalEntry {
   targetPath: string
   stagingPath: string
   remoteUrl?: string
+  encryptionUuid?: string
   sourcePath?: string
   startedAt: string
   updatedAt: string
@@ -59,6 +61,7 @@ interface SpaceCloneCoordinatorOptions {
 }
 
 interface EncryptedCloneOperation {
+  custom: boolean
   abort: AbortController
   started: boolean
   drained: Promise<void>
@@ -99,6 +102,7 @@ export class SpaceCloneCoordinator {
     if (encryption) {
       let finish = () => {}
       encrypted = {
+        custom: Boolean(customSyncOrigin(remoteUrl)),
         abort: new AbortController(),
         started: false,
         drained: new Promise<void>((resolve) => {
@@ -149,8 +153,15 @@ export class SpaceCloneCoordinator {
       : scheduled
   }
 
-  async cancelEncryptedClones(): Promise<void> {
-    const operations = [...this.encryptedClones]
+  async cancelEncryptedClones(
+    officialOnly = false,
+    customOnly = false
+  ): Promise<void> {
+    const operations = [...this.encryptedClones].filter(
+      (operation) =>
+        (!officialOnly || !operation.custom) &&
+        (!customOnly || operation.custom)
+    )
     for (const operation of operations) operation.abort.abort()
     await Promise.all(
       operations
@@ -235,7 +246,10 @@ export class SpaceCloneCoordinator {
     }
     assertActive()
     if (!accessToken) throw new Error("An Eidos Sync access token is required")
-    if (!isOfficialRemoteUrl(remoteUrl, this.options.remoteOrigin)) {
+    if (
+      !isOfficialRemoteUrl(remoteUrl, this.options.remoteOrigin) &&
+      !(encryption && customSyncOrigin(remoteUrl))
+    ) {
       throw new Error("Eidos Lite accepts only the official Eidos Sync Remote")
     }
     const targetPath = await this.validateTarget(requestedTarget)
@@ -256,6 +270,7 @@ export class SpaceCloneCoordinator {
       targetPath,
       stagingPath,
       remoteUrl,
+      ...(encryption ? { encryptionUuid: encryption.connection.uuid } : {}),
       startedAt: now,
       updatedAt: now,
     }
@@ -388,7 +403,7 @@ export class SpaceCloneCoordinator {
     await new SpaceSyncStateStore(
       path.join(this.options.stateDirectory, "spaces", canonical.id),
       this.options.remoteOrigin
-    ).markClone(entry.remoteUrl)
+    ).markClone(entry.remoteUrl, new Date(), entry.encryptionUuid)
   }
 
   private async removeOwnedStaging(entry: CloneJournalEntry): Promise<void> {
@@ -461,7 +476,8 @@ export class SpaceCloneCoordinator {
     if (
       kind === "remote-clone" &&
       (typeof value.remoteUrl !== "string" ||
-        !isOfficialRemoteUrl(value.remoteUrl, this.options.remoteOrigin))
+        (!isOfficialRemoteUrl(value.remoteUrl, this.options.remoteOrigin) &&
+          !customSyncOrigin(value.remoteUrl)))
     ) {
       throw new Error("invalid clone recovery journal")
     }
@@ -472,6 +488,17 @@ export class SpaceCloneCoordinator {
     ) {
       throw new Error("invalid clone recovery journal")
     }
+    if (
+      typeof value.remoteUrl === "string" &&
+      customSyncOrigin(value.remoteUrl) &&
+      (typeof value.encryptionUuid !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          value.encryptionUuid
+        ))
+    )
+      throw new Error(
+        "Custom clone journal has no verified encryption identity"
+      )
     return {
       version: 2,
       kind: kind as CloneOperationKind,
@@ -481,6 +508,9 @@ export class SpaceCloneCoordinator {
       stagingPath: value.stagingPath,
       ...(typeof value.remoteUrl === "string"
         ? { remoteUrl: value.remoteUrl }
+        : {}),
+      ...(typeof value.encryptionUuid === "string"
+        ? { encryptionUuid: value.encryptionUuid }
         : {}),
       ...(typeof value.sourcePath === "string"
         ? { sourcePath: value.sourcePath }

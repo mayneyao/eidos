@@ -1,25 +1,42 @@
 ---
 title: Use a Space on two devices
-description: Use local-network or end-to-end encrypted cloud Sync, open a Space on another device, and manage passwords and conflicts.
+description: Use LAN sync, Eidos Sync, or your own encrypted Graft server, and manage passwords and conflicts.
 sidebar:
   order: 75
 ---
 
 Sync maintains a local copy of a Space on each device.
 
-| Connection | Requirements                                                        | Where changes travel                                       |
-| ---------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
-| LAN sync   | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required |
-| Cloud sync | An account with Sync access                                         | Through the cloud service with end-to-end encryption       |
+| Connection    | Requirements                                                        | Where changes travel                                        |
+| ------------- | ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| LAN sync      | Eidos Lite on a computer and a mobile app on the same local network | Directly between paired devices. No cloud account required  |
+| Eidos Sync    | An account with Sync access                                         | Through the official service with end-to-end encryption     |
+| Custom server | Spark activated on each computer and a compatible Graft server      | Directly through your own server with end-to-end encryption |
 
-Local files remain usable offline.
+Local files remain usable offline. Open **Sync** to see this Space's current
+status and next action. Choose **Cloud sync** or **LAN sync** in the sidebar.
+Under **Cloud sync**, use **Server** to choose Eidos Sync or a saved server.
+A connected Space shows its server in the panel. Open **⋯** for connection
+options, including server management.
+
+A Space uses one cloud service at a time. LAN sharing is independent: it can
+remain enabled alongside either cloud service, or without a cloud connection.
+After setup, **Use on another device** guides you through opening the existing
+connection on another computer. Open **Sync settings** in the bottom menu for the current
+connection to manage its account, storage, and disconnect actions. Use
+**Manage servers** to add or edit custom server configurations.
+
+**Versions** owns local changes, saved versions, and version history. The Sync
+sidebar shows connection and transfer status, upload and receive actions, and
+any conflict or recovery steps that need your attention.
+
 This guide explains LAN sync first.
 
 ## Pair your phone and computer
 
 1. Connect both devices to the same local network, such as your home Wi-Fi. Keep Eidos Lite running and the mobile app open in the foreground. Allow local network permissions when prompted.
-2. On the computer, open **Settings → Devices** and turn on **LAN Service**. Pairing does not require an open Space.
-3. Select **Show pairing code**.
+2. On the computer, open the Space's **Sync** panel and select **LAN sync**. Enable the computer's LAN service if prompted.
+3. Choose to pair a new device and display its pairing code. You can also pair without an open Space under **Settings → Devices**.
 4. On the phone, open **Sync** and select **Scan QR Code**. You can also choose **Use pairing code** and enter the code manually.
 5. When the phone shows **Waiting for approval**, check the device name and accept the request on the computer.
 
@@ -33,7 +50,7 @@ Transfers use encrypted connections tied to the paired device identity.
 ## Make a Space available and download it
 
 1. Open the Space in Eidos Lite.
-2. Open **Sync → LAN Sync** and enable LAN sync for this Space.
+2. Open **Sync → LAN sync** and share this Space with the paired devices when prompted.
 3. On the phone, open **Sync** and select the paired computer. Under **This computer's Spaces**, select **Download** beside the Space.
 4. Wait for the initial download to finish. The app adds the Space to **Files**, where you can use it offline.
 5. Open a known note or record and check an attachment before you start work.
@@ -86,25 +103,34 @@ For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#la
 
 ## Stop sharing or unpair a device
 
-- Turn off LAN sync in the Space settings to stop sharing that specific Space.
+- Open **Sync → LAN sync** and stop sharing to make only this Space unavailable.
 - Turn off **LAN Service** in **Settings → Devices** to stop all sharing. Device pairings remain saved.
 - Select **Unpair** on either device to revoke access. Unpairing preserves downloaded files and history. Reconnecting requires a new pairing process.
 
 ## Use cloud sync
 
-Cloud Sync uses end-to-end encryption to connect separate local copies through
-your Eidos account. You need an account with Sync access. Your files remain
+Official Eidos Sync uses end-to-end encryption to connect separate local copies
+through your Eidos account. You need an account with Sync access. Your files remain
 available locally while offline.
 
 Cloud Sync is available in Eidos Lite on macOS, Windows, and Linux.
 
 ### Connect the first computer
 
-1. Open the folder you want to sync in Eidos Lite. Sign in under **Settings → Account & Services** with an account that can upload to Sync.
-2. Open **Sync → Cloud Sync**. If local versioning is not enabled for the Space, select **Open Versions** and enable it first.
+1. Open the folder you want to sync in Eidos Lite.
+2. Open **Sync → Cloud sync** and select **Eidos Sync**, then sign in with an account that can upload to Sync. If prompted, select **Enable local versions** to prepare this Space without leaving setup.
 3. Check the file count, size, and excluded files.
 4. If asked, create and confirm a **Sync password**. Store it in your password manager: you will need the same password on another computer. This is separate from your Eidos account password.
-5. Select **Enable Sync** and wait for the first upload to finish.
+5. Select **Connect this Space** and wait for the first upload to finish. The panel returns to the current Space's sync status.
+
+While the first sync runs, setup is replaced by its current stage. You can close
+the panel and keep working; reopening it shows the same task. Expand **Sync
+details** for transfer information. If the connection fails, the panel shows the
+reason and the next recovery action.
+
+For an already connected Space, select the other service under **Cloud sync**
+to configure it. The current connection remains identified until you confirm
+connecting the new service.
 
 Lite can remember the password on macOS and on Linux with a supported system
 keyring. Windows, or an environment where the password cannot be saved, asks
@@ -118,6 +144,9 @@ file to `.graftignore` does not remove its saved history or stop its inclusion.
 
 ### Open the Space on another computer
 
+On the first computer, **Sync → Cloud sync → Use on another device**
+shows the steps for its current connection; this does not change the service.
+
 1. In Eidos Lite, sign in to the same Eidos account.
 2. Open the Space menu and choose **Open Synced Space**, then select the cloud Space.
 3. Enter that Space's sync password. If you have already saved the same password under **Settings → Account & Services → Sync**, Lite can use it. Choose **Enter a different sync password** for a Space with another password.
@@ -130,21 +159,22 @@ account password does not change the sync password.
 
 ### Send and receive changes
 
-During cloud uploads and downloads, Lite shows transferred bytes and transfer
-speed. Encrypted transfers discover their total size as they run, so the bar
-stays indeterminate instead of showing a percentage or time estimate. Password
-unlocking, local encryption, and preparing the downloaded files can take time
-without increasing the transferred byte count. Wait for Sync to finish before
-closing the app.
+During cloud uploads and downloads, Lite shows transferred bytes. When the
+transfer total is known, it also shows a percentage; preparation and other
+stages without a known total use an activity indicator. A transfer reaching
+100% does not mean Sync has finished: verification and local file preparation
+may still follow. Wait for Sync to finish before closing the app.
 
-Saving a file changes the local copy. Select **Review changes**, review and select
-the changed files, then choose **Save selected files** to record them in local
-history. **Upload versions** sends the saved versions to the cloud. Background
-checks look for remote updates and do not upload changes.
+Saving a file changes the local copy. Open **Versions**, review and select the
+changed files, then choose **Save selected files** to record them in local
+history. Return to **Sync → Cloud sync** and upload the saved versions.
+Background checks look for remote updates and do not upload changes.
 
-On the other computer, select **Check remote updates**, then **Receive updates**
-when available. Save local changes as a version before receiving. Receiving
-does not upload changes afterward. An offline or unchecked Space is not proof
+On the other computer, select **Sync now** when the panel says versions are up
+to date. Lite checks the remote and receives or uploads saved versions when
+needed. Otherwise, select **Check remote updates**, then receive the versions
+offered by the panel. Save local changes as a version before receiving.
+An offline or unchecked Space is not proof
 that the two copies match; wait for the panel to report that the versions are up
 to date.
 
@@ -156,7 +186,8 @@ for retaining local work.
 
 ### Disconnect cloud sync
 
-In the Space's **Sync → Cloud sync** panel, choose **Disconnect cloud sync** and confirm.
+In the Space's **Sync → Cloud sync** panel, open **Sync settings** beside the current connection, choose
+**Disconnect cloud sync**, and confirm.
 This removes this computer's connection, including pending background checks. Local files,
 unsaved edits, and Graft history stay in the same folder. The cloud copy and connections
 on other computers are not deleted.
@@ -182,8 +213,9 @@ app or removing its data. Eidos cannot recover the password or decrypt the cloud
 copy for you. If no usable local copy or password remains, resetting your account
 password will not recover the encrypted contents.
 
-Signing out stops cloud access and clears the active unlocked session. It does
-not delete local files. To clear the active Sync session, quit Lite or sign out.
+Signing out of Eidos stops official Sync access and clears its active unlocked
+session. It does not delete local files or disconnect custom servers. Quit Lite
+to clear active Sync sessions for all services.
 When Sync needs to be unlocked again, Lite can use the securely saved password
 or ask you to enter it. End-to-end encryption protects the cloud copy; it does
 not encrypt the local folder, SQLite files, or attachments. Use your operating
@@ -222,6 +254,79 @@ history. Local files and local history remain on each computer, including copies
 already downloaded on other devices. The deleted connection can no longer
 upload or download. Back up any local copy you want to keep before removing it
 from your computer. Deleting a repository does not cancel your subscription.
+
+## Use a custom server
+
+Custom-server connections are a Spark feature in Eidos Lite on macOS, Windows,
+and Linux. Each computer uses its existing Spark activation; the server does
+not use a device seat. No official Sync subscription is required.
+
+Use the [personal Graft Cloudflare template](https://github.com/eidos-space/graft-cloudflare)
+or a server compatible with its discovery and repository management API. Lite
+connects only to end-to-end encrypted repositories. A general Graft protocol
+endpoint does not necessarily provide the listing and creation APIs Lite needs.
+
+### Add your server
+
+1. Activate Spark in **Settings → Account & Services** on this computer. If Spark
+   is already active but the new feature is locked, choose **Refresh Spark benefits**.
+2. Deploy your server and keep its HTTPS address and access token in your password manager.
+3. Enable local version history if needed, and save the changes you want to upload.
+4. Open **Settings → Account & Services → Sync → Add server**. Enter a name,
+   the **Server address** and **Access token**, then choose **Test and save**.
+   Saving validates access and stores the configuration on this computer.
+5. Return to Sync and select the saved server under **Server**, or use **Switch
+   server** for a connected Space. Set a sync password in Sync settings if
+   needed, then choose **Connect** or review the switch.
+   Wait for the encrypted upload and verification.
+
+Selecting another cloud service or saving server settings keeps the existing
+connection active. **Manage servers** also lets you edit a name, replace an access
+token, or remove a saved configuration. Removing a configuration does not delete
+remote data. Add a separate server when changing the address.
+
+The server access token authorizes access; the sync password decrypts your
+Space. They are separate secrets. Lite does not send the sync password to the
+server, or send your server token to the Eidos account service. HTTPS is required.
+
+The personal template uses one token for all of its repositories and devices.
+Changing that token requires updating it on each computer, but does not change
+your Space's encryption password or identity.
+
+### Download on another computer
+
+Activate Spark on the other computer, then add the same server address and
+access token. Select the encrypted Space and choose **Download**. Enter the
+Space's sync password, choose a new destination folder, and wait for the download
+to finish. Check a known record and attachment before editing.
+
+Use the same review, upload, receive, and conflict-resolution steps described
+above. Each Space has one cloud connection at a time; different Spaces can use
+different servers.
+
+### Authorization and changing services
+
+An existing Spark owner refreshes benefits once to receive this feature.
+The signed device license can then be verified offline, including after signing
+out of the Eidos account. Normal custom-server sync connects directly to your
+server. Releasing Spark on this computer stops further custom-server operations
+without deleting local files, history, or remote data. You can still disconnect.
+
+To change the service used by a Space, keep a complete local copy and its history.
+Open **Sync → Cloud sync → ⋯ → Switch server** and select the target service.
+Configure the target service, select **Review switch**, and confirm the switch. Lite
+creates a new encrypted repository and uploads the saved history. Do not replace
+the old remote URL or copy encrypted server objects into a different repository.
+Download and check the new copy on another computer before deleting the old
+server copy. Other computers must connect to the new repository themselves.
+The current connection remains identified separately from the target. Canceling
+keeps it unchanged. If the upload fails, Lite restores the previous connection;
+you may need to unlock it if its password was not saved on this device. After an
+interrupted switch, reopen the Space to resume local connection recovery.
+
+Your hosting provider's storage and request limits apply. Official Sync account
+quotas and the Eidos account's repository deletion page do not manage your custom
+server. Follow the server's own operations guide and keep independent backups.
 
 ## Keep a separate backup
 

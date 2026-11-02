@@ -250,7 +250,6 @@ it.each([true, false])(
     }
   }
 )
-
 it("loads the renderer in parallel with restoration and reuses the initial snapshot", async () => {
   const setup = defaultWindowFixture()
   const last = session("last")
@@ -319,7 +318,6 @@ it.each([false, true])(
     ).resolves.toBeNull()
   }
 )
-
 it("shows a lightweight startup page without waiting for Space initialization", async () => {
   const setup = defaultWindowFixture()
   const loadURL = vi.fn(async (_url: string) => {})
@@ -537,6 +535,65 @@ function encryptedCloneFixture() {
   return { ...setup, coordinator, encryption, clone }
 }
 
+it("passes the encrypted identity into a remote recovery clone without replacing the source", async () => {
+  const { controller, owner, coordinator, encryption, window } =
+    encryptedCloneFixture()
+  const source = session("source")
+  mocks.create.mockResolvedValueOnce(source)
+  await controller.openRecentSpace(owner, "source")
+  vi.spyOn(controller, "createSpaceWindow").mockResolvedValue(
+    window as unknown as BrowserWindow
+  )
+  const current = vi.fn()
+  const recovered = await controller.cloneHostedRecoverySpace(
+    owner,
+    encryption.connection.url,
+    "synthetic-test-token",
+    encryption,
+    current
+  )
+  expect(coordinator.clone).toHaveBeenCalledWith(
+    "/downloaded",
+    encryption.connection.url,
+    "synthetic-test-token",
+    undefined,
+    undefined,
+    encryption
+  )
+  expect(recovered).toMatchObject({ kind: "hosted-clone", connected: true })
+  expect(controller.sessionFor(owner)).toBe(source)
+  expect(current).toHaveBeenCalled()
+})
+
+it("rejects recovery after its authorization changes while choosing a destination", async () => {
+  const { controller, owner, coordinator, encryption } = encryptedCloneFixture()
+  mocks.create.mockResolvedValueOnce(session("source"))
+  await controller.openRecentSpace(owner, "source")
+  let choose!: (value: { canceled: boolean; filePath: string }) => void
+  mocks.saveDialog.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        choose = resolve
+      })
+  )
+  let authorized = true
+  const result = controller.cloneHostedRecoverySpace(
+    owner,
+    encryption.connection.url,
+    "synthetic-test-token",
+    encryption,
+    () => {
+      if (!authorized) throw new Error("Spark released")
+    }
+  )
+  const rejected = expect(result).rejects.toThrow("Spark released")
+  await vi.waitFor(() => expect(mocks.saveDialog).toHaveBeenCalledOnce())
+  authorized = false
+  choose({ canceled: false, filePath: "/downloaded" })
+  await rejected
+  expect(coordinator.clone).not.toHaveBeenCalled()
+})
+
 it("rejects an encrypted request captured before a lifecycle change, before opening the dialog", async () => {
   const { controller, clone, coordinator } = encryptedCloneFixture()
   const ticket = controller.captureEncryptedCloneTicket()
@@ -546,6 +603,42 @@ it("rejects an encrypted request captured before a lifecycle change, before open
   })
   expect(mocks.saveDialog).not.toHaveBeenCalled()
   expect(coordinator.clone).not.toHaveBeenCalled()
+})
+
+it("keeps custom session credentials during official account sign-out, including initial connection", async () => {
+  const { controller, owner } = fixture()
+  let remote: string | null = "https://my-sync.example/personal/notes"
+  const custom = Object.assign(session("custom"), {
+    storedHostedSyncRemoteUrl: vi.fn(async () => remote),
+    clearHostedSyncCredentials: vi.fn(async () => {}),
+  })
+  mocks.create.mockResolvedValueOnce(custom)
+  await controller.openRecentSpace(owner, "custom")
+  await controller.lockEncryptedSyncSessions(true, true)
+  expect(custom.clearHostedSyncCredentials).not.toHaveBeenCalled()
+  remote = null
+  const release = controller.retainCustomSyncAdmission(
+    controller.requireSession(owner)
+  )
+  await controller.lockEncryptedSyncSessions(true, true)
+  expect(custom.clearHostedSyncCredentials).not.toHaveBeenCalled()
+  release()
+  await controller.lockEncryptedSyncSessions(true)
+  expect(custom.clearHostedSyncCredentials).toHaveBeenCalledOnce()
+})
+
+it("keeps official session credentials while draining custom sessions after Spark release", async () => {
+  const { controller, owner } = fixture()
+  const official = Object.assign(session("official"), {
+    storedHostedSyncRemoteUrl: vi.fn(
+      async () => "https://sync-staging.eidos.space/u-test/notes"
+    ),
+    clearHostedSyncCredentials: vi.fn(async () => {}),
+  })
+  mocks.create.mockResolvedValueOnce(official)
+  await controller.openRecentSpace(owner, "official")
+  await controller.lockEncryptedSyncSessions(true, false, true)
+  expect(official.clearHostedSyncCredentials).not.toHaveBeenCalled()
 })
 
 it("does not start a clone after locking while its destination dialog was open", async () => {

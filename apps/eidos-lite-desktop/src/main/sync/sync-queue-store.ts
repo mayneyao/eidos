@@ -9,6 +9,7 @@ import type {
 
 export interface StoredSyncQueueEntry {
   version: 1
+  bindingRevision?: string
   state: "pending" | "running" | "retry-wait" | "paused"
   trigger: EidosSyncQueueTrigger
   attempt: number
@@ -39,6 +40,9 @@ function parseStored(value: unknown): StoredSyncQueueEntry | null {
   const entry = value as Partial<StoredSyncQueueEntry>
   if (
     entry.version !== 1 ||
+    (entry.bindingRevision !== undefined &&
+      (typeof entry.bindingRevision !== "string" ||
+        entry.bindingRevision.length > 4096)) ||
     !["pending", "running", "retry-wait", "paused"].includes(
       String(entry.state)
     ) ||

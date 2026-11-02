@@ -45,12 +45,13 @@ import type {
   GraftTransferProgress,
 } from "../../shared/graft-sdk-contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
+import { customSyncOrigin } from "../../shared/sync-encryption"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.36"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.36"
+export const GRAFT_SDK_VERSION = "0.3.37"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.37"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -99,6 +100,7 @@ interface GraftStatusOptions {
 interface GraftRemoteOperationOptions {
   signal?: AbortSignal
   onProgress?: (progress: GraftTransferProgress) => void
+  forCheckout?: boolean
 }
 
 interface GraftMergeMutationOptions {
@@ -953,6 +955,16 @@ export class GraftClient {
   }
   lockEncryptedSync(root: string): Promise<unknown> {
     return this.runSdk(root, "lockEncryptedSync")
+  }
+  restoreEncryptedSyncBinding(
+    root: string,
+    url: string,
+    uuid: string,
+    stateDirectory: string
+  ): Promise<unknown> {
+    return this.runSdk(root, "restoreEncryptedSyncBinding", [
+      { url, uuid, stateDirectory },
+    ])
   }
   async encryptedSync(
     root: string,
@@ -2057,7 +2069,7 @@ export class GraftClient {
   ): Promise<unknown> {
     return this.runSdk(
       root,
-      "fetch",
+      options.forCheckout ? "fetchForCheckout" : "fetch",
       [{ remote: "origin", branch: "main" }],
       options
     )
@@ -2594,8 +2606,34 @@ export class GraftClient {
     if (!isOfficialRemoteUrl(remoteUrl, this.syncRemoteOrigin)) {
       throw new Error("Eidos Lite accepts only the official Eidos Sync Remote")
     }
+    return this.configureHttpRemote(root, remoteUrl, token, options)
+  }
+
+  /** The control plane must admit the saved server and encrypted descriptor first. */
+  async configureCustomRemote(
+    root: string,
+    remoteUrl: string,
+    token: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<void> {
+    if (!customSyncOrigin(remoteUrl))
+      throw new Error("Invalid custom Graft remote")
+    return this.configureHttpRemote(root, remoteUrl, token, options, true)
+  }
+
+  private async configureHttpRemote(
+    root: string,
+    remoteUrl: string,
+    token: string,
+    options: { signal?: AbortSignal },
+    encryptedOnly = false
+  ): Promise<void> {
     if (!token) throw new Error("An Eidos Sync access token is required")
     const existing = await this.remoteUrl(root, "origin", options)
+    if (encryptedOnly && (existing === null || !this.originEncrypted))
+      throw new Error(
+        "Custom Graft connections require an initialized encrypted remote"
+      )
     if (
       existing !== null &&
       canonicalRemoteUrl(existing) === canonicalRemoteUrl(remoteUrl) &&

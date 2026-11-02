@@ -252,6 +252,32 @@ describe(
       }
     }
 
+    it("scopes official sign-out fencing separately from custom connections but locks both on suspend", () => {
+      const unlocks = fixture().create()
+      const official = unlocks.captureGeneration()
+      const custom = unlocks.captureGeneration(true)
+      unlocks.blockOfficialAutomatic()
+      expect(() => unlocks.assertCurrent(undefined, official)).toThrow(
+        "interrupted"
+      )
+      expect(() => unlocks.assertCurrent(undefined, custom)).not.toThrow()
+      unlocks.suspendAutomatic()
+      expect(() => unlocks.assertCurrent(undefined, custom)).toThrow(
+        "interrupted"
+      )
+    })
+
+    it("fences custom unlocks after Spark release without changing official unlock admission", () => {
+      const unlocks = fixture().create()
+      const official = unlocks.captureGeneration()
+      const custom = unlocks.captureGeneration(true)
+      unlocks.blockCustomAutomatic()
+      expect(() => unlocks.assertCurrent(undefined, custom)).toThrow(
+        "interrupted"
+      )
+      expect(() => unlocks.assertCurrent(undefined, official)).not.toThrow()
+    })
+
     function windowsStore() {
       const policy: WindowsSyncSecretFiles = {
         prepareDirectory: vi.fn(async (directory) => {
@@ -372,6 +398,37 @@ describe(
       expect(await model.create().readDefaultPassword()).toBeUndefined()
       model.setAccount("owner")
       password.fill(0)
+    })
+
+    it("keeps the device default independent of the Eidos account and existing Space passwords", async () => {
+      const model = fixture()
+      const unlocks = model.create()
+      model.setAccount("owner")
+      await unlocks.setDeviceDefaultPassword(
+        Buffer.from("shared device password")
+      )
+      await unlocks.remember(
+        model.session,
+        identity.remote,
+        Buffer.from("synthetic password")
+      )
+      model.setAccount("another-account")
+      vi.mocked(model.control.accountSubject).mockClear()
+      expect((await model.create().deviceDefaultStatus()).configured).toBe(true)
+      expect(await model.create().readDeviceDefaultPassword()).toEqual(
+        Buffer.from("shared device password")
+      )
+      expect(model.control.accountSubject).not.toHaveBeenCalled()
+      await model.create().forgetDeviceDefaultPassword()
+      expect((await model.create().deviceDefaultStatus()).configured).toBe(
+        false
+      )
+      model.setAccount("owner")
+      await model.create().autoUnlock(model.session, identity.remote, "token")
+      expect(model.unlock).toHaveBeenCalledOnce()
+      expect(await model.session.encryptedSyncStatus()).toEqual({
+        state: "unlocked",
+      })
     })
 
     it("does not change existing Space credentials when replacing or removing the default", async () => {

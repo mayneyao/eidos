@@ -393,6 +393,13 @@ export class PeerService {
     await this.saveDevices()
     return this.status()
   }
+  cancelInvite() {
+    if (this.invitation && !this.invitation.token) {
+      this.invitation.rejected = true
+      this.pairingChanged(null)
+    }
+    return this.status()
+  }
   async revoke(id: string) {
     await this.initializeHost()
     this.host.devices = this.host.devices.filter((device) => device.id !== id)

@@ -1,6 +1,31 @@
-import { useEffect, useId, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react"
 import { useEidosLiteI18n } from "./i18n"
 import { PeerSyncPanel } from "./peer-sync-panel"
+
+const SyncTransportContext = createContext<(() => void) | null>(null)
+
+export function SyncLanEntry() {
+  const selectLan = useContext(SyncTransportContext)
+  const { t } = useEidosLiteI18n()
+  return (
+    <button
+      type="button"
+      className="sync-gate-lan"
+      onClick={selectLan ?? undefined}
+    >
+      <span>{t("LAN sync")}</span>
+      <span>{t("No account needed")}</span>
+      <span aria-hidden="true">›</span>
+    </button>
+  )
+}
 
 /** Keep both transports mounted so switching does not discard pairing or setup. */
 export function SyncTransportTabs({
@@ -79,7 +104,14 @@ export function SyncTransportTabs({
         aria-labelledby={`${id}-cloud-tab`}
         hidden={current !== "cloud"}
       >
-        {children}
+        <SyncTransportContext.Provider
+          value={() => {
+            setSelected("device")
+            document.getElementById(`${id}-device-tab`)?.focus()
+          }}
+        >
+          {children}
+        </SyncTransportContext.Provider>
       </section>
     </>
   )

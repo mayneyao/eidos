@@ -15,6 +15,7 @@ export const SYNC_RETRY_MAX_ATTEMPTS = 5
 
 interface SyncQueueBinding {
   spaceId: string
+  bindingRevision?: string
   execute(action: EidosSyncAction): Promise<EidosSyncRunResponse>
   emit(status: EidosSyncQueueStatus): void
 }
@@ -78,21 +79,30 @@ export class BackgroundSyncQueue {
     if (this.closing) throw new Error("Eidos Sync queue is closing")
     const existing = this.entries.get(binding.spaceId)
     if (existing) {
+      if (existing.binding.bindingRevision !== binding.bindingRevision) {
+        await this.clear(binding.spaceId)
+        return this.attach(binding)
+      }
       existing.binding = binding
       existing.attached = true
       binding.emit(existing.status)
       return existing.status
     }
-    const stored = await this.options.store.read(binding.spaceId)
+    let stored = await this.options.store.read(binding.spaceId)
+    if (stored && stored.bindingRevision !== binding.bindingRevision) {
+      await this.options.store.write(binding.spaceId, null)
+      stored = null
+    }
     const wasRunning = stored?.state === "running"
-    const recovered = wasRunning
-      ? {
-          ...stored,
-          state: "pending" as const,
-          trigger: "crash-recovery" as const,
-          nextAttemptAtMs: undefined,
-        }
-      : stored
+    const recovered =
+      stored?.state === "running"
+        ? {
+            ...stored,
+            state: "pending" as const,
+            trigger: "crash-recovery" as const,
+            nextAttemptAtMs: undefined,
+          }
+        : stored
     const status = recovered
       ? this.project(binding.spaceId, recovered)
       : this.idle(binding.spaceId)
@@ -414,6 +424,9 @@ export class BackgroundSyncQueue {
     }
     return this.options.store.write(status.spaceId, {
       version: 1,
+      ...(entry.binding.bindingRevision
+        ? { bindingRevision: entry.binding.bindingRevision }
+        : {}),
       state: status.state,
       trigger: status.trigger ?? "manual",
       attempt: status.attempt,
