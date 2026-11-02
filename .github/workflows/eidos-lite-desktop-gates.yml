@@ -8,7 +8,7 @@ on:
       target:
         description: Native matrix or a focused Windows repair run
         type: choice
-        options: [all, windows]
+        options: [all, windows, macos-notary]
         default: all
 
 permissions:
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   candidate:
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name == 'codex/sync-progress-candidate-20261103'
+    if: inputs.target != 'macos-notary' && github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name == 'codex/sync-progress-candidate-20261103'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -116,5 +116,51 @@ jobs:
             apps/eidos-lite-desktop/dist-app/*.AppImage
             apps/eidos-lite-desktop/dist-app/*.blockmap
             apps/eidos-lite-desktop/dist-app/latest*.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  notarize-existing:
+    if: inputs.target == 'macos-notary' && github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name == 'codex/sync-progress-candidate-20261103'
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Download exact previously accepted candidate without rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41536366024
+          name: lite-unpublished-darwin-${{ matrix.arch }}
+          path: notary-input
+      - name: Notarize staple and assess exact candidate payload
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: node verification/notarize-existing-candidate.mjs '${{ matrix.arch }}'
+      - name: Retain private candidate notarization evidence and ticketed copies
+        if: always() && hashFiles(format('notary-evidence/{0}/privacy-passed', matrix.arch)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: lite-notarized-${{ matrix.arch }}
+          path: |
+            notary-evidence/${{ matrix.arch }}/
+            notary-artifacts/${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 7
