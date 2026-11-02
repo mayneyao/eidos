@@ -55,8 +55,6 @@ jobs:
         with:
           node-version-file: .node-version
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12.0.0
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.99.1"
