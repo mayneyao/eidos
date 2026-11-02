@@ -4,6 +4,12 @@ name: Eidos Lite Offline Candidate Acceptance
 # branch. No default-branch change, tag, pull_request or push trigger.
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Native matrix or a focused Windows repair run
+        type: choice
+        options: [all, windows]
+        default: all
 
 permissions:
   contents: read
@@ -19,23 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix:
-        include:
-          - os: macos-15
-            platform: darwin
-            arch: arm64
-          - os: windows-latest
-            platform: win32
-            arch: x64
-          - os: macos-15-intel
-            platform: darwin
-            arch: x64
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-          - os: ubuntu-24.04-arm
-            platform: linux
-            arch: arm64
+      matrix: ${{ fromJSON(inputs.target == 'windows' && '{"include":[{"os":"windows-latest","platform":"win32","arch":"x64"}]}' || '{"include":[{"os":"macos-15","platform":"darwin","arch":"arm64"},{"os":"windows-latest","platform":"win32","arch":"x64"},{"os":"macos-15-intel","platform":"darwin","arch":"x64"},{"os":"ubuntu-latest","platform":"linux","arch":"x64"},{"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64"}]}') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
