@@ -63,6 +63,7 @@ if (mode === "build") {
       `--prepackaged=${bundle}`,
       "--mac",
       "dmg",
+      "zip",
       `--${arch}`,
       "--config",
       "electron-builder.json",
@@ -94,11 +95,17 @@ if (mode === "build") {
       `--prepackaged=${unpacked}`,
       "--linux",
       "deb",
+      "AppImage",
       `--${arch}`,
       "--config",
       "electron-builder.linux.json",
     ])
   }
+  run(
+    process.execPath,
+    [path.join(root, "verification/check-update-metadata.mjs")],
+    { cwd: root }
+  )
 } else if (mode === "accept") {
   const extension =
     platform === "darwin" ? ".dmg" : platform === "win32" ? ".exe" : ".deb"
@@ -147,6 +154,46 @@ if (mode === "build") {
     EIDOS_LITE_SMOKE_EVIDENCE_DIRECTORY: path.join(evidence, "packaged"),
   }
   run(process.execPath, ["scripts/packaged-smoke.mjs"], { env: environment })
+  if (platform === "linux") {
+    const images = fs
+      .readdirSync(output)
+      .filter((name) => name.endsWith(".AppImage"))
+    assert.equal(images.length, 1)
+    const image = path.join(output, images[0])
+    const extraction = path.join(
+      process.env.RUNNER_TEMP ?? "/tmp",
+      `lite-appimage-${arch}`
+    )
+    fs.mkdirSync(extraction, { recursive: true, mode: 0o700 })
+    fs.chmodSync(image, 0o755)
+    run(image, ["--appimage-extract"], { cwd: extraction, stdio: "ignore" })
+    const appRun = path.join(extraction, "squashfs-root/AppRun")
+    run(process.execPath, ["scripts/packaged-smoke.mjs"], {
+      env: {
+        ...environment,
+        APPIMAGE: image,
+        EIDOS_LITE_PACKAGED_APP: appRun,
+        EIDOS_LITE_SMOKE_EVIDENCE_DIRECTORY: path.join(
+          evidence,
+          "appimage-packaged"
+        ),
+      },
+    })
+    fs.writeFileSync(
+      path.join(evidence, "appimage-startup.json"),
+      JSON.stringify(
+        {
+          status: "passed",
+          image,
+          entry: appRun,
+          mode: "AppImage normal extraction then AppRun; no FUSE assumption or sandbox disable",
+          chromiumSandboxDisabled: false,
+        },
+        null,
+        2
+      ) + "\n"
+    )
+  }
   const protocolEnvironment = { ...process.env, ELECTRON_RUN_AS_NODE: "1" }
   for (const name of [
     "EIDOS_LITE_SPARK_TEST_CERTIFICATE",

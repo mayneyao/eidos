@@ -121,7 +121,11 @@ jobs:
           path: |
             candidate-evidence/
             apps/eidos-lite-desktop/dist-app/*.dmg
+            apps/eidos-lite-desktop/dist-app/*.zip
             apps/eidos-lite-desktop/dist-app/*.exe
             apps/eidos-lite-desktop/dist-app/*.deb
+            apps/eidos-lite-desktop/dist-app/*.AppImage
+            apps/eidos-lite-desktop/dist-app/*.blockmap
+            apps/eidos-lite-desktop/dist-app/latest*.yml
           if-no-files-found: error
           retention-days: 7

@@ -43,3 +43,10 @@ Uploaded paths are limited to evidence, installers and release-notes screenshots
 Temporary profiles/keychains/certificates are not artifacts. An always-run
 privacy check blocks evidence upload if a supplied credential/certificate value
 or a private key marker appears. Performance measurements are observations.
+
+Linux also builds the normal AppImage, extracts it using the image's own runtime,
+then exercises AppRun with full packaged smoke and normal Chromium sandbox.
+Extraction/AppRun startup is recorded separately from FUSE mounting. Mac builds
+both DMG and ZIP. Static metadata checks use the actual builder YAML and verify
+artifact length/SHA-512, AppImage embedded blockmaps and the existing beta route
+mapping. Only local evidence is written; production update routing is unchanged.
