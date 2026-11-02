@@ -48,7 +48,8 @@ for (const name of names) {
   assert(fs.lstatSync(file).isFile() && !fs.lstatSync(file).isSymbolicLink())
   assert.equal(sha(fs.readFileSync(file)), entry.sha256)
   const metadata = JSON.parse(
-    execFileSync("tar", ["-xOf", file, "package/package.json"], {
+    execFileSync("tar", ["-xOf", entry.filename, "package/package.json"], {
+      cwd: directory,
       encoding: "utf8",
     })
   )
@@ -67,8 +68,8 @@ for (const name of names) {
       sha(
         execFileSync(
           "tar",
-          ["-xOf", file, `package/graft-sdk.${suffix}.node`],
-          { maxBuffer: 128 * 1024 * 1024 }
+          ["-xOf", entry.filename, `package/graft-sdk.${suffix}.node`],
+          { cwd: directory, maxBuffer: 128 * 1024 * 1024 }
         )
       ),
       entry.nativeSha256
