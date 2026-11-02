@@ -32,8 +32,16 @@ function write(name, value) {
   fs.writeFileSync(path.join(evidence, name), redact(typeof value === "string" ? value : JSON.stringify(value, null, 2) + "\n"))
 }
 function run(label, command, args, { retain = true, allowFailure = false } = {}) {
-  const result = spawnSync(command, args, { encoding: "utf8", timeout: 20 * 60 * 1000, maxBuffer: 20 * 1024 * 1024 })
-  if (retain) write(label + ".log", result.stdout + result.stderr)
+  let result
+  const retryableRead = command === "xcrun" && (args[0] === "stapler" || (args[0] === "notarytool" && ["info", "log"].includes(args[1])))
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    result = spawnSync(command, args, { encoding: "utf8", timeout: 20 * 60 * 1000, maxBuffer: 20 * 1024 * 1024 })
+    if (retain) write(label + (attempt === 1 ? "" : `-attempt-${attempt}`) + ".log", result.stdout + result.stderr)
+    const transient = /The network connection was lost|NSURLErrorDomain Code=-(?:1001|1005|1009)|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|HTTP(?:Error)?[^\n]*\b50[234]\b/i.test(result.stdout + result.stderr)
+    if (result.status === 0 || !retryableRead || !transient || attempt === 3) break
+    console.log(`Transient Apple network failure in ${label}; retry ${attempt}/2`)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 10_000)
+  }
   if (result.status !== 0 && !allowFailure) throw new Error(`${label} failed (exit ${result.status}); see redacted evidence`)
   return { ...result, stdout: redact(result.stdout), stderr: redact(result.stderr) }
 }
@@ -52,11 +60,16 @@ const save = () => write("result.json", record)
 const credentialArgs = () => ["--apple-id", process.env.APPLE_ID, "--password", process.env.APPLE_APP_SPECIFIC_PASSWORD, "--team-id", process.env.APPLE_TEAM_ID]
 function submit(label, file) {
   console.log(`Submitting ${label} for ${arch}; binary SHA-256 ${sha(file)}`)
-  const result = run(label + "-submit", "xcrun", ["notarytool", "submit", file, ...credentialArgs(), "--output-format", "json", "--no-progress", "--wait", "--timeout", "15m"], { allowFailure: true })
+  const priorZip = { arm64: "3037fe66-0621-4a4b-ad69-cb367a9632c9", x64: "a7183d31-1e30-4817-830f-3fb23bf74226" }[arch]
+  const reused = label === "zip"
+  const result = reused
+    ? run(label + "-accepted-info", "xcrun", ["notarytool", "info", priorZip, ...credentialArgs(), "--output-format", "json"])
+    : run(label + "-submit", "xcrun", ["notarytool", "submit", file, ...credentialArgs(), "--output-format", "json", "--no-progress", "--wait", "--timeout", "15m"], { allowFailure: true })
   let response
   try { response = JSON.parse(result.stdout) } catch { throw new Error(`${label}: no JSON response, see redacted evidence`) }
   assert.match(response.id, /^[a-f0-9-]{36}$/i)
-  const entry = { label, id: response.id, submittedSha256: sha(file), status: response.status }
+  if (reused) assert.equal(response.id, priorZip)
+  const entry = { label, id: response.id, submittedSha256: sha(file), status: response.status, reusedExistingSubmission: reused }
   record.submissions.push(entry)
   save()
   if (response.status !== "Accepted") throw new Error(`${label}: Apple status ${response.status}; submission retained`)
@@ -68,6 +81,7 @@ function submit(label, file) {
   save()
 }
 let mount
+let originalKeychains
 try {
   assert.equal(identity.source, "d7805bc7dae981a8e4f4b9cfabedea1b15a4267f")
   assert.equal(attestation.runtimeSource, "5038d986a16d3470ba5e8422bf2616f3086326d6")
@@ -112,6 +126,11 @@ try {
     privateValues.push(password)
     run("keychain-create", "security", ["create-keychain", "-p", password, keychain], { retain: false })
     run("keychain-unlock", "security", ["unlock-keychain", "-p", password, keychain], { retain: false })
+    run("keychain-settings", "security", ["set-keychain-settings", keychain], { retain: false })
+    const priorList = run("keychain-original-list", "security", ["list-keychains", "-d", "user"], { retain: false })
+    originalKeychains = [...priorList.stdout.matchAll(/"([^"]+)"/g)].map(match => match[1]).filter(file => file !== keychain)
+    assert(originalKeychains.length > 0, "Cannot preserve original runner keychain search list")
+    run("keychain-search-list", "security", ["list-keychains", "-d", "user", "-s", keychain, ...originalKeychains], { retain: false })
     run("keychain-import", "security", ["import", cert, "-k", keychain, "-P", process.env.MACOS_CERTIFICATE_PWD, "-T", "/usr/bin/codesign"], { retain: false })
     run("keychain-partitions", "security", ["set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", password, keychain], { retain: false })
     const found = run("keychain-identity", "security", ["find-identity", "-v", "-p", "codesigning", keychain], { retain: false })
@@ -156,6 +175,10 @@ try {
   process.exitCode = 1
 } finally {
   if (mount) run("cleanup-unmount", "hdiutil", ["detach", mount], { allowFailure: true })
+  if (originalKeychains) {
+    const restored = run("cleanup-keychain-search-list", "security", ["list-keychains", "-d", "user", "-s", ...originalKeychains], { retain: false, allowFailure: true })
+    record.keychainSearchListRestored = restored.status === 0
+  }
   if (fs.existsSync(keychain)) run("cleanup-keychain", "security", ["delete-keychain", keychain], { retain: false, allowFailure: true })
   fs.rmSync(temporary, { recursive: true, force: true })
   record.privateTemporaryFilesRemoved = !fs.existsSync(temporary)
