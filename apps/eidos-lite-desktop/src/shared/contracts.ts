@@ -203,6 +203,7 @@ export const IPC_CHANNELS = {
   syncPasswordSave: "eidos-lite:sync-password-save",
   syncPasswordForget: "eidos-lite:sync-password-forget",
   syncRepositories: "eidos-lite:sync-repositories",
+  syncManageRepository: "eidos-lite:sync-manage-repository",
   syncCustomServers: "eidos-lite:sync-custom-servers",
   syncCustomServerSave: "eidos-lite:sync-custom-server-save",
   syncCustomServerRemove: "eidos-lite:sync-custom-server-remove",
@@ -1033,6 +1034,7 @@ export interface EidosSyncPasswordInput {
 }
 
 export interface EidosSyncRepository {
+  status?: EidosSyncRepositoryStatus
   encryption?: EidosSyncEncryption
   name: string
   displayName: string
@@ -1041,8 +1043,21 @@ export interface EidosSyncRepository {
 }
 
 export interface EidosSyncRepositoryList {
+  management?: EidosSyncRepositoryManagement
   namespace: string
   repositories: EidosSyncRepository[]
+}
+
+export type EidosSyncRepositoryStatus = "active" | "deleting" | "deleted"
+export interface EidosSyncRepositoryManagement {
+  rename: boolean
+  delete: boolean
+}
+export interface EidosSyncRepositoryManagementRequest {
+  serverId?: string
+  name: string
+  action: "rename" | "delete" | "status"
+  displayName?: string
 }
 
 export interface EidosCustomSyncServer {
@@ -1094,6 +1109,8 @@ export interface EidosSyncProgress {
     | "uploading"
     | "downloading"
     | "verifying"
+    | "confirming"
+    | "compatibility_verification"
     | "applying"
   runId: string
   operation: EidosSyncOperation
@@ -2131,6 +2148,9 @@ export interface EidosLiteApi extends PluginApi {
   saveDefaultSyncPassword(input: EidosSyncPasswordInput): Promise<void>
   forgetDefaultSyncPassword(): Promise<void>
   listSyncRepositories(): Promise<EidosSyncRepositoryList>
+  manageSyncRepository(
+    request: EidosSyncRepositoryManagementRequest
+  ): Promise<EidosSyncRepositoryStatus | null>
   cloneSyncRepository(
     remoteUrl: string,
     displayName?: string,

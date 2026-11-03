@@ -224,21 +224,13 @@ export class EncryptedGraftHost {
         const remotes = await repository.listRemotes()
         if (!remotes.remotes.some((remote) => remote.name === "origin"))
           await repository.addEncryptedRemote()
-        const verificationDirectory = path.join(
-          directory,
-          `verification-${crypto.randomUUID()}`
-        )
         const result = await repository.pushInitialBranch({
-          verificationDirectory,
           signal: options.signal,
           ...graftSyncProgressOptions(onProgress),
         })
         active()
         if (result.state !== "connected")
-          throw new Error(
-            "Encrypted initial publication was not independently confirmed"
-          )
-        await fs.rm(verificationDirectory, { recursive: true, force: true })
+          throw new Error("Encrypted initial publication was not confirmed")
       } else if (mode === "clone") {
         await repository.cloneEncryptedRemote({
           branch: "main",

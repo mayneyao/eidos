@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react"
-import { CloudDownload, Folder, RefreshCw, X } from "lucide-react"
+import { RefreshCw, X } from "lucide-react"
+import { SyncedRepositoryRow } from "./synced-repository-row"
+import type { EidosSyncRepositoryManagement } from "../shared/contracts"
 import appLogo from "../../assets/logo.svg"
 import type {
   EidosCustomSyncServer,
@@ -34,6 +36,7 @@ export function OpenSyncedSpacePanel({
     EidosSyncRepository[] | null
   >(null)
   const [selected, setSelected] = useState<EidosSyncRepository | null>(null)
+  const [management, setManagement] = useState<EidosSyncRepositoryManagement>()
   const [password, setPassword] = useState("")
   const [defaultPassword, setDefaultPassword] = useState(false)
   const [busy, setBusy] = useState<"loading" | "sign-in" | "clone" | null>(null)
@@ -87,6 +90,7 @@ export function OpenSyncedSpacePanel({
     let active = true
     const current = () => active && revision.current === request
     setStatus(null)
+    setManagement(undefined)
     setRepositories(null)
     setSelected(null)
     setPassword("")
@@ -106,7 +110,10 @@ export function OpenSyncedSpacePanel({
           server === "official"
             ? await window.eidosLite.listSyncRepositories()
             : await window.eidosLite.listCustomSyncRepositories(server)
-        if (current()) setRepositories(list.repositories)
+        if (current()) {
+          setRepositories(list.repositories)
+          setManagement(list.management)
+        }
       } catch (cause) {
         if (current())
           setError(cause instanceof Error ? cause.message : String(cause))
@@ -301,17 +308,14 @@ export function OpenSyncedSpacePanel({
                 </p>
               ) : (
                 repositories.map((repository) => (
-                  <button
-                    type="button"
-                    className="open-synced-row"
+                  <SyncedRepositoryRow
                     key={repository.remoteUrl}
+                    repository={repository}
+                    serverId={server === "official" ? undefined : server}
+                    management={management}
                     disabled={!!busy}
-                    onClick={() => void open(repository)}
-                  >
-                    <Folder aria-hidden="true" />
-                    <span>{repository.displayName}</span>
-                    <CloudDownload aria-hidden="true" />
-                  </button>
+                    onOpen={(selected) => void open(selected)}
+                  />
                 ))
               )}
             </section>

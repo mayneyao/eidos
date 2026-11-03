@@ -23,6 +23,7 @@ interface ChangeRow {
 }
 
 export interface RepositoryRecord {
+  status?: "active" | "deleting" | "deleted"
   name: string
   id: string
   displayName: string
@@ -193,12 +194,17 @@ export class RepositoryDirectoryDurableObject extends DurableObject<Env> {
       .exec<RepositoryRow>(
         "SELECT " +
           REPOSITORY_COLUMNS +
-          " FROM repositories WHERE owner_user_id = ? AND lifecycle = 'active' " +
+          " FROM repositories WHERE owner_user_id = ? AND lifecycle != 'deleted' " +
           "ORDER BY created_at DESC, name COLLATE BINARY",
         ownerUserId
       )
       .toArray()
-      .map(repositoryRecord)
+      .map((row) => ({
+        ...repositoryRecord(row),
+        ...(row.lifecycle === "deleting"
+          ? { status: "deleting" as const }
+          : {}),
+      }))
   }
 
   async listManagedRepositories(
@@ -250,6 +256,24 @@ export class RepositoryDirectoryDurableObject extends DurableObject<Env> {
       Date.now() + REQUEST_LEASE_MS
     )
     return true
+  }
+
+  acquireProofRequest(
+    name: string,
+    ownerUserId: string,
+    requestId: string
+  ): boolean | "busy" {
+    if (this.repositoryDeletionStatus(name, ownerUserId) !== "active")
+      return false
+    const active = this.ctx.storage.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM repository_requests WHERE name = ? AND id LIKE 'proof:%' AND expires_at > ?",
+        name,
+        Date.now()
+      )
+      .toArray()[0]!.count
+    if (active >= 2) return "busy"
+    return this.acquireRequest(name, ownerUserId, requestId)
   }
 
   renewRequest(requestId: string): void {

@@ -6,6 +6,8 @@ export interface GraftSyncProgress {
     | "uploading"
     | "downloading"
     | "verifying"
+    | "confirming"
+    | "compatibility_verification"
     | "applying"
     | "completed"
     | "failed"
@@ -38,7 +40,9 @@ export function graftSyncProgressOptions(
           if (phaseChanged) {
             latest = {
               direction:
-                phase === "downloading" || phase === "verifying"
+                phase === "downloading" ||
+                phase === "verifying" ||
+                phase === "compatibility_verification"
                   ? "download"
                   : "upload",
               transferredBytes: 0,

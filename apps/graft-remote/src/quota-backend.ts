@@ -13,6 +13,7 @@ import {
 } from "@eidos.space/graft-remote"
 
 import type { SyncUsageDurableObject, SyncUsageSummary } from "./usage"
+import type { ObjectProofBackend } from "./object-proof"
 
 export type SyncQuotaMode = "off" | "shadow" | "enforce"
 
@@ -39,6 +40,9 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
   }
   get encryptedRouting(): GraftRepositoryBackend["encryptedRouting"] {
     return this.#delegate.encryptedRouting
+  }
+  get encryptedObjectProof(): ObjectProofBackend["encryptedObjectProof"] {
+    return (this.#delegate as ObjectProofBackend).encryptedObjectProof
   }
 
   constructor(input: {

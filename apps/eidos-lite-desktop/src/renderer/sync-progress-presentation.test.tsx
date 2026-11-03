@@ -48,6 +48,25 @@ it("keeps independent verification visible after the transfer reaches its total"
   })
 })
 
+it("keeps publication confirmation pending without reusing the completed upload percentage", () => {
+  const confirming = {
+    ...progress,
+    phase: "validate",
+    nativePhase: "confirming",
+  } as const
+  expect(syncProgressPresentation(confirming)).toMatchObject({
+    percent: null,
+    transferring: false,
+    detail: "Confirming Sync connection",
+  })
+  const html = renderToStaticMarkup(
+    createElement(SyncConnectProgress, { progress: confirming })
+  )
+  expect(html).toContain("Confirming connection…")
+  expect(html).not.toContain("aria-valuenow")
+  expect(html).not.toContain("Sync complete")
+})
+
 it("shows the verification download's own trusted progress", () => {
   const verifying = {
     ...progress,
@@ -61,6 +80,25 @@ it("shows the verification download's own trusted progress", () => {
   expect(html).toContain('<progress aria-label="Transfer progress"')
   expect(html).toContain("50%")
   expect(html).toContain("Checking the cloud copy…")
+})
+
+it("labels compatibility readback explicitly and shows only its download progress", () => {
+  const fallback = {
+    ...progress,
+    phase: "validate",
+    nativePhase: "compatibility_verification",
+    transfer: { ...progress.transfer!, transferredBytes: 512 },
+  } as const
+  expect(syncProgressPresentation(fallback)).toMatchObject({
+    percent: 50,
+    detail: "Verifying upload by downloading",
+    hint: "This server or earlier upload requires a full download to verify the cloud copy.",
+  })
+  const html = renderToStaticMarkup(
+    createElement(SyncConnectProgress, { progress: fallback })
+  )
+  expect(html).toContain("Downloading to verify upload…")
+  expect(html).not.toContain("Sync complete")
 })
 
 it("shows only known transfer percentages and suppresses stale estimates during local application", () => {

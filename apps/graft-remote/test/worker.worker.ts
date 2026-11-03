@@ -459,6 +459,11 @@ describe("eidos.space Graft Remote", () => {
     expect(await response.json()).toEqual({
       service: "eidos-graft-remote",
       protocol: "graft-remote",
+      management: {
+        repositories: "https://sync.eidos.space/api/graft/repositories",
+        version: 1,
+        capabilities: ["rename", "delete"],
+      },
       version: 1,
       remote_url_template: "https://sync.eidos.space/{namespace}/{repository}",
       authentication: {

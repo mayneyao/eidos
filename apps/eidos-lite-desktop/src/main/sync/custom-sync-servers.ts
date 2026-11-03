@@ -174,6 +174,23 @@ export class CustomSyncServers {
     return result
   }
 
+  async manageRepository(
+    serverId: string,
+    name: string,
+    action: "rename" | "delete" | "status",
+    displayName?: string
+  ) {
+    const context = await this.context(serverId)
+    const result = await this.client(context.origin).manageRepository(
+      name,
+      action,
+      context.accessToken,
+      displayName
+    )
+    context.assertCurrent()
+    return result
+  }
+
   async provision(serverId: string, name: string, displayName: string) {
     const context = await this.context(serverId)
     const result = await this.client(context.origin).provisionRepository(

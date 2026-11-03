@@ -4,6 +4,24 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Sign in to use Eidos Sync and Publish.": "登录以使用 Eidos Sync 与发布。",
+  "Sign in to use Eidos Sync": "登录以使用 Eidos Sync",
+  "Checking connection…": "正在检查连接…",
+  "Remote address copied": "已复制远端地址",
+  "Copy remote address": "复制远端地址",
+  "Rename remote Space": "修改远端名称",
+  "Delete remote Space": "删除远端 Space",
+  "Delete remote Space?": "删除远端 Space？",
+  "Remote display name": "远端显示名称",
+  "Only the remote display name changes. The address and local folder stay the same.":
+    "仅修改远端显示名称，地址和本地文件夹保持不变。",
+  "The remote copy and its history will be permanently deleted. Local folders and files on all devices are kept. This cannot be undone.":
+    "远端副本及其历史将被永久删除。所有设备上的本地文件夹和文件都会保留。此操作无法撤销。",
+  "Deleting remote copy… Local files are kept.":
+    "正在删除远端副本… 本地文件会保留。",
+  "Remote Space deleted. Local files are kept.":
+    "远端 Space 已删除，本地文件已保留。",
+  "Use the Space menu to try again.": "可通过 Space 菜单重试。",
   "Review switch": "确认切换方案",
   "Sync options": "同步选项",
   "Eidos account: {account} · Signed in": "Eidos 账号：{account} · 已登录",
@@ -59,7 +77,6 @@ const zh: Record<string, string> = {
   "Transfer speed": "传输速度",
   "Checking cloud access…": "正在检查云端访问权限…",
   "Preparing local files…": "正在准备本地文件…",
-  "Checking connection…": "正在检查连接…",
   "Getting cloud updates…": "正在获取云端更新…",
   "Confirming the cloud copy…": "正在确认云端副本…",
   "Finishing the connection…": "正在完成连接…",
@@ -115,6 +132,12 @@ const zh: Record<string, string> = {
   "Sending data to server": "正在向服务器发送数据",
   "Preparing Sync data": "正在准备同步数据",
   "Verifying uploaded data": "正在验证已上传的数据",
+  "Confirming Sync connection": "正在确认同步连接",
+  "Verifying upload by downloading": "正在回读验证已上传的数据",
+  "Downloading to verify upload…": "正在下载并验证上传结果…",
+  "This server or earlier upload requires a full download to verify the cloud copy.":
+    "此服务器或较早的上传记录需要完整下载以校验云端副本。",
+  "Confirming connection…": "正在确认连接…",
   "Checking the cloud copy before finishing.": "完成前正在校验云端副本。",
   "Checking synced files before finishing.": "完成前正在校验同步文件。",
   "Applying files and finishing local setup.": "正在应用文件并完成本地设置。",
@@ -446,7 +469,6 @@ const zh: Record<string, string> = {
     "云同步依赖此 Space 的本地版本历史。请先开启版本管理，再连接云同步。",
   "Open Versions": "打开版本管理",
   "Sign in to use Sync": "登录以使用同步",
-  "Sign in to use Eidos Sync": "登录以使用 Eidos Sync",
   "Use your eidos.space account to check whether Sync is available.":
     "登录 eidos.space 账户以查看同步服务。",
   "Manage your Sync access on eidos.space, then check again here.":
@@ -1116,7 +1138,6 @@ const zh: Record<string, string> = {
   "Up to 10 Markdown pages": "最多发布 10 个 Markdown 页面",
   "Eidos File · Markdown · Forms": "Eidos File · Markdown · 表单",
   "Sign in to use Sync and Publish.": "登录以使用同步与发布。",
-  "Sign in to use Eidos Sync and Publish.": "登录以使用 Eidos Sync 与发布。",
   "Synced data": "已同步数据",
   Reserved: "已预留",
   "Publish storage": "Publish 存储",

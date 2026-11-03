@@ -2,6 +2,14 @@ import type { EidosLiteServiceEnvironment } from "../../shared/service-environme
 import type { EidosSyncEncryption } from "../../shared/contracts"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
 import { normalizeCloudSpaceDisplayName } from "./cloud-space-name"
+import {
+  managementCapabilities,
+  repositoryStatus,
+} from "./repository-management"
+import type {
+  EidosSyncRepositoryManagement,
+  EidosSyncRepositoryStatus,
+} from "../../shared/contracts"
 
 export function syncEncryption(
   value: unknown
@@ -33,6 +41,7 @@ const REQUEST_TIMEOUT_MS = 30_000
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 
 export interface OfficialSyncRepository {
+  status?: EidosSyncRepositoryStatus
   encryption?: EidosSyncEncryption
   name: string
   displayName: string
@@ -41,6 +50,7 @@ export interface OfficialSyncRepository {
 }
 
 export interface OfficialSyncRepositoryList {
+  management?: EidosSyncRepositoryManagement
   namespace: string
   repositories: OfficialSyncRepository[]
 }
@@ -160,6 +170,7 @@ function requestError(
 }
 
 export class OfficialSyncClient {
+  private management = { rename: false, delete: false }
   constructor(
     private readonly environment: EidosLiteServiceEnvironment,
     private readonly fetchImpl: typeof globalThis.fetch = globalThis.fetch
@@ -167,6 +178,10 @@ export class OfficialSyncClient {
 
   async discover(): Promise<void> {
     const value = object(await this.requestJson("/.well-known/graft"))
+    this.management = managementCapabilities(
+      value.management,
+      this.environment.syncRemoteOrigin
+    )
     if (
       value.service !== "eidos-graft-remote" ||
       value.protocol !== "graft-remote" ||
@@ -218,6 +233,7 @@ export class OfficialSyncClient {
         )
       }
       return {
+        status: repositoryStatus(repository.status),
         name: repository.name,
         displayName,
         createdAtMs: repository.created_at,
@@ -227,7 +243,44 @@ export class OfficialSyncClient {
           : {}),
       }
     })
-    return { namespace: value.namespace, repositories }
+    return {
+      namespace: value.namespace,
+      repositories,
+      management: this.management,
+    }
+  }
+
+  async manageRepository(
+    name: string,
+    action: "rename" | "delete" | "status",
+    token: string,
+    displayName?: string
+  ): Promise<EidosSyncRepositoryStatus> {
+    if (!REPOSITORY_NAME.test(name)) throw new Error("Invalid repository name")
+    await this.discover()
+    if (!this.management[action === "status" ? "delete" : action])
+      throw new OfficialSyncError(
+        "This server does not support this action.",
+        "unsupported"
+      )
+    if (action === "rename") {
+      await this.renameRepository(name, displayName ?? "", token)
+      return "active"
+    }
+    const value = object(
+      await this.requestJson(
+        `/api/graft/repositories/${name}${action === "status" ? "/status" : ""}`,
+        { method: action === "delete" ? "DELETE" : "GET" },
+        token
+      )
+    )
+    if (
+      value.repository !== name ||
+      typeof value.namespace !== "string" ||
+      value.status === undefined
+    )
+      throw new Error("Invalid remote repository status")
+    return repositoryStatus(value.status)
   }
 
   async provisionRepository(

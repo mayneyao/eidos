@@ -99,9 +99,11 @@ describe("OfficialSyncClient", () => {
     }) as unknown as typeof fetch
     const client = new OfficialSyncClient(staging, fetchImpl)
     await expect(client.listRepositories("secret")).resolves.toEqual({
+      management: { rename: false, delete: false },
       namespace: "u-alice",
       repositories: [
         {
+          status: "active",
           name: "project",
           displayName: "Research Notes",
           createdAtMs: 123,

@@ -29,11 +29,11 @@ export function SyncTransferStatus({
             uploading: "Uploading",
             downloading: "Receiving",
             verifying: "Checking the cloud copy…",
+            confirming: "Confirming connection…",
+            compatibility_verification: "Downloading to verify upload…",
             applying: "Applying files…",
           }[progress.nativePhase]
-        : progress.phase === "authorization"
-          ? "Checking connection…"
-          : progress.detail
+        : progress.detail
   return (
     <div
       className="sync-minimal-transfer"

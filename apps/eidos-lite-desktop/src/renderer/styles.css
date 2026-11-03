@@ -16210,3 +16210,63 @@ body:has(.file-properties-window)
   margin: 1rem;
   color: var(--danger);
 }
+
+.synced-repository-line {
+  display: flex;
+  align-items: center;
+}
+.synced-repository-line .open-synced-row {
+  min-width: 0;
+}
+.synced-repository-menu {
+  position: relative;
+  flex: none;
+}
+.synced-repository-menu summary {
+  display: flex;
+  padding: 0.375rem;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 0.375rem;
+}
+.synced-repository-menu summary::-webkit-details-marker {
+  display: none;
+}
+.synced-repository-menu summary svg {
+  width: 1rem;
+  height: 1rem;
+}
+.synced-repository-menu summary:hover {
+  background: var(--surface-hover);
+}
+.synced-repository-actions {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  min-width: 12rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--surface);
+  box-shadow: 0 4px 16px #0002;
+}
+.synced-repository-actions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  border-radius: 0.25rem;
+}
+.synced-repository-actions button:hover {
+  background: var(--surface-hover);
+}
+.synced-repository-item > p {
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}

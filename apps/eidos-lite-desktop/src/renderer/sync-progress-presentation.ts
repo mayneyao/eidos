@@ -5,6 +5,8 @@ const NATIVE_DETAILS = {
   uploading: "Sending data to server",
   downloading: "Receiving data from server",
   verifying: "Verifying uploaded data",
+  confirming: "Confirming Sync connection",
+  compatibility_verification: "Verifying upload by downloading",
   applying: "Applying downloaded data",
 } as const
 
@@ -15,7 +17,8 @@ export function syncProgressPresentation(progress: EidosSyncProgress) {
     (progress.nativePhase
       ? progress.nativePhase === "uploading" ||
         progress.nativePhase === "downloading" ||
-        (progress.nativePhase === "verifying" &&
+        ((progress.nativePhase === "verifying" ||
+          progress.nativePhase === "compatibility_verification") &&
           progress.transfer?.direction === "download")
       : ["push", "fetch", "pull"].includes(progress.phase))
   const total = progress.transfer?.totalBytes
@@ -52,12 +55,14 @@ export function syncProgressPresentation(progress: EidosSyncProgress) {
     hint:
       progress.state !== "active"
         ? undefined
-        : verifying
-          ? progress.nativePhase === "verifying"
-            ? "Checking the cloud copy before finishing."
-            : "Checking synced files before finishing."
-          : applying
-            ? "Applying files and finishing local setup."
-            : undefined,
+        : progress.nativePhase === "compatibility_verification"
+          ? "This server or earlier upload requires a full download to verify the cloud copy."
+          : verifying
+            ? progress.nativePhase === "verifying"
+              ? "Checking the cloud copy before finishing."
+              : "Checking synced files before finishing."
+            : applying
+              ? "Applying files and finishing local setup."
+              : undefined,
   }
 }

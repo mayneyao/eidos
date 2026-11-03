@@ -8,6 +8,7 @@ import {
 
 // Synthetic loopback service for the actual native host integration tests.
 export async function startEncryptedSyncTestServer() {
+  const requests: { method: string; path: string }[] = []
   const repositories = new Map<
     string,
     {
@@ -39,6 +40,7 @@ export async function startEncryptedSyncTestServer() {
         incoming.url ?? "/",
         `http://127.0.0.1:${address.port}`
       )
+      requests.push({ method: incoming.method ?? "GET", path: url.pathname })
       const parts = url.pathname
         .split("/")
         .filter(Boolean)
@@ -78,6 +80,7 @@ export async function startEncryptedSyncTestServer() {
   if (!address || typeof address === "string")
     throw new Error("Missing test port")
   return {
+    requests,
     createRepository(name: string, namespace = "u-test") {
       const uuid = randomUUID()
       const objects = new Map<string, Uint8Array<ArrayBuffer>>()

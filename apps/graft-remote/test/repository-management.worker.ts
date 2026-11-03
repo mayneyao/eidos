@@ -85,6 +85,38 @@ async function completeDeletion(
 }
 
 describe("account-owned repository deletion", () => {
+  it("exposes owner-authenticated management without accepting a client owner", async () => {
+    const f = await fixture()
+    await f.create("public-management")
+    expect(await (await f.request("/.well-known/graft")).json()).toMatchObject({
+      management: { version: 1, capabilities: ["rename", "delete"] },
+    })
+    const other = await fixture()
+    const path = "/api/graft/repositories/public-management"
+    expect(
+      (
+        await other.request(path, {
+          method: "DELETE",
+          body: JSON.stringify({ userId: f.userId }),
+        })
+      ).status
+    ).toBe(404)
+    expect(await (await f.request(path + "/status")).json()).toMatchObject({
+      status: "active",
+    })
+    const deleted = await f.request(path, { method: "DELETE" })
+    expect(deleted.status).toBe(202)
+    expect(await deleted.json()).toMatchObject({
+      repository: "public-management",
+      status: "deleting",
+    })
+    await completeDeletion(f.directory, f.userId, "public-management")
+    expect(await (await f.request(path + "/status")).json()).toMatchObject({
+      status: "deleted",
+    })
+    expect((await f.request(path, { method: "DELETE" })).status).toBe(200)
+    expect((await f.request(path, { method: "PUT" })).status).toBe(410)
+  })
   it("pages the owner's repository list without skipping or exposing another owner's rows", async () => {
     const f = await fixture()
     for (let index = 0; index < 103; index++) {
