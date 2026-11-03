@@ -341,8 +341,8 @@ importers:
         specifier: 0.3.38
         version: 0.3.38
       '@eidos.space/graft-remote':
-        specifier: 0.2.5
-        version: 0.2.5
+        specifier: 0.2.6
+        version: 0.2.6
       '@eidos.space/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
@@ -554,14 +554,14 @@ importers:
   apps/graft-remote:
     dependencies:
       '@eidos.space/graft-remote':
-        specifier: 0.2.5
-        version: 0.2.5
+        specifier: 0.2.6
+        version: 0.2.6
       '@eidos.space/graft-remote-cloudflare':
-        specifier: 0.2.5
-        version: 0.2.5(@cloudflare/workers-types@5.20260727.1)
+        specifier: 0.2.6
+        version: 0.2.6(@cloudflare/workers-types@5.20260727.1)
       '@eidos.space/graft-remote-hono':
-        specifier: 0.2.5
-        version: 0.2.5(hono@4.13.7)
+        specifier: 0.2.6
+        version: 0.2.6(hono@4.13.7)
       hono:
         specifier: 4.13.7
         version: 4.13.7
@@ -2196,20 +2196,20 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@eidos.space/graft-remote-cloudflare@0.2.5':
-    resolution: {integrity: sha512-MXClbrNZ3QLgbV6IJvpexA9/23sQG8r4JuBSdza9yroDNPdZdgo2buPbsjLSAkTawbJL8cZY1wVIu1jxh6j1hQ==}
+  '@eidos.space/graft-remote-cloudflare@0.2.6':
+    resolution: {integrity: sha512-kCVIaCmKylkgFUToJUbPRdYt6aSkbBvKaG6w2DcnlMZ1l+zEpxT8C5+53zwTh0idWX8MWWjJ5aqkMFIgq/FXGA==}
     engines: {node: '>=20'}
     peerDependencies:
       '@cloudflare/workers-types': ^5.20260722.1
 
-  '@eidos.space/graft-remote-hono@0.2.5':
-    resolution: {integrity: sha512-L7XAI1WNSiurd6Bazn+p7q+sE4j2ICtz3ot6AMp3RVlStgC+2/2S31zV8uLnpcvvIu8ehKH7enTgq/qM/YOiMA==}
+  '@eidos.space/graft-remote-hono@0.2.6':
+    resolution: {integrity: sha512-h7fRACKa6JxgT5fKhHCgGdZG9tZslNPmANxYN7wLiCxg2EYP7uQN90ZHCLQV29OXoKMVWd7sU5Eayr8ncF72qA==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: 4.13.7
 
-  '@eidos.space/graft-remote@0.2.5':
-    resolution: {integrity: sha512-xb+TrKsHMrZu7lRfSvH3NyfOM+CY/rXLSKT3UFHGR2jLIrsjGWqMQzP7BO3T/h0nnwMizMu06ZY2ap0fXhjhaQ==}
+  '@eidos.space/graft-remote@0.2.6':
+    resolution: {integrity: sha512-hEVLpIQ/FpBHeDzUoCtXr7p0uXQYGx3jfVLwt3UY6Gv5yImR0qEQVk05fHLa42J9TuCmEYDtAXjNQo/l2Bc8fA==}
     engines: {node: '>=20'}
 
   '@eidos.space/graft-win32-x64-msvc@0.3.38':
@@ -10455,17 +10455,17 @@ snapshots:
   '@eidos.space/graft-linux-x64-gnu@0.3.38':
     optional: true
 
-  '@eidos.space/graft-remote-cloudflare@0.2.5(@cloudflare/workers-types@5.20260727.1)':
+  '@eidos.space/graft-remote-cloudflare@0.2.6(@cloudflare/workers-types@5.20260727.1)':
     dependencies:
       '@cloudflare/workers-types': 5.20260727.1
-      '@eidos.space/graft-remote': 0.2.5
+      '@eidos.space/graft-remote': 0.2.6
 
-  '@eidos.space/graft-remote-hono@0.2.5(hono@4.13.7)':
+  '@eidos.space/graft-remote-hono@0.2.6(hono@4.13.7)':
     dependencies:
-      '@eidos.space/graft-remote': 0.2.5
+      '@eidos.space/graft-remote': 0.2.6
       hono: 4.13.7
 
-  '@eidos.space/graft-remote@0.2.5': {}
+  '@eidos.space/graft-remote@0.2.6': {}
 
   '@eidos.space/graft-win32-x64-msvc@0.3.38':
     optional: true

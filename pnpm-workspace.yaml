@@ -38,9 +38,9 @@ minimumReleaseAgeExclude:
   - "@lexical/utils@0.50.0"
   - "@lexical/yjs@0.50.0"
   - lexical@0.50.0
-  - "@eidos.space/graft-remote-cloudflare@0.2.5"
-  - "@eidos.space/graft-remote-hono@0.2.5"
-  - "@eidos.space/graft-remote@0.2.5"
+  - "@eidos.space/graft-remote-cloudflare@0.2.6"
+  - "@eidos.space/graft-remote-hono@0.2.6"
+  - "@eidos.space/graft-remote@0.2.6"
 minimumReleaseAgeExcludePrune: true
 
 peerDependencyRules:
