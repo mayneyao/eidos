@@ -306,9 +306,14 @@ describe.skipIf(!enabled)("personal custom Graft through Lite main", () => {
         path.join(sourceRoot, "notes.txt"),
         "first device note\n"
       )
+      const initialAttachment = process.env.EIDOS_LITE_CUSTOM_SYNC_LARGE_MIB
+        ? randomBytes(
+            Number(process.env.EIDOS_LITE_CUSTOM_SYNC_LARGE_MIB) * 1024 * 1024
+          )
+        : Buffer.alloc(8192, 37)
       await fs.writeFile(
         path.join(sourceRoot, "attachment.bin"),
-        Buffer.alloc(8192, 37)
+        initialAttachment
       )
       const source = await openSpace(sourceRoot, a)
       const approval = {
@@ -396,7 +401,7 @@ describe.skipIf(!enabled)("personal custom Graft through Lite main", () => {
       }
       expect(title(peerRoot)).toBe("first device")
       expect(await fs.readFile(path.join(peerRoot, "attachment.bin"))).toEqual(
-        Buffer.alloc(8192, 37)
+        initialAttachment
       )
       const changed = openEidosFile(path.join(peerRoot, "records.eidos"))
       changed.updateRow(table.id, rowId, { Title: "second device" })
