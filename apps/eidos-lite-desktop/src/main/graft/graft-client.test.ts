@@ -64,7 +64,7 @@ describe("GraftClient", () => {
     "accepts the pinned SDK version and rejects older builds (override=%s)",
     async (sdkPath) => {
       vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
-      const expectedVersion = "0.3.38-sync-progress.20261103.1"
+      const expectedVersion = "0.3.38"
       const command = vi
         .fn()
         .mockResolvedValueOnce("0.3.34")

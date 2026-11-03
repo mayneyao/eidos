@@ -1,8 +1,16 @@
 ## What's new
 
-- **Custom Sync servers**: Save multiple Graft servers in Settings → Account & Services, choose a server for each Space, and switch between Eidos Sync and your own servers. Spark is required for custom servers.
-- **Sync password**: Set a default password in Sync settings for new connections. Existing encrypted Spaces continue to use their original password.
-- **Plugins**: Open plugin management from the bottom of the sidebar to browse, install and manage plugins in a dedicated page.
+### Your choice of Sync server
+
+Save Graft servers in Settings → Account & Services, then choose one for each Space alongside Eidos Sync. Switch servers without losing local history; an interrupted switch keeps the previous connection available. Custom servers require Spark. Existing activated devices can refresh benefits in Settings to enable this capability.
+
+### Default Sync password
+
+Set a default password in Sync settings for new connections. Existing encrypted Spaces continue to use their original password.
+
+### Dedicated plugin management
+
+Open Plugins from the bottom of the sidebar to browse, install and manage plugins in a dedicated page. Built-in Terminal options are available there too.
 
 ## Improvements
 
@@ -11,5 +19,4 @@
 
 ## Bug fixes
 
-- **Server switching**: Failed or interrupted switches retain the previous connection and local history so you can retry.
 - **Sync navigation**: Switching Spaces no longer briefly shows another Space's server, an incorrect sign-in prompt or a read-only state while connection information loads.

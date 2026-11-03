@@ -366,7 +366,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.37`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.38`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -382,12 +382,15 @@ password sessions and remembered/default Sync passwords protected by system
 encryption and private Windows ACLs. Saved passwords are reused for startup
 unlock when system secure storage is available.
 
-Encrypted initial upload, clone and later transfers report actual body-byte
-progress and transfer speed. Aggregate bundles and multipart parts use the same
-callback. Encrypted totals remain indeterminate: plaintext checkout budgets do
-not establish a ciphertext denominator. Do not display a percentage or estimated
-remaining time until the SDK provides a final total. New operations reset their
-counters, and cancellation suppresses late progress from a revoked host session.
+Encrypted initial upload, clone and later transfers report measured body bytes,
+speed and a percentage when the SDK has a complete transfer plan. Aggregate
+bundles and multipart parts use the same callback. Planning uses ciphertext
+sizes; plaintext checkout budgets are not a valid denominator. Complete planning
+is bounded to 2 GiB and 256 payloads. Operations outside that budget may have an
+unknown total and must retain an indeterminate visual indicator and measured
+bytes rather than invent a percentage or remaining time. Transfer and
+verification phases use their own actual totals. New operations reset counters;
+cancellation suppresses late progress from a revoked host session.
 
 The release workflow runs the actual encrypted host against a loopback HTTP
 Remote on every build platform, covering enrollment, wrong-password rejection,
