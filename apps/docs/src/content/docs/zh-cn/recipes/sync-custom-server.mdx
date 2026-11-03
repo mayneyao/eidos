@@ -5,7 +5,7 @@ title: 连接自托管 Graft 服务器
 macOS、Windows 和 Linux 上的 Eidos Lite 支持通过 Spark 连接自定义服务器。
 每台电脑沿用现有 Spark 激活，服务器不占设备名额，也不要求官方 Sync 订阅。
 
-使用[个人 Graft Cloudflare 模板](https://github.com/eidos-space/graft-cloudflare)，
+使用 [Docker 部署](/zh-cn/recipes/deploy-graft-docker/)、[个人 Graft Cloudflare 模板](https://github.com/eidos-space/graft-cloudflare)，
 或兼容其服务发现和仓库管理 API 的服务。Lite 只连接端到端加密仓库。
 通用 Graft 协议端点不一定提供 Lite 所需的仓库列举和创建 API。
 
@@ -13,7 +13,7 @@ macOS、Windows 和 Linux 上的 Eidos Lite 支持通过 Spark 连接自定义�
 
 1. 在本机的**设置 → 账户与服务**激活 Spark。如果 Spark 已激活但新功能仍锁定，
    点击**刷新 Spark 权益**。
-2. 完成[服务器部署和首次配置](/zh-cn/recipes/deploy-graft-cloudflare/)，准备好基础 HTTPS 地址和访问密钥。
+2. 完成 [Docker 部署](/zh-cn/recipes/deploy-graft-docker/)或 [Cloudflare 部署和首次配置](/zh-cn/recipes/deploy-graft-cloudflare/)，准备好基础 HTTPS 地址和访问密钥。
 3. 按需启用本地版本历史，将要上传的改动保存为版本。
 4. 打开**设置 → 账户与服务 → 同步 → 添加服务器**，填写名称、
    **服务器地址**和**访问密钥**，点击**测试并保存**。保存时会验证访问权限，并将配置保存在本机。

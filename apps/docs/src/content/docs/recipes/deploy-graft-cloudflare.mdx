@@ -55,8 +55,9 @@ recover that password.
 When updating the server, preserve its Worker identity, R2 binding and Durable
 Object namespaces. Deploying under a new name does not migrate existing data.
 Keep an independent local backup: copying only the R2 bucket is not a complete
-server backup. The template currently has no coordinated export/restore tool,
-repository deletion API or automatic garbage collection. See its
+server backup. The template currently has no coordinated export/restore tool
+or automatic garbage collection. Remote deletion is available through
+[remote Space management](/recipes/manage-cloud-sync/#manage-a-remote-space). See its
 [operations guide](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md)
 for upgrade and recovery boundaries. For terminal-based deployment, follow the
 [template's command-line instructions](https://github.com/eidos-space/graft-cloudflare#local-development-and-command-line-deployment).
