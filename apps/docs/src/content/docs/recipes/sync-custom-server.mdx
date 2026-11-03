@@ -6,7 +6,8 @@ Custom-server connections are a Spark feature in Eidos Lite on macOS, Windows,
 and Linux. Each computer uses its existing Spark activation; the server does
 not use a device seat. No official Sync subscription is required.
 
-Use the [personal Graft Cloudflare template](https://github.com/eidos-space/graft-cloudflare)
+Use a [Docker deployment](/recipes/deploy-graft-docker/), the
+[personal Graft Cloudflare template](https://github.com/eidos-space/graft-cloudflare),
 or a server compatible with its discovery and repository management API. Lite
 connects only to end-to-end encrypted repositories. A general Graft protocol
 endpoint does not necessarily provide the listing and creation APIs Lite needs.
@@ -15,7 +16,7 @@ endpoint does not necessarily provide the listing and creation APIs Lite needs.
 
 1. Activate Spark in **Settings → Account & Services** on this computer. If Spark
    is already active but the new feature is locked, choose **Refresh Spark benefits**.
-2. Complete [deployment and first-time setup](/recipes/deploy-graft-cloudflare/); keep the base HTTPS address and access key handy.
+2. Complete [Docker deployment](/recipes/deploy-graft-docker/) or [Cloudflare deployment and setup](/recipes/deploy-graft-cloudflare/); keep the base HTTPS address and access key handy.
 3. Enable local version history if needed, and save the changes you want to upload.
 4. Open **Settings → Account & Services → Sync → Add server**. Enter a name,
    the **Server address** and **Access token**, then choose **Test and save**.

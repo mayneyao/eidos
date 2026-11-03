@@ -123,6 +123,7 @@ export default defineConfig({
                     "recipes/sync-eidos",
                     "recipes/sync-custom-server",
                     "recipes/deploy-graft-cloudflare",
+                    "recipes/deploy-graft-docker",
                     "recipes/manage-cloud-sync",
                   ],
                 },

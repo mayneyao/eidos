@@ -1,0 +1,176 @@
+---
+title: Deploy Graft with Docker
+---
+
+Run a personal Graft server on a machine with Docker Engine and Compose v2.
+Local disk is the default storage mode. S3 mode keeps object data in an existing
+S3-compatible bucket while retaining essential metadata and temporary uploads on
+the server. Both modes need a persistent `/data` volume and one server instance.
+
+## Start with local storage
+
+Download the release's `compose.yaml`, `SHA256SUMS`, `image.json` and `SOURCE_COMMIT` from the
+[Graft Docker 0.1.1 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1). Verify the
+checksums and keep the image digest pinned by the release; do not replace it
+with `latest`. Keep the release tag, source commit and digest with your backups.
+
+The 0.1.1 Compose file pins the Linux AMD64/ARM64 image:
+
+```text
+ghcr.io/eidos-space/graft-remote-docker@sha256:e226c2a4ea414cf7b1abf16c71cedea9e8483dbd2f8fc96b0fd9e3d2599eafbf
+```
+
+Place the files in a private directory. Create the server access key:
+
+```sh
+mkdir -p secrets
+chmod 700 secrets
+(umask 077; openssl rand -hex 32 > secrets/access-key)
+chmod 444 secrets/access-key
+```
+
+The private directory protects the host file; the mounted file must be readable
+by the unprivileged container. Never commit it. The access key grants access to
+all repositories on this server. It is separate from clients' sync passwords.
+
+Set `.env` to your public HTTPS origin:
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+```
+
+Run `docker compose pull`, then `docker compose up -d --wait`. Keep the named
+volume mounted at `/data`; do not use `docker compose down -v` to stop the service.
+The default port binds to `127.0.0.1:8787`. Put an HTTPS reverse proxy in front of
+it. For Caddy running on the host:
+
+```caddyfile
+sync.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
+
+A proxy in another container must use the Compose network and `graft:8787`.
+Allow 64 MiB requests and transfers of at least 120 seconds. Preserve protocol
+and authorization headers; disable API caching, redirects and path rewrites.
+Do not log credentials or request bodies. Keep the container's HTTP port private.
+
+Check `https://sync.example.com/healthz`, then follow
+[Connect a self-hosted server](/recipes/sync-custom-server/). Use the base HTTPS
+address and server access key in Lite. Test with a known record and attachment,
+then download on another computer and check the contents. Health alone does not
+prove encrypted synchronization.
+
+## Use S3-compatible storage
+
+For Cloudflare R2, create a private bucket and use its S3 API endpoint:
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+GRAFT_S3_REGION=auto
+GRAFT_S3_BUCKET=your-private-bucket
+GRAFT_S3_PREFIX=graft/
+GRAFT_S3_FORCE_PATH_STYLE=true
+```
+
+Copy the endpoint from your R2 configuration; use the appropriate endpoint for a
+jurisdiction-restricted bucket. The [R2 S3 API region is `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
+Create [R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with
+Object Read & Write access limited to this bucket. Save the Access Key ID and
+Secret Access Key in the two mounted files described below. A Wrangler OAuth
+session or a general Cloudflare API token is not a substitute for those S3
+credentials. The bucket remains private; no public bucket URL or Worker binding
+is needed. The Docker service and its persistent `/data` volume still run on your
+server. This differs from deploying the standalone Cloudflare Worker template.
+R2 does not support S3 bucket versioning; deleting an object removes the current
+object directly. Do not treat versioned MinIO behavior as R2 recovery protection.
+
+### Provider configuration and B2
+
+Start with a fresh `/data` volume and a dedicated bucket or exclusive prefix.
+The service does not create buckets. Download `compose.s3.yaml` and
+`env.s3.example` from the same release. Copy `env.s3.example` to `.env` in this
+fresh installation and replace the examples with your actual endpoint and region:
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+GRAFT_S3_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+GRAFT_S3_REGION=us-west-004
+GRAFT_S3_BUCKET=your-bucket-name
+GRAFT_S3_PREFIX=graft/
+GRAFT_S3_FORCE_PATH_STYLE=true
+```
+
+The example endpoint is not a universal B2 address. Copy yours from the bucket
+details and match its region, as described in the
+[B2 SDK configuration guide](https://www.backblaze.com/docs/cloud-storage-use-the-aws-sdk-for-javascript-v3-with-backblaze-b2).
+Use a bucket-restricted [standard application key](https://www.backblaze.com/docs/cloud-storage-application-keys).
+Save its `keyID` in `secrets/s3-access-key-id` and `applicationKey` in
+`secrets/s3-secret-access-key`, using the protected directory and file permissions
+above. Do not put credentials in `.env`, repository URLs or command history.
+
+`compose.s3.yaml` selects `GRAFT_STORAGE=s3` and mounts those files through
+`GRAFT_S3_ACCESS_KEY_ID_FILE` and `GRAFT_S3_SECRET_ACCESS_KEY_FILE`. Start with:
+
+```sh
+docker compose -f compose.yaml -f compose.s3.yaml pull
+docker compose -f compose.yaml -f compose.s3.yaml up -d --wait
+```
+
+Keep both Compose files in later stop, backup, restart and upgrade commands.
+The prefix must be nonempty, exclusive to this installation and end in `/`.
+HTTPS is required for production storage endpoints. `GRAFT_S3_FORCE_PATH_STYLE`
+defaults to `true`; use the addressing style required by your provider. Temporary
+AWS credentials additionally need a mounted session token selected through
+`GRAFT_S3_SESSION_TOKEN_FILE`.
+
+Limit credentials to the selected bucket and object prefix. The backend needs
+bucket access for HeadBucket, object read/head/write/delete and multipart
+create/upload/complete/abort. Versioned buckets also need deletion of owned
+object versions. It does not need account-wide bucket listing or bucket creation.
+Retention or Object Lock can prevent cleanup; do not grant broad account access
+to work around a storage configuration error.
+
+## Persistence, recovery and storage limits
+
+S3 mode is not stateless. `/data` holds repository identities, refs, object
+pointers, deletion state and unfinished upload parts. Reserve disk for retained
+parts, one assembled file per active completion and SQLite/WAL growth. Completed
+temporary files and parts are removed, but allocated database space may remain
+for reuse. Run one container per volume on local disk; a shared bucket does not
+make independent servers a cluster. A storage outage does not fall back to local
+mode.
+
+Do not modify live objects or add delete markers in the server's prefix. Configure
+expiration for abandoned provider multipart uploads, not for live object keys.
+Provider storage, transfer and request charges apply, including server reads for
+stored-object verification.
+
+Stop writes before backing up. Local mode requires the complete `/data` directory;
+S3 mode requires a coordinated copy of `/data` and the matching bucket objects.
+Neither SQLite metadata nor bucket contents alone is a complete S3-mode backup.
+Keep the access key separately and retain client encryption passwords. Restore
+into an empty volume with the required ownership; check repository identities,
+an independent client download and known contents before resuming use.
+
+Back up before upgrading and keep the previous image and matching backup until
+validated. Changing the storage mode, endpoint, region, bucket or prefix does
+not migrate existing data. Use a fresh server and Lite's **Switch server** flow,
+then verify an independent download before retiring the original. Credentials
+for the same backend can be rotated by replacing the secret files and restarting.
+
+## Verification boundaries
+
+On supported servers, initial connection can verify stored ciphertext without
+downloading the entire upload. The server reads the actual local or bucket object
+for each challenge. Older servers use full-download compatibility verification;
+keep Lite open until confirmation finishes. A failed challenge must not silently
+fall back or be treated as Connected. This check is not an independent backup
+or a guarantee of future storage availability.
+
+Record real Cloudflare R2 acceptance separately from local MinIO testing.
+Neither establishes a real Backblaze B2 deployment. B2 settings above describe
+compatible configuration, not a claim of B2 test coverage. Check the release's
+validation record for the tested image, SDK and storage provider, and validate
+your own bucket before using it for important data.

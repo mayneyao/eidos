@@ -49,7 +49,8 @@ GitHub 或 GitLab 账户。R2 需要单独开通并设置账单信息。Cloudfla
 
 升级服务时保留 Worker 身份、R2 绑定和 Durable Object 命名空间。
 使用新名称部署不会迁移现有数据。始终保留独立本地备份，仅复制 R2 存储桶不是完整的
-服务器备份。模板目前没有协调导出与恢复工具、仓库删除 API 或自动垃圾回收。
+服务器备份。模板目前没有协调导出与恢复工具或自动垃圾回收。
+远端删除可通过[管理远端 Space](/zh-cn/recipes/manage-cloud-sync/#管理远端-space)操作。
 升级和恢复边界详见
 [运维指南](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.zh-CN.md)。
 如需使用终端部署，参阅[模板的命令行部署说明](https://github.com/eidos-space/graft-cloudflare/blob/main/README.zh-CN.md)。

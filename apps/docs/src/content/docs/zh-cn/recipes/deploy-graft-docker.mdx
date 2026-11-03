@@ -1,0 +1,154 @@
+---
+title: 使用 Docker 部署 Graft
+---
+
+准备一台安装了 Docker Engine 和 Compose v2 的服务器。默认使用本地磁盘；
+S3 模式将对象数据放入已有的 S3 兼容 bucket，服务器仍保存必要元数据和临时上传内容。
+两种模式都需要持久化 `/data` 卷，并且每个卷只能运行一个服务实例。
+
+## 使用默认本地存储
+
+从 [Graft Docker 0.1.1 发布页](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1) 下载
+`compose.yaml`、`SHA256SUMS`、`image.json` 和 `SOURCE_COMMIT`。
+核对校验和，保留发布文件固定的镜像 digest，
+不要替换为 `latest`。将版本 tag、源码提交和 digest 与备份一起保存。
+
+0.1.1 的 Compose 文件固定使用以下 Linux AMD64/ARM64 镜像：
+
+```text
+ghcr.io/eidos-space/graft-remote-docker@sha256:e226c2a4ea414cf7b1abf16c71cedea9e8483dbd2f8fc96b0fd9e3d2599eafbf
+```
+
+将文件放入私有目录，创建服务器访问密钥：
+
+```sh
+mkdir -p secrets
+chmod 700 secrets
+(umask 077; openssl rand -hex 32 > secrets/access-key)
+chmod 444 secrets/access-key
+```
+
+私有目录保护宿主机文件；挂载后的文件需要允许容器中的非特权用户读取。
+不要提交该文件。此密钥可以访问本服务的全部仓库，与客户端的同步密码互相独立。
+
+在 `.env` 中填写公开 HTTPS 地址：
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+```
+
+执行 `docker compose pull` 和 `docker compose up -d --wait`。
+保留挂载到 `/data` 的命名卷；不要用 `docker compose down -v` 停止需要保留数据的服务。
+默认端口仅绑定 `127.0.0.1:8787`，请在前面配置 HTTPS 反向代理。
+例如在宿主机运行 Caddy：
+
+```caddyfile
+sync.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
+
+若代理位于另一个容器，应通过 Compose 网络访问 `graft:8787`。
+允许 64 MiB 请求和至少 120 秒的传输，保留协议及授权请求头，关闭 API 缓存、
+重定向和路径改写。不要记录凭据或请求体，不要公开容器的 HTTP 端口。
+
+检查 `https://sync.example.com/healthz`，然后按[连接自托管服务器](/zh-cn/recipes/sync-custom-server/)
+操作，在 Lite 填写基础 HTTPS 地址和访问密钥。先上传一条已知记录和一个附件，
+再在另一台电脑下载核对。健康检查不能单独证明加密同步可用。
+
+## 使用 S3 兼容存储
+
+使用 Cloudflare R2 时，创建私有 bucket，并填写其 S3 API endpoint：
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+GRAFT_S3_REGION=auto
+GRAFT_S3_BUCKET=your-private-bucket
+GRAFT_S3_PREFIX=graft/
+GRAFT_S3_FORCE_PATH_STYLE=true
+```
+
+从自己的 R2 配置复制 endpoint；有司法管辖区限制的 bucket 应使用对应地址。
+[R2 的 S3 API region 为 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
+创建仅限该 bucket、具有 Object Read & Write 权限的
+[R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，将 Access Key ID 和
+Secret Access Key 保存到下文的两个挂载文件。Wrangler OAuth 登录状态或通用
+Cloudflare API token 不能代替这组 S3 凭据。bucket 保持私有，无需公开 bucket URL
+或配置 Worker binding。Docker 服务和持久化 `/data` 仍运行在自己的服务器，
+这与部署独立的 Cloudflare Worker 模板是两种方式。
+R2 不支持 S3 bucket 版本管理，删除会直接移除当前对象；不能把版本化 MinIO 的行为
+视为 R2 上的恢复保障。
+
+### 服务商配置与 B2
+
+使用全新的 `/data` 卷及专用 bucket 或独占前缀；服务不会创建 bucket。
+从同一发布版本下载 `compose.s3.yaml` 和 `env.s3.example`。
+在这套新部署中将 `env.s3.example` 复制为 `.env`，替换为实际 endpoint 和 region：
+
+```dotenv
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+GRAFT_S3_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+GRAFT_S3_REGION=us-west-004
+GRAFT_S3_BUCKET=your-bucket-name
+GRAFT_S3_PREFIX=graft/
+GRAFT_S3_FORCE_PATH_STYLE=true
+```
+
+示例 endpoint 不是所有 B2 bucket 的通用地址。应从自己的 bucket 详情复制地址并匹配
+region，参见 [B2 SDK 配置](https://www.backblaze.com/docs/cloud-storage-use-the-aws-sdk-for-javascript-v3-with-backblaze-b2)。
+使用限制到指定 bucket 的[标准 application key](https://www.backblaze.com/docs/cloud-storage-application-keys)。
+将 `keyID` 保存到 `secrets/s3-access-key-id`，将 `applicationKey` 保存到
+`secrets/s3-secret-access-key`，沿用上面的私有目录和文件权限。
+不要将凭据放入 `.env`、仓库 URL 或命令历史。
+
+`compose.s3.yaml` 设置 `GRAFT_STORAGE=s3`，并通过
+`GRAFT_S3_ACCESS_KEY_ID_FILE`、`GRAFT_S3_SECRET_ACCESS_KEY_FILE` 挂载凭据：
+
+```sh
+docker compose -f compose.yaml -f compose.s3.yaml pull
+docker compose -f compose.yaml -f compose.s3.yaml up -d --wait
+```
+
+之后的停止、备份、重启和升级命令都应保留这两个 Compose 文件。
+前缀必须非空、由此部署独占，并以 `/` 结尾。生产存储 endpoint 必须使用 HTTPS。
+`GRAFT_S3_FORCE_PATH_STYLE` 默认 `true`，请按服务商要求选择地址风格。
+使用 AWS 临时凭据时，还需挂载 session token，并通过 `GRAFT_S3_SESSION_TOKEN_FILE` 指定。
+
+将权限限制到选定 bucket 和对象前缀。服务需要 HeadBucket 所需的 bucket 访问权限、
+对象读取/元数据读取/写入/删除，以及 multipart 创建/上传/完成/中止权限。
+启用版本管理时，还需允许删除服务持有的对象版本；无需列举账户全部 bucket 或创建 bucket。
+保留策略或 Object Lock 可能阻止清理，不要用扩大到账户级权限来绕过存储配置问题。
+
+## 持久化、恢复与空间限制
+
+S3 模式仍依赖 `/data`：这里保存仓库身份、引用、对象指针、删除状态和未完成分片。
+请为保留的分片、每个并行完成操作的完整组装文件，以及 SQLite/WAL 增长预留磁盘。
+完成后会删除临时文件和分片，但数据库可能保留已分配空间供后续复用。
+每个卷只运行一个容器，并使用本地磁盘；共享 bucket 不会让多个独立服务变成集群。
+存储不可用时不会自动回退到本地模式。
+
+不要修改服务前缀下的活动对象或自行添加删除标记。
+可配置过期清理服务商侧遗留的未完成 multipart 上传，不要给活动对象设置过期删除。
+服务商的存储、传输和请求费用仍适用，包括验证已存对象所产生的服务端读取。
+
+备份前停止写入。本地模式需备份完整 `/data`；S3 模式需协调备份 `/data` 和对应 bucket
+对象。只备份 SQLite 或只复制 bucket 都不能构成完整的 S3 模式备份。
+另行保存访问密钥，并保留客户端同步密码。恢复到具有正确属主的空卷，核对仓库身份，
+独立下载并检查已知内容后再恢复使用。
+
+升级前备份，验证完成前保留旧镜像及匹配备份。改变存储模式、endpoint、region、
+bucket 或前缀不会迁移已有数据。应创建新服务，通过 Lite 的**切换服务器**上传，
+确认独立下载无误后再停用原服务。对同一存储后端轮换凭据时，可替换 secret 文件并重启。
+
+## 验证范围
+
+支持此能力的服务器可在首次连接时验证已存密文，避免将全部上传内容下载回来。
+每次 challenge 都读取实际本地或 bucket 对象。旧服务器使用完整下载的兼容性验证，
+请保持 Lite 打开直到确认完成。challenge 失败不能静默回退或被当作已连接。
+这项检查不能代替独立备份，也不保证未来存储可用性。
+
+真实 Cloudflare R2 验收应与本地 MinIO 测试分别记录，两者都不能证明真实 Backblaze B2
+部署已通过验证。上面的 B2 内容是兼容配置说明，不代表 B2 实测覆盖。
+请查看发布版本的验证记录，确认实际测试的镜像、SDK 和存储服务商，并先验证自己的
+bucket，再用于重要数据。
