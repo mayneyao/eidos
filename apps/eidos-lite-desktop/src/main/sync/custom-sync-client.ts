@@ -5,6 +5,10 @@ import type {
 } from "../../shared/contracts"
 import { normalizeCloudSpaceDisplayName } from "./cloud-space-name"
 import { OfficialSyncError, syncEncryption } from "./official-sync-client"
+import {
+  managementCapabilities,
+  repositoryStatus,
+} from "./repository-management"
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 const MAX_JSON_BYTES = 1024 * 1024
@@ -83,6 +87,7 @@ export interface CustomSyncProvisionResult {
 export class CustomSyncClient {
   readonly origin: string
   private discovery: Promise<void> | undefined
+  private management = { rename: false, delete: false }
 
   constructor(
     origin: string,
@@ -106,6 +111,7 @@ export class CustomSyncClient {
     const value = record(await this.requestJson("/.well-known/graft"))
     const auth = record(value.authentication)
     const management = record(value.management)
+    this.management = managementCapabilities(value.management, this.origin)
     if (
       value.protocol !== "graft-remote" ||
       value.version !== 1 ||
@@ -147,6 +153,7 @@ export class CustomSyncClient {
         if (displayName === null) throw invalidResponse()
         const encryption = syncEncryption(item.encryption)
         return {
+          status: repositoryStatus(item.status),
           name: item.name,
           displayName,
           createdAtMs: Number(item.created_at),
@@ -160,7 +167,40 @@ export class CustomSyncClient {
       repositories.length
     )
       throw invalidResponse()
-    return { namespace: "personal", repositories }
+    return { namespace: "personal", repositories, management: this.management }
+  }
+
+  async manageRepository(
+    name: string,
+    action: "rename" | "delete" | "status",
+    token: string,
+    displayName?: string
+  ) {
+    checkName(name)
+    await this.discover()
+    if (!this.management[action === "status" ? "delete" : action])
+      throw new CustomSyncError(
+        "This server does not support this action.",
+        "unsupported"
+      )
+    if (action === "rename") {
+      await this.renameRepository(name, displayName ?? "", token)
+      return "active" as const
+    }
+    const value = record(
+      await this.requestJson(
+        `/api/graft/repositories/${name}${action === "status" ? "/status" : ""}`,
+        { method: action === "delete" ? "DELETE" : "GET" },
+        token
+      )
+    )
+    if (
+      value.namespace !== "personal" ||
+      value.repository !== name ||
+      value.status === undefined
+    )
+      throw invalidResponse()
+    return repositoryStatus(value.status)
   }
 
   async provisionRepository(

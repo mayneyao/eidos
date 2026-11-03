@@ -56,6 +56,11 @@ export class SyncRunTracker {
       uploading: ["push", "Sending data to server"],
       downloading: ["fetch", "Receiving data from server"],
       verifying: ["validate", "Verifying uploaded data"],
+      confirming: ["validate", "Confirming Sync connection"],
+      compatibility_verification: [
+        "validate",
+        "Verifying upload by downloading",
+      ],
       applying: ["pull", "Applying downloaded data"],
     } as const
     const stage =

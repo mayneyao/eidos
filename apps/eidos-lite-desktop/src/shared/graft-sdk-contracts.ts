@@ -27,6 +27,8 @@ export interface GraftTransferProgress {
     | "uploading"
     | "downloading"
     | "verifying"
+    | "confirming"
+    | "compatibility_verification"
     | "applying"
     | "completed"
     | "failed"

@@ -2,7 +2,12 @@ import type { BrowserWindow } from "electron"
 
 import type { EidosLiteResolvedAppearance } from "../shared/appearance"
 
-export type LiteWindowKind = "welcome" | "space" | "settings" | "properties"
+export type LiteWindowKind =
+  | "welcome"
+  | "space"
+  | "settings"
+  | "properties"
+  | "release-notes"
 export type LiteCompactWindowKind = Exclude<LiteWindowKind, "space">
 
 export interface LiteWindowSize {
@@ -37,6 +42,7 @@ const COMPACT_WINDOW_DEFAULT_SIZE = {
   welcome: { width: 920, height: 620 },
   settings: { width: 960, height: 680 },
   properties: { width: 400, height: 400 },
+  "release-notes": { width: 920, height: 620 },
 } satisfies Record<LiteCompactWindowKind, LiteWindowSize>
 
 const MACOS_TRAFFIC_LIGHT_POSITION = {
@@ -44,6 +50,7 @@ const MACOS_TRAFFIC_LIGHT_POSITION = {
   space: { x: 16, y: 12 },
   settings: { x: 16, y: 15 },
   properties: { x: 16, y: 15 },
+  "release-notes": { x: 16, y: 15 },
 } satisfies Record<LiteWindowKind, { x: number; y: number }>
 
 export function macosTrafficLightPosition(kind: LiteWindowKind): {
@@ -60,8 +67,12 @@ export function liteCompactWindowDefaultSize(
 }
 
 export function liteWindowChromeOptions(
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  kind: LiteWindowKind = "space"
 ): LiteWindowChromeOptions {
+  if (kind === "properties" || kind === "release-notes") {
+    return { titleBarStyle: "default", autoHideMenuBar: true }
+  }
   if (platform === "darwin") {
     return {
       titleBarStyle: "hiddenInset",

@@ -12,6 +12,12 @@ stages without a known total use an activity indicator. A transfer reaching
 100% does not mean Sync has finished: verification and local file preparation
 may still follow. Wait for Sync to finish before closing the app.
 
+When first connecting a Space, supported servers confirm the stored encrypted
+data without sending the entire upload back to your computer. Older servers use
+compatibility verification, which downloads the encrypted data again and can
+take longer. Keep Lite open until the connection finishes. This verification
+does not replace an independent backup or guarantee future cloud availability.
+
 Saving a file changes the local copy. Open **Versions**, review and select the
 changed files, then choose **Save selected files** to record them in local
 history. Return to **Sync → Cloud sync** and upload the saved versions.
@@ -30,6 +36,25 @@ Review the text or record choices and save the result, then upload it. For a
 binary file, choose the version to keep or preserve separate copies. Do not
 delete one Space to dismiss a conflict. See [history and recovery](/user-guide/history-and-recovery/)
 for retaining local work.
+
+## Manage a remote Space
+
+Open **Open Synced Space**, choose the server, then open the **…** menu beside a
+Space. **Copy remote address** copies its repository URL without credentials.
+**Rename remote Space** changes only the display name; the repository identity,
+address, and local folder name stay the same.
+
+**Delete remote Space** permanently removes the remote copy and its saved history.
+Read and confirm the deletion dialog. Local folders, files, and local history on
+your devices are kept. The row shows deletion in progress while the server cleans
+up; it reports completion only after the server confirms it. If a request fails,
+use the menu to retry. Closing Lite does not cancel an accepted server deletion.
+
+Devices connected to the deleted address cannot continue syncing with it. Disconnect
+that connection and create a new remote copy from a retained local folder when
+needed. A new copy receives a new repository address, even if you reuse its display
+name. Older servers that do not advertise management support hide unsupported
+actions; copying the address and opening existing Spaces remain available.
 
 ## Disconnect cloud sync
 

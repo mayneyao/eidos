@@ -48,6 +48,8 @@ Authenticated repository discovery and idempotent provisioning:
     GET /api/graft/repositories
     PUT /api/graft/repositories/:repository
     PATCH /api/graft/repositories/:repository
+    DELETE /api/graft/repositories/:repository
+    GET /api/graft/repositories/:repository/status
     GET /api/graft/usage
     Authorization: Bearer <OAuth access token or Sync CLI key>
 
@@ -58,9 +60,22 @@ updates only that display name; the technical key, internal repository id, and
 canonical `remote_url` remain unchanged. Display names are trimmed,
 NFC-normalized Unicode strings of 1–80 code points. They are user-visible
 labels, so duplicates are allowed. Repository discovery lists newly created
-Spaces first, using the technical key only as a stable tie-breaker. Deletion,
-technical-key rename, sharing, and organization ACL management are
-deliberately outside this initial slice.
+Spaces first, using the technical key only as a stable tie-breaker.
+Technical-key rename, sharing, and organization ACL management are not supported.
+
+Discovery advertises `management.version: 1`, the same-origin `repositories` URL,
+and `capabilities: ["rename", "delete"]`. Legacy discovery without these capability
+declarations remains compatible; clients hide undeclared management actions.
+
+DELETE derives ownership from the authenticated principal and reuses the durable
+account deletion lifecycle. It returns 202 while deleting and 200 when already
+deleted. GET status returns `{namespace, repository, status}` with status `active`,
+`deleting`, or `deleted`; unknown or other-owner names return 404. Lists retain
+deleting rows and omit deleted rows. Cleanup failure remains deleting and retries
+through durable alarms. Local device files are never deleted by this API.
+The tombstone reserves the technical name permanently: PUT returns 410 for a deleted
+name. Other conforming personal servers may use 409 `repository_name_reserved`.
+To create another copy, use a new technical name; display names can be reused.
 
 Encrypted clients provision with
 `{"display_name":"Personal Space","encryption":"encrypted-remote-v1"}`.
@@ -291,8 +306,10 @@ configuration is production.
   one UUID and repeat registration after OAuth refresh. Dedicated Sync CLI keys
   avoid that dependency and have the same bounded cache delay for access mode,
   expiry, and revocation changes.
-- Rate limits, repository deletion, and unreachable object garbage collection
-  are not implemented. Until GC exists, unreachable immutable bytes continue
+- General request rate limits and unreachable object garbage collection
+  are not implemented. Object proof requests are limited to two concurrent reads
+  per repository and 60 seconds, and retain deletion admission through hashing.
+  Until GC exists, unreachable immutable bytes continue
   to consume quota, matching the commercial definition.
 - A single upload is still subject to the Cloudflare plan's incoming
   request-body limit even though the Worker streams it.

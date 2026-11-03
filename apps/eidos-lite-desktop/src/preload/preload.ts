@@ -599,6 +599,8 @@ const api: EidosLiteApi = {
   forgetDefaultSyncPassword: () =>
     ipcRenderer.invoke(IPC_CHANNELS.syncPasswordForget),
   listSyncRepositories: () => ipcRenderer.invoke(IPC_CHANNELS.syncRepositories),
+  manageSyncRepository: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncManageRepository, request),
   cloneSyncRepository: (remoteUrl, displayName, encryption, selection) =>
     selection === undefined
       ? ipcRenderer.invoke(

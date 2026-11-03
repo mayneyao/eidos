@@ -105,7 +105,7 @@ export function startupDocument(locale: string): string {
 // artwork survives React mounting until the Space tree (or recovery UI) commits.
 export function withStartupShell(html: string): string {
   const script = `
-if (!/^#\\/settings(?:\\/|$)/.test(location.hash)) {
+if (!/^#\\/(?:settings|release-notes)(?:\\/|$)/.test(location.hash)) {
   const appearance = new URLSearchParams(location.search).get("appearance");
   if (appearance === "light" || appearance === "dark") document.documentElement.style.colorScheme = appearance;
   document.getElementById("lite-startup").setAttribute("aria-label", navigator.language.startsWith("zh") ? "正在打开…" : "Opening…");

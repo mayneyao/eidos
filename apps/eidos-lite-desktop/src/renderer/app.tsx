@@ -5938,6 +5938,11 @@ export function App() {
     <Suspense fallback={null}>
       <FilePropertiesWindow theme={theme} />
     </Suspense>
+  ) : window.location.hash === "#/release-notes" ? (
+    <>
+      <StartupComplete />
+      <WhatsNewPage theme={theme} standalone />
+    </>
   ) : /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
     <SettingsPage />
   ) : (

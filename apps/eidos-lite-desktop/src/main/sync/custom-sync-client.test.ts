@@ -24,6 +24,68 @@ const repository = () => ({
 const token = "synthetic-token-0123456789abcdef0123456789"
 
 describe("CustomSyncClient", () => {
+  it("keeps legacy servers readable but refuses undeclared mutations", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      Response.json(
+        String(input).endsWith("/.well-known/graft")
+          ? discovery()
+          : { namespace: "personal", repositories: [repository()] }
+      )
+    )
+    const client = new CustomSyncClient(origin, fetchImpl)
+    expect((await client.listRepositories(token)).management).toEqual({
+      rename: false,
+      delete: false,
+    })
+    await expect(
+      client.manageRepository("notes", "delete", token)
+    ).rejects.toMatchObject({ code: "unsupported" })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it("uses authenticated, same-origin idempotent deletion and validates status identity", async () => {
+    const calls: { url: string; method?: string }[] = []
+    let status = "deleting"
+    const client = new CustomSyncClient(origin, async (input, init) => {
+      const url = String(input)
+      calls.push({ url, method: init?.method })
+      if (url.endsWith("/.well-known/graft"))
+        return Response.json({
+          ...discovery(),
+          management: {
+            ...discovery().management,
+            version: 1,
+            capabilities: ["delete"],
+          },
+        })
+      expect(new Headers(init?.headers).get("Authorization")).toBe(
+        `Bearer ${token}`
+      )
+      expect(init?.redirect).toBe("manual")
+      return Response.json({
+        namespace: "personal",
+        repository: "notes",
+        status,
+      })
+    })
+    expect(await client.manageRepository("notes", "delete", token)).toBe(
+      "deleting"
+    )
+    status = "deleted"
+    expect(await client.manageRepository("notes", "status", token)).toBe(
+      "deleted"
+    )
+    expect(calls.at(-1)?.url).toBe(
+      `${origin}/api/graft/repositories/notes/status`
+    )
+    expect(await client.manageRepository("notes", "delete", token)).toBe(
+      "deleted"
+    )
+    status = "invalid"
+    await expect(
+      client.manageRepository("notes", "status", token)
+    ).rejects.toThrow()
+  })
   it("discovers without a token, then creates and verifies an encrypted personal repository", async () => {
     const calls: { url: string; init?: RequestInit }[] = []
     const client = new CustomSyncClient(origin, async (input, init) => {

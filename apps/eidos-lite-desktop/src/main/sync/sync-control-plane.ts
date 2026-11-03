@@ -341,6 +341,23 @@ export class SyncControlPlane {
     return repositories
   }
 
+  async manageRepository(
+    name: string,
+    action: "rename" | "delete" | "status",
+    displayName?: string
+  ) {
+    const operation = await this.operationContext()
+    this.assertContext(operation)
+    const result = await this.remote.manageRepository(
+      name,
+      action,
+      operation.accessToken,
+      displayName
+    )
+    this.assertContext(operation)
+    return result
+  }
+
   async repairLegacyRepositoryDisplayName(
     remoteUrl: string,
     displayName: string

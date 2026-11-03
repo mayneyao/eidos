@@ -3176,6 +3176,64 @@ export function registerIpc(
     return repositories
   })
   ipcMain.handle(
+    IPC_CHANNELS.syncManageRepository,
+    async (event, value: unknown) => {
+      if (
+        !value ||
+        typeof value !== "object" ||
+        !("name" in value) ||
+        typeof value.name !== "string" ||
+        !("action" in value) ||
+        (value.action !== "rename" &&
+          value.action !== "delete" &&
+          value.action !== "status")
+      )
+        throw new Error("Invalid repository management request")
+      const displayName =
+        "displayName" in value
+          ? requiredString(value.displayName, "Space name")
+          : undefined
+      const serverId =
+        "serverId" in value && value.serverId !== undefined
+          ? requiredString(value.serverId, "Custom server")
+          : undefined
+      const assertManagementCurrent = serverId
+        ? (await customServers.context(serverId)).assertCurrent
+        : syncAccountAdmission.capture()
+      if (value.action === "delete") {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        if (!parent) throw new Error("No window available for confirmation")
+        const confirmation = await dialog.showMessageBox(parent, {
+          type: "warning",
+          title: mainText("Delete remote Space?"),
+          message: mainText("Delete remote Space?"),
+          detail: `${value.name}\n\n${mainText("The remote copy and its history will be permanently deleted. Local folders and files on all devices are kept. This cannot be undone.")}`,
+          buttons: [mainText("Cancel"), mainText("Delete remote Space")],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        })
+        if (confirmation.response !== 1) return null
+      }
+      assertManagementCurrent()
+      if (serverId)
+        return customServers.manageRepository(
+          serverId,
+          value.name,
+          value.action,
+          displayName
+        )
+      const assertCurrent = syncAccountAdmission.capture()
+      const result = await syncControl.manageRepository(
+        value.name,
+        value.action,
+        displayName
+      )
+      assertCurrent()
+      return result
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.syncClone,
     async (
       event,

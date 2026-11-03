@@ -10,6 +10,15 @@ import {
 } from "./window-chrome"
 
 describe("Eidos Lite window chrome", () => {
+  it.each(["darwin", "win32", "linux"] as const)(
+    "uses native title and controls for release notes on %s",
+    (platform) => {
+      expect(liteWindowChromeOptions(platform, "release-notes")).toEqual({
+        titleBarStyle: "default",
+        autoHideMenuBar: true,
+      })
+    }
+  )
   it("gives Settings enough default width for its two-column layout", () => {
     expect(liteCompactWindowDefaultSize("settings")).toEqual({
       width: 960,

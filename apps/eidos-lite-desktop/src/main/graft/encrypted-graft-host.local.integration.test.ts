@@ -127,24 +127,26 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     const aHost = host()
     const aInput = credentials("device-A")
     const uploadProgress: GraftTransferProgress[] = []
+    const initializationRequestStart = remote.requests.length
     const a = await aHost.connect(spaceA, aInput, "initialize", {
       onProgress: (event) => uploadProgress.push(event),
     })
+    if (sdkPackage)
+      expect(
+        uploadProgress.some((event) => event.syncPhase === "confirming")
+      ).toBe(true)
     expect(
       uploadProgress.some((event) => event.syncPhase === "verifying")
-    ).toBe(true)
-    {
-      const verificationDownloads = uploadProgress.filter(
-        (event) =>
-          event.syncPhase === "verifying" &&
-          event.direction === "download" &&
-          event.totalIsFinal
-      )
-      expect(verificationDownloads.length).toBeGreaterThan(0)
-      expect(verificationDownloads.at(-1)?.transferredBytes).toBe(
-        verificationDownloads.at(-1)?.totalBytes
-      )
-    }
+    ).toBe(false)
+    expect(
+      remote.requests
+        .slice(initializationRequestStart)
+        .some(
+          ({ method, path }) =>
+            method === "GET" &&
+            /e2ee\/(files|objects|packs|commits|segments)\//.test(path)
+        )
+    ).toBe(false)
     expect(
       uploadProgress.some(
         (event) => event.direction === "upload" && event.transferredBytes > 0
@@ -153,7 +155,10 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     const plannedUploads = uploadProgress.filter(
       (event) => event.direction === "upload" && event.totalIsFinal
     )
-    {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_PROGRESS === "1"
+    ) {
       expect(plannedUploads.length).toBeGreaterThan(0)
       expect(
         plannedUploads.every(
@@ -165,6 +170,8 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       expect(plannedUploads.at(-1)?.transferredBytes).toBe(
         plannedUploads.at(-1)?.totalBytes
       )
+    } else {
+      expect(plannedUploads).toEqual([])
     }
     sessions.push(a)
     expect(aInput.password.every((byte) => byte === 0)).toBe(true)
@@ -237,13 +244,22 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
         (event) => event.direction === "download" && event.transferredBytes > 0
       )
     ).toBe(true)
-    {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1"
+    ) {
       const planned = downloadProgress.filter(
         (event) => event.direction === "download" && event.totalIsFinal
       )
       expect(planned.length).toBeGreaterThan(0)
       expect(new Set(planned.map((event) => event.totalBytes)).size).toBe(1)
       expect(planned.at(-1)?.transferredBytes).toBe(planned.at(-1)?.totalBytes)
+    } else {
+      expect(
+        downloadProgress.every(
+          (event) => !event.totalIsFinal && event.totalBytes === undefined
+        )
+      ).toBe(true)
     }
     sessions.push(b)
     for (const name of ["notes.txt", "attachment.bin"])
@@ -283,7 +299,10 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       branch: "main",
       ...graftSyncProgressOptions((event) => pushProgress.push(event)),
     })
-    {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_PROGRESS === "1"
+    ) {
       const planned = pushProgress.filter(
         (event) => event.direction === "upload" && event.totalIsFinal
       )
@@ -301,7 +320,10 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       branch: "main",
       ...graftSyncProgressOptions((event) => fetchProgress.push(event)),
     })
-    {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1"
+    ) {
       const planned = fetchProgress.filter(
         (event) => event.direction === "download" && event.totalIsFinal
       )

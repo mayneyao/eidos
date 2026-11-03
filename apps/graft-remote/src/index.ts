@@ -39,6 +39,7 @@ import {
 } from "./quota-backend"
 import { SyncUsageDurableObject, type SyncUsageSummary } from "./usage"
 import { RepositoryDurableObject } from "./repository"
+import { withObjectProof } from "./object-proof"
 export { SyncAccountEntrypoint } from "./account"
 
 export {
@@ -182,7 +183,7 @@ const defaultDependencies: RemoteServiceDependencies = {
     )
     const mode = quotaMode(env.SYNC_QUOTA_ENFORCEMENT)
     return new QuotaTrackedRepositoryBackend({
-      delegate,
+      delegate: withObjectProof(delegate, request.signal),
       mode,
       objects: env.GRAFT_OBJECTS,
       pathContentLength: parseContentLength(request),
@@ -282,6 +283,11 @@ export function createGraftRemoteWorker(
         scheme: "bearer",
         authority: new URL(context.env.AUTH_USERINFO_URL).origin,
       },
+      management: {
+        repositories: `${origin}/api/graft/repositories`,
+        version: 1,
+        capabilities: ["rename", "delete"],
+      },
     })
   })
 
@@ -301,9 +307,13 @@ export function createGraftRemoteWorker(
       repositories: await Promise.all(
         repositories.map(async (repository) => ({
           name: repository.name,
+          status: repository.status ?? "active",
           display_name: repository.displayName,
           created_at: repository.createdAt,
-          encryption: await encryptionDescriptor(context.env, repository.id),
+          encryption:
+            repository.status === "deleting"
+              ? null
+              : await encryptionDescriptor(context.env, repository.id),
           remote_url: repositoryUrl(
             context.env,
             principal.namespace,
@@ -313,6 +323,40 @@ export function createGraftRemoteWorker(
       ),
     })
   })
+
+  for (const action of ["delete", "status"] as const) {
+    app.on(
+      action === "delete" ? "DELETE" : "GET",
+      `/api/graft/repositories/:repository${action === "status" ? "/status" : ""}`,
+      async (context) => {
+        const principal = await dependencies.authenticate(
+          context.req.raw,
+          context.env
+        )
+        context.set("principal", principal)
+        const name = validateRepositoryName(context.req.param("repository"))
+        const directory = context.env.GRAFT_DIRECTORY.getByName(
+          principal.namespace
+        )
+        // Management remains available to an authenticated owner after a subscription
+        // expires. Ownership is checked inside the directory, never supplied by clients.
+        const status =
+          action === "delete"
+            ? await directory.requestDeletion(name, principal.userId)
+            : await directory.repositoryDeletionStatus(name, principal.userId)
+        if (status === null)
+          throw new GraftProtocolError(
+            404,
+            "repository_not_found",
+            "Repository not found"
+          )
+        return jsonResponse(
+          { namespace: principal.namespace, repository: name, status },
+          action === "delete" && status === "deleting" ? 202 : 200
+        )
+      }
+    )
+  }
 
   app.put("/api/graft/repositories/:repository", async (context) => {
     const principal = await dependencies.authenticate(
@@ -552,8 +596,20 @@ async function admitRepositoryRequest(
 ): Promise<boolean> {
   if (context.get("repositoryLease") !== undefined) return true
   const stub = directory(context.env, principal)
-  const id = crypto.randomUUID()
-  if (!(await stub.acquireRequest(name, principal.userId, id))) return false
+  const proof = new URL(context.req.url).pathname.includes(
+    "/e2ee/object-proof/"
+  )
+  const id = (proof ? "proof:" : "") + crypto.randomUUID()
+  const admission = proof
+    ? await stub.acquireProofRequest(name, principal.userId, id)
+    : await stub.acquireRequest(name, principal.userId, id)
+  if (admission === "busy")
+    throw new GraftProtocolError(
+      429,
+      "object_proof_busy",
+      "Too many object proof requests"
+    )
+  if (!admission) return false
   const timer = setInterval(() => {
     void stub.renewRequest(id).catch(() => {
       console.error(

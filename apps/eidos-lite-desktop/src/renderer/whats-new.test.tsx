@@ -53,58 +53,85 @@ it("does not prompt on first install or the acknowledged version", () => {
   expect(hasUnseenRelease("0.10.0", "0.10.1")).toBe(true)
 })
 
-it("switches bundled notes with the current interface language", async () => {
-  let changePreferences: (preferences: EidosLitePreferences) => void = () => {}
-  const preferences = { language: "en" } as EidosLitePreferences
-  Object.defineProperty(window, "eidosLite", {
-    configurable: true,
-    value: {
-      getPreferences: async () => preferences,
-      onPreferencesChanged: (listener: typeof changePreferences) => {
-        changePreferences = listener
-        return () => {}
+it.each([false, true])(
+  "switches bundled notes with the current interface language (native window: %s)",
+  async (standalone) => {
+    if (standalone) window.history.replaceState(null, "", "/#/release-notes")
+    let changePreferences: (
+      preferences: EidosLitePreferences
+    ) => void = () => {}
+    const preferences = { language: "en" } as EidosLitePreferences
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getPreferences: async () => preferences,
+        onPreferencesChanged: (listener: typeof changePreferences) => {
+          changePreferences = listener
+          return () => {}
+        },
       },
-    },
-  })
-  vi.stubGlobal("navigator", { languages: ["zh-CN"], language: "zh-CN" })
-  const host = document.createElement("div")
-  const root = createRoot(host)
-  try {
-    await act(async () =>
-      root.render(
-        <EidosLiteI18nProvider>
-          <WhatsNewPage />
-        </EidosLiteI18nProvider>
+    })
+    vi.stubGlobal("navigator", { languages: ["zh-CN"], language: "zh-CN" })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    try {
+      await act(async () =>
+        root.render(
+          <EidosLiteI18nProvider>
+            <WhatsNewPage standalone={standalone} />
+          </EidosLiteI18nProvider>
+        )
       )
-    )
-    expect(host.textContent).toContain("English fixture body.")
-    await act(async () => changePreferences({ ...preferences, language: "zh" }))
-    expect(host.textContent).toContain("中文测试正文。")
-    expect(host.textContent).not.toContain("English fixture body.")
-    expect(
-      host
-        .querySelector("[data-document-key]")
-        ?.getAttribute("data-document-key")
-    ).toBe(`whats-new:${releaseVersion}:zh`)
-    await act(async () => changePreferences({ ...preferences, language: "en" }))
-    expect(host.textContent).toContain("English fixture body.")
-    await act(async () =>
-      changePreferences({ ...preferences, language: "system" })
-    )
-    expect(host.textContent).toContain("中文测试正文。")
-    await act(async () =>
-      host.querySelector<HTMLAnchorElement>('a[href="#whats-new-en"]')!.click()
-    )
-    expect(host.textContent).toContain("English fixture body.")
-    expect(document.documentElement.lang).toBe("zh-CN")
-    await act(async () =>
-      host.querySelector<HTMLAnchorElement>('a[href="#whats-new-zh"]')!.click()
-    )
-    expect(host.textContent).toContain("中文测试正文。")
-  } finally {
-    act(() => root.unmount())
+      expect(host.textContent).toContain("English fixture body.")
+      await act(async () =>
+        changePreferences({ ...preferences, language: "zh" })
+      )
+      expect(host.textContent).toContain("中文测试正文。")
+      if (standalone) {
+        expect(window.location.hash).toBe("#/release-notes")
+        expect(host.querySelector("header, button")).toBeNull()
+        expect(localStorage.getItem(key)).toBe(releaseVersion)
+      }
+      expect(host.textContent).not.toContain("English fixture body.")
+      if (!standalone)
+        expect(
+          host
+            .querySelector("[data-document-key]")
+            ?.getAttribute("data-document-key")
+        ).toBe(`whats-new:${releaseVersion}:zh`)
+      await act(async () =>
+        changePreferences({ ...preferences, language: "en" })
+      )
+      expect(host.textContent).toContain("English fixture body.")
+      await act(async () =>
+        changePreferences({ ...preferences, language: "system" })
+      )
+      expect(host.textContent).toContain("中文测试正文。")
+      await act(async () =>
+        host
+          .querySelector<HTMLAnchorElement>('a[href="#whats-new-en"]')!
+          .click()
+      )
+      expect(host.textContent).toContain("English fixture body.")
+      expect(document.documentElement.lang).toBe("zh-CN")
+      if (standalone) expect(window.location.hash).toBe("#/release-notes")
+      if (standalone) {
+        expect(
+          host.querySelector(".markdown-editor-surface-loading")
+        ).toBeNull()
+        expect(host.querySelector(".markdown-document")).not.toBeNull()
+      }
+      await act(async () =>
+        host
+          .querySelector<HTMLAnchorElement>('a[href="#whats-new-zh"]')!
+          .click()
+      )
+      expect(host.textContent).toContain("中文测试正文。")
+    } finally {
+      act(() => root.unmount())
+    }
   }
-})
+)
 
 it("acknowledges upgrades when opened and preserves a permanent reopening path", async () => {
   localStorage.setItem(key, "0.1.0")

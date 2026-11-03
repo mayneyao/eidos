@@ -20,6 +20,7 @@ const chunkNames = [
   "compiler",
   "dist",
   "encrypted-staging-smoke",
+  "i18n",
   "node-sqlite",
   "logging",
   "package",

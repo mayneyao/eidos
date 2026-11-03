@@ -133,6 +133,55 @@ it("keeps Space runtime loading out of the Welcome controller", () => {
   expect(mocks.sessionModuleLoads).toBe(0)
 })
 
+it("opens one native release-notes window and returns focus to Settings on close", async () => {
+  const { controller, window: settings } = fixture()
+  let visible = false
+  const notes = Object.assign(new EventEmitter(), {
+    isDestroyed: () => false,
+    isVisible: () => visible,
+    show: vi.fn(() => {
+      visible = true
+    }),
+    webContents: { setZoomFactor: vi.fn() },
+    setTitle: vi.fn(),
+  })
+  const internals = controller as unknown as {
+    settingsWindow: BrowserWindow
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+    focusWindow(window: BrowserWindow): void
+    updateWindowControls(window: BrowserWindow, appearance: string): void
+  }
+  internals.settingsWindow = settings as unknown as BrowserWindow
+  const create = vi
+    .spyOn(internals, "createWindow")
+    .mockReturnValue(notes as unknown as BrowserWindow)
+  const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  const focus = vi.spyOn(internals, "focusWindow").mockImplementation(() => {})
+  vi.spyOn(internals, "updateWindowControls").mockImplementation(() => {})
+  vi.spyOn(controller, "locale").mockResolvedValue("en")
+  controller.showWhatsNew()
+  await Promise.resolve()
+  expect(create).toHaveBeenCalledWith(false, "release-notes")
+  expect(load).toHaveBeenCalledWith(notes, "/release-notes")
+  const preventDefault = vi.fn()
+  notes.emit("page-title-updated", { preventDefault }, "Eidos Lite")
+  expect(preventDefault).toHaveBeenCalled()
+  expect(notes.show).not.toHaveBeenCalled()
+  controller.showWhatsNew()
+  expect(focus).not.toHaveBeenCalled()
+  notes.emit("page-title-updated", { preventDefault }, "Release notes")
+  expect(notes.setTitle).toHaveBeenCalledWith("Release notes")
+  expect(notes.show).toHaveBeenCalledOnce()
+  controller.showWhatsNew()
+  expect(create).toHaveBeenCalledTimes(1)
+  expect(focus).toHaveBeenLastCalledWith(notes)
+  notes.emit("closed")
+  expect(focus).toHaveBeenLastCalledWith(settings)
+  controller.showWhatsNew()
+  expect(create).toHaveBeenCalledTimes(2)
+})
+
 function defaultWindowFixture() {
   const setup = fixture()
   const internals = setup.controller as unknown as {
