@@ -59,6 +59,7 @@ const zh: Record<string, string> = {
   "Transfer speed": "传输速度",
   "Checking cloud access…": "正在检查云端访问权限…",
   "Preparing local files…": "正在准备本地文件…",
+  "Checking connection…": "正在检查连接…",
   "Getting cloud updates…": "正在获取云端更新…",
   "Confirming the cloud copy…": "正在确认云端副本…",
   "Finishing the connection…": "正在完成连接…",

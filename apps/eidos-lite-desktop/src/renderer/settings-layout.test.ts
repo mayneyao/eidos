@@ -49,7 +49,7 @@ describe("Settings responsive layout", () => {
     expect(settings).toContain('label: "Account & Services"')
     expect(settings).toContain('t("Account & Services")')
     expect(settings).toContain('t("Eidos account")')
-    expect(settings).toContain("Sign in to use Sync and Publish.")
+    expect(settings).toContain("Sign in to use Eidos Sync and Publish.")
     expect(settings).toContain("data-settings-sync")
     expect(settings).toContain('t("Manage Sync")')
     expect(settings).toContain("UsageMeter")

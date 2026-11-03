@@ -31,7 +31,9 @@ export function SyncTransferStatus({
             verifying: "Checking the cloud copy…",
             applying: "Applying files…",
           }[progress.nativePhase]
-        : progress.detail
+        : progress.phase === "authorization"
+          ? "Checking connection…"
+          : progress.detail
   return (
     <div
       className="sync-minimal-transfer"
