@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { BrowserWindow } from "electron"
+import { translateEidosLite } from "../shared/i18n"
 import type { WindowController } from "./window-controller"
 
 // Exercise the distributed renderer in its real native window on every platform.
@@ -23,7 +24,11 @@ export async function verifyPackagedReleaseNotes(
       throw new Error("Release notes never became visible")
     if (!notes.webContents.getURL().endsWith("#/release-notes"))
       throw new Error("Release notes opened the wrong route")
-    if (!["Release notes", "更新日志"].includes(notes.getTitle()))
+    if (
+      !["Release notes", translateEidosLite("zh", "Release notes")].includes(
+        notes.getTitle()
+      )
+    )
       throw new Error("Release notes native title is missing")
     controller.showWhatsNew()
     if (BrowserWindow.getAllWindows().length !== existing.size + 1)
