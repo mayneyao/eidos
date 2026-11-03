@@ -79,6 +79,17 @@ it("places the logo ahead of React without a second document or animation timer"
   expect(script).not.toContain("setTimeout")
 })
 
+it("omits the workspace loading artwork from the static release-notes window", () => {
+  const html = withStartupShell('<div id="root"></div>')
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1]!
+  const remove = vi.fn()
+  runInNewContext(script, {
+    location: { hash: "#/release-notes" },
+    document: { getElementById: () => ({ remove }) },
+  })
+  expect(remove).toHaveBeenCalledOnce()
+})
+
 it.each(["light", "dark", "system"])(
   "uses the saved %s appearance before React starts",
   (appearance) => {

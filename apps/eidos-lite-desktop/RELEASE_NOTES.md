@@ -7,3 +7,7 @@ Open the menu beside a Space in Open Synced Space to copy its address, rename it
 ## Improvements
 
 - **First Sync connection**: Supported servers verify stored encrypted data without downloading the entire upload back to your computer. Lite shows when an older server or earlier upload needs compatibility verification with a full download. Interrupted connections retain their recovery state for retry.
+
+## Bug fixes
+
+- **What's new**: Release notes open in their own window without overlapping window controls or a loading placeholder. Closing the window returns you to Settings.

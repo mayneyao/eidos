@@ -608,6 +608,7 @@ export class WindowController {
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
   private settingsWindow: BrowserWindow | null = null
   private settingsOwnerWindow: BrowserWindow | null = null
+  private releaseNotesWindow: BrowserWindow | null = null
   private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
   private readonly windowState = new LiteWindowStateStore(
     app.getPath("userData")
@@ -815,24 +816,23 @@ export class WindowController {
   }
 
   showWhatsNew(): void {
-    const owner = this.settingsOwnerWindow
-    const target =
-      (owner && !owner.isDestroyed() ? owner : null) ??
-      BrowserWindow.getAllWindows().find(
-        (window) =>
-          !window.isDestroyed() && this.windowKind.get(window) === "space"
-      ) ??
-      BrowserWindow.getAllWindows().find(
-        (window) =>
-          !window.isDestroyed() && this.windowKind.get(window) === "welcome"
-      )
-    if (target) {
-      this.focusWindow(target)
-      target.webContents.send(IPC_CHANNELS.whatsNewShow)
-    } else {
-      const window = this.createWindow(true, "welcome")
-      void this.loadRenderer(window, "/whats-new")
+    if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
+      this.focusWindow(this.releaseNotesWindow)
+      return
     }
+    const owner = this.settingsWindow ?? BrowserWindow.getFocusedWindow()
+    const window = this.createWindow(true, "release-notes")
+    this.releaseNotesWindow = window
+    window.on("page-title-updated", (event) => event.preventDefault())
+    void this.locale().then((locale) => {
+      if (!window.isDestroyed())
+        window.setTitle(translateEidosLite(locale, "Release notes"))
+    })
+    window.once("closed", () => {
+      if (this.releaseNotesWindow === window) this.releaseNotesWindow = null
+      if (owner && !owner.isDestroyed()) this.focusWindow(owner)
+    })
+    void this.loadRenderer(window, "/release-notes")
   }
 
   async createSpaceWindow(
@@ -1770,7 +1770,12 @@ export class WindowController {
     // preference as the renderer, including an explicit app-only dark theme.
     if (process.platform === "darwin" && nativeTheme.themeSource !== appearance)
       nativeTheme.themeSource = appearance
-    if (this.windowKind.get(window) === "properties") return
+    if (
+      ["properties", "release-notes"].includes(
+        this.windowKind.get(window) ?? ""
+      )
+    )
+      return
     applyWindowsTitleBarOverlay(
       window,
       resolveEidosLiteAppearance(appearance, nativeTheme.shouldUseDarkColors)
@@ -1912,10 +1917,7 @@ export class WindowController {
       kind === "space"
         ? this.resolveSpaceWindowBounds()
         : liteCompactWindowDefaultSize(kind)
-    const chrome =
-      kind === "properties"
-        ? { titleBarStyle: "default" as const, autoHideMenuBar: true }
-        : liteWindowChromeOptions()
+    const chrome = liteWindowChromeOptions(process.platform, kind)
     const window = new BrowserWindow({
       ...bounds,
       minWidth: kind === "properties" ? 340 : compact ? 680 : 900,
@@ -1930,7 +1932,9 @@ export class WindowController {
       ...(chrome.titleBarOverlay
         ? { titleBarOverlay: chrome.titleBarOverlay }
         : {}),
-      ...(process.platform === "darwin" && kind !== "properties"
+      ...(process.platform === "darwin" &&
+      kind !== "properties" &&
+      kind !== "release-notes"
         ? {
             trafficLightPosition: macosTrafficLightPosition(kind),
             vibrancy: "under-window" as const,

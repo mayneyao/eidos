@@ -4,6 +4,7 @@ import chineseNotes from "../../RELEASE_NOTES.zh-CN.md?raw"
 import metadata from "../../package.json"
 import { useEidosLiteI18n } from "./i18n"
 import { MarkdownEditorSurface } from "./markdown-editor-surface"
+import { renderSafeMarkdown } from "./markdown-preview"
 import type { ResolvedAppearance } from "./app-appearance"
 import {
   closeCurrentPage,
@@ -82,10 +83,20 @@ export function useWhatsNew() {
 
 export function WhatsNewPage({
   theme = "light",
+  standalone = false,
 }: {
   theme?: ResolvedAppearance
+  standalone?: boolean
 }) {
   const { t, locale } = useEidosLiteI18n()
+  useEffect(() => {
+    if (!standalone) return
+    try {
+      localStorage.setItem(storageKey, releaseVersion)
+    } catch {
+      /* Storage can be unavailable. */
+    }
+  }, [standalone])
   const readLocale = (): "en" | "zh" | null => {
     const location = parseNavigationHash(window.location.hash)?.location
     return typeof location === "object" &&
@@ -123,6 +134,7 @@ export function WhatsNewPage({
         event.preventDefault()
         event.stopPropagation()
         setSelectedLocale(href === "#whats-new-zh" ? "zh" : "en")
+        if (standalone) return
         navigateCurrentWindow(
           {
             type: "whats-new",
@@ -132,17 +144,34 @@ export function WhatsNewPage({
         )
       }}
     >
-      <MarkdownEditorSurface
-        documentKey={`whats-new:${releaseVersion}:${notesLocale}`}
-        relativePath="RELEASE_NOTES.md"
-        content={content}
-        editingMode="wysiwyg"
-        theme={theme}
-        layout="document"
-        disabled
-        autoFocus={false}
-        onChange={() => {}}
-      />
+      {standalone ? (
+        <div className="markdown-preview-scroll">
+          <article
+            className="markdown-document"
+            onClick={(event) => {
+              const link = (
+                event.target as HTMLElement
+              ).closest<HTMLAnchorElement>("a[data-markdown-external='true']")
+              if (!link) return
+              event.preventDefault()
+              void window.eidosLite.openExternalUrl(link.href)
+            }}
+            dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(content) }}
+          />
+        </div>
+      ) : (
+        <MarkdownEditorSurface
+          documentKey={`whats-new:${releaseVersion}:${notesLocale}`}
+          relativePath="RELEASE_NOTES.md"
+          content={content}
+          editingMode="wysiwyg"
+          theme={theme}
+          layout="document"
+          disabled
+          autoFocus={false}
+          onChange={() => {}}
+        />
+      )}
     </section>
   )
 }
