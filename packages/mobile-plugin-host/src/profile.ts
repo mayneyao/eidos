@@ -5,7 +5,9 @@ export function validateMobileManifest(input: unknown) {
   const manifest = parseManifest(input)
   if (manifest.kind === "theme") throw new Error("移动端不支持插件主题")
   if (
-    !["3.0.0", "3.3.0"].includes(manifest.requires?.pluginApi ?? "") ||
+    !/^3\.[0-7]\.0$/.test(manifest.requires?.pluginApi ?? "") ||
+    manifest.background ||
+    manifest.browser?.network ||
     manifest.formatters?.length ||
     manifest.fileTemplates?.length ||
     manifest.storage ||

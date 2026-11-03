@@ -224,6 +224,13 @@ final class MobilePluginService {
         prepared = ["data":data,"manifest":manifest]
         return ["manifest":manifest,"raw":String(decoding:data,as:UTF8.self),"revision":LocalSpace.digest(data),"origin":tr("本地文件（未通过市场校验）")]
     }
+    // Called only after the trusted native manager has validated these exact bytes.
+    func reviewManifest(_ manifest: [String:Any], revision: String) throws {
+        guard let data = prepared?["data"] as? Data, LocalSpace.digest(data) == revision,
+              let original = prepared?["manifest"] as? [String:Any],
+              original["id"] as? String == manifest["id"] as? String else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
+        prepared?["manifest"] = manifest
+    }
     func handle(_ method: String, _ p: [String:Any]) throws -> Any {
         switch method {
         case "readme":

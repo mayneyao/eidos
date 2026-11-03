@@ -1,4 +1,4 @@
-import { mobileText } from "./locale"
+import { mobileText, getMobileLocale } from "./locale"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
 import { HttpRuntimeClient } from "../../eidos-file-serve/src/client"
 import {
@@ -34,12 +34,12 @@ declare global {
     ): void
     eidosMobileIOS?: { postMessage(message: unknown): Promise<unknown> }
     eidosMobileBoot?: { token: string; dark: boolean; launch?: PluginLaunch }
-    eidosMobileValidate?: (raw: string) => void
+    eidosMobileValidate?: (raw: string, locale?: string) => PluginManifest
   }
 }
 const root = document.getElementById("app")!
-window.eidosMobileValidate = (raw) => {
-  validatePackage(raw)
+window.eidosMobileValidate = (raw, locale) => {
+  return validatePackage(raw, locale)
 }
 const pending = new Map<
   string,
@@ -174,7 +174,10 @@ class Workbench {
   }
   private async load(id: string) {
     const program = await this.native<Program>("package", { id })
-    validatePackage(JSON.stringify({ format: 2, ...program }))
+    program.manifest = validatePackage(
+      JSON.stringify({ format: 2, ...program }),
+      getMobileLocale() === "zh" ? "zh-CN" : "en"
+    )
     return program
   }
   async openFile(launch: PluginLaunch) {

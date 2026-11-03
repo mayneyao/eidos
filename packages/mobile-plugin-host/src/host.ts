@@ -6,6 +6,8 @@ import {
 import { extensionHtml } from "../../plugin-runtime/src/extension-sandbox"
 import { parseRequest, type PluginRequest } from "../../plugin-runtime/src/rpc"
 import { validateSetting } from "../../plugin-runtime/src/manifest"
+import { pluginLanguageData } from "../../plugin-runtime/src/i18n"
+import { getMobileLocale } from "./locale"
 import type {
   PluginManifest,
   ViewDeclaration,
@@ -26,8 +28,10 @@ export type NativeRequest = <T>(
   params?: Record<string, unknown>
 ) => Promise<T>
 export type Program = {
+  format?: number
   manifest: PluginManifest
   modules: Record<string, string>
+  resources?: Record<string, string>
 }
 export type TableBinding = {
   source: EidosFileDataSource
@@ -133,14 +137,23 @@ export class MobilePluginInstance {
                   connections: !!this.manifest.connections,
                 }
               : { kind: "file", ...metadata! }
+    const languageData = pluginLanguageData(program.manifest, program.resources)
+    const locale = getMobileLocale() === "zh" ? "zh-CN" : "en"
     const html = options.extension
       ? extensionHtml(
           program.modules[this.manifest.extension!],
           (this.manifest.actions ?? []).map((a) => a.id),
           [],
-          (this.manifest.hooks ?? []).map((h) => h.id)
+          (this.manifest.hooks ?? []).map((h) => h.id),
+          false,
+          languageData,
+          locale
         )
-      : viewHtml(program.modules[view!.entry], binding)
+      : viewHtml(program.modules[view!.entry], {
+          ...binding,
+          languageData,
+          locale,
+        })
     // The nested document cannot access native bridges, cookies or its host DOM.
     this.frame.sandbox.add("allow-scripts")
     this.frame.setAttribute("referrerpolicy", "no-referrer")

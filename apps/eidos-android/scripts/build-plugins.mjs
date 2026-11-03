@@ -15,12 +15,17 @@ const parser = await build({
   format: "esm",
   write: false,
   banner: {
-    js: `import { createRequire } from 'node:module'; const require = createRequire(${JSON.stringify(fileURLToPath(import.meta.url))});`,
+    js: `import { createRequire as createBuildRequire } from 'node:module'; const require = createBuildRequire(${JSON.stringify(fileURLToPath(import.meta.url))});`,
   },
 })
-const { validateAndroidManifest } = await import(
-  `data:text/javascript;base64,${Buffer.from(parser.outputFiles[0].text).toString("base64")}`
+// The canonical parser includes Node toolchains that resolve dependencies from import.meta.url.
+const parserOutput = path.join(
+  root,
+  "../../packages/plugin-runtime/dist/android-host/profile.mjs"
 )
+await mkdir(path.dirname(parserOutput), { recursive: true })
+await writeFile(parserOutput, parser.outputFiles[0].text)
+const { validateAndroidManifest } = await import(pathToFileURL(parserOutput))
 
 export { validateAndroidManifest }
 

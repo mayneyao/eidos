@@ -80,7 +80,7 @@ object PluginPackageValidation {
                         <!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'none'; worker-src 'none'">
                         <script src="https://package-validator.invalid/validator.js"></script>
                         <script>fetch('https://package-validator.invalid/input').then(r=>r.text()).then(text=>{
-                          try { AndroidValidationResult.complete(JSON.stringify({manifest:AndroidPackageValidator.validatePackage(text)})); }
+                          try { AndroidValidationResult.complete(JSON.stringify({manifest:AndroidPackageValidator.validatePackage(text, '${if (AppLanguage.locale() == "zh") "zh-CN" else "en"}')})); }
                           catch(error) { AndroidValidationResult.complete(JSON.stringify({error:String(error.message)})); }
                         }).catch(error=>AndroidValidationResult.complete(JSON.stringify({error:String(error)})));</script>
                     """
