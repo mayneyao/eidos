@@ -112,7 +112,12 @@ async function setup(initial: ExplorerFileFilter = []) {
     escape,
     current: () => current,
     dispose: async () => {
-      await act(async () => root.unmount())
+      await act(async () => {
+        root.unmount()
+        // Radix restores focus from a task after unmount. Drain it while this
+        // jsdom realm still owns Event, before Vitest tears the environment down.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
       host.remove()
     },
   }
