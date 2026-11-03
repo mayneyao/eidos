@@ -14,6 +14,7 @@ import {
 import type { WindowController } from "./window-controller"
 import { RuntimePool } from "./runtime/runtime-pool"
 import { verifyPackagedProperties } from "./packaged-properties-smoke"
+import { verifyPackagedReleaseNotes } from "./packaged-release-notes-smoke"
 import {
   ensurePackagedSmokeForeground,
   type PackagedSmokeDocumentState,
@@ -2391,47 +2392,7 @@ export async function runPackagedSmoke(
     // Exercise the bundled read-only document and its local language switch.
     // Keep this after runtime/performance probes so navigation cannot warm them.
     await fs.mkdir(path.dirname(resultPath), { recursive: true })
-    const notesLanguage = await window.webContents.executeJavaScript(
-      `window.eidosLite.getPreferences().then(value => value.language)`
-    )
-    for (const locale of ["en", "zh"] as const) {
-      await window.webContents.executeJavaScript(`
-        (async () => {
-          if (${JSON.stringify(locale)} === "en") {
-            history.pushState(null, "", "#/whats-new?lang=en")
-            window.dispatchEvent(new Event("eidos-lite:navigation"))
-          } else {
-            const link = document.querySelector('.whats-new-page a[href="#whats-new-zh"]')
-            if (!link) throw new Error("Missing release notes language switch")
-            link.click()
-          }
-          const deadline = Date.now() + 10000
-          const headings = ${JSON.stringify(locale === "en" ? ["What's new", "Improvements", "Bug fixes"] : ["新功能", "改进", "问题修复"])}
-          while (Date.now() < deadline) {
-            const page = document.querySelector(".whats-new-page")
-            if (page?.getBoundingClientRect().height > 0 &&
-                [...page.querySelectorAll("h2")].some(node => headings.includes(node.textContent))) {
-              if (page.querySelector('[contenteditable="true"]'))
-                throw new Error("Release notes must be read-only")
-              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-              return
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-          }
-          throw new Error("Bundled release notes did not render: " + headings.join(", "))
-        })()
-      `)
-      const screenshot = await window.webContents.capturePage()
-      await fs.writeFile(
-        path.join(path.dirname(resultPath), `release-notes-${locale}.png`),
-        screenshot.toPNG()
-      )
-    }
-    const notesLanguageAfter = await window.webContents.executeJavaScript(
-      `window.eidosLite.getPreferences().then(value => value.language)`
-    )
-    if (notesLanguageAfter !== notesLanguage)
-      throw new Error("Release notes switch changed the app language")
+    await verifyPackagedReleaseNotes(controller, path.dirname(resultPath))
     report.releaseNotes = true
     // Restore the already-open recent Space into a startup window. The
     // controller must discard this redundant native window without accessing
