@@ -1,0 +1,80 @@
+---
+title: Sync a phone and computer over LAN
+---
+
+## Pair your phone and computer
+
+1. Connect both devices to the same local network, such as your home Wi-Fi. Keep Eidos Lite running and the mobile app open in the foreground. Allow local network permissions when prompted.
+2. On the computer, open the Space's **Sync** panel and select **LAN sync**. Enable the computer's LAN service if prompted.
+3. Choose to pair a new device and display its pairing code. You can also pair without an open Space under **Settings → Devices**.
+4. On the phone, open **Sync** and select **Scan QR Code**. You can also choose **Use pairing code** and enter the code manually.
+5. When the phone shows **Waiting for approval**, check the device name and accept the request on the computer.
+
+If the approval dialog is in the background, open Eidos Lite through its notification.
+Pairing codes expire after five minutes.
+Generate a new code if the request expires or fails.
+
+Pairing grants access only to the Spaces you share explicitly.
+Transfers use encrypted connections tied to the paired device identity.
+
+## Make a Space available and download it
+
+1. Open the Space in Eidos Lite.
+2. Open **Sync → LAN sync** and share this Space with the paired devices when prompted.
+3. On the phone, open **Sync** and select the paired computer. Under **This computer's Spaces**, select **Download** beside the Space.
+4. Wait for the initial download to finish. The app adds the Space to **Files**, where you can use it offline.
+5. Open a known note or record and check an attachment before you start work.
+
+The phone stores a separate local copy.
+An interrupted first download does not show as a ready Space.
+Retry the download from the Sync page.
+To share another Space, enable it on the computer and download it on your phone.
+You do not need to pair the devices again.
+
+Some transferred files require desktop features.
+The phone preserves these files even when it cannot open or edit them.
+
+A shared Space remains available while Eidos Lite runs in the background.
+Closing the application stops sharing.
+When you restart Eidos Lite, it restores the enabled LAN service and available
+shared Spaces. Explicitly stopping the LAN service disables that restoration
+until you enable it again. The application preserves your authorized device list.
+
+## Synchronize changes in both directions
+
+You start LAN sync manually from the phone.
+Saving locally does not send edits to the other device automatically.
+
+1. Finish your edits and save the file.
+2. On the phone, open **Sync**, select the computer, and tap **Sync** beside the Space.
+3. Keep both devices connected until the sync finishes. Check the progress indicator and last sync time shown by the app.
+4. Open the changed file on the other device to check its contents.
+
+For your first test, edit a note on your computer.
+Start a sync from your phone and check the note there.
+Then edit the note on your phone, sync again, and check the note on your computer.
+The online indicator only reports network connectivity.
+Wait for the sync progress to complete before you edit files again.
+
+## Offline work, interruptions, and conflicts
+
+You can edit downloaded files offline.
+When both devices connect to the local network again, start a sync from the phone.
+Select **Stop sync** to cancel an active transfer.
+Do not delete the local Space to resolve transfer issues.
+
+The computer merges non-conflicting edits automatically.
+If both devices edited the same record, the phone keeps its local files.
+The phone prompts you to resolve the conflict in the computer's **Sync** panel.
+Resolve the conflict on the computer, then sync again from the phone.
+Edits made on your phone while waiting are included in the next sync.
+
+For connection errors, see [LAN troubleshooting](/user-guide/troubleshooting/#lan-sync-cannot-connect-or-find-a-space).
+
+## Stop sharing or unpair a device
+
+- Open **Sync → LAN sync** and stop sharing to make only this Space unavailable.
+- Turn off **LAN Service** in **Settings → Devices** to stop all sharing. Device pairings remain saved.
+- Select **Unpair** on either device to revoke access. Unpairing preserves downloaded files and history. Reconnecting requires a new pairing process.
+
+[Choose a sync method](/user-guide/sync/).

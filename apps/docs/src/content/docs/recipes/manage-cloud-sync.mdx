@@ -1,0 +1,91 @@
+---
+title: Everyday cloud sync and recovery
+---
+
+This guide covers Eidos Sync and self-hosted servers. Account, quota, and sign-out instructions apply to the official service.
+
+## Send and receive changes
+
+During cloud uploads and downloads, Lite shows transferred bytes. When the
+transfer total is known, it also shows a percentage; preparation and other
+stages without a known total use an activity indicator. A transfer reaching
+100% does not mean Sync has finished: verification and local file preparation
+may still follow. Wait for Sync to finish before closing the app.
+
+Saving a file changes the local copy. Open **Versions**, review and select the
+changed files, then choose **Save selected files** to record them in local
+history. Return to **Sync → Cloud sync** and upload the saved versions.
+Background checks look for remote updates and do not upload changes.
+
+On the other computer, select **Sync now** when the panel says versions are up
+to date. Lite checks the remote and receives or uploads saved versions when
+needed. Otherwise, select **Check remote updates**, then receive the versions
+offered by the panel. Save local changes as a version before receiving.
+An offline or unchecked Space is not proof
+that the two copies match; wait for the panel to report that the versions are up
+to date.
+
+If both computers have different saved changes, Sync asks you to review a merge.
+Review the text or record choices and save the result, then upload it. For a
+binary file, choose the version to keep or preserve separate copies. Do not
+delete one Space to dismiss a conflict. See [history and recovery](/user-guide/history-and-recovery/)
+for retaining local work.
+
+## Disconnect cloud sync
+
+In the Space's **Sync → Cloud sync** panel, open **Sync settings** beside the current connection, choose
+**Disconnect cloud sync**, and confirm.
+This removes this computer's connection, including pending background checks. Local files,
+unsaved edits, and Graft history stay in the same folder. The cloud copy and connections
+on other computers are not deleted.
+
+You can disconnect while offline, signed out, or after deleting the cloud repository.
+To create another cloud copy, enable Sync again in the same folder. Lite
+uploads the locally saved history using your sync password.
+No folder copying or renaming is needed. Other computers must open the new cloud Space;
+they do not switch connections automatically.
+
+## Passwords and recovery
+
+The password in **Settings → Account & Services → Sync** is the default for new
+Spaces on this computer. Each Space has its own encryption key. Changing this
+setting affects new connections; it does **not** change the password of an
+existing cloud Space. Lite does not currently offer a per-Space password-change
+action. Keep the passwords used by existing Spaces when changing the default.
+
+If you forget a sync password, files already downloaded to a computer remain
+readable and can be backed up. A computer that still remembers the password may
+continue syncing. Preserve that computer's local files before reinstalling the
+app or removing its data. Eidos cannot recover the password or decrypt the cloud
+copy for you. If no usable local copy or password remains, resetting your account
+password will not recover the encrypted contents.
+
+Signing out of Eidos stops official Sync access and clears its active unlocked
+session. It does not delete local files or disconnect custom servers. Quit Lite
+to clear active Sync sessions for all services.
+When Sync needs to be unlocked again, Lite can use the securely saved password
+or ask you to enter it. End-to-end encryption protects the cloud copy; it does
+not encrypt the local folder, SQLite files, or attachments. Use your operating
+system's disk encryption to protect a lost computer.
+
+## What the service can see
+
+File contents, file paths, saved version messages, and branch names are encrypted
+before upload. The service still knows the account and the cloud Space's display
+name, repository identity, stored byte counts, request times, and opaque
+relationships between saved versions. Avoid putting confidential information in
+the cloud display name. Encryption does not hide all activity or replace an
+independent backup.
+
+The Sync service does not receive your decryption keys and cannot read the
+encrypted contents. This protection does not extend to content you separately
+send to Eidos Publish.
+
+Cloud storage includes saved history and encrypted storage overhead, so it can
+exceed the size of the current local folder. Deleting a current file does not
+immediately remove its historical copies or free the associated quota. Check
+your [account dashboard](https://eidos.space/account) for storage and access
+limits. If uploads are blocked by quota or account access, keep working locally
+and resolve the limit before retrying.
+
+[Choose a sync method](/user-guide/sync/).

@@ -1,0 +1,57 @@
+---
+title: 在 Cloudflare 部署 Graft
+---
+
+## 在 Cloudflare 部署个人服务器
+
+准备一个已启用 Workers 和 R2 的 Cloudflare 账户，以及用于保存模板副本的
+GitHub 或 GitLab 账户。R2 需要单独开通并设置账单信息。Cloudflare 的存储和请求
+费用与 Spark 分开计算，包含免费额度不代表一定不会产生费用。
+
+1. 打开 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/eidos-space/graft-cloudflare)。
+   连接 Git 账户，选择仓库名称和 Worker 名称。流程会创建你的模板副本，
+   无需手动 fork，也不需要在本机使用终端。
+2. 部署模板。它会配置 Worker、私有 R2 存储桶和 SQLite Durable Objects，
+   无需手动填写资源 ID，也不需要购买域名。
+3. 复制部署后的 HTTPS 地址，例如 `https://my-graft.example.workers.dev`。
+   立即在地址后添加 `/setup` 并打开，点击 **Generate access key**。
+   将生成的访问密钥保存到密码管理器，密钥只显示一次。在首次配置完成前，
+   知道这个地址的人都可以抢先配置服务器。
+4. 将示例域名替换为自己的地址，打开
+   `https://my-graft.example.workers.dev/healthz`。
+   正常响应包含 `"status":"ok"`。这只确认基础服务可用，不代表已经完成存储和同步验证。
+5. 按[连接自托管服务器](/zh-cn/recipes/sync-custom-server/)连接 Lite。**服务器地址**填写基础 HTTPS 地址，
+   不要带 `/setup`、`/healthz` 或仓库路径；**访问密钥**填写刚生成的 key，
+   不是 Space 的同步密码。
+
+保留服务器地址和访问密钥，供其他电脑使用。个人模板的一个密钥可以访问该部署下的
+所有仓库，不提供多用户之间独立的权限隔离。
+
+首次使用时，先用包含一条已知记录和一个普通文件的小型测试 Space 连接服务器，
+等待上传和验证完成，再在另一台电脑下载到新文件夹，检查两项内容。
+这一步可以验证健康检查未覆盖的存储和加密传输。
+
+## 部署排错与维护
+
+| 现象                    | 检查方法                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 部署失败                | 查看 Cloudflare 构建或部署日志，确认已开通 R2。                                                              |
+| `/healthz` 返回 `503`   | 完成 `/setup`；若已配置替代密钥，检查该密钥是否有效。                                                        |
+| `/setup` 提示已完成配置 | 密钥不会再次显示。使用已保存的密钥，或按下文恢复访问。                                                       |
+| Lite 拒绝地址或密钥     | 使用基础 HTTPS 地址和生成的访问密钥；`401` 表示访问被拒绝。                                                  |
+| 健康检查正常但同步失败  | 查看 Worker 日志，以及模板的 `OBJECTS`、`DIRECTORY`、`REPOSITORIES` 绑定。向支持人员反馈时不要附带访问密钥。 |
+
+丢失或需要轮换访问密钥时，按照模板的
+[访问与轮换指南](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.zh-CN.md)，
+将新的高强度随机值设置为 Worker 的 `GRAFT_REMOTE_TOKEN` **Secret**，部署变更后，
+在每台电脑的 Lite 中更新已保存的访问密钥。这只更换服务器密钥，不会改变 Space
+的加密密码；服务器也无法找回加密密码。
+
+升级服务时保留 Worker 身份、R2 绑定和 Durable Object 命名空间。
+使用新名称部署不会迁移现有数据。始终保留独立本地备份，仅复制 R2 存储桶不是完整的
+服务器备份。模板目前没有协调导出与恢复工具、仓库删除 API 或自动垃圾回收。
+升级和恢复边界详见
+[运维指南](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.zh-CN.md)。
+如需使用终端部署，参阅[模板的命令行部署说明](https://github.com/eidos-space/graft-cloudflare/blob/main/README.zh-CN.md)。
+
+[选择同步方式](/zh-cn/user-guide/sync/)。

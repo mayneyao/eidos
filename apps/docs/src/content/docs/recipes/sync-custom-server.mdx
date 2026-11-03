@@ -1,0 +1,77 @@
+---
+title: Connect a self-hosted Graft server
+---
+
+Custom-server connections are a Spark feature in Eidos Lite on macOS, Windows,
+and Linux. Each computer uses its existing Spark activation; the server does
+not use a device seat. No official Sync subscription is required.
+
+Use the [personal Graft Cloudflare template](https://github.com/eidos-space/graft-cloudflare)
+or a server compatible with its discovery and repository management API. Lite
+connects only to end-to-end encrypted repositories. A general Graft protocol
+endpoint does not necessarily provide the listing and creation APIs Lite needs.
+
+## Add your server
+
+1. Activate Spark in **Settings → Account & Services** on this computer. If Spark
+   is already active but the new feature is locked, choose **Refresh Spark benefits**.
+2. Complete [deployment and first-time setup](/recipes/deploy-graft-cloudflare/); keep the base HTTPS address and access key handy.
+3. Enable local version history if needed, and save the changes you want to upload.
+4. Open **Settings → Account & Services → Sync → Add server**. Enter a name,
+   the **Server address** and **Access token**, then choose **Test and save**.
+   Saving validates access and stores the configuration on this computer.
+5. Return to Sync and select the saved server under **Server**, or use **Switch
+   server** for a connected Space. Set a sync password in Sync settings if
+   needed, then choose **Connect** or review the switch.
+   Wait for the encrypted upload and verification.
+
+Selecting another cloud service or saving server settings keeps the existing
+connection active. **Manage servers** also lets you edit a name, replace an access
+token, or remove a saved configuration. Removing a configuration does not delete
+remote data. Add a separate server when changing the address.
+
+The server access token authorizes access; the sync password decrypts your
+Space. They are separate secrets. Lite does not send the sync password to the
+server, or send your server token to the Eidos account service. HTTPS is required.
+
+The personal template uses one token for all of its repositories and devices.
+Changing that token requires updating it on each computer, but does not change
+your Space's encryption password or identity.
+
+## Download on another computer
+
+Activate Spark on the other computer, then add the same server address and
+access token. Select the encrypted Space and choose **Download**. Enter the
+Space's sync password, choose a new destination folder, and wait for the download
+to finish. Check a known record and attachment before editing.
+
+Use the same review, upload, receive, and conflict-resolution steps in [Everyday cloud sync and recovery](/recipes/manage-cloud-sync/). Each Space has one cloud connection at a time; different Spaces can use
+different servers.
+
+## Authorization and changing services
+
+An existing Spark owner refreshes benefits once to receive this feature.
+The signed device license can then be verified offline, including after signing
+out of the Eidos account. Normal custom-server sync connects directly to your
+server. Releasing Spark on this computer stops further custom-server operations
+without deleting local files, history, or remote data. You can still disconnect.
+
+To change the service used by a Space, keep a complete local copy and its history.
+Open **Sync → Cloud sync → ⋯ → Switch server** and select the target service.
+Configure the target service, select **Review switch**, and confirm the switch. Lite
+creates a new encrypted repository and uploads the saved history. Do not replace
+the old remote URL or copy encrypted server objects into a different repository.
+Download and check the new copy on another computer before deleting the old
+server copy. Other computers must connect to the new repository themselves.
+The current connection remains identified separately from the target. Canceling
+keeps it unchanged. If the upload fails, Lite restores the previous connection;
+you may need to unlock it if its password was not saved on this device. After an
+interrupted switch, reopen the Space to resume local connection recovery.
+
+Your hosting provider's storage and request limits apply. Official Sync account
+quotas and the Eidos account's repository deletion page do not manage your custom
+server. Follow the server's own operations guide and keep independent backups.
+
+[Sending changes, resolving conflicts, and password recovery](/recipes/manage-cloud-sync/).
+
+[Choose a sync method](/user-guide/sync/).

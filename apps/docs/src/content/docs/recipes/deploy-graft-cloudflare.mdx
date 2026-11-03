@@ -1,0 +1,64 @@
+---
+title: Deploy Graft on Cloudflare
+---
+
+## Deploy a personal server on Cloudflare
+
+You need a Cloudflare account with Workers and R2 enabled, and a GitHub or
+GitLab account to keep your copy of the template. R2 needs separate activation
+and billing setup. Your Cloudflare storage and request charges are separate
+from Spark; included allowances do not guarantee a zero bill.
+
+1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/eidos-space/graft-cloudflare).
+   Connect your Git account and choose the repository and Worker names. The
+   flow creates your own copy; no local terminal or manual fork is needed.
+2. Deploy the template. It configures the Worker, a private R2 bucket, and
+   SQLite Durable Objects. You do not need to supply resource IDs or buy a domain.
+3. Copy the deployed HTTPS address, for example
+   `https://my-graft.example.workers.dev`. Immediately open that address with
+   `/setup` appended and select **Generate access key**. Save the key in a
+   password manager: it is displayed only once. Until setup is complete,
+   anyone who knows the address can claim the server.
+4. Open `https://my-graft.example.workers.dev/healthz`, replacing the example
+   host with yours. A successful response contains `"status":"ok"`. This checks
+   basic service availability, not a complete storage or sync round trip.
+5. Continue with [Connect a self-hosted server](/recipes/sync-custom-server/). In Lite, use the base HTTPS address
+   without `/setup`, `/healthz`, or a repository path. The generated access key
+   goes in **Access token**; it is not your Space's sync password.
+
+Keep the server address and access key for your other computers. This personal
+template has one shared key with access to every repository in the deployment;
+it is not a multi-user service with separate permissions.
+
+For the first sync, use a small test Space containing a known record and an
+ordinary file. Connect it, wait for upload and verification to finish, then
+download it into a new folder on another computer and check both contents.
+This checks storage and encrypted transfer beyond the health endpoint.
+
+## Deployment troubleshooting and maintenance
+
+| Symptom                              | What to check                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Deployment fails                     | Check the Cloudflare build/deployment log and confirm R2 is activated.                                                                    |
+| `/healthz` returns `503`             | Finish `/setup`; if you configured a replacement secret, check that it is valid.                                                          |
+| `/setup` says setup is complete      | The key cannot be displayed again. Use the saved key or follow the recovery steps below.                                                  |
+| Lite rejects the address or key      | Use the base HTTPS address and the generated access key. A `401` response means access was rejected.                                      |
+| Health check succeeds but sync fails | Check Worker logs and the template's `OBJECTS`, `DIRECTORY`, and `REPOSITORIES` bindings. Do not include access keys in support messages. |
+
+To recover a lost key or rotate it, follow the template's
+[access and rotation guide](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md#access-and-rotation):
+set a new high-entropy `GRAFT_REMOTE_TOKEN` as a Worker **secret**, deploy the
+change, then update the saved access token in Lite on every computer. This
+replaces the server key, not the Space's encryption password; the server cannot
+recover that password.
+
+When updating the server, preserve its Worker identity, R2 binding and Durable
+Object namespaces. Deploying under a new name does not migrate existing data.
+Keep an independent local backup: copying only the R2 bucket is not a complete
+server backup. The template currently has no coordinated export/restore tool,
+repository deletion API or automatic garbage collection. See its
+[operations guide](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md)
+for upgrade and recovery boundaries. For terminal-based deployment, follow the
+[template's command-line instructions](https://github.com/eidos-space/graft-cloudflare#local-development-and-command-line-deployment).
+
+[Choose a sync method](/user-guide/sync/).

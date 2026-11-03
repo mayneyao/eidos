@@ -115,6 +115,17 @@ export default defineConfig({
                     "user-guide/troubleshooting",
                   ],
                 },
+                {
+                  label: "Recipes",
+                  translations: { "zh-CN": "操作指南" },
+                  items: [
+                    "recipes/sync-lan",
+                    "recipes/sync-eidos",
+                    "recipes/sync-custom-server",
+                    "recipes/deploy-graft-cloudflare",
+                    "recipes/manage-cloud-sync",
+                  ],
+                },
               ],
             },
             {

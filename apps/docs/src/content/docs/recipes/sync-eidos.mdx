@@ -1,0 +1,69 @@
+---
+title: Sync computers with Eidos Sync
+---
+
+Official Eidos Sync uses end-to-end encryption to connect separate local copies
+through your Eidos account. You need an account with Sync access. Your files remain
+available locally while offline.
+
+Cloud Sync is available in Eidos Lite on macOS, Windows, and Linux.
+
+## Connect the first computer
+
+1. Open the folder you want to sync in Eidos Lite.
+2. Open **Sync → Cloud sync** and select **Eidos Sync**, then sign in with an account that can upload to Sync. If prompted, select **Enable local versions** to prepare this Space without leaving setup.
+3. Check the file count, size, and excluded files.
+4. If asked, create and confirm a **Sync password**. Store it in your password manager: you will need the same password on another computer. This is separate from your Eidos account password.
+5. Select **Connect this Space** and wait for the first upload to finish. The panel returns to the current Space's sync status.
+
+While the first sync runs, setup is replaced by its current stage. You can close
+the panel and keep working; reopening it shows the same task. Expand **Sync
+details** for transfer information. If the connection fails, the panel shows the
+reason and the next recovery action.
+
+For an already connected Space, select the other service under **Cloud sync**
+to configure it. The current connection remains identified until you confirm
+connecting the new service.
+
+Lite can remember the password on macOS and on Linux with a supported system
+keyring. Windows, or an environment where the password cannot be saved, asks
+for it again after restarting. The password is never sent to the Sync service.
+
+Hidden files and filenames such as `secret-garden.jpg` are ordinary files.
+They do not require a separate confirmation. The file check blocks unsupported
+entries, symbolic links, and individual files larger than 1 GiB. Ignore rules
+exclude files that have not entered version history; adding an existing tracked
+file to `.graftignore` does not remove its saved history or stop its inclusion.
+
+## Open the Space on another computer
+
+On the first computer, **Sync → Cloud sync → Use on another device**
+shows the steps for its current connection; this does not change the service.
+
+1. In Eidos Lite, sign in to the same Eidos account.
+2. Open the Space menu and choose **Open Synced Space**, then select the cloud Space.
+3. Enter that Space's sync password. If you have already saved the same password under **Settings → Account & Services → Sync**, Lite can use it. Choose **Enter a different sync password** for a Space with another password.
+4. Choose a new destination folder and wait for the download to finish.
+5. Open a known record and attachment to check the restored copy before editing.
+
+A wrong password does not publish an incomplete local Space. Retry with the
+password used when that Space was connected. Signing in again or resetting the
+account password does not change the sync password.
+
+## Delete a cloud repository
+
+Open [Account → Sync → Repositories](https://eidos.space/account?tab=sync&view=repositories).
+Check the repository name and creation date, select **Delete**, and confirm the
+permanent deletion. The page shows **Deleting…** until cloud cleanup finishes;
+refresh the page if cleanup continues in the background. Storage usage updates
+after cleanup completes.
+
+Deleting a repository permanently removes all of its cloud files and saved
+history. Local files and local history remain on each computer, including copies
+already downloaded on other devices. The deleted connection can no longer
+upload or download. Back up any local copy you want to keep before removing it
+from your computer. Deleting a repository does not cancel your subscription.
+
+[Sending changes, resolving conflicts, and password recovery](/recipes/manage-cloud-sync/).
+
+[Choose a sync method](/user-guide/sync/).
