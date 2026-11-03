@@ -94,12 +94,17 @@ export function mergeConflictTableName(
 export function buildMergeChangeTreeModel(
   mergePaths: readonly EidosSyncMergePath[],
   conflictsByPath: MergeConflictsByPath,
-  labels = { unresolved: "Merge Conflicts", resolved: "Resolved" }
+  labels = { unresolved: "Merge Conflicts", resolved: "Resolved" },
+  hideEmptyResolved = false
 ): MergeChangeTreeModel {
   const UNRESOLVED_ROOT = `${labels.unresolved}/`
   const RESOLVED_ROOT = `${labels.resolved}/`
-  const paths = [UNRESOLVED_ROOT, RESOLVED_ROOT]
-  const initialExpandedPaths = new Set([UNRESOLVED_ROOT, RESOLVED_ROOT])
+  const showResolved =
+    !hideEmptyResolved || mergePaths.some((path) => path.state === "resolved")
+  const paths = showResolved
+    ? [UNRESOLVED_ROOT, RESOLVED_ROOT]
+    : [UNRESOLVED_ROOT]
+  const initialExpandedPaths = new Set(paths)
   const decorationByPath = new Map<string, string>([
     [
       UNRESOLVED_ROOT,
@@ -290,6 +295,7 @@ export function MergeChangeTree({
   selectedTable,
   selectedScope,
   onSelect,
+  hideEmptyResolved = false,
 }: {
   paths: readonly EidosSyncMergePath[]
   conflictsByPath: MergeConflictsByPath
@@ -297,15 +303,21 @@ export function MergeChangeTree({
   selectedTable: string | null
   selectedScope: MergeChangeTreeTarget["scope"]
   onSelect(target: MergeChangeTreeTarget): void
+  hideEmptyResolved?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const tree = useMemo(
     () =>
-      buildMergeChangeTreeModel(paths, conflictsByPath, {
-        unresolved: t("Merge Conflicts"),
-        resolved: t("Resolved"),
-      }),
-    [conflictsByPath, paths, t]
+      buildMergeChangeTreeModel(
+        paths,
+        conflictsByPath,
+        {
+          unresolved: t("Merge Conflicts"),
+          resolved: t("Resolved"),
+        },
+        hideEmptyResolved
+      ),
+    [conflictsByPath, paths, t, hideEmptyResolved]
   )
   const treeRef = useRef(tree)
   treeRef.current = tree

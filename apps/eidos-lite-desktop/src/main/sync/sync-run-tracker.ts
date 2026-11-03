@@ -8,6 +8,7 @@ import type {
 import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 
 interface ActivePhase {
+  nativePhase?: EidosSyncProgress["nativePhase"]
   phase: EidosSyncPhase
   detail: string
   startedAtMs: number
@@ -50,12 +51,32 @@ export class SyncRunTracker {
 
   transfer(progress: GraftTransferProgress): void {
     if (!this.active) return
+    const stages = {
+      preparing: ["analyze", "Preparing Sync data"],
+      uploading: ["push", "Sending data to server"],
+      downloading: ["fetch", "Receiving data from server"],
+      verifying: ["validate", "Verifying uploaded data"],
+      applying: ["pull", "Applying downloaded data"],
+    } as const
+    const stage =
+      progress.syncPhase && progress.syncPhase in stages
+        ? stages[progress.syncPhase as keyof typeof stages]
+        : undefined
+    if (stage && this.active.phase !== stage[0])
+      this.transition(stage[0], stage[1])
+    if (stage)
+      this.active.nativePhase = progress.syncPhase as keyof typeof stages
     const now = this.now()
     const transferredBytes = Math.max(0, progress.transferredBytes)
     const totalBytes =
-      !progress.totalIsFinal || progress.totalBytes === undefined
-        ? null
-        : Math.max(transferredBytes, progress.totalBytes)
+      progress.totalIsFinal &&
+      progress.totalBytes !== undefined &&
+      Number.isFinite(progress.totalBytes) &&
+      progress.totalBytes >= transferredBytes
+        ? progress.totalBytes
+        : null
+    const totalChanged =
+      (this.active.transfer?.totalBytes ?? null) !== totalBytes
     const directionChanged =
       this.active.transfer?.direction !== undefined &&
       this.active.transfer.direction !== progress.direction
@@ -87,6 +108,7 @@ export class SyncRunTracker {
     const due =
       this.lastTransferEmitMs === null ||
       directionChanged ||
+      totalChanged ||
       finalSample ||
       now - this.lastTransferEmitMs >= TRANSFER_EMIT_INTERVAL_MS
     if (!due) return
@@ -161,6 +183,9 @@ export class SyncRunTracker {
       startedAtMs: this.startedAtMs,
       phaseStartedAtMs: this.active.startedAtMs,
       elapsedMs: Math.max(0, now - this.startedAtMs),
+      ...(this.active.nativePhase
+        ? { nativePhase: this.active.nativePhase }
+        : {}),
       ...(this.active.transfer ? { transfer: this.active.transfer } : {}),
     })
   }

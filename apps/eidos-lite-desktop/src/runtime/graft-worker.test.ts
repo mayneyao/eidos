@@ -32,6 +32,9 @@ describe("Graft worker encrypted session transitions", () => {
     lifecycle: "open",
     close: vi.fn(),
     listRemotes: vi.fn(),
+    applyMerge: vi.fn(),
+    fetch: vi.fn(),
+    fetchForCheckout: vi.fn(),
   }
   const newRepository = {
     lifecycle: "open",
@@ -121,6 +124,51 @@ describe("Graft worker encrypted session transitions", () => {
       await vi.waitFor(() => expect(response(id)?.ok).toBe(true))
     }
   )
+
+  it("forwards fast-forward materialization progress to the caller", async () => {
+    const sample = {
+      direction: "download",
+      transferredBytes: 512,
+      totalBytes: 1024,
+      totalIsFinal: true,
+    }
+    oldRepository.applyMerge.mockImplementation(async ({ onProgress }) => {
+      onProgress(sample)
+      return { state: "none" }
+    })
+    const id = command("applyMerge")
+    await vi.waitFor(() => expect(response(id)?.ok).toBe(true))
+    expect(responses).toContainEqual({
+      type: "progress",
+      requestId: id,
+      progress: sample,
+    })
+  })
+
+  it("uses planned checkout fetch for pull without changing ordinary fetch", async () => {
+    oldRepository.fetch.mockResolvedValue({})
+    oldRepository.fetchForCheckout.mockResolvedValue({})
+    const planned = command("fetchForCheckout")
+    await vi.waitFor(() => expect(response(planned)?.ok).toBe(true))
+    expect(oldRepository.fetchForCheckout).toHaveBeenCalledOnce()
+    expect(oldRepository.fetch).not.toHaveBeenCalled()
+    const ordinary = command("fetch")
+    await vi.waitFor(() => expect(response(ordinary)?.ok).toBe(true))
+    expect(oldRepository.fetch).toHaveBeenCalledOnce()
+  })
+
+  it("falls back to ordinary fetch when the installed SDK has no checkout API", async () => {
+    oldRepository.fetch.mockResolvedValue({})
+    const checkout = oldRepository.fetchForCheckout
+    Reflect.deleteProperty(oldRepository, "fetchForCheckout")
+    try {
+      const id = command("fetchForCheckout")
+      await vi.waitFor(() => expect(response(id)?.ok).toBe(true))
+      expect(oldRepository.fetch).toHaveBeenCalledOnce()
+    } finally {
+      oldRepository.fetchForCheckout = checkout
+    }
+  })
 
   it("waits for encrypted session replacement before servicing concurrent metadata reads", async () => {
     const unlock = command("unlockEncryptedSync")

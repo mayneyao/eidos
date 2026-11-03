@@ -21,7 +21,293 @@ const base: SyncInspectorState = {
   checking: false,
 }
 describe("Sync inspector B", () => {
-  it("shows encrypted transfer bytes and speed without implying a final total", async () => {
+  it("shows activity before the first sync progress event arrives", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    try {
+      await act(async () =>
+        root.render(
+          <SyncInspector
+            state={{ ...base, syncing: true }}
+            spaceKey="starting"
+            onClose={() => {}}
+            onAction={() => {}}
+            onRetry={() => {}}
+            onAccount={() => {}}
+          />
+        )
+      )
+      expect(host.querySelector('[role="progressbar"]')).not.toBeNull()
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
+  it("keeps the failure visible while another operation is busy", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            busy: true,
+            failure: {
+              code: "offline",
+              state: "offline",
+              title: "Eidos Sync is offline",
+              message: "Connection failed",
+              action: "retry-now",
+              actionLabel: "Try again",
+              retryable: true,
+              localSafe: true,
+            },
+          }}
+          spaceKey="busy-recovery"
+          onClose={() => {}}
+          onAction={() => {}}
+          onRetry={() => {}}
+          onAccount={() => {}}
+        />
+      )
+    )
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Eidos Sync is offline"
+    )
+    expect(host.querySelector(".sync-inspector-transfer")).toBeNull()
+    expect(
+      [...host.querySelectorAll("button")].find(
+        (button) => button.textContent === "Try again"
+      )?.disabled
+    ).toBe(true)
+    await act(async () => root.unmount())
+  })
+  it("offers a full sync when versions are up to date", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onAction = vi.fn()
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            history: {
+              state: "up_to_date",
+              ahead: 0,
+              behind: 0,
+              checkedAtMs: Date.now(),
+            },
+          }}
+          spaceKey="checked"
+          onClose={() => {}}
+          onAction={onAction}
+          onRetry={() => {}}
+          onAccount={() => {}}
+        />
+      )
+    )
+    const check = host.querySelector<HTMLButtonElement>(
+      "[data-sync-next='sync']"
+    )!
+    expect(host.textContent).toContain("Up to date")
+    expect(host.textContent).not.toContain("Last checked:")
+    expect(check.textContent).toBe("Sync now")
+    await act(async () => check.click())
+    expect(onAction).toHaveBeenCalledWith("sync")
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Account menu"]')!
+        .click()
+    )
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Sync now")!
+        .click()
+    )
+    expect(onAction).toHaveBeenCalledWith("sync")
+    await act(async () => root.unmount())
+  })
+  it("prioritizes recovery over a suggested merge when sync fails", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onRetry = vi.fn()
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            history: { state: "ahead", ahead: 3, behind: 1 },
+            failure: {
+              code: "offline",
+              state: "offline",
+              title: "Eidos Sync is offline",
+              message: "Connection failed",
+              action: "retry-now",
+              actionLabel: "Try again",
+              retryable: true,
+              localSafe: true,
+            },
+          }}
+          spaceKey="failed-divergence"
+          onClose={() => {}}
+          onAction={() => {}}
+          onRetry={onRetry}
+          onAccount={() => {}}
+        />
+      )
+    )
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Eidos Sync is offline"
+    )
+    expect(host.querySelector(".sync-inspector-failure-details")).toBeNull()
+    expect(host.querySelector("[data-sync-merge-workspace]")).toBeNull()
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Try again")!
+        .click()
+    )
+    expect(onRetry).toHaveBeenCalledOnce()
+    await act(async () => root.unmount())
+  })
+  it("shows live progress instead of a stale failure while retrying", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            busy: true,
+            history: { state: "ahead", ahead: 3, behind: 1 },
+            failure: {
+              code: "offline",
+              state: "offline",
+              title: "Eidos Sync is offline",
+              message: "Old failure",
+              action: "retry-now",
+              actionLabel: "Retry now",
+              retryable: true,
+              localSafe: true,
+            },
+            progress: {
+              runId: "retry",
+              operation: "sync",
+              state: "active",
+              phase: "push",
+              detail: "Uploading",
+              startedAtMs: 0,
+              phaseStartedAtMs: 0,
+              elapsedMs: 100,
+              transfer: {
+                direction: "upload",
+                transferredBytes: 1024,
+                totalBytes: 2048,
+                bytesPerSecond: 1024,
+                estimatedRemainingMs: 1000,
+              },
+            },
+          }}
+          spaceKey="retry"
+          onClose={() => {}}
+          onAction={() => {}}
+          onRetry={() => {}}
+          onAccount={() => {}}
+          onLocalRecovery={() => {}}
+        />
+      )
+    )
+    expect(host.querySelector(".sync-inspector-b-status h2")?.textContent).toBe(
+      "Syncing this Space"
+    )
+    expect(
+      host.querySelector(".sync-inspector-b-status")?.textContent
+    ).toContain("Uploading")
+    expect(
+      host.querySelector(".sync-inspector-transfer")?.textContent
+    ).toContain("50%")
+    expect(host.querySelector("progress")?.getAttribute("aria-label")).toBe(
+      "Transfer progress"
+    )
+    expect(
+      host.querySelector(".sync-inspector-b-status")?.textContent
+    ).not.toContain("Old failure")
+    expect(host.querySelector(".sync-inspector-failure-details")).toBeNull()
+    expect(host.querySelector(".sync-version-group")).toBeNull()
+    expect(host.textContent).not.toContain(
+      "Compatible changes merge automatically"
+    )
+    expect(host.textContent).toContain("Local to upload")
+    await act(async () => root.unmount())
+  })
+  it("shows paused writes while keeping a pending download available", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const onAction = vi.fn()
+    await act(async () =>
+      root.render(
+        <SyncInspector
+          state={{
+            ...base,
+            readOnly: true,
+            history: {
+              state: "behind",
+              ahead: 0,
+              behind: 1,
+              checkedAtMs: Date.now(),
+            },
+          }}
+          spaceKey="readonly"
+          onClose={() => {}}
+          onAction={onAction}
+          onRetry={() => {}}
+          onAccount={() => {}}
+        />
+      )
+    )
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Sync writes are paused"
+    )
+    const receive = [
+      ...host.querySelectorAll<HTMLButtonElement>(
+        ".sync-transport-cloud button"
+      ),
+    ].find((button) => button.textContent === "Receive 1 version")
+    expect(receive).toBeDefined()
+    await act(async () => receive!.click())
+    expect(onAction).toHaveBeenCalledWith("pull")
+    await act(async () => root.unmount())
+  })
+  it("shows encrypted transfer bytes in the minimal status without implying a final total", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
@@ -61,11 +347,71 @@ describe("Sync inspector B", () => {
         />
       )
     )
-    expect(host.querySelector("progress")?.hasAttribute("value")).toBe(false)
+    expect(host.querySelector("progress")).toBeNull()
+    expect(host.querySelector(".sync-minimal-transfer")?.textContent).toContain(
+      "Uploading"
+    )
+    expect(host.querySelector(".sync-minimal-transfer")?.textContent).toContain(
+      "Uploaded 2 MiB"
+    )
     expect(
-      host.querySelector(".sync-inspector-transfer")?.textContent
-    ).toContain("2.0 MiB · 1.0 MiB/s")
+      host.querySelector(".sync-minimal-transfer")?.textContent
+    ).not.toContain("/s")
     await act(async () => root.unmount())
+  })
+  it("shows a measurable progress bar only while a transfer total is known", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {},
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const progress = {
+      runId: "transfer",
+      operation: "sync" as const,
+      state: "active" as const,
+      phase: "push" as const,
+      detail: "Uploading",
+      startedAtMs: 0,
+      phaseStartedAtMs: 0,
+      elapsedMs: 100,
+      transfer: {
+        direction: "upload" as const,
+        transferredBytes: 512,
+        totalBytes: 1024,
+        bytesPerSecond: 0,
+        estimatedRemainingMs: null,
+      },
+    }
+    const render = (state: typeof base) => (
+      <SyncInspector
+        state={state}
+        spaceKey="progress"
+        onClose={() => {}}
+        onAction={() => {}}
+        onRetry={() => {}}
+        onAccount={() => {}}
+      />
+    )
+    try {
+      await act(async () => root.render(render({ ...base, progress })))
+      expect(host.querySelector("progress")?.getAttribute("max")).toBe("1024")
+      expect(host.querySelector("progress")?.getAttribute("value")).toBe("512")
+      await act(async () =>
+        root.render(
+          render({
+            ...base,
+            progress: null,
+            history: { state: "up_to_date", ahead: 0, behind: 0 },
+          })
+        )
+      )
+      expect(host.querySelector("progress")).toBeNull()
+      expect(host.textContent).toContain("Up to date")
+    } finally {
+      await act(async () => root.unmount())
+    }
   })
   it("localizes the failure title, explanation and recovery action", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -108,15 +454,21 @@ describe("Sync inspector B", () => {
         </EidosLiteI18nProvider>
       )
     )
-    expect(host.querySelector("h2")?.textContent).toBe("同步服务离线")
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "同步服务离线"
+    )
     expect(host.textContent).toContain("本地文件与已保存版本均安全")
-    expect(host.querySelector(".primary-action")?.textContent).toBe("立即重试")
+    expect(
+      host.querySelector(".sync-transport-cloud .primary-action")?.textContent
+    ).toBe("立即重试")
     expect(host.textContent).not.toContain("Eidos Sync is offline")
     await act(async () => root.unmount())
   })
   it("shows known conflicts during background checks without querying status again", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const getSyncMergeStatus = vi.fn()
+    const onReviewMerge = vi.fn()
+    const onReview = vi.fn()
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
@@ -150,12 +502,38 @@ describe("Sync inspector B", () => {
           onAction={() => undefined}
           onRetry={() => undefined}
           onAccount={() => undefined}
+          onReviewMerge={onReviewMerge}
+          onReview={onReview}
+          connectionDetails={<div>Connection details</div>}
         />
       )
     )
     expect(host.textContent).toContain("Resolve merge conflicts")
+    expect(host.querySelector("h2")?.textContent).toBe(
+      "Local and cloud both changed"
+    )
+    expect(host.textContent).toContain(
+      "Review conflicting files and tables in Changes. Nothing was overwritten."
+    )
+    expect(host.textContent).toContain(
+      "Merging waits until every conflict is resolved."
+    )
+    expect(host.textContent).toContain("Connection details")
     expect(host.textContent).not.toContain("Checking remote updates…")
     expect(getSyncMergeStatus).not.toHaveBeenCalled()
+    const statusActions = host.querySelector(".sync-status-actions")!
+    await act(async () =>
+      [...statusActions.querySelectorAll("button")]
+        .find((button) => button.textContent === "Review in Changes")!
+        .click()
+    )
+    expect(onReviewMerge).toHaveBeenCalledOnce()
+    await act(async () =>
+      [...statusActions.querySelectorAll("button")]
+        .find((button) => button.textContent === "Open Versions")!
+        .click()
+    )
+    expect(onReview).toHaveBeenCalledOnce()
     await act(async () => root.unmount())
     host.remove()
   })
@@ -309,7 +687,9 @@ describe("Sync inspector B", () => {
         />
       )
     )
-    expect(host.querySelector("h2")?.textContent).toBe("Sync writes are paused")
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Sync writes are paused"
+    )
     expect(host.querySelector("[data-sync-readonly]")?.textContent).toContain(
       "read-only or expired"
     )
@@ -357,7 +737,9 @@ describe("Sync inspector B", () => {
         />
       )
     )
-    expect(host.querySelectorAll(".primary-action")).toHaveLength(1)
+    expect(
+      host.querySelectorAll(".sync-transport-cloud .primary-action")
+    ).toHaveLength(1)
     expect(host.textContent).toContain("Version a")
     expect(host.textContent).toContain("Local changes have not been saved")
     await act(async () =>
@@ -366,6 +748,73 @@ describe("Sync inspector B", () => {
     expect(onAction).toHaveBeenCalledWith("push")
     await act(async () => root.unmount())
   })
+  it("keeps the merge workspace mounted when planned download progress arrives", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        planSyncMerge: vi.fn(() => new Promise(() => {})),
+      },
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const render = (progress: SyncInspectorState["progress"]) => (
+      <SyncInspector
+        state={{
+          ...base,
+          history: { state: "diverged", ahead: 1, behind: 1 },
+          progress,
+        }}
+        mergeStatus={{ state: "none" }}
+        spaceKey="merge-download"
+        onClose={() => {}}
+        onAction={() => {}}
+        onRetry={() => {}}
+        onAccount={() => {}}
+      />
+    )
+    try {
+      await act(async () => root.render(render(null)))
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>("[data-sync-merge-start]")!
+          .click()
+      )
+      const workspace = host.querySelector("[data-sync-merge-workspace]")
+      await act(async () =>
+        root.render(
+          render({
+            runId: "merge-plan",
+            operation: "sync",
+            state: "active",
+            phase: "fetch",
+            nativePhase: "downloading",
+            detail: "Receiving data from server",
+            startedAtMs: 0,
+            phaseStartedAtMs: 0,
+            elapsedMs: 100,
+            transfer: {
+              direction: "download",
+              transferredBytes: 256,
+              totalBytes: 1024,
+              bytesPerSecond: 256,
+              estimatedRemainingMs: 3000,
+            },
+          })
+        )
+      )
+      expect(host.querySelector("[data-sync-merge-workspace]")).toBe(workspace)
+      expect(host.querySelector("progress")?.getAttribute("value")).toBe("256")
+      expect(host.textContent).toContain("25%")
+      expect(
+        host.querySelector<HTMLButtonElement>("[data-sync-merge-start]")
+          ?.disabled
+      ).toBe(true)
+    } finally {
+      await act(async () => root.unmount())
+    }
+  })
+
   it("keeps both counts and version previews visible before merging", async () => {
     const host = document.createElement("div")
     const root = createRoot(host)
@@ -446,9 +895,13 @@ describe("Sync inspector B", () => {
         />
       )
     )
-    expect(host.querySelector("h2")?.textContent).toBe("Offline")
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Offline"
+    )
     expect(host.textContent).not.toContain("Versions are up to date")
-    expect(host.textContent).toContain("Results from the last successful check")
+    expect(host.textContent).not.toContain(
+      "Results from the last successful check"
+    )
     await act(async () => root.unmount())
   })
   it("offers a fetch escape while a failure is shown", async () => {

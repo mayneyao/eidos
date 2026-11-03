@@ -140,6 +140,18 @@ const rowConflict = (table: string, id: string): EidosSyncMergeConflict => ({
 })
 
 describe("merge Changes tree", () => {
+  it("hides only an empty resolved group in the compact tree", () => {
+    const labels = { unresolved: "Merge Conflicts", resolved: "Resolved" }
+    const unresolved = mergePath("notes.md", "unmerged", "text_file")
+    const resolved = mergePath("records.eidos", "resolved")
+    expect(
+      buildMergeChangeTreeModel([unresolved], new Map(), labels, true).paths
+    ).not.toContain("Resolved/")
+    expect(
+      buildMergeChangeTreeModel([unresolved, resolved], new Map(), labels, true)
+        .paths
+    ).toContain("Resolved/")
+  })
   it("models tables as children of their Eidos File", () => {
     const records = mergePath("data/records.eidos", "unmerged")
     const notes = mergePath("notes.md", "unmerged", "text_file")
@@ -307,6 +319,11 @@ describe("SyncMergeWorkbench", () => {
     )
     await flush()
     expect(mergeTreeButton(host, "Merge Conflicts/records.eidos/")).toBeTruthy()
+    expect(
+      host
+        .querySelector("[data-merge-change-tree]")
+        ?.shadowRoot?.querySelector("button[data-item-path='Resolved/']")
+    ).toBeNull()
     await act(async () =>
       root.render(
         createElement(SyncMergeWorkspace, {

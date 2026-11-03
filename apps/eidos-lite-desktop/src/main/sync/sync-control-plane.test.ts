@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
 import type { AccountSessionService } from "../account/account-session"
 import type { OfficialSyncClient } from "./official-sync-client"
+import type { CustomSyncServers } from "./custom-sync-servers"
 import { SyncControlPlane } from "./sync-control-plane"
 
 function accountSession(state: "signed-out" | "signed-in") {
@@ -74,6 +75,96 @@ describe("SyncControlPlane", () => {
     )
     return { account, operations, control }
   }
+
+  it.each(["signIn", "signOut"] as const)(
+    "%s projects official account status without attaching a custom remote",
+    async (action) => {
+      const { control } = writableControl()
+
+      const status = await control[action](
+        "https://my-sync.example/personal/notes"
+      )
+
+      expect(status.remote).toEqual({ state: "not-connected" })
+      expect(status.provider).not.toBe("custom")
+      expect(status.account.state).toBe(
+        action === "signIn" ? "signed-in" : "signed-out"
+      )
+      expect(status.canEnable).toBe(action === "signIn")
+      expect(status.encryption).toBeUndefined()
+    }
+  )
+
+  it.each(["signIn", "signOut"] as const)(
+    "%s preserves an existing official connection",
+    async (action) => {
+      const { control } = writableControl()
+      const remoteUrl = "https://sync-staging.eidos.space/u-alice/notes"
+
+      const status = await control[action](remoteUrl)
+
+      expect(status.remote).toEqual({ state: "connected", url: remoteUrl })
+      expect(status.canEnable).toBe(false)
+    }
+  )
+
+  it("keeps a custom operation current throughout official account changes", async () => {
+    const { control } = writableControl()
+    const assertServerCurrent = vi.fn()
+    const resolve = vi.fn(async () => ({
+      serverId: "server-a",
+      origin: "https://my-sync.example",
+      subject: "personal" as const,
+      accessToken: "custom-access-token",
+      assertCurrent: assertServerCurrent,
+    }))
+    control.setCustomServers({ resolve } as unknown as CustomSyncServers)
+    const remoteUrl = "https://my-sync.example/personal/notes"
+    const operation = await control.operationContext(remoteUrl)
+
+    await control.signOut(remoteUrl)
+    expect(() => operation.assertCurrent()).not.toThrow()
+    await control.signIn(remoteUrl)
+    expect(() => operation.assertCurrent()).not.toThrow()
+
+    expect(operation.provider).toBe("custom")
+    expect(operation.accessToken).toBe("custom-access-token")
+    expect(resolve).toHaveBeenCalledExactlyOnceWith(remoteUrl)
+    expect(assertServerCurrent).toHaveBeenCalledTimes(3)
+  })
+
+  it("reuses the combined custom server access validation", async () => {
+    const { control } = writableControl()
+    const remoteUrl = "https://my-sync.example/personal/notes"
+    const assertCurrent = vi.fn()
+    const resolve = vi.fn(async () => ({
+      serverId: "server-a",
+      origin: "https://my-sync.example",
+      subject: "personal" as const,
+      accessToken: "custom-access-token",
+      assertCurrent,
+    }))
+    const verifyAccess = vi.fn(async () => ({}))
+    const repositories = vi.fn()
+    control.setCustomServers({
+      resolve,
+      verifyAccess,
+      repositories,
+    } as unknown as CustomSyncServers)
+    const context = await control.operationContext(remoteUrl)
+    await expect(
+      control.repositoryAccess(remoteUrl, context, "expected-uuid")
+    ).resolves.toMatchObject({
+      accessToken: "custom-access-token",
+      access: "read_write",
+    })
+    expect(verifyAccess).toHaveBeenCalledExactlyOnceWith(
+      remoteUrl,
+      "expected-uuid"
+    )
+    expect(repositories).not.toHaveBeenCalled()
+    expect(assertCurrent).toHaveBeenCalled()
+  })
 
   it("binds repository operations to one context without reading another token", async () => {
     const { account, operations, control } = writableControl()

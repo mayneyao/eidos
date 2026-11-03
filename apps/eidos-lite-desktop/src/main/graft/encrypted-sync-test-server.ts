@@ -78,7 +78,7 @@ export async function startEncryptedSyncTestServer() {
   if (!address || typeof address === "string")
     throw new Error("Missing test port")
   return {
-    createRepository(name: string) {
+    createRepository(name: string, namespace = "u-test") {
       const uuid = randomUUID()
       const objects = new Map<string, Uint8Array<ArrayBuffer>>()
       const matches = (a: Uint8Array | undefined, b: Uint8Array | undefined) =>
@@ -146,7 +146,7 @@ export async function startEncryptedSyncTestServer() {
       repositories.set(name, { uuid, backend, objects })
       return {
         uuid,
-        url: `http://127.0.0.1:${address.port}/u-test/${name}`,
+        url: `http://127.0.0.1:${address.port}/${namespace}/${name}`,
         objects,
       }
     },

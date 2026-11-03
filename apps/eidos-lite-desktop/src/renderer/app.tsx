@@ -64,6 +64,7 @@ import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
 import { PluginManager } from "./plugin-manager"
+import { TerminalPluginDetails } from "./terminal-plugin-details"
 import type { PluginOpenResult } from "../shared/plugins"
 import {
   resolveTextSearchTarget,
@@ -210,8 +211,8 @@ const SpaceFileTree = lazy(async () => {
   return { default: module.SpaceFileTree }
 })
 const SyncPanel = lazy(async () => {
-  const module = await import("./sync-panel")
-  return { default: module.SyncPanel }
+  const module = await import("./sync-entry")
+  return { default: module.SyncEntry }
 })
 const SyncLocalVersionGate = lazy(async () => {
   const module = await import("./sync-panel")
@@ -4693,6 +4694,17 @@ function WorkspaceApp({
                 <PluginManager
                   key={space.id}
                   spaceAvailable
+                  builtins={[
+                    {
+                      id: "builtin.terminal",
+                      name: t("Terminal"),
+                      description: t(
+                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+                      ),
+                      enabled: builtInPlugins.terminal,
+                      details: <TerminalPluginDetails />,
+                    },
+                  ]}
                   onOpenPage={navigatePluginPage}
                   selectedPluginId={pluginDetailId}
                   onSelectPlugin={handleSelectPlugin}
@@ -5310,8 +5322,9 @@ function WorkspaceApp({
       ) : null}
       {workbenchSurfaces.right === "sync" && syncPanelMode ? (
         <Suspense fallback={null}>
-          {space.graft.initialized ? (
+          {space.graft.initialized || syncPanelMode === "clone" ? (
             <SyncPanel
+              key={space.id}
               mode={syncPanelMode}
               variant="inspector"
               platform={platform}
@@ -5360,6 +5373,7 @@ function WorkspaceApp({
             <SyncLocalVersionGate
               variant="inspector"
               platform={platform}
+              onSpaceChange={acceptSpaceSnapshot}
               onClose={() => setSyncPanelMode(null)}
               onOpenVersions={() => {
                 setSyncPanelMode(null)

@@ -9,7 +9,8 @@ import {
 } from "./remembered-sync-unlocks"
 
 export function createRememberedSyncUnlocks(
-  control: Pick<SyncControlPlane, "accountSubject" | "repositories">,
+  control: Pick<SyncControlPlane, "accountSubject" | "repositories"> &
+    Partial<Pick<SyncControlPlane, "syncIdentity" | "operationContext">>,
   environment: EidosLiteServiceEnvironment,
   options: { stateDirectory?: string } = {}
 ): RememberedSyncUnlocks {

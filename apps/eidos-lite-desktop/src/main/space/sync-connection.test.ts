@@ -12,6 +12,29 @@ describe("cloud connection identity", () => {
     await fs.rm(directory, { recursive: true, force: true })
   })
 
+  it("reuses the target repository on switch retry without changing the active provisioning identity", async () => {
+    const store = new SpaceSyncConnectionStore(directory)
+    const current = await store.repository()
+    const target = await store.replacementRepository(
+      "https://a.example/personal/old",
+      "https://b.example"
+    )
+    const restarted = new SpaceSyncConnectionStore(directory)
+    expect(
+      await restarted.replacementRepository(
+        "https://a.example/personal/old",
+        "https://b.example"
+      )
+    ).toBe(target)
+    expect(await restarted.repository()).toBe(current)
+    expect(
+      await restarted.replacementRepository(
+        "https://b.example/personal/new",
+        "https://a.example"
+      )
+    ).not.toBe(target)
+  })
+
   it("persists one random provisioning ID across concurrent retries and restart", async () => {
     const store = new SpaceSyncConnectionStore(directory)
     const ids = await Promise.all(

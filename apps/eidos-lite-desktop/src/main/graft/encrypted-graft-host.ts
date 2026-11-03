@@ -12,8 +12,61 @@ import {
 } from "./graft-sdk-module"
 import { assertSpaceRepositoryBoundary } from "./space-repository-boundary"
 import { assertSyncEncryptionBinding } from "../../shared/sync-encryption"
+import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
 
 export class EncryptedGraftHost {
+  /** Restore only the typed local configuration. A locked authority cannot transfer data. */
+  async restoreBinding(
+    root: string,
+    input: { url: string; uuid: string; stateDirectory: string }
+  ): Promise<void> {
+    await assertSpaceRepositoryBoundary(root)
+    const origin = new URL(input.url).origin
+    const domain =
+      Object.values(EIDOS_LITE_SERVICE_ENVIRONMENTS).find(
+        (environment) => environment.syncRemoteOrigin === origin
+      )?.accountOrigin ?? origin
+    assertSyncEncryptionBinding(input.url, domain)
+    await this.disconnect()
+    const sdk = loadEidosGraftSdk()
+    await fs.mkdir(input.stateDirectory, { recursive: true, mode: 0o700 })
+    const directory = await fs.mkdtemp(
+      path.join(input.stateDirectory, "binding-restore-")
+    )
+    let authority: EncryptedRemoteSession | undefined
+    let repository: EidosGraftRepositorySession | undefined
+    try {
+      for (const child of ["staging", "checkpoint", "recovery"])
+        sdk.EncryptedRemoteSession.createPrivateDirectory(
+          path.join(directory, child)
+        )
+      authority = new sdk.EncryptedRemoteSession({
+        remoteName: "origin",
+        url: input.url,
+        uuid: input.uuid,
+        authenticationDomain: domain,
+        accountSubject: "local-binding-restore",
+        bearerToken: "local-binding-restore-no-network",
+        checkpointDirectory: path.join(directory, "checkpoint"),
+        recoveryDirectory: path.join(directory, "recovery"),
+        stagingDirectory: path.join(directory, "staging"),
+        createCheckpoint: true,
+      })
+      repository = await sdk.RepositorySession.open(root, {
+        encryptedRemote: authority,
+      })
+      await repository.addEncryptedRemote()
+      await repository.configureRemote({
+        name: "origin",
+        url: `graft+e2ee:${input.url}#${input.uuid}`,
+        upstreamBranch: "main",
+      })
+    } finally {
+      await repository?.close()
+      await authority?.disconnect()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  }
   get state(): "locked" | "unlocked" {
     return this.authority?.state === "unlocked" ? "unlocked" : "locked"
   }
@@ -178,7 +231,7 @@ export class EncryptedGraftHost {
         const result = await repository.pushInitialBranch({
           verificationDirectory,
           signal: options.signal,
-          onProgress,
+          ...graftSyncProgressOptions(onProgress),
         })
         active()
         if (result.state !== "connected")
@@ -190,7 +243,7 @@ export class EncryptedGraftHost {
         await repository.cloneEncryptedRemote({
           branch: "main",
           signal: options.signal,
-          onProgress,
+          ...graftSyncProgressOptions(onProgress),
         })
         active()
       }
@@ -256,3 +309,4 @@ export class EncryptedGraftHost {
     await this.authority?.lock()
   }
 }
+import { graftSyncProgressOptions } from "./graft-sync-progress"

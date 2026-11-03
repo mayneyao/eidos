@@ -149,6 +149,22 @@ async function runCommand(
     await encryptedHost.lock()
     return { locked: true }
   }
+  if (command === "restoreEncryptedSyncBinding") {
+    if (!sessionRoot) throw new Error("Graft repository session is not open")
+    const input = objectValue(args[0], "binding")
+    await session?.close()
+    session = null
+    try {
+      await encryptedHost.restoreBinding(sessionRoot, {
+        url: requireString(input.url, "remote URL"),
+        uuid: requireString(input.uuid, "encryption UUID"),
+        stateDirectory: requireString(input.stateDirectory, "state directory"),
+      })
+    } finally {
+      session = await RepositorySession.open(sessionRoot)
+    }
+    return { restored: true }
+  }
   if (
     command === "initializeEncryptedSync" ||
     command === "unlockEncryptedSync" ||
@@ -333,16 +349,21 @@ async function runCommand(
           "push options"
         ) as RemoteOperationOptions),
         signal,
-        onProgress,
+        ...graftSyncProgressOptions(onProgress),
       })
     case "fetch":
-      return repository.fetch({
+    case "fetchForCheckout":
+      return (
+        command === "fetchForCheckout" && repository.fetchForCheckout
+          ? repository.fetchForCheckout.bind(repository)
+          : repository.fetch.bind(repository)
+      )({
         ...(objectValue(
           args[0] ?? {},
           "fetch options"
         ) as RemoteOperationOptions),
         signal,
-        onProgress,
+        ...graftSyncProgressOptions(onProgress),
       })
     case "pull":
       return repository.pull({
@@ -351,7 +372,7 @@ async function runCommand(
           "pull options"
         ) as RemoteOperationOptions),
         signal,
-        onProgress,
+        ...graftSyncProgressOptions(onProgress),
       })
     case "getMergePolicy":
       requireMergeMethod(repository, command)
@@ -391,6 +412,7 @@ async function runCommand(
           "apply merge options"
         ) as unknown as GraftApplyMergeOptions),
         signal,
+        onProgress,
       })
     case "getMergeStatus":
       requireMergeMethod(repository, command)
@@ -543,7 +565,7 @@ async function runCommand(
       return repository.cloneRepository({
         ...(objectValue(args[0], "clone options") as unknown as CloneOptions),
         signal,
-        onProgress,
+        ...graftSyncProgressOptions(onProgress),
       })
     case "setHttpBearerToken":
       if (
@@ -635,6 +657,7 @@ function schedule(request: GraftSdkWorkerRequest): Promise<unknown> {
         "initializeEncryptedSync",
         "unlockEncryptedSync",
         "cloneEncryptedSync",
+        "restoreEncryptedSyncBinding",
       ].includes(request.command))
   const immediate =
     request.type === "command" &&
@@ -692,3 +715,4 @@ parentPort.on("message", (event) => {
     }
   )
 })
+import { graftSyncProgressOptions } from "../main/graft/graft-sync-progress"

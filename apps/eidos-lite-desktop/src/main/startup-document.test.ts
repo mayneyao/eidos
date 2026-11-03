@@ -10,7 +10,8 @@ it.each([false, true])(
     expect(html).toContain(
       `'sha256-${createHash("sha256").update(script).digest("base64")}'`
     )
-    expect(html).toContain("正在打开…")
+    expect(html).toContain('aria-label="正在打开…"')
+    expect(html).not.toMatch(/<p[\s>]/)
     const art = { dataset: {} }
     const context = {
       setTransform: vi.fn(),
@@ -92,6 +93,7 @@ it.each(["light", "dark", "system"])(
         documentElement: { style },
         querySelector: () => ({}),
         getElementById: () => ({
+          setAttribute: vi.fn(),
           querySelector: () => ({ getContext: () => null }),
         }),
       },

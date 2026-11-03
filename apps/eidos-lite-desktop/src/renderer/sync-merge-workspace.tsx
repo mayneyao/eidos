@@ -79,6 +79,7 @@ export function SyncMergeWorkspace({
   onReviewMerge,
   onSpaceChange,
   onFilesMaterialized,
+  onBusyChange,
 }: {
   compact?: boolean
   externalStatus?: EidosSyncMergeStatus
@@ -89,6 +90,7 @@ export function SyncMergeWorkspace({
     snapshot: SpaceSnapshot,
     paths: readonly string[] | null
   ): void | Promise<void>
+  onBusyChange?(busy: boolean): void
 }) {
   const [status, setStatus] = useState<EidosSyncMergeStatus>(
     externalStatus ?? { state: "none" }
@@ -96,6 +98,7 @@ export function SyncMergeWorkspace({
   const { t } = useEidosLiteI18n()
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
   const [busy, setBusy] = useState<MergeBusy>(externalStatus ? null : "status")
+  useEffect(() => onBusyChange?.(busy !== null), [busy, onBusyChange])
   const [message, setMessage] = useState("")
   const [operationError, setOperationError] = useState<string | null>(null)
   const [pathsCursor, setPathsCursor] = useState<string | null>(null)
@@ -343,6 +346,7 @@ export function SyncMergeWorkspace({
               <p role="status">{t("Loading files…")}</p>
             ) : (
               <MergeChangeTree
+                hideEmptyResolved={compact}
                 paths={summaryPaths}
                 conflictsByPath={summaryConflicts}
                 selectedPath={summarySelection?.path.path ?? null}

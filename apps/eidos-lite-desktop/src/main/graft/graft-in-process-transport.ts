@@ -1,4 +1,5 @@
 import path from "node:path"
+import { graftSyncProgressOptions } from "./graft-sync-progress"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
 import type {
   GraftEncryptedInput,
@@ -136,6 +137,22 @@ export class GraftInProcessTransport implements GraftSdkTransport {
     if (command === "lockEncryptedSync") {
       await this.encryptedHost.lock()
       return { locked: true }
+    }
+    if (command === "restoreEncryptedSyncBinding") {
+      if (!this.target) throw new Error("Graft repository session is not open")
+      const input = this.object(args[0])
+      await this.session?.close()
+      this.session = null
+      try {
+        await this.encryptedHost.restoreBinding(this.target, {
+          url: this.string(input.url, "remote URL"),
+          uuid: this.string(input.uuid, "encryption UUID"),
+          stateDirectory: this.string(input.stateDirectory, "state directory"),
+        })
+      } finally {
+        this.session = await RepositorySession.open(this.target)
+      }
+      return { restored: true }
     }
     if (
       command === "initializeEncryptedSync" ||
@@ -282,19 +299,24 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         return session.push({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
-          onProgress: options.onProgress,
+          ...graftSyncProgressOptions(options.onProgress),
         })
       case "fetch":
-        return session.fetch({
+      case "fetchForCheckout":
+        return (
+          command === "fetchForCheckout" && session.fetchForCheckout
+            ? session.fetchForCheckout.bind(session)
+            : session.fetch.bind(session)
+        )({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
-          onProgress: options.onProgress,
+          ...graftSyncProgressOptions(options.onProgress),
         })
       case "pull":
         return session.pull({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
-          onProgress: options.onProgress,
+          ...graftSyncProgressOptions(options.onProgress),
         })
       case "getMergePolicy":
         this.requireMergeMethod(session, command)
@@ -445,6 +467,7 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         return session.cloneRepository({
           ...(this.object(args[0]) as unknown as CloneOptions),
           signal,
+          ...graftSyncProgressOptions(options.onProgress),
         })
       case "setHttpBearerToken":
         if (

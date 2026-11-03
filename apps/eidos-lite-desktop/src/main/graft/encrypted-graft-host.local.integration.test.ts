@@ -4,6 +4,9 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import { EncryptedGraftHost } from "./encrypted-graft-host"
+import { GraftClient, GRAFT_SDK_VERSION } from "./graft-client"
+import { GraftInProcessTransport } from "./graft-in-process-transport"
+import { graftSyncProgressOptions } from "./graft-sync-progress"
 import {
   loadEidosGraftSdk,
   type EidosGraftRepositorySession,
@@ -15,6 +18,7 @@ import type {
 } from "../../shared/graft-sdk-contracts"
 import type * as SyncEncryption from "../../shared/sync-encryption"
 import { verifyNativeWindowsSyncSecretFiles } from "../sync/windows-sync-secret-files-test-support"
+import { SpaceCloneCoordinator } from "../sync/space-clone-coordinator"
 
 it.skipIf(process.platform !== "win32")(
   "protects Windows ciphertext with native ACLs and rejects broad access and junctions",
@@ -56,7 +60,7 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     await fs.mkdtemp(path.join(os.tmpdir(), "eidos-native-e2ee-"))
   )
   const remote = await startEncryptedSyncTestServer()
-  const first = remote.createRepository("first")
+  const first = remote.createRepository("first", "personal")
   const second = remote.createRepository("second")
   const sdk = loadEidosGraftSdk()
   const hosts: EncryptedGraftHost[] = []
@@ -90,7 +94,13 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     return result
   }
   try {
-    expect(sdk.sdkVersion()).toBe("0.3.36")
+    const sdkPackage = process.env.EIDOS_LITE_GRAFT_SDK_PATH
+    const expectedVersion = sdkPackage
+      ? JSON.parse(
+          await fs.readFile(path.join(sdkPackage, "package.json"), "utf8")
+        ).version
+      : GRAFT_SDK_VERSION
+    expect(sdk.sdkVersion()).toBe(expectedVersion)
     await fs.mkdir(spaceA)
     await fs.mkdir(spaceB)
     const fixture = path.resolve(
@@ -121,17 +131,96 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       onProgress: (event) => uploadProgress.push(event),
     })
     expect(
+      uploadProgress.some((event) => event.syncPhase === "verifying")
+    ).toBe(true)
+    {
+      const verificationDownloads = uploadProgress.filter(
+        (event) =>
+          event.syncPhase === "verifying" &&
+          event.direction === "download" &&
+          event.totalIsFinal
+      )
+      expect(verificationDownloads.length).toBeGreaterThan(0)
+      expect(verificationDownloads.at(-1)?.transferredBytes).toBe(
+        verificationDownloads.at(-1)?.totalBytes
+      )
+    }
+    expect(
       uploadProgress.some(
         (event) => event.direction === "upload" && event.transferredBytes > 0
       )
     ).toBe(true)
-    expect(
-      uploadProgress.every(
-        (event) => !event.totalIsFinal && event.totalBytes === undefined
+    const plannedUploads = uploadProgress.filter(
+      (event) => event.direction === "upload" && event.totalIsFinal
+    )
+    {
+      expect(plannedUploads.length).toBeGreaterThan(0)
+      expect(
+        plannedUploads.every(
+          (event) =>
+            event.totalBytes !== undefined &&
+            event.transferredBytes <= event.totalBytes
+        )
+      ).toBe(true)
+      expect(plannedUploads.at(-1)?.transferredBytes).toBe(
+        plannedUploads.at(-1)?.totalBytes
       )
-    ).toBe(true)
+    }
     sessions.push(a)
     expect(aInput.password.every((byte) => byte === 0)).toBe(true)
+    const interruptedTarget = path.join(root, "interrupted-clone")
+    const coordinator = new SpaceCloneCoordinator({
+      stateDirectory: path.join(root, "clone-coordinator"),
+      remoteOrigin: new URL(first.url).origin,
+      createGraftClient: () =>
+        new GraftClient({ sdkTransport: new GraftInProcessTransport() }),
+      validateWorktree: async (directory) => {
+        expect(await fs.readFile(path.join(directory, "notes.txt"))).toEqual(
+          await fs.readFile(path.join(spaceA, "notes.txt"))
+        )
+      },
+    })
+    let cancellation: Promise<void> | undefined
+    const interruptedPassword = credentials("interrupted-device")
+    await expect(
+      coordinator.clone(
+        interruptedTarget,
+        first.url,
+        "synthetic-test-token",
+        () => {},
+        (progress) => {
+          if (
+            progress.direction === "download" &&
+            progress.transferredBytes > 0
+          )
+            cancellation ??= coordinator.cancelEncryptedClones()
+        },
+        interruptedPassword
+      )
+    ).rejects.toThrow()
+    expect(cancellation).toBeDefined()
+    await cancellation
+    // GraftClient copies caller-owned credentials; the IPC owner clears its input.
+    interruptedPassword.password.fill(0)
+    await expect(fs.stat(interruptedTarget)).rejects.toMatchObject({
+      code: "ENOENT",
+    })
+    expect(
+      (await fs.readdir(root)).some((name) =>
+        name.includes(".eidos-lite-clone-")
+      )
+    ).toBe(false)
+    await coordinator.clone(
+      interruptedTarget,
+      first.url,
+      "synthetic-test-token",
+      () => {},
+      () => {},
+      credentials("interrupted-device")
+    )
+    expect(
+      await fs.readFile(path.join(interruptedTarget, "attachment.bin"))
+    ).toEqual(await fs.readFile(path.join(spaceA, "attachment.bin")))
     const bHost = host()
     const wrong = credentials("device-B", first, "wrong sync password")
     await expect(bHost.connect(spaceB, wrong, "clone")).rejects.toMatchObject({
@@ -148,11 +237,14 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
         (event) => event.direction === "download" && event.transferredBytes > 0
       )
     ).toBe(true)
-    expect(
-      downloadProgress.every(
-        (event) => !event.totalIsFinal && event.totalBytes === undefined
+    {
+      const planned = downloadProgress.filter(
+        (event) => event.direction === "download" && event.totalIsFinal
       )
-    ).toBe(true)
+      expect(planned.length).toBeGreaterThan(0)
+      expect(new Set(planned.map((event) => event.totalBytes)).size).toBe(1)
+      expect(planned.at(-1)?.transferredBytes).toBe(planned.at(-1)?.totalBytes)
+    }
     sessions.push(b)
     for (const name of ["notes.txt", "attachment.bin"])
       expect(await fs.readFile(path.join(spaceB, name))).toEqual(
@@ -185,9 +277,38 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
     )
     await a.addAll()
     await a.commit("Edit on A")
-    await a.push({ remote: "origin", branch: "main" })
-    await b.fetch({ remote: "origin", branch: "main" })
-    await b.pull({ remote: "origin", branch: "main" })
+    const pushProgress: GraftTransferProgress[] = []
+    await a.push({
+      remote: "origin",
+      branch: "main",
+      ...graftSyncProgressOptions((event) => pushProgress.push(event)),
+    })
+    {
+      const planned = pushProgress.filter(
+        (event) => event.direction === "upload" && event.totalIsFinal
+      )
+      expect(planned.length).toBeGreaterThan(0)
+      expect(planned.at(-1)?.transferredBytes).toBe(planned.at(-1)?.totalBytes)
+    }
+    const fetchProgress: GraftTransferProgress[] = []
+    await b.fetch({
+      remote: "origin",
+      branch: "main",
+      ...graftSyncProgressOptions((event) => fetchProgress.push(event)),
+    })
+    await b.pull({
+      remote: "origin",
+      branch: "main",
+      ...graftSyncProgressOptions((event) => fetchProgress.push(event)),
+    })
+    {
+      const planned = fetchProgress.filter(
+        (event) => event.direction === "download" && event.totalIsFinal
+      )
+      expect(planned.length).toBeGreaterThan(0)
+      expect(new Set(planned.map((event) => event.totalBytes)).size).toBe(1)
+      expect(planned.at(-1)?.transferredBytes).toBe(planned.at(-1)?.totalBytes)
+    }
     expect(await fs.readFile(path.join(spaceB, "notes.txt"), "utf8")).toBe(
       "source-only encrypted change\n"
     )

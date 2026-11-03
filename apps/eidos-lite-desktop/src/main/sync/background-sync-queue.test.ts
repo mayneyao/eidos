@@ -171,6 +171,66 @@ describe("BackgroundSyncQueue", () => {
     await syncQueue.close()
   })
 
+  it("discards a recovered custom task when the repository UUID or connection revision changes", async () => {
+    await store.write(spaceId, {
+      version: 1,
+      bindingRevision: "remote-a/uuid-a/connection-a",
+      state: "pending",
+      trigger: "crash-recovery",
+      attempt: 0,
+      queuedAtMs: scheduler.now,
+    })
+    const execute = vi.fn().mockResolvedValue(succeeded())
+    const syncQueue = queue()
+    const status = await syncQueue.attach({
+      spaceId,
+      bindingRevision: "remote-a/uuid-b/connection-b",
+      execute,
+      emit: () => undefined,
+    })
+    expect(status.state).toBe("idle")
+    await scheduler.advanceBy(60_000)
+    expect(execute).not.toHaveBeenCalled()
+    expect(await store.read(spaceId)).toBeNull()
+    await syncQueue.runNow(spaceId)
+    expect(execute).toHaveBeenCalledOnce()
+    await syncQueue.close()
+  })
+
+  it("does not move an in-flight task or its retry to a newly attached custom connection", async () => {
+    let finish!: (value: EidosSyncRunResponse) => void
+    const previous = vi.fn(
+      () =>
+        new Promise<EidosSyncRunResponse>((done) => {
+          finish = done
+        })
+    )
+    const next = vi.fn().mockResolvedValue(succeeded())
+    const syncQueue = queue()
+    await syncQueue.attach({
+      spaceId,
+      bindingRevision: "old-connection",
+      execute: previous,
+      emit: () => undefined,
+    })
+    const running = syncQueue.runNow(spaceId)
+    await vi.waitFor(() => expect(previous).toHaveBeenCalledOnce())
+    const changed = syncQueue.attach({
+      spaceId,
+      bindingRevision: "new-connection",
+      execute: next,
+      emit: () => undefined,
+    })
+    expect(next).not.toHaveBeenCalled()
+    finish(failed())
+    await running
+    await changed
+    await scheduler.advanceBy(60_000)
+    expect(next).not.toHaveBeenCalled()
+    expect(await store.read(spaceId)).toBeNull()
+    await syncQueue.close()
+  })
+
   it("clears durable queue state after a successful manual run", async () => {
     const execute = vi.fn().mockResolvedValue(succeeded())
     const syncQueue = queue()
@@ -190,17 +250,20 @@ describe("BackgroundSyncQueue", () => {
     await syncQueue.close()
   })
 
-  it("does not retry an upload without another explicit request", async () => {
-    const execute = vi.fn().mockResolvedValue(failed())
-    const syncQueue = queue()
-    await syncQueue.attach({ spaceId, execute, emit: () => undefined })
-    await syncQueue.runNow(spaceId, "push")
-    expect(execute).toHaveBeenCalledWith("push")
-    expect(syncQueue.status(spaceId).state).toBe("paused")
-    await scheduler.advanceBy(120_000)
-    expect(execute).toHaveBeenCalledTimes(1)
-    await syncQueue.close()
-  })
+  it.each(["push", "sync"] as const)(
+    "does not retry %s without another explicit request",
+    async (action) => {
+      const execute = vi.fn().mockResolvedValue(failed())
+      const syncQueue = queue()
+      await syncQueue.attach({ spaceId, execute, emit: () => undefined })
+      await syncQueue.runNow(spaceId, action)
+      expect(execute).toHaveBeenCalledWith(action)
+      expect(syncQueue.status(spaceId).state).toBe("paused")
+      await scheduler.advanceBy(120_000)
+      expect(execute).toHaveBeenCalledTimes(1)
+      await syncQueue.close()
+    }
+  )
 
   it("only fetches after saving a local version", async () => {
     const execute = vi.fn().mockResolvedValue(succeeded())

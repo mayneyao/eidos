@@ -20,7 +20,7 @@ if (ctx) {
   }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const theme = matchMedia("(prefers-color-scheme: dark)");
-  const size = 192;
+  const size = 288;
   const dpr = Math.min(devicePixelRatio || 1, 2);
   canvas.width = canvas.height = size * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -80,7 +80,7 @@ if (ctx) {
 const styles = `
 :root{color-scheme:light dark}
 #lite-startup{position:fixed;inset:0;z-index:2147483647;background:light-dark(#f7f7f5,#202020);color:light-dark(#555,#bbb);font:13px system-ui;display:grid;place-content:center;justify-items:center;-webkit-app-region:drag}
-#lite-startup .art{position:relative;width:192px;height:192px}
+#lite-startup .art{position:relative;width:288px;height:288px}
 #lite-startup svg{position:absolute;inset:10%;width:80%;height:80%}
 #lite-startup canvas{width:100%;height:100%;opacity:0}
 #lite-startup [data-ready] canvas{opacity:1}
@@ -89,7 +89,7 @@ const styles = `
 `
 
 function markup(label: string): string {
-  return `<style>${styles}</style><section id="lite-startup"><div class="art" aria-hidden="true"><svg viewBox="0 0 512 512"><path fill="currentColor" fill-rule="evenodd" d="${outline}"/></svg><canvas></canvas></div><p role="status">${label}</p></section>`
+  return `<style>${styles}</style><section id="lite-startup" role="status" aria-label="${label}"><div class="art" aria-hidden="true"><svg viewBox="0 0 512 512"><path fill="currentColor" fill-rule="evenodd" d="${outline}"/></svg><canvas></canvas></div></section>`
 }
 
 export function startupDocument(locale: string): string {
@@ -108,7 +108,7 @@ export function withStartupShell(html: string): string {
 if (!/^#\\/settings(?:\\/|$)/.test(location.hash)) {
   const appearance = new URLSearchParams(location.search).get("appearance");
   if (appearance === "light" || appearance === "dark") document.documentElement.style.colorScheme = appearance;
-  document.querySelector("#lite-startup p").textContent = navigator.language.startsWith("zh") ? "正在打开…" : "Opening…";
+  document.getElementById("lite-startup").setAttribute("aria-label", navigator.language.startsWith("zh") ? "正在打开…" : "Opening…");
   ${animation}
 } else document.getElementById("lite-startup").remove();
 `

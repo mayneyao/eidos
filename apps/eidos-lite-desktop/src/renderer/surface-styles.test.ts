@@ -179,6 +179,7 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(captionButton).toContain(".sync-dialog-inspector > header")
     expect(captionButton).toContain(".sync-inspector-b > header")
     expect(captionButton).toContain(".icon-button")
+    expect(captionButton).toContain(".sync-account-meter")
     expect(captionButton).toContain("width: var(--window-caption-width)")
     expect(captionButton).toContain("height: var(--window-caption-height)")
     expect(captionButton).toContain("flex-shrink: 0")

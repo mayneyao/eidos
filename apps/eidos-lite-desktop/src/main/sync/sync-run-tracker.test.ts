@@ -1,5 +1,27 @@
 import { SyncRunTracker } from "./sync-run-tracker"
 
+it("preserves observed verification stages without using a request denominator", () => {
+  const emit = vi.fn()
+  const tracker = new SyncRunTracker(
+    "native-stage",
+    emit,
+    () => 1000,
+    "connect"
+  )
+  tracker.transition("push", "Initial upload")
+  tracker.transfer({
+    direction: "download",
+    transferredBytes: 464,
+    totalIsFinal: false,
+    syncPhase: "verifying",
+  })
+  expect(emit.mock.calls.at(-1)?.[0]).toMatchObject({
+    phase: "validate",
+    nativePhase: "verifying",
+    transfer: { totalBytes: null },
+  })
+})
+
 describe("SyncRunTracker", () => {
   it("projects ordered phases and authoritative elapsed time", () => {
     let now = 1_000
@@ -217,6 +239,36 @@ describe("SyncRunTracker", () => {
       totalIsFinal: true,
     })
     expect(events.at(-1)?.transfer?.transferredBytes).toBe(100)
+  })
+
+  it("immediately invalidates a planned total when transferred bytes exceed it", () => {
+    let now = 1_000
+    const events: Array<{
+      transfer?: { totalBytes: number | null; transferredBytes: number }
+    }> = []
+    const tracker = new SyncRunTracker(
+      "invalid-plan",
+      (event) => events.push(event),
+      () => now
+    )
+    tracker.transition("push", "Uploading")
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 50,
+      totalBytes: 100,
+      totalIsFinal: true,
+    })
+    now += 1
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 101,
+      totalBytes: 100,
+      totalIsFinal: true,
+    })
+    expect(events.at(-1)?.transfer).toMatchObject({
+      transferredBytes: 101,
+      totalBytes: null,
+    })
   })
 
   it("keeps incremental E2EE totals indeterminate until the whole transfer is planned", () => {

@@ -32,6 +32,10 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
       getPreferences: vi.fn(async () => preferences),
       updatePreferences,
       onPreferencesChanged: vi.fn(() => () => {}),
+      getSyncPasswordSettings: vi.fn(async () => ({
+        available: true,
+        configured: false,
+      })),
       listTerminalShells: vi.fn(async () => [
         { executable: "/bin/zsh", name: "Zsh", systemDefault: true },
         { executable: "/bin/bash", name: "Bash", systemDefault: false },
@@ -107,7 +111,11 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   const pluginsPage = [
     ...host.querySelectorAll<HTMLButtonElement>("nav button"),
   ].find((button) => button.textContent === "Plugins")
-  await act(async () => pluginsPage?.click())
+  expect(pluginsPage).toBeUndefined()
+  await act(async () => {
+    window.location.hash = "#/settings/plugins"
+    window.dispatchEvent(new HashChangeEvent("hashchange"))
+  })
   expect(host.querySelector("[data-terminal-layout]")).toBeNull()
   await act(async () => {
     Array.from(host.querySelectorAll<HTMLButtonElement>(".plugin-list-entry"))

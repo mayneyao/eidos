@@ -34,6 +34,7 @@ import {
 import { resolveEidosLiteAppearance } from "../shared/appearance"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import type { SparkFeature } from "../shared/spark"
+import { customSyncOrigin } from "../shared/sync-encryption"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
 import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
@@ -415,16 +416,62 @@ export class WindowController {
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
   private readonly sharedSessions = new Map<string, SpaceSession>()
   private encryptedCloneGeneration = 0
+  private customCloneGeneration = 0
   private readonly encryptedCloneDrains = new Set<Promise<void>>()
   private readonly encryptedCloneAborts = new Set<AbortController>()
+  private readonly customCloneDrains = new Set<Promise<void>>()
+  private readonly customCloneAborts = new Set<AbortController>()
+  private readonly customSyncAdmissions = new Map<string, number>()
 
-  captureEncryptedCloneTicket(): number {
+  retainCustomSyncAdmission(session: SpaceSession): () => void {
+    const id = session.canonical.id
+    this.customSyncAdmissions.set(
+      id,
+      (this.customSyncAdmissions.get(id) ?? 0) + 1
+    )
+    return () => {
+      const remaining = (this.customSyncAdmissions.get(id) ?? 1) - 1
+      if (remaining > 0) this.customSyncAdmissions.set(id, remaining)
+      else this.customSyncAdmissions.delete(id)
+    }
+  }
+
+  async customSyncSessions(origin?: string): Promise<SpaceSession[]> {
+    const sessions = new Set([
+      ...this.sessionByWebContents.values(),
+      ...this.sharedSessions.values(),
+    ])
+    const selected: SpaceSession[] = []
+    for (const session of sessions) {
+      const remoteOrigin = customSyncOrigin(
+        (await session.storedHostedSyncRemoteUrl()) ?? ""
+      )
+      if (
+        !session.isClosed &&
+        (origin
+          ? remoteOrigin === origin
+          : Boolean(remoteOrigin) ||
+            this.customSyncAdmissions.has(session.canonical.id))
+      )
+        selected.push(session)
+    }
+    return selected
+  }
+
+  captureEncryptedCloneTicket(custom = false): number {
     if (this.closing) throw new Error("Eidos Lite is closing")
-    return this.encryptedCloneGeneration
+    return custom
+      ? -this.customCloneGeneration - 1
+      : this.encryptedCloneGeneration
   }
 
   private assertEncryptedCloneTicket(ticket: number): void {
-    if (this.closing || ticket !== this.encryptedCloneGeneration)
+    if (
+      this.closing ||
+      (ticket < 0
+        ? ticket !== -this.customCloneGeneration - 1
+        : ticket !== this.encryptedCloneGeneration)
+    )
       throw Object.assign(
         new Error("Encrypted Space download was interrupted"),
         {
@@ -438,24 +485,57 @@ export class WindowController {
     this.sharedSessions.set(session.canonical.id, session)
   }
 
-  async lockEncryptedSyncSessions(disconnect = false): Promise<void> {
-    this.encryptedCloneGeneration += 1
-    for (const operation of this.encryptedCloneAborts) operation.abort()
-    const cloneDrain = this.cloneCoordinatorInstance?.cancelEncryptedClones()
+  async lockEncryptedSyncSessions(
+    disconnect = false,
+    officialOnly = false,
+    customOnly = false
+  ): Promise<void> {
+    if (!customOnly) this.encryptedCloneGeneration += 1
+    if (!officialOnly) this.customCloneGeneration += 1
+    for (const operation of this.encryptedCloneAborts)
+      if (
+        (!officialOnly || !this.customCloneAborts.has(operation)) &&
+        (!customOnly || this.customCloneAborts.has(operation))
+      )
+        operation.abort()
+    const cloneDrain = this.cloneCoordinatorInstance?.cancelEncryptedClones(
+      officialOnly,
+      customOnly
+    )
     const sessions = new Set([
       ...this.sessionByWebContents.values(),
       ...this.sharedSessions.values(),
     ])
     const outcomes = await Promise.allSettled([
       cloneDrain,
-      ...this.encryptedCloneDrains,
+      ...[...this.encryptedCloneDrains].filter(
+        (drain) =>
+          (!officialOnly || !this.customCloneDrains.has(drain)) &&
+          (!customOnly || this.customCloneDrains.has(drain))
+      ),
       ...[...sessions]
         .filter((session) => !session.isClosed)
-        .map((session) =>
-          disconnect
+        .map(async (session) => {
+          if (
+            customOnly &&
+            !this.customSyncAdmissions.has(session.canonical.id) &&
+            !customSyncOrigin((await session.storedHostedSyncRemoteUrl()) ?? "")
+          )
+            return
+          if (
+            officialOnly &&
+            this.customSyncAdmissions.has(session.canonical.id)
+          )
+            return
+          if (
+            officialOnly &&
+            customSyncOrigin((await session.storedHostedSyncRemoteUrl()) ?? "")
+          )
+            return
+          return disconnect
             ? session.clearHostedSyncCredentials()
             : session.lockEncryptedSync()
-        ),
+        }),
     ])
     if (outcomes.some((outcome) => outcome.status === "rejected"))
       throw new Error("Could not drain all encrypted Sync sessions")
@@ -883,7 +963,9 @@ export class WindowController {
     reportProgress: CloneProgressReporter = () => undefined,
     reportTransfer: (progress: GraftTransferProgress) => void = () => undefined,
     encryption?: GraftEncryptedInput,
-    encryptedTicket = this.captureEncryptedCloneTicket()
+    encryptedTicket = this.captureEncryptedCloneTicket(
+      Boolean(customSyncOrigin(remoteUrl))
+    )
   ): Promise<SpaceSnapshot | null> {
     const assertAdmission = encryption
       ? () => this.assertEncryptedCloneTicket(encryptedTicket)
@@ -915,6 +997,8 @@ export class WindowController {
     let failDrain = (_error: unknown) => {}
     const operationAbort = encryption ? new AbortController() : undefined
     if (operationAbort) this.encryptedCloneAborts.add(operationAbort)
+    if (operationAbort && customSyncOrigin(remoteUrl))
+      this.customCloneAborts.add(operationAbort)
     const drained = encryption
       ? new Promise<void>((resolve, reject) => {
           finishDrain = resolve
@@ -923,6 +1007,7 @@ export class WindowController {
       : undefined
     if (drained) {
       this.encryptedCloneDrains.add(drained)
+      if (customSyncOrigin(remoteUrl)) this.customCloneDrains.add(drained)
       void drained.catch(() => undefined)
     }
     let drainFailure: unknown
@@ -971,7 +1056,9 @@ export class WindowController {
       if (drainFailure) failDrain(drainFailure)
       else finishDrain()
       if (drained) this.encryptedCloneDrains.delete(drained)
+      if (drained) this.customCloneDrains.delete(drained)
       if (operationAbort) this.encryptedCloneAborts.delete(operationAbort)
+      if (operationAbort) this.customCloneAborts.delete(operationAbort)
     }
   }
 
@@ -1002,9 +1089,19 @@ export class WindowController {
   async cloneHostedRecoverySpace(
     webContents: WebContents,
     remoteUrl: string,
-    accessToken: string
+    accessToken: string,
+    encryption?: GraftEncryptedInput,
+    assertCurrent: () => void = () => undefined
   ): Promise<EidosSyncRecoveryResult | null> {
     this.requireSession(webContents)
+    const ticket = this.captureEncryptedCloneTicket(
+      Boolean(customSyncOrigin(remoteUrl))
+    )
+    const assertAdmission = () => {
+      assertCurrent()
+      if (encryption) this.assertEncryptedCloneTicket(ticket)
+    }
+    assertAdmission()
     const repositoryName =
       new URL(remoteUrl).pathname.split("/").filter(Boolean).at(-1) ??
       "Hosted Space"
@@ -1015,11 +1112,16 @@ export class WindowController {
       `${repositoryName} Hosted Recovery`
     )
     if (!targetPath) return null
+    assertAdmission()
     const target = await this.cloneCoordinator().clone(
       targetPath,
       remoteUrl,
-      accessToken
+      accessToken,
+      undefined,
+      undefined,
+      encryption
     )
+    assertAdmission()
     const canonical = await canonicalizeSpaceRoot(target)
     await this.createSpaceWindow(target)
     return {
@@ -1773,9 +1875,7 @@ export class WindowController {
         const eidosFiles = entries
           .filter((entry) => entry.kind === "eidos")
           .map((entry) => entry.relativePath)
-        if (eidosFiles.length === 0) {
-          throw new Error("The Hosted Space contains no .eidos files")
-        }
+        if (eidosFiles.length === 0) return
         const runtime = new RuntimePool(root, this.runtimeWorkerPath())
         try {
           await runtime.validatePaths(eidosFiles)

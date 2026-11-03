@@ -1,5 +1,5 @@
 /** Feature IDs are a versioned contract with the account service. */
-export const SPARK_FEATURES = ["file-metadata"] as const
+export const SPARK_FEATURES = ["file-metadata", "custom-graft-sync"] as const
 export const SPARK_ACTIVATION_REQUIRED =
   "Activate Spark in Settings → Account & Services to use this feature. Existing files remain available."
 export type SparkFeature = (typeof SPARK_FEATURES)[number]

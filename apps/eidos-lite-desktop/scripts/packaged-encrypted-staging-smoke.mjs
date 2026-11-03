@@ -77,7 +77,9 @@ async function nativeFiles(directory) {
     else if (
       entry.isFile() &&
       entry.name.endsWith(".node") &&
-      /[/\\]graft-[^/\\]+[/\\]/.test(target)
+      /[/\\]node_modules[/\\]@eidos\.space[/\\]graft-[^/\\]+[/\\][^/\\]+\.node$/.test(
+        target
+      )
     )
       files.push(target)
   }

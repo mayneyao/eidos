@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { createPortal } from "react-dom"
 import { loadFileHistoryBatch } from "./load-file-history"
 import { useEidosLiteI18n } from "./i18n"
 import type { SpaceVersionHistory } from "../shared/contracts"
@@ -420,6 +421,89 @@ function fileName(path: string): string {
 function fileParent(path: string): string {
   const segments = path.split("/")
   return segments.length > 1 ? segments.slice(0, -1).join("/") : "Space root"
+}
+
+function RestoreVersionDialog({
+  commit,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  commit: SpaceVersionCommit
+  busy: boolean
+  error: string | null
+  onCancel(): void
+  onConfirm(): void
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (typeof dialog.showModal === "function") dialog.showModal()
+    else dialog.setAttribute("open", "")
+    return () => {
+      if (dialog.open && typeof dialog.close === "function") dialog.close()
+    }
+  }, [])
+
+  return createPortal(
+    <dialog
+      ref={dialogRef}
+      className="path-dialog restore-version-dialog"
+      aria-labelledby="restore-version-title"
+      aria-describedby="restore-version-description"
+      onCancel={(event) => {
+        event.preventDefault()
+        if (!busy) onCancel()
+      }}
+    >
+      <header>
+        <strong id="restore-version-title">Restore this version?</strong>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Cancel"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          <X />
+        </button>
+      </header>
+      <div className="restore-version-body" id="restore-version-description">
+        <p>
+          Restore the entire Space to <strong>{commit.message}</strong>?
+        </p>
+        <p>
+          {commitTime(commit.timestampMs)} ·{" "}
+          {commit.fileCountKnown === false
+            ? "files on demand"
+            : `${commit.files} ${commit.files === 1 ? "file" : "files"}`}
+        </p>
+        <p>A new saved version will record the restore.</p>
+        {error ? (
+          <p className="restore-version-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <footer>
+        <button type="button" autoFocus disabled={busy} onClick={onCancel}>
+          Keep current Space
+        </button>
+        <button
+          type="button"
+          className="danger-action"
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          {busy ? <LoaderCircle className="spin" /> : <RotateCcw />}
+          {busy ? "Restoring…" : "Restore Space"}
+        </button>
+      </footer>
+    </dialog>,
+    document.body
+  )
 }
 
 function DiscardWorkingChangesDialog({
@@ -1303,7 +1387,47 @@ export function VersionPanel({
     checkpointPaths === null
       ? (changes?.totalPaths ?? changes?.paths.length ?? 0)
       : checkpointPaths.size
-  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState<{
+    commit: SpaceVersionCommit
+    head: string
+  } | null>(null)
+  const [restoreMenu, setRestoreMenu] = useState<{
+    commit: SpaceVersionCommit
+    x: number
+    y: number
+  } | null>(null)
+  const restoreMenuRef = useRef<HTMLDivElement>(null)
+  const restoreMenuTriggerRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    if (!restoreMenu) return
+    const menu = restoreMenuRef.current
+    const action = menu?.querySelector<HTMLButtonElement>(
+      "button:not(:disabled)"
+    )
+    ;(action ?? menu)?.focus()
+    const dismiss = (event: PointerEvent) => {
+      if (!restoreMenuRef.current?.contains(event.target as Node))
+        setRestoreMenu(null)
+    }
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        setRestoreMenu(null)
+        restoreMenuTriggerRef.current?.focus()
+      }
+    }
+    window.addEventListener("pointerdown", dismiss)
+    window.addEventListener("keydown", keydown)
+    const dismissOnResize = () => setRestoreMenu(null)
+    window.addEventListener("resize", dismissOnResize)
+    window.addEventListener("scroll", dismissOnResize, true)
+    return () => {
+      window.removeEventListener("pointerdown", dismiss)
+      window.removeEventListener("keydown", keydown)
+      window.removeEventListener("resize", dismissOnResize)
+      window.removeEventListener("scroll", dismissOnResize, true)
+    }
+  }, [restoreMenu])
   const [discardConfirmation, setDiscardConfirmation] = useState<{
     target: VersionChangeDiscardTarget
     expectedHead: string
@@ -1707,14 +1831,14 @@ export function VersionPanel({
     if (selectedCommit?.id === commit.id) {
       setSelectedCommit(null)
       setSelectedDiff(null)
-      setConfirmRestore(false)
+      setConfirmRestore(null)
       clearInspection()
       setSelectionLoading(false)
       return
     }
     setSelectedCommit(commit)
     setSelectedDiff(null)
-    setConfirmRestore(false)
+    setConfirmRestore(null)
     clearInspection()
     setSelectionLoading(true)
     setError(null)
@@ -1841,13 +1965,27 @@ export function VersionPanel({
   }
 
   const restore = async () => {
-    if (!selectedCommit || !historyHead) return
+    if (!confirmRestore) return
+    if (
+      hasLocalChanges ||
+      busy !== null ||
+      historyPath !== null ||
+      space.graft.checking ||
+      space.operation.phase !== "ready" ||
+      historyHead !== confirmRestore.head ||
+      space.graft.currentHead !== confirmRestore.head
+    ) {
+      setError(
+        "The Space changed. Refresh versions and save local changes before restoring."
+      )
+      return
+    }
     setBusy("restore")
     setError(null)
     try {
       const snapshot = await window.eidosLite.restoreCheckpoint(
-        selectedCommit.id,
-        historyHead
+        confirmRestore.commit.id,
+        confirmRestore.head
       )
       onSpaceChange(snapshot)
       try {
@@ -1857,7 +1995,7 @@ export function VersionPanel({
           `Space restored, but open Eidos Files could not refresh. ${errorMessage(cause)}`
         )
       }
-      setConfirmRestore(false)
+      setConfirmRestore(null)
       setSelectedCommit(null)
       setSelectedDiff(null)
       clearInspection()
@@ -1925,6 +2063,21 @@ export function VersionPanel({
   )
   const changedPathCount = changes?.totalPaths ?? changes?.paths.length ?? 0
   const hasLocalChanges = space.graft.clean === false || changedPathCount > 0
+  const restoreUnavailableReason = !restoreMenu
+    ? null
+    : historyPath
+      ? "Restore the Space from All versions."
+      : !historyHead ||
+          space.graft.checking ||
+          space.graft.currentHead !== historyHead
+        ? "Refresh versions before restoring."
+        : restoreMenu.commit.id === historyHead
+          ? "This is the current saved version."
+          : hasLocalChanges
+            ? "Save a version of local changes before restoring."
+            : busy !== null || space.operation.phase !== "ready"
+              ? "Wait for the current operation to finish."
+              : null
 
   const changeMode = (nextMode: PanelMode) => {
     manuallySelectedMode.current = true
@@ -1940,7 +2093,8 @@ export function VersionPanel({
     void window.eidosLite.cancelVersionReads().catch(() => undefined)
     setSelectedCommit(null)
     setSelectedDiff(null)
-    setConfirmRestore(false)
+    setConfirmRestore(null)
+    setRestoreMenu(null)
     setDiscardConfirmation(null)
     clearInspection()
   }
@@ -2102,12 +2256,16 @@ export function VersionPanel({
         ) : null}
 
         <section className="version-setup-copy">
-          <GitBranch aria-hidden="true" />
-          <strong>Start local versions</strong>
-          <p>
-            Save the first version of this Space. This stays local and does not
-            require an account.
-          </p>
+          <div className="version-setup-intro">
+            <GitBranch aria-hidden="true" />
+            <div>
+              <strong>Start local versions</strong>
+              <p>
+                Save the first version of this Space. This stays local and does
+                not require an account.
+              </p>
+            </div>
+          </div>
           <div className="version-setup-ignore" aria-busy={ignoreBusy}>
             <div className="version-setup-ignore-heading">
               <strong>{t("Preflight")}</strong>
@@ -2436,9 +2594,7 @@ export function VersionPanel({
                 >
                   {busy === "checkpoint" ? (
                     <LoaderCircle className="spin" />
-                  ) : (
-                    <GitCommitHorizontal />
-                  )}
+                  ) : null}
                   {busy === "checkpoint"
                     ? "Saving…"
                     : `${t("Save selected files")} (${checkpointCount})`}
@@ -2458,7 +2614,7 @@ export function VersionPanel({
               return (
                 <Fragment key={commit.id}>
                   <li
-                    className={expanded ? "expanded" : ""}
+                    className={`commit-entry${expanded ? " expanded" : ""}`}
                     data-cloud-checkpoint={cloudCheckpoint ? "true" : undefined}
                     data-local-checkpoint={localCheckpoint ? "true" : undefined}
                   >
@@ -2467,17 +2623,40 @@ export function VersionPanel({
                       className="commit-row"
                       aria-expanded={expanded}
                       onClick={() => void selectCommit(commit)}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        restoreMenuTriggerRef.current = event.currentTarget
+                        setRestoreMenu({
+                          commit,
+                          x: event.clientX,
+                          y: event.clientY,
+                        })
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key !== "ContextMenu" &&
+                          !(event.shiftKey && event.key === "F10")
+                        )
+                          return
+                        event.preventDefault()
+                        restoreMenuTriggerRef.current = event.currentTarget
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        setRestoreMenu({ commit, x: rect.left, y: rect.bottom })
+                      }}
                     >
-                      {expanded ? <ChevronDown /> : <ChevronRight />}
-                      <GitCommitHorizontal />
                       <span>
-                        <span className="commit-title-line">
-                          <strong>{commit.message}</strong>
+                        <strong>{commit.message}</strong>
+                        <small className="commit-metadata">
+                          {commitTime(commit.timestampMs)} ·{" "}
+                          {commit.fileCountKnown === false
+                            ? "files on demand"
+                            : `${commit.files} ${commit.files === 1 ? "file" : "files"}`}
                           {localCheckpoint ? (
                             <span
                               className="commit-cloud-marker"
                               title={t("Current local version")}
                             >
+                              {" · "}
                               {t("Current local version")}
                             </span>
                           ) : null}
@@ -2486,16 +2665,10 @@ export function VersionPanel({
                               className="commit-cloud-marker"
                               title={t("Remote version at the last check")}
                             >
-                              <Cloud aria-hidden="true" />{" "}
+                              {" · "}
                               {t("Current remote version")}
                             </span>
                           ) : null}
-                        </span>
-                        <small>
-                          {commitTime(commit.timestampMs)} ·{" "}
-                          {commit.fileCountKnown === false
-                            ? "files on demand"
-                            : `${commit.files} files`}
                         </small>
                       </span>
                     </button>
@@ -2529,63 +2702,6 @@ export function VersionPanel({
                             ) : null}
                           </>
                         ) : null}
-                        {!historyPath ? (
-                          <div className="commit-restore">
-                            {commit.id === historyHead ? (
-                              <p className="restore-note">
-                                This is the current saved version.
-                              </p>
-                            ) : hasLocalChanges ? (
-                              <p className="restore-note">
-                                Save a version of local changes before
-                                restoring.
-                              </p>
-                            ) : confirmRestore ? (
-                              <div className="restore-confirm">
-                                <p>
-                                  Restore the entire Space to this version? A
-                                  new saved version will record the restore.
-                                </p>
-                                <div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmRestore(false)}
-                                    disabled={busy !== null}
-                                  >
-                                    Keep current Space
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="danger-action"
-                                    onClick={() => void restore()}
-                                    disabled={busy !== null}
-                                  >
-                                    {busy === "restore" ? (
-                                      <LoaderCircle className="spin" />
-                                    ) : (
-                                      <RotateCcw />
-                                    )}
-                                    {busy === "restore"
-                                      ? "Restoring…"
-                                      : "Restore Space"}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="restore-action"
-                                onClick={() => setConfirmRestore(true)}
-                                disabled={
-                                  busy !== null ||
-                                  space.operation.phase !== "ready"
-                                }
-                              >
-                                <RotateCcw /> Restore this version
-                              </button>
-                            )}
-                          </div>
-                        ) : null}
                       </div>
                     ) : null}
                   </li>
@@ -2616,6 +2732,61 @@ export function VersionPanel({
           <p className="version-empty-copy">No saved versions yet.</p>
         )}
       </div>
+      {restoreMenu
+        ? createPortal(
+            <div
+              ref={restoreMenuRef}
+              className="space-context-menu version-restore-menu"
+              role="menu"
+              aria-label="Version actions"
+              tabIndex={-1}
+              style={{
+                left: Math.max(
+                  8,
+                  Math.min(restoreMenu.x, window.innerWidth - 250)
+                ),
+                top: Math.max(
+                  8,
+                  Math.min(restoreMenu.y, window.innerHeight - 100)
+                ),
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                disabled={restoreUnavailableReason !== null}
+                onClick={() => {
+                  if (restoreUnavailableReason || !historyHead) return
+                  setError(null)
+                  setConfirmRestore({
+                    commit: restoreMenu.commit,
+                    head: historyHead,
+                  })
+                  setRestoreMenu(null)
+                }}
+              >
+                <RotateCcw /> Restore this version…
+              </button>
+              {restoreUnavailableReason ? (
+                <p>{restoreUnavailableReason}</p>
+              ) : null}
+            </div>,
+            document.body
+          )
+        : null}
+      {confirmRestore ? (
+        <RestoreVersionDialog
+          commit={confirmRestore.commit}
+          busy={busy === "restore"}
+          error={error}
+          onCancel={() => {
+            setConfirmRestore(null)
+            setError(null)
+            requestAnimationFrame(() => restoreMenuTriggerRef.current?.focus())
+          }}
+          onConfirm={() => void restore()}
+        />
+      ) : null}
       {discardConfirmation ? (
         <DiscardWorkingChangesDialog
           target={discardConfirmation.target}

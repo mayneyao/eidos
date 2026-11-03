@@ -22,6 +22,15 @@ export interface GraftCloneOptions {
 }
 
 export interface GraftTransferProgress {
+  syncPhase?:
+    | "preparing"
+    | "uploading"
+    | "downloading"
+    | "verifying"
+    | "applying"
+    | "completed"
+    | "failed"
+    | "cancelled"
   direction: "upload" | "download"
   transferredBytes: number
   totalBytes?: number
@@ -55,6 +64,7 @@ export type GraftSdkCommand =
   | "unlockEncryptedSync"
   | "cloneEncryptedSync"
   | "lockEncryptedSync"
+  | "restoreEncryptedSyncBinding"
   | "sdkVersion"
   | "operationMaterializesWorktree"
   | "init"
@@ -85,6 +95,7 @@ export type GraftSdkCommand =
   | "removeRemote"
   | "push"
   | "fetch"
+  | "fetchForCheckout"
   | "pull"
   | "getMergePolicy"
   | "validateMergePolicy"

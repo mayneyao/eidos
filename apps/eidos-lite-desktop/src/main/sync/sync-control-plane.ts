@@ -14,6 +14,8 @@ import type {
   OfficialSyncClient,
   OfficialSyncUsage,
 } from "./official-sync-client"
+import type { CustomSyncServers } from "./custom-sync-servers"
+import { customSyncOrigin } from "../../shared/sync-encryption"
 
 export class SyncPolicyError extends Error {
   constructor(
@@ -26,6 +28,9 @@ export class SyncPolicyError extends Error {
 }
 
 export interface SyncOperationContext {
+  readonly provider?: "official" | "custom"
+  readonly serverId?: string
+  readonly authenticationDomain?: string
   readonly subject: string
   readonly accessToken: string
   readonly access: "read_only" | "read_write"
@@ -33,6 +38,40 @@ export interface SyncOperationContext {
 }
 
 export class SyncControlPlane {
+  private customServers?: CustomSyncServers
+  private readonly changingCustomOrigins = new Set<string>()
+  private customOperationGeneration = 0
+  invalidateCustomOperations(): void {
+    this.customOperationGeneration += 1
+  }
+  beginCustomServerChange(origin: string): () => void {
+    if (this.changingCustomOrigins.has(origin))
+      throw new Error("This custom server is being updated")
+    this.changingCustomOrigins.add(origin)
+    return () => this.changingCustomOrigins.delete(origin)
+  }
+  setCustomServers(servers: CustomSyncServers): void {
+    this.customServers = servers
+  }
+  customServerRegistry(): CustomSyncServers {
+    if (!this.customServers) throw new Error("Custom sync is unavailable")
+    return this.customServers
+  }
+  isCustomRemote(remote: string | null | undefined): boolean {
+    return Boolean(remote && customSyncOrigin(remote))
+  }
+  async syncIdentity(
+    remote: string
+  ): Promise<{ domain: string; subject: string }> {
+    if (this.isCustomRemote(remote)) {
+      const context = await this.operationContext(remote)
+      return { domain: context.authenticationDomain!, subject: context.subject }
+    }
+    return {
+      domain: this.environment.accountOrigin,
+      subject: await this.accountSubject(),
+    }
+  }
   sparkHardwareId(): Promise<string> {
     return this.account.sparkHardwareId()
   }
@@ -50,7 +89,12 @@ export class SyncControlPlane {
     private readonly forceReadOnly = false
   ) {}
 
-  async status(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
+  async status(
+    remoteUrl: string | null = null,
+    serverId?: string
+  ): Promise<EidosSyncStatus> {
+    if (serverId || this.isCustomRemote(remoteUrl))
+      return this.customStatus(remoteUrl, serverId)
     const generation = this.operationGeneration
     this.assertCurrent(generation)
     const account = await this.account.status()
@@ -82,7 +126,7 @@ export class SyncControlPlane {
       return await this.projectSignedInStatus(
         account,
         account.authorization ?? (await this.account.authorization()),
-        remoteUrl,
+        this.isCustomRemote(remoteUrl) ? null : remoteUrl,
         () => this.assertCurrent(generation, true)
       )
     } finally {
@@ -96,7 +140,11 @@ export class SyncControlPlane {
     try {
       const account = await this.account.signOut()
       this.assertCurrent(generation, true)
-      return this.projectStatus(account, undefined, remoteUrl)
+      return this.projectStatus(
+        account,
+        undefined,
+        this.isCustomRemote(remoteUrl) ? null : remoteUrl
+      )
     } finally {
       this.finishAccountChange(generation)
     }
@@ -139,7 +187,43 @@ export class SyncControlPlane {
     return status.user.id
   }
 
-  async operationContext(): Promise<SyncOperationContext> {
+  async operationContext(
+    remoteUrl?: string | null,
+    serverId?: string
+  ): Promise<SyncOperationContext> {
+    if (serverId || this.isCustomRemote(remoteUrl)) {
+      const servers = this.customServerRegistry()
+      const selected = serverId
+        ? await servers.context(serverId)
+        : await servers.resolve(remoteUrl!)
+      if (!selected)
+        throw new SyncPolicyError(
+          "This custom server is not configured.",
+          "remote-not-found"
+        )
+      const generation = this.customOperationGeneration
+      const assertCustomCurrent = () => {
+        selected.assertCurrent()
+        if (generation !== this.customOperationGeneration)
+          throw new Error(
+            "Spark access changed; custom synchronization was interrupted"
+          )
+        if (this.changingCustomOrigins.has(selected.origin))
+          throw new Error("This custom server is being updated")
+      }
+      assertCustomCurrent()
+      const context: SyncOperationContext = Object.freeze({
+        provider: "custom",
+        serverId: selected.serverId,
+        authenticationDomain: selected.origin,
+        subject: selected.subject,
+        accessToken: selected.accessToken,
+        access: "read_write",
+        assertCurrent: assertCustomCurrent,
+      })
+      this.operationContexts.add(context)
+      return context
+    }
     const generation = this.operationGeneration
     const assertCurrent = () => this.assertCurrent(generation)
     assertCurrent()
@@ -167,6 +251,8 @@ export class SyncControlPlane {
       )
     }
     const context = Object.freeze({
+      provider: "official" as const,
+      authenticationDomain: this.environment.accountOrigin,
       subject,
       accessToken,
       access,
@@ -201,6 +287,19 @@ export class SyncControlPlane {
       )
     }
     const { accessToken } = operation
+    if (operation.provider === "custom") {
+      const provisioned = await this.customServerRegistry().provision(
+        operation.serverId!,
+        repository,
+        displayName
+      )
+      this.assertContext(operation)
+      return {
+        remoteUrl: provisioned.remoteUrl,
+        accessToken,
+        encryption: provisioned.encryption,
+      }
+    }
     const provisioned = encrypted
       ? await this.remote.provisionRepository(
           repository,
@@ -226,6 +325,13 @@ export class SyncControlPlane {
   ): Promise<EidosSyncRepositoryList> {
     const operation = context ?? (await this.operationContext())
     this.assertContext(operation)
+    if (operation.provider === "custom") {
+      const repositories = await this.customServerRegistry().repositories(
+        operation.serverId!
+      )
+      this.assertContext(operation)
+      return repositories
+    }
     await this.remote.discover()
     this.assertContext(operation)
     const repositories = await this.remote.listRepositories(
@@ -239,6 +345,7 @@ export class SyncControlPlane {
     remoteUrl: string,
     displayName: string
   ): Promise<boolean> {
+    if (this.isCustomRemote(remoteUrl)) return false
     let operation: SyncOperationContext
     try {
       operation = await this.operationContext()
@@ -274,15 +381,24 @@ export class SyncControlPlane {
 
   async repositoryAccess(
     remoteUrl?: string,
-    context?: SyncOperationContext
+    context?: SyncOperationContext,
+    expectedEncryptionUuid?: string
   ): Promise<{
     accessToken: string
     access: "read_only" | "read_write"
+    assertCurrent?: () => void
   }> {
-    const operation = context ?? (await this.operationContext())
+    const operation = context ?? (await this.operationContext(remoteUrl))
     this.assertContext(operation)
     const { access, accessToken } = operation
-    if (remoteUrl) {
+    if (remoteUrl && operation.provider === "custom") {
+      await this.customServerRegistry().verifyAccess(
+        remoteUrl,
+        expectedEncryptionUuid
+      )
+      this.assertContext(operation)
+    }
+    if (remoteUrl && operation.provider !== "custom") {
       const listed = await this.repositories(operation)
       if (!listed.repositories.some((entry) => entry.remoteUrl === remoteUrl)) {
         throw new SyncPolicyError(
@@ -292,7 +408,61 @@ export class SyncControlPlane {
       }
     }
     this.assertContext(operation)
-    return { accessToken, access }
+    return {
+      accessToken,
+      access,
+      ...(operation.provider === "custom"
+        ? { assertCurrent: operation.assertCurrent }
+        : {}),
+    }
+  }
+
+  private async customStatus(
+    remoteUrl: string | null,
+    serverId?: string
+  ): Promise<EidosSyncStatus> {
+    const servers = this.customServerRegistry()
+    const profiles = await servers.list()
+    const profile = profiles.find((entry) =>
+      serverId
+        ? entry.id === serverId
+        : entry.origin === customSyncOrigin(remoteUrl!)
+    )
+    let available = false
+    let detail = "Choose a custom server to continue."
+    if (profile) {
+      try {
+        await servers.context(profile.id)
+        available = true
+        detail =
+          "Custom synchronization is authorized by this computer's Spark license."
+      } catch (error) {
+        detail =
+          error instanceof Error
+            ? error.message
+            : "Activate Spark to use custom synchronization."
+      }
+    }
+    return {
+      provider: "custom",
+      ...(profile
+        ? {
+            serverId: profile.id,
+            serverName: profile.name,
+            serverOrigin: profile.origin,
+          }
+        : {}),
+      environment: this.environment.name,
+      account: { state: "signed-out" },
+      device: { state: "not-registered" },
+      entitlement: { state: "not-checked", detail },
+      remote: remoteUrl
+        ? { state: "connected", url: remoteUrl }
+        : { state: "not-connected" },
+      canEnable: available && remoteUrl === null,
+      canClone: available,
+      blocker: available ? null : { code: "access-required", message: detail },
+    }
   }
 
   private async projectSignedInStatus(

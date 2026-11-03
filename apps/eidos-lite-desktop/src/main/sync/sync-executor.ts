@@ -11,10 +11,12 @@ import type { SpaceSession } from "../space/space-session"
 import type { SyncControlPlane } from "./sync-control-plane"
 import {
   classifySyncFailure,
+  classifyCustomSyncFailure,
   createPackagedSyncFault,
   type PackagedSyncFault,
 } from "./sync-failure"
 import { SyncRunTracker } from "./sync-run-tracker"
+import { customSyncOrigin } from "../../shared/sync-encryption"
 
 export class SyncExecutor {
   private readonly injectedFailures: PackagedSyncFault[]
@@ -46,6 +48,7 @@ export class SyncExecutor {
       spaceKey,
     })
     let currentPhase: EidosSyncPhase = "authorization"
+    let custom = false
     const transition = (phase: EidosSyncPhase, detail: string) => {
       currentPhase = phase
       logger?.debug("sync.run.phase", {
@@ -67,14 +70,26 @@ export class SyncExecutor {
         throw createPackagedSyncFault(injectedFailure)
       }
       const remoteUrl = await session.officialSyncRemoteUrl()
+      custom = Boolean(remoteUrl && customSyncOrigin(remoteUrl))
       if (!remoteUrl)
         throw new Error("This Space is not connected to Eidos Sync")
-      const access = await this.syncControl.repositoryAccess(remoteUrl)
+      const encryptionUuid =
+        typeof session.syncEncryptionUuid === "function"
+          ? await session.syncEncryptionUuid()
+          : undefined
+      const access = encryptionUuid
+        ? await this.syncControl.repositoryAccess(
+            remoteUrl,
+            undefined,
+            encryptionUuid
+          )
+        : await this.syncControl.repositoryAccess(remoteUrl)
       if ((await session.officialSyncRemoteUrl()) !== remoteUrl)
         throw new Error(
           "The cloud connection changed. Check its status before syncing again."
         )
       await this.prepareEncryptedSync?.(session, remoteUrl, access.accessToken)
+      access.assertCurrent?.()
       const outcome = await session.syncHostedRemote(
         access.accessToken,
         access.access,
@@ -83,6 +98,7 @@ export class SyncExecutor {
         action,
         remoteUrl
       )
+      access.assertCurrent?.()
       const telemetry = tracker.complete(outcome.message)
       logger?.info("sync.run.completed", {
         runId: tracker.runId,
@@ -102,7 +118,9 @@ export class SyncExecutor {
         },
       }
     } catch (error) {
-      const failure = classifySyncFailure(error, currentPhase)
+      const failure = custom
+        ? classifyCustomSyncFailure(error, currentPhase)
+        : classifySyncFailure(error, currentPhase)
       const telemetry = tracker.fail(failure.message)
       logger?.warn(
         "sync.run.failed",

@@ -25,6 +25,8 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
     withSyncTask: SpaceSession.prototype["withSyncTask"],
     syncHostedRemoteInternal:
       SpaceSession.prototype["syncHostedRemoteInternal"],
+    configureHostedSyncRemote:
+      SpaceSession.prototype["configureHostedSyncRemote"],
     canonical: { root: "/unused" },
     officialSyncRemoteUrl: async () => "https://sync.eidos.space/test/repo",
     gate: { withRepositoryOperation: run },
@@ -44,11 +46,14 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
       pushed: boolean
     ) => ({ state, pulled, pushed }),
   } as unknown as SpaceSession
-  const invoke = (action: EidosSyncAction) =>
+  const invoke = (
+    action: EidosSyncAction,
+    access: "read_only" | "read_write" = "read_write"
+  ) =>
     SpaceSession.prototype.syncHostedRemote.call(
       session,
       "token",
-      "read_write",
+      access,
       () => undefined,
       () => undefined,
       action
@@ -57,6 +62,70 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
 }
 
 describe("explicit Sync actions", () => {
+  it("does not upload from a read-only Space during a full sync", async () => {
+    const { graft, invoke } = sessionFixture(1, 0, false)
+    expect(await invoke("sync", "read_only")).toMatchObject({
+      state: "read-only",
+      pushed: false,
+      pulled: false,
+    })
+    expect(graft.fetch).toHaveBeenCalledOnce()
+    expect(graft.push).not.toHaveBeenCalled()
+  })
+
+  it("stops when history diverges between the initial check and fetch", async () => {
+    const { graft, invoke } = sessionFixture(0, 0, false)
+    graft.status.mockResolvedValueOnce({
+      ahead: 0,
+      behind: 0,
+      dirty: false,
+      hasConflicts: false,
+    })
+    graft.status.mockResolvedValueOnce({
+      ahead: 1,
+      behind: 1,
+      dirty: false,
+      hasConflicts: false,
+    })
+    expect(await invoke("sync")).toMatchObject({
+      state: "conflict",
+      pushed: false,
+      pulled: false,
+    })
+    expect(graft.fetch).toHaveBeenCalledOnce()
+    expect(graft.push).not.toHaveBeenCalled()
+    expect(graft.applyMerge).not.toHaveBeenCalled()
+  })
+  it("checks remote history before uploading saved versions in a full sync", async () => {
+    const { graft, invoke } = sessionFixture(2, 0, false)
+    expect(await invoke("sync")).toMatchObject({
+      state: "synced",
+      pushed: true,
+      pulled: false,
+    })
+    expect(graft.fetch).toHaveBeenCalledOnce()
+    expect(graft.push).toHaveBeenCalledOnce()
+    expect(graft.fetch.mock.invocationCallOrder[0]).toBeLessThan(
+      graft.push.mock.invocationCallOrder[0]!
+    )
+    expect(graft.commit).not.toHaveBeenCalled()
+  })
+
+  it("leaves divergent histories and unsaved changes untouched during full sync", async () => {
+    const divergent = sessionFixture(2, 3, false)
+    expect(await divergent.invoke("sync")).toMatchObject({
+      state: "conflict",
+      pushed: false,
+      pulled: false,
+    })
+    expect(divergent.graft.push).not.toHaveBeenCalled()
+    expect(divergent.graft.applyMerge).not.toHaveBeenCalled()
+    const dirty = sessionFixture(0, 2, true)
+    await expect(dirty.invoke("sync")).rejects.toThrow("checkpoint")
+    expect(dirty.graft.fetch).not.toHaveBeenCalled()
+    expect(dirty.graft.applyMerge).not.toHaveBeenCalled()
+    expect(dirty.graft.push).not.toHaveBeenCalled()
+  })
   it("queues device work behind Cloud sync and continues after a failure", async () => {
     const { graft, session, invoke } = sessionFixture(0, 0, false)
     let release: () => void = () => {}

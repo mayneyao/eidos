@@ -301,6 +301,57 @@ describe("Spark device grants", () => {
       await f.close()
     }
   })
+  it("refreshes an existing perpetual certificate for custom Graft and then authorizes it offline", async () => {
+    const f = await fixture()
+    try {
+      await fs.writeFile(
+        f.cachePath,
+        certificate({ version: 2, offlinePolicy: "perpetual", expiresAt: null })
+      )
+      await expect(f.service.require("file-metadata")).resolves.toBeUndefined()
+      await expect(f.service.require("custom-graft-sync")).rejects.toThrow(
+        "Activate Spark"
+      )
+      expect((await f.service.status()).state).toBe("active")
+      expect(f.request).not.toHaveBeenCalled()
+      f.request.mockResolvedValue(
+        Response.json({
+          certificate: certificate({
+            version: 2,
+            offlinePolicy: "perpetual",
+            expiresAt: null,
+            features: ["file-metadata", "custom-graft-sync", "future-feature"],
+          }),
+          licenses: [
+            {
+              id: 1,
+              status: "active",
+              activation_count: 1,
+              max_activations: 3,
+            },
+          ],
+        })
+      )
+      expect((await f.service.status(true)).features).toEqual([
+        "file-metadata",
+        "custom-graft-sync",
+      ])
+      expect(f.request).toHaveBeenCalledTimes(1)
+      expect(String(f.request.mock.calls[0]![0])).toContain(
+        "entitlements?certificateVersion=2"
+      )
+      f.account.mockResolvedValue(null)
+      f.request.mockRejectedValue(new Error("official account service blocked"))
+      const restarted = new SparkService(f.options)
+      await expect(
+        restarted.require("custom-graft-sync")
+      ).resolves.toBeUndefined()
+      expect((await restarted.status(true)).perpetualOffline).toBe(true)
+      expect(f.request).toHaveBeenCalledTimes(1)
+    } finally {
+      await f.close()
+    }
+  })
   it("does not reclaim a released seat, or retain a denied grant when another activation fails", async () => {
     const f = await fixture()
     try {

@@ -131,6 +131,339 @@ describe("SyncPanel failure states", () => {
   let root: Root
   let host: HTMLDivElement
 
+  it("routes a full-sync local-change failure to Versions", async () => {
+    const onReviewLocal = vi.fn()
+    const runSync = vi.fn().mockResolvedValue({
+      ...failureResponse,
+      failure: {
+        ...failureResponse.failure,
+        code: "local-changes",
+        title: "Create a checkpoint first",
+        message: "Save local changes before syncing.",
+        action: "review-local",
+        actionLabel: "Review local changes",
+        retryable: false,
+      },
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue(status),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        runSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          variant: "inspector",
+          cacheKey: "full-sync-local-changes",
+          onClose() {},
+          onReviewLocal,
+          syncHistory: {
+            state: "up_to_date",
+            ahead: 0,
+            behind: 0,
+            checkedAtMs: Date.now(),
+          },
+        })
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+    )
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Sync now")!
+        .click()
+    )
+    expect(runSync).toHaveBeenCalledWith("sync")
+    expect(host.textContent).toContain("Save local changes to sync")
+    expect(host.textContent).not.toContain("Keep a local copy")
+    expect(host.textContent).not.toContain(
+      "Results from the last successful check"
+    )
+    expect(host.querySelector(".sync-inspector-failure-details")).toBeNull()
+    const review = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Review local changes"
+    )!
+    await act(async () => review.click())
+    expect(onReviewLocal).toHaveBeenCalledOnce()
+  })
+
+  it("keeps version setup available after an error and accepts a successful retry", async () => {
+    const snapshot = {} as SpaceSnapshot
+    const enableVersioning = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockResolvedValueOnce(snapshot)
+    const onSpaceChange = vi.fn()
+    const onOpenVersions = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { enableVersioning },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncLocalVersionGate, {
+          onClose() {},
+          onOpenVersions,
+          onSpaceChange,
+        })
+      )
+    )
+    const enable = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Enable local versions"
+    )!
+    await act(async () => enable.click())
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not enable local versions"
+    )
+    expect(onSpaceChange).not.toHaveBeenCalled()
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-open-versions]")!
+        .click()
+    )
+    expect(onOpenVersions).toHaveBeenCalledOnce()
+    await act(async () => enable.click())
+    expect(onSpaceChange).toHaveBeenCalledWith(snapshot)
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it("opens password setup as a separate inspector step and returns without connecting", async () => {
+    const enableSync = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          defaultPasswordConfigured: false,
+          deviceUnlockAvailable: true,
+          remote: { state: "not-connected" },
+          canEnable: true,
+        }),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+        enableSync,
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          variant: "inspector",
+          platform: "darwin",
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector("[data-sync-password-setup]")).toBeNull()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-enable]")!.click()
+    )
+    expect(host.textContent).toContain("Set a sync password")
+    expect(
+      host.querySelectorAll("[data-sync-password-setup] input[type=password]")
+    ).toHaveLength(2)
+    expect(host.querySelector(".sync-provider-options")).toBeNull()
+    expect(
+      host.querySelector(".sync-password-connection-details")?.textContent
+    ).toContain("Eidos Sync")
+    expect(
+      host.querySelector(".sync-password-connection-details")?.textContent
+    ).toContain("End-to-end encrypted")
+    expect(enableSync).not.toHaveBeenCalled()
+    const back = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Back"
+    )!
+    await act(async () => back.click())
+    expect(host.querySelector("[data-sync-password-setup]")).toBeNull()
+    expect(host.querySelector(".sync-provider-options")).not.toBeNull()
+    expect(enableSync).not.toHaveBeenCalled()
+  })
+
+  it("keeps the same setup layout when selecting a saved custom server", async () => {
+    const server = {
+      id: "server-1",
+      name: "Home",
+      origin: "https://example.test",
+      credentialAvailable: true,
+    }
+    const ready = {
+      ...status,
+      remote: { state: "not-connected" as const },
+      canEnable: true,
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue(ready),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        getSparkStatus: vi.fn().mockResolvedValue({
+          state: "active",
+          features: ["custom-graft-sync"],
+          licenses: [],
+        }),
+        listCustomSyncServers: vi.fn().mockResolvedValue([server]),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          cacheKey: "same-server-layout",
+          onClose() {},
+        })
+      )
+    )
+    expect(
+      host.querySelector(".sync-setup-footer [data-sync-enable]")
+    ).not.toBeNull()
+    expect(
+      host.querySelector("[data-sync-preflight] summary")?.textContent
+    ).toContain("4 files")
+    await act(async () => {
+      const select = host.querySelector<HTMLSelectElement>(
+        'select[aria-label="Sync service"]'
+      )!
+      select.value = server.id
+      select.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    expect(host.querySelector(".sync-hero")).toBeNull()
+    expect(
+      host.querySelector<HTMLSelectElement>('select[aria-label="Sync service"]')
+        ?.value
+    ).toBe(server.id)
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLOptionElement>(
+          'select[aria-label="Sync service"] option'
+        )
+      ).map((option) => option.textContent)
+    ).toEqual(["Eidos Sync", "Home"])
+    expect(
+      host.querySelector("[data-sync-preflight] summary")?.textContent
+    ).toContain("4 files")
+    expect(host.querySelector(".sync-setup-footer button")?.textContent).toBe(
+      "Connect"
+    )
+    await act(async () => {
+      const select = host.querySelector<HTMLSelectElement>(
+        'select[aria-label="Sync service"]'
+      )!
+      select.value = "official"
+      select.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    expect(
+      host.querySelector(".sync-setup-footer [data-sync-enable]")
+    ).not.toBeNull()
+  })
+
+  it("returns to the selected custom server without flashing the official sign-in gate", async () => {
+    const server = {
+      id: "home",
+      name: "Home",
+      origin: "https://example.test",
+      credentialAvailable: true,
+    }
+    const connected = {
+      ...status,
+      provider: "custom" as const,
+      serverId: "home",
+      serverOrigin: server.origin,
+      serverName: server.name,
+      account: { state: "signed-out" as const },
+      remote: {
+        state: "connected" as const,
+        url: "https://example.test/personal/space",
+      },
+    }
+    const ready = {
+      ...connected,
+      remote: { state: "not-connected" as const },
+      canEnable: true,
+    }
+    let finishRefresh!: (value: EidosSyncStatus) => void
+    const pending = new Promise<EidosSyncStatus>((resolve) => {
+      finishRefresh = resolve
+    })
+    let statusRequests = 0
+    const getSyncStatus = vi.fn((selection?: unknown) =>
+      selection
+        ? Promise.resolve(ready)
+        : ++statusRequests === 1
+          ? Promise.resolve(connected)
+          : pending
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus,
+        disconnectSync: vi.fn().mockResolvedValue({
+          id: "space",
+          graft: { initialized: true, clean: true },
+        }),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        getSparkStatus: vi.fn().mockResolvedValue({
+          state: "active",
+          features: ["custom-graft-sync"],
+          licenses: [],
+        }),
+        listCustomSyncServers: vi.fn().mockResolvedValue([server]),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          variant: "inspector",
+          platform: "darwin",
+          cacheKey: "custom-disconnect",
+          onClose() {},
+        })
+      )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("[data-sync-disconnect]")!.click()
+    )
+    expect(host.querySelector("[data-sync-access-gate]")).toBeNull()
+    expect(host.textContent).not.toContain("Keep this Space in sync")
+    expect(
+      host.querySelector<HTMLSelectElement>('select[aria-label="Sync service"]')
+        ?.value
+    ).toBe("home")
+    await act(async () =>
+      finishRefresh({
+        ...status,
+        account: { state: "signed-out" },
+        remote: { state: "not-connected" },
+        canEnable: false,
+      })
+    )
+    expect(host.querySelector("[data-sync-access-gate]")).toBeNull()
+    expect(
+      host.querySelector<HTMLSelectElement>('select[aria-label="Sync service"]')
+        ?.value
+    ).toBe("home")
+  })
+
   it("keeps setup and disconnect available for an unfinished enrollment", async () => {
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
@@ -157,8 +490,98 @@ describe("SyncPanel failure states", () => {
         })
       )
     )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+    )
     expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
     expect(host.querySelector("[data-sync-enable]")).not.toBeNull()
+    expect(host.textContent).not.toContain("Sync setup is incomplete")
+  })
+
+  it("waits for a connected signed-out Space before naming its server or access", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn(() => new Promise<EidosSyncStatus>(() => {})),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          cacheKey: "uncached-custom-connection",
+          hasCloudConnection: true,
+          onClose() {},
+        })
+      )
+    )
+    expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+      "Checking"
+    )
+    expect(host.textContent).not.toContain("Sign in")
+    expect(host.textContent).not.toContain("Read-only")
+    expect(
+      [...host.querySelectorAll(".sync-minimal-status strong")].map(
+        (element) => element.textContent
+      )
+    ).not.toContain("Eidos Sync")
+  })
+
+  it("does not show connection setup while cached status conflicts with a Space connection", async () => {
+    const disconnectedStatus = {
+      ...status,
+      remote: { state: "not-connected" as const },
+      canEnable: true,
+    }
+    writeSyncStatusSnapshot("pending-connection", {
+      version: 1,
+      status: disconnectedStatus,
+      checkedAtMs: Date.now(),
+    })
+    let resolveStatus!: (status: EidosSyncStatus) => void
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn(
+          () =>
+            new Promise<EidosSyncStatus>((resolve) => {
+              resolveStatus = resolve
+            })
+        ),
+        getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: () => () => {},
+        onSyncQueueChanged: () => () => {},
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          cacheKey: "pending-connection",
+          hasCloudConnection: true,
+          onClose() {},
+        })
+      )
+    )
+    expect(host.textContent).toContain("Checking remote updates")
+    expect(host.querySelector("[data-sync-enable]")).toBeNull()
+    expect(host.querySelector("[data-sync-disconnect]")).toBeNull()
+    await act(async () => resolveStatus(disconnectedStatus))
+    expect(host.textContent).not.toContain("Sync setup is incomplete")
+    expect(host.querySelector("[data-sync-enable]")).not.toBeNull()
+    expect(host.querySelector("[data-sync-disconnect]")).toBeNull()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+    )
+    expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
   })
 
   it("keeps local disconnect available when account and cloud services are offline", async () => {
@@ -183,6 +606,9 @@ describe("SyncPanel failure states", () => {
           syncHistory: { state: "unknown", ahead: 0, behind: 0 },
         })
       )
+    )
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
     )
     expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
     expect(
@@ -235,19 +661,61 @@ describe("SyncPanel failure states", () => {
         )
       )
       await act(async () =>
+        host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+      )
+      await act(async () =>
         host.querySelector<HTMLButtonElement>("[data-sync-disconnect]")!.click()
       )
       expect(disconnectSync).toHaveBeenCalledOnce()
       if (confirmed) {
         expect(onSpaceChange).toHaveBeenCalledWith(disconnectedSnapshot)
         expect(host.querySelector("[data-sync-disconnect]")).toBeNull()
-        expect(host.textContent).toContain("Connect this Space")
+        expect(host.querySelector("[data-sync-enable]")?.textContent).toBe(
+          "Connect"
+        )
       } else {
         expect(onSpaceChange).not.toHaveBeenCalled()
+        await act(async () =>
+          host.querySelector<HTMLButtonElement>(".sync-account-meter")!.click()
+        )
         expect(host.querySelector("[data-sync-disconnect]")).not.toBeNull()
       }
     }
   )
+
+  it("offers password unlock for a connected custom server without an Eidos account", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          provider: "custom",
+          serverName: "Home",
+          serverOrigin: "https://example.test",
+          account: { state: "signed-out" },
+          entitlement: { state: "not-checked", detail: "Custom server" },
+          encryption: { state: "locked" },
+        }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          platform: "darwin",
+          variant: "inspector",
+          onClose() {},
+        })
+      )
+    )
+    expect(
+      host.querySelector("[data-sync-unlock] input[type=password]")
+    ).not.toBeNull()
+    expect(host.textContent).not.toContain("Sync writes are paused")
+  })
 
   it.each([true, false])(
     "unlocks a connected inspector without device choices (secure storage=%s)",
@@ -300,9 +768,9 @@ describe("SyncPanel failure states", () => {
           ? "Saved securely on this device"
           : "Enter the password again after restarting."
       )
-      expect(
-        host.querySelector(".sync-inspector-b-status h2")?.textContent
-      ).toBe("Encrypted Sync is locked")
+      expect(host.querySelector(".sync-minimal-status")?.textContent).toContain(
+        "Encrypted Sync is locked"
+      )
       expect(host.querySelector("[data-sync-next]")).toBeNull()
       const password = host.querySelector<HTMLInputElement>(
         "[data-sync-unlock] input[type=password]"
@@ -521,12 +989,13 @@ describe("SyncPanel failure states", () => {
   )
 
   it.each([
-    { platform: "darwin", secureStorage: false },
-    { platform: "darwin", secureStorage: true },
-    { platform: "win32", secureStorage: false },
+    { platform: "darwin", secureStorage: false, remember: false },
+    { platform: "darwin", secureStorage: true, remember: true },
+    { platform: "darwin", secureStorage: true, remember: false },
+    { platform: "win32", secureStorage: false, remember: false },
   ])(
-    "requires matching passwords on $platform and saves only with secure storage (available=$secureStorage)",
-    async ({ platform, secureStorage }) => {
+    "requires matching passwords on $platform (secure storage=$secureStorage, remember=$remember)",
+    async ({ platform, secureStorage, remember }) => {
       const available = {
         ...status,
         environment: platform === "win32" ? "production" : status.environment,
@@ -585,12 +1054,30 @@ describe("SyncPanel failure states", () => {
       expect(host.querySelector(".sync-setup-note")?.textContent).toContain(
         "Enter matching sync passwords to continue."
       )
-      expect(host.querySelectorAll("input[type=checkbox]")).toHaveLength(0)
+      expect(host.querySelectorAll("input[type=checkbox]")).toHaveLength(
+        secureStorage ? 1 : 0
+      )
       expect(host.textContent).toContain(
         secureStorage
           ? "Saved securely on this device"
           : "Enter the password again after restarting."
       )
+      if (secureStorage) {
+        expect(host.textContent).toContain("One sync password for new Spaces.")
+      }
+      if (secureStorage && !remember) {
+        await act(async () =>
+          host
+            .querySelector<HTMLInputElement>(".sync-remember-password input")!
+            .click()
+        )
+        expect(host.textContent).toContain(
+          "Enter the password again after restarting."
+        )
+        expect(host.textContent).not.toContain(
+          "One sync password for new Spaces."
+        )
+      }
       const passwords = host.querySelectorAll<HTMLInputElement>(
         "[data-sync-password-setup] input[type=password]"
       )
@@ -623,7 +1110,7 @@ describe("SyncPanel failure states", () => {
         else enable.click()
       })
       expect(suppliedPassword).toBe("synthetic sync password")
-      if (secureStorage) {
+      if (secureStorage && remember) {
         expect(saveDefaultSyncPassword).toHaveBeenCalledOnce()
         expect(savedPassword?.every((byte) => byte === 0)).toBe(true)
         expect(enableSync.mock.calls[0]![1]).toBeUndefined()
@@ -1034,8 +1521,6 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).toContain("Remote history has not been checked.")
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
     expect(storage?.textContent).toContain("2 GiB of 10 GiB")
-    expect(storage?.textContent).toContain("Cloud used")
-    expect(storage?.textContent).toContain("Plan total")
     expect(storage?.textContent).toContain("10 GiB")
     expect(
       host.querySelector<HTMLElement>("[data-sync-account-summary]")?.dataset
@@ -1634,7 +2119,50 @@ describe("SyncPanel failure states", () => {
       finishStatus?.({ ...status, account: { state: "signed-out" } })
     )
     expect(host.textContent).toContain("Sign in to use Sync")
+    expect(host.querySelector("[data-sync-sign-in]")).not.toBeNull()
     expect(host.textContent).not.toContain("Checking Sync access")
+  })
+
+  it("opens the LAN tab from the signed-out overview and moves focus", async () => {
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue({
+          ...status,
+          account: { state: "signed-out" },
+          remote: { state: "not-connected" },
+          canEnable: false,
+        }),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        onSyncProgress: vi.fn().mockReturnValue(() => {}),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => {}),
+      },
+    })
+    document.body.append(host)
+    await act(async () =>
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          variant: "inspector",
+          platform: "darwin",
+          cacheKey: "signed-out-lan",
+          onClose() {},
+        })
+      )
+    )
+    const link = [
+      ...host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    ].find((tab) => tab.textContent === "LAN sync")!
+    expect(link).not.toBeNull()
+    await act(async () => {
+      link.focus()
+      link.click()
+    })
+    const tab = host.querySelector<HTMLButtonElement>(
+      '[role="tab"][aria-selected="true"]'
+    )!
+    expect(tab.textContent).toBe("LAN sync")
+    expect(document.activeElement).toBe(tab)
   })
 
   it("reuses the global account identity while checking a new Space", async () => {
@@ -1856,7 +2384,6 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).toContain("We’ll sync when you’re back online")
     expect(host.textContent).toContain("person@example.com")
     expect(host.textContent).toContain("2 GiB of 10 GiB")
-    expect(host.textContent).toContain("Plan total")
     expect(host.textContent).toContain("10 GiB")
     expect(host.textContent).toContain("You can keep working on this device")
     expect(host.textContent).not.toContain("network offline")
@@ -1922,13 +2449,8 @@ describe("SyncPanel failure states", () => {
       preflight.totalBytes.toString()
     )
     expect(storage?.textContent).toContain("120 MiB")
-    expect(storage?.textContent).toContain("Pending upload")
-    expect(storage?.textContent).toContain("512 MiB · 2.5 GiB projected")
-    expect(storage?.textContent).toContain("not its billed cloud contribution")
-    expect(storage?.textContent).toContain("history and deduplication")
-    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("512 MiB pending")
     expect(storage?.textContent).toContain("2 GiB")
-    expect(storage?.textContent).toContain("Plan total")
     expect(storage?.textContent).toContain("10 GiB")
     expect(
       storage
@@ -2151,7 +2673,6 @@ describe("SyncPanel failure states", () => {
     ).toBeNull()
     expect(storage?.textContent).toContain("This Space on this device")
     expect(storage?.textContent).toContain("20 GiB")
-    expect(storage?.textContent).toContain("not its billed cloud contribution")
     const progress = storage?.querySelector<HTMLProgressElement>("progress")
     expect(progress?.value).toBe(status.entitlement.usedBytes)
     expect(progress?.max).toBe(status.entitlement.quotaBytes)
@@ -2270,20 +2791,12 @@ describe("SyncPanel failure states", () => {
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
     expect(overview?.dataset.syncOverview).toBe("neutral")
     expect(overview?.textContent).not.toContain("cloud storage left")
-    expect(
-      host.querySelector("[data-sync-storage-disclosure]")?.hasAttribute("open")
-    ).toBe(false)
+    expect(host.textContent).not.toContain("Breakdown")
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
     expect(storage?.dataset.syncStorageState).toBe("warning")
     expect(storage?.textContent).toContain("Running low")
     expect(storage?.textContent).toContain("9.5 GiB of 10 GiB")
     expect(storage?.textContent).toContain("95% used")
-    expect(storage?.textContent).toContain("Plan total")
-    expect(
-      [...(storage?.querySelectorAll(".sync-kv dt") ?? [])].find(
-        (entry) => entry.textContent === "Available"
-      )?.nextElementSibling?.textContent
-    ).toContain("512 MiB")
 
     const manage = host.querySelector<HTMLButtonElement>(
       "[data-sync-manage-storage]"
@@ -2342,9 +2855,7 @@ describe("SyncPanel failure states", () => {
     expect(storage?.querySelector<HTMLProgressElement>("progress")?.value).toBe(
       projectedOverStatus.entitlement.usedBytes
     )
-    expect(
-      host.querySelector("[data-sync-storage-disclosure]")?.hasAttribute("open")
-    ).toBe(true)
+    expect(host.textContent).not.toContain("Breakdown")
   })
 
   it("keeps unsaved-change guidance task-focused", async () => {
@@ -2421,7 +2932,6 @@ describe("SyncPanel failure states", () => {
     ).toBe(false)
     const storage = host.querySelector("[data-sync-storage-used]")
     expect(storage?.textContent).toContain("2 GiB of 10 GiB")
-    expect(storage?.textContent).toContain("Plan total")
     expect(storage?.textContent).toContain("10 GiB")
 
     await act(async () => {
@@ -2778,16 +3288,24 @@ describe("SyncPanel failure states", () => {
       const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
       expect(scope?.textContent).toContain("4 files")
       expect(scope?.textContent).toContain("120 MiB")
+      const fileScope =
+        scope?.querySelector<HTMLDetailsElement>(".sync-file-scope")
+      expect(fileScope?.open).toBe(false)
+      expect(fileScope?.querySelector("summary")?.textContent).toContain(
+        "4 files"
+      )
+      await act(async () => fileScope?.querySelector("summary")?.click())
+      expect(fileScope?.open).toBe(true)
+      expect(fileScope?.textContent).toContain(".graft")
       expect(scope?.textContent).toContain("generated/tracked.txt")
       expect(enable?.disabled).toBe(false)
       expect(
         scope?.querySelector(".sync-review-details > summary")?.textContent
       ).toContain("Already in version history")
       if (variant === "inspector") {
-        expect(enable?.closest(".sync-setup-footer")).not.toBeNull()
-        expect(
-          host.querySelector(".sync-inspector-b-content")?.contains(enable)
-        ).toBe(false)
+        expect(host.querySelector(".sync-setup-footer")?.contains(enable)).toBe(
+          true
+        )
       }
 
       expect(host.querySelector("[data-sync-preflight-confirm]")).toBeNull()
@@ -2801,8 +3319,8 @@ describe("SyncPanel failure states", () => {
           })
       )
       await act(async () => {
-        scope
-          ?.querySelector<HTMLButtonElement>('[aria-label="Recheck files"]')
+        Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+          .find((button) => button.textContent === "Recheck files")
           ?.click()
       })
       expect(api.getSyncPreflight).toHaveBeenCalledTimes(2)
@@ -2890,8 +3408,8 @@ describe("SyncPanel failure states", () => {
       expect(enableSync).not.toHaveBeenCalled()
       getSyncPreflight.mockResolvedValue(preflight)
       await act(async () =>
-        scope
-          .querySelector<HTMLButtonElement>('[aria-label="Recheck files"]')!
+        Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+          .find((button) => button.textContent === "Recheck files")!
           .click()
       )
       expect(scope.querySelector('[role="alert"]')).toBeNull()
@@ -2976,13 +3494,14 @@ describe("SyncPanel failure states", () => {
       "Uploading this Space for the first time"
     )
     expect(progress?.textContent).not.toContain("repository segments")
-    expect(progress?.textContent).toContain("Uploaded 64 MiB of 128 MiB")
-    expect(progress?.textContent).toContain("8 MiB/s")
-    expect(progress?.textContent).toContain("8.0 s left")
-    expect(progress?.textContent).toContain("50%")
-    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Connecting this Space"
+    expect(progress?.textContent).toContain("Uploaded 64 MiB / 128 MiB")
+    expect(progress?.querySelector("progress")?.getAttribute("value")).toBe(
+      String(64 * 1024 * 1024)
     )
+    expect(progress?.querySelector("progress")?.getAttribute("max")).toBe(
+      String(128 * 1024 * 1024)
+    )
+    expect(progress?.textContent).toContain("Connecting this Space")
 
     await act(async () => {
       progressListener?.({

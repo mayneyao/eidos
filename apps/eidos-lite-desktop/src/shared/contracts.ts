@@ -25,6 +25,7 @@ import type { EidosLiteServiceEnvironment } from "./service-environment"
 import type { SparkStatus } from "./spark"
 import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type { PluginApi } from "./plugins"
+import type { ExplorerFileFilter } from "./explorer-file-filter"
 import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
@@ -202,6 +203,10 @@ export const IPC_CHANNELS = {
   syncPasswordSave: "eidos-lite:sync-password-save",
   syncPasswordForget: "eidos-lite:sync-password-forget",
   syncRepositories: "eidos-lite:sync-repositories",
+  syncCustomServers: "eidos-lite:sync-custom-servers",
+  syncCustomServerSave: "eidos-lite:sync-custom-server-save",
+  syncCustomServerRemove: "eidos-lite:sync-custom-server-remove",
+  syncCustomRepositories: "eidos-lite:sync-custom-repositories",
   syncClone: "eidos-lite:sync-clone",
   syncRun: "eidos-lite:sync-run",
   peerSync: "eidos-lite:peer-sync",
@@ -938,6 +943,10 @@ export interface SyncAccountStatus {
 }
 
 export interface EidosSyncStatus {
+  provider?: "official" | "custom"
+  serverId?: string
+  serverName?: string
+  serverOrigin?: string
   encryption?: {
     state: "locked" | "unlocked"
     remembered?: boolean
@@ -1007,6 +1016,8 @@ export interface EidosSyncPreflight {
 
 export interface EidosSyncPreflightApproval {
   manifestId: string
+  /** Exact old connection reviewed by the user; main process confirms the switch. */
+  switchFrom?: string
 }
 
 export interface EidosSyncEncryption {
@@ -1034,6 +1045,29 @@ export interface EidosSyncRepositoryList {
   repositories: EidosSyncRepository[]
 }
 
+export interface EidosCustomSyncServer {
+  id: string
+  name: string
+  origin: string
+  credentialAvailable: boolean
+}
+
+export interface EidosCustomSyncServerInput {
+  id?: string
+  name: string
+  origin: string
+  token?: string
+}
+
+export interface EidosSyncProviderSelection {
+  provider: "custom"
+  serverId: string
+}
+
+export type EidosSyncStatusPreview =
+  | { provider: "official" }
+  | EidosSyncProviderSelection
+
 export type EidosSyncPhase =
   | "authorization"
   | "fetch"
@@ -1055,6 +1089,12 @@ export interface EidosSyncTransferProgress {
 }
 
 export interface EidosSyncProgress {
+  nativePhase?:
+    | "preparing"
+    | "uploading"
+    | "downloading"
+    | "verifying"
+    | "applying"
   runId: string
   operation: EidosSyncOperation
   state: "active" | "completed" | "failed"
@@ -1105,7 +1145,7 @@ export type EidosSyncCloneResponse =
       telemetry: EidosSyncTelemetry
     }
 
-export type EidosSyncAction = "fetch" | "pull" | "push"
+export type EidosSyncAction = "fetch" | "pull" | "push" | "sync"
 
 export interface EidosSyncOutcome {
   state: "synced" | "conflict" | "read-only" | "checked"
@@ -1881,7 +1921,7 @@ export interface EidosLiteApi extends PluginApi {
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
   filterSpaceFiles(
-    filter: import("./explorer-file-filter").ExplorerFileFilter,
+    filter: ExplorerFileFilter,
     directory: string | null
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
@@ -2064,15 +2104,24 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<SpaceSnapshot>
   getAccountStatus(): Promise<SyncAccountStatus>
   onAccountChanged(listener: (status: SyncAccountStatus) => void): () => void
-  getSyncStatus(): Promise<EidosSyncStatus>
+  getSyncStatus(
+    selection?: string | EidosSyncStatusPreview
+  ): Promise<EidosSyncStatus>
+  listCustomSyncServers(): Promise<EidosCustomSyncServer[]>
+  saveCustomSyncServer(
+    input: EidosCustomSyncServerInput
+  ): Promise<EidosCustomSyncServer>
+  removeCustomSyncServer(serverId: string): Promise<void>
+  listCustomSyncRepositories(serverId: string): Promise<EidosSyncRepositoryList>
   beginSyncSignIn(): Promise<EidosSyncStatus>
   signOutSync(): Promise<EidosSyncStatus>
   getSyncPreflight(): Promise<EidosSyncPreflight>
   enableSync(
     approval: EidosSyncPreflightApproval,
-    encryption?: EidosSyncPasswordInput
+    encryption?: EidosSyncPasswordInput,
+    selection?: EidosSyncProviderSelection
   ): Promise<EidosSyncConnectionResponse>
-  disconnectSync(): Promise<SpaceSnapshot | null>
+  disconnectSync(switchTarget?: string): Promise<SpaceSnapshot | null>
   unlockSync(encryption: EidosSyncPasswordInput): Promise<EidosSyncStatus>
   forgetSyncUnlock(): Promise<EidosSyncStatus>
   getSyncPasswordSettings(): Promise<{
@@ -2085,7 +2134,8 @@ export interface EidosLiteApi extends PluginApi {
   cloneSyncRepository(
     remoteUrl: string,
     displayName?: string,
-    encryption?: EidosSyncPasswordInput
+    encryption?: EidosSyncPasswordInput,
+    selection?: EidosSyncProviderSelection
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
   peerSync(
@@ -2100,6 +2150,7 @@ export interface EidosLiteApi extends PluginApi {
       | "devices-status"
       | "devices-stop"
       | "devices-invite"
+      | "devices-cancel-invite"
       | "devices-approve"
       | "devices-reject"
       | "devices-revoke"
@@ -2127,7 +2178,9 @@ export interface EidosLiteApi extends PluginApi {
     listener: (status: EidosSyncQueueStatus) => void
   ): () => void
   copyLocalRecoverySpace(): Promise<EidosSyncRecoveryResult | null>
-  cloneHostedRecoverySpace(): Promise<EidosSyncRecoveryResult | null>
+  cloneHostedRecoverySpace(
+    encryption?: EidosSyncPasswordInput
+  ): Promise<EidosSyncRecoveryResult | null>
   getSyncMergeStatus(): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   planSyncMerge(): Promise<EidosSyncMergeResponse<EidosSyncMergePlan>>
   applySyncMerge(

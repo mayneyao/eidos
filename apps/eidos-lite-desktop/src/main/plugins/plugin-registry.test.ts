@@ -221,7 +221,7 @@ it("reads localized documentation from the verified release and selects language
   const fetcher = vi.fn<typeof fetch>(async (url) =>
     String(url).includes("plugins.registry.json")
       ? Response.json({ schemaVersion: 1, plugins: [localized] })
-      : new Response(bytes)
+      : new Response(new Uint8Array(bytes))
   )
   const registry = new PluginRegistry(dir, fetcher)
   expect(await registry.readme(entry.id, "zh-CN")).toMatchObject({

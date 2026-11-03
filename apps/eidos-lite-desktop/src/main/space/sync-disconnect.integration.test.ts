@@ -6,8 +6,89 @@ import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { SpaceSession } from "./space-session"
 import { SpaceSyncStateStore } from "./sync-state"
 import { SpaceSyncConnectionStore } from "./sync-connection"
+import {
+  RememberedSyncUnlocks,
+  RememberedSyncUnlockStore,
+} from "../sync/remembered-sync-unlocks"
 
 describe("disconnect cloud sync without changing the Space", () => {
+  it("locally disconnects another official environment without an account request", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "lite-cross-environment-disconnect-")
+    )
+    const root = path.join(directory, "Space")
+    const userData = path.join(directory, "profile")
+    await fs.mkdir(root)
+    await fs.writeFile(path.join(root, "note.md"), "saved version\n")
+    const production = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+      syncRemoteOrigin: "https://sync.eidos.space",
+    })
+    const staging = new GraftClient({
+      sdkTransport: new GraftInProcessTransport(),
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+    })
+    let session: SpaceSession | undefined
+    try {
+      session = await SpaceSession.create(root, userData, { graft: production })
+      await session.enableVersioning()
+      const before = await production.history(root)
+      const stateDirectory = path.join(userData, "spaces", session.canonical.id)
+      const remote = "https://sync.eidos.space/u-test/production-space"
+      await production.configureOfficialRemote(root, remote, "synthetic-token")
+      await new SpaceSyncStateStore(
+        stateDirectory,
+        production.syncRemoteOrigin
+      ).markFirstPush(remote)
+      await fs.writeFile(path.join(root, "note.md"), "unsaved edits\n")
+      await session.close()
+      session = undefined
+      await production.close()
+      session = await SpaceSession.create(root, userData, { graft: staging })
+      const accountSubject = vi.fn(async (): Promise<string> => {
+        throw new Error("No official account request is needed to disconnect")
+      })
+      const unlocks = new RememberedSyncUnlocks(
+        {
+          accountSubject,
+          repositories: vi.fn(async () => ({
+            namespace: "u-test",
+            repositories: [],
+          })),
+        },
+        "https://staging.eidos.space",
+        path.join(userData, "encrypted-sync", "staging"),
+        new RememberedSyncUnlockStore(
+          path.join(userData, "remembered-sync", "staging"),
+          {
+            isAvailable: () => false,
+            encrypt: () => {
+              throw new Error("Unexpected credential write")
+            },
+            decrypt: () => {
+              throw new Error("Unexpected credential read")
+            },
+          }
+        )
+      )
+      await unlocks.disconnect(session)
+      const snapshot = await session.disconnectHostedSync()
+      expect(accountSubject).not.toHaveBeenCalled()
+      expect(snapshot.cloudSyncConnection).toBe(false)
+      expect(snapshot.graft.initialized).toBe(true)
+      expect(snapshot.graft.clean).toBe(false)
+      expect(await staging.remoteUrl(root)).toBeNull()
+      expect(await staging.history(root)).toEqual(before)
+      expect(await fs.readFile(path.join(root, "note.md"), "utf8")).toBe(
+        "unsaved edits\n"
+      )
+    } finally {
+      await session?.close()
+      await production.close()
+      await staging.close()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
   it("can discard an unfinished enrollment after restart before origin exists", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "lite-pending-disconnect-")
