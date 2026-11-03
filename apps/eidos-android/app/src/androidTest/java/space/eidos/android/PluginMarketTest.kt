@@ -17,6 +17,32 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PluginMarketTest {
     @Test
+    fun localizedPackageCanBeReviewedInstalledAndLoaded() = runBlocking {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "localized-plugin-${UUID.randomUUID()}"
+        val store = PluginMarketStore(app, name)
+        val input = File(app.cacheDir, "$name.eidos-plugin")
+        val raw = """{"format":3,"manifest":{"apiVersion":1,"id":"test.localized","name":"%name%","version":"1.0.0","requires":{"pluginApi":"3.7.0"},"views":[{"id":"main","title":"%name%","kind":"page","entry":"./main.js"}],"placements":[{"location":"navigation","view":"main"}],"i18n":{"defaultLocale":"en","messages":{"en":"./en.json","zh-CN":"./zh.json"}}},"modules":{"./main.js":"export default function mount(ctx) { ctx.root.textContent = ctx.i18n.t('name'); }"},"resources":{"./en.json":"{\"name\":\"Example\"}","./zh.json":"{\"name\":\"示例\"}"}}"""
+        try {
+            GZIPOutputStream(input.outputStream()).use { it.write(raw.toByteArray()) }
+            val prepared = store.prepare(Uri.fromFile(input))
+            assertFalse(prepared.manifest.getString("name").startsWith("%"))
+            assertTrue(store.installed("a").isEmpty())
+            store.install(prepared, "a")
+            assertTrue(store.installed("a").single().enabled)
+            assertFalse(store.installed("b").single().enabled)
+            assertEquals(1, store.navigationPages("a").size)
+            assertEquals(3, store.program("a", "test.localized").getInt("format"))
+            assertTrue(store.program("a", "test.localized").getJSONObject("resources").has("./zh.json"))
+        } finally {
+            store.uninstall("test.localized")
+            input.delete()
+            File(app.filesDir, "$name-packages").deleteRecursively()
+            app.deleteSharedPreferences(name)
+        }
+    }
+
+    @Test
     fun installReviewEnableUpdateAndUninstallRemainScoped() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "plugin-test-${UUID.randomUUID()}"

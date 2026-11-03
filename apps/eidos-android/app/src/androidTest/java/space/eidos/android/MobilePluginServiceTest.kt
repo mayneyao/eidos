@@ -73,7 +73,10 @@ class MobilePluginServiceTest {
                     entry.getString("sha256"),
                     PluginMarketTransport.hash(archive.readBytes()),
                 )
-                val prepared = store.prepare(Uri.fromFile(archive))
+                val prepared = if (InstrumentationRegistry.getArguments().getString("pluginMarketLive") == "true") {
+                    store.prepare(MarketPlugin(entry.getString("id"), entry.getString("name"), entry.getString("description"), entry.getString("version"),
+                        "https://github.com/${entry.getString("repo")}/releases/download/${entry.getString("tag")}/${entry.getString("asset")}", entry.getString("sha256")))
+                } else store.prepare(Uri.fromFile(archive))
                 assertEquals(entry.getString("id"), prepared.manifest.getString("id"))
                 store.install(prepared)
                 val plugin = store.installed("a").single { it.id == entry.getString("id") }

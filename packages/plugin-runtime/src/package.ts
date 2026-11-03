@@ -8,11 +8,7 @@ import { parseJson } from "./json"
 import { validateSource } from "./source"
 import { loadEsbuild, loadTypeScript } from "./toolchain"
 import { parseThemeStylesheet } from "./theme-stylesheet"
-import {
-  pluginResourcePaths,
-  pluginLanguageData,
-  localizePluginManifest,
-} from "./i18n"
+import { validatePluginResources } from "./package-resources"
 
 export function packageHash(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")
@@ -39,40 +35,7 @@ export function parsePackage(value: unknown): PluginPackage {
   const modules = record(p.modules)
   let resources: Record<string, string> | undefined
   if (p.format === 3) {
-    const raw = record(p.resources)
-    const paths = pluginResourcePaths(manifest)
-    if (
-      Object.keys(raw).length !== paths.length ||
-      paths.some(
-        (path) =>
-          typeof raw[path] !== "string" ||
-          Buffer.byteLength(raw[path] as string) > 1024 * 1024
-      )
-    )
-      invalid(
-        "Package resources must match declared localization files (at most 1 MiB each)"
-      )
-    resources = raw as Record<string, string>
-    for (const resource of Object.values(manifest.i18n!.messages)) {
-      const messages = record(parseJson(resources[resource]))
-      if (
-        Object.keys(messages).length > 4096 ||
-        Object.entries(messages).some(
-          ([key, value]) =>
-            !/^[a-zA-Z][\w.-]{0,127}$/.test(key) ||
-            typeof value !== "string" ||
-            value.length > 4096 ||
-            /[\u0000-\u001f\u007f]/.test(value)
-        )
-      )
-        invalid("Invalid plugin messages")
-    }
-    const data = pluginLanguageData(manifest, resources)
-    localizePluginManifest(manifest, data, data.defaultLocale, (key) => {
-      if (!Object.hasOwn(data.messages[data.defaultLocale], key))
-        invalid(`Missing default message: ${key}`)
-      return data.messages[data.defaultLocale][key]
-    })
+    resources = validatePluginResources(manifest, p.resources)
   }
   const entries = new Set([
     ...(manifest.views ?? []).map((v) => v.entry),

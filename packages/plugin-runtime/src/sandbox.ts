@@ -27,7 +27,9 @@ export function viewHtml(code: string, binding: BrowserBinding): string {
   // Archive modules are validated self-contained ESM. CommonJS here is only a
   // local exports object inside the iframe closure; no require/Node is supplied.
   const compiled = browserModule(code)
-  const script = `(()=>{(${bootstrap.toString()})((ctx, root)=>{const module = {exports: {}}; const exports = module.exports;\n${compiled}\nreturn module.exports.default(ctx, root);}, ${JSON.stringify(binding)}, ${createWorkerFetch.toString()}, ${createPluginI18n.toString()}, ${pluginLocaleCandidates.toString()});})()`
+  // Keep package-level variables out of the adapter's ctx/root scope. The mobile
+  // TypeScript transform preserves names such as a dependency's `var root`.
+  const script = `(()=>{(${bootstrap.toString()})((ctx, root)=>(()=>{const module = {exports: {}}; const exports = module.exports;\n${compiled}\nreturn module.exports.default;})()(ctx, root), ${JSON.stringify(binding)}, ${createWorkerFetch.toString()}, ${createPluginI18n.toString()}, ${pluginLocaleCandidates.toString()});})()`
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 html{color-scheme:var(--eidos-color-scheme,light);background:var(--eidos-background,transparent);}
 html,body,#app{width:100%;height:100%;margin:0;padding:0;}

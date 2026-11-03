@@ -30,11 +30,19 @@ connection before running an action. Writes require explicit confirmation.
 
 | Published package   | Supported workflow                                         |
 | ------------------- | ---------------------------------------------------------- |
-| Markmap 0.3.0       | Render a selected Markdown document                        |
-| Chart 0.3.0         | Read and aggregate table data; persist chart configuration |
+| Markmap 0.4.0       | Render a selected Markdown document                        |
+| Chart 0.3.2         | Read and aggregate table data; persist chart configuration |
 | Map 0.3.0           | Configure location fields and render table records         |
-| Journals 0.5.0      | Create/open today's note and browse its overview           |
-| Smart Actions 0.3.0 | Configure outputs/connections; run guarded table writes    |
+| Journals 0.5.3      | Create/open today's note and browse its overview           |
+| Smart Actions 0.4.0 | Configure outputs/connections; run guarded table writes    |
+| GPX Viewer 0.2.0    | Open GPX files using the plugin's map view                 |
+
+The installer accepts format 2 packages and format 3 packages with declared
+localization resources. Format 3 resources use the canonical package validation
+rules, and plugin views and actions receive the app's language and message data.
+Support is checked against declared capabilities, including for packages requiring
+Plugin API 3.7.0. Background services, plugin storage, formatters, file templates,
+unrestricted browser network access and workspace filemeta remain unsupported.
 
 Plugin themes, including Forest and Maple Mono, are disabled on mobile.
 Previously enabled themes are ignored; the app uses its built-in light/dark appearance.

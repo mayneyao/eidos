@@ -5,6 +5,44 @@ import zlib
 @testable import EidosIOS
 
 final class MobilePluginTests: XCTestCase {
+    @MainActor
+    func testPublishedPackagesValidateAndInstallInSimulator() async throws {
+        let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-mobile-plugin-fixtures")
+        guard FileManager.default.fileExists(atPath: fixtures.appendingPathComponent("registry.json").path) else { throw XCTSkip("Download SHA-256 verified registry archives to EIDOS_PLUGIN_FIXTURES") }
+        let registry = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent("registry.json"))) as? [String:Any])
+        let entries = try XCTUnwrap(registry["plugins"] as? [[String:Any]])
+        let space = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let service = MobilePluginService(space: space)
+        let preferences = UserDefaults.standard
+        let saved = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
+        var files: [(URL, Data?)] = []
+        defer {
+            for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey: key) }
+            for (key, value) in saved { preferences.set(value, forKey: key) }
+            for (url, original) in files {
+                if let original { try? original.write(to: url) } else { try? FileManager.default.removeItem(at: url) }
+            }
+            try? FileManager.default.removeItem(at: space.root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        for entry in entries {
+            let url = fixtures.appendingPathComponent(try XCTUnwrap(entry["asset"] as? String))
+            XCTAssertEqual(LocalSpace.digest(try Data(contentsOf: url)), entry["sha256"] as? String)
+            let prepared = try service.prepareImport(url)
+            let revision = try XCTUnwrap(prepared["revision"] as? String)
+            let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+            XCTAssertEqual(manifest["id"] as? String, entry["id"] as? String)
+            XCTAssertFalse((manifest["name"] as? String ?? "").hasPrefix("%"))
+            try service.reviewManifest(manifest, revision: revision)
+            let file = service.directory.appendingPathComponent(revision + ".json")
+            files.append((file, try? Data(contentsOf: file)))
+            _ = try service.handle("install", ["revision": revision])
+            let records = try XCTUnwrap(service.handle("list", [:]) as? [[String:Any]])
+            XCTAssertTrue(records.contains { ($0["manifest"] as? [String:Any])?["id"] as? String == entry["id"] as? String && $0["enabled"] as? Bool == true })
+            _ = try service.handle("package", ["id": entry["id"]!])
+        }
+    }
+
     func testInstallationGrantsOnlyOriginatingSpaceAndReviewedRevision() throws {
         let first = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         let second = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))

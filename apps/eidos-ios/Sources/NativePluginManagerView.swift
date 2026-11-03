@@ -86,8 +86,15 @@ private final class NativePluginManagerModel: ObservableObject {
         }
     }
     private func reviewPackage(_ value: Any) async throws {
-        guard let prepared = value as? [String:Any], let raw = prepared["raw"] as? String else { throw LocalError.message(tr("无效插件包")) }
-        try await validator.validate(raw)
+        guard var prepared = value as? [String:Any], let raw = prepared["raw"] as? String, let revision = prepared["revision"] as? String else { throw LocalError.message(tr("无效插件包")) }
+        let manifest = try await validator.validate(raw)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                do { try self.service.reviewManifest(manifest, revision: revision); continuation.resume() }
+                catch { continuation.resume(throwing: error) }
+            }
+        }
+        prepared["manifest"] = manifest
         review = prepared
     }
     func install() {
@@ -319,10 +326,10 @@ struct NativePluginManagerView: View {
 /** Validates package source with the shared parser without displaying or running a plugin. */
 final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDelegate {
     private var web: WKWebView?
-    private var reply: CheckedContinuation<Void,Error>?
+    private var reply: CheckedContinuation<[String:Any],Error>?
     private var raw = ""
     private var timeout: DispatchWorkItem?
-    @MainActor func validate(_ raw: String) async throws {
+    @discardableResult @MainActor func validate(_ raw: String) async throws -> [String:Any] {
         try await withCheckedThrowingContinuation { continuation in
             self.raw = raw; reply = continuation
             let configuration = WKWebViewConfiguration()
@@ -335,7 +342,7 @@ final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDel
             web.load(URLRequest(url:URL(string:"eidos://app/editor/plugins.html")!))
         }
     }
-    private func finish(_ result: Result<Void,Error>) {
+    private func finish(_ result: Result<[String:Any],Error>) {
         let reply = self.reply; self.reply = nil
         timeout?.cancel(); timeout = nil; web?.stopLoading(); web = nil; raw = ""
         reply?.resume(with:result)
@@ -343,8 +350,9 @@ final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDel
     func webView(_ web: WKWebView,didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             do {
-                _ = try await web.callAsyncJavaScript("if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready',resolve,{once:true})); window.eidosMobileValidate(raw); return true;",arguments:["raw":raw],in:nil,contentWorld:.page)
-                finish(.success(()))
+                let result = try await web.callAsyncJavaScript("if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready',resolve,{once:true})); return window.eidosMobileValidate(raw, locale);",arguments:["raw":raw,"locale":AppLanguage.locale == "zh" ? "zh-CN" : "en"],in:nil,contentWorld:.page)
+                guard let manifest = result as? [String:Any] else { throw LocalError.message(tr("无效插件包")) }
+                finish(.success(manifest))
             } catch { finish(.failure(error)) }
         }
     }
