@@ -1254,7 +1254,7 @@ export function SettingsPage() {
                       <small>
                         {syncAccount?.account.state === "signed-in"
                           ? (syncAccount.account.user?.email ?? t("Signed in"))
-                          : t("Sign in to use Sync and Publish.")}
+                          : t("Sign in to use Eidos Sync and Publish.")}
                       </small>
                     </span>
                   </div>
@@ -1380,10 +1380,10 @@ export function SettingsPage() {
                   ) : (
                     <div className="settings-row">
                       <div className="settings-row-copy">
-                        <strong>{t("Sync")}</strong>
+                        <strong>{t("Eidos Sync")}</strong>
                         <small>
                           {syncAccount?.account.state === "signed-out"
-                            ? t("Sign in to use Sync")
+                            ? t("Sign in to use Eidos Sync")
                             : t("Sync status has not been checked yet.")}
                         </small>
                       </div>

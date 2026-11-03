@@ -445,6 +445,7 @@ const zh: Record<string, string> = {
     "云同步依赖此 Space 的本地版本历史。请先开启版本管理，再连接云同步。",
   "Open Versions": "打开版本管理",
   "Sign in to use Sync": "登录以使用同步",
+  "Sign in to use Eidos Sync": "登录以使用 Eidos Sync",
   "Use your eidos.space account to check whether Sync is available.":
     "登录 eidos.space 账户以查看同步服务。",
   "Manage your Sync access on eidos.space, then check again here.":
@@ -1114,6 +1115,7 @@ const zh: Record<string, string> = {
   "Up to 10 Markdown pages": "最多发布 10 个 Markdown 页面",
   "Eidos File · Markdown · Forms": "Eidos File · Markdown · 表单",
   "Sign in to use Sync and Publish.": "登录以使用同步与发布。",
+  "Sign in to use Eidos Sync and Publish.": "登录以使用 Eidos Sync 与发布。",
   "Synced data": "已同步数据",
   Reserved: "已预留",
   "Publish storage": "Publish 存储",

@@ -236,7 +236,7 @@ describe("Settings account continuity", () => {
     expect(
       syncSection().querySelector(".sync-password-settings")?.textContent
     ).toContain("Saved on this device")
-    expect(syncSection().textContent).toContain("Sign in to use Sync")
+    expect(syncSection().textContent).toContain("Sign in to use Eidos Sync")
   })
 
   it("marks over-quota Publish usage visibly and accessibly", async () => {
