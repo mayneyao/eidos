@@ -244,7 +244,10 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
         (event) => event.direction === "download" && event.transferredBytes > 0
       )
     ).toBe(true)
-    if (process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1") {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1"
+    ) {
       const planned = downloadProgress.filter(
         (event) => event.direction === "download" && event.totalIsFinal
       )
@@ -317,7 +320,10 @@ it("runs native encrypted enrollment, wrong password, two-way sync, restart and 
       branch: "main",
       ...graftSyncProgressOptions((event) => fetchProgress.push(event)),
     })
-    if (process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1") {
+    if (
+      sdk.sdkVersion() === GRAFT_SDK_VERSION ||
+      process.env.EIDOS_TEST_PLANNED_DOWNLOAD_PROGRESS === "1"
+    ) {
       const planned = fetchProgress.filter(
         (event) => event.direction === "download" && event.totalIsFinal
       )
