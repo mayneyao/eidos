@@ -817,22 +817,36 @@ export class WindowController {
 
   showWhatsNew(): void {
     if (this.releaseNotesWindow && !this.releaseNotesWindow.isDestroyed()) {
-      this.focusWindow(this.releaseNotesWindow)
+      if (this.releaseNotesWindow.isVisible())
+        this.focusWindow(this.releaseNotesWindow)
       return
     }
     const owner = this.settingsWindow ?? BrowserWindow.getFocusedWindow()
-    const window = this.createWindow(true, "release-notes")
+    const window = this.createWindow(false, "release-notes")
     this.releaseNotesWindow = window
-    window.on("page-title-updated", (event) => event.preventDefault())
-    void this.locale().then((locale) => {
-      if (!window.isDestroyed())
-        window.setTitle(translateEidosLite(locale, "Release notes"))
+    // The static reader sets its document title after its first content paint.
+    // Keep the native window hidden until then instead of showing a blank or
+    // workspace loading surface. Ignore the bootstrap document's generic title.
+    window.on("page-title-updated", (event, title) => {
+      event.preventDefault()
+      if (
+        title !== "Release notes" &&
+        title !== translateEidosLite("zh", "Release notes")
+      )
+        return
+      window.setTitle(title)
+      if (!window.isVisible()) window.show()
     })
     window.once("closed", () => {
       if (this.releaseNotesWindow === window) this.releaseNotesWindow = null
       if (owner && !owner.isDestroyed()) this.focusWindow(owner)
     })
-    void this.loadRenderer(window, "/release-notes")
+    void this.getPreferences().then(async (preferences) => {
+      if (window.isDestroyed()) return
+      window.webContents.setZoomFactor(preferences.uiZoom)
+      this.updateWindowControls(window, preferences.appearance)
+      await this.loadRenderer(window, "/release-notes")
+    })
   }
 
   async createSpaceWindow(

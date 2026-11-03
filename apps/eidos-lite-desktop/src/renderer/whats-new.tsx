@@ -91,6 +91,15 @@ export function WhatsNewPage({
   const { t, locale } = useEidosLiteI18n()
   useEffect(() => {
     if (!standalone) return
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        document.title = t("Release notes")
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [standalone, t])
+  useEffect(() => {
+    if (!standalone) return
     try {
       localStorage.setItem(storageKey, releaseVersion)
     } catch {
