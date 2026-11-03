@@ -1,32 +1,30 @@
-# Eidos iOS 0.2.0
+# Eidos iOS 0.2.1
 
-Build 5 fixes initial LAN pairing when a computer advertises an unreachable VPN
-or virtual-network address. Requires iOS 17 or later.
+Build 6 fixes installation and startup of compatible Marketplace plugins.
+Requires iOS 17 or later. This release is intended for the existing TestFlight
+internal and public testing groups.
 
 ## Bug fixes
 
-- Pairing verifies alternative LAN addresses before sending credentials and
-  falls back to Bonjour discovery for older codes. The verified address is
-  retained for reconnection. QR recognition no longer rejects an otherwise
-  valid invitation solely because its primary address is unsupported.
-
-## Improvements
-
-- The bundled Eidos File editor includes column-header filtering, clearer
-  filter editing and consistent record context menus.
+- Install plugins with bundled translations without the “Invalid plugin package
+  envelope” error. Validated translations are supplied to plugin views and actions,
+  and the permission review uses readable plugin labels.
+- Keep plugin dependency variables separate from the host's mount arguments,
+  fixing plugin views such as Markmap that failed to start after installation.
+- Preserve package integrity checks, permission review and per-Space enablement
+  for both older packages and localized packages.
+- Recover LAN pairing when the computer advertises an unreachable VPN or
+  virtual-network address by checking alternative addresses and local discovery.
 
 ## What to test
 
-Update Eidos Lite to 0.29.1 and generate a fresh code in Device connection.
-On the same Wi-Fi network, test scanning and pasting the code, desktop approval,
-Space download, offline edits and reconnection. Also test a computer with VPN
-or virtual-network adapters enabled and cancellation during pairing.
+Install or update a compatible plugin from Space actions → Plugins. Review its
+permissions, then open a Markdown note with Markmap. Check installation in both
+English and Chinese and confirm that enabling a plugin affects only the chosen
+Space. Existing local files should remain available after updating the app.
 
-The address recovery fix passed native tests on an iOS 17.5 simulator against
-a real desktop service, including certificate rejection and legacy discovery.
-Physical iPhone camera scanning and Windows LAN pairing still need coverage.
-Use disposable files or a copy of your Space, and report your device model,
-iOS version and reproduction steps through TestFlight.
-
-This candidate is intended for the existing public TestFlight group. Upload,
-Apple processing and external testing approval are separate from preparation.
+Seven published packages passed installation and enablement checks in an iOS
+simulator; Markmap rendering and Journals navigation were also verified there.
+Physical iPhone and TestFlight upgrade testing remain separate from simulator
+coverage. Themes, background services, plugin storage and other capabilities
+not implemented by the mobile host remain unsupported.
