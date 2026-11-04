@@ -37,14 +37,15 @@ share a counter across page closes, or choose and connect a BLE battery device.
 
 ## Install a package
 
-1. Install an `.eidos-plugin` package through Lite's Plugin Manager.
-2. Review its requested access.
-3. Enable it for the current Space.
+1. Open **Plugins** in your Space, double-click an `.eidos-plugin` package, or follow a community installation link. Each opens plugin details in the main window. If Lite is closed, it reopens your last Space first.
+2. Check the target Space and requested access, then confirm installation. Local packages can be installed offline.
+3. A plugin installed for the first time in a Space is enabled there. Updates preserve existing enablement.
 4. Open the entry point it declares.
 
 File Views appear in **Open with**. Page Views appear in navigation.
 Commands use their declared entry points, such as the command palette.
 
 Each Space keeps its own plugin enablement and settings.
+If there is no previous Space, or it cannot be reopened, open another Space to continue installation. Packages are stored once on the device; updating a package affects every Space using it.
 Themes apply throughout Eidos Lite.
 Follow [development and distribution](/plugins/workflow/) to package your work.

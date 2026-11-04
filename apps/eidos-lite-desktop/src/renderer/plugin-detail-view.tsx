@@ -34,6 +34,7 @@ import {
   type PluginListing,
   type MarketplacePlugin,
   type PluginInstallTask,
+  type PluginPackagePreview,
   isPluginUpdateAvailable,
 } from "../shared/plugins"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
@@ -51,6 +52,7 @@ import {
 
 export interface PluginDetailViewProps {
   plugin?: PluginListing["plugins"][number]
+  packagePreview?: PluginPackagePreview
   builtin?: {
     id: string
     name: string
@@ -60,6 +62,7 @@ export interface PluginDetailViewProps {
   }
   marketplacePlugin?: MarketplacePlugin | null
   spaceAvailable?: boolean
+  installSpaceName?: string
   busy?: boolean
   installTask?: PluginInstallTask
   installing?: boolean
@@ -84,9 +87,11 @@ function formatBytes(bytes: number): string {
 
 export function PluginDetailView({
   plugin,
+  packagePreview,
   builtin,
   marketplacePlugin,
   spaceAvailable = false,
+  installSpaceName,
   busy = false,
   installTask,
   installing = false,
@@ -132,21 +137,33 @@ export function PluginDetailView({
 
   const manifest = useMemo(
     () =>
-      plugin?.manifest && plugin.localization
-        ? localizePluginManifest(
-            plugin.sourceManifest ?? plugin.manifest,
-            plugin.localization,
-            locale === "zh" ? "zh-CN" : locale
-          )
-        : plugin?.manifest,
-    [plugin, locale]
+      packagePreview
+        ? packagePreview.localization
+          ? localizePluginManifest(
+              packagePreview.manifest,
+              packagePreview.localization,
+              locale === "zh" ? "zh-CN" : locale
+            )
+          : packagePreview.manifest
+        : plugin?.manifest && plugin.localization
+          ? localizePluginManifest(
+              plugin.sourceManifest ?? plugin.manifest,
+              plugin.localization,
+              locale === "zh" ? "zh-CN" : locale
+            )
+          : plugin?.manifest,
+    [plugin, packagePreview, locale]
   )
   const isTheme = manifest?.kind === "theme"
   const compatibility =
     manifest && !plugin?.unavailable
       ? checkPluginCompatibility(manifest, "eidos-lite")
       : null
-  const marketplaceOnly = !plugin && !builtin && Boolean(marketplacePlugin)
+  const previewPending = Boolean(
+    packagePreview && packagePreview.hash !== plugin?.hash
+  )
+  const marketplaceOnly =
+    !plugin && !builtin && !packagePreview && Boolean(marketplacePlugin)
   const pluginId = manifest?.id ?? builtin?.id ?? marketplacePlugin?.id ?? ""
   const pluginVersion =
     manifest?.version ?? marketplacePlugin?.version ?? "1.0.0"
@@ -205,7 +222,7 @@ export function PluginDetailView({
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   const [readmeFallback, setReadmeFallback] = useState<string | null>(null)
   const [readmeSource, setReadmeSource] = useState<string | null>(null)
-  const readmeKey = `${pluginId}:${plugin?.hash ?? marketplacePlugin?.version ?? ""}:${locale}`
+  const readmeKey = `${pluginId}:${packagePreview?.hash ?? plugin?.hash ?? marketplacePlugin?.version ?? ""}:${locale}`
   const [readmeIdentity, setReadmeIdentity] = useState("")
   const [readmeLoading, setReadmeLoading] = useState(false)
 
@@ -222,7 +239,11 @@ export function PluginDetailView({
     let cancelled = false
     setReadmeLoading(true)
     void window.eidosLite
-      .pluginReadme(pluginId, locale === "zh" ? "zh-CN" : locale)
+      .pluginReadme(
+        pluginId,
+        locale === "zh" ? "zh-CN" : locale,
+        packagePreview?.token
+      )
       .then((content) => {
         if (!cancelled) {
           setReadmeIdentity(readmeKey)
@@ -253,7 +274,7 @@ export function PluginDetailView({
     return () => {
       cancelled = true
     }
-  }, [pluginId, readmeKey, locale])
+  }, [pluginId, readmeKey, locale, packagePreview?.token])
 
   const readmeHtml = useMemo(() => {
     if (!readmeContent || readmeIdentity !== readmeKey) return null
@@ -275,13 +296,14 @@ export function PluginDetailView({
     }
   }, [readmeContent, repo, readmeSource, readmeIdentity, readmeKey])
 
-  const settingsView = manifest?.placements?.find(
-    (p) => p.location === "plugin/settings"
-  )
+  const settingsView = previewPending
+    ? undefined
+    : manifest?.placements?.find((p) => p.location === "plugin/settings")
   const hasConnections = !!Object.keys(manifest?.connections ?? {}).length
   const hasDeclarativeSettings = !!Object.keys(manifest?.settings ?? {}).length
   const pageView = manifest?.views?.find((v) => viewResource(v) === "page")
   const canOpenPage =
+    !previewPending &&
     pageView &&
     onOpenPage &&
     manifest?.placements?.some(
@@ -416,7 +438,8 @@ export function PluginDetailView({
             ...(isMobile
               ? [{ key: "properties" as const, label: t("Properties") }]
               : []),
-            ...(settingsView || hasConnections || hasDeclarativeSettings
+            ...(!previewPending &&
+            (settingsView || hasConnections || hasDeclarativeSettings)
               ? [{ key: "settings" as const, label: t("Settings") }]
               : []),
           ]
@@ -501,11 +524,13 @@ export function PluginDetailView({
                 ? t("Built-in")
                 : isTheme
                   ? t("Theme")
-                  : marketplaceOnly
-                    ? t("Marketplace")
-                    : plugin?.developmentPath
-                      ? t("Development")
-                      : t("Packaged")}
+                  : packagePreview
+                    ? t("Local package")
+                    : marketplaceOnly
+                      ? t("Marketplace")
+                      : plugin?.developmentPath
+                        ? t("Development")
+                        : t("Packaged")}
             </dd>
           </div>
         </dl>
@@ -730,7 +755,7 @@ export function PluginDetailView({
                 <span className="plugin-detail-dot">·</span>
               </>
             )}
-            {plugin ? (
+            {plugin && !previewPending ? (
               <span
                 className={`plugin-status-pill ${
                   plugin.enabled ? "is-enabled" : "is-disabled"
@@ -766,12 +791,14 @@ export function PluginDetailView({
                     <span>
                       {manifest?.theme
                         ? t("Installed theme")
-                        : t("Disabled in this Space")}
+                        : spaceAvailable
+                          ? t("Disabled in this Space")
+                          : t("Installed")}
                     </span>
                   </>
                 )}
               </span>
-            ) : marketplaceOnly ? (
+            ) : marketplaceOnly || previewPending ? (
               <span className="plugin-status-pill is-disabled">
                 <Download
                   size={12}
@@ -793,7 +820,17 @@ export function PluginDetailView({
           )}
 
           <div className="plugin-detail-actions">
-            {hasUpdate && onInstall && (
+            {packagePreview && previewPending && onInstall && (
+              <PluginMarketplaceInstallButton
+                same={false}
+                installed={Boolean(plugin)}
+                hasUpdate={Boolean(plugin)}
+                task={installTask}
+                unavailable={busy}
+                onInstall={() => void onInstall()}
+              />
+            )}
+            {!packagePreview && hasUpdate && onInstall && (
               <PluginMarketplaceInstallButton
                 same={false}
                 installed={true}
@@ -813,7 +850,7 @@ export function PluginDetailView({
               />
             )}
 
-            {marketplaceOnly && onInstall && (
+            {!packagePreview && marketplaceOnly && onInstall && (
               <PluginMarketplaceInstallButton
                 same={false}
                 installed={false}
@@ -832,7 +869,7 @@ export function PluginDetailView({
               />
             )}
 
-            {plugin && manifest && (
+            {plugin && manifest && !previewPending && (
               <>
                 {plugin.unavailable ? null : manifest.theme ? (
                   <button
@@ -854,7 +891,7 @@ export function PluginDetailView({
                     aria-pressed={plugin.enabled}
                     onClick={() => void onToggleEnable()}
                   >
-                    {plugin.enabled ? t("Disable") : t("Enable")}
+                    {plugin.enabled ? t("Disable") : t("Enable in this Space")}
                   </button>
                 ) : null}
                 <button
@@ -880,7 +917,7 @@ export function PluginDetailView({
               </button>
             )}
 
-            {(settingsView || hasConnections) && (
+            {!previewPending && (settingsView || hasConnections) && (
               <button
                 type="button"
                 className={`settings-button ${
@@ -895,6 +932,20 @@ export function PluginDetailView({
               </button>
             )}
           </div>
+          {packagePreview && (
+            <p className="plugin-manager-caption">
+              {t("Local package: {filename}", {
+                filename: packagePreview.filename,
+              })}
+            </p>
+          )}
+          {(previewPending || marketplaceOnly) && (
+            <p className="plugin-manager-caption">
+              {installSpaceName
+                ? t("Install for Space: {space}", { space: installSpaceName })
+                : t("Enable in this Space")}
+            </p>
+          )}
         </div>
       </header>
 
@@ -1258,7 +1309,7 @@ export function PluginDetailView({
             </div>
           )}
 
-          {activeTab === "settings" && (
+          {activeTab === "settings" && !previewPending && (
             <div className="plugin-tab-settings">
               {hasDeclarativeSettings &&
                 manifest &&

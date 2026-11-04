@@ -7,7 +7,7 @@ import type { EidosLiteApi, EidosLitePreferences } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { SettingsPage } from "./settings-page"
 
-it("saves the Terminal workspace layout and shell preferences", async () => {
+it("keeps plugin and Terminal management out of the Settings window", async () => {
   window.history.replaceState(null, "", "#/settings/preferences")
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   let preferences: EidosLitePreferences = {
@@ -108,91 +108,19 @@ it("saves the Terminal workspace layout and shell preferences", async () => {
   expect(obsidianProfile).toBeNull()
   expect(host.querySelector("[data-markdown-compatibility-profile]")).toBeNull()
 
-  const pluginsPage = [
-    ...host.querySelectorAll<HTMLButtonElement>("nav button"),
-  ].find((button) => button.textContent === "Plugins")
-  expect(pluginsPage).toBeUndefined()
+  expect(
+    [...host.querySelectorAll("nav button")].some(
+      (button) => button.textContent === "Plugins"
+    )
+  ).toBe(false)
   await act(async () => {
     window.location.hash = "#/settings/plugins"
     window.dispatchEvent(new HashChangeEvent("hashchange"))
   })
   expect(host.querySelector("[data-terminal-layout]")).toBeNull()
-  await act(async () => {
-    Array.from(host.querySelectorAll<HTMLButtonElement>(".plugin-list-entry"))
-      .find((button) => button.textContent?.includes("Terminal"))
-      ?.click()
-  })
-  await act(async () => vi.dynamicImportSettled())
-  expect(host.textContent).not.toContain("Uninstall")
-  expect(window.location.hash).toBe("#/settings/plugins")
-
-  const terminalSide = host.querySelector<HTMLButtonElement>(
-    'button[data-terminal-layout="side"]'
-  )
-  expect(
-    host.querySelector<HTMLElement>(
-      "[data-terminal-layout] > .settings-segmented-control"
-    )?.dataset.segmentCount
-  ).toBe("2")
-  expect(
-    host.querySelectorAll<HTMLButtonElement>("button[data-terminal-layout]")
-  ).toHaveLength(2)
-  expect(
-    host.querySelector<HTMLButtonElement>(
-      'button[data-terminal-layout="right"]'
-    )
-  ).toBeNull()
-  expect(
-    host.querySelector<HTMLButtonElement>('button[data-terminal-layout="main"]')
-  ).toBeNull()
-  expect(terminalSide?.disabled).toBe(false)
-  await act(async () => {
-    terminalSide?.click()
-    await Promise.resolve()
-  })
-  expect(updatePreferences).toHaveBeenCalledWith({
-    terminalLayout: "side",
-  })
-
-  const select = host.querySelector<HTMLSelectElement>(
-    'select[aria-label="Default shell"]'
-  )
-  expect(
-    [...(select?.options ?? [])].map((option) => option.textContent)
-  ).toEqual(["System default — Zsh", "Zsh — /bin/zsh", "Bash — /bin/bash"])
-
-  await act(async () => {
-    if (!select) return
-    select.value = "/bin/bash"
-    select.dispatchEvent(new Event("change", { bubbles: true }))
-    await Promise.resolve()
-  })
-  expect(updatePreferences).toHaveBeenCalledWith({
-    terminalShell: "/bin/bash",
-  })
-
-  const terminalSwitch = host.querySelector<HTMLButtonElement>(
-    '[data-built-in-plugin="terminal"] button[role="switch"]'
-  )
-  await act(async () => {
-    terminalSwitch?.click()
-    await Promise.resolve()
-  })
-  expect(terminalSide?.disabled).toBe(true)
-  expect(select?.disabled).toBe(true)
-
+  expect(host.querySelector(".plugin-list-entry")).toBeNull()
+  expect(host.querySelector('[data-settings-page="preferences"]')).toBeTruthy()
+  expect(host.querySelector('[data-settings-page="plugins"]')).toBeNull()
   await act(async () => root.unmount())
-  const restoredRoot = createRoot(host)
-  await act(async () => restoredRoot.render(createElement(SettingsPage)))
-  expect(host.querySelector('[data-settings-page="plugins"]')).toBeTruthy()
-  const back = new Promise<void>((resolve) =>
-    window.addEventListener("popstate", () => resolve(), { once: true })
-  )
-  await act(async () => {
-    window.history.back()
-    await back
-  })
-  expect(host.querySelector('[data-settings-page="files"]')).toBeTruthy()
-  await act(async () => restoredRoot.unmount())
   host.remove()
 })

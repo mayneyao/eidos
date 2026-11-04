@@ -24,7 +24,9 @@ import {
   type PluginEditorChoice,
   type PluginListing,
   type PluginMarketplace,
-  type PluginInstallTask,
+  type PluginInstallIntent,
+  type PluginPackagePreview,
+  isPluginInstallActive,
   isPluginUpdateAvailable,
 } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
@@ -36,6 +38,7 @@ import { isMarkdownTextFile } from "./text-editor-options"
 import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
 import { localizeMarketplacePlugin } from "./plugin-localization"
 import { ExplorerPicker, explorerChoices } from "./plugin-explorer"
+import { usePluginInstallTasks } from "./use-plugin-install-tasks"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
 const PluginDetailView = lazy(async () => {
@@ -45,6 +48,7 @@ const PluginDetailView = lazy(async () => {
 
 export function PluginManager({
   spaceAvailable = false,
+  spaceName,
   onOpenPage,
   variant = "page",
   builtins = [],
@@ -52,9 +56,9 @@ export function PluginManager({
   onSelectPlugin,
   onPluginNameChange,
   installRequest,
-  onInstallRequestHandled,
 }: {
   spaceAvailable?: boolean
+  spaceName?: string
   onOpenPage?(key: string): void
   variant?: "page" | "settings"
   builtins?: {
@@ -67,8 +71,7 @@ export function PluginManager({
   selectedPluginId?: string | null
   onSelectPlugin?(id: string | null, name?: string | null): void
   onPluginNameChange?(name: string | null): void
-  installRequest?: { id: string; sequence: number } | null
-  onInstallRequestHandled?(sequence: number): void
+  installRequest?: PluginInstallIntent | null
 }) {
   const { t, locale } = useEidosLiteI18n()
   const buttonClass = variant === "settings" ? "settings-button" : undefined
@@ -179,101 +182,54 @@ export function PluginManager({
     void loadMarketplace()
   }, [loadMarketplace])
 
-  const [installQueue, setInstallQueue] = useState<string[]>([])
-  const [installTasks, setInstallTasks] = useState<
-    Record<string, PluginInstallTask>
-  >({})
-  const [activeInstallId, setActiveInstallId] = useState<string | null>(null)
-
+  const installTasks = usePluginInstallTasks()
+  const [packagePreviews, setPackagePreviews] = useState<
+    PluginPackagePreview[]
+  >(() => (installRequest?.package ? [installRequest.package] : []))
+  const [packageSelection, setPackageSelection] = useState<{
+    sequence?: number
+    token?: string
+  }>(() => ({
+    sequence: installRequest?.sequence,
+    token: installRequest?.package?.token,
+  }))
+  const packageToken =
+    packageSelection.sequence === installRequest?.sequence
+      ? packageSelection.token
+      : installRequest?.package?.token
   useEffect(() => {
-    return window.eidosLite.onPluginInstallProgress?.((progress) => {
-      setInstallTasks((prev) => {
-        const task = prev[progress.id]
-        if (!task) return prev
-        return {
-          ...prev,
-          [progress.id]: {
-            ...task,
-            status: progress.phase,
-            percent: progress.percent ?? task.percent,
-          },
-        }
+    let active = true
+    const preview = installRequest?.package
+    if (preview)
+      setPackagePreviews((previous) => [
+        ...previous.filter((item) => item.token !== preview.token),
+        preview,
+      ])
+    void window.eidosLite
+      .getPluginPackagePreviews?.()
+      .then((previews) => {
+        if (active) setPackagePreviews(previews)
       })
-    })
-  }, [])
-
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [installRequest])
   const installMarketplacePlugin = useCallback((id: string) => {
-    setInstallTasks((prev) => {
-      if (prev[id]) return prev
-      return {
-        ...prev,
-        [id]: { id, status: "queued", percent: 0 },
-      }
-    })
-    setInstallQueue((prev) => {
-      if (prev.includes(id)) return prev
-      return [...prev, id]
-    })
+    // The main process owns the queue and reports failures even after navigation.
+    setError(null)
+    void window.eidosLite
+      .installMarketplacePlugin(id)
+      .catch((cause: unknown) =>
+        setError(cause instanceof Error ? cause.message : String(cause))
+      )
   }, [])
 
   useEffect(() => {
-    if (!installRequest) return
+    if (!installRequest || selectedPluginId !== undefined) return
     setTab("marketplace")
     setSelected(installRequest.id)
-    installMarketplacePlugin(installRequest.id)
-    onInstallRequestHandled?.(installRequest.sequence)
-  }, [
-    installRequest,
-    installMarketplacePlugin,
-    onInstallRequestHandled,
-    setSelected,
-  ])
-
-  const mountedRef = useRef(true)
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (activeInstallId !== null || installQueue.length === 0) return
-    const nextId = installQueue[0]
-    setActiveInstallId(nextId)
-    setInstallTasks((prev) => {
-      const existing = prev[nextId]
-      if (!existing) return prev
-      return {
-        ...prev,
-        [nextId]: { ...existing, status: "downloading", percent: 0 },
-      }
-    })
-
-    void (async () => {
-      try {
-        await window.eidosLite.installMarketplacePlugin(nextId)
-        if (mountedRef.current) {
-          await refresh()
-          window.dispatchEvent(new Event("eidos-plugins-changed"))
-        }
-      } catch (err) {
-        if (mountedRef.current) {
-          setError(err instanceof Error ? err.message : String(err))
-        }
-      } finally {
-        if (mountedRef.current) {
-          setInstallTasks((prev) => {
-            const next = { ...prev }
-            delete next[nextId]
-            return next
-          })
-          setInstallQueue((prev) => prev.filter((item) => item !== nextId))
-          setActiveInstallId(null)
-        }
-      }
-    })()
-  }, [activeInstallId, installQueue, refresh])
+  }, [installRequest, selectedPluginId, setSelected])
 
   const query = search.trim().toLowerCase()
   const matchesSearch = (
@@ -334,6 +290,21 @@ export function PluginManager({
 
   const builtin = builtins.find((item) => item.id === selected)
   const plugin = plugins.find((item) => item.manifest.id === selected)
+  const packagePreview =
+    (installRequest?.package?.token === packageToken &&
+    installRequest?.id === selected
+      ? installRequest.package
+      : undefined) ??
+    packagePreviews.find(
+      (preview) =>
+        preview.token === packageToken && preview.manifest.id === selected
+    ) ??
+    (!plugin
+      ? packagePreviews.find((preview) => preview.manifest.id === selected)
+      : undefined)
+  const pendingPackages = packagePreviews.filter(
+    (preview) => !plugins.some((installed) => installed.hash === preview.hash)
+  )
 
   const updatablePlugins = useMemo(() => {
     if (!listing?.plugins || !marketplace?.plugins) return []
@@ -378,10 +349,22 @@ export function PluginManager({
     { key: "marketplace", label: t("Marketplace") },
   ]
 
-  const matchedMarketplacePlugin = marketplace?.plugins.find(
-    (p) => p.id === (plugin?.manifest.id ?? selected)
-  )
+  const matchedMarketplacePlugin = !packagePreview
+    ? marketplace?.plugins.find(
+        (p) => p.id === (plugin?.manifest.id ?? selected)
+      )
+    : undefined
   const displayName =
+    (packagePreview
+      ? (packagePreview.localization
+          ? localizePluginManifest(
+              packagePreview.manifest,
+              packagePreview.localization,
+              locale === "zh" ? "zh-CN" : locale
+            )
+          : packagePreview.manifest
+        ).name
+      : undefined) ??
     builtin?.name ??
     plugin?.manifest.name ??
     matchedMarketplacePlugin?.name ??
@@ -393,7 +376,7 @@ export function PluginManager({
 
   const withDropZone = (content: ReactNode) => (
     <PluginDropZone
-      busy={busy || activeInstallId !== null}
+      busy={busy}
       install={(files) =>
         run(async () => {
           for (const file of files)
@@ -401,11 +384,43 @@ export function PluginManager({
         })
       }
     >
+      {pendingPackages.length > 1 && (
+        <label className="plugin-manager-toolbar-actions">
+          {t("Local packages awaiting review")}
+          <select
+            className="plugin-setting-input"
+            aria-label={t("Local packages awaiting review")}
+            value={packagePreview?.token ?? ""}
+            onChange={(event) => {
+              const next = packagePreviews.find(
+                (preview) => preview.token === event.currentTarget.value
+              )
+              if (next) {
+                setPackageSelection({
+                  sequence: installRequest?.sequence,
+                  token: next.token,
+                })
+                setSelected(next.manifest.id)
+              }
+            }}
+          >
+            <option value="">{t("Choose a package…")}</option>
+            {pendingPackages.map((preview) => (
+              <option key={preview.token} value={preview.token}>
+                {preview.filename} · {preview.manifest.version}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {content}
     </PluginDropZone>
   )
 
-  if (selected && (builtin || plugin || matchedMarketplacePlugin)) {
+  if (
+    selected &&
+    (builtin || plugin || matchedMarketplacePlugin || packagePreview)
+  ) {
     const manifest = plugin?.manifest
     return withDropZone(
       <div ref={surface}>
@@ -417,22 +432,36 @@ export function PluginManager({
           }
         >
           <PluginDetailView
+            key={`${selected}/${packagePreview?.token ?? "installed"}`}
             plugin={plugin}
+            packagePreview={packagePreview}
             builtin={builtin}
             marketplacePlugin={matchedMarketplacePlugin}
             spaceAvailable={spaceAvailable}
+            installSpaceName={spaceName}
             busy={busy}
             installTask={
-              matchedMarketplacePlugin
-                ? installTasks[matchedMarketplacePlugin.id]
+              isPluginInstallActive(installTasks[selected])
+                ? installTasks[selected]
                 : undefined
             }
-            installDisabled={Boolean(marketplace?.cached)}
-            error={error}
+            installDisabled={!packagePreview && Boolean(marketplace?.cached)}
+            error={installTasks[selected]?.error ?? error}
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
             onInstall={() => {
+              if (packagePreview) {
+                setError(null)
+                void window.eidosLite
+                  .installPreparedPlugin(packagePreview.token)
+                  .catch((cause: unknown) =>
+                    setError(
+                      cause instanceof Error ? cause.message : String(cause)
+                    )
+                  )
+                return
+              }
               const id = plugin?.manifest.id ?? matchedMarketplacePlugin?.id
               if (!id) return
               installMarketplacePlugin(id)
@@ -462,6 +491,32 @@ export function PluginManager({
       </div>
     )
   }
+  if (selected)
+    return withDropZone(
+      <div className="plugin-manager-empty">
+        <button
+          type="button"
+          className="settings-button"
+          onClick={() => setSelected(null)}
+        >
+          {t("Back")}
+        </button>
+        <p role={marketplaceLoading ? "status" : "alert"}>
+          {marketplaceLoading
+            ? t("Loading plugins…")
+            : marketplaceError || t("Plugin unavailable")}
+        </p>
+        {!marketplaceLoading && (
+          <button
+            type="button"
+            className="settings-button"
+            onClick={() => void loadMarketplace(true)}
+          >
+            {t("Retry")}
+          </button>
+        )}
+      </div>
+    )
   return withDropZone(
     <div
       ref={surface}

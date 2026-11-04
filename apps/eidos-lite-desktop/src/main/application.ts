@@ -179,6 +179,7 @@ const pendingPluginInstallIds = pluginInstallIdsFromArguments([
 ])
 let launchRoutingReady = false
 let launchRoutingInFlight: Promise<void> | null = null
+let pluginInstallRoutingInFlight: Promise<void> | null = null
 
 function prepareForShutdown(reason: "quit" | "update-install"): Promise<void> {
   if (shutdownPromise) return shutdownPromise
@@ -246,16 +247,32 @@ function enqueuePluginInstallUrls(urls: readonly string[]): void {
   for (const id of pluginInstallIdsFromArguments(urls)) {
     if (!pendingPluginInstallIds.includes(id)) pendingPluginInstallIds.push(id)
   }
-  if (launchRoutingReady) drainPluginInstalls()
+  if (launchRoutingReady) void drainPluginInstalls()
 }
 
-function drainPluginInstalls(): void {
-  if (!launchRoutingReady || shutdownStarted) return
-  let id = pendingPluginInstallIds.shift()
-  while (id) {
-    controller.showPluginInstall(id)
-    id = pendingPluginInstallIds.shift()
-  }
+function drainPluginInstalls(): Promise<void> {
+  if (!launchRoutingReady || shutdownStarted) return Promise.resolve()
+  if (pluginInstallRoutingInFlight) return pluginInstallRoutingInFlight
+  const work = (async () => {
+    let id = pendingPluginInstallIds.shift()
+    while (id && !shutdownStarted) {
+      try {
+        await controller.showPluginInstall(id)
+      } catch (cause) {
+        logger.error("plugins.install-route.failed", undefined, cause)
+        dialog.showErrorBox(
+          "Could not open plugin",
+          cause instanceof Error ? cause.message : String(cause)
+        )
+      }
+      id = pendingPluginInstallIds.shift()
+    }
+  })()
+  pluginInstallRoutingInFlight = work.finally(() => {
+    pluginInstallRoutingInFlight = null
+    if (pendingPluginInstallIds.length) void drainPluginInstalls()
+  })
+  return pluginInstallRoutingInFlight
 }
 
 function drainLaunchFiles(): Promise<void> {
@@ -529,7 +546,7 @@ void app.whenReady().then(async () => {
   } else if (!startupWindow && pendingPluginInstallIds.length === 0) {
     await controller.openDefaultWindow()
   }
-  drainPluginInstalls()
+  await drainPluginInstalls()
   void registeredIpc.restoreDeviceSync().catch((error: unknown) => {
     logger.error("app.device-sync.restore-failed", undefined, error)
   })

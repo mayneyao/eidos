@@ -3,7 +3,11 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { encodePackage } from "@eidos.space/plugin-runtime/package"
-import type { PluginListing, PluginOpenResult } from "../../shared/plugins"
+import type {
+  PluginListing,
+  PluginOpenResult,
+  PluginPackagePreview,
+} from "../../shared/plugins"
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
@@ -13,11 +17,13 @@ const mock = vi.hoisted(() => ({
   selected: "",
   response: 1,
   messageOptions: [] as unknown[],
+  showPluginInstall: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   windows: [] as {
     webContents: {
       id: number
       send: ReturnType<typeof vi.fn>
+      once: ReturnType<typeof vi.fn>
       isDestroyed(): boolean
     }
     isDestroyed(): boolean
@@ -59,6 +65,7 @@ import { PluginService } from "./plugin-service"
 import { PluginConnections } from "./plugin-connections"
 const id = "example.csv"
 let registered: ReturnType<typeof registerPluginIpc>
+let switchTestSpace: (owner: number, spaceId: string) => void
 const events = new Map<
   number,
   {
@@ -112,7 +119,7 @@ beforeEach(async () => {
   mock.response = 1
   mock.messageOptions = []
   mock.windows = [1, 2, 3].map((id) => ({
-    webContents: { id, send: vi.fn(), isDestroyed: () => false },
+    webContents: { id, send: vi.fn(), once: vi.fn(), isDestroyed: () => false },
     isDestroyed: () => false,
   }))
   for (const id of [1, 2, 3]) {
@@ -134,7 +141,7 @@ beforeEach(async () => {
     [1, 2].map((id) => [
       id,
       {
-        canonical: { id: `space-${id}` },
+        canonical: { id: `space-${id}`, name: `Space ${id}` },
         previewTextFile: (file: string) =>
           readTextFilePreview(mock.directory, file),
         saveTextFile: (request: Parameters<typeof saveTextFile>[1]) =>
@@ -142,10 +149,19 @@ beforeEach(async () => {
       },
     ])
   )
+  switchTestSpace = (owner, spaceId) => {
+    const current = sessions.get(owner)
+    if (current) current.canonical.id = spaceId
+  }
+  mock.showPluginInstall
+    .mockReset()
+    .mockImplementation(
+      (_id, _preview, preferred) => preferred ?? mock.windows[0]
+    )
   registered = registerPluginIpc({
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
-    showSettingsWindow: () => mock.windows[2],
+    showPluginInstall: mock.showPluginInstall,
     requireSession: (sender: { id: number }) => {
       const session = sessions.get(sender.id)
       if (!session) throw new Error("No active Space")
@@ -261,7 +277,7 @@ it("discloses the workspace file access permission", async () => {
   )
 })
 
-it("global settings updates reload active instances without enabling other Spaces", async () => {
+it("updates from another Space reload active instances and preserve enablement", async () => {
   await call("install", 1)
   const opened = (await call(
     "open",
@@ -270,7 +286,8 @@ it("global settings updates reload active instances without enabling other Space
     `${id}/csv`
   )) as PluginOpenResult
   await packageVersion("2.0.0")
-  await call("install", 3)
+  await call("enable", 2, id, false)
+  await call("install", 2)
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: true,
     manifest: { version: "2.0.0" },
@@ -321,33 +338,50 @@ it("handles plugin readme IPC requests", async () => {
   await expect(call("readme", 1, 123)).rejects.toThrow(/Invalid plugin/)
 })
 
-it("shell-opened packages review installation and updates without opening a picker or enabling Spaces", async () => {
+it("previews shell-opened packages in the main window and installs only after confirmation", async () => {
   const file = mock.selected
-  mock.selected = "must-not-open-file-picker"
-  mock.response = 0
-  expect(await registered.openPackage(file)).toBe(false)
+  expect(await registered.openPackage(file)).toBe(true)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  expect(preview).toMatchObject({
+    filename: "example.eidos-plugin",
+    manifest: { id, version: "1.0.0" },
+  })
   expect((await listing(3)).plugins).toHaveLength(0)
-  expect(mock.messageOptions.at(-1)).toMatchObject({
-    title: "Install plugin",
-    buttons: ["Cancel", "Install"],
-  })
-  mock.response = 1
-  expect(await registered.openPackage(file)).toBe(true)
-  expect((await listing(1)).plugins[0].enabled).toBe(false)
-  await call("enable", 2, id, true)
-  mock.selected = file
+  expect(mock.messageOptions).toHaveLength(0)
+  expect(await call("packagePreviews", 2)).toEqual([])
+  expect(await call("packagePreviews", 1)).toEqual([preview])
+  const readme = vi.spyOn(PluginRegistry.prototype, "readme")
+  expect(await call("readme", 1, id, "en", preview.token)).toBeNull()
+  expect(readme).not.toHaveBeenCalled()
+  await expect(call("installPrepared", 2, preview.token)).rejects.toThrow(
+    /preview/
+  )
+  // The confirmed bytes stay the same even if the source file changes after preview.
   await packageVersion("2.0.0")
-  mock.selected = "must-not-open-file-picker"
   mock.response = 0
-  expect(await registered.openPackage(file)).toBe(false)
-  expect((await listing(3)).plugins[0].manifest.version).toBe("1.0.0")
+  expect(await call("installPrepared", 1, preview.token)).toBe(false)
   expect(mock.messageOptions.at(-1)).toMatchObject({
-    title: "Update plugin",
-    message: "CSV 1.0.0 → 2.0.0",
-    buttons: ["Cancel", "Update"],
+    message: expect.stringContaining("Space: Space 1"),
   })
+  expect((await listing(3)).plugins).toHaveLength(0)
   mock.response = 1
-  expect(await registered.openPackage(file)).toBe(true)
+  expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  expect((await listing(1)).plugins[0]).toMatchObject({
+    enabled: true,
+    manifest: { version: "1.0.0" },
+  })
+  const reviews = mock.messageOptions.length
+  expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  expect(mock.messageOptions).toHaveLength(reviews)
+  await call("enable", 1, id, false)
+  await call("enable", 2, id, true)
+  await registered.openPackage(file)
+  const update = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  expect(await call("installPrepared", 1, update.token)).toBe(true)
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: false,
     manifest: { version: "2.0.0" },
@@ -355,13 +389,104 @@ it("shell-opened packages review installation and updates without opening a pick
   expect((await listing(2)).plugins[0].enabled).toBe(true)
   await fs.writeFile(file, "invalid archive")
   await expect(registered.openPackage(file)).rejects.toThrow()
-  expect((await listing(3)).plugins[0].manifest.version).toBe("2.0.0")
   await expect(registered.openPackage("relative.eidos-plugin")).rejects.toThrow(
     "Invalid plugin package path"
   )
   await expect(
     registered.openPackage(path.join(mock.directory, "file.txt"))
   ).rejects.toThrow("Invalid plugin package path")
+})
+
+it("installs marketplace packages into the target Space and isolates its progress", async () => {
+  const download = vi
+    .spyOn(PluginRegistry.prototype, "download")
+    .mockResolvedValue(await fs.readFile(mock.selected))
+  expect(await call("installMarketplace", 1, id)).toBe(true)
+  expect(download).toHaveBeenCalledOnce()
+  expect((await listing(1)).plugins[0].enabled).toBe(true)
+  expect((await listing(2)).plugins[0].enabled).toBe(false)
+  expect(await call("installTasks", 1)).toMatchObject({
+    [id]: { status: "installed" },
+  })
+  expect(await call("installTasks", 2)).toEqual({})
+  await expect(call("installMarketplace", 3, id)).rejects.toThrow(/Space/)
+  await expect(call("install", 3)).rejects.toThrow(/Space/)
+  await expect(call("installPrepared", 3, "token")).rejects.toThrow(/Space/)
+  await expect(call("installMarketplace", 1, "../invalid")).rejects.toThrow(
+    /Invalid marketplace/
+  )
+})
+
+it("opens file-picker and dropped package previews without reviewing or installing them", async () => {
+  expect(await call("previewPackage", 1, mock.selected)).toBe(true)
+  expect(mock.showPluginInstall.mock.calls.at(-1)![2]).toBe(mock.windows[0])
+  expect((await listing(1)).plugins).toHaveLength(0)
+  expect(mock.messageOptions).toHaveLength(0)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("installPrepared", 1, preview.token)
+  expect((await listing(1)).plugins[0].enabled).toBe(true)
+  await expect(
+    call("previewPackage", 1, "relative.eidos-plugin")
+  ).rejects.toThrow(/Invalid plugin/)
+})
+
+it("rejects a queued installation if its target Space changes before review", async () => {
+  const bytes = await fs.readFile(mock.selected)
+  let finish!: (bytes: Uint8Array) => void
+  const download = vi
+    .spyOn(PluginRegistry.prototype, "download")
+    .mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+  const first = call("installMarketplace", 1, id)
+  const second = call("installMarketplace", 2, id)
+  const results = Promise.allSettled([first, second])
+  await vi.waitFor(() => expect(download).toHaveBeenCalledOnce())
+  switchTestSpace(2, "space-three")
+  finish(bytes)
+  const [installed, cancelled] = await results
+  expect(installed).toMatchObject({ status: "fulfilled", value: true })
+  expect(cancelled).toMatchObject({
+    status: "rejected",
+    reason: expect.objectContaining({
+      message: "Space changed before installation",
+    }),
+  })
+  expect(mock.messageOptions).toHaveLength(1)
+  expect((await listing(1)).plugins[0].enabled).toBe(true)
+  expect((await listing(2)).plugins[0].enabled).toBe(false)
+})
+
+it("activates automatic backgrounds through the target Space lifecycle after installation", async () => {
+  const start = vi
+    .spyOn(PluginService.prototype, "autoStartBackgrounds")
+    .mockResolvedValue()
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        requires: { pluginApi: "3.7.0" },
+        id,
+        name: "Background",
+        version: "1.0.0",
+        background: { entry: "./background.js", autoStart: true },
+      },
+      { "./background.js": "export default function activate() {}" }
+    )
+  )
+  await registered.openPackage(mock.selected)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("installPrepared", 1, preview.token)
+  expect(start).toHaveBeenCalledWith(1, "space-1", id)
+  expect(start).toHaveBeenCalledTimes(1)
 })
 
 it("dropped packages install and update by manifest ID while preserving Space enablement", async () => {
