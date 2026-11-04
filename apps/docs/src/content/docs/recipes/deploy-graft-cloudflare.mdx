@@ -2,64 +2,163 @@
 title: Deploy Graft on Cloudflare
 ---
 
-## Deploy a personal server on Cloudflare
+Create a personal Sync server for Eidos Lite using Cloudflare's one-click
+deployment. You do not need a Linux server, Docker, a terminal or your own domain.
 
-You need a Cloudflare account with Workers and R2 enabled, and a GitHub or
-GitLab account to keep your copy of the template. R2 needs separate activation
-and billing setup. Your Cloudflare storage and request charges are separate
-from Spark; included allowances do not guarantee a zero bill.
+## Before you start
+
+Prepare:
+
+- A Cloudflare account with Workers available and R2 activated. Complete the
+  R2 billing setup if Cloudflare requests it.
+- A GitHub or GitLab account to save your copy of the template.
+- Eidos Lite with Spark activated on each computer that will use the custom
+  server. An official Sync subscription is not required.
+
+Cloudflare charges for hosting separately from Spark. Workers, R2 and Durable
+Objects have their own allowances and limits; check your account's usage and
+billing rather than assuming deployment will always be free.
+
+## 1. Deploy the template
 
 1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/eidos-space/graft-cloudflare).
-   Connect your Git account and choose the repository and Worker names. The
-   flow creates your own copy; no local terminal or manual fork is needed.
-2. Deploy the template. It configures the Worker, a private R2 bucket, and
-   SQLite Durable Objects. You do not need to supply resource IDs or buy a domain.
-3. Copy the deployed HTTPS address, for example
-   `https://my-graft.example.workers.dev`. Immediately open that address with
-   `/setup` appended and select **Generate access key**. Save the key in a
-   password manager: it is displayed only once. Until setup is complete,
-   anyone who knows the address can claim the server.
-4. Open `https://my-graft.example.workers.dev/healthz`, replacing the example
-   host with yours. A successful response contains `"status":"ok"`. This checks
-   basic service availability, not a complete storage or sync round trip.
-5. Continue with [Connect a self-hosted server](/recipes/sync-custom-server/). In Lite, use the base HTTPS address
-   without `/setup`, `/healthz`, or a repository path. The generated access key
-   goes in **Access token**; it is not your Space's sync password.
+2. Sign in to Cloudflare and select the account where you want to host the server.
+3. Connect your GitHub or GitLab account when prompted. Choose a name for your
+   repository copy and for the Worker, such as `my-graft`.
+4. Review the resources and start deployment. The template configures the Worker,
+   a private R2 bucket for data and Durable Objects for server metadata.
+5. Wait for deployment to succeed, then open the deployed Worker and copy its
+   public `workers.dev` address.
 
-Keep the server address and access key for your other computers. This personal
-template has one shared key with access to every repository in the deployment;
-it is not a multi-user service with separate permissions.
+Your address will look like this:
 
-For the first sync, use a small test Space containing a known record and an
-ordinary file. Connect it, wait for upload and verification to finish, then
-download it into a new folder on another computer and check both contents.
-This checks storage and encrypted transfer beyond the health endpoint.
+```text
+https://my-graft.your-subdomain.workers.dev
+```
 
-## Deployment troubleshooting and maintenance
+Use the actual address Cloudflare gives you in every step below. Keep the R2
+bucket private; you do not need an R2 public URL or an S3 access key for this
+template.
 
-| Symptom                              | What to check                                                                                                                             |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Deployment fails                     | Check the Cloudflare build/deployment log and confirm R2 is activated.                                                                    |
-| `/healthz` returns `503`             | Finish `/setup`; if you configured a replacement secret, check that it is valid.                                                          |
-| `/setup` says setup is complete      | The key cannot be displayed again. Use the saved key or follow the recovery steps below.                                                  |
-| Lite rejects the address or key      | Use the base HTTPS address and the generated access key. A `401` response means access was rejected.                                      |
-| Health check succeeds but sync fails | Check Worker logs and the template's `OBJECTS`, `DIRECTORY`, and `REPOSITORIES` bindings. Do not include access keys in support messages. |
+If deployment fails, open the build or deployment log and check the first error.
+If it asks for R2 activation, finish that in the selected Cloudflare account,
+then retry deployment.
 
-To recover a lost key or rotate it, follow the template's
-[access and rotation guide](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md#access-and-rotation):
-set a new high-entropy `GRAFT_REMOTE_TOKEN` as a Worker **secret**, deploy the
-change, then update the saved access token in Lite on every computer. This
-replaces the server key, not the Space's encryption password; the server cannot
-recover that password.
+## 2. Set up access immediately
 
-When updating the server, preserve its Worker identity, R2 binding and Durable
-Object namespaces. Deploying under a new name does not migrate existing data.
-Keep an independent local backup: copying only the R2 bucket is not a complete
-server backup. The template currently has no coordinated export/restore tool
-or automatic garbage collection. Remote deletion is available through
-[remote Space management](/recipes/manage-cloud-sync/#manage-a-remote-space). See its
-[operations guide](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md)
-for upgrade and recovery boundaries. For terminal-based deployment, follow the
+1. Open your Worker address with `/setup` appended:
+
+   ```text
+   https://my-graft.your-subdomain.workers.dev/setup
+   ```
+
+2. On **Set up your Graft server**, click **Generate access key**.
+3. On **Save your access key**, copy the key into your password manager before
+   closing the page. Save the server address alongside it.
+
+The key is displayed **only once**. Reloading the page will not show it again.
+If you lose it, use the recovery steps below.
+
+Complete setup before sharing the address: until this step is done, anyone who
+knows the address can claim the server. This is a personal server with one shared
+access key; that key grants access to every Space stored on it.
+
+## 3. Check the server
+
+Open this address in your browser:
+
+```text
+https://my-graft.your-subdomain.workers.dev/healthz
+```
+
+A successful response contains `"status":"ok"`. Before setup, a `503` response is
+expected; finish step 2 and try again.
+
+This confirms the service is responding. The two-computer check in step 5 will
+also exercise storage and synchronization.
+
+## 4. Add the server in Lite
+
+1. Open **Settings → Account & Services** and confirm Spark is active. If the
+   feature is still locked, choose **Refresh Spark benefits**.
+2. Open **Sync → Add server**.
+3. Give the server a name, then fill in:
+
+   | Field          | Value                                                                    |
+   | -------------- | ------------------------------------------------------------------------ |
+   | Server address | Your base address, such as `https://my-graft.your-subdomain.workers.dev` |
+   | Access token   | The access key saved in step 2                                           |
+
+4. Choose **Test and save**.
+5. Return to Sync, select the saved server and set a Space sync password if
+   prompted. Enable local version history if needed, save your changes, then
+   choose **Connect**. Wait for upload and confirmation to finish.
+
+The server address must not include `/setup`, `/healthz` or a repository path.
+The **access key** lets Lite use the server; the **sync password** encrypts and
+unlocks your Space. Save both. The server cannot recover a lost sync password.
+
+If your Space already has a cloud connection, use **Switch server** instead of
+replacing its address. See [Connect a self-hosted server](/recipes/sync-custom-server/)
+for the switch and connection settings.
+
+## 5. Try another computer
+
+1. Add a record and a small file to your connected Space, and let synchronization finish.
+2. On a second computer, activate Spark and add the same server address and access key.
+3. Select the remote Space and choose **Download**. Enter its sync password and
+   choose a new destination folder.
+4. Open the record and file. Change the record on this computer, synchronize,
+   and check that the first computer receives the change.
+
+Keep the original local copy while checking the download.
+For everyday use, see [Cloud sync and recovery](/recipes/manage-cloud-sync/).
+
+## Recover or replace the access key
+
+You can replace a lost server key without deleting your Spaces:
+
+1. Use your password manager to generate a random 64-character password containing
+   letters and digits, with no spaces. Save it as the new server access key.
+2. In the Cloudflare dashboard, open **Workers & Pages**, select this Worker,
+   then open **Settings → Variables and Secrets**.
+3. Add or update a value of type **Secret** named `GRAFT_REMOTE_TOKEN`.
+   Paste the new key as its value, then deploy the change.
+4. In Lite on **every computer**, open **Manage servers**, edit this server and
+   replace its access token. Test and save the updated configuration.
+
+The new secret replaces the old generated key. It does not change a Space's
+sync password or erase data. Keep the secret configured: removing it will not
+restore the old key or reopen setup.
+
+## Updates and backups
+
+Your repository copy does not automatically become a newer template just because
+the upstream template changes. When updating, follow the template's
+[upgrade instructions](https://github.com/eidos-space/graft-cloudflare/blob/main/docs/OPERATIONS.md#upgrades)
+and keep the same Worker name, R2 association and Durable Object namespaces.
+Creating a new deployment with a new name does not move existing Spaces.
+
+Keep a complete local copy and an independent backup of important Spaces, along
+with their sync passwords. Copying the R2 bucket alone is not a full server
+backup: metadata also lives in Durable Objects. The template currently provides
+no coordinated server export/restore command.
+
+To delete a remote Space, use [remote Space management](/recipes/manage-cloud-sync/#manage-a-remote-space).
+Do not manually remove bucket objects to free space or add expiration rules to
+them; they may still belong to a Space's saved history.
+
+## Troubleshooting
+
+| Problem                             | Next step                                                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deployment fails                    | Read the Cloudflare deployment log and confirm R2 is activated in the selected account.                                                           |
+| Setup says **Setup is complete**    | Use your saved access key. If you do not have it, follow the recovery steps above.                                                                |
+| Setup rejects the submission        | Open `/setup` directly at the deployed HTTPS address and submit from that page. If it persists, check that your template is up to date.           |
+| Health check returns `503`          | Finish setup. If you configured `GRAFT_REMOTE_TOKEN`, check that it is a valid secret of at least 32 characters.                                  |
+| Lite reports an authorization error | Check that you used the server access key, not a Space password or Cloudflare API token.                                                          |
+| Health works but sync fails         | Open the Worker's logs. In its bindings, check for `OBJECTS`, `DIRECTORY` and `REPOSITORIES`; compare with the template before changing anything. |
+
+Do not include access keys or sync passwords in screenshots or support messages.
+For a terminal-based workflow, see the
 [template's command-line instructions](https://github.com/eidos-space/graft-cloudflare#local-development-and-command-line-deployment).
-
-[Choose a sync method](/user-guide/sync/).
