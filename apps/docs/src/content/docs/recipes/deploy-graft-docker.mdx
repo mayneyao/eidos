@@ -2,175 +2,258 @@
 title: Deploy Graft with Docker
 ---
 
-Run a personal Graft server on a machine with Docker Engine and Compose v2.
-Local disk is the default storage mode. S3 mode keeps object data in an existing
-S3-compatible bucket while retaining essential metadata and temporary uploads on
-the server. Both modes need a persistent `/data` volume and one server instance.
+Run your own Sync server for Eidos Lite. Follow these steps on a Linux server to
+get an HTTPS address you can connect to from Lite.
 
-## Start with local storage
+Use **local disk** for the simplest setup, or **Cloudflare R2** to store objects in
+a private bucket. Both options need persistent disk space on your server.
 
-Download the release's `compose.yaml`, `SHA256SUMS`, `image.json` and `SOURCE_COMMIT` from the
-[Graft Docker 0.1.1 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1). Verify the
-checksums and keep the image digest pinned by the release; do not replace it
-with `latest`. Keep the release tag, source commit and digest with your backups.
+## Before you start
 
-The 0.1.1 Compose file pins the Linux AMD64/ARM64 image:
+You need a Linux AMD64 or ARM64 server with:
 
-```text
-ghcr.io/eidos-space/graft-remote-docker@sha256:e226c2a4ea414cf7b1abf16c71cedea9e8483dbd2f8fc96b0fd9e3d2599eafbf
+- [Docker Engine and Compose v2](https://docs.docker.com/engine/install/).
+- Bash, curl and OpenSSL. Run the commands below in Bash as a user who can run Docker.
+- A domain pointing to the server, such as `sync.example.com`.
+- Ports 80 and 443 accessible from the internet, and [Caddy installed as a system service](https://caddyserver.com/docs/install) on the host.
+
+Replace `sync.example.com` throughout this guide with your domain.
+
+## 1. Download the deployment file
+
+Create a new, private installation directory:
+
+```bash
+mkdir -m 700 ~/graft-sync
+cd ~/graft-sync
+curl -fL --retry 3 -o compose.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.yaml
 ```
 
-Place the files in a private directory. Create the server access key:
+The file uses the public [Graft Docker 0.1.1 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1)
+and pins the image by digest. No GitHub login, source checkout or local build is needed.
+Run all later Compose commands from this directory.
 
-```sh
-mkdir -p secrets
-chmod 700 secrets
+## 2. Create the server access key
+
+Run this once for a new installation:
+
+```bash
+mkdir -m 700 secrets
 (umask 077; openssl rand -hex 32 > secrets/access-key)
 chmod 444 secrets/access-key
 ```
 
-The private directory protects the host file; the mounted file must be readable
-by the unprivileged container. Never commit it. The access key grants access to
-all repositories on this server. It is separate from clients' sync passwords.
+Save the key in your password manager. It grants access to **all Spaces on this
+server** and is separate from a Space's encryption password.
 
-Set `.env` to your public HTTPS origin:
+The private directories protect the key on the host. The file must be readable
+by the container's unprivileged user. Do not repeat the key generation command
+on an existing installation: it would replace the key.
 
-```dotenv
+## 3. Choose storage
+
+Complete **one** option before starting the server.
+
+### Option A: Local disk
+
+Create `.env` with your public address:
+
+```bash
+cat > .env <<'EOF'
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+EOF
 ```
 
-Run `docker compose pull`, then `docker compose up -d --wait`. Keep the named
-volume mounted at `/data`; do not use `docker compose down -v` to stop the service.
-The default port binds to `127.0.0.1:8787`. Put an HTTPS reverse proxy in front of
-it. For Caddy running on the host:
+Docker will create a persistent data volume. Continue to step 4.
 
-```caddyfile
-sync.example.com {
-    reverse_proxy 127.0.0.1:8787
-}
+### Option B: Cloudflare R2
+
+1. Create a private R2 bucket in your Cloudflare account.
+2. Copy its **S3 API endpoint** from the bucket configuration.
+3. [Create R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with **Object Read & Write** permission limited to this bucket. Save the **Access Key ID** and **Secret Access Key**.
+
+These are S3 credentials, not a general Cloudflare API token. The bucket does not
+need a public URL. For a jurisdiction-restricted bucket, use the endpoint shown
+in its configuration.
+
+Download the additional Compose file:
+
+```bash
+curl -fL --retry 3 -o compose.s3.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.s3.yaml
 ```
 
-A proxy in another container must use the Compose network and `graft:8787`.
-Allow 64 MiB requests and transfers of at least 120 seconds. Preserve protocol
-and authorization headers; disable API caching, redirects and path rewrites.
-Do not log credentials or request bodies. Keep the container's HTTP port private.
+Paste each credential when prompted. Input is hidden and does not enter shell history:
 
-Check `https://sync.example.com/healthz`, then follow
-[Connect a self-hosted server](/recipes/sync-custom-server/). Use the base HTTPS
-address and server access key in Lite. Test with a known record and attachment,
-then download on another computer and check the contents. Health alone does not
-prove encrypted synchronization.
+```bash
+read -r -s -p 'R2 Access Key ID: ' graft_s3_key_id; printf '\n'
+(umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
+unset graft_s3_key_id
+read -r -s -p 'R2 Secret Access Key: ' graft_s3_secret; printf '\n'
+(umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
+unset graft_s3_secret
+chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
+```
 
-## Use S3-compatible storage
+Create `.env`, replacing the domain, endpoint and bucket name:
 
-For Cloudflare R2, create a private bucket and use its S3 API endpoint:
-
-```dotenv
+```bash
+cat > .env <<'EOF'
+COMPOSE_FILE=compose.yaml:compose.s3.yaml
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
 GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
 GRAFT_S3_REGION=auto
 GRAFT_S3_BUCKET=your-private-bucket
 GRAFT_S3_PREFIX=graft/
 GRAFT_S3_FORCE_PATH_STYLE=true
+EOF
 ```
 
-Copy the endpoint from your R2 configuration; use the appropriate endpoint for a
-jurisdiction-restricted bucket. The [R2 S3 API region is `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
-Create [R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with
-Object Read & Write access limited to this bucket. Save the Access Key ID and
-Secret Access Key in the two mounted files described below. A Wrangler OAuth
-session or a general Cloudflare API token is not a substitute for those S3
-credentials. The bucket remains private; no public bucket URL or Worker binding
-is needed. The Docker service and its persistent `/data` volume still run on your
-server. This differs from deploying the standalone Cloudflare Worker template.
-R2 does not support S3 bucket versioning; deleting an object removes the current
-object directly. Do not treat versioned MinIO behavior as R2 recovery protection.
+R2 uses [region `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
+Use a dedicated bucket or a prefix reserved for this installation, ending in `/`.
+`COMPOSE_FILE` makes the commands below load both Compose files automatically.
 
-### Provider configuration and B2
+R2 stores objects, but the Docker volume still holds metadata and unfinished
+uploads. Reserve disk space for upload parts and an assembled copy of each upload
+being completed.
 
-Start with a fresh `/data` volume and a dedicated bucket or exclusive prefix.
-The service does not create buckets. Download `compose.s3.yaml` and
-`env.s3.example` from the same release. Copy `env.s3.example` to `.env` in this
-fresh installation and replace the examples with your actual endpoint and region:
+## 4. Start the server
 
-```dotenv
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://s3.us-west-004.backblazeb2.com
-GRAFT_S3_REGION=us-west-004
-GRAFT_S3_BUCKET=your-bucket-name
-GRAFT_S3_PREFIX=graft/
-GRAFT_S3_FORCE_PATH_STYLE=true
+```bash
+docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
+curl --fail --show-error --silent --retry 10 --retry-all-errors --retry-delay 2 \
+  http://127.0.0.1:8787/healthz
 ```
 
-The example endpoint is not a universal B2 address. Copy yours from the bucket
-details and match its region, as described in the
-[B2 SDK configuration guide](https://www.backblaze.com/docs/cloud-storage-use-the-aws-sdk-for-javascript-v3-with-backblaze-b2).
-Use a bucket-restricted [standard application key](https://www.backblaze.com/docs/cloud-storage-application-keys).
-Save its `keyID` in `secrets/s3-access-key-id` and `applicationKey` in
-`secrets/s3-secret-access-key`, using the protected directory and file permissions
-above. Do not put credentials in `.env`, repository URLs or command history.
+The last command should return a successful health response. If it fails, check
+the logs before continuing:
 
-`compose.s3.yaml` selects `GRAFT_STORAGE=s3` and mounts those files through
-`GRAFT_S3_ACCESS_KEY_ID_FILE` and `GRAFT_S3_SECRET_ACCESS_KEY_FILE`. Start with:
-
-```sh
-docker compose -f compose.yaml -f compose.s3.yaml pull
-docker compose -f compose.yaml -f compose.s3.yaml up -d --wait
+```bash
+docker compose logs --tail=100 graft
 ```
 
-Keep both Compose files in later stop, backup, restart and upgrade commands.
-The prefix must be nonempty, exclusive to this installation and end in `/`.
-HTTPS is required for production storage endpoints. `GRAFT_S3_FORCE_PATH_STYLE`
-defaults to `true`; use the addressing style required by your provider. Temporary
-AWS credentials additionally need a mounted session token selected through
-`GRAFT_S3_SESSION_TOKEN_FILE`.
+The container only listens on `127.0.0.1:8787`; Caddy will provide public access.
 
-Limit credentials to the selected bucket and object prefix. The backend needs
-bucket access for HeadBucket, object read/head/write/delete and multipart
-create/upload/complete/abort. Versioned buckets also need deletion of owned
-object versions. It does not need account-wide bucket listing or bucket creation.
-Retention or Object Lock can prevent cleanup; do not grant broad account access
-to work around a storage configuration error.
+## 5. Enable HTTPS
 
-## Persistence, recovery and storage limits
+Add this block to `/etc/caddy/Caddyfile` on the host, preserving existing sites:
 
-S3 mode is not stateless. `/data` holds repository identities, refs, object
-pointers, deletion state and unfinished upload parts. Reserve disk for retained
-parts, one assembled file per active completion and SQLite/WAL growth. Completed
-temporary files and parts are removed, but allocated database space may remain
-for reuse. Run one container per volume on local disk; a shared bucket does not
-make independent servers a cluster. A storage outage does not fall back to local
-mode.
+```text
+sync.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
 
-Do not modify live objects or add delete markers in the server's prefix. Configure
-expiration for abandoned provider multipart uploads, not for live object keys.
-Provider storage, transfer and request charges apply, including server reads for
-stored-object verification.
+Validate and reload Caddy:
 
-Stop writes before backing up. Local mode requires the complete `/data` directory;
-S3 mode requires a coordinated copy of `/data` and the matching bucket objects.
-Neither SQLite metadata nor bucket contents alone is a complete S3-mode backup.
-Keep the access key separately and retain client encryption passwords. Restore
-into an empty volume with the required ownership; check repository identities,
-an independent client download and known contents before resuming use.
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+curl -fsS https://sync.example.com/healthz
+```
 
-Back up before upgrading and keep the previous image and matching backup until
-validated. Changing the storage mode, endpoint, region, bucket or prefix does
-not migrate existing data. Use a fresh server and Lite's **Switch server** flow,
-then verify an independent download before retiring the original. Credentials
-for the same backend can be rotated by replacing the secret files and restarting.
+Wait for the public health check to succeed before connecting Lite. For certificate
+errors, check DNS and whether ports 80 and 443 reach Caddy.
 
-## Verification boundaries
+Using another proxy? Allow request bodies of at least 64 MiB and transfers of at
+least 120 seconds. Forward paths and authorization headers unchanged and disable
+API caching. A containerized proxy needs a shared Docker network with upstream
+`graft:8787`, rather than the host-loopback configuration above.
 
-On supported servers, initial connection can verify stored ciphertext without
-downloading the entire upload. The server reads the actual local or bucket object
-for each challenge. Older servers use full-download compatibility verification;
-keep Lite open until confirmation finishes. A failed challenge must not silently
-fall back or be treated as Connected. This check is not an independent backup
-or a guarantee of future storage availability.
+## 6. Connect Lite
 
-Record real Cloudflare R2 acceptance separately from local MinIO testing.
-Neither establishes a real Backblaze B2 deployment. B2 settings above describe
-compatible configuration, not a claim of B2 test coverage. Check the release's
-validation record for the tested image, SDK and storage provider, and validate
-your own bucket before using it for important data.
+Display the server key:
+
+```bash
+cat secrets/access-key
+```
+
+Follow [Connect a self-hosted server](/recipes/sync-custom-server/) in Lite.
+Use `https://sync.example.com` as the address and paste the key.
+Also keep your Space's sync password safe: the server key cannot replace it.
+
+Once connected, add a record and a small attachment. Download the Space on another
+computer and open both, then edit a record there and confirm the first computer
+receives the change. This checks synchronization beyond the server health check.
+
+Initial connection confirms that uploaded data is stored. This server version
+does not require Lite to download the entire upload for confirmation, though
+the server still reads stored objects. Older servers may require a full download.
+If confirmation fails, keep your local Space and retry after fixing the problem.
+
+## Maintain the installation
+
+### Stop and restart
+
+Run from `~/graft-sync`:
+
+```bash
+docker compose stop
+docker compose start
+```
+
+Keep the deployment directory and its Docker data volume. **Do not use
+`docker compose down -v` unless you intend to delete the server's local data.**
+Run one Graft instance per data volume.
+
+### Back up and upgrade
+
+Pause synchronization and stop the container before backing up:
+
+- **Local storage:** copy the complete `/data` volume.
+- **R2 or other S3 storage:** copy both `/data` and the matching bucket objects
+  while the server is stopped. Neither copy alone is sufficient.
+- Securely back up the Compose files, `.env` and access keys. Keep Space sync passwords separately.
+
+Restart after the backup. Test restoration into a separate empty volume and
+check a client download before relying on a backup. R2 is not a backup by itself:
+deleting an object removes its current copy.
+
+To upgrade, back up first. Download the new release's Compose files into a
+temporary directory and compare them with your installation. Update the image
+reference and required settings, preserving your `.env`, secrets and data volume.
+Then run:
+
+```bash
+docker compose pull
+docker compose up -d
+curl -fsS https://sync.example.com/healthz
+```
+
+Check synchronization in Lite before discarding the previous image and backup.
+
+### Other S3 providers and storage changes
+
+Changing storage mode, endpoint, bucket or prefix does **not** migrate data.
+For an existing installation, deploy a separate server with fresh storage and
+use Lite's **Switch server** flow.
+
+For a new installation with another S3 provider, follow option B using that
+provider's HTTPS endpoint, region and credentials. For Backblaze B2, copy the
+endpoint and region from your bucket details and create a bucket-restricted
+[application key](https://www.backblaze.com/docs/cloud-storage-application-keys).
+Save `keyID` in `secrets/s3-access-key-id` and `applicationKey` in
+`secrets/s3-secret-access-key`.
+
+Credentials need bucket access, object reads/writes/deletes and multipart uploads,
+including aborting incomplete uploads. Versioned buckets also need permission to
+delete object versions. Object Lock and retention rules can prevent deletion.
+Avoid expiration rules on live objects in your installation's prefix.
+Provider storage, request and transfer charges apply.
+
+This release was tested with local storage, MinIO and Cloudflare R2. The B2
+configuration uses its S3 API but has not been tested against a live B2 bucket.
+
+## Troubleshooting
+
+| Symptom                             | Check                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Compose reports missing variables   | Check `.env` in the deployment directory; R2 requires all option B fields.                                        |
+| Local health check fails            | Run `docker compose ps` and `docker compose logs --tail=100 graft`. Check secret permissions and free disk space. |
+| Public health check fails           | Check DNS, firewall ports and Caddy configuration.                                                                |
+| Lite reports an authorization error | Use the server key, not the Space password or R2 credentials.                                                     |
+| R2 transfers fail                   | Check the S3 endpoint, bucket name and bucket-scoped Object Read & Write credentials.                             |
