@@ -2,153 +2,249 @@
 title: 使用 Docker 部署 Graft
 ---
 
-准备一台安装了 Docker Engine 和 Compose v2 的服务器。默认使用本地磁盘；
-S3 模式将对象数据放入已有的 S3 兼容 bucket，服务器仍保存必要元数据和临时上传内容。
-两种模式都需要持久化 `/data` 卷，并且每个卷只能运行一个服务实例。
+在自己的 Linux 服务器上运行 Eidos Lite 同步服务。按照下面的步骤完成部署后，
+你会得到一个可以在 Lite 中连接的 HTTPS 地址。
 
-## 使用默认本地存储
+**本地磁盘**配置最简单；也可以选择 **Cloudflare R2**，将对象存入私有桶。
+两种方式都需要在服务器上保留持久化磁盘空间。
 
-从 [Graft Docker 0.1.1 发布页](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1) 下载
-`compose.yaml`、`SHA256SUMS`、`image.json` 和 `SOURCE_COMMIT`。
-核对校验和，保留发布文件固定的镜像 digest，
-不要替换为 `latest`。将版本 tag、源码提交和 digest 与备份一起保存。
+## 开始前准备
 
-0.1.1 的 Compose 文件固定使用以下 Linux AMD64/ARM64 镜像：
+准备一台 Linux AMD64 或 ARM64 服务器，并确保：
 
-```text
-ghcr.io/eidos-space/graft-remote-docker@sha256:e226c2a4ea414cf7b1abf16c71cedea9e8483dbd2f8fc96b0fd9e3d2599eafbf
+- 已安装 [Docker Engine 和 Compose v2](https://docs.docker.com/engine/install/)。
+- 已安装 Bash、curl 和 OpenSSL。以下命令在 Bash 中执行，当前用户需要有运行 Docker 的权限。
+- 有一个域名，例如 `sync.example.com`，DNS 已指向服务器。
+- 80 和 443 端口允许外部访问，宿主机上已[安装 Caddy 系统服务](https://caddyserver.com/docs/install)。
+
+将下文的 `sync.example.com` 全部替换为你的域名。
+
+## 1. 下载部署文件
+
+为本次安装新建一个私有目录：
+
+```bash
+mkdir -m 700 ~/graft-sync
+cd ~/graft-sync
+curl -fL --retry 3 -o compose.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.yaml
 ```
 
-将文件放入私有目录，创建服务器访问密钥：
+该文件使用公开的 [Graft Docker 0.1.1 镜像](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1)，
+通过摘要固定镜像内容。不需要登录 GitHub、下载源码或自行构建。
+后续所有 Compose 命令都在这个目录中运行。
 
-```sh
-mkdir -p secrets
-chmod 700 secrets
+## 2. 创建服务器访问密钥
+
+仅在首次安装时执行：
+
+```bash
+mkdir -m 700 secrets
 (umask 077; openssl rand -hex 32 > secrets/access-key)
 chmod 444 secrets/access-key
 ```
 
-私有目录保护宿主机文件；挂载后的文件需要允许容器中的非特权用户读取。
-不要提交该文件。此密钥可以访问本服务的全部仓库，与客户端的同步密码互相独立。
+将密钥保存到密码管理器。它可以访问**这台服务器上的所有 Space**，
+与用于加密 Space 的同步密码是两回事。
 
-在 `.env` 中填写公开 HTTPS 地址：
+私有目录保护宿主机上的密钥；文件本身需要允许容器内的普通用户读取。
+已有安装不要重复执行生成命令，否则会替换原来的密钥。
 
-```dotenv
+## 3. 选择存储方式
+
+启动服务器之前，完成以下**其中一种**配置。
+
+### 选项 A：本地磁盘
+
+创建 `.env`，填写公开访问地址：
+
+```bash
+cat > .env <<'EOF'
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+EOF
 ```
 
-执行 `docker compose pull` 和 `docker compose up -d --wait`。
-保留挂载到 `/data` 的命名卷；不要用 `docker compose down -v` 停止需要保留数据的服务。
-默认端口仅绑定 `127.0.0.1:8787`，请在前面配置 HTTPS 反向代理。
-例如在宿主机运行 Caddy：
+Docker 会创建持久化数据卷。接着执行第 4 步即可。
 
-```caddyfile
-sync.example.com {
-    reverse_proxy 127.0.0.1:8787
-}
+### 选项 B：Cloudflare R2
+
+1. 在 Cloudflare 账户中创建一个私有 R2 存储桶。
+2. 从存储桶配置中复制 **S3 API 端点**。
+3. [创建 R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，选择 **Object Read & Write（对象读写）** 权限，限定到这个桶。保存 **Access Key ID** 和 **Secret Access Key**。
+
+这里需要 S3 凭据，而不是通用 Cloudflare API Token。
+桶不需要公开访问地址。如果桶有数据管辖区限制，使用该桶配置中显示的端点。
+
+下载额外的 Compose 文件：
+
+```bash
+curl -fL --retry 3 -o compose.s3.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.s3.yaml
 ```
 
-若代理位于另一个容器，应通过 Compose 网络访问 `graft:8787`。
-允许 64 MiB 请求和至少 120 秒的传输，保留协议及授权请求头，关闭 API 缓存、
-重定向和路径改写。不要记录凭据或请求体，不要公开容器的 HTTP 端口。
+按提示分别粘贴凭据。输入不会显示，也不会进入命令历史：
 
-检查 `https://sync.example.com/healthz`，然后按[连接自托管服务器](/zh-cn/recipes/sync-custom-server/)
-操作，在 Lite 填写基础 HTTPS 地址和访问密钥。先上传一条已知记录和一个附件，
-再在另一台电脑下载核对。健康检查不能单独证明加密同步可用。
+```bash
+read -r -s -p 'R2 Access Key ID: ' graft_s3_key_id; printf '\n'
+(umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
+unset graft_s3_key_id
+read -r -s -p 'R2 Secret Access Key: ' graft_s3_secret; printf '\n'
+(umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
+unset graft_s3_secret
+chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
+```
 
-## 使用 S3 兼容存储
+创建 `.env`，替换域名、端点和桶名：
 
-使用 Cloudflare R2 时，创建私有 bucket，并填写其 S3 API endpoint：
-
-```dotenv
+```bash
+cat > .env <<'EOF'
+COMPOSE_FILE=compose.yaml:compose.s3.yaml
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
 GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
 GRAFT_S3_REGION=auto
 GRAFT_S3_BUCKET=your-private-bucket
 GRAFT_S3_PREFIX=graft/
 GRAFT_S3_FORCE_PATH_STYLE=true
+EOF
 ```
 
-从自己的 R2 配置复制 endpoint；有司法管辖区限制的 bucket 应使用对应地址。
-[R2 的 S3 API region 为 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
-创建仅限该 bucket、具有 Object Read & Write 权限的
-[R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，将 Access Key ID 和
-Secret Access Key 保存到下文的两个挂载文件。Wrangler OAuth 登录状态或通用
-Cloudflare API token 不能代替这组 S3 凭据。bucket 保持私有，无需公开 bucket URL
-或配置 Worker binding。Docker 服务和持久化 `/data` 仍运行在自己的服务器，
-这与部署独立的 Cloudflare Worker 模板是两种方式。
-R2 不支持 S3 bucket 版本管理，删除会直接移除当前对象；不能把版本化 MinIO 的行为
-视为 R2 上的恢复保障。
+R2 的[区域填写 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
+使用专用桶，或为本次安装保留一个独占前缀，前缀以 `/` 结尾。
+`COMPOSE_FILE` 会让后续命令自动加载两个 Compose 文件。
 
-### 服务商配置与 B2
+R2 保存对象数据，但 Docker 数据卷仍要保存元数据和未完成的上传。
+服务器磁盘需要容纳上传分片，以及每个正在完成上传的对象的一份组装副本。
 
-使用全新的 `/data` 卷及专用 bucket 或独占前缀；服务不会创建 bucket。
-从同一发布版本下载 `compose.s3.yaml` 和 `env.s3.example`。
-在这套新部署中将 `env.s3.example` 复制为 `.env`，替换为实际 endpoint 和 region：
+## 4. 启动服务器
 
-```dotenv
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://s3.us-west-004.backblazeb2.com
-GRAFT_S3_REGION=us-west-004
-GRAFT_S3_BUCKET=your-bucket-name
-GRAFT_S3_PREFIX=graft/
-GRAFT_S3_FORCE_PATH_STYLE=true
+```bash
+docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
+curl --fail --show-error --silent --retry 10 --retry-all-errors --retry-delay 2 \
+  http://127.0.0.1:8787/healthz
 ```
 
-示例 endpoint 不是所有 B2 bucket 的通用地址。应从自己的 bucket 详情复制地址并匹配
-region，参见 [B2 SDK 配置](https://www.backblaze.com/docs/cloud-storage-use-the-aws-sdk-for-javascript-v3-with-backblaze-b2)。
-使用限制到指定 bucket 的[标准 application key](https://www.backblaze.com/docs/cloud-storage-application-keys)。
-将 `keyID` 保存到 `secrets/s3-access-key-id`，将 `applicationKey` 保存到
-`secrets/s3-secret-access-key`，沿用上面的私有目录和文件权限。
-不要将凭据放入 `.env`、仓库 URL 或命令历史。
+最后一条命令应返回成功的健康检查响应。如果失败，先查看日志：
 
-`compose.s3.yaml` 设置 `GRAFT_STORAGE=s3`，并通过
-`GRAFT_S3_ACCESS_KEY_ID_FILE`、`GRAFT_S3_SECRET_ACCESS_KEY_FILE` 挂载凭据：
-
-```sh
-docker compose -f compose.yaml -f compose.s3.yaml pull
-docker compose -f compose.yaml -f compose.s3.yaml up -d --wait
+```bash
+docker compose logs --tail=100 graft
 ```
 
-之后的停止、备份、重启和升级命令都应保留这两个 Compose 文件。
-前缀必须非空、由此部署独占，并以 `/` 结尾。生产存储 endpoint 必须使用 HTTPS。
-`GRAFT_S3_FORCE_PATH_STYLE` 默认 `true`，请按服务商要求选择地址风格。
-使用 AWS 临时凭据时，还需挂载 session token，并通过 `GRAFT_S3_SESSION_TOKEN_FILE` 指定。
+容器只监听 `127.0.0.1:8787`，接下来通过 Caddy 提供公开访问。
 
-将权限限制到选定 bucket 和对象前缀。服务需要 HeadBucket 所需的 bucket 访问权限、
-对象读取/元数据读取/写入/删除，以及 multipart 创建/上传/完成/中止权限。
-启用版本管理时，还需允许删除服务持有的对象版本；无需列举账户全部 bucket 或创建 bucket。
-保留策略或 Object Lock 可能阻止清理，不要用扩大到账户级权限来绕过存储配置问题。
+## 5. 配置 HTTPS
 
-## 持久化、恢复与空间限制
+在宿主机的 `/etc/caddy/Caddyfile` 中添加以下配置，保留已有站点：
 
-S3 模式仍依赖 `/data`：这里保存仓库身份、引用、对象指针、删除状态和未完成分片。
-请为保留的分片、每个并行完成操作的完整组装文件，以及 SQLite/WAL 增长预留磁盘。
-完成后会删除临时文件和分片，但数据库可能保留已分配空间供后续复用。
-每个卷只运行一个容器，并使用本地磁盘；共享 bucket 不会让多个独立服务变成集群。
-存储不可用时不会自动回退到本地模式。
+```text
+sync.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
 
-不要修改服务前缀下的活动对象或自行添加删除标记。
-可配置过期清理服务商侧遗留的未完成 multipart 上传，不要给活动对象设置过期删除。
-服务商的存储、传输和请求费用仍适用，包括验证已存对象所产生的服务端读取。
+检查配置并重新加载 Caddy：
 
-备份前停止写入。本地模式需备份完整 `/data`；S3 模式需协调备份 `/data` 和对应 bucket
-对象。只备份 SQLite 或只复制 bucket 都不能构成完整的 S3 模式备份。
-另行保存访问密钥，并保留客户端同步密码。恢复到具有正确属主的空卷，核对仓库身份，
-独立下载并检查已知内容后再恢复使用。
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+curl -fsS https://sync.example.com/healthz
+```
 
-升级前备份，验证完成前保留旧镜像及匹配备份。改变存储模式、endpoint、region、
-bucket 或前缀不会迁移已有数据。应创建新服务，通过 Lite 的**切换服务器**上传，
-确认独立下载无误后再停用原服务。对同一存储后端轮换凭据时，可替换 secret 文件并重启。
+公开健康检查成功后再连接 Lite。如果证书签发失败，检查 DNS，
+以及 80 和 443 端口是否能到达 Caddy。
 
-## 验证范围
+如果使用其他代理，请允许至少 64 MiB 的请求体和至少 120 秒的传输时间，
+原样转发路径和授权请求头，并关闭 API 缓存。
+如果代理也运行在容器中，需要使用共享 Docker 网络，将上游设为 `graft:8787`，
+而不是照搬上面的本机地址配置。
 
-支持此能力的服务器可在首次连接时验证已存密文，避免将全部上传内容下载回来。
-每次 challenge 都读取实际本地或 bucket 对象。旧服务器使用完整下载的兼容性验证，
-请保持 Lite 打开直到确认完成。challenge 失败不能静默回退或被当作已连接。
-这项检查不能代替独立备份，也不保证未来存储可用性。
+## 6. 连接 Lite
 
-真实 Cloudflare R2 验收应与本地 MinIO 测试分别记录，两者都不能证明真实 Backblaze B2
-部署已通过验证。上面的 B2 内容是兼容配置说明，不代表 B2 实测覆盖。
-请查看发布版本的验证记录，确认实际测试的镜像、SDK 和存储服务商，并先验证自己的
-bucket，再用于重要数据。
+在服务器上查看访问密钥：
+
+```bash
+cat secrets/access-key
+```
+
+按照 [连接自托管服务器](/zh-cn/recipes/sync-custom-server/) 在 Lite 中操作，
+服务器地址填写 `https://sync.example.com`，粘贴访问密钥。
+同时妥善保存 Space 同步密码，服务器访问密钥不能代替它。
+
+连接后，添加一条记录和一个小附件。在另一台电脑上下载 Space，打开记录和附件，
+再从第二台电脑修改记录，确认第一台能收到更新。
+这样可以确认整套配置能够同步，而不只是健康检查正常。
+
+首次连接会确认上传的数据已保存。使用这个版本的服务器时，
+确认过程不需要 Lite 把完整上传内容再下载回来，但服务器仍会读取已存储的对象。
+旧版服务器可能需要完整下载。如果确认失败，保留本地 Space，
+解决提示的问题后重试。
+
+## 日常维护
+
+### 停止和重新启动
+
+在 `~/graft-sync` 目录执行：
+
+```bash
+docker compose stop
+docker compose start
+```
+
+保留部署目录及其 Docker 数据卷。
+**除非确实要删除服务器的本地数据，否则不要执行 `docker compose down -v`。**
+每个数据卷只运行一个 Graft 实例。
+
+### 备份和升级
+
+先暂停同步、停止容器，再进行备份：
+
+- **本地存储：**备份完整的 `/data` 数据卷。
+- **R2 或其他 S3 存储：**在服务器停止期间，同时备份 `/data` 和对应的桶内对象。只备份其中一份无法完整恢复。
+- 安全保存 Compose 文件、`.env` 和访问密钥的备份。Space 同步密码另行保存。
+
+备份后重新启动容器。先在独立的空数据卷中测试恢复，
+通过客户端下载确认内容完整，再依赖这份备份。
+R2 本身不等于备份：删除对象会移除它的当前副本。
+
+升级前先备份。将新版发布的 Compose 文件下载到临时目录，与现有文件比较，
+更新镜像引用和必要设置，保留你的 `.env`、密钥及数据卷。然后执行：
+
+```bash
+docker compose pull
+docker compose up -d
+curl -fsS https://sync.example.com/healthz
+```
+
+在 Lite 中确认同步正常后，再考虑清理旧镜像和备份。
+
+### 其他 S3 服务和存储迁移
+
+修改存储模式、端点、桶名或前缀，**不会**自动迁移数据。
+已有服务需要更换存储时，请用全新存储部署另一台服务，
+然后在 Lite 中使用**切换服务器**。
+
+首次安装使用其他 S3 服务时，沿用选项 B，填写服务商提供的 HTTPS 端点、
+区域和凭据。例如 Backblaze B2：从桶详情复制端点和区域，创建限定到该桶的
+[应用密钥](https://www.backblaze.com/docs/cloud-storage-application-keys)，
+将 `keyID` 保存到 `secrets/s3-access-key-id`，
+将 `applicationKey` 保存到 `secrets/s3-secret-access-key`。
+
+凭据需要允许桶访问、对象读写删除和分片上传，包括取消未完成的上传。
+启用版本控制的桶还需要允许删除对象版本。对象锁定和保留规则可能阻止删除。
+不要给本次安装前缀中的有效对象设置自动过期规则。
+存储、请求和传输仍会产生服务商费用。
+
+本版本已实测本地存储、MinIO 和 Cloudflare R2。
+B2 配置使用其 S3 API，但没有进行真实 B2 存储桶实测。
+
+## 常见问题
+
+| 现象                 | 排查方法                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| Compose 提示缺少变量 | 检查部署目录中的 `.env`；R2 需要填写选项 B 的全部字段。                                      |
+| 本机健康检查失败     | 运行 `docker compose ps` 和 `docker compose logs --tail=100 graft`，检查密钥权限和磁盘空间。 |
+| 公开健康检查失败     | 检查 DNS、防火墙端口和 Caddy 配置。                                                          |
+| Lite 提示授权失败    | 填写服务器访问密钥，而不是 Space 同步密码或 R2 凭据。                                        |
+| R2 传输失败          | 检查 S3 端点、桶名，以及限定到该桶的对象读写凭据。                                           |
