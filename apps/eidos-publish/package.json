@@ -10,7 +10,7 @@
     "dev:staging": "wrangler dev --env staging",
     "dry-run:production": "wrangler deploy --env=\"\" --dry-run --strict",
     "dry-run:staging": "wrangler deploy --env staging --dry-run",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run --config vitest.bootstrap.config.ts && vitest run --config vitest.config.ts",
     "types": "wrangler types worker-configuration.d.ts --include-runtime false"
   },
   "devDependencies": {

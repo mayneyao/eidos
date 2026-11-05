@@ -5,7 +5,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/build-eidos-publish-container.yml"
-      - "apps/eidos-publish/container/Dockerfile"
+      - "apps/eidos-publish/**"
 
 permissions:
   contents: read
@@ -15,7 +15,51 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      container: ${{ steps.scope.outputs.container }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet "$BASE" HEAD -- apps/eidos-publish/container/Dockerfile; then
+            echo "container=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "container=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  worker:
+    name: Publish Worker and guest bootstrap
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - uses: pnpm/setup@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos.space/eidos-file build
+      - run: pnpm --filter @eidos.space/plugin-sdk build
+      - run: pnpm --filter @eidos.space/markdown build
+      - run: pnpm --filter @eidos.space/publish-service check
+      - run: pnpm --filter @eidos.space/publish-service test
+
   build:
+    # Worker-only changes reuse the immutable image; Dockerfile PRs still build.
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.container == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:

@@ -2,10 +2,8 @@ import { gunzipSync } from "node:zlib"
 import { DomainError, domainStub, normalizeCustomHostname } from "./domains"
 import { sha256 } from "@noble/hashes/sha2.js"
 import { parseManifest } from "../../../packages/plugin-runtime/src/manifest"
-import {
-  bootstrap,
-  sandboxCsp,
-} from "../../../packages/plugin-runtime/src/browser-bootstrap"
+import { sandboxCsp } from "../../../packages/plugin-runtime/src/browser-bootstrap"
+import { fileViewScript } from "./file-view-script"
 import { FILE_DRIVER, contentObjectKey, validateSourceBundle } from "./bundle"
 import type {
   PublicationVersionRecord,
@@ -199,14 +197,7 @@ export async function prepareFileVersion(
       mimeType: bundle.entrypoint.mediaType,
       size: Number(bundle.entrypoint.bytes),
     }
-    const script =
-      "const code=" +
-      json(plugin.code) +
-      ";const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));import(url).then(m=>(" +
-      bootstrap.toString() +
-      ")(m.default," +
-      json(binding) +
-      ")).catch(e=>{document.getElementById('app').textContent=e.message}).finally(()=>URL.revokeObjectURL(url));"
+    const script = fileViewScript(plugin.code, binding)
     const csp = sandboxCsp(plugin.manifest.browser)
       .replace("script-src 'unsafe-inline'", "script-src 'unsafe-inline' blob:")
       .replace("; sandbox allow-scripts", "")
