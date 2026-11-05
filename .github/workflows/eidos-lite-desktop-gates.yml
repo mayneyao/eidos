@@ -34,7 +34,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: eidos-lite-${{ github.workflow }}-${{ github.ref }}
+  group: eidos-lite-${{ github.workflow }}-${{ github.ref }}-${{ inputs.linux_candidates_only && 'linux-candidate' || 'full' }}
   cancel-in-progress: true
 
 env:
