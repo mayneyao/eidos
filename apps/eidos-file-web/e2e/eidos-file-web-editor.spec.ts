@@ -867,6 +867,16 @@ test("searches and filters an imported project file", async ({ page }) => {
     "Ship Eidos File Web Editor"
   )
 
+  for (let round = 0; round < 4; round += 1) {
+    await rowSearch.press("Escape")
+    await expect(rowSearch).toBeHidden()
+    await expect(page.locator('[role="gridcell"]:focus')).toHaveCount(1)
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("Control+f")
+    await expect(rowSearch).toBeFocused()
+    await rowSearch.fill("Ship Eidos File Web Editor")
+  }
+
   await page.getByRole("button", { name: "Filter Eidos File rows" }).focus()
   await page.keyboard.press("Meta+f")
   await expect(rowSearch).toBeFocused()
@@ -879,14 +889,16 @@ test("searches and filters an imported project file", async ({ page }) => {
       (element) => getComputedStyle(element).backgroundColor
     )
   ).not.toBe("rgba(0, 0, 0, 0)")
+  await filterPopover
+    .getByRole("option", { name: "Title", exact: true })
+    .click()
   await expect(filterPopover.getByRole("button", { name: "Apply" })).toHaveCSS(
     "color",
     "oklch(0.99 0.002 220)"
   )
-  await expect(filterPopover.getByRole("combobox")).toHaveCSS(
-    "border-top-width",
-    "1px"
-  )
+  await expect(
+    filterPopover.getByRole("combobox", { name: "Filter operator" })
+  ).toHaveCSS("border-top-width", "1px")
 
   await openFixture(page, "project-tracker")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
@@ -1452,7 +1464,7 @@ test("exports the current Eidos File view as readable CSV", async ({
     .click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe(
-    "eidos-1.0-feature-lab - Experiments - Grid.csv"
+    "feature-lab - Experiments - Grid.csv"
   )
   const csvPath = testInfo.outputPath("feature-lab-grid.csv")
   await download.saveAs(csvPath)
@@ -1482,7 +1494,7 @@ test("exports the current Eidos File view as readable CSV", async ({
     .click()
   const tableDownload = await tableDownloadPromise
   expect(tableDownload.suggestedFilename()).toBe(
-    "eidos-1.0-feature-lab - Experiments.csv"
+    "feature-lab - Experiments.csv"
   )
   const tableCsvPath = testInfo.outputPath("feature-lab-experiments.csv")
   await tableDownload.saveAs(tableCsvPath)
@@ -1516,12 +1528,8 @@ test("uses the filtered row count for the Grid virtual height", async ({
 
   await page.getByRole("button", { name: "Filter Eidos File rows" }).click()
   const filterPopover = page.locator("[data-eidos-file-filter-popover]")
-  await filterPopover.getByRole("button", { name: "Add filter" }).click()
-  await page.getByRole("button", { name: "Add condition" }).click()
-  const filterSelects = filterPopover.getByRole("combobox")
-  await filterSelects.nth(1).click()
   await page.getByRole("option", { name: "Estimate", exact: true }).click()
-  await filterSelects.nth(2).click()
+  await filterPopover.getByRole("combobox", { name: "Filter operator" }).click()
   await page.getByRole("option", { name: "is greater than" }).click()
   await filterPopover.getByPlaceholder("Value").fill("10")
   await filterPopover.getByRole("button", { name: "Apply" }).click()
@@ -2394,6 +2402,7 @@ test("calculates Grid column summaries through the browser runtime", async ({
     page.getByRole("menuitem", { name: "Calculate · Sum" })
   ).toBeVisible()
 
+  page.once("dialog", (dialog) => dialog.accept())
   await page.locator("input[type=file]").setInputFiles(featureLabFixturePath)
   await expect(page.locator(".file-identity strong")).toHaveText(
     "feature-lab.eidos"
@@ -2439,7 +2448,7 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   const title = inspector.getByRole("textbox", { name: "Title" })
   await title.fill("Ship Eidos File Web Editor — verified")
   await title.press("Control+Enter")
-  await expect(page.locator(".save-status")).toContainText(/browser|Unsaved/)
+  await expect(page.locator(".save-status")).toHaveText("Not saved to a file")
   await page.getByRole("button", { name: "Close record details" }).click()
   await expect(firstCard).toContainText("verified")
 

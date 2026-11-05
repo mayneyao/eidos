@@ -75,7 +75,7 @@ async function toggleMultiSelectOption(
     const option = page
       .locator("[data-radix-popper-content-wrapper]")
       .last()
-      .getByRole("button", { name: optionName, exact: true })
+      .getByRole("checkbox", { name: optionName, exact: true })
     if (!(await option.isVisible())) await trigger.click()
     await expect(option).toBeVisible({ timeout: 2_000 })
     await option.click()
@@ -132,8 +132,6 @@ test("gates Feature Lab query controls by logical field capability", async ({
   await page.getByRole("button", { name: "Filter Eidos File rows" }).click()
   const filter = page.locator("[data-eidos-file-filter-popover]")
   await filter.getByRole("button", { name: "Add filter" }).click()
-  await page.getByRole("button", { name: "Add condition" }).click()
-  await filter.getByRole("combobox").nth(1).click()
   const ownerField = page.getByRole("option", {
     name: "Owner",
     exact: true,
@@ -146,7 +144,7 @@ test("gates Feature Lab query controls by logical field capability", async ({
     page.getByRole("option", { name: "Assets", exact: true })
   ).toBeVisible()
   await ownerField.click()
-  await filter.getByRole("combobox").nth(2).click()
+  await filter.getByRole("combobox", { name: "Filter operator" }).last().click()
   await page.getByRole("option", { name: "has any of", exact: true }).click()
   await filter
     .getByRole("combobox", { name: "Choose records for Owner" })
