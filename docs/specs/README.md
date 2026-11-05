@@ -66,6 +66,11 @@ The [Eidos Publish Files 1.0](./eidos-publish-files-1.0.md)
 ([中文](./eidos-publish-files-1.0.zh.md)) staging profile defines ordinary-file
 publication and sandboxed plugin file Views at the Adapter/UI boundary.
 
+The optional [Eidos Publish Custom Domains 1.0](./eidos-publish-domains-1.0.md)
+([中文](./eidos-publish-domains-1.0.zh.md)) profile defines tenant-bound customer
+hostnames, DNS/TLS readiness, origin isolation and revocation. Availability is
+controlled by the service deployment, independently of File/Runtime conformance.
+
 ## Document organization
 
 The [Eidos Plugins API 3.0](./eidos-lite-plugins-1.0.md)

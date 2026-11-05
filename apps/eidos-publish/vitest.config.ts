@@ -36,6 +36,10 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         bindings: {
+          CUSTOM_DOMAINS_ENABLED: "true",
+          CUSTOM_DOMAIN_ZONE_ID: "11111111111111111111111111111111",
+          CLOUDFLARE_CUSTOM_HOSTNAMES_TOKEN: "test-only-hostname-token",
+          CUSTOM_DOMAIN_DCV_DELEGATION_TARGET: "dcv-test.example.net",
           ORCHESTRATION_MODE: "control-only-test",
           RUNTIME_TICKET_SECRET:
             "test-only-runtime-ticket-secret-32-bytes-minimum",

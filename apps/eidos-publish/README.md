@@ -280,6 +280,10 @@ Before the first environment deploy:
 
 ## Local verification
 
+Custom hostnames are an optional, disabled-by-default capability. See
+[Custom domain deployment](CUSTOM_DOMAINS.md) for environment configuration,
+DNS/TLS acceptance and cleanup, and [the custom domain contract](../../docs/specs/eidos-publish-domains-1.0.md).
+
 From the repository root:
 
 ```bash
