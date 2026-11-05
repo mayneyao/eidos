@@ -100,6 +100,18 @@ jobs:
           name: macos-graft-space
           path: ${{ runner.temp }}/eidos-lite-clone-fixture
 
+      - name: Verify native Windows Space identity across processes
+        run: node apps/eidos-lite-desktop/scripts/space-identity-native-smoke.mjs "--evidence=${{ runner.temp }}/native-space-identity"
+
+      - name: Retain native Windows Space identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-space-identity-windows-x64
+          path: ${{ runner.temp }}/native-space-identity/result.json
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Test native Windows encrypted Sync host
         working-directory: apps/eidos-lite-desktop
         run: node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/encrypted-graft-host.local.integration.test.ts
@@ -211,6 +223,30 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify native Linux Space identity on an ext4 volume
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity_image="$RUNNER_TEMP/eidos-identity.img"
+          identity_mount="$RUNNER_TEMP/eidos-identity-volume"
+          truncate -s 64M "$identity_image"
+          mkfs.ext4 -q -F "$identity_image"
+          mkdir "$identity_mount"
+          sudo mount -o loop "$identity_image" "$identity_mount"
+          trap 'sudo umount "$identity_mount"' EXIT
+          sudo chown "$(id -u):$(id -g)" "$identity_mount"
+          node apps/eidos-lite-desktop/scripts/space-identity-native-smoke.mjs \
+            "--root=$identity_mount" "--evidence=$RUNNER_TEMP/native-space-identity"
+
+      - name: Retain native Linux Space identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-space-identity-linux-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/native-space-identity/result.json
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Build Linux candidate without publishing
         run: pnpm build:eidos-lite:release:linux
@@ -330,6 +366,18 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify native macOS Space identity across processes
+        run: node apps/eidos-lite-desktop/scripts/space-identity-native-smoke.mjs "--evidence=${{ runner.temp }}/native-space-identity"
+
+      - name: Retain native macOS Space identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-space-identity-macos-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/native-space-identity/result.json
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Build unsigned staging package
         id: staging-package
