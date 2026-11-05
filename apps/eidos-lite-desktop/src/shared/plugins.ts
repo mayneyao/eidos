@@ -134,11 +134,37 @@ export interface PluginInstallProgress {
   total?: number
   percent?: number
 }
-export type PluginInstallStatus = "queued" | "downloading" | "installing"
+export interface PluginPackagePreview {
+  token: string
+  filename: string
+  hash: string
+  manifest: PluginManifest
+  localization?: PluginLanguageData
+}
+export interface PluginInstallIntent {
+  id: string
+  sequence: number
+  package?: PluginPackagePreview
+}
+export type PluginInstallStatus =
+  | "queued"
+  | "downloading"
+  | "installing"
+  | "installed"
+  | "cancelled"
+  | "failed"
 export interface PluginInstallTask {
   id: string
+  spaceId?: string
   status: PluginInstallStatus
   percent: number
+  error?: string
+}
+export function isPluginInstallActive(task?: PluginInstallTask): boolean {
+  return (
+    task !== undefined &&
+    ["queued", "downloading", "installing"].includes(task.status)
+  )
 }
 export interface PluginApi {
   onBluetoothPicker(
@@ -163,13 +189,22 @@ export interface PluginApi {
   pluginMarketplace(refresh?: boolean): Promise<PluginMarketplace>
   pluginReadme(
     id: string,
-    locale?: string
+    locale?: string,
+    packageToken?: string
   ): Promise<PluginReadme | string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
   onPluginInstallProgress(
     listener: (progress: PluginInstallProgress) => void
   ): () => void
-  onPluginInstallIntent(listener: (id: string) => void): () => void
+  onPluginInstallIntent(listener: () => void): () => void
+  getPluginInstallIntent(): Promise<PluginInstallIntent | null>
+  acknowledgePluginInstallIntent(sequence: number): Promise<void>
+  installPreparedPlugin(token: string): Promise<boolean>
+  getPluginPackagePreviews(): Promise<PluginPackagePreview[]>
+  getPluginInstallTasks(): Promise<Record<string, PluginInstallTask>>
+  onPluginInstallTasks(
+    listener: (tasks: Record<string, PluginInstallTask>) => void
+  ): () => void
   openPluginTable(
     key: string,
     tableId: string,
@@ -261,6 +296,14 @@ export const PLUGIN_CHANNELS = {
   install: "eidos-lite:plugins-install",
   installProgress: "eidos-lite:plugins-install-progress",
   installIntent: "eidos-lite:plugins-install-intent",
+  getInstallIntent: "eidos-lite:plugins-get-install-intent",
+  acknowledgeInstallIntent: "eidos-lite:plugins-acknowledge-install-intent",
+  installPrepared: "eidos-lite:plugins-install-prepared",
+  previewPackage: "eidos-lite:plugins-preview-package",
+  packagePreviews: "eidos-lite:plugins-package-previews",
+  installMarketplace: "eidos-lite:plugins-install-marketplace",
+  installTasks: "eidos-lite:plugins-install-tasks",
+  installTasksChanged: "eidos-lite:plugins-install-tasks-changed",
   uninstall: "eidos-lite:plugins-uninstall",
   enable: "eidos-lite:plugins-enable",
   selectTheme: "eidos-lite:plugins-select-theme",

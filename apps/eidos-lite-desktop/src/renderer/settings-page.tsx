@@ -1,7 +1,6 @@
 import { viewResource } from "@eidos.space/plugin-runtime/view"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { PluginListing } from "../shared/plugins"
-import { PluginManager } from "./plugin-manager"
 import { DevicesSettings } from "./peer-sync-panel"
 import { SyncPasswordSettings } from "./sync-password-settings"
 import { CustomSyncSettings } from "./custom-sync-settings"
@@ -31,8 +30,6 @@ import type {
   EidosLiteMarkdownEditingMode,
   EidosLitePreferences,
   EidosLiteSettingsDestination,
-  EidosLiteTerminalLayout,
-  EidosLiteTerminalShell,
   EidosLiteUpdateStatus,
   EidosSyncStatus,
 } from "../shared/contracts"
@@ -66,14 +63,6 @@ const MARKDOWN_EDITOR_OPTIONS: Array<{
   { label: "Rich text", value: "wysiwyg" },
 ]
 
-const TERMINAL_LAYOUT_OPTIONS: Array<{
-  label: string
-  value: EidosLiteTerminalLayout
-}> = [
-  { label: "Bottom", value: "bottom" },
-  { label: "Beside file content", value: "side" },
-]
-
 const SETTINGS_PAGES = [
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
   { id: "devices", label: "Devices", icon: Laptop },
@@ -84,7 +73,7 @@ const SETTINGS_PAGES = [
   { id: "about", label: "About", icon: Info },
 ] as const
 
-type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"] | "plugins"
+type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"]
 
 function platformLabel(appInfo: EidosLiteAppInfo): string {
   const platform =
@@ -108,7 +97,6 @@ export function SettingsPage() {
   const { t } = useEidosLiteI18n()
   const readPage = (): SettingsPageId => {
     const section = window.location.hash.split("/")[2]
-    if (section === "plugins") return "plugins"
     return (
       SETTINGS_PAGES.find((page) => page.id === section)?.id ?? "preferences"
     )
@@ -122,20 +110,6 @@ export function SettingsPage() {
       }),
     []
   )
-  const installRequestSequence = useRef(0)
-  const [installRequests, setInstallRequests] = useState<
-    { id: string; sequence: number }[]
-  >(() => {
-    const parts = window.location.hash.split("/")
-    return parts[2] === "plugins" && parts[3]
-      ? [{ id: parts[3], sequence: 0 }]
-      : []
-  })
-  const handleInstallRequestHandled = useCallback((sequence: number) => {
-    setInstallRequests((requests) =>
-      requests[0]?.sequence === sequence ? requests.slice(1) : requests
-    )
-  }, [])
   useEffect(() => {
     window.history.replaceState(
       window.history.state,
@@ -150,28 +124,10 @@ export function SettingsPage() {
       window.removeEventListener("hashchange", restore)
     }
   }, [])
-  useEffect(() => {
-    return window.eidosLite.onPluginInstallIntent?.((id) => {
-      setActivePage("plugins")
-      window.history.replaceState(
-        window.history.state,
-        "",
-        "#/settings/plugins"
-      )
-      setInstallRequests((requests) => [
-        ...requests,
-        { id, sequence: ++installRequestSequence.current },
-      ])
-    })
-  }, [])
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
   )
-  const [terminalShells, setTerminalShells] = useState<
-    EidosLiteTerminalShell[]
-  >([])
-  const [terminalShellsLoading, setTerminalShellsLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [accountBusy, setAccountBusy] = useState<"sign-in" | "sign-out" | null>(
     null
@@ -229,28 +185,6 @@ export function SettingsPage() {
       setError(cause instanceof Error ? cause.message : String(cause))
     })
     return window.eidosLite.onPreferencesChanged(setPreferences)
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    void window.eidosLite
-      .listTerminalShells()
-      .then(
-        (shells) => {
-          if (!cancelled) setTerminalShells(shells)
-        },
-        (cause) => {
-          if (!cancelled) {
-            setError(cause instanceof Error ? cause.message : String(cause))
-          }
-        }
-      )
-      .finally(() => {
-        if (!cancelled) setTerminalShellsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   useEffect(() => {
@@ -677,14 +611,6 @@ export function SettingsPage() {
       version: updateStatus.currentVersion,
     })
   })()
-  const systemTerminalShell = terminalShells.find(
-    (shell) => shell.systemDefault
-  )
-  const selectedTerminalShellUnavailable =
-    preferences.terminalShell !== null &&
-    !terminalShells.some(
-      (shell) => shell.executable === preferences.terminalShell
-    )
   const syncAccessNotice =
     !syncSignedIn || !syncAccount
       ? null
@@ -1523,160 +1449,6 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
-            </section>
-
-            <section
-              aria-label={t("Plugins")}
-              id="settings-plugins"
-              hidden={activePage !== "plugins"}
-            >
-              {activePage === "plugins" && (
-                <PluginManager
-                  variant="settings"
-                  installRequest={installRequests[0] ?? null}
-                  onInstallRequestHandled={handleInstallRequestHandled}
-                  builtins={[
-                    {
-                      id: "builtin.terminal",
-                      name: t("Terminal"),
-                      description: t(
-                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
-                      ),
-                      enabled: preferences.builtInPlugins.terminal,
-                      details: (
-                        <div className="settings-group">
-                          <div
-                            className="settings-row"
-                            data-built-in-plugin="terminal"
-                          >
-                            <div className="settings-row-copy">
-                              <strong>{t("Terminal")}</strong>
-                              <small>
-                                {t(
-                                  "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
-                                )}
-                              </small>
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              className="settings-switch"
-                              aria-label={t("Terminal")}
-                              aria-checked={preferences.builtInPlugins.terminal}
-                              onClick={() =>
-                                void updatePreferences({
-                                  builtInPlugins: {
-                                    terminal:
-                                      !preferences.builtInPlugins.terminal,
-                                  },
-                                })
-                              }
-                            >
-                              <span />
-                            </button>
-                          </div>
-                          <div
-                            className="settings-row settings-row-stacked"
-                            data-terminal-layout
-                          >
-                            <div className="settings-row-copy">
-                              <strong>{t("Terminal layout")}</strong>
-                              <small>
-                                {t(
-                                  "Choose how Terminal and file content share the middle work area."
-                                )}
-                              </small>
-                            </div>
-                            <div
-                              className="settings-segmented-control"
-                              data-segment-count={
-                                TERMINAL_LAYOUT_OPTIONS.length
-                              }
-                              role="radiogroup"
-                              aria-label={t("Terminal layout")}
-                            >
-                              {TERMINAL_LAYOUT_OPTIONS.map((option) => (
-                                <button
-                                  type="button"
-                                  role="radio"
-                                  data-terminal-layout={option.value}
-                                  aria-checked={
-                                    preferences.terminalLayout === option.value
-                                  }
-                                  disabled={
-                                    !preferences.builtInPlugins.terminal
-                                  }
-                                  key={option.value}
-                                  onClick={() =>
-                                    void updatePreferences({
-                                      terminalLayout: option.value,
-                                    })
-                                  }
-                                >
-                                  {t(option.label)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div
-                            className="settings-row settings-row-stacked"
-                            data-terminal-shell
-                          >
-                            <div className="settings-row-copy">
-                              <strong>{t("Default shell")}</strong>
-                              <small>
-                                {t(
-                                  "Choose which installed shell new Terminal tabs use. Existing tabs are not restarted."
-                                )}
-                              </small>
-                            </div>
-                            <select
-                              className="settings-shell-select"
-                              aria-label={t("Default shell")}
-                              value={preferences.terminalShell ?? ""}
-                              disabled={
-                                terminalShellsLoading ||
-                                !preferences.builtInPlugins.terminal
-                              }
-                              onChange={(event) =>
-                                void updatePreferences({
-                                  terminalShell:
-                                    event.currentTarget.value || null,
-                                })
-                              }
-                            >
-                              <option value="">
-                                {terminalShellsLoading
-                                  ? t("Detecting shells…")
-                                  : systemTerminalShell
-                                    ? t("System default — {shell}", {
-                                        shell: systemTerminalShell.name,
-                                      })
-                                    : t("System default")}
-                              </option>
-                              {selectedTerminalShellUnavailable ? (
-                                <option value={preferences.terminalShell ?? ""}>
-                                  {t("Unavailable — {shell}", {
-                                    shell: preferences.terminalShell ?? "",
-                                  })}
-                                </option>
-                              ) : null}
-                              {terminalShells.map((shell) => (
-                                <option
-                                  key={shell.executable}
-                                  value={shell.executable}
-                                >
-                                  {shell.name} — {shell.executable}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
             </section>
 
             <section
