@@ -439,7 +439,7 @@ export async function providerRequest(
         "Content-Type": "application/json",
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     }
   )
@@ -447,8 +447,12 @@ export async function providerRequest(
     await response.body?.cancel()
     return {}
   }
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new DomainError("domain_provider_unavailable", 502)
+  }
   const value = object(await boundedJson(response))
-  if (!response.ok || value.success !== true)
+  if (value.success !== true)
     throw new DomainError("domain_provider_unavailable", 502)
   return Array.isArray(value.result)
     ? { items: value.result }
@@ -524,13 +528,16 @@ export async function dnsAnswers(
   url.searchParams.set("type", type)
   const response = await fetch(url, {
     headers: { Accept: "application/dns-json" },
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(5_000),
   })
-  const value = object(await boundedJson(response))
-  if (response.ok && value.Status === 3) return []
-  if (!response.ok || value.Status !== 0)
+  if (!response.ok) {
+    await response.body?.cancel()
     throw new DomainError("dns_check_unavailable", 502)
+  }
+  const value = object(await boundedJson(response))
+  if (value.Status === 3) return []
+  if (value.Status !== 0) throw new DomainError("dns_check_unavailable", 502)
   const code = { A: 1, CNAME: 5, TXT: 16, AAAA: 28 }[type]
   return Array.isArray(value.Answer)
     ? value.Answer.map(object)

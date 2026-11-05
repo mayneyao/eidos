@@ -47,6 +47,7 @@ import { authoritativeMultipartObject } from "../src/index"
 import {
   normalizeCustomHostname,
   dnsAnswers,
+  providerRequest,
   type DomainRecord,
 } from "../src/domains"
 
@@ -61,6 +62,30 @@ const MULTI_SELECT_FIELD_ID = "0198c72d-82b5-7000-8000-000000000015"
 
 afterEach(async () => {
   await abortAllDurableObjects()
+})
+
+it("uses Workers-compatible requests and refuses DNS and provider redirects", async () => {
+  const mock = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      expect(request.redirect).toBe("manual")
+      return new Response("Not JSON", {
+        status: 302,
+        headers: { Location: "https://untrusted.example.net/" },
+      })
+    })
+  try {
+    await expect(providerRequest(env, "", "GET")).rejects.toMatchObject({
+      code: "domain_provider_unavailable",
+    })
+    await expect(dnsAnswers("dns.example.net", "TXT")).rejects.toMatchObject({
+      code: "dns_check_unavailable",
+    })
+    expect(mock).toHaveBeenCalledTimes(2)
+  } finally {
+    mock.mockRestore()
+  }
 })
 
 describe("Publish custom domains", () => {
