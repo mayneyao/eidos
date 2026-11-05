@@ -65,8 +65,8 @@
     {
       "name": "eidos-publish-runtime",
       "class_name": "EidosRuntimeContainer",
-      "image": "./container/Dockerfile",
-      "image_build_context": "../..",
+      // Preserve the active production Runtime during this Worker-only release.
+      "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:6d55a3a8d611595d56b60de30a233619852e5ecc8d761a04348ca3d95abb7d99",
       "max_instances": 1000,
       "instance_type": "basic",
     },
@@ -200,8 +200,8 @@
         {
           "name": "eidos-publish-runtime-staging",
           "class_name": "EidosRuntimeContainer",
-          "image": "./container/Dockerfile",
-          "image_build_context": "../..",
+          // Exercise the same immutable Runtime image as production.
+          "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:6d55a3a8d611595d56b60de30a233619852e5ecc8d761a04348ca3d95abb7d99",
           "max_instances": 100,
           "instance_type": "basic",
         },

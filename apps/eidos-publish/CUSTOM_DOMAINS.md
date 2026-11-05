@@ -57,8 +57,7 @@ One hostname binds an entire tenant and retains publication paths. The root
 traffic record should use DNS-only mode at the customer's provider, including
 Cloudflare's grey-cloud mode. The SaaS target remains proxied in Eidos's zone.
 Customer-side CDN/O2O proxying is not included in the first onboarding guarantee.
-The root
-path is not a publication index. Apex and `www` consume distinct bindings;
+The root path is not a publication index. Apex and `www` consume distinct bindings;
 the current per-tenant allowance is one, so no automatic `www` alias is added.
 Official addresses remain aliases, with canonical metadata preferring the active
 custom domain. Removing a domain leaves publications and R2 objects intact.
