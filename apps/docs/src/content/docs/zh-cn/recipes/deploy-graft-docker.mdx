@@ -5,7 +5,7 @@ title: 使用 Docker 部署 Graft
 在自己的 Linux 服务器上运行 Eidos Lite 同步服务。按照下面的步骤完成部署后，
 你会得到一个可以在 Lite 中连接的 HTTPS 地址。
 
-**本地磁盘**配置最简单；也可以选择 **Cloudflare R2**，将对象存入私有桶。
+**本地磁盘**配置最简单；也可以选择 **S3 兼容存储**，将对象存入私有桶。
 两种方式都需要在服务器上保留持久化磁盘空间。
 
 ## 开始前准备
@@ -66,14 +66,14 @@ EOF
 
 Docker 会创建持久化数据卷。接着执行第 4 步即可。
 
-### 选项 B：Cloudflare R2
+### 选项 B：S3 兼容存储
 
-1. 在 Cloudflare 账户中创建一个私有 R2 存储桶。
-2. 从存储桶配置中复制 **S3 API 端点**。
-3. [创建 R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，选择 **Object Read & Write（对象读写）** 权限，限定到这个桶。保存 **Access Key ID** 和 **Secret Access Key**。
+1. 在 S3 兼容存储服务中创建一个私有存储桶。
+2. 从服务商配置中复制 **S3 API 端点**和**区域**。
+3. 创建限定到该桶的 S3 凭据，保存 **Access Key ID** 和 **Secret Access Key**。凭据需要允许桶访问、对象读写删除和分片上传，包括取消未完成的上传。
 
-这里需要 S3 凭据，而不是通用 Cloudflare API Token。
-桶不需要公开访问地址。如果桶有数据管辖区限制，使用该桶配置中显示的端点。
+桶不需要公开访问地址。Graft 使用已有的桶，不会自动创建。
+请填写服务商提供的端点、区域和 S3 凭据。
 
 下载额外的 Compose 文件：
 
@@ -85,34 +85,35 @@ curl -fL --retry 3 -o compose.s3.yaml \
 按提示分别粘贴凭据。输入不会显示，也不会进入命令历史：
 
 ```bash
-read -r -s -p 'R2 Access Key ID: ' graft_s3_key_id; printf '\n'
+read -r -s -p 'S3 Access Key ID: ' graft_s3_key_id; printf '\n'
 (umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
 unset graft_s3_key_id
-read -r -s -p 'R2 Secret Access Key: ' graft_s3_secret; printf '\n'
+read -r -s -p 'S3 Secret Access Key: ' graft_s3_secret; printf '\n'
 (umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
 unset graft_s3_secret
 chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
 ```
 
-创建 `.env`，替换域名、端点和桶名：
+创建 `.env`，将域名、端点、区域和桶名替换为你的实际配置：
 
 ```bash
 cat > .env <<'EOF'
 COMPOSE_FILE=compose.yaml:compose.s3.yaml
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
-GRAFT_S3_REGION=auto
+GRAFT_S3_ENDPOINT=https://s3.example.com
+GRAFT_S3_REGION=your-bucket-region
 GRAFT_S3_BUCKET=your-private-bucket
 GRAFT_S3_PREFIX=graft/
 GRAFT_S3_FORCE_PATH_STYLE=true
 EOF
 ```
 
-R2 的[区域填写 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
+上面的端点和区域是占位示例。根据服务商的寻址方式要求设置
+`GRAFT_S3_FORCE_PATH_STYLE`。
 使用专用桶，或为本次安装保留一个独占前缀，前缀以 `/` 结尾。
 `COMPOSE_FILE` 会让后续命令自动加载两个 Compose 文件。
 
-R2 保存对象数据，但 Docker 数据卷仍要保存元数据和未完成的上传。
+S3 兼容存储保存对象数据，但 Docker 数据卷仍要保存元数据和未完成的上传。
 服务器磁盘需要容纳上传分片，以及每个正在完成上传的对象的一份组装副本。
 
 ## 4. 启动服务器
@@ -201,12 +202,12 @@ docker compose start
 先暂停同步、停止容器，再进行备份：
 
 - **本地存储：**备份完整的 `/data` 数据卷。
-- **R2 或其他 S3 存储：**在服务器停止期间，同时备份 `/data` 和对应的桶内对象。只备份其中一份无法完整恢复。
+- **S3 兼容存储：**在服务器停止期间，同时备份 `/data` 和对应的桶内对象。只备份其中一份无法完整恢复。
 - 安全保存 Compose 文件、`.env` 和访问密钥的备份。Space 同步密码另行保存。
 
 备份后重新启动容器。先在独立的空数据卷中测试恢复，
 通过客户端下载确认内容完整，再依赖这份备份。
-R2 本身不等于备份：删除对象会移除它的当前副本。
+对象存储本身不等于备份：同步操作可能删除已存储的对象。
 
 升级前先备份。将新版发布的 Compose 文件下载到临时目录，与现有文件比较，
 更新镜像引用和必要设置，保留你的 `.env`、密钥及数据卷。然后执行：
@@ -219,14 +220,19 @@ curl -fsS https://sync.example.com/healthz
 
 在 Lite 中确认同步正常后，再考虑清理旧镜像和备份。
 
-### 其他 S3 服务和存储迁移
+### 服务商示例和存储迁移
 
 修改存储模式、端点、桶名或前缀，**不会**自动迁移数据。
 已有服务需要更换存储时，请用全新存储部署另一台服务，
 然后在 Lite 中使用**切换服务器**。
 
-首次安装使用其他 S3 服务时，沿用选项 B，填写服务商提供的 HTTPS 端点、
-区域和凭据。例如 Backblaze B2：从桶详情复制端点和区域，创建限定到该桶的
+使用 **Cloudflare R2** 时，填写桶的 S3 API 端点，
+[区域填写 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
+[创建 R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，选择限定到该桶的
+**Object Read & Write（对象读写）**权限，而不是使用通用 Cloudflare API Token。
+如果桶有数据管辖区限制，使用该桶配置中显示的端点。
+
+使用 **Backblaze B2** 时，从桶详情复制端点和区域，创建限定到该桶的
 [应用密钥](https://www.backblaze.com/docs/cloud-storage-application-keys)，
 将 `keyID` 保存到 `secrets/s3-access-key-id`，
 将 `applicationKey` 保存到 `secrets/s3-secret-access-key`。
@@ -243,8 +249,8 @@ B2 配置使用其 S3 API，但没有进行真实 B2 存储桶实测。
 
 | 现象                 | 排查方法                                                                                     |
 | -------------------- | -------------------------------------------------------------------------------------------- |
-| Compose 提示缺少变量 | 检查部署目录中的 `.env`；R2 需要填写选项 B 的全部字段。                                      |
+| Compose 提示缺少变量 | 检查部署目录中的 `.env`；S3 兼容存储需要填写选项 B 的全部字段。                              |
 | 本机健康检查失败     | 运行 `docker compose ps` 和 `docker compose logs --tail=100 graft`，检查密钥权限和磁盘空间。 |
 | 公开健康检查失败     | 检查 DNS、防火墙端口和 Caddy 配置。                                                          |
-| Lite 提示授权失败    | 填写服务器访问密钥，而不是 Space 同步密码或 R2 凭据。                                        |
-| R2 传输失败          | 检查 S3 端点、桶名，以及限定到该桶的对象读写凭据。                                           |
+| Lite 提示授权失败    | 填写服务器访问密钥，而不是 Space 同步密码或 S3 凭据。                                        |
+| S3 传输失败          | 检查端点、区域、桶名、寻址方式，以及选项 B 中说明的凭据权限。                                |

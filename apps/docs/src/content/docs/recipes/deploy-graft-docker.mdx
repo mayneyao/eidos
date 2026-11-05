@@ -5,7 +5,7 @@ title: Deploy Graft with Docker
 Run your own Sync server for Eidos Lite. Follow these steps on a Linux server to
 get an HTTPS address you can connect to from Lite.
 
-Use **local disk** for the simplest setup, or **Cloudflare R2** to store objects in
+Use **local disk** for the simplest setup, or **S3-compatible storage** to store objects in
 a private bucket. Both options need persistent disk space on your server.
 
 ## Before you start
@@ -67,15 +67,14 @@ EOF
 
 Docker will create a persistent data volume. Continue to step 4.
 
-### Option B: Cloudflare R2
+### Option B: S3-compatible storage
 
-1. Create a private R2 bucket in your Cloudflare account.
-2. Copy its **S3 API endpoint** from the bucket configuration.
-3. [Create R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with **Object Read & Write** permission limited to this bucket. Save the **Access Key ID** and **Secret Access Key**.
+1. Create a private bucket with your S3-compatible storage provider.
+2. Copy its **S3 API endpoint** and **region** from the provider's configuration.
+3. Create bucket-scoped S3 credentials. Save the **Access Key ID** and **Secret Access Key**. Allow bucket access, object reads/writes/deletes and multipart uploads, including aborting incomplete uploads.
 
-These are S3 credentials, not a general Cloudflare API token. The bucket does not
-need a public URL. For a jurisdiction-restricted bucket, use the endpoint shown
-in its configuration.
+The bucket does not need a public URL. Graft uses an existing bucket; it does not
+create one. Use the endpoint, region and S3 credentials supplied by your provider.
 
 Download the additional Compose file:
 
@@ -87,34 +86,35 @@ curl -fL --retry 3 -o compose.s3.yaml \
 Paste each credential when prompted. Input is hidden and does not enter shell history:
 
 ```bash
-read -r -s -p 'R2 Access Key ID: ' graft_s3_key_id; printf '\n'
+read -r -s -p 'S3 Access Key ID: ' graft_s3_key_id; printf '\n'
 (umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
 unset graft_s3_key_id
-read -r -s -p 'R2 Secret Access Key: ' graft_s3_secret; printf '\n'
+read -r -s -p 'S3 Secret Access Key: ' graft_s3_secret; printf '\n'
 (umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
 unset graft_s3_secret
 chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
 ```
 
-Create `.env`, replacing the domain, endpoint and bucket name:
+Create `.env`, replacing the domain, endpoint, region and bucket name with your values:
 
 ```bash
 cat > .env <<'EOF'
 COMPOSE_FILE=compose.yaml:compose.s3.yaml
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
-GRAFT_S3_REGION=auto
+GRAFT_S3_ENDPOINT=https://s3.example.com
+GRAFT_S3_REGION=your-bucket-region
 GRAFT_S3_BUCKET=your-private-bucket
 GRAFT_S3_PREFIX=graft/
 GRAFT_S3_FORCE_PATH_STYLE=true
 EOF
 ```
 
-R2 uses [region `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
+The endpoint and region above are placeholders. Set `GRAFT_S3_FORCE_PATH_STYLE`
+according to your provider's addressing requirements.
 Use a dedicated bucket or a prefix reserved for this installation, ending in `/`.
 `COMPOSE_FILE` makes the commands below load both Compose files automatically.
 
-R2 stores objects, but the Docker volume still holds metadata and unfinished
+S3-compatible storage holds objects, but the Docker volume still holds metadata and unfinished
 uploads. Reserve disk space for upload parts and an assembled copy of each upload
 being completed.
 
@@ -205,13 +205,13 @@ Run one Graft instance per data volume.
 Pause synchronization and stop the container before backing up:
 
 - **Local storage:** copy the complete `/data` volume.
-- **R2 or other S3 storage:** copy both `/data` and the matching bucket objects
+- **S3-compatible storage:** copy both `/data` and the matching bucket objects
   while the server is stopped. Neither copy alone is sufficient.
 - Securely back up the Compose files, `.env` and access keys. Keep Space sync passwords separately.
 
 Restart after the backup. Test restoration into a separate empty volume and
-check a client download before relying on a backup. R2 is not a backup by itself:
-deleting an object removes its current copy.
+check a client download before relying on a backup. Object storage alone is not
+a backup: synchronization can delete stored objects.
 
 To upgrade, back up first. Download the new release's Compose files into a
 temporary directory and compare them with your installation. Update the image
@@ -226,14 +226,20 @@ curl -fsS https://sync.example.com/healthz
 
 Check synchronization in Lite before discarding the previous image and backup.
 
-### Other S3 providers and storage changes
+### Provider examples and storage changes
 
 Changing storage mode, endpoint, bucket or prefix does **not** migrate data.
 For an existing installation, deploy a separate server with fresh storage and
 use Lite's **Switch server** flow.
 
-For a new installation with another S3 provider, follow option B using that
-provider's HTTPS endpoint, region and credentials. For Backblaze B2, copy the
+For **Cloudflare R2**, use the bucket's S3 API endpoint and
+[region `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
+[Create R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with
+**Object Read & Write** permission limited to that bucket, rather than a general
+Cloudflare API token. For a jurisdiction-restricted bucket, use the endpoint
+shown in its configuration.
+
+For **Backblaze B2**, copy the
 endpoint and region from your bucket details and create a bucket-restricted
 [application key](https://www.backblaze.com/docs/cloud-storage-application-keys).
 Save `keyID` in `secrets/s3-access-key-id` and `applicationKey` in
@@ -252,8 +258,8 @@ configuration uses its S3 API but has not been tested against a live B2 bucket.
 
 | Symptom                             | Check                                                                                                             |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Compose reports missing variables   | Check `.env` in the deployment directory; R2 requires all option B fields.                                        |
+| Compose reports missing variables   | Check `.env` in the deployment directory; S3-compatible storage requires all option B fields.                     |
 | Local health check fails            | Run `docker compose ps` and `docker compose logs --tail=100 graft`. Check secret permissions and free disk space. |
 | Public health check fails           | Check DNS, firewall ports and Caddy configuration.                                                                |
-| Lite reports an authorization error | Use the server key, not the Space password or R2 credentials.                                                     |
-| R2 transfers fail                   | Check the S3 endpoint, bucket name and bucket-scoped Object Read & Write credentials.                             |
+| Lite reports an authorization error | Use the server key, not the Space password or S3 credentials.                                                     |
+| S3 transfers fail                   | Check the endpoint, region, bucket name, addressing style and credential permissions described in option B.       |
