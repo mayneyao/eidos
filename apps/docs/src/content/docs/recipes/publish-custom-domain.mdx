@@ -1,0 +1,117 @@
+---
+title: Connect your own Publish domain
+description: Connect a domain to Publish Pro, verify DNS and HTTPS, and keep your existing publication links.
+sidebar:
+  order: 80
+---
+
+Use a domain you own for your published pages. For example,
+`your-name.eidos.ink/notes` can also open at `notes.example.com/notes`.
+Publish Pro includes **one custom hostname per account**, with automatic HTTPS.
+Domain registration is separate.
+
+## Before you start
+
+- Keep your Publish Pro plan active.
+- Make sure you can edit the domain's DNS records.
+- Choose one hostname, such as `notes.example.com` or `example.com`.
+- Publish a page and keep its existing `eidos.ink` URL for comparison.
+
+One hostname serves all publications in your Publish account at their existing paths.
+It does not create a homepage or a directory at `/`.
+For example, a page published at `/notes` still uses `/notes` after connecting the domain.
+The root domain and `www` are separate hostnames; `www` is not added automatically.
+
+If the hostname already serves another website, changing its traffic record replaces
+that website's entry point. Save its current DNS configuration first.
+DNS changes can take several minutes or longer to reach visitors, and a brief
+interruption is possible during the switch.
+
+## Add the domain
+
+1. Open [Account → Publish](https://eidos.space/account?tab=publish).
+2. Select **Overview** and find **Your own domain**.
+3. Enter the hostname without `https://`, a path, or a port.
+4. Select **Add domain**.
+
+The account page displays the DNS records for this binding.
+Copy the values from that page; verification values are specific to your domain.
+
+## Configure DNS
+
+For `notes.example.com`, the records have this shape:
+
+| Type  | Name                                | Value                                   | Purpose                               |
+| ----- | ----------------------------------- | --------------------------------------- | ------------------------------------- |
+| TXT   | `_eidos-publish.notes.example.com`  | Value shown in your account             | Verify that you control the domain    |
+| CNAME | `_acme-challenge.notes.example.com` | Delegation target shown in your account | Issue and renew the HTTPS certificate |
+| CNAME | `notes.example.com`                 | `customers.eidos.ink`                   | Send visitors to Publish              |
+
+Add any additional certificate or hostname validation records shown in the account
+page, including `_cf-custom-hostname` TXT records when requested.
+Some DNS providers append your zone name automatically. Check the resulting full
+record name so it does not contain your domain twice.
+
+Keep the ownership TXT and certificate validation records after activation.
+Publish checks ownership again, and HTTPS renewal needs the certificate records.
+Keep unrelated mail and other DNS records in place.
+
+### Cloudflare DNS
+
+Set the traffic CNAME to **DNS only** (grey cloud).
+Set certificate validation CNAMEs to **DNS only** as well.
+Customer-side Cloudflare proxying is not part of this setup.
+
+For a root domain, enter `@` as the traffic record name and use
+`customers.eidos.ink` as its target. Cloudflare's root CNAME flattening is the
+verified root-domain setup. Other DNS providers need compatible flattening or
+ALIAS support; an ordinary root CNAME is not sufficient.
+Do not substitute a resolved Eidos IP address in an A or AAAA record.
+
+## Check and activate
+
+1. Return to **Your own domain**.
+2. Select **Check DNS and TLS**.
+3. If DNS or the certificate is still pending, check the displayed records,
+   allow time for propagation, and try again.
+4. When the status is **Ready to activate**, select **Activate**.
+5. Wait for **Active**, then open a known publication path on your domain.
+
+**Check:** Open both `https://notes.example.com/notes` and the original
+`https://your-name.eidos.ink/notes`. Both should show the same publication.
+Check a password-protected page or form too, if you use one.
+When visiting the new domain, you may need to enter the page password or sign in again.
+
+After activation, the account page and new publishing results prefer the custom
+domain. Existing `eidos.ink` links remain usable. You do not need to republish
+existing content just to connect the domain.
+Files, attachments, Forms, and access settings retain their existing paths and behavior.
+
+## Keep or remove the domain
+
+Keep Pro active and retain all required DNS records.
+If ownership, DNS, HTTPS, or Pro access is no longer valid, custom-domain serving
+can stop. Restore the requirements and use **Check DNS and TLS** to review the status.
+
+To disconnect, select **Remove** and confirm. This stops serving through the custom
+domain without deleting your publications. You can remove a domain after Pro expires.
+Remove the old binding before adding a different hostname.
+If you want to serve another website, update its traffic record at your DNS provider.
+
+## Troubleshooting
+
+**Waiting for DNS:** Compare every record with the account page. Check for a
+duplicated zone suffix, a conflicting traffic record, or a proxied CNAME.
+
+**Waiting for certificate:** Keep the certificate delegation CNAME and any other
+validation records shown. Existing CAA restrictions or DNSSEC problems can prevent
+certificate issuance; check them with your DNS provider.
+
+**The root URL does not show a page:** Open the publication's full path, such as
+`/notes`. Connecting a hostname does not create a homepage at `/`.
+
+**An old link inside a page still uses another domain:** Domain setup does not rewrite
+URLs you wrote into your content. Edit and republish that content if needed.
+
+For publishing and updating content, see [Share a published copy](/user-guide/publishing/)
+or [Publish with the CLI](/cli/publish/).
