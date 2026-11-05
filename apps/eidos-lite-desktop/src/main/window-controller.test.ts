@@ -169,6 +169,34 @@ function session(id: string) {
     ),
   }
 }
+
+it.each(["window", "shared"])(
+  "rejects reopening a moved Space with a stale %s session",
+  async (kind) => {
+    const { controller, window } = fixture()
+    const opened = session("stable")
+    opened.canonical.root = "/old-location"
+    const internals = controller as unknown as {
+      sessionByWebContents: Map<number, typeof opened>
+      sharedSessions: Map<string, typeof opened>
+      windowBySpaceId: Map<string, BrowserWindow>
+      windowForSpaceRoot(root: string): Promise<BrowserWindow | null>
+    }
+    if (kind === "shared") internals.sharedSessions.set("stable", opened)
+    else internals.sessionByWebContents.set(1, opened)
+    internals.windowBySpaceId.set("stable", window as unknown as BrowserWindow)
+    mocks.canonical.mockResolvedValueOnce({
+      id: "stable",
+      root: "/new-location",
+      name: "Space",
+      displayPath: "/new-location",
+    })
+    await expect(internals.windowForSpaceRoot("/new-location")).rejects.toThrow(
+      "moved while open"
+    )
+    expect(window.focus).not.toHaveBeenCalled()
+  }
+)
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.displayMatching.mockImplementation(() => ({

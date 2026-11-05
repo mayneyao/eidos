@@ -549,7 +549,8 @@ export class WindowController {
     id: string
   ): Promise<SpaceSession> {
     if (this.closing) throw new Error("Eidos Lite is closing")
-    const canonical = await canonicalizeSpaceRoot(root)
+    const canonical = await canonicalizeSpaceRoot(root, app.getPath("userData"))
+    this.assertOpenSpaceLocation(canonical.id, canonical.root)
     // A replacement folder at the same path has not been authorized for sharing.
     if (canonical.id !== id)
       throw new Error("Shared Space identity has changed")
@@ -948,10 +949,12 @@ export class WindowController {
     const recentSpaceRoots = (await this.recentSpaces().list())
       .filter((recent) => recent.available)
       .map((recent) => recent.path)
-    const intent = await resolveEidosFileLaunchIntent(filePath, [
-      ...openSpaceRoots,
-      ...recentSpaceRoots,
-    ])
+    const intent = await resolveEidosFileLaunchIntent(
+      filePath,
+      [...openSpaceRoots, ...recentSpaceRoots],
+      app.getPath("userData")
+    )
+    this.assertOpenSpaceLocation(intent.spaceId, intent.spaceRoot)
     const existing = this.windowBySpaceId.get(intent.spaceId)
     if (existing && !existing.isDestroyed()) {
       this.focusWindow(existing)
@@ -1150,7 +1153,10 @@ export class WindowController {
     const target = await session.createLocalRecovery((sourceRoot) =>
       this.cloneCoordinator().copyLocalRecovery(sourceRoot, targetPath)
     )
-    const canonical = await canonicalizeSpaceRoot(target)
+    const canonical = await canonicalizeSpaceRoot(
+      target,
+      app.getPath("userData")
+    )
     await this.createSpaceWindow(target)
     return {
       kind: "local-copy",
@@ -1196,7 +1202,10 @@ export class WindowController {
       encryption
     )
     assertAdmission()
-    const canonical = await canonicalizeSpaceRoot(target)
+    const canonical = await canonicalizeSpaceRoot(
+      target,
+      app.getPath("userData")
+    )
     await this.createSpaceWindow(target)
     return {
       kind: "hosted-clone",
@@ -1666,7 +1675,8 @@ export class WindowController {
     assertAdmission?.()
     if (this.startupRecoveryError) throw this.startupRecoveryError
     if (this.closing) throw new Error("Eidos Lite is closing")
-    const canonical = await canonicalizeSpaceRoot(root)
+    const canonical = await canonicalizeSpaceRoot(root, app.getPath("userData"))
+    this.assertOpenSpaceLocation(canonical.id, canonical.root)
     assertAdmission?.()
     const existing = this.windowBySpaceId.get(canonical.id)
     if (existing && !existing.isDestroyed()) {
@@ -1879,11 +1889,24 @@ export class WindowController {
   private async windowForSpaceRoot(
     root: string
   ): Promise<BrowserWindow | null> {
-    const canonical = await canonicalizeSpaceRoot(root)
+    const canonical = await canonicalizeSpaceRoot(root, app.getPath("userData"))
+    this.assertOpenSpaceLocation(canonical.id, canonical.root)
     const existing = this.windowBySpaceId.get(canonical.id)
     if (!existing || existing.isDestroyed()) return null
     this.focusWindow(existing)
     return existing
+  }
+
+  private assertOpenSpaceLocation(id: string, root: string): void {
+    const session =
+      this.sharedSessions.get(id) ??
+      [...this.sessionByWebContents.values()].find(
+        (entry) => entry.canonical.id === id
+      )
+    if (session && session.canonical.root !== root)
+      throw new Error(
+        "This Space folder moved while open. Close its existing window or stop sharing it before reopening its current location."
+      )
   }
 
   private focusWindow(window: BrowserWindow): void {

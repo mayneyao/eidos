@@ -4,6 +4,7 @@ import path from "node:path"
 
 import type { SpaceTreeEntry } from "../../shared/contracts"
 import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
+import { spaceFileIdentity, persistentSpaceId } from "./space-identity"
 
 const HIDDEN_IMPLEMENTATION_NAMES = new Set([".graft", ".eidos"])
 const LOCAL_NOISE_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"])
@@ -22,15 +23,71 @@ function normalizedIdentityPath(value: string): string {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized
 }
 
+export async function assertSpaceRootIdentity(
+  space: CanonicalSpace
+): Promise<void> {
+  try {
+    const root = await fs.realpath(space.root)
+    const stats = await fs.stat(root, { bigint: true })
+    if (
+      root !== space.root ||
+      `${normalizedIdentityPath(root)}:${stats.dev}:${stats.ino}` !==
+        space.identity
+    )
+      throw new Error("identity changed")
+  } catch (error) {
+    throw new Error(
+      "The Space folder moved or was replaced. Close this Space before opening its current location.",
+      { cause: error }
+    )
+  }
+}
+
 export async function canonicalizeSpaceRoot(
-  requestedPath: string
+  requestedPath: string,
+  userDataDirectory?: string
 ): Promise<CanonicalSpace> {
   const root = await fs.realpath(path.resolve(requestedPath))
-  const stats = await fs.stat(root)
+  const stats = await fs.stat(root, { bigint: true })
   if (!stats.isDirectory()) throw new Error("A Space must be a folder")
   const identity = `${normalizedIdentityPath(root)}:${stats.dev}:${stats.ino}`
+  // Legacy Node Stats used numbers; preserve that namespace on first adoption,
+  // while the live identity and stable fingerprint retain the complete file ID.
+  const legacyIdentity = `${normalizedIdentityPath(root)}:${Number(stats.dev)}:${Number(stats.ino)}`
+  const legacyId = createHash("sha256")
+    .update(legacyIdentity)
+    .digest("hex")
+    .slice(0, 24)
+  const persistentIdentity = userDataDirectory
+    ? await spaceFileIdentity(
+        root,
+        stats,
+        process.platform,
+        true,
+        userDataDirectory
+      )
+    : null
+  if (userDataDirectory && !persistentIdentity)
+    throw new Error(
+      "This filesystem does not provide a persistent Space identity; existing Space state has not been reset"
+    )
+  const current = await fs.stat(root, { bigint: true })
+  if (
+    current.dev !== stats.dev ||
+    current.ino !== stats.ino ||
+    current.birthtimeNs !== stats.birthtimeNs ||
+    (await fs.realpath(root)) !== root
+  )
+    throw new Error("The Space folder changed while checking its identity")
   return {
-    id: createHash("sha256").update(identity).digest("hex").slice(0, 24),
+    id:
+      persistentIdentity && userDataDirectory
+        ? await persistentSpaceId(
+            userDataDirectory,
+            persistentIdentity,
+            legacyId
+          )
+        : legacyId,
     root,
     name: path.basename(root) || root,
     displayPath: root,

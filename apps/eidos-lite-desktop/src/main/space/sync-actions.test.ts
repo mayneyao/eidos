@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest"
 import type { EidosSyncAction } from "../../shared/contracts"
 import { SpaceSession } from "./space-session"
 
+// These tests isolate Sync planning with an in-memory session and no filesystem.
+// Real root replacement checks are covered by Space identity/session tests.
+vi.mock("./space-paths", async (original) => ({
+  ...(await original<object>()),
+  assertSpaceRootIdentity: vi.fn(async () => {}),
+}))
+
 function sessionFixture(ahead: number, behind: number, dirty: boolean) {
   const relation = { ahead, behind, dirty, hasConflicts: false }
   const run = async (
