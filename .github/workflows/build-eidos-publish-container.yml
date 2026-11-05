@@ -1,0 +1,59 @@
+name: Build Publish Container
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/build-eidos-publish-container.yml"
+      - "apps/eidos-publish/container/Dockerfile"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-container-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Build native AMD64 image and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          image="eidos-publish-runtime:source-${source_sha}"
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=${source_sha}" \
+            --file apps/eidos-publish/container/Dockerfile \
+            --tag "$image" .
+          mkdir container-artifact
+          docker image inspect "$image" > container-artifact/image-inspect.json
+          printf '%s\n' "$source_sha" > container-artifact/source.txt
+          git ls-files -z Cargo.toml Cargo.lock crates apps/cli apps/plugin-sandbox \
+            skills/eidos packages/eidos-file packages/eidos-file-ui \
+            packages/eidos-file-serve packages/markdown packages/plugin-runtime \
+            scripts/build-quickjs.mjs scripts/generated-assets.mjs \
+            apps/eidos-publish/container/Dockerfile \
+            | xargs -0 sha256sum > container-artifact/source-inputs.sha256
+          docker run --rm --entrypoint /usr/local/bin/eidos "$image" --version \
+            > container-artifact/eidos-version.txt
+          docker save "$image" | gzip -1 > container-artifact/image.tar.gz
+          (cd container-artifact && sha256sum image.tar.gz > image.tar.gz.sha256)
+
+      - name: Upload image and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-container-amd64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: container-artifact/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
