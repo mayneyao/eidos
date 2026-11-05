@@ -69,8 +69,8 @@
     {
       "name": "eidos-publish-runtime",
       "class_name": "EidosRuntimeContainer",
-      "image": "./container/Dockerfile",
-      "image_build_context": "../..",
+      // Native AMD64 CI artifact: source 0d34ec258, build run 42075497559.
+      "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:e96906f575e5a9fa60d1b71f000e53526de278c427ec144947a3e1a2d04c3d17",
       "max_instances": 1000,
       "instance_type": "basic",
     },
@@ -204,8 +204,8 @@
         {
           "name": "eidos-publish-runtime-staging",
           "class_name": "EidosRuntimeContainer",
-          "image": "./container/Dockerfile",
-          "image_build_context": "../..",
+          // Deploy the identical CI-built image through staging and production.
+          "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:e96906f575e5a9fa60d1b71f000e53526de278c427ec144947a3e1a2d04c3d17",
           "max_instances": 100,
           "instance_type": "basic",
         },
