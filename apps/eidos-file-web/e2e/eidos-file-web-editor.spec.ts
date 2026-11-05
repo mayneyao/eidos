@@ -2402,6 +2402,7 @@ test("calculates Grid column summaries through the browser runtime", async ({
     page.getByRole("menuitem", { name: "Calculate · Sum" })
   ).toBeVisible()
 
+  page.once("dialog", (dialog) => dialog.accept())
   await page.locator("input[type=file]").setInputFiles(featureLabFixturePath)
   await expect(page.locator(".file-identity strong")).toHaveText(
     "feature-lab.eidos"
@@ -2447,7 +2448,7 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   const title = inspector.getByRole("textbox", { name: "Title" })
   await title.fill("Ship Eidos File Web Editor — verified")
   await title.press("Control+Enter")
-  await expect(page.locator(".save-status")).toContainText(/browser|Unsaved/)
+  await expect(page.locator(".save-status")).toHaveText("Not saved to a file")
   await page.getByRole("button", { name: "Close record details" }).click()
   await expect(firstCard).toContainText("verified")
 

@@ -28,6 +28,8 @@ jobs:
           install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @eidos.space/eidos-file build
+      - run: pnpm --filter @eidos.space/plugin-sdk build
+      - run: pnpm --filter @eidos.space/markdown build
       - run: pnpm --filter @eidos.space/eidos-file-web typecheck
       - name: Install browser engines
         run: pnpm --filter @eidos.space/eidos-file-web exec playwright install --with-deps chromium firefox webkit

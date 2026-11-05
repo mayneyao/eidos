@@ -144,7 +144,7 @@ test("gates Feature Lab query controls by logical field capability", async ({
     page.getByRole("option", { name: "Assets", exact: true })
   ).toBeVisible()
   await ownerField.click()
-  await filter.getByRole("combobox", { name: "Filter operator" }).click()
+  await filter.getByRole("combobox", { name: "Filter operator" }).last().click()
   await page.getByRole("option", { name: "has any of", exact: true }).click()
   await filter
     .getByRole("combobox", { name: "Choose records for Owner" })
