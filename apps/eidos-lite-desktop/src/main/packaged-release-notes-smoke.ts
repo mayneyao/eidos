@@ -48,7 +48,8 @@ export async function verifyPackagedReleaseNotes(
                 throw new Error('Static release notes are not visible')
               if (page.querySelector('[contenteditable="true"]'))
                 throw new Error('Release notes must be read-only')
-              if (!article.textContent.includes(${JSON.stringify(locale === "en" ? "What's new" : "新功能")}))
+              const categories = ${JSON.stringify(locale === "en" ? ["What's new", "Improvements", "Bug fixes"] : ["新功能", "改进", "问题修复"])}
+              if (![...article.querySelectorAll('h2')].some(heading => categories.includes(heading.textContent.trim())))
                 throw new Error('Release notes language switch failed')
               if (location.hash !== '#/release-notes')
                 throw new Error('Language switch left the native notes route')
