@@ -1,3 +1,4 @@
+import type { DomainSummary } from "./domains"
 export type PublishPlan = "free" | "pro"
 export type PublishServiceTier = "publish" | "custom"
 export type PublishRuntimeIsolation = "shared" | "dedicated"
@@ -444,6 +445,7 @@ export interface MultipartPartRecord {
 }
 
 export interface TenantSummary {
+  customDomains: DomainSummary
   publicSiteId: string
   canonicalHost: string
   preferredHandle: string | null

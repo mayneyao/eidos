@@ -45,6 +45,12 @@ import {
   validateFormVersion,
 } from "../src/form"
 import { authoritativeMultipartObject } from "../src/index"
+import {
+  normalizeCustomHostname,
+  dnsAnswers,
+  providerRequest,
+  type DomainRecord,
+} from "../src/domains"
 
 const ORIGIN = "https://publish.eidos.space"
 const FILE_ID = "0198c72d-82b5-7000-8000-000000000001"
@@ -57,6 +63,432 @@ const MULTI_SELECT_FIELD_ID = "0198c72d-82b5-7000-8000-000000000015"
 
 afterEach(async () => {
   await abortAllDurableObjects()
+})
+
+it("uses Workers-compatible requests and refuses DNS and provider redirects", async () => {
+  const mock = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      expect(request.redirect).toBe("manual")
+      return new Response("Not JSON", {
+        status: 302,
+        headers: { Location: "https://untrusted.example.net/" },
+      })
+    })
+  try {
+    await expect(providerRequest(env, "", "GET")).rejects.toMatchObject({
+      code: "domain_provider_unavailable",
+    })
+    await expect(dnsAnswers("dns.example.net", "TXT")).rejects.toMatchObject({
+      code: "dns_check_unavailable",
+    })
+    expect(mock).toHaveBeenCalledTimes(2)
+  } finally {
+    mock.mockRestore()
+  }
+})
+
+describe("Publish custom domains", () => {
+  async function command(token: string, action: string, hostname?: string) {
+    return authenticatedFetch("/api/domains", token, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, hostname }),
+    })
+  }
+  async function fixtureDomain(token: string, hostname: string) {
+    const response = await command(token, "add", hostname)
+    expect(response.status).toBe(200)
+    const value = await response.json<{ domain: DomainRecord }>()
+    const record: DomainRecord = {
+      ...value.domain,
+      state: "active",
+      verifiedUntil: Date.now() + 86_400_000,
+      checkedAt: Date.now(),
+      providerStatus: "active",
+      sslStatus: "active",
+    }
+    await runInDurableObject(
+      env.PUBLISH_DOMAINS.getByName(hostname),
+      async (_instance, state) => {
+        await state.storage.put("domain", record)
+      }
+    )
+    return record
+  }
+  it("normalizes IDNs and rejects URL syntax, IPs and Eidos control domains", () => {
+    expect(normalizeCustomHostname("Notes.Example.com", "eidos.ink")).toBe(
+      "notes.example.com"
+    )
+    expect(normalizeCustomHostname("笔记.example.com", "eidos.ink")).toMatch(
+      /^xn--/
+    )
+    for (const value of [
+      "https://notes.example.com",
+      "notes.example.com:443",
+      "notes.example.com/",
+      "*.example.com",
+      "localhost",
+      "127.0.0.1",
+      "[::1]",
+      "foo.local",
+      "eidos.space",
+      "a.eidos.space",
+      "a.eidos.ink",
+      "a..com",
+      "-a.example.com",
+      "a.example.com.",
+    ])
+      expect(normalizeCustomHostname(value, "eidos.ink")).toBeNull()
+  })
+  it("requires Pro and serializes the single tenant domain slot", async () => {
+    expect(
+      (await command("free-domain", "add", "free.example.com")).status
+    ).toBe(403)
+    const results = await Promise.all([
+      command("standard-domain-race", "add", "race-a.example.com"),
+      command("standard-domain-race", "add", "race-b.example.com"),
+    ])
+    expect(results.map((response) => response.status).sort()).toEqual([
+      200, 409,
+    ])
+  })
+  it("prevents cross-account claims and leaves the losing account free to choose another domain", async () => {
+    expect(
+      (await command("standard-domain-owner", "add", "claimed.example.com"))
+        .status
+    ).toBe(200)
+    expect(
+      (await command("standard-domain-other", "add", "claimed.example.com"))
+        .status
+    ).toBe(409)
+    expect(
+      (await command("standard-domain-other", "add", "other.example.com"))
+        .status
+    ).toBe(200)
+  })
+  it("rejects unknown Hosts, including discovery and forged binding headers", async () => {
+    for (const path of [
+      "/healthz",
+      "/.well-known/eidos-publish",
+      "/assets/main.js",
+      "/api/tenant",
+    ]) {
+      expect(
+        (
+          await SELF.fetch(`https://unknown.example.com${path}`, {
+            headers: { "x-eidos-publish-binding": crypto.randomUUID() },
+          })
+        ).status
+      ).toBe(404)
+    }
+  })
+  it("removes an unverified reservation without touching an existing provider hostname", async () => {
+    expect(
+      (
+        await command(
+          "standard-domain-unverified",
+          "add",
+          "unverified.example.com"
+        )
+      ).status
+    ).toBe(200)
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(
+        new Error("No provider call permitted without ownership proof")
+      )
+    try {
+      expect(
+        (await command("standard-domain-unverified", "remove")).status
+      ).toBe(200)
+      expect(mock).not.toHaveBeenCalled()
+    } finally {
+      mock.mockRestore()
+    }
+  })
+  it("serves the same Runtime publication and binds password sessions and tickets to the actual Host and generation", async () => {
+    const slug = "custom-domain-runtime"
+    expect(
+      (
+        await authenticatedFetch(
+          `/api/publications/${slug}`,
+          "pro-token",
+          mutation("domain-create-runtime")
+        )
+      ).status
+    ).toBe(201)
+    await publishReadyVersion(
+      slug,
+      "pro-token",
+      "domain-runtime",
+      "domain-data"
+    )
+    const binding = await fixtureDomain("pro-token", "reader.example.com")
+    const page = await SELF.fetch(`https://${binding.hostname}/${slug}`)
+    expect(page.status).toBe(200)
+    expect(page.headers.get("cache-control")).toBe("private, no-store")
+    expect(page.headers.get("link")).toContain(
+      `https://${binding.hostname}/${slug}`
+    )
+    const state = await tenant("pro-token")
+    expect(state.canonicalHost).toBe(binding.hostname)
+    const protectedResponse = await authenticatedFetch(
+      `/api/publications/${slug}/access`,
+      "pro-token",
+      accessMutation("domain-password", {
+        mode: "password",
+        password: "test-domain-password",
+      })
+    )
+    expect(protectedResponse.status).toBe(200)
+    const exchange = await passwordExchange(
+      binding.hostname,
+      slug,
+      "test-domain-password"
+    )
+    expect(exchange.status).toBe(303)
+    const cookie = exchange.headers.get("set-cookie")!.split(";", 1)[0]!
+    const session = await SELF.fetch(
+      `https://${binding.hostname}/_eidos/session`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        body: JSON.stringify({ slug }),
+      }
+    )
+    expect([200, 202]).toContain(session.status)
+    const ticket = (await session.json<{ ticket: string }>()).ticket
+    const payload = JSON.parse(
+      atob(ticket.split(".")[0]!.replaceAll("-", "+").replaceAll("_", "/"))
+    ) as { aud: string }
+    expect(payload.aud).toBe(`${binding.hostname}#${binding.bindingId}`)
+    const changed = { ...binding, bindingId: crypto.randomUUID() }
+    await runInDurableObject(
+      env.PUBLISH_TENANTS.getByName(state.publicSiteId),
+      (_instance, storage) => {
+        storage.storage.sql.exec(
+          "UPDATE tenant_custom_domain SET binding_id = ?",
+          changed.bindingId
+        )
+      }
+    )
+    await runInDurableObject(
+      env.PUBLISH_DOMAINS.getByName(binding.hostname),
+      async (_instance, storage) => {
+        await storage.storage.put("domain", changed)
+      }
+    )
+    expect(
+      (
+        await SELF.fetch(
+          `https://${binding.hostname}/_eidos/runtime/${slug}/api/manifest`,
+          { headers: { Authorization: `EidosRuntime ${ticket}` } }
+        )
+      ).status
+    ).toBe(401)
+    await env.PUBLISH_TENANTS.getByName(state.publicSiteId).clearCustomDomain(
+      changed.bindingId
+    )
+  })
+  it("stops all custom-domain access when a tenant loses Pro", async () => {
+    const token = "standard-domain-expiry"
+    const record = await fixtureDomain(token, "expiry.example.com")
+    const summaryResponse = await authenticatedFetch("/api/tenant", token)
+    const summary = await summaryResponse.json<{
+      publicSiteId: string
+      access: ReturnType<typeof freeAccessGrant>
+    }>()
+    await env.PUBLISH_TENANTS.getByName(summary.publicSiteId).initialize(
+      "standard-domain-expiry",
+      summary.publicSiteId,
+      { ...summary.access, revision: 100, plan: "free", handle: false },
+      null
+    )
+    expect(
+      (await SELF.fetch(`https://${record.hostname}/assets/main.js`)).status
+    ).toBe(404)
+  })
+  it("treats NXDOMAIN as missing DNS and handles split TXT strings without leaking credentials", async () => {
+    const mocked = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ Status: 3 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          Status: 0,
+          Answer: [{ type: 16, data: '"first" "second"' }],
+        })
+      )
+    try {
+      expect(
+        await dnsAnswers("_eidos-publish.none.example.com", "TXT")
+      ).toEqual([])
+      expect(
+        await dnsAnswers("_eidos-publish.notes.example.com", "TXT")
+      ).toEqual(["firstsecond"])
+      expect(mocked.mock.calls[0]![1]?.headers).toEqual({
+        Accept: "application/dns-json",
+      })
+    } finally {
+      mocked.mockRestore()
+    }
+  })
+  it("keeps DNS proof, TLS readiness and activation separate, revokes before cleanup, and requires fresh proof on rebind", async () => {
+    const token = "standard-domain-lifecycle",
+      hostname = "lifecycle.example.com"
+    const added = await command(token, "add", hostname)
+    const first = (await added.json<{ domain: DomainRecord }>()).domain
+    let owned = true,
+      certificateReady = false,
+      deleteFails = false,
+      providerUnavailable = false,
+      created = 0
+    const stub = env.PUBLISH_DOMAINS.getByName(hostname)
+    const resetCheck = () =>
+      runInDurableObject(stub, async (_instance, state) => {
+        const record = (await state.storage.get<DomainRecord>("domain"))!
+        await state.storage.put("domain", { ...record, checkedAt: null })
+      })
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = new URL(
+          typeof input === "string" || input instanceof URL ? input : input.url
+        )
+        if (url.hostname === "cloudflare-dns.com") {
+          const type = url.searchParams.get("type")
+          return Response.json({
+            Status: 0,
+            Answer:
+              type === "TXT"
+                ? owned
+                  ? [{ type: 16, data: `"${first.verificationToken}"` }]
+                  : []
+                : [
+                    {
+                      type: 5,
+                      data: url.searchParams
+                        .get("name")
+                        ?.startsWith("_acme-challenge.")
+                        ? `${hostname}.dcv-test.example.net.`
+                        : "customers.eidos.ink.",
+                    },
+                  ],
+          })
+        }
+        if (url.hostname !== "api.cloudflare.com")
+          throw new Error("Unexpected external request")
+        if (providerUnavailable)
+          return Response.json({ success: false }, { status: 503 })
+        if (init?.method === "DELETE")
+          return Response.json(
+            { success: !deleteFails, result: {} },
+            { status: deleteFails ? 503 : 200 }
+          )
+        if (url.searchParams.has("hostname"))
+          return Response.json({ success: true, result: [] })
+        if (init?.method === "POST") created++
+        return Response.json({
+          success: true,
+          result: {
+            id: "22222222222222222222222222222222",
+            hostname,
+            status: "active",
+            ssl: {
+              status: certificateReady ? "active" : "pending_validation",
+              validation_records: [
+                {
+                  txt_name: `_acme-challenge.${hostname}`,
+                  txt_value: "current-order",
+                },
+              ],
+            },
+          },
+        })
+      })
+    try {
+      let response = await command(token, "check")
+      expect(await response.json()).toMatchObject({
+        domain: { state: "pending_tls", sslStatus: "pending_validation" },
+      })
+      expect(created).toBe(1)
+      expect((await SELF.fetch(`https://${hostname}/healthz`)).status).toBe(404)
+      certificateReady = true
+      await resetCheck()
+      response = await command(token, "check")
+      expect(await response.json()).toMatchObject({
+        domain: { state: "ready" },
+      })
+      expect(await stub.resolve()).toBeNull()
+      expect(await (await command(token, "activate")).json()).toMatchObject({
+        domain: { state: "active" },
+      })
+      expect(await stub.resolve()).toMatchObject({ bindingId: first.bindingId })
+      const lease = (await stub.resolve())!.verifiedUntil
+      providerUnavailable = true
+      await resetCheck()
+      expect(await (await command(token, "check")).json()).toMatchObject({
+        domain: { state: "active", verifiedUntil: lease },
+      })
+      await runInDurableObject(stub, async (_instance, state) => {
+        const record = (await state.storage.get<DomainRecord>("domain"))!
+        await state.storage.put("domain", {
+          ...record,
+          checkedAt: null,
+          verifiedUntil: Date.now() - 1,
+        })
+      })
+      expect(await (await command(token, "check")).json()).toMatchObject({
+        domain: { state: "suspended" },
+      })
+      expect(await stub.resolve()).toBeNull()
+      providerUnavailable = false
+      await runInDurableObject(stub, async (_instance, state) => {
+        const record = (await state.storage.get<DomainRecord>("domain"))!
+        await state.storage.put("domain", {
+          ...record,
+          state: "active",
+          createdAt: Date.now() - 30 * 86_400_000,
+          inactiveSince: null,
+          verifiedUntil: Date.now() + 86_400_000,
+          checkedAt: null,
+        })
+      })
+      owned = false
+      await resetCheck()
+      expect(await (await command(token, "check")).json()).toMatchObject({
+        domain: { state: "pending_dns", error: "ownership_record_missing" },
+      })
+      expect(await stub.resolve()).toBeNull()
+      await runDurableObjectAlarm(stub)
+      expect(await stub.inspect(first.tenantId, first.bindingId)).toMatchObject(
+        { state: "pending_dns" }
+      )
+      deleteFails = true
+      expect((await command(token, "remove")).status).toBe(202)
+      expect(await stub.inspect(first.tenantId, first.bindingId)).toMatchObject(
+        { state: "removing", verifiedUntil: 0 }
+      )
+      deleteFails = false
+      expect((await command(token, "remove")).status).toBe(200)
+      const rebound = await command(
+        "standard-domain-new-owner",
+        "add",
+        hostname
+      )
+      const second = (await rebound.json<{ domain: DomainRecord }>()).domain
+      expect(second.bindingId).not.toBe(first.bindingId)
+      expect(second.verificationToken).not.toBe(first.verificationToken)
+      owned = true
+      expect(
+        await (await command("standard-domain-new-owner", "check")).json()
+      ).toMatchObject({ domain: { state: "pending_dns" } })
+      expect(created).toBe(1)
+    } finally {
+      mock.mockRestore()
+    }
+  })
 })
 
 describe("Publish branding", () => {
@@ -1653,6 +2085,55 @@ describe("Eidos Publish control plane", () => {
     expect(scriptSource).toContain("loadSubmissionIntent")
     expect(scriptSource).not.toContain("load().then")
     expect(() => new Function(scriptSource)).not.toThrow()
+
+    const customAdded = await authenticatedFetch("/api/domains", token, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add", hostname: "forms.example.com" }),
+    })
+    expect(customAdded.status).toBe(200)
+    const customBinding = (await customAdded.json<{ domain: DomainRecord }>())
+      .domain
+    await runInDurableObject(
+      env.PUBLISH_DOMAINS.getByName(customBinding.hostname),
+      async (_instance, state) => {
+        await state.storage.put("domain", {
+          ...customBinding,
+          state: "active",
+          verifiedUntil: Date.now() + 86_400_000,
+        })
+      }
+    )
+    const customLogin = await SELF.fetch(`https://forms.example.com/${slug}`, {
+      redirect: "manual",
+    })
+    const customAuthorize = new URL(customLogin.headers.get("location")!)
+    expect(customAuthorize.searchParams.get("host")).toBe("forms.example.com")
+    expect(customAuthorize.searchParams.get("binding")).toBe(
+      customBinding.bindingId
+    )
+    expect(
+      (
+        await SELF.fetch(
+          `https://forms.example.com/_eidos/forms/${slug}/definition`,
+          { headers: { Cookie: respondentCookie } }
+        )
+      ).status
+    ).toBe(401)
+    const customExchange = await SELF.fetch(
+      `https://forms.example.com/_eidos/form/exchange?code=${"b".repeat(43)}`,
+      { redirect: "manual" }
+    )
+    expect(customExchange.status).toBe(303)
+    const customCookie = customExchange.headers
+      .get("set-cookie")!
+      .split(";", 1)[0]!
+    const customDefinition = await SELF.fetch(
+      `https://forms.example.com/_eidos/forms/${slug}/definition`,
+      { headers: { Cookie: customCookie } }
+    )
+    expect(customDefinition.status).toBe(200)
+    await tenantStub.clearCustomDomain(customBinding.bindingId)
 
     const publicDefinitionResponse = await SELF.fetch(
       `${publicOrigin}/_eidos/forms/${slug}/definition`,

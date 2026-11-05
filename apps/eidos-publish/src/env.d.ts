@@ -1,4 +1,5 @@
 interface Env {
+  CLOUDFLARE_CUSTOM_HOSTNAMES_TOKEN?: string
   RUNTIME_TICKET_SECRET: string
   PUBLISH_VIEWER_EXCHANGE_SECRET: string
   PUBLISH_SERVICE_SECRET: string
@@ -16,6 +17,7 @@ interface SubtleCrypto {
 
 declare namespace Cloudflare {
   interface Env {
+    CLOUDFLARE_CUSTOM_HOSTNAMES_TOKEN?: string
     RUNTIME_TICKET_SECRET: string
     PUBLISH_VIEWER_EXCHANGE_SECRET: string
     PUBLISH_SERVICE_SECRET: string
