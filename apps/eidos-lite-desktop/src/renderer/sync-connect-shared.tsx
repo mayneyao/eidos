@@ -3,6 +3,9 @@ import { useId, type ReactNode } from "react"
 import { syncProgressPresentation } from "./sync-progress-presentation"
 import type { EidosSyncPreflight, EidosSyncProgress } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
+import { formatBytes } from "./format-bytes"
+
+export { formatBytes } from "./format-bytes"
 
 export function IndeterminateSyncProgress({ label }: { label: string }) {
   return (
@@ -339,17 +342,4 @@ function exclusionLabel(
     "os-noise": "system file",
     "temporary-file": "temporary file",
   }[reason]
-}
-
-export function formatBytes(value: number): string {
-  if (value === 0) return "0 bytes"
-  const units = ["bytes", "KiB", "MiB", "GiB", "TiB"]
-  const unit = Math.min(
-    units.length - 1,
-    Math.floor(Math.log(value) / Math.log(1024))
-  )
-  const scaled = value / 1024 ** unit
-  return `${scaled.toLocaleString(undefined, {
-    maximumFractionDigits: unit === 0 ? 0 : 1,
-  })} ${units[unit]}`
 }

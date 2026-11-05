@@ -85,6 +85,7 @@ beforeEach(() => {
   window.eidosLite = {
     getBasicFileProperties: vi.fn(async (path: string) => ({
       path,
+      locationPath: "/space",
       extension: ".md",
       size: 42,
       createdAtMs: Date.UTC(2026, 9, 20),
@@ -115,6 +116,83 @@ async function render() {
     root.render(<FilePropertiesContent {...props} />)
   })
 }
+
+it.each([
+  [0, "0 bytes"],
+  [42, "42 bytes"],
+  [1023, "1,023 bytes"],
+  [1024, "1 KiB"],
+  [1536, "1.5 KiB"],
+  [1024 ** 2, "1 MiB"],
+  [2.5 * 1024 ** 3, "2.5 GiB"],
+  [4 * 1024 ** 4, "4 TiB"],
+])(
+  "shows %s bytes in readable units with exact bytes available",
+  async (size, text) => {
+    const read = window.eidosLite.getBasicFileProperties
+    const basic = await read("a.md")
+    vi.mocked(read).mockResolvedValue({ ...basic!, size })
+    await render()
+    const summary = element.querySelector<HTMLElement>(".file-properties-size")!
+    expect(summary.textContent).toBe(text)
+    expect(summary.title).toBe(`${size.toLocaleString("en")} bytes`)
+    const row = Array.from(element.querySelectorAll("dl > div")).find(
+      (row) => row.querySelector("dt")?.textContent === "File size:"
+    )!
+    expect(row.querySelector("dd")?.textContent).toBe(text)
+  }
+)
+
+it("distinguishes a pending size from an empty file", async () => {
+  vi.mocked(window.eidosLite.getBasicFileProperties).mockReturnValue(
+    new Promise(() => {})
+  )
+  await render()
+  expect(element.querySelector(".file-properties-size")?.textContent).toBe("—")
+  expect(element.textContent).not.toContain("0 bytes")
+})
+
+it.each([-1, NaN, Infinity])(
+  "does not present an unavailable size (%s) as zero",
+  async (size) => {
+    const read = window.eidosLite.getBasicFileProperties
+    const basic = await read("a.md")
+    vi.mocked(read).mockResolvedValue({ ...basic!, size })
+    await render()
+    const summary = element.querySelector<HTMLElement>(".file-properties-size")!
+    expect(summary.textContent).toBe("—")
+    expect(summary.hasAttribute("title")).toBe(false)
+  }
+)
+
+it.each([
+  "D:\\",
+  "D:\\Downloads\\my-space\\songs",
+  "D:\\我的 Space\\音乐 文件",
+  "\\\\server\\share\\my-space\\songs",
+])(
+  "displays and copies the host location unchanged: %s",
+  async (locationPath) => {
+    const writeText = vi.fn(async () => {})
+    vi.stubGlobal(
+      "navigator",
+      Object.create(navigator, { clipboard: { value: { writeText } } })
+    )
+    const read = window.eidosLite.getBasicFileProperties
+    const basic = await read("a.md")
+    vi.mocked(read).mockResolvedValue({ ...basic!, locationPath })
+    await render()
+    expect(
+      element.querySelector(".file-properties-path > span")?.textContent
+    ).toBe(locationPath)
+    await act(async () => {
+      element
+        .querySelector<HTMLButtonElement>('button[aria-label="Copy path"]')!
+        .click()
+    })
+    expect(writeText).toHaveBeenCalledWith(locationPath)
+  }
+)
 
 it("flushes a focused draft and waits for its save before closing", async () => {
   const content = createRef<FilePropertiesContentHandle>()
@@ -167,9 +245,10 @@ it("renders loaded properties read-only without Spark", async () => {
 })
 
 it("shows filesystem properties without Spark or a metadata catalog", async () => {
-  props = { ...props, readOnly: true, spacePath: "/space" }
+  props = { ...props, readOnly: true }
   vi.mocked(window.eidosLite.getBasicFileProperties).mockResolvedValue({
     path: "a.md",
+    locationPath: "/space",
     extension: ".md",
     size: 42,
     createdAtMs: Date.UTC(2026, 9, 20),
@@ -210,6 +289,7 @@ it("discards a late filesystem read after selecting another file", async () => {
   await act(async () =>
     finish({
       path: "a.md",
+      locationPath: "/space",
       extension: ".txt",
       size: 999,
       createdAtMs: 0,
@@ -317,7 +397,9 @@ it("confirms a copied path only after the clipboard succeeds, then resets the fe
     "navigator",
     Object.create(navigator, { clipboard: { value: { writeText } } })
   )
-  props = { ...props, spacePath: "/demo" }
+  const read = window.eidosLite.getBasicFileProperties
+  const basic = await read("a.md")
+  vi.mocked(read).mockResolvedValue({ ...basic!, locationPath: "/demo" })
   await render()
   vi.useFakeTimers()
   const button = element.querySelector<HTMLButtonElement>(

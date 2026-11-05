@@ -16,6 +16,7 @@ import { SparkService } from "./account/spark-service"
 import { hasSparkFeature, type SparkStatus } from "../shared/spark"
 import { accountStorageKey } from "../shared/service-environment"
 import { systemFileThumbnail } from "./space/file-thumbnails"
+import { filePropertiesLocationPath } from "./file-properties-path"
 import {
   detectMediaFileType,
   issueMediaPreviewUrl,
@@ -1781,9 +1782,19 @@ export function registerIpc(
   })
   ipcMain.handle(
     IPC_CHANNELS.getBasicFileProperties,
-    (event, value: unknown) => {
+    async (event, value: unknown) => {
       if (typeof value !== "string") throw new Error("Invalid file path")
-      return controller.requireSession(event.sender).statFile(value)
+      const session = controller.requireSession(event.sender)
+      const properties = await session.statFile(value)
+      return properties
+        ? {
+            ...properties,
+            locationPath: filePropertiesLocationPath(
+              session.canonical.displayPath,
+              properties.path
+            ),
+          }
+        : null
     }
   )
   ipcMain.handle(IPC_CHANNELS.filePropertiesSelect, (event, value: unknown) => {

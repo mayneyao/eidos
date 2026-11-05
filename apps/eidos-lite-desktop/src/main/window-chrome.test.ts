@@ -10,6 +10,28 @@ import {
 } from "./window-chrome"
 
 describe("Eidos Lite window chrome", () => {
+  it("removes both Windows properties caption boxes and keeps the native close control", () => {
+    expect(liteWindowChromeOptions("win32", "properties")).toEqual({
+      titleBarStyle: "default",
+      autoHideMenuBar: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+    })
+  })
+
+  it.each(["darwin", "linux"] as const)(
+    "preserves properties minimization and native chrome on %s",
+    (platform) => {
+      expect(liteWindowChromeOptions(platform, "properties")).toEqual({
+        titleBarStyle: "default",
+        autoHideMenuBar: true,
+        maximizable: false,
+        fullscreenable: false,
+      })
+    }
+  )
+
   it.each(["darwin", "win32", "linux"] as const)(
     "uses native title and controls for release notes on %s",
     (platform) => {
