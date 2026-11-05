@@ -1494,7 +1494,7 @@ test("exports the current Eidos File view as readable CSV", async ({
     .click()
   const tableDownload = await tableDownloadPromise
   expect(tableDownload.suggestedFilename()).toBe(
-    "eidos-1.0-feature-lab - Experiments.csv"
+    "feature-lab - Experiments.csv"
   )
   const tableCsvPath = testInfo.outputPath("feature-lab-experiments.csv")
   await tableDownload.saveAs(tableCsvPath)
