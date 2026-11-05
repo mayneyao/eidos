@@ -16,14 +16,17 @@ enum BackgroundSync {
             guard let task = task as? BGProcessingTask else { task.setTaskCompleted(success: false); return }
             let operation = UUID().uuidString
             guard eidos_ios_cancellation(operation, 0) else { task.setTaskCompleted(success: false); return }
-            task.expirationHandler = { _ = eidos_ios_cancellation(operation, 1) }
+            SyncHTTP.begin(operation)
+            task.expirationHandler = { _ = eidos_ios_cancellation(operation, 1); SyncHTTP.cancel(operation) }
             // Cancel when the user resumes editing; file operations remain serialized until it exits.
             let observer = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { _ in
                 _ = eidos_ios_cancellation(operation, 1)
+                SyncHTTP.cancel(operation)
             }
-            if UIApplication.shared.applicationState == .active { _ = eidos_ios_cancellation(operation, 1) }
+            if UIApplication.shared.applicationState == .active { _ = eidos_ios_cancellation(operation, 1); SyncHTTP.cancel(operation) }
             LocalSpace.io.async {
                 Runtime.cancellation = operation
+                PeerAutoSync.background(operation)
                 var success = true
                 do {
                     let catalog = try SpaceCatalog()
@@ -42,6 +45,7 @@ enum BackgroundSync {
                 } catch { success = false }
                 Runtime.cancellation = nil
                 _ = eidos_ios_cancellation(operation, 2)
+                SyncHTTP.end(operation)
                 NotificationCenter.default.removeObserver(observer)
                 task.setTaskCompleted(success: success)
                 schedule()
@@ -49,7 +53,8 @@ enum BackgroundSync {
         }
     }
     static func schedule() {
-        guard UserDefaults.standard.dictionaryRepresentation().contains(where: { $0.key.hasPrefix("background-sync:") && $0.value as? Bool == true }) else {
+        let paired = !(UserDefaults.standard.stringArray(forKey: "peer-devices") ?? []).isEmpty
+        guard paired || UserDefaults.standard.dictionaryRepresentation().contains(where: { $0.key.hasPrefix("background-sync:") && $0.value as? Bool == true }) else {
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier)
             return
         }

@@ -24,6 +24,7 @@ struct FileBrowser: View {
     @AppStorage("file-sort-descending") private var sortDescending = false
     @State private var metadata: [URL: URLResourceValues] = [:]
     @State private var busy = false
+    @State private var waitingForPeerUpdate = false
     @State private var error: String?
     @State private var importing = false
     @State private var importingFolder = false
@@ -189,6 +190,20 @@ struct FileBrowser: View {
             .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         }
         .onAppear(perform: reload)
+        .onReceive(NotificationCenter.default.publisher(for: PeerAutoSync.changed)) { notification in
+            if notification.object as? URL == space.root && !busy {
+                waitingForPeerUpdate = false
+                if let directory, !FileManager.default.fileExists(atPath: directory.path) { self.directory = space.root }
+                reload()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: PeerAutoSync.settled)) { notification in
+            if let root = notification.object as? URL, LocalSpace.storageIdentity(root) == LocalSpace.storageIdentity(space.root) && waitingForPeerUpdate {
+                waitingForPeerUpdate = false
+                if let directory, !FileManager.default.fileExists(atPath: directory.path) { self.directory = space.root }
+                reload()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: FileActivity.changed).receive(on: RunLoop.main)) { notification in
             guard notification.object as? URL == space.root else { return }
             if let updated = try? FileActivity.load(space) { activity = updated }
@@ -272,11 +287,15 @@ struct FileBrowser: View {
     }
     private func share(_ file: URL) { operate { let copy = try space.exportSnapshot(file); return { export = ExportFile(url: copy) } } }
     private func reload() {
-        do {
-            activity = try FileActivity.load(space)
-            files = try space.files(in: directory)
-            metadata = Dictionary(uniqueKeysWithValues: files.map { ($0, (try? $0.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])) ?? URLResourceValues()) })
-        } catch { self.error = error.localizedDescription }
+        // Foreground resume can race an expiring background checkout. Keep the
+        // ready list until its serialized IO boundary has finished recovering.
+        waitingForPeerUpdate = !PeerAutoSync.withBrowseRead {
+            do {
+                activity = try FileActivity.load(space)
+                files = try space.files(in: directory)
+                metadata = Dictionary(uniqueKeysWithValues: files.map { ($0, (try? $0.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])) ?? URLResourceValues()) })
+            } catch { self.error = error.localizedDescription }
+        }
         checkingMerge = true
         LocalSpace.io.async {
             do {

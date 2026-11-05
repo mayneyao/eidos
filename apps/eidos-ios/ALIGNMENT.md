@@ -1,7 +1,7 @@
 # Mobile LAN v1 acceptance checklist
 
 Mobile LAN v1 provides an offline local Space on iOS and Android, with optional
-foreground synchronization to an approved Eidos Lite desktop. Both hosts use the
+foreground synchronization and safe automatic committed updates from an approved Eidos Lite desktop. Both hosts use the
 canonical Eidos File Runtime and shared editors. A downloaded Space remains
 usable without its computer or an account.
 
@@ -24,7 +24,7 @@ usable without its computer or an account.
 | Disconnect        | Disconnect a Space or remove a paired computer without deleting local files or history.                                                                                                                                                                                                                                      |
 
 Account login, cloud Sync and Publish have no mobile entry points in this
-version. Background LAN scheduling, phone-to-phone sync and Internet relay are
+version. Phone-to-phone sync and Internet relay are
 outside this delivery. True LAN conflicts never open a mobile whole-file choice
 screen. Failure, cancellation and pending review never update the success time.
 

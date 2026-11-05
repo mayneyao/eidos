@@ -110,7 +110,31 @@ operation counter. Until the plan is known, the UI shows preparation and receive
 bytes instead of a percentage based on an expanding denominator. After download, the snapshot is written and the Space is registered without
 scanning database contents.
 
-Account login, cloud Sync and Publish entry points are hidden from the mobile UI. Background LAN scheduling, phone-to-phone sync and Internet relay are outside this version; see [ALIGNMENT.md](ALIGNMENT.md).
+### Automatic committed updates
+
+Downloaded, paired Spaces check for committed desktop updates after launch or
+resume and every minute while idle. The existing `BGProcessingTask` also attempts
+these pulls when iOS grants background execution. iOS chooses when it runs;
+15 minutes is only the earliest requested start, with no delivery deadline.
+Expiry, opening an editor, and foreground transitions cancel background work.
+See [Apple's background strategies](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app).
+
+Automatic checkout requires a clean local fast-forward, no private recovery
+drafts, and no mounted editor/plugin sessions. It rechecks after transfer under
+the storage queue, pins both heads, and never saves versions, merges or sends
+phone changes. Success refreshes file and Sync lists without opening an editor
+or taking focus. Use manual Sync to send local changes and continue conflict
+review. Older desktop gateways without `/updates` quietly defer automatic pulls.
+
+Local Network permission must already be granted through foreground pairing.
+Apple denies a background request while permission is undetermined; see
+[local network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
+No immediate update is promised while suspended, force-quit, permission-denied,
+offline or restricted by iOS. Real device background launch/expiry and locked
+device behavior remain acceptance checks.
+
+Account login, cloud Sync and Publish entry points are hidden from the mobile UI.
+Phone-to-phone sync and Internet relay are outside this version; see [ALIGNMENT.md](ALIGNMENT.md).
 
 ## Architecture
 
