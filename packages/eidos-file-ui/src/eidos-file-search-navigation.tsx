@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { EidosFileSearchFocusProvider } from "./eidos-file-search-focus"
 
 export type EidosFileSearchNavigationDirection = "next" | "previous"
 
@@ -127,9 +128,11 @@ export function EidosFileSearchNavigationProvider({
   )
 
   return (
-    <EidosFileSearchNavigationContext.Provider value={value}>
-      {children}
-    </EidosFileSearchNavigationContext.Provider>
+    <EidosFileSearchFocusProvider scopeKey={scopeKey}>
+      <EidosFileSearchNavigationContext.Provider value={value}>
+        {children}
+      </EidosFileSearchNavigationContext.Provider>
+    </EidosFileSearchFocusProvider>
   )
 }
 

@@ -62,6 +62,7 @@ import {
   useUndoRedo,
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
+import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { useEidosFileGridTouch } from "./use-eidos-file-grid-touch"
 import {
@@ -581,6 +582,19 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridRef = useRef<DataEditorRef>(null)
   const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
+  const searchFocus = useEidosFileSearchFocus()
+  const [searchFocusRequest, setSearchFocusRequest] = useState<{
+    scope: typeof searchFocus
+  } | null>(null)
+  const acceptedSearchFocusRequestRef = useRef(searchFocusRequest)
+  const pendingSearchCellRestoreRef = useRef<typeof searchFocus>(null)
+  useLayoutEffect(
+    () =>
+      searchFocus?.registerTarget(() => {
+        setSearchFocusRequest({ scope: searchFocus })
+      }),
+    [searchFocus]
+  )
   const attachmentSourceCache = sharedEidosFileAttachmentSourceCache(
     assetSession,
     assetPresenter,
@@ -2086,35 +2100,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     lastActiveGridCellRef.current = history.gridSelection.current.cell
   }
 
-  useEffect(() => {
-    if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
-    acceptedFocusRequestTokenRef.current = focusRequestToken
-    if (!history.gridSelection?.current && rowCount > 0 && fields.length > 0) {
-      const previousCell = lastActiveGridCellRef.current ?? [0, 0]
-      const cell: Item = [
-        Math.min(Math.max(0, previousCell[0]), fields.length - 1),
-        Math.min(Math.max(0, previousCell[1]), rowCount - 1),
-      ]
-      history.onGridSelectionChange({
-        columns: CompactSelection.empty(),
-        rows: CompactSelection.empty(),
-        current: {
-          cell,
-          range: { x: cell[0], y: cell[1], width: 1, height: 1 },
-          rangeStack: [],
-        },
-      })
-    }
-    restoreGridFocus()
-  }, [
-    fields.length,
-    focusRequestToken,
-    history.gridSelection?.current,
-    history.onGridSelectionChange,
-    restoreGridFocus,
-    rowCount,
-  ])
-
   const refreshAfterRowCommand = useCallback((nextRowCount: number) => {
     rowCountRef.current = nextRowCount
     setRowCount(nextRowCount)
@@ -2286,6 +2271,68 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     rowHistorySchemaKey,
     table.table.id,
     view?.id,
+  ])
+
+  // Search clears the query and unmounts its focused input in the same commit.
+  // Restore a valid cell after the query's positional-selection reset. No
+  // delayed retry may reclaim focus from a new view, editor, or dialog.
+  useEffect(() => {
+    const searchClosed =
+      acceptedSearchFocusRequestRef.current !== searchFocusRequest
+    const hostRequested =
+      acceptedFocusRequestTokenRef.current !== focusRequestToken
+    acceptedSearchFocusRequestRef.current = searchFocusRequest
+    acceptedFocusRequestTokenRef.current = focusRequestToken
+    if (searchClosed && searchFocusRequest?.scope !== searchFocus) return
+    const pendingCell =
+      searchFocus !== null &&
+      pendingSearchCellRestoreRef.current === searchFocus
+    if (!searchClosed && !hostRequested && !pendingCell) return
+    const active = document.activeElement
+    const activeInGrid = containerRef.current?.contains(active) === true
+    const editing =
+      active instanceof HTMLElement &&
+      (active.isContentEditable || active.matches("input, textarea, select"))
+    if (
+      !hostRequested &&
+      (editing ||
+        (active !== document.body && active !== null && !activeInGrid) ||
+        (!searchClosed && !activeInGrid))
+    ) {
+      pendingSearchCellRestoreRef.current = null
+      return
+    }
+    pendingSearchCellRestoreRef.current =
+      rowCount === 0 || fields.length === 0 ? searchFocus : null
+    if (
+      !gridSelectionRef.current?.current &&
+      rowCount > 0 &&
+      fields.length > 0
+    ) {
+      const previousCell = lastActiveGridCellRef.current ?? [0, 0]
+      const cell: Item = [
+        Math.min(Math.max(0, previousCell[0]), fields.length - 1),
+        Math.min(Math.max(0, previousCell[1]), rowCount - 1),
+      ]
+      history.onGridSelectionChange({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell,
+          range: { x: cell[0], y: cell[1], width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    }
+    if (searchClosed || hostRequested) restoreGridFocus()
+  }, [
+    fields.length,
+    focusRequestToken,
+    history.onGridSelectionChange,
+    restoreGridFocus,
+    rowCount,
+    searchFocus,
+    searchFocusRequest,
   ])
 
   useEffect(() => {
