@@ -1,0 +1,43 @@
+name: Eidos File Web Browser Gates
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/eidos-file-web-gates.yml"
+      - "apps/eidos-file-web/e2e/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: file-web-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - uses: pnpm/setup@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos.space/eidos-file build
+      - run: pnpm --filter @eidos.space/eidos-file-web typecheck
+      - name: Install browser engines
+        run: pnpm --filter @eidos.space/eidos-file-web exec playwright install --with-deps chromium firefox webkit
+      - name: Exercise all browser projects
+        run: pnpm --filter @eidos.space/eidos-file-web test:e2e
+      - name: Retain browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: file-web-browser-evidence
+          path: apps/eidos-file-web/test-results/
+          if-no-files-found: warn
+          retention-days: 7
