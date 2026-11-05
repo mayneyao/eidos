@@ -11,6 +11,10 @@ on:
         description: "Verify production candidates, including signed macOS and Windows installers; never publish"
         type: boolean
         default: false
+      linux_candidates_only:
+        description: "Run only the Linux production candidate installation matrix"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - ".github/workflows/eidos-lite-desktop-gates.yml"
@@ -39,6 +43,7 @@ env:
 jobs:
   macos-clone-fixture:
     name: Prepare macOS clone fixture
+    if: ${{ !inputs.linux_candidates_only }}
     # This fixture tests macOS-to-Windows portability, independent of CPU ISA.
     runs-on: macos-15-intel
     timeout-minutes: 15
@@ -277,8 +282,34 @@ jobs:
           test "$(realpath "$executable")" = /opt/eidos-lite/eidos-lite-desktop
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
+      - name: Verify Linux production candidate upgrade and rollback
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          installer="$(find apps/eidos-lite-desktop/dist-app -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$installer"
+          installer="$(realpath "$installer")"
+          version="$(node -p 'require("./apps/eidos-lite-desktop/package.json").version')"
+          dbus-run-session -- xvfb-run --auto-servernum \
+            node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs \
+            --previous-tag=lite-v0.31.0 "--candidate=$installer" \
+            "--version=$version" "--evidence=$RUNNER_TEMP/production-candidate-installation"
+
+      - name: Retain Linux production candidate installation evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signed_mac_candidates }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-candidate-installation-linux-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/production-candidate-installation
+          if-no-files-found: warn
+          retention-days: 7
+
   source-and-real-graft:
     name: Source and real Graft SDK
+    if: ${{ !inputs.linux_candidates_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -329,6 +360,7 @@ jobs:
 
   packaged-macos:
     name: Packaged smoke (${{ matrix.architecture }})
+    if: ${{ !inputs.linux_candidates_only }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 50
     strategy:
