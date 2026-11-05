@@ -328,6 +328,42 @@ enum PeerSync {
     static func downloadWarnings(_ space: LocalSpace) -> [String] {
         UserDefaults.standard.stringArray(forKey: "peer-download-unsupported:" + LocalSpace.storageIdentity(space.root)) ?? []
     }
+    static func pullUpdates(_ space: LocalSpace, profile: PeerProfile, allowed: () -> Bool) throws -> String {
+        func safe() throws -> Bool {
+            // A locked/unreadable recovery directory is unknown state, not clean.
+            let recordDrafts = space.privateRoot.appendingPathComponent("RecordDrafts")
+            for directory in [DraftStore.shared.root, recordDrafts] {
+                do {
+                    let entries = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+                    if directory == recordDrafts && !entries.isEmpty { return false }
+                }
+                catch let error as NSError {
+                    if error.domain != NSCocoaErrorDomain || error.code != NSFileReadNoSuchFileError { return false }
+                }
+            }
+            guard allowed(), !DraftStore.shared.hasDraft(under: space.root), !RecordDraftStore.hasDraft(space),
+                  let saved = try load(space), saved.fingerprint == profile.fingerprint,
+                  saved.space == profile.space, saved.token == profile.token else { return false }
+            let catalog = try SpaceCatalog()
+            return catalog.spaces.contains { LocalSpace.storageIdentity(catalog.root($0)) == LocalSpace.storageIdentity(space.root) && catalog.peerSpaceID(for: $0, fingerprint: profile.fingerprint) == profile.space }
+        }
+        guard FileManager.default.fileExists(atPath: space.root.appendingPathComponent(".graft").path), try safe() else { return "skipped" }
+        let connected = try reconnect(profile)
+        let tunnel = try PeerTunnel(url: connected.url, fingerprint: connected.fingerprint)
+        defer { tunnel.close() }
+        _ = try Runtime.call(space.root, "graft:peerConfigure", ["url": tunnel.remoteURL, "token": profile.token])
+        let checked = try Runtime.call(space.root, "graft:peerAutoCheck") as? [String: Any] ?? [:]
+        guard checked["outcome"] as? String == "ready", let expected = checked["expectedHead"] as? String else { return "skipped" }
+        let remote = try tunnel.call("/updates", token: profile.token, timeout: 10)
+        guard remote["protocol"] as? Int == 1, remote["space"] as? String == profile.space, let target = remote["head"] as? String else { return "skipped" }
+        _ = try Runtime.call(space.root, "graft:peerFetch")
+        try SyncHTTP.checkCancellation(Runtime.cancellation)
+        return try PeerAutoSync.withCheckout {
+            guard try safe() else { return "skipped" }
+            let result = try Runtime.call(space.root, "graft:peerAutoApply", ["expectedHead": expected, "expectedTarget": target]) as? [String: Any] ?? [:]
+            return result["outcome"] as? String ?? "skipped"
+        }
+    }
     static func sync(_ space: LocalSpace, profile: PeerProfile, progress: (String) -> Void) throws {
         guard try MergeReview.load(space) == nil else { throw LocalError.message(tr("请先完成或中止当前合并")) }
         progress(tr("正在查找已配对电脑"))

@@ -194,6 +194,7 @@ describe("LAN device sync", () => {
           }
         )
       expect((await call("/sync", "wrong")).status).toBe(401)
+      expect((await call("/updates", "wrong")).status).toBe(401)
       expect(
         (await call("/pair", data.ticket, { name: "Test phone" })).status
       ).toBe(202)
@@ -325,6 +326,39 @@ describe("LAN device sync", () => {
       })
       expect(await fs.readFile(path.join(phone, "note.md"), "utf8")).toBe(
         "desktop version"
+      )
+      const committed = (await graft.status(root)).currentHead
+      await fs.writeFile(path.join(root, "note.md"), "unsaved desktop work")
+      const updates = await call("/updates", token)
+      expect(updates.value).toEqual({
+        protocol: 1,
+        space: session.canonical.id,
+        head: committed,
+      })
+      expect((await graft.status(root)).currentHead).toBe(committed)
+      expect((await graft.status(root)).dirty).toBe(true)
+      await mobile.fetch({ remote: "eidos-peer", branch: "main" })
+      expect(
+        (await mobile.planMerge({ revision: "eidos-peer/main" })).kind
+      ).toBe("up_to_date")
+      await fs.writeFile(path.join(root, "note.md"), "desktop version")
+      // Refresh new commits without importing phone history or saving edits.
+      await fs.writeFile(
+        path.join(root, "committed.md"),
+        "new committed version"
+      )
+      await session.createCheckpoint("new committed version")
+      const newHead = (await graft.status(root)).currentHead
+      expect((await call("/updates", token)).value.head).toBe(newHead)
+      await mobile.fetch({ remote: "eidos-peer", branch: "main" })
+      const updatePlan = await mobile.planMerge({ revision: "eidos-peer/main" })
+      expect(updatePlan.kind).toBe("fast_forward")
+      await mobile.applyMerge({
+        revision: "eidos-peer/main",
+        planToken: updatePlan.plan_token,
+      })
+      expect(await fs.readFile(path.join(phone, "committed.md"), "utf8")).toBe(
+        "new committed version"
       )
       await fs.writeFile(path.join(phone, "note.md"), "phone version")
       await mobile.addAll()

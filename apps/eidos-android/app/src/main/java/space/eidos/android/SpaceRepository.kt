@@ -512,6 +512,39 @@ class SpaceRepository(
     /** Called only with editors closed; all worktree replacement uses this IO lock. */
     suspend fun syncRemote(publish: Boolean = false): String = io { syncRemoteLocked(publish) {} }
 
+    internal suspend fun pullPeerUpdates(
+        connection: PeerConnection,
+        remoteSpace: String,
+        allowed: () -> Boolean,
+    ): String = connection.cancellable {
+        io {
+            fun hasDrafts(directory: File): Boolean =
+                if (!directory.exists()) false else directory.listFiles()?.isNotEmpty() ?: true
+            fun safe() = allowed() &&
+                !hasDrafts(drafts) && !hasDrafts(File(context.filesDir, "record-drafts")) &&
+                SpaceCatalog(context).peerRemoteSpace(connection.fingerprint, spaceId) == remoteSpace &&
+                PeerConnection.load(context, spaceId)?.let { it.fingerprint == connection.fingerprint && it.token == connection.token } == true
+            if (!root.resolve(".graft").isDirectory || !safe()) return@io "skipped"
+            NativeRuntime.close()
+            connection.tunnel().use { tunnel ->
+                NativeGraft.cancellable { id ->
+                    NativeGraft.call(root.path, "peerConfigure", JSONObject().put("url", tunnel.remoteUrl).put("token", connection.token), id)
+                    val checked = NativeGraft.call(root.path, "peerAutoCheck", cancellationId = id)
+                    if (checked.optString("outcome") != "ready") return@cancellable "skipped"
+                    val remote = connection.call("/updates", timeoutMillis = 10_000)
+                    if (remote.optInt("protocol") != 1 || remote.optString("space") != remoteSpace || remote.isNull("head"))
+                        return@cancellable "skipped"
+                    NativeGraft.call(root.path, "peerFetch", cancellationId = id)
+                    currentCoroutineContext().ensureActive()
+                    if (!safe()) return@cancellable "skipped"
+                    NativeGraft.call(root.path, "peerAutoApply", JSONObject()
+                        .put("expectedHead", checked.getString("expectedHead"))
+                        .put("expectedTarget", remote.getString("head")), id).getString("outcome")
+                }
+            }
+        }
+    }
+
     internal suspend fun syncPeer(
         connection: PeerConnection,
         transfer: (Long, Long) -> Unit = { _, _ -> },

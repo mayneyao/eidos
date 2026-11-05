@@ -108,7 +108,19 @@ struct SpaceView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { controller.flush() }
+                if phase != .active { PeerAutoSync.cancelActive() }
                 if phase == .background { BackgroundSync.schedule() }
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                BackgroundSync.schedule()
+                while !Task.isCancelled {
+                    PeerAutoSync.request()
+                    do { try await Task.sleep(for: .seconds(60)) } catch { break }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: PeerAutoSync.changed)) { notification in
+                if notification.object as? URL == space?.root { refreshPlugins() }
             }
             .alert(tr("新建 Space"), isPresented: $creatingSpace) {
                 TextField(tr("名称"), text: $spaceName)

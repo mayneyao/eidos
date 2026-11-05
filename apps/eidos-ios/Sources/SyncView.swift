@@ -179,6 +179,9 @@ struct SyncView: View {
                 }
                 .interactiveDismissDisabled(busy)
                 .task { refreshConnection(); if scenePhase == .active { peerPresence.start() } }
+                .onReceive(NotificationCenter.default.publisher(for: PeerAutoSync.changed)) { _ in
+                    if !busy { refreshConnection() }
+                }
                 .onChange(of: peerPresence.revision) { _, _ in refreshAvailability() }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { peerPresence.start() }

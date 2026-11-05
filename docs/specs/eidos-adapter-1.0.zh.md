@@ -2193,6 +2193,28 @@ recovery/staging 用 restrictive private/scoped temp。启动先检查 incomplet
 只有证明 source 是 verified old/new 且无更新 recovery 才清理。watcher 只是 hint；
 inode/file-ID/symlink/permission/delete change 均走 external-change。
 
+### 12.1 可选的局域网自动更新
+
+原生 Host 可以静默拉取已配对局域网设备的已提交版本。访问历史前必须认证保存的
+设备身份，并核对保存的仓库关联。发现服务只提供地址线索，不得授予信任或按显示
+名称关联仓库。
+
+自动替换必须要求本机历史已初始化，没有私有待保存草稿、活动编辑器或插件会话，
+没有 unstaged/staged 修改、冲突或活动合并，且能证明是从当前本机 head 的
+fast-forward。工作区干净本身不允许覆盖本机独有提交。自动拉取不得保存版本、
+合并或上传本机修改。将现有已提交历史导出到配对网关私有只读缓存时，不得保存
+导出设备的未提交编辑，也不得消费 incoming 历史。
+
+Host 必须把 checkout 与本地文件、附件及 Runtime 写入串行化，在传输后复核草稿与
+编辑器授权，并在应用临界区比较预期本机 head 和设备声明的目标。head、目标、
+dirty 状态或合并计划变化时必须拒绝应用。重复触发与手动同步必须共用仓库串行化
+边界。取消、传输失败或挂起复用 Host 的 checkout/recovery 保证；fetch 失败后不得
+应用缓存 ref。成功更新须使相关读取失效，同时不得丢弃草稿、抢占焦点或重新挂载
+活动编辑器。
+
+调度属于平台策略，不是 Runtime 能力。Host 必须区分前台补拉与操作系统后台调度，
+不得承诺挂起、强制退出、权限拒绝或离线时仍会即时执行。
+
 ## 13. Composition facade 映射
 
 `EA-Host-1.0` 暴露以下规范性的高层 UI-facing composition binding。它由
@@ -2585,6 +2607,10 @@ descriptor/token、logical revision、sidecar，而非只看 exception。
 consistent read、import/validation failure 也在 `finally` release、release 后 reject、
 repeated release 与 session-close cleanup；并覆盖 publication active 时 frozen
 snapshot 后新 mutation 返回 `busy`。
+
+实现 §12.1 的 Host 还须测试 clean/ahead 更新、重复与旧 peer head、本机独有或分叉
+提交、staged/unstaged SQLite 与附件修改、私有草稿与编辑器 lease、检查和应用之间
+发生编辑、head/目标变化、取消及 fetch 失败后不执行 checkout。
 
 ### 15.3 Transport transcripts
 

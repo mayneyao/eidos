@@ -53,6 +53,7 @@ struct MobilePluginView: UIViewRepresentable {
         web.stopLoading()
     }
     final class Coordinator: NSObject, WKScriptMessageHandlerWithReply, WKURLSchemeHandler, WKNavigationDelegate, UIDocumentPickerDelegate {
+        private let autoSyncLease = PeerAutoSync.EditorLease()
         let service: MobilePluginService
         let dark: Bool
         let open: (URL) -> Void

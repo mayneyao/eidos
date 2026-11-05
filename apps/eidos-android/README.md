@@ -193,8 +193,31 @@ The shared delivery checklist and verification commands are in
 [Mobile LAN v1](../eidos-ios/ALIGNMENT.md).
 
 Account login, cloud connection/download, custom remote connection and Publish
-entry points are hidden from the mobile UI. Mobile LAN v1 does not schedule
-background LAN transfers or provide phone-to-phone sync or an Internet relay.
+entry points are hidden from the mobile UI. Phone-to-phone sync and an Internet
+relay are not provided.
+
+### Automatic committed updates
+
+Downloaded, paired Spaces automatically check for committed desktop updates
+after launch/resume and every minute while the foreground is idle. Android also
+schedules a unique WorkManager job on leaving the app and periodic work on an
+unmetered network. The periodic interval is 15 minutes; Android may delay or stop
+work for system conditions. This is best effort, not an always-running service.
+See [Android's scheduling rules](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work).
+
+Only clean fast-forwards are applied. Private recovery drafts, open editors or
+retained plugin pages, staged/uncommitted changes, conflicts and diverged local
+history defer the update. Checks repeat after fetching, under the same storage
+boundary as file and Runtime writes. Automatic updates never save a checkpoint,
+merge, or send phone changes. Use manual Sync to send local changes or continue
+desktop conflict review. The desktop must support the authenticated `/updates`
+protocol; older versions quietly defer automatic updates.
+
+Pairing permissions and pinned device identity still apply. The current app
+targets SDK 36 and uses `INTERNET`; [Android's LAN permission rules](https://developer.android.com/privacy-and-security/local-network-permission)
+require a separate runtime permission when targeting SDK 37 or later. Offline,
+force-stopped and OS-restricted apps cannot promise immediate updates. Real
+device background scheduling and suspension remain acceptance checks.
 
 ## Files and editing
 
@@ -612,5 +635,6 @@ desktop Sync merge workspace. Android retains an editable local copy and shows
 the desktop review guidance. After resolving conflicts on the desktop, tap
 **Sync now** on Android to receive the reviewed result and include any edits
 made on the phone while waiting.
-It has no Internet relay, NAT traversal, or automatic background device sync.
+It has no Internet relay or NAT traversal. Automatic committed updates follow
+the conditions above; manual two-way transfers stay in the foreground.
 Progress reports operation stages and transferred bytes.
