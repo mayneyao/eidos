@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileFilterGroup,
@@ -30,6 +37,7 @@ import {
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
+import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import {
   eidosFileDateTimeInputValue,
   eidosFileInstantFromInputValue,
@@ -1716,11 +1724,37 @@ export function EidosFileQueryToolbar({
       : searchResultIndex
   const navigateSearch =
     onNavigateSearch ?? searchNavigation?.navigateSearchResults
+  const searchFocus = useEidosFileSearchFocus()
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchTriggerRef = useRef<HTMLButtonElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const pendingReturnFocusRef = useRef(false)
   const [showSearch, setShowSearch] = useState(Boolean(search))
   useEffect(() => {
-    if (showSearch) inputRef.current?.focus()
+    if (!showSearch) return
+    const active = document.activeElement
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !inputRef.current?.parentElement?.contains(active)
+    ) {
+      returnFocusRef.current = active
+    }
+    inputRef.current?.focus()
   }, [showSearch])
+  useLayoutEffect(() => {
+    if (showSearch || !pendingReturnFocusRef.current) return
+    pendingReturnFocusRef.current = false
+    if (document.activeElement !== document.body) return
+    const previous = returnFocusRef.current
+    const target = previous?.isConnected ? previous : searchTriggerRef.current
+    target?.focus({ preventScroll: true })
+  }, [showSearch])
+  const closeSearch = () => {
+    onSearchChange("")
+    setShowSearch(false)
+    pendingReturnFocusRef.current = !searchFocus?.restoreFocus()
+  }
   useEffect(() => {
     if (focusSearchToken <= 0) return
     setShowSearch(true)
@@ -1750,7 +1784,20 @@ export function EidosFileQueryToolbar({
       data-eidos-file-query-toolbar
     >
       {showSearch ? (
-        <div className="eidos-file-workbar-search flex h-7 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs">
+        <div
+          className="eidos-file-workbar-search flex h-7 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs"
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Escape" ||
+              event.nativeEvent.isComposing ||
+              event.nativeEvent.keyCode === 229
+            )
+              return
+            event.preventDefault()
+            event.stopPropagation()
+            closeSearch()
+          }}
+        >
           <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
@@ -1760,11 +1807,11 @@ export function EidosFileQueryToolbar({
             className="min-w-0 flex-1 bg-transparent text-xs outline-hidden placeholder:text-muted-foreground"
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                onSearchChange("")
-                setShowSearch(false)
+              if (
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              )
                 return
-              }
               if (event.key === "Enter" && hasResults) {
                 event.preventDefault()
                 navigateSearch?.(event.shiftKey ? "previous" : "next")
@@ -1810,16 +1857,14 @@ export function EidosFileQueryToolbar({
             size="icon"
             className="h-5 w-5 shrink-0 text-muted-foreground"
             aria-label={t("Close search")}
-            onClick={() => {
-              onSearchChange("")
-              setShowSearch(false)
-            }}
+            onClick={closeSearch}
           >
             <X className="h-3 w-3" />
           </Button>
         </div>
       ) : (
         <Button
+          ref={searchTriggerRef}
           type="button"
           variant="ghost"
           size="sm"
