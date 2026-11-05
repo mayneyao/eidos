@@ -48,6 +48,7 @@ struct EditorView: UIViewRepresentable {
         coordinator.queue.async { _ = try? Runtime.call(coordinator.file, "close") }
     }
     final class Coordinator: NSObject, WKScriptMessageHandlerWithReply, WKURLSchemeHandler, WKNavigationDelegate, UIDocumentPickerDelegate, PHPickerViewControllerDelegate {
+        private let autoSyncLease = PeerAutoSync.EditorLease()
         var file: URL
         let space: LocalSpace
         let dark: Bool

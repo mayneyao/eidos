@@ -455,32 +455,36 @@ export class TenantLocatorDurableObject extends DurableObject<Env> {
 
   async getOrCreate(userId: string): Promise<string> {
     await this.ready
-    const existing = this.ctx.storage.sql
-      .exec<LocatorRow>(
-        "SELECT owner_user_id, public_site_id FROM tenant_locator WHERE singleton = 1"
-      )
-      .toArray()[0]
-    if (existing !== undefined) {
-      if (existing.owner_user_id !== userId)
-        throw new Error("tenant locator owner mismatch")
-      return existing.public_site_id
-    }
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const candidate = randomPublicSiteId()
-      if (
-        !(await this.env.PUBLIC_SITE_CLAIMS.getByName(candidate).claim(userId))
-      )
-        continue
-      this.ctx.storage.sql.exec(
-        `INSERT INTO tenant_locator (singleton, owner_user_id, public_site_id, created_at)
+    return await this.ctx.blockConcurrencyWhile(async () => {
+      const existing = this.ctx.storage.sql
+        .exec<LocatorRow>(
+          "SELECT owner_user_id, public_site_id FROM tenant_locator WHERE singleton = 1"
+        )
+        .toArray()[0]
+      if (existing !== undefined) {
+        if (existing.owner_user_id !== userId)
+          throw new Error("tenant locator owner mismatch")
+        return existing.public_site_id
+      }
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = randomPublicSiteId()
+        if (
+          !(await this.env.PUBLIC_SITE_CLAIMS.getByName(candidate).claim(
+            userId
+          ))
+        )
+          continue
+        this.ctx.storage.sql.exec(
+          `INSERT INTO tenant_locator (singleton, owner_user_id, public_site_id, created_at)
          VALUES (1, ?, ?, ?)`,
-        userId,
-        candidate,
-        new Date().toISOString()
-      )
-      return candidate
-    }
-    throw new Error("could not allocate a unique Public Site ID")
+          userId,
+          candidate,
+          new Date().toISOString()
+        )
+        return candidate
+      }
+      throw new Error("could not allocate a unique Public Site ID")
+    })
   }
 }
 
@@ -508,6 +512,11 @@ export class PublishTenant extends DurableObject<Env> {
           access_revision INTEGER NOT NULL,
           access_checked_at TEXT NOT NULL,
           created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS tenant_custom_domain (
+          singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+          hostname TEXT NOT NULL,
+          binding_id TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS publication (
           publication_id TEXT PRIMARY KEY,
@@ -914,6 +923,53 @@ export class PublishTenant extends DurableObject<Env> {
           claimId
         )
         .one().count === 1
+    )
+  }
+
+  async reserveCustomDomain(
+    hostname: string
+  ): Promise<{ hostname: string; bindingId: string } | null> {
+    await this.ready
+    const tenant = this.tenant()
+    if (tenant?.plan !== "pro" || tenant.status !== "active") return null
+    return this.ctx.storage.transactionSync(() => {
+      const existing = this.ctx.storage.sql
+        .exec<{ hostname: string; binding_id: string }>(
+          "SELECT hostname, binding_id FROM tenant_custom_domain WHERE singleton = 1"
+        )
+        .toArray()[0]
+      if (existing)
+        return existing.hostname === hostname
+          ? { hostname: existing.hostname, bindingId: existing.binding_id }
+          : null
+      const bindingId = crypto.randomUUID()
+      this.ctx.storage.sql.exec(
+        "INSERT INTO tenant_custom_domain (singleton, hostname, binding_id) VALUES (1, ?, ?)",
+        hostname,
+        bindingId
+      )
+      return { hostname, bindingId }
+    })
+  }
+
+  async getCustomDomain(): Promise<{
+    hostname: string
+    bindingId: string
+  } | null> {
+    await this.ready
+    const row = this.ctx.storage.sql
+      .exec<{ hostname: string; binding_id: string }>(
+        "SELECT hostname, binding_id FROM tenant_custom_domain WHERE singleton = 1"
+      )
+      .toArray()[0]
+    return row ? { hostname: row.hostname, bindingId: row.binding_id } : null
+  }
+
+  async clearCustomDomain(bindingId: string): Promise<void> {
+    await this.ready
+    this.ctx.storage.sql.exec(
+      "DELETE FROM tenant_custom_domain WHERE singleton = 1 AND binding_id = ?",
+      bindingId
     )
   }
 

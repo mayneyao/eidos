@@ -26,6 +26,7 @@ import { FilePropertiesSection } from "./file-properties-section"
 import { FilePropertiesFields } from "./file-properties-fields"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { useEidosLiteI18n } from "./i18n"
+import { formatBytes } from "./format-bytes"
 import type { ResolvedAppearance } from "./app-appearance"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import type { EidosLiteApi } from "../shared/contracts"
@@ -143,7 +144,6 @@ interface FilePropertiesContentProps {
   theme: ResolvedAppearance
   refreshToken: number | string
   iconUrl?: string
-  spacePath?: string
   onContentHeight?(height: number): void
   onReleaseEidosFile(sessionId: string): Promise<void>
   onChanged(snapshot: EidosFileSnapshot): void
@@ -371,10 +371,24 @@ export const FilePropertiesContent = forwardRef<
     return field ? model?.row[field.tableColumnName] : undefined
   }
   const byteCount = systemValue("size")
+  const size =
+    typeof byteCount === "number"
+      ? byteCount
+      : typeof byteCount === "string" && byteCount.trim() !== ""
+        ? Number(byteCount)
+        : NaN
+  const exactSizeText =
+    Number.isFinite(size) && size >= 0
+      ? t("{count} bytes", { count: size.toLocaleString(locale) })
+      : undefined
   const sizeText =
-    byteCount == null
-      ? ""
-      : t("{count} bytes", { count: Number(byteCount).toLocaleString(locale) })
+    exactSizeText === undefined
+      ? "—"
+      : size < 1024
+        ? exactSizeText
+        : formatBytes(size, locale)
+  const locationPath =
+    basic?.path === displayPath ? basic.locationPath : undefined
   const modified = systemValue("_updated_at")
   const modifiedDate = modified ? new Date(String(modified)) : null
   const modifiedText =
@@ -573,7 +587,9 @@ export const FilePropertiesContent = forwardRef<
                 : ""}
             </small>
           </div>
-          <span className="file-properties-size">{sizeText}</span>
+          <span className="file-properties-size" title={exactSizeText}>
+            {sizeText}
+          </span>
         </div>
         {loading && (
           <p className="file-sidebar-status" role="status">
@@ -623,18 +639,14 @@ export const FilePropertiesContent = forwardRef<
                   "_updated_at",
                 ].map((name) => {
                   if (name === "location") {
-                    const parent = [
-                      props.spacePath,
-                      ...displayPath.split("/").slice(0, -1),
-                    ]
-                      .filter(Boolean)
-                      .join("/")
                     return (
                       <div key={name}>
                         <dt>{t("Where")}:</dt>
                         <dd className="file-properties-path">
-                          <span>{parent || displayPath}</span>
-                          <CopyPathButton path={parent || displayPath} />
+                          <span>{locationPath ?? "—"}</span>
+                          {locationPath && (
+                            <CopyPathButton path={locationPath} />
+                          )}
                         </dd>
                       </div>
                     )
@@ -657,7 +669,9 @@ export const FilePropertiesContent = forwardRef<
                   return (
                     <div key={name}>
                       <dt>{t(BASIC_FIELDS[name]!)}:</dt>
-                      <dd>{text}</dd>
+                      <dd title={name === "size" ? exactSizeText : undefined}>
+                        {text}
+                      </dd>
                     </div>
                   )
                 })}

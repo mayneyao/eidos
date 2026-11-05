@@ -104,6 +104,12 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
         var morePages by remember { mutableStateOf(false) }
         val activePage = navigationPages.find { it.key == selectedPage }
         val keptPage = navigationPages.find { it.key == retainedPage }
+        // Retained plugin pages can keep private drafts or write while hidden.
+        DisposableEffect(keptPage) {
+            val owner = Any()
+            if (keptPage != null) BackgroundSyncGate.update(owner, true)
+            onDispose { BackgroundSyncGate.remove(owner) }
+        }
         LaunchedEffect(navigationPages) {
             if (activePage == null) selectedPage = null
             if (keptPage == null) retainedPage = null

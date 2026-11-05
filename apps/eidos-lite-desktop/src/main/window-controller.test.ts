@@ -8,6 +8,7 @@ import type { SpaceCloneCoordinator } from "./sync/space-clone-coordinator"
 const mocks = vi.hoisted(() => ({
   sessionModuleLoads: 0,
   window: null as unknown,
+  windows: null as unknown[] | null,
   create: vi.fn(),
   record: vi.fn(async () => {}),
   saveDialog: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock("electron", () => ({
   BrowserWindow: {
     fromWebContents: () => mocks.window,
     getFocusedWindow: () => mocks.window,
-    getAllWindows: () => [mocks.window],
+    getAllWindows: () => mocks.windows ?? [mocks.window],
   },
   nativeTheme: { on: vi.fn() },
   clipboard: {},
@@ -65,6 +66,7 @@ import { WindowController } from "./window-controller"
 import { DEFAULT_EIDOS_LITE_PREFERENCES } from "./app-preferences"
 
 function fixture() {
+  mocks.windows = null
   const contents = Object.assign(new EventEmitter(), {
     id: 1,
     isDestroyed: () => false,
@@ -96,8 +98,56 @@ function fixture() {
   vi.spyOn(internals, "promoteToSpaceWindow").mockImplementation(() => {})
   vi.spyOn(controller.textDraftClose, "prepare").mockResolvedValue(true)
   const owner = contents as unknown as WebContents
+  const kinds = (
+    controller as unknown as { windowKind: WeakMap<BrowserWindow, string> }
+  ).windowKind
+  kinds.set(window as unknown as BrowserWindow, "space")
   return { controller, contents, window, owner }
 }
+
+it("routes install links to a workbench instead of the focused Settings window", async () => {
+  const { controller, window, owner } = fixture()
+  const kinds = (
+    controller as unknown as { windowKind: WeakMap<BrowserWindow, string> }
+  ).windowKind
+  kinds.set(window as unknown as BrowserWindow, "settings")
+  const workbench = Object.assign(new EventEmitter(), {
+    ...window,
+    webContents: { ...window.webContents, id: 2, send: vi.fn() },
+  })
+  kinds.set(workbench as unknown as BrowserWindow, "space")
+  mocks.windows = [window, workbench]
+  ;(
+    controller as unknown as { sessionByWebContents: Map<number, unknown> }
+  ).sessionByWebContents.set(2, session("space-2"))
+  expect(await controller.showPluginInstall("test.plugin")).toBe(workbench)
+  expect(window.webContents.send).not.toHaveBeenCalled()
+  expect(controller.getPluginInstallIntent(owner)).toBeNull()
+  const contents = workbench.webContents as unknown as WebContents
+  const first = controller.getPluginInstallIntent(contents)!
+  // Requests remain available until a ready renderer acknowledges them.
+  expect(controller.getPluginInstallIntent(contents)).toEqual(first)
+  await controller.showPluginInstall("test.other")
+  controller.acknowledgePluginInstallIntent(contents, first.sequence)
+  const latest = controller.getPluginInstallIntent(contents)!
+  expect(latest.id).toBe("test.other")
+  controller.acknowledgePluginInstallIntent(contents, latest.sequence)
+  expect(controller.getPluginInstallIntent(contents)).toBeNull()
+})
+
+it("restores the last Space before presenting a cold plugin install", async () => {
+  const { controller, window, owner } = fixture()
+  mocks.window = null
+  mocks.windows = []
+  const startup = vi
+    .spyOn(controller, "createStartupWindow")
+    .mockResolvedValue(window as unknown as BrowserWindow)
+  const reopen = vi.spyOn(controller, "openDefaultWindow").mockResolvedValue()
+  expect(await controller.showPluginInstall("test.plugin")).toBe(window)
+  expect(startup).toHaveBeenCalledOnce()
+  expect(reopen).toHaveBeenCalledWith(window)
+  expect(controller.getPluginInstallIntent(owner)?.id).toBe("test.plugin")
+})
 function session(id: string) {
   const snapshot = { id, name: id } as SpaceSnapshot
   return {

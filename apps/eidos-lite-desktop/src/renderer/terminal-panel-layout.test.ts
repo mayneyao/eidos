@@ -14,7 +14,7 @@ it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench g
     appHtml,
     ipcSource,
     controllerSource,
-    settingsSource,
+    terminalSettingsSource,
   ] = await Promise.all([
     fs.readFile(path.join(rendererRoot, "app.tsx"), "utf8"),
     fs.readFile(path.join(rendererRoot, "terminal-panel.tsx"), "utf8"),
@@ -25,7 +25,7 @@ it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench g
       path.join(rendererRoot, "../main/window-controller.ts"),
       "utf8"
     ),
-    fs.readFile(path.join(rendererRoot, "settings-page.tsx"), "utf8"),
+    fs.readFile(path.join(rendererRoot, "terminal-plugin-details.tsx"), "utf8"),
   ])
 
   expect(appSource).toContain('"toggle-terminal"')
@@ -162,11 +162,11 @@ it("integrates an opt-in, persistent, multi-tab xterm panel into the workbench g
   expect(terminalActionIndex).toBeGreaterThan(-1)
   expect(terminalActionIndex).toBeLessThan(historyActionIndex)
   expect(historyActionIndex).toBeLessThan(syncActionIndex)
-  expect(settingsSource).toContain('data-built-in-plugin="terminal"')
-  expect(settingsSource).toContain("TERMINAL_LAYOUT_OPTIONS")
-  expect(settingsSource).toContain("preferences.terminalLayout")
-  expect(settingsSource).toContain(".listTerminalShells()")
-  expect(settingsSource).toContain("preferences.terminalShell")
+  expect(terminalSettingsSource).toContain('data-built-in-plugin="terminal"')
+  expect(terminalSettingsSource).toContain('t("Terminal layout")')
+  expect(terminalSettingsSource).toContain("preferences.terminalLayout")
+  expect(terminalSettingsSource).toContain(".listTerminalShells()")
+  expect(terminalSettingsSource).toContain("preferences.terminalShell")
   const terminalStartHandler = ipcSource.slice(
     ipcSource.indexOf("IPC_CHANNELS.terminalStart")
   )

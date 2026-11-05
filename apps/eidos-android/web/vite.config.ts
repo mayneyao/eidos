@@ -9,6 +9,43 @@ export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   base: "./",
   plugins: [react(), tailwindcss()],
+  css: {
+    postcss: {
+      plugins: [
+        {
+          postcssPlugin: "android-native-scrollbars",
+          Rule(rule) {
+            // Even an `all: revert` override leaves a matching scrollbar pseudo
+            // element and opts WebView into non-fading, desktop-style painting.
+            // Strip that styling only from Android's bundled editor/workbench.
+            // Keep intentional hidden bars (for example the horizontal tabs).
+            const hidesScrollbar = rule.nodes.some(
+              (node) =>
+                node.type === "decl" &&
+                node.prop === "display" &&
+                node.value === "none"
+            )
+            const selectors = rule.selectors.filter(
+              (selector) =>
+                !selector.includes("::-webkit-scrollbar") ||
+                (hidesScrollbar && selector.endsWith("::-webkit-scrollbar"))
+            )
+            if (selectors.length === 0) rule.remove()
+            else rule.selectors = selectors
+          },
+          Declaration(declaration) {
+            if (
+              declaration.prop === "scrollbar-color" ||
+              (declaration.prop === "scrollbar-width" &&
+                declaration.value !== "none")
+            ) {
+              declaration.remove()
+            }
+          },
+        },
+      ],
+    },
+  },
   resolve: {
     alias: [
       {

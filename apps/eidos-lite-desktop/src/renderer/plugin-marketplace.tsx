@@ -4,6 +4,7 @@ import {
   type PluginMarketplace,
   type PluginInstallTask,
   isPluginUpdateAvailable,
+  isPluginInstallActive,
 } from "../shared/plugins"
 import { PluginIcon, getPluginIconBadgeStyle } from "./plugin-icon"
 import { useEidosLiteI18n } from "./i18n"
@@ -28,7 +29,7 @@ export function PluginMarketplaceInstallButton({
   const isQueued = task?.status === "queued"
   const isDownloading = task?.status === "downloading"
   const isInstalling = task?.status === "installing"
-  const inProgress = Boolean(task)
+  const inProgress = isPluginInstallActive(task)
 
   const isPrimary = hasUpdate || (!installed && !same)
 

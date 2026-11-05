@@ -139,6 +139,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     private var searchVersion = 0
     private var navigationVersion = 0
     private var foreground = false
+    private var peerAutoJob: Job? = null
     private val documentHistory = mutableListOf<String>()
 
     init {
@@ -172,6 +173,12 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 .onSuccess { user -> mutable.update { it.copy(account = user) } }
         }
         viewModelScope.coroutineContext[Job]?.invokeOnCompletion { BackgroundSyncGate.remove(this) }
+        viewModelScope.launch {
+            PeerAutoSync.changes.collect { id ->
+                if (foreground) mutable.update { it.copy(peerLocalSpaces = catalog.peerLocalSpaces()) }
+                if (foreground && repository.spaceId == id) refreshAfterPeerUpdate()
+            }
+        }
         viewModelScope.launch {
             state
                 .map { it.spaceId }
@@ -217,12 +224,48 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                 current.webFile != null ||
                 current.pluginFile != null ||
                 current.pendingShares.isNotEmpty(),
+            lanBlocked = current.busy || current.peerBusy || current.mergeReview != null ||
+                current.webFile != null || current.pluginFile != null || current.pendingShares.isNotEmpty(),
         )
+    }
+
+    private suspend fun refreshAfterPeerUpdate() {
+        val lease = BackgroundSyncGate.lanLease() ?: return
+        val source = repository
+        var folder = mutable.value.folder
+        try {
+            val files = try { source.files(folder) } catch (_: IllegalArgumentException) {
+                folder = ""
+                source.files(folder)
+            }
+            val recent = source.recent()
+            val favorites = source.favorites()
+            val favoriteFiles = source.favoriteFiles(favorites)
+            val graft = if (mutable.value.tab == MainTab.Sync) source.graftStatus() else mutable.value.graft
+            if (source !== repository || !BackgroundSyncGate.lanAllowed(lease)) return
+            mutable.update { it.copy(folder = folder, files = files, recent = recent,
+                favorites = favorites.filter { favorite -> favorite.path in favoriteFiles },
+                favoriteFiles = favoriteFiles, graft = graft) }
+            if (mutable.value.search.isNotBlank()) search(mutable.value.search)
+        } catch (error: CancellationException) { throw error }
+        catch (_: Exception) { /* Preserve ready content; resume retries refresh. */ }
     }
 
     fun foregroundStarted() {
         foreground = true
         updateBackgroundGate()
+        peerAutoJob?.cancel()
+        peerAutoJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(1000)
+            while (true) {
+                try {
+                    PeerAutoSync.schedule(getApplication())
+                    PeerAutoSync.pull(getApplication())
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { /* Scheduling must not interrupt local use. */ }
+                kotlinx.coroutines.delay(60_000)
+            }
+        }
         if (
             !mutable.value.busy && mutable.value.webFile == null && mutable.value.pluginFile == null
         )
@@ -242,6 +285,8 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     fun backgroundStarted() {
         foreground = false
         updateBackgroundGate()
+        peerAutoJob?.cancel()
+        PeerAutoSync.schedule(getApplication(), soon = true)
     }
 
     private var returnedFilesJob: Job? = null

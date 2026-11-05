@@ -2762,6 +2762,47 @@ export class SpaceSession {
     )
   }
 
+  /** Export only the existing committed head to this gateway's private cache. */
+  async exportPeerHead(
+    url: string,
+    token: string,
+    remote: string
+  ): Promise<string | null> {
+    if (!this.versioningEnabled) return null
+    return this.withSyncTask(() =>
+      this.repository.runBackground(
+        `peer-export:${remote}`,
+        async (signal) => {
+          if (this.closed) throw new Error("Space is closed")
+          const state = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+          if (
+            state.currentBranch !== "main" ||
+            !state.currentHead ||
+            state.hasConflicts
+          )
+            return null
+          await this.graft.configurePeer(
+            this.canonical.root,
+            url,
+            token,
+            remote
+          )
+          await this.graft.transferPeer(
+            this.canonical.root,
+            "push",
+            signal,
+            remote
+          )
+          return state.currentHead
+        },
+        { preemptible: true }
+      )
+    )
+  }
+
   async syncPeerRemote(
     url: string,
     token: string,

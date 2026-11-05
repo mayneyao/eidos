@@ -220,6 +220,7 @@ function installHost(overrides: Record<string, unknown>) {
     getSyncQueueStatus: async () => null,
     getSyncMergeStatus: async () => ({ ok: true, value: { state: "none" } }),
     takeLaunchEidosFile: async () => null,
+    getPluginInstallIntent: async () => null,
     selectFileProperties: async () => {},
     openPluginEditor: async () => ({ instance: null }),
     ...overrides,

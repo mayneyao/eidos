@@ -680,6 +680,26 @@ export class PeerService {
         })
       }
     }
+    if (url.pathname === "/updates" && incoming.method === "POST") {
+      // Unlike /sync this never checkpoints the desktop worktree or consumes
+      // incoming history. Older gateways return 404; phones quietly retry later.
+      if (!device || !this.session || this.session.isClosed)
+        return json(409, { error: "Space is closed or device is not paired" })
+      try {
+        const head = await this.session.exportPeerHead(
+          this.localUrl,
+          this.localToken,
+          this.remote
+        )
+        return json(200, {
+          protocol: 1,
+          space: this.session.canonical.id,
+          head,
+        })
+      } catch {
+        return json(409, { error: "Committed device history is unavailable" })
+      }
+    }
     if (!this.session)
       return json(404, { error: "Choose an offered Space first" })
     const parts = url.pathname.split("/").slice(1).map(decodeURIComponent)

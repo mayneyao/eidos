@@ -94,18 +94,20 @@ const api: EidosLiteApi = {
   invokePluginAction: (ticket, action, path, draft) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.invoke, ticket, action, path, draft),
   installPlugin: (development) =>
-    ipcRenderer.invoke(PLUGIN_CHANNELS.install, development),
+    development === true
+      ? ipcRenderer.invoke(PLUGIN_CHANNELS.install, true)
+      : ipcRenderer.invoke(PLUGIN_CHANNELS.previewPackage),
   installDroppedPlugin: (file) => {
     const source = webUtils.getPathForFile(file)
     if (!source) return Promise.reject(new Error("Invalid plugin file"))
-    return ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, undefined, source)
+    return ipcRenderer.invoke(PLUGIN_CHANNELS.previewPackage, source)
   },
   pluginMarketplace: (refresh) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.marketplace, refresh),
-  pluginReadme: (id, locale) =>
-    ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale),
+  pluginReadme: (id, locale, packageToken) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale, packageToken),
   installMarketplacePlugin: (id) =>
-    ipcRenderer.invoke(PLUGIN_CHANNELS.install, false, id),
+    ipcRenderer.invoke(PLUGIN_CHANNELS.installMarketplace, id),
   onPluginInstallProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -116,11 +118,28 @@ const api: EidosLiteApi = {
       ipcRenderer.removeListener(PLUGIN_CHANNELS.installProgress, handler)
   },
   onPluginInstallIntent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, id: string) =>
-      listener(id)
+    const handler = () => listener()
     ipcRenderer.on(PLUGIN_CHANNELS.installIntent, handler)
     return () =>
       ipcRenderer.removeListener(PLUGIN_CHANNELS.installIntent, handler)
+  },
+  getPluginInstallIntent: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.getInstallIntent),
+  acknowledgePluginInstallIntent: (sequence) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.acknowledgeInstallIntent, sequence),
+  installPreparedPlugin: (token) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.installPrepared, token),
+  getPluginPackagePreviews: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.packagePreviews),
+  getPluginInstallTasks: () => ipcRenderer.invoke(PLUGIN_CHANNELS.installTasks),
+  onPluginInstallTasks: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      tasks: Parameters<typeof listener>[0]
+    ) => listener(tasks)
+    ipcRenderer.on(PLUGIN_CHANNELS.installTasksChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(PLUGIN_CHANNELS.installTasksChanged, handler)
   },
   uninstallPlugin: (id) => ipcRenderer.invoke(PLUGIN_CHANNELS.uninstall, id),
   setPluginEnabled: (id, enabled) =>

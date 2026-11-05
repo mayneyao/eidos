@@ -1,5 +1,12 @@
 import { decodePublicationPath } from "./publication-path"
 import {
+  domainCommand,
+  domainSummary,
+  activeCustomDomain,
+} from "./domain-control"
+import { DomainError, resolveCustomDomain } from "./domains"
+export { PublishDomain } from "./domains"
+import {
   authenticatePublishUser,
   parsePrincipal,
   PublishAuthenticationError,
@@ -74,6 +81,8 @@ const RESERVED_HANDLES = new Set([
   "auth",
   "billing",
   "cdn",
+  "customers",
+  "proxy-fallback",
   "dashboard",
   "docs",
   "download",
@@ -127,6 +136,11 @@ export default {
         requestId
       )
     } catch (cause) {
+      if (cause instanceof DomainError)
+        return await withRequestId(
+          problem(cause.status, cause.code, cause.message),
+          requestId
+        )
       if (cause instanceof PublishAuthenticationError) {
         return await withRequestId(
           problem(cause.status, cause.code, cause.message),
@@ -187,12 +201,17 @@ async function route(
   if (isRelayPublicHostname(url.hostname, env)) {
     return await env.EIDOS_RELAY.fetch(request)
   }
-  if (request.method === "GET" && url.pathname === "/healthz") {
+  if (
+    url.hostname === env.CONTROL_HOST &&
+    request.method === "GET" &&
+    url.pathname === "/healthz"
+  ) {
     return json({ service: "eidos-publish", status: "ok" })
   }
   if (
     request.method === "GET" &&
-    url.pathname === "/.well-known/eidos-publish"
+    url.pathname === "/.well-known/eidos-publish" &&
+    url.hostname === env.CONTROL_HOST
   ) {
     return json({
       service: "eidos-publish",
@@ -256,6 +275,51 @@ async function route(
     return await internalAccountSummary(request, env)
   }
 
+  if (
+    request.method === "POST" &&
+    url.pathname === "/_internal/domain-command"
+  ) {
+    if (!sharedServiceSecret(request, env.PUBLISH_SERVICE_SECRET))
+      return problem(404, "not_found", "Route not found")
+    const value = (await boundedJson(request, 8192)) as {
+      principal?: unknown
+      action?: unknown
+      hostname?: unknown
+    }
+    const principal = parsePrincipal(value?.principal)
+    const tenant = await tenantForPrincipal(env, principal)
+    return await domainCommand(
+      env,
+      tenant.publicSiteId,
+      value.action,
+      value.hostname
+    )
+  }
+  if (
+    request.method === "POST" &&
+    url.pathname === "/_internal/viewer-target"
+  ) {
+    if (!sharedServiceSecret(request, env.PUBLISH_SERVICE_SECRET))
+      return problem(404, "not_found", "Route not found")
+    const value = (await boundedJson(request, 2048)) as {
+      host?: unknown
+      slug?: unknown
+    }
+    if (typeof value?.host !== "string" || typeof value.slug !== "string")
+      return problem(400, "invalid_viewer_request", "Invalid viewer request")
+    const binding = await resolveCustomDomain(env, value.host)
+    if (
+      !binding ||
+      !(
+        await env.PUBLISH_TENANTS.getByName(
+          binding.tenantId
+        ).resolvePublication(value.slug)
+      ).ok
+    )
+      return problem(404, "not_found", "Route not found")
+    return json({ host: binding.hostname, bindingId: binding.bindingId })
+  }
+
   if (request.method === "PUT" && url.pathname === "/_internal/handle") {
     return await internalPublishHandle(request, env)
   }
@@ -302,6 +366,20 @@ async function route(
   }
   const tenant = await tenantForPrincipal(env, principal)
 
+  if (url.pathname === "/api/domains" && request.method === "GET")
+    return await domainCommand(env, tenant.publicSiteId, "list")
+  if (url.pathname === "/api/domains" && request.method === "POST") {
+    const value = (await boundedJson(request, 2048)) as {
+      action?: unknown
+      hostname?: unknown
+    }
+    return await domainCommand(
+      env,
+      tenant.publicSiteId,
+      value?.action,
+      value?.hostname
+    )
+  }
   if (request.method === "GET" && url.pathname === "/api/tenant") {
     return json(await tenantSummary(env, principal, tenant))
   }
@@ -945,13 +1023,17 @@ async function tenantSummary(
     tenant.stub.getCurrentUsage(),
     tenant.stub.getStorageUsage(),
   ])
+  const domains = await domainSummary(env, tenant.publicSiteId)
+  const custom =
+    principal.access.plan === "pro" && principal.access.state === "active"
+      ? await activeCustomDomain(env, tenant.publicSiteId)
+      : null
   return {
+    customDomains: domains,
     publicSiteId: tenant.publicSiteId,
-    canonicalHost: canonicalHost(
-      env,
-      tenant.preferredHandle,
-      tenant.publicSiteId
-    ),
+    canonicalHost:
+      custom?.hostname ??
+      canonicalHost(env, tenant.preferredHandle, tenant.publicSiteId),
     preferredHandle: tenant.preferredHandle,
     access: principal.access,
     publications,

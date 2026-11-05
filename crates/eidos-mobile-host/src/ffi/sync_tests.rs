@@ -25,6 +25,10 @@ fn merge_survives_reopen_and_resolves_through_ios_transport() -> Result<()> {
     ios.execute(phone.clone(), "graft:checkpoint", json!({}))?;
     ios.execute(phone.clone(), "graft:fetch", json!({}))?;
     ios.execute(phone.clone(), "graft:beginMerge", json!({}))?;
+    assert_eq!(
+        ios.execute(phone.clone(), "graft:peerAutoCheck", json!({}))?["outcome"],
+        "skipped"
+    );
     let state = ios.execute(phone.clone(), "graft:mergeStatus", json!({}))?;
     assert_eq!(state["unmerged_count"], 1);
     ios.execute(phone.clone(), "graft:close", json!({}))?;

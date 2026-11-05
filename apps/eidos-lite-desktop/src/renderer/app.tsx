@@ -65,7 +65,7 @@ import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
 import { PluginManager } from "./plugin-manager"
 import { TerminalPluginDetails } from "./terminal-plugin-details"
-import type { PluginOpenResult } from "../shared/plugins"
+import type { PluginOpenResult, PluginInstallIntent } from "../shared/plugins"
 import {
   resolveTextSearchTarget,
   type TextSearchHit,
@@ -611,6 +611,7 @@ function Welcome({
   onRemoveRecent,
   onClone,
   onOpenSettings,
+  pendingPluginName,
   onCopyDiagnostics,
   diagnosticsCopied,
 }: {
@@ -624,6 +625,7 @@ function Welcome({
   onRemoveRecent(id: string): void
   onClone(): void
   onOpenSettings(): void
+  pendingPluginName?: string
   onCopyDiagnostics(): void
   diagnosticsCopied: boolean
 }) {
@@ -684,6 +686,13 @@ function Welcome({
               <FolderPlus /> {t("New Space")}
             </button>
           </div>
+          {pendingPluginName && (
+            <p role="status">
+              {t("Open a Space to install {plugin}.", {
+                plugin: pendingPluginName,
+              })}
+            </p>
+          )}
           {error ? (
             <p className="welcome-error" role="alert">
               <CircleAlert />
@@ -880,6 +889,10 @@ function WorkspaceApp({
     | null
   >(null)
   const [pluginsVisible, setPluginsVisible] = useState(false)
+  const [pluginInstallRequest, setPluginInstallRequest] =
+    useState<PluginInstallIntent | null>(null)
+  const pluginInstallSequence = useRef(0)
+  const appliedPluginInstallSequence = useRef(0)
   const [pluginDetailId, setPluginDetailId] = useState<string | null>(null)
   const [pluginDetailName, setPluginDetailName] = useState<string | null>(null)
   const [pluginPage, setPluginPage] = useState<string | null>(null)
@@ -1321,6 +1334,7 @@ function WorkspaceApp({
   )
 
   const goToPluginsList = useCallback(() => {
+    setPluginInstallRequest(null)
     setPluginsVisible(true)
     setPluginPage(null)
     setPluginDetailId(null)
@@ -1348,6 +1362,36 @@ function WorkspaceApp({
     },
     [recordNavigationLocation]
   )
+
+  useEffect(() => {
+    let active = true
+    const receive = () => {
+      void window.eidosLite
+        .getPluginInstallIntent?.()
+        .then((intent) => {
+          if (
+            !active ||
+            !intent ||
+            intent.sequence <= pluginInstallSequence.current
+          )
+            return
+          pluginInstallSequence.current = intent.sequence
+          setPluginInstallRequest(intent)
+          void window.eidosLite
+            .acknowledgePluginInstallIntent(intent.sequence)
+            .catch(() => {})
+        })
+        .catch((cause: unknown) => {
+          if (active) setError(errorMessage(cause))
+        })
+    }
+    const stop = window.eidosLite.onPluginInstallIntent?.(receive)
+    receive()
+    return () => {
+      active = false
+      stop?.()
+    }
+  }, [])
 
   const updateRecentFiles = useCallback(
     (update: (files: readonly RecentFileEntry[]) => RecentFileEntry[]) => {
@@ -2991,6 +3035,18 @@ function WorkspaceApp({
     }
   }, [applyNavigationLocation, space?.id])
 
+  useEffect(() => {
+    if (
+      !space ||
+      !navigationSnapshot ||
+      !pluginInstallRequest ||
+      pluginInstallRequest.sequence <= appliedPluginInstallSequence.current
+    )
+      return
+    appliedPluginInstallSequence.current = pluginInstallRequest.sequence
+    handleSelectPlugin(pluginInstallRequest.id)
+  }, [space?.id, navigationSnapshot, pluginInstallRequest, handleSelectPlugin])
+
   const navigateHistory = useCallback(
     (offset: -1 | 1) => {
       if (
@@ -3540,6 +3596,34 @@ function WorkspaceApp({
   }, [applyPathMutation, explorerDirectory])
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
+  const pluginManager = (
+    <section className="plugin-management-panel" aria-label={t("Plugins")}>
+      <PluginManager
+        key={space?.id ?? "device"}
+        spaceAvailable={Boolean(space)}
+        spaceName={space?.name}
+        installRequest={pluginInstallRequest}
+        builtins={[
+          {
+            id: "builtin.terminal",
+            name: t("Terminal"),
+            description: t(
+              "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
+            ),
+            enabled: builtInPlugins.terminal,
+            details: <TerminalPluginDetails />,
+          },
+        ]}
+        onOpenPage={space ? navigatePluginPage : undefined}
+        selectedPluginId={pluginDetailId}
+        onSelectPlugin={handleSelectPlugin}
+        onPluginNameChange={(name) => {
+          if (name && pluginDetailId) pluginNameCache.set(pluginDetailId, name)
+          setPluginDetailName(name)
+        }}
+      />
+    </section>
+  )
   if (!space) {
     if (initialSpaceOpening) return null
     if (startupFailure)
@@ -3607,6 +3691,10 @@ function WorkspaceApp({
           onRemoveRecent={(id) => void removeRecentSpace(id)}
           onClone={() => setSyncPanelMode("clone")}
           onOpenSettings={() => void window.eidosLite.openSettings()}
+          pendingPluginName={
+            pluginInstallRequest?.package?.manifest.name ??
+            pluginInstallRequest?.id
+          }
           onCopyDiagnostics={() => void copyDiagnostics()}
           diagnosticsCopied={diagnosticsCopied}
         />
@@ -4686,37 +4774,7 @@ function WorkspaceApp({
                 void openEntry(entry)
               }}
             />
-            {pluginsVisible && (
-              <section
-                className="plugin-management-panel"
-                aria-label={t("Plugins")}
-              >
-                <PluginManager
-                  key={space.id}
-                  spaceAvailable
-                  builtins={[
-                    {
-                      id: "builtin.terminal",
-                      name: t("Terminal"),
-                      description: t(
-                        "Built-in plugin for opening a shell in the current Space. It stays out of the workbench and loads only after you enable it."
-                      ),
-                      enabled: builtInPlugins.terminal,
-                      details: <TerminalPluginDetails />,
-                    },
-                  ]}
-                  onOpenPage={navigatePluginPage}
-                  selectedPluginId={pluginDetailId}
-                  onSelectPlugin={handleSelectPlugin}
-                  onPluginNameChange={(name) => {
-                    if (name && pluginDetailId) {
-                      pluginNameCache.set(pluginDetailId, name)
-                    }
-                    setPluginDetailName(name)
-                  }}
-                />
-              </section>
-            )}
+            {pluginsVisible && pluginManager}
             <div
               className="editor-work-content"
               hidden={pluginsVisible}

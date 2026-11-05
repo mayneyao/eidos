@@ -17,18 +17,26 @@ import kotlinx.coroutines.withContext
 /** Process-local editor/foreground leases. WorkManager owns persistence across process death. */
 internal object BackgroundSyncGate {
     private val clients = mutableMapOf<Any, Boolean>()
+    private val lanClients = mutableMapOf<Any, Boolean>()
+    private var generation = 0L
 
     @Synchronized
-    fun update(owner: Any, blocked: Boolean) {
+    fun update(owner: Any, blocked: Boolean, lanBlocked: Boolean = blocked) {
         clients[owner] = blocked
+        lanClients[owner] = lanBlocked
+        generation++
     }
 
     @Synchronized
     fun remove(owner: Any) {
         clients.remove(owner)
+        lanClients.remove(owner)
+        generation++
     }
 
     @Synchronized fun blocked(): Boolean = clients.values.any { it }
+    @Synchronized fun lanLease(): Long? = generation.takeUnless { lanClients.values.any { it } }
+    @Synchronized fun lanAllowed(lease: Long): Boolean = generation == lease && lanClients.values.none { it }
 }
 
 object BackgroundSync {

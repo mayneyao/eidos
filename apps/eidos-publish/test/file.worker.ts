@@ -7,6 +7,8 @@ import {
   prepareFileVersion,
   publishedFileUrl,
   fileViewHost,
+  loadFileBundle,
+  validateFilePublicationOrigin,
 } from "../src/file"
 import { probeStaticTarget } from "../src/static"
 import type { SourceBundleManifest } from "../src/contracts"
@@ -393,6 +395,27 @@ describe("File publications", () => {
     )
     expect(updated.status).toBe(200)
     expect((await SELF.fetch(direct)).status).toBe(404)
+  })
+  it("rechecks a stored plugin View when its allowed network origin becomes the publication origin", async () => {
+    const data = await upload(pkg({ origin: "https://notes.example.com" }))
+    await activate(data)
+    const stored = await loadFileBundle(env, data.version)
+    await expect(
+      validateFilePublicationOrigin(
+        env,
+        data.tenant.publicSiteId,
+        stored,
+        "notes.example.com"
+      )
+    ).rejects.toThrow("plugin_publication_origin_forbidden")
+    await expect(
+      validateFilePublicationOrigin(
+        env,
+        data.tenant.publicSiteId,
+        stored,
+        "other.example.com"
+      )
+    ).resolves.toBeUndefined()
   })
   it.each([
     { access: "write" },

@@ -1978,6 +1978,8 @@ export interface EidosLiteApi extends PluginApi {
   openFileMetadata(directory: string | null): Promise<OpenEidosFileResult>
   getBasicFileProperties(relativePath: string): Promise<{
     path: string
+    /** Native absolute parent path, shared by the location label and clipboard. */
+    locationPath: string
     extension: string
     size: number
     createdAtMs: number

@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { PluginManager, PluginFileActions } from "./plugin-manager"
 import { PluginDetailView } from "./plugin-detail-view"
-import type { PluginListing } from "../shared/plugins"
+import type { PluginListing, PluginInstallTask } from "../shared/plugins"
 import { EidosLiteI18nProvider } from "./i18n"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -446,20 +446,16 @@ it("selects and restores the Space explorer from Plugin Manager", async () => {
   }
 })
 
-it("starts a marketplace installation requested by a plugin link", async () => {
-  const handled = vi.fn()
+it("opens linked plugin details and waits for an explicit install", async () => {
   await act(async () =>
     root.render(
-      <PluginManager
-        variant="settings"
-        installRequest={{ id: "eidos.map", sequence: 1 }}
-        onInstallRequestHandled={handled}
-      />
+      <PluginManager installRequest={{ id: "eidos.map", sequence: 1 }} />
     )
   )
-  expect(install).toHaveBeenCalledWith("eidos.map")
-  expect(handled).toHaveBeenCalledWith(1)
+  expect(install).not.toHaveBeenCalled()
   expect(container.textContent).toContain("Map view")
+  await click("Install…")
+  expect(install).toHaveBeenCalledWith("eidos.map")
 })
 
 it("drops packages in the catalog and detail view, rejects mixed files and refreshes", async () => {
@@ -511,7 +507,7 @@ it("shows one installation list with Space-only enablement and device-wide unins
   await click("Install plugin…")
   expect(install).toHaveBeenCalledWith()
   await click("CSV")
-  await click("Enable")
+  await click("Enable in this Space")
   expect(enable).toHaveBeenCalledWith("example.csv", true)
   await click("Uninstall")
   expect(uninstall).toHaveBeenCalledWith("example.csv")
@@ -770,117 +766,209 @@ it("filters plugins across tabs using search input beside layout toggle", async 
   expect(container.textContent).toContain("No plugins found")
 })
 
-it("queues multiple marketplace plugins and displays progress and readme", async () => {
-  let progressListener:
-    | ((progress: {
-        id: string
-        phase: "downloading" | "installing"
-        percent?: number
-      }) => void)
-    | undefined
-  let finishInstallMap: (() => void) | undefined
-  let finishInstallChart: (() => void) | undefined
-
-  const deferredMap = new Promise<boolean>((resolve) => {
-    finishInstallMap = () => resolve(true)
-  })
-  const deferredChart = new Promise<boolean>((resolve) => {
-    finishInstallChart = () => resolve(true)
-  })
-
-  const customInstall = vi.fn((id: string) => {
-    if (id === "eidos.map") return deferredMap
-    if (id === "eidos.chart") return deferredChart
-    return Promise.resolve(true)
-  })
-
+it("restores main-process progress and errors after leaving plugin management", async () => {
+  let tasks: Record<string, PluginInstallTask> = {}
+  let changed: ((value: typeof tasks) => void) | undefined
   Object.assign(window.eidosLite, {
-    pluginMarketplace: async () => ({
-      plugins: [
-        {
-          id: "eidos.map",
-          name: "Map",
-          description: "Map view",
-          repo: "eidos-space/eidos-map-plugin",
-          version: "0.1.0",
-          sha256: "abc",
-          preview: true,
-          compatibility: "Preview build",
-        },
-        {
-          id: "eidos.chart",
-          name: "Chart",
-          description: "Chart view",
-          repo: "eidos-space/eidos-chart-plugin",
-          version: "0.1.0",
-          sha256: "def",
-          preview: false,
-          compatibility: "Preview build",
-        },
-      ],
-      cached: false,
-      fetchedAt: new Date().toISOString(),
-    }),
-    installMarketplacePlugin: customInstall,
-    onPluginInstallProgress: (listener: unknown) => {
-      progressListener = listener as typeof progressListener
-      return () => {}
-    },
-    pluginReadme: async (id: string) => {
-      if (id === "eidos.map")
-        return "# Map Plugin\n\nInteractive MapLibre maps."
-      return null
+    getPluginInstallTasks: async () => tasks,
+    onPluginInstallTasks: (listener: typeof changed) => {
+      changed = listener
+      return () => {
+        changed = undefined
+      }
     },
   })
-
-  await act(async () => root.render(<PluginManager />))
-  await click("Marketplace")
-
-  // Find install buttons for Map and Chart
-  const buttons = [
-    ...container.querySelectorAll(
-      ".plugin-marketplace-card .plugin-install-btn"
-    ),
-  ] as HTMLButtonElement[]
-  expect(buttons.length).toBe(2)
-
-  // Click install on Map
-  await act(async () => buttons[0].click())
-  expect(customInstall).toHaveBeenCalledWith("eidos.map")
-
-  // Map should be downloading, Chart button remains enabled
-  expect(buttons[1].disabled).toBe(false)
-
-  // Click install on Chart
-  await act(async () => buttons[1].click())
-
-  // Chart should now be queued
-  expect(container.textContent).toContain("Queued")
-
-  // Progress update for Map
-  await act(async () => {
-    progressListener?.({ id: "eidos.map", phase: "downloading", percent: 45 })
-  })
+  await act(async () =>
+    root.render(
+      <PluginManager installRequest={{ id: "eidos.map", sequence: 1 }} />
+    )
+  )
+  await click("Install…")
+  expect(install).toHaveBeenCalledWith("eidos.map")
+  tasks = {
+    "eidos.map": { id: "eidos.map", status: "downloading", percent: 45 },
+  }
+  await act(async () => changed?.(tasks))
   expect(container.textContent).toContain("45%")
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await act(async () =>
+    root.render(
+      <PluginManager installRequest={{ id: "eidos.map", sequence: 1 }} />
+    )
+  )
+  expect(container.textContent).toContain("45%")
+  expect(install).toHaveBeenCalledTimes(1)
+  tasks = {
+    "eidos.map": {
+      id: "eidos.map",
+      status: "failed",
+      percent: 0,
+      error: "Download failed",
+    },
+  }
+  await act(async () => changed?.(tasks))
+  expect(container.textContent).toContain("Download failed")
+  await click("Install…")
+  expect(install).toHaveBeenCalledTimes(2)
+})
 
-  // Finish Map install
-  await act(async () => {
-    finishInstallMap?.()
-    await Promise.resolve()
-    await Promise.resolve()
+it("previews a local package offline without installing until confirmed", async () => {
+  const prepared = vi.fn(async () => true)
+  const readme = vi.fn(async () => "# Local documentation")
+  Object.assign(window.eidosLite, {
+    pluginMarketplace: async () => {
+      throw new Error("Offline")
+    },
+    pluginReadme: readme,
+    installPreparedPlugin: prepared,
   })
+  await act(async () =>
+    root.render(
+      <PluginManager
+        installRequest={{
+          id: "example.local",
+          sequence: 1,
+          package: {
+            token: "preview-token",
+            hash: "local-hash",
+            filename: "local.eidos-plugin",
+            manifest: {
+              apiVersion: 1,
+              requires: { pluginApi: "3.0.0" },
+              id: "example.local",
+              name: "Local plugin",
+              version: "1.0.0",
+            },
+          },
+        }}
+      />
+    )
+  )
+  expect(container.querySelector("h1")?.textContent).toBe("Local plugin")
+  expect(container.textContent).toContain("local.eidos-plugin")
+  expect(container.textContent).toContain("Local documentation")
+  expect(readme).toHaveBeenCalledWith("example.local", "en", "preview-token")
+  expect(prepared).not.toHaveBeenCalled()
+  expect(install).not.toHaveBeenCalled()
+  await click("Install…")
+  expect(prepared).toHaveBeenCalledWith("preview-token")
+})
 
-  // Chart should now be called automatically by the queue
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
+it("keeps multiple local package previews available for individual confirmation", async () => {
+  const first = {
+    token: "first-token",
+    hash: "first-hash",
+    filename: "first.eidos-plugin",
+    manifest: {
+      apiVersion: 1 as const,
+      requires: { pluginApi: "3.0.0" },
+      id: "example.first",
+      name: "First local plugin",
+      version: "1.0.0",
+    },
+  }
+  const second = {
+    ...first,
+    token: "second-token",
+    hash: "second-hash",
+    filename: "second.eidos-plugin",
+    manifest: {
+      ...first.manifest,
+      id: "example.second",
+      name: "Second local plugin",
+    },
+  }
+  const prepared = vi.fn(async () => true)
+  Object.assign(window.eidosLite, {
+    getPluginPackagePreviews: async () => [first, second],
+    installPreparedPlugin: prepared,
   })
-  expect(customInstall).toHaveBeenCalledWith("eidos.chart")
+  await act(async () =>
+    root.render(
+      <PluginManager
+        installRequest={{
+          id: second.manifest.id,
+          sequence: 2,
+          package: second,
+        }}
+      />
+    )
+  )
+  const select = container.querySelector<HTMLSelectElement>(
+    '[aria-label="Local packages awaiting review"]'
+  )!
+  expect(select).not.toBeNull()
+  await act(async () => {
+    select.value = first.token
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+  })
+  expect(container.querySelector("h1")?.textContent).toBe(first.manifest.name)
+  expect(prepared).not.toHaveBeenCalled()
+  await click("Install…")
+  expect(prepared).toHaveBeenCalledWith(first.token)
+})
 
-  // Finish Chart install
-  await act(async () => {
-    finishInstallChart?.()
-  })
+it("preserves restored navigation instead of replaying an earlier external request", async () => {
+  const select = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginManager
+        selectedPluginId="example.csv"
+        onSelectPlugin={select}
+        installRequest={{ id: "eidos.map", sequence: 1 }}
+      />
+    )
+  )
+  expect(container.querySelector("h1")?.textContent).toBe("CSV")
+  expect(select).not.toHaveBeenCalled()
+  expect(install).not.toHaveBeenCalled()
+})
+
+it("discloses previewed access without mounting the installed revision's settings", async () => {
+  const connection = vi.fn()
+  const manifest = {
+    apiVersion: 1 as const,
+    id: "example.csv",
+    name: "CSV",
+    version: "1.0.0",
+    requires: { pluginApi: "3.7.0" },
+  }
+  Object.assign(window.eidosLite, { pluginConnection: connection })
+  await act(async () =>
+    root.render(
+      <PluginDetailView
+        plugin={{ hash: "installed", enabled: true, manifest }}
+        packagePreview={{
+          token: "preview",
+          hash: "new",
+          filename: "csv.eidos-plugin",
+          manifest: {
+            ...manifest,
+            version: "2.0.0",
+            connections: {
+              api: { title: "API", url: "https://api.example.com" },
+            },
+          },
+        }}
+        spaceAvailable
+        installSpaceName="My Space"
+        onBack={() => {}}
+        onInstall={() => {}}
+        onToggleEnable={() => {}}
+        onUninstall={() => {}}
+      />
+    )
+  )
+  expect(container.textContent).toContain("Install for Space: My Space")
+  expect(
+    [...container.querySelectorAll("button")].some(
+      (button) => button.textContent === "Settings"
+    )
+  ).toBe(false)
+  await click("Runtime & Security")
+  expect(container.textContent).toContain("https://api.example.com")
+  expect(connection).not.toHaveBeenCalled()
 })
 
 it("renders README markdown in plugin detail view for marketplace plugins", async () => {

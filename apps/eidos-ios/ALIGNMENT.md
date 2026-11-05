@@ -1,7 +1,7 @@
 # Mobile LAN v1 acceptance checklist
 
 Mobile LAN v1 provides an offline local Space on iOS and Android, with optional
-foreground synchronization to an approved Eidos Lite desktop. Both hosts use the
+foreground synchronization and safe automatic committed updates from an approved Eidos Lite desktop. Both hosts use the
 canonical Eidos File Runtime and shared editors. A downloaded Space remains
 usable without its computer or an account.
 
@@ -24,7 +24,7 @@ usable without its computer or an account.
 | Disconnect        | Disconnect a Space or remove a paired computer without deleting local files or history.                                                                                                                                                                                                                                      |
 
 Account login, cloud Sync and Publish have no mobile entry points in this
-version. Background LAN scheduling, phone-to-phone sync and Internet relay are
+version. Phone-to-phone sync and Internet relay are
 outside this delivery. True LAN conflicts never open a mobile whole-file choice
 screen. Failure, cancellation and pending review never update the success time.
 
@@ -122,6 +122,64 @@ Use `adb push` to stage the JSON under `/data/local/tmp`, then `adb shell run-as
 space.eidos.android.dev cp` to copy it to that cache path. iOS's native LAN parity
 test reads `/tmp/eidos-ios-peer-fixture.json`. Fixture credentials and all
 transferred content are disposable; do not point this test at a personal Space.
+
+## Automatic update end-to-end verification
+
+`peer-auto-sync.manual.test.ts` runs the real desktop `PeerService`, pinned TLS,
+native mobile Graft host and production automatic coordinator with disposable
+Spaces. It pauses one real fetch response to test cancellation, external file
+edits and editor ownership at a deterministic boundary. The fixture asserts that
+automatic operations never call manual `/sync` or upload to incoming history.
+It checks Markdown, attachments, canonical Runtime SQLite writes, recovery
+drafts, clean fast-forwards, repeats and committed divergence.
+
+Use dedicated, empty simulators/emulators. The Android script requires an
+`emulator-*` serial, installs a known fixture PIN (`1846`), sleeps the screen and
+terminates the debug app's process. Never use a personal or shared emulator for
+this fixture. Build and install the current debug app and instrumentation APK
+before running it:
+
+```bash
+pnpm build:eidos-android
+cd apps/eidos-android
+./gradlew :app:assembleDebugAndroidTest
+cd ../..
+adb -s emulator-5580 install -r apps/eidos-android/app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5580 install -r apps/eidos-android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+EIDOS_AUTO_PLATFORM=android EIDOS_AUTO_ANDROID_SERIAL=emulator-5580 \
+  pnpm --filter @eidos.space/eidos-lite-desktop test src/main/peer/peer-auto-sync.manual.test.ts
+
+bash apps/eidos-ios/scripts/build.sh iphonesimulator
+EIDOS_AUTO_PLATFORM=ios EIDOS_AUTO_IOS_SIMULATOR=<isolated-simulator-uuid> \
+  pnpm --filter @eidos.space/eidos-lite-desktop test src/main/peer/peer-auto-sync.manual.test.ts
+```
+
+Android verification uses the actual namespaced `SystemJobService`. It verifies
+that the app has no process and `deviceLocked=1` before advancing desktop
+history, then checks the new background process, Worker success and applied
+head. The fixture temporarily disables automatic time and advances only the
+disposable Android emulator's clock by 16 minutes so WorkManager's periodic
+deadline is due; it restores the clock and automatic-time setting even on test
+failure. `cmd jobscheduler run -f` is a controlled development trigger, not evidence
+of natural 15-minute scheduling or Doze behavior. WorkManager may replace the
+first forced job while reconciling an instrumentation/force-stop exit; the
+fixture records a second trigger only after that job is waiting. It also
+cancels an actual Worker during native fetch, verifies storage lock release and
+unchanged HEAD, then checks a successful Worker preserves a subsequent local
+edit.
+
+iOS verification executes the automatic task body and foreground catch-up
+through C FFI, including cancellation by a real editor coordinator. Simulator
+does not support BGProcessing scheduling or establish physical locked-device
+file/Keychain behavior. These remain physical-device gates; see
+[Apple's simulator restriction](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/error/code/unavailable).
+The test binary contains no private BGTaskScheduler simulation selectors.
+
+The desktop fixture retains request paths and test logs in its printed temporary
+evidence directory. Android additionally records JobScheduler, lock, cold-process
+and Worker evidence. Fixture credentials are private temporary data and are not
+included in request logs. The native suites remove their downloaded Spaces and
+pairing on successful completion; the runner removes its credential input files.
 
 Set `EIDOS_PEER_RECOVERY_FIXTURE=1` to extend the round trip with a three-second
 service interruption and a changed port. Use `same-port` to test retry after an

@@ -18,9 +18,14 @@ import {
 import {
   decodePackage,
   encodePackage,
+  packageHash,
 } from "@eidos.space/plugin-runtime/package"
 import { PluginError, parseChange } from "@eidos.space/plugin-runtime/rpc"
-import { PLUGIN_CHANNELS } from "../../shared/plugins"
+import {
+  PLUGIN_CHANNELS,
+  type PluginPackagePreview,
+} from "../../shared/plugins"
+import { PluginInstallQueue } from "./plugin-install-queue"
 import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
@@ -84,6 +89,18 @@ export function registerPluginIpc(controller: WindowController): {
   // real Eidos home needs an owner-only permission guarantee.
   if (home.source !== "profile") ensureOwnerOnlyDirectory(fsSync, home.home)
   const store = new PluginStore(home.plugins)
+  const preparedPackages = new Map<
+    string,
+    { owner: number; bytes: Uint8Array; preview: PluginPackagePreview }
+  >()
+  const installs = new PluginInstallQueue(() => {
+    for (const window of BrowserWindow.getAllWindows())
+      if (!window.webContents.isDestroyed())
+        window.webContents.send(
+          PLUGIN_CHANNELS.installTasksChanged,
+          installs.snapshot(currentSpace({ sender: window.webContents }))
+        )
+  })
   const fileHooks = new PluginFileHooks(store)
   controller.fileHookRunner = (session, event) =>
     fileHooks.run(session.canonical.id, event)
@@ -250,6 +267,8 @@ export function registerPluginIpc(controller: WindowController): {
         bluetoothPicker.cancel(owner)
         service.closeOwner(owner)
         owners.delete(owner)
+        for (const [token, prepared] of preparedPackages)
+          if (prepared.owner === owner) preparedPackages.delete(token)
       })
     }
     return event.sender.id
@@ -438,8 +457,8 @@ export function registerPluginIpc(controller: WindowController): {
   })
   ipcMain.handle(
     PLUGIN_CHANNELS.readme,
-    async (event, id: unknown, locale: unknown) => {
-      caller(event)
+    async (event, id: unknown, locale: unknown, packageToken: unknown) => {
+      const owner = caller(event)
       if (typeof id !== "string" || !id || id.length > 128)
         throw new PluginError("INVALID_REQUEST", "Invalid plugin")
       if (
@@ -447,6 +466,25 @@ export function registerPluginIpc(controller: WindowController): {
         (typeof locale !== "string" || locale.length > 64)
       )
         throw new PluginError("INVALID_REQUEST", "Invalid locale")
+      if (packageToken !== undefined) {
+        const prepared =
+          typeof packageToken === "string"
+            ? preparedPackages.get(packageToken)
+            : undefined
+        if (
+          !prepared ||
+          prepared.owner !== owner ||
+          prepared.preview.manifest.id !== id
+        )
+          throw new PluginError(
+            "INVALID_REQUEST",
+            "Plugin package preview is no longer available"
+          )
+        return localizedPluginReadme(
+          decodePackage(prepared.bytes),
+          typeof locale === "string" ? locale : service.locale
+        )
+      }
       const installed = await store.installed(id)
       if (installed) {
         const pkg = await store.read(installed.hash)
@@ -752,9 +790,16 @@ export function registerPluginIpc(controller: WindowController): {
     event: Pick<IpcMainInvokeEvent, "sender">,
     development: unknown,
     marketplaceId: unknown,
-    droppedPath: unknown
+    droppedPath: unknown,
+    preparedBytes?: Uint8Array,
+    targetSpaceId?: string
   ) {
     const spaceId = currentSpace(event)
+    if (targetSpaceId !== undefined && spaceId !== targetSpaceId)
+      throw new PluginError(
+        "INSTANCE_CLOSED",
+        "Space changed before installation"
+      )
     if (
       droppedPath !== undefined &&
       (typeof droppedPath !== "string" ||
@@ -781,6 +826,17 @@ export function registerPluginIpc(controller: WindowController): {
             const bytes = await registry.download(
               marketplaceId,
               (loaded, total) => {
+                installs.progress(
+                  {
+                    id: marketplaceId,
+                    phase: "downloading",
+                    percent:
+                      total > 0
+                        ? Math.min(100, Math.round((loaded / total) * 100))
+                        : 0,
+                  },
+                  targetSpaceId
+                )
                 if (
                   typeof event.sender.send === "function" &&
                   !event.sender.isDestroyed()
@@ -798,6 +854,14 @@ export function registerPluginIpc(controller: WindowController): {
                 }
               }
             )
+            installs.progress(
+              {
+                id: marketplaceId,
+                phase: "installing",
+                percent: 100,
+              },
+              targetSpaceId
+            )
             if (
               typeof event.sender.send === "function" &&
               !event.sender.isDestroyed()
@@ -811,25 +875,29 @@ export function registerPluginIpc(controller: WindowController): {
             return bytes
           })()
         : undefined
-    const selected = marketplaceBytes
-      ? { canceled: false, filePaths: [""] }
-      : typeof droppedPath === "string"
-        ? { canceled: false, filePaths: [droppedPath] }
-        : await dialog.showOpenDialog(owner, {
-            title: development
-              ? "Load development source (plugin.json or TS/JS)"
-              : "Install plugin",
-            properties: ["openFile"],
-            filters: [
-              {
-                name: "Eidos Plugin",
-                extensions: development
-                  ? ["json", "ts", "js", "tsx", "jsx"]
-                  : ["eidos-plugin"],
-              },
-            ],
-          })
-    if (selected.canceled || (!marketplaceBytes && !selected.filePaths[0]))
+    const selected =
+      marketplaceBytes || preparedBytes
+        ? { canceled: false, filePaths: [""] }
+        : typeof droppedPath === "string"
+          ? { canceled: false, filePaths: [droppedPath] }
+          : await dialog.showOpenDialog(owner, {
+              title: development
+                ? "Load development source (plugin.json or TS/JS)"
+                : "Install plugin",
+              properties: ["openFile"],
+              filters: [
+                {
+                  name: "Eidos Plugin",
+                  extensions: development
+                    ? ["json", "ts", "js", "tsx", "jsx"]
+                    : ["eidos-plugin"],
+                },
+              ],
+            })
+    if (
+      selected.canceled ||
+      (!marketplaceBytes && !preparedBytes && !selected.filePaths[0])
+    )
       return false
     const source =
       path.basename(selected.filePaths[0]) === "plugin.json"
@@ -837,6 +905,7 @@ export function registerPluginIpc(controller: WindowController): {
         : selected.filePaths[0]
     const compiled = development ? await compilePluginSource(source) : undefined
     const bytes =
+      preparedBytes ??
       marketplaceBytes ??
       compiled?.bytes ??
       (await store.readBytes(selected.filePaths[0]))
@@ -847,7 +916,34 @@ export function registerPluginIpc(controller: WindowController): {
       service.locale
     )
     assertPluginCompatibility(pkg.manifest, "eidos-lite")
+    if (targetSpaceId !== undefined && currentSpace(event) !== targetSpaceId)
+      throw new PluginError(
+        "INSTANCE_CLOSED",
+        "Space changed before installation"
+      )
     const existing = await store.installed(pkg.manifest.id)
+    const scope = targetSpaceId
+      ? (await store.config()).spaces[targetSpaceId]?.plugins[pkg.manifest.id]
+      : undefined
+    if (
+      targetSpaceId &&
+      !development &&
+      existing?.hash === packageHash(bytes)
+    ) {
+      if (!pkg.manifest.theme)
+        await store.enable(pkg.manifest.id, true, targetSpaceId)
+      catalogChanged()
+      if (
+        pkg.manifest.background?.autoStart &&
+        currentSpace(event) === targetSpaceId
+      )
+        await service.autoStartBackgrounds(
+          event.sender.id,
+          targetSpaceId,
+          pkg.manifest.id
+        )
+      return true
+    }
     let existingVersion: string | undefined
     if (existing) {
       try {
@@ -869,7 +965,7 @@ export function registerPluginIpc(controller: WindowController): {
     const review = await dialog.showMessageBox(owner, {
       type: "question",
       title: isUpdate ? "Update plugin" : "Install plugin",
-      message: `${display.name} ${versionLabel}${
+      message: `${display.name} ${versionLabel}${targetSpaceId ? `\nSpace: ${controller.requireSession(event.sender).canonical.name}` : ""}${
         Object.values(pkg.manifest.connections ?? {}).length
           ? `\nAuthenticated connections: ${Object.values(
               display.connections ?? {}
@@ -884,7 +980,7 @@ export function registerPluginIpc(controller: WindowController): {
       }${pkg.manifest.browser?.network && pkg.manifest.browser.networkOrigins === undefined ? "\nNetwork access: all public HTTPS services (no private/local networks)." : pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}${pkg.manifest.workspace?.filemeta ? `\nFile properties (${pkg.manifest.workspace.filemeta.write ? "read/write" : "read"}): ${pkg.manifest.workspace.filemeta.namespaces.join(", ")}` : ""}${pkg.manifest.placements?.some((p) => p.location === "sidebar/explorer") ? "\nProvides a sidebar file explorer. Select it from the Space heading." : ""}`,
       detail: themeReview
         ? `${pkg.manifest.id}\n\n${themeReview}`
-        : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+        : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${targetSpaceId && !scope ? "Will be enabled in this Space after installation." : spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
       buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
       defaultId: 0,
       cancelId: 0,
@@ -905,8 +1001,20 @@ export function registerPluginIpc(controller: WindowController): {
     watchers.delete(key)
     clearReloads(key)
     const hash = await store.install(bytes, spaceId)
+    if (targetSpaceId && !scope && !pkg.manifest.theme)
+      await store.enable(pkg.manifest.id, true, targetSpaceId)
     reloadPlugin(pkg.manifest.id)
     catalogChanged()
+    if (
+      targetSpaceId &&
+      pkg.manifest.background?.autoStart &&
+      currentSpace(event) === targetSpaceId
+    )
+      await service.autoStartBackgrounds(
+        event.sender.id,
+        targetSpaceId,
+        pkg.manifest.id
+      )
     if (development && compiled) {
       store.development.set(hash, source)
       const sourceRoot = (await fs.stat(source)).isDirectory()
@@ -1063,16 +1171,148 @@ export function registerPluginIpc(controller: WindowController): {
     }
     return true
   }
+  async function previewPackage(
+    filePath: string,
+    preferred?: BrowserWindow
+  ): Promise<boolean> {
+    if (
+      !path.isAbsolute(filePath) ||
+      path.extname(filePath).toLowerCase() !== ".eidos-plugin"
+    )
+      throw new PluginError("INVALID_REQUEST", "Invalid plugin package path")
+    const bytes = await store.readBytes(filePath)
+    const pkg = decodePackage(bytes)
+    assertPluginCompatibility(pkg.manifest, "eidos-lite")
+    const preview: PluginPackagePreview = {
+      token: randomUUID(),
+      filename: path.basename(filePath),
+      hash: packageHash(bytes),
+      manifest: pkg.manifest,
+      localization: pluginLanguageData(pkg.manifest, pkg.resources),
+    }
+    const owner = await controller.showPluginInstall(
+      pkg.manifest.id,
+      preview,
+      preferred
+    )
+    preparedPackages.set(preview.token, {
+      owner: owner.webContents.id,
+      bytes,
+      preview,
+    })
+    while (preparedPackages.size > 8)
+      preparedPackages.delete(preparedPackages.keys().next().value!)
+    return true
+  }
+  ipcMain.handle(PLUGIN_CHANNELS.getInstallIntent, (event) => {
+    caller(event)
+    return controller.getPluginInstallIntent(event.sender)
+  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.acknowledgeInstallIntent,
+    (event, sequence: unknown) => {
+      caller(event)
+      if (typeof sequence !== "number" || !Number.isSafeInteger(sequence))
+        throw new PluginError(
+          "INVALID_REQUEST",
+          "Invalid plugin install request"
+        )
+      controller.acknowledgePluginInstallIntent(event.sender, sequence)
+    }
+  )
+  ipcMain.handle(PLUGIN_CHANNELS.installTasks, (event) => {
+    caller(event)
+    return installs.snapshot(currentSpace(event))
+  })
+  ipcMain.handle(PLUGIN_CHANNELS.packagePreviews, (event) => {
+    const owner = caller(event)
+    return [...preparedPackages.values()]
+      .filter((prepared) => prepared.owner === owner)
+      .map((prepared) => prepared.preview)
+  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.previewPackage,
+    async (event, filePath: unknown) => {
+      caller(event)
+      const owner = BrowserWindow.fromWebContents(event.sender)
+      if (!owner)
+        throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
+      if (filePath === undefined) {
+        const selected = await dialog.showOpenDialog(owner, {
+          title: "Install plugin",
+          properties: ["openFile"],
+          filters: [{ name: "Eidos Plugin", extensions: ["eidos-plugin"] }],
+        })
+        if (selected.canceled || !selected.filePaths[0]) return false
+        filePath = selected.filePaths[0]
+      }
+      if (typeof filePath !== "string")
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin package path")
+      return previewPackage(filePath, owner)
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.installPrepared,
+    async (event, token: unknown) => {
+      const owner = caller(event)
+      const spaceId = controller.requireSession(event.sender).canonical.id
+      const prepared =
+        typeof token === "string" ? preparedPackages.get(token) : undefined
+      if (!prepared || prepared.owner !== owner)
+        throw new PluginError(
+          "INVALID_REQUEST",
+          "Plugin package preview is no longer available"
+        )
+      const id = prepared.preview.manifest.id
+      return installs.run(
+        id,
+        () => {
+          installs.progress({ id, phase: "installing", percent: 0 }, spaceId)
+          return installPlugin(
+            event,
+            false,
+            undefined,
+            undefined,
+            prepared.bytes,
+            spaceId
+          )
+        },
+        spaceId
+      )
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.installMarketplace,
+    async (event, id: unknown) => {
+      caller(event)
+      const spaceId = controller.requireSession(event.sender).canonical.id
+      if (typeof id !== "string" || !/^[a-z][a-z0-9.-]{1,127}$/.test(id))
+        throw new PluginError("INVALID_REQUEST", "Invalid marketplace plugin")
+      return installs.run(
+        id,
+        () => installPlugin(event, false, id, undefined, undefined, spaceId),
+        spaceId
+      )
+    }
+  )
   ipcMain.handle(
     PLUGIN_CHANNELS.install,
-    (
+    async (
       event,
       development: unknown,
       marketplaceId: unknown,
       droppedPath: unknown
     ) => {
       caller(event)
-      return installPlugin(event, development, marketplaceId, droppedPath)
+      const spaceId = controller.requireSession(event.sender).canonical.id
+      return installPlugin(
+        event,
+        development,
+        marketplaceId,
+        droppedPath,
+        undefined,
+        spaceId
+      )
     }
   )
   ipcMain.handle(PLUGIN_CHANNELS.uninstall, async (event, id: unknown) => {
@@ -1216,18 +1456,7 @@ export function registerPluginIpc(controller: WindowController): {
   })
   return {
     async openPackage(filePath) {
-      if (
-        !path.isAbsolute(filePath) ||
-        path.extname(filePath).toLowerCase() !== ".eidos-plugin"
-      )
-        throw new PluginError("INVALID_REQUEST", "Invalid plugin package path")
-      const owner = controller.showSettingsWindow("/settings/plugins")
-      return installPlugin(
-        { sender: owner.webContents },
-        false,
-        undefined,
-        filePath
-      )
+      return previewPackage(filePath)
     },
     async publishPackage(hash: string, viewId: string): Promise<Uint8Array> {
       const pkg = await store.read(hash)
@@ -1239,6 +1468,7 @@ export function registerPluginIpc(controller: WindowController): {
       return encodePackage(pkg.manifest, pkg.modules, pkg.resources)
     },
     close() {
+      preparedPackages.clear()
       stopLocale()
       controller.pluginSpaceOpened = undefined
       controller.pluginSpaceClosed = undefined

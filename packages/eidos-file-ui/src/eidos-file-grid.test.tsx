@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import {
   decodeEidosFileValues,
@@ -27,6 +27,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider } from "./context"
 import { EidosFileGrid, type EidosFileGridRowEdit } from "./eidos-file-grid"
+import { EidosFileEditorShell } from "./eidos-file-editor-shell"
+import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 import {
   EidosFileRelationCellRenderer,
   type EidosFileRelationCell,
@@ -203,6 +205,170 @@ describe("EidosFileGrid", () => {
     act(() => root.unmount())
     container.remove()
   })
+
+  it.each(["metaKey", "ctrlKey"] as const)(
+    "returns search to the active Grid for repeated %s+F and cell actions",
+    async (modifier) => {
+      const loadPage = createLoadPage()
+      const onCellEdit = createCellEdit()
+      const onNavigateSearch = vi.fn()
+      const onEditorEscape = vi.fn()
+      let switchScope = () => {}
+      function Editor() {
+        const [search, setSearch] = useState("")
+        const [focusSearchToken, setFocusSearchToken] = useState(0)
+        const [scopeKey, setScopeKey] = useState("tasks:grid")
+        switchScope = () => setScopeKey("tasks:other")
+        return (
+          <EidosFileEditorShell
+            searchNavigation={{ search, scopeKey }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") onEditorEscape()
+              if (
+                !event.defaultPrevented &&
+                event[modifier] &&
+                event.key === "f" &&
+                event.currentTarget.contains(document.activeElement)
+              ) {
+                event.preventDefault()
+                setFocusSearchToken((token) => token + 1)
+              }
+            }}
+            queryToolbar={
+              <EidosFileQueryToolbar
+                fields={table.fields}
+                search={search}
+                focusSearchToken={focusSearchToken}
+                filter={null}
+                sorts={[]}
+                searchResultCount={3}
+                onNavigateSearch={onNavigateSearch}
+                onSearchChange={setSearch}
+                onFilterChange={() => {}}
+                onSortsChange={() => {}}
+              />
+            }
+          >
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              historyScopeKey={search}
+              loadPage={loadPage}
+              onCellEdit={onCellEdit}
+            />
+          </EidosFileEditorShell>
+        )
+      }
+      await act(async () => root.render(<Editor />))
+      const grid = container.querySelector<HTMLElement>(
+        '[data-testid="glide-grid"]'
+      )!
+      grid.focus()
+      act(() => {
+        mocks.props?.onGridSelectionChange?.({
+          columns: CompactSelection.empty(),
+          rows: CompactSelection.empty(),
+          current: {
+            cell: [1, 12],
+            range: { x: 1, y: 12, width: 1, height: 1 },
+            rangeStack: [],
+          },
+        })
+      })
+      function key(key: string, options: KeyboardEventInit = {}) {
+        act(() => {
+          document.activeElement?.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key,
+              bubbles: true,
+              cancelable: true,
+              ...options,
+            })
+          )
+        })
+      }
+      for (let round = 0; round < 3; round += 1) {
+        key("f", { [modifier]: true })
+        const input = container.querySelector<HTMLInputElement>(
+          'input[type="search"]'
+        )!
+        expect(input).not.toBeNull()
+        expect(document.activeElement).toBe(input)
+        act(() => {
+          Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )?.set?.call(input, "Row")
+          input.dispatchEvent(new Event("input", { bubbles: true }))
+        })
+        expect(input.value).toBe("Row")
+        if (round === 0) {
+          key("Escape", { isComposing: true })
+          key("Enter", { isComposing: true })
+          key("Escape", { keyCode: 229 })
+          expect(document.activeElement).toBe(input)
+          expect(input.isConnected).toBe(true)
+          expect(input.value).toBe("Row")
+          expect(onNavigateSearch).not.toHaveBeenCalled()
+          onEditorEscape.mockClear()
+        }
+        key("Escape")
+        expect(container.querySelector('input[type="search"]')).toBeNull()
+        expect(document.activeElement).toBe(grid)
+        expect(mocks.props?.gridSelection?.current?.cell).toEqual([1, 12])
+        expect(onEditorEscape).not.toHaveBeenCalled()
+      }
+      key("f", { [modifier]: true })
+      const closeButton = container.querySelector<HTMLButtonElement>(
+        '[aria-label="Close search"]'
+      )!
+      closeButton.focus()
+      act(() => closeButton.click())
+      expect(document.activeElement).toBe(grid)
+      // The restored selection supports the real Grid's keyboard cell menu.
+      key("F10", { shiftKey: true })
+      expect(document.body.querySelector('[role="menu"]')).not.toBeNull()
+      key("Escape")
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
+      expect(document.activeElement).toBe(grid)
+
+      const outside = document.createElement("input")
+      document.body.append(outside)
+      outside.focus()
+      key("f", { [modifier]: true })
+      expect(container.querySelector('input[type="search"]')).toBeNull()
+      expect(document.activeElement).toBe(outside)
+
+      // Even an editor inside the Grid owns focus before the close commit.
+      grid.append(outside)
+      grid.focus()
+      key("f", { [modifier]: true })
+      const staleSearchInput = container.querySelector<HTMLInputElement>(
+        'input[type="search"]'
+      )!
+      outside.focus()
+      act(() => {
+        staleSearchInput.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+      })
+      expect(document.activeElement).toBe(outside)
+      outside.remove()
+
+      // A handoff requested by the old view must not focus the new scope.
+      grid.focus()
+      key("f", { [modifier]: true })
+      mocks.focus.mockClear()
+      act(() => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+        switchScope()
+      })
+      expect(document.activeElement).toBe(document.body)
+      expect(mocks.focus).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     "text",

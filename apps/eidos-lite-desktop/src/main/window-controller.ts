@@ -43,7 +43,11 @@ import {
   eidosLiteShortcutCommandForKeyboardEvent,
   isEidosLiteWorkspaceShortcutCommand,
 } from "../shared/keyboard-shortcuts"
-import { PLUGIN_CHANNELS } from "../shared/plugins"
+import {
+  PLUGIN_CHANNELS,
+  type PluginInstallIntent,
+  type PluginPackagePreview,
+} from "../shared/plugins"
 import {
   availablePluginShortcuts,
   pluginShortcutForEvent,
@@ -608,6 +612,10 @@ export class WindowController {
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
   private settingsWindow: BrowserWindow | null = null
   private settingsOwnerWindow: BrowserWindow | null = null
+  private lastWorkbenchWindow: BrowserWindow | null = null
+  private readonly pluginInstallIntents = new Map<number, PluginInstallIntent>()
+  private pluginInstallSequence = 0
+  private pluginInstallWindowOpening: Promise<BrowserWindow> | null = null
   private releaseNotesWindow: BrowserWindow | null = null
   private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
   private readonly windowState = new LiteWindowStateStore(
@@ -767,32 +775,84 @@ export class WindowController {
     }
   }
 
-  showPluginInstall(id: string): BrowserWindow {
-    return this.showSettingsWindow(`/settings/plugins/${id}`, id)
+  async showPluginInstall(
+    id: string,
+    preview?: PluginPackagePreview,
+    preferred?: BrowserWindow
+  ): Promise<BrowserWindow> {
+    const eligible = (window: BrowserWindow | null | undefined) =>
+      window &&
+      !window.isDestroyed() &&
+      ["space", "welcome"].includes(this.windowKind.get(window) ?? "")
+    const hasSpace = (window: BrowserWindow | null | undefined) =>
+      eligible(window) && this.sessionByWebContents.has(window!.webContents.id)
+    const focused = BrowserWindow.getFocusedWindow()
+    let window =
+      (hasSpace(preferred) ? preferred : undefined) ??
+      (hasSpace(focused) ? focused : undefined) ??
+      (hasSpace(this.lastWorkbenchWindow)
+        ? this.lastWorkbenchWindow
+        : undefined) ??
+      (hasSpace(this.settingsOwnerWindow)
+        ? this.settingsOwnerWindow
+        : undefined) ??
+      BrowserWindow.getAllWindows().filter(hasSpace).at(-1)
+    if (!window) {
+      this.pluginInstallWindowOpening ??= (async () => {
+        const existing =
+          (eligible(preferred) ? preferred : undefined) ??
+          (eligible(focused) ? focused : undefined) ??
+          (eligible(this.lastWorkbenchWindow)
+            ? this.lastWorkbenchWindow
+            : undefined) ??
+          (eligible(this.settingsOwnerWindow)
+            ? this.settingsOwnerWindow
+            : undefined) ??
+          BrowserWindow.getAllWindows().filter(eligible).at(-1)
+        const target = existing ?? (await this.createStartupWindow())
+        if (existing) await this.loadStartupWindow(target)
+        await this.openDefaultWindow(target)
+        const resolved = target.isDestroyed()
+          ? BrowserWindow.getAllWindows().find(hasSpace)
+          : target
+        if (!resolved)
+          throw new Error(
+            "Could not open the last Space for plugin installation"
+          )
+        return resolved
+      })().finally(() => {
+        this.pluginInstallWindowOpening = null
+      })
+      window = await this.pluginInstallWindowOpening
+    }
+    this.pluginInstallIntents.set(window.webContents.id, {
+      id,
+      sequence: ++this.pluginInstallSequence,
+      package: preview,
+    })
+    window.webContents.send(PLUGIN_CHANNELS.installIntent)
+    this.focusWindow(window)
+    return window
   }
 
-  showSettingsWindow(
-    route = "/settings/preferences",
-    installId?: string
-  ): BrowserWindow {
+  getPluginInstallIntent(contents: WebContents): PluginInstallIntent | null {
+    return this.pluginInstallIntents.get(contents.id) ?? null
+  }
+
+  acknowledgePluginInstallIntent(
+    contents: WebContents,
+    sequence: number
+  ): void {
+    if (this.pluginInstallIntents.get(contents.id)?.sequence === sequence)
+      this.pluginInstallIntents.delete(contents.id)
+  }
+
+  showSettingsWindow(route = "/settings/preferences"): BrowserWindow {
     const owner = BrowserWindow.getFocusedWindow()
     if (owner && owner !== this.settingsWindow) this.settingsOwnerWindow = owner
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       this.focusWindow(this.settingsWindow)
-      if (installId) {
-        if (this.settingsWindow.webContents.isLoading()) {
-          void this.loadRenderer(this.settingsWindow, route)
-        } else {
-          this.settingsWindow.webContents.send(
-            PLUGIN_CHANNELS.installIntent,
-            installId
-          )
-        }
-      }
-      if (
-        !installId &&
-        (route === "/settings/devices" || route === "/settings/account-sync")
-      ) {
+      if (route === "/settings/devices" || route === "/settings/account-sync") {
         if (this.settingsWindow.webContents.isLoading())
           void this.loadRenderer(this.settingsWindow, route)
         else
@@ -1936,16 +1996,9 @@ export class WindowController {
       ...bounds,
       minWidth: kind === "properties" ? 340 : compact ? 680 : 900,
       minHeight: kind === "properties" ? 120 : compact ? 520 : 600,
-      ...(kind === "properties"
-        ? { maximizable: false, fullscreenable: false }
-        : {}),
       show: false,
       title: "Eidos Lite",
-      titleBarStyle: chrome.titleBarStyle,
-      autoHideMenuBar: chrome.autoHideMenuBar,
-      ...(chrome.titleBarOverlay
-        ? { titleBarOverlay: chrome.titleBarOverlay }
-        : {}),
+      ...chrome,
       ...(process.platform === "darwin" &&
       kind !== "properties" &&
       kind !== "release-notes"
@@ -1965,6 +2018,14 @@ export class WindowController {
       },
     })
     this.windowKind.set(window, kind)
+    window.on("focus", () => {
+      if (["space", "welcome"].includes(this.windowKind.get(window) ?? ""))
+        this.lastWorkbenchWindow = window
+    })
+    const pluginInstallOwner = window.webContents.id
+    window.once("closed", () =>
+      this.pluginInstallIntents.delete(pluginInstallOwner)
+    )
     this.updateWindowControls(window, DEFAULT_EIDOS_LITE_PREFERENCES.appearance)
     installHtmlPreviewGuestGuard(window.webContents)
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))

@@ -2543,6 +2543,35 @@ only after proving source equals verified old/new bytes and no newer recovery
 exists. Watchers are advisory; save revalidates. Inode/file-ID, symlink-target,
 permission, or deletion changes follow external-change rules.
 
+### 12.1 Optional automatic peer checkout
+
+A native host MAY silently pull committed updates from a previously paired
+LAN peer. It MUST authenticate the saved device identity and verify the saved
+repository association before accessing history. Discovery is only an address
+hint; it MUST NOT grant trust or attach a repository by display name.
+
+Automatic replacement MUST require an initialized local history, no pending
+private drafts or active editor/plugin sessions, no unstaged/staged changes,
+conflicts or active merge, and a proven fast-forward from the current local
+head. A clean worktree alone does not authorize replacing local-only commits.
+Automatic pull MUST NOT checkpoint, merge, or upload local changes. Exporting
+existing committed history to the paired gateway's private read cache MUST NOT
+save the exporting device's uncommitted work or consume incoming history.
+
+The host MUST serialize checkout with local file, attachment and Runtime
+writes, recheck drafts/editor authority after transfer, and compare both the
+expected local head and advertised peer target in the apply critical section.
+A changed head, target, dirty state or merge plan MUST reject application.
+Duplicate triggers and manual sync MUST share the repository serialization
+boundary. Cancellation, transfer failure and suspension use the host's existing
+checkout/recovery guarantees; an unsuccessful fetch MUST NOT apply a cached ref.
+Successful checkout invalidates affected reads without discarding drafts,
+stealing focus or remounting an active editor.
+
+Scheduling is platform policy, not a Runtime capability. Hosts MUST distinguish
+foreground catch-up from OS-scheduled background work and MUST NOT promise
+immediate execution while suspended, force-quit, permission-denied or offline.
+
 ## 13. Composition Facade Mapping
 
 `EA-Host-1.0` exposes this normative high-level, UI-facing composition binding.
@@ -2972,6 +3001,11 @@ media-type/decoded-size mismatch, limits, staging, release.
 Source transcripts additionally assert at most one live SourceSnapshot,
 immutable token-consistent reads, `finally` release on import/validation
 failure, post-release rejection, repeated release, and session-close cleanup.
+
+Hosts implementing §12.1 additionally test clean/ahead checkout, repeated and
+older peer heads, local-only/diverged commits, staged/unstaged SQLite and
+attachment changes, private drafts and editor leases, edits between check and
+apply, target/head changes, cancellation and failed fetch without checkout.
 
 Every fault asserts source bytes, candidate/recovery, session state,
 descriptor/token, logical revision, and absence of required sidecars—not only

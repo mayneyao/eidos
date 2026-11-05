@@ -20,8 +20,16 @@
       "pattern": "publish.eidos.space",
       "custom_domain": true,
     },
+    {
+      "pattern": "*/*",
+      "zone_name": "eidos.ink",
+    },
   ],
   "vars": {
+    "CUSTOM_DOMAINS_ENABLED": "true",
+    "CUSTOM_DOMAIN_ZONE_ID": "843391e0f78a7ff5a10da82b51215877",
+    "CUSTOM_DOMAIN_CNAME_TARGET": "customers.eidos.ink",
+    "CUSTOM_DOMAIN_DCV_DELEGATION_TARGET": "b6f11749c54280f2.dcv.cloudflare.com",
     "AUTH_USERINFO_URL": "https://eidos.space/api/publish/userinfo",
     "CONTROL_HOST": "publish.eidos.space",
     "PUBLISH_ROOT": "eidos.ink",
@@ -70,6 +78,10 @@
   "durable_objects": {
     "bindings": [
       {
+        "name": "PUBLISH_DOMAINS",
+        "class_name": "PublishDomain",
+      },
+      {
         "name": "TENANT_LOCATORS",
         "class_name": "TenantLocatorDurableObject",
       },
@@ -96,6 +108,7 @@
     ],
   },
   "exports": {
+    "PublishDomain": { "type": "durable-object", "storage": "sqlite" },
     "TenantLocatorDurableObject": {
       "type": "durable-object",
       "storage": "sqlite",
@@ -149,6 +162,10 @@
         },
       ],
       "vars": {
+        "CUSTOM_DOMAINS_ENABLED": "false",
+        "CUSTOM_DOMAIN_ZONE_ID": "",
+        "CUSTOM_DOMAIN_CNAME_TARGET": "customers-staging.eidos.ink",
+        "CUSTOM_DOMAIN_DCV_DELEGATION_TARGET": "",
         "AUTH_USERINFO_URL": "https://staging.eidos.space/api/publish/userinfo",
         "CONTROL_HOST": "publish-staging.eidos.space",
         "PUBLISH_ROOT": "eidos.ink",
@@ -195,6 +212,10 @@
       ],
       "durable_objects": {
         "bindings": [
+          {
+            "name": "PUBLISH_DOMAINS",
+            "class_name": "PublishDomain",
+          },
           {
             "name": "TENANT_LOCATORS",
             "class_name": "TenantLocatorDurableObject",

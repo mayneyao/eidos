@@ -39,7 +39,8 @@ env:
 jobs:
   macos-clone-fixture:
     name: Prepare macOS clone fixture
-    runs-on: macos-15
+    # This fixture tests macOS-to-Windows portability, independent of CPU ISA.
+    runs-on: macos-15-intel
     timeout-minutes: 15
     steps:
       - name: Checkout code

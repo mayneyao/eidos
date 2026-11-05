@@ -42,6 +42,9 @@ impl GraftHost {
             }
             return Ok(json!({}));
         }
+        if matches!(method, "peerAutoCheck" | "peerAutoApply") && !root.join(".graft").exists() {
+            return Ok(json!({"outcome": "skipped", "reason": "uninitialized"}));
+        }
         if method == "status" && !root.join(".graft").exists() {
             return Ok(json!({"initialized": false}));
         }
@@ -65,6 +68,48 @@ impl GraftHost {
             .ok_or_else(|| anyhow!("Session unavailable"))?
             .1;
         match method {
+            "peerAutoCheck" => {
+                let status = session.status()?;
+                if !auto_pull_ready(session, &status)? {
+                    return Ok(json!({"outcome": "skipped", "reason": "local_changes"}));
+                }
+                Ok(json!({"outcome": "ready", "expectedHead": status["current_head"]}))
+            }
+            "peerAutoApply" => {
+                // The platform holds its file/Runtime IO boundary across check,
+                // fetch and apply, and checks private drafts and editor leases
+                // again after fetch. Never checkpoint, merge or upload here.
+                let expected = required(&request, "expectedHead")?;
+                let status = session.status()?;
+                if status["current_head"].as_str() != Some(expected)
+                    || !auto_pull_ready(session, &status)?
+                {
+                    return Ok(json!({"outcome": "skipped", "reason": "local_changes"}));
+                }
+                let plan = session.plan_merge(&PlanMergeOptions {
+                    revision: "eidos-peer/main".into(),
+                    expected_head: Some(expected.into()),
+                })?;
+                if plan.target != required(&request, "expectedTarget")? {
+                    return Ok(json!({"outcome": "skipped", "reason": "peer_changed"}));
+                }
+                match plan.kind {
+                    MergePlanKind::UpToDate => Ok(json!({"outcome": "unchanged"})),
+                    MergePlanKind::ThreeWay => {
+                        Ok(json!({"outcome": "skipped", "reason": "diverged"}))
+                    }
+                    MergePlanKind::FastForward => {
+                        // SDK re-plans under its repository lock and rejects a
+                        // changed HEAD/plan/worktree; checkout uses SDK recovery.
+                        let result = session.apply_merge(&ApplyMergeOptions {
+                            revision: "eidos-peer/main".into(),
+                            expected_head: Some(expected.into()),
+                            plan_token: plan.plan_token,
+                        })?;
+                        Ok(json!({"outcome": "updated", "merge": result}))
+                    }
+                }
+            }
             "chooseMergePath" => {
                 let result = match required(&request, "side")? {
                     "ours" => graft_sdk::MergePathResult::Ours,
@@ -296,6 +341,19 @@ impl GraftHost {
     }
 }
 
+fn auto_pull_ready(session: &RepositorySession, status: &Value) -> Result<bool> {
+    let local = session.status_incremental()?.status;
+    Ok(status["current_branch"] == "main"
+        && status["current_head"].as_str().is_some()
+        && !local.dirty
+        && !local.has_unstaged_changes
+        && !local.has_staged_changes
+        && !local.has_conflicts
+        && !local.work_in_progress
+        && local.path_diagnostics.is_empty()
+        && matches!(session.get_merge_status()?, graft_sdk::MergeStatus::None))
+}
+
 fn required<'a>(request: &'a Value, key: &str) -> Result<&'a str> {
     request[key]
         .as_str()
@@ -437,3 +495,7 @@ mod tests {
 #[cfg(test)]
 #[path = "graft_remote_tests.rs"]
 mod remote_tests;
+
+#[cfg(test)]
+#[path = "graft_auto_tests.rs"]
+mod auto_tests;
