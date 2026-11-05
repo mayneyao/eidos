@@ -277,6 +277,61 @@ it("discloses the workspace file access permission", async () => {
   )
 })
 
+it.each(["read", "write"] as const)(
+  "discloses automatic file hook events and %s access before installation",
+  async (access) => {
+    await fs.writeFile(
+      mock.selected,
+      encodePackage(
+        {
+          apiVersion: 1,
+          requires: { pluginApi: "3.7.0" },
+          id: "example.title-sync",
+          name: "Title Sync",
+          version: "1.0.0",
+          extension: "./extension.ts",
+          hooks: [
+            {
+              id: "saved",
+              title: "Saved",
+              event: "document.saved",
+              extensions: [".md"],
+              access,
+            },
+            {
+              id: "renamed",
+              title: "Renamed",
+              event: "file.renamed",
+              extensions: [".md", ".markdown"],
+              access,
+            },
+          ],
+        },
+        { "./extension.ts": "export function register() {}" }
+      )
+    )
+    mock.response = 0
+    expect(await call("install", 1)).toBe(false)
+    expect(mock.messageOptions).toContainEqual(
+      expect.objectContaining({
+        detail: expect.stringContaining(
+          "File hooks run automatically on local document saves and file renames for .md, .markdown files."
+        ),
+      })
+    )
+    expect(mock.messageOptions).toContainEqual(
+      expect.objectContaining({
+        detail: expect.stringContaining(
+          access === "write"
+            ? "They can change the affected document's text and filename within its existing folder."
+            : "They can read the affected document's text and filename, without changing them."
+        ),
+      })
+    )
+    expect((await listing(1)).plugins).toEqual([])
+  }
+)
+
 it("updates from another Space reload active instances and preserve enablement", async () => {
   await call("install", 1)
   const opened = (await call(

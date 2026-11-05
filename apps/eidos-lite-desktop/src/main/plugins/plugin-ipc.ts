@@ -962,6 +962,22 @@ export function registerPluginIpc(controller: WindowController): {
       ? `This package changes Eidos Lite's colors, typography and supported layout tokens when selected. It contains no executable plugin code. Installed once for this device; choose Apply theme in the plugin manager after installation.`
       : null
 
+    const hookReview = pkg.manifest.hooks?.length
+      ? `\nFile hooks run automatically on local ${[
+          ...new Set(
+            pkg.manifest.hooks.map((hook) =>
+              hook.event === "document.saved"
+                ? "document saves"
+                : "file renames"
+            )
+          ),
+        ].join(" and ")} for ${[
+          ...new Set(pkg.manifest.hooks.flatMap((hook) => hook.extensions)),
+        ].join(
+          ", "
+        )} files. ${pkg.manifest.hooks.some((hook) => hook.access === "write") ? "They can change the affected document's text and filename within its existing folder." : "They can read the affected document's text and filename, without changing them."}`
+      : ""
+
     const review = await dialog.showMessageBox(owner, {
       type: "question",
       title: isUpdate ? "Update plugin" : "Install plugin",
@@ -980,7 +996,7 @@ export function registerPluginIpc(controller: WindowController): {
       }${pkg.manifest.browser?.network && pkg.manifest.browser.networkOrigins === undefined ? "\nNetwork access: all public HTTPS services (no private/local networks)." : pkg.manifest.browser?.networkOrigins?.length ? `\nNetwork access: ${pkg.manifest.browser.networkOrigins.join(", ")}` : ""}${pkg.manifest.browser?.workers ? "\nRuns bundled browser workers." : ""}${pkg.manifest.storage ? `\nDevice-local plugin storage: up to ${Math.ceil(pkg.manifest.storage.maxBytes / 1024 / 1024)} MiB.` : ""}${pkg.manifest.workspace?.filemeta ? `\nFile properties (${pkg.manifest.workspace.filemeta.write ? "read/write" : "read"}): ${pkg.manifest.workspace.filemeta.namespaces.join(", ")}` : ""}${pkg.manifest.placements?.some((p) => p.location === "sidebar/explorer") ? "\nProvides a sidebar file explorer. Select it from the Space heading." : ""}`,
       detail: themeReview
         ? `${pkg.manifest.id}\n\n${themeReview}`
-        : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${targetSpaceId && !scope ? "Will be enabled in this Space after installation." : spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}\nNamed resources are not granted by installation.`,
+        : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${targetSpaceId && !scope ? "Will be enabled in this Space after installation." : spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}${hookReview}\nNamed resources are not granted by installation.`,
       buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
       defaultId: 0,
       cancelId: 0,
