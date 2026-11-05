@@ -1,30 +1,37 @@
-# Eidos iOS 0.2.1
+# Eidos iOS 0.3.0
 
-Build 6 fixes installation and startup of compatible Marketplace plugins.
-Requires iOS 17 or later. This release is intended for the existing TestFlight
-internal and public testing groups.
+Build 7 adds automatic downloads of committed desktop updates for paired local
+Spaces. Requires iOS 17
+or later. This build is intended for the existing TestFlight testing groups.
 
-## Bug fixes
+## What's new
 
-- Install plugins with bundled translations without the “Invalid plugin package
-  envelope” error. Validated translations are supplied to plugin views and actions,
-  and the permission review uses readable plugin labels.
-- Keep plugin dependency variables separate from the host's mount arguments,
-  fixing plugin views such as Markmap that failed to start after installation.
-- Preserve package integrity checks, permission review and per-Space enablement
-  for both older packages and localized packages.
-- Recover LAN pairing when the computer advertises an unreachable VPN or
-  virtual-network address by checking alternative addresses and local discovery.
+- Paired Spaces check for committed desktop updates after launch or resume and
+  while idle. With Eidos Lite 0.31.0 or later on the same local network, clean
+  local history can advance automatically without opening an editor or taking
+  focus. Save a desktop checkpoint to make pending desktop edits available.
+- iOS background opportunities can perform the same download. iOS controls
+  scheduling; updates are not immediate or guaranteed while suspended, offline,
+  force-quit, or restricted by system permissions.
+- Automatic downloads preserve local edits, recovery drafts and independent
+  commits. Opening an editor cancels the automatic operation. Automatic downloads
+  do not upload phone changes, create checkpoints, merge, or resolve conflicts;
+  use manual Sync for those workflows.
 
 ## What to test
 
-Install or update a compatible plugin from Space actions → Plugins. Review its
-permissions, then open a Markdown note with Markmap. Check installation in both
-English and Chinese and confirm that enabling a plugin affects only the chosen
-Space. Existing local files should remain available after updating the app.
+Update from the previous TestFlight build and confirm existing Spaces, notes,
+attachments, favorites and local history remain available. Edit and reopen a
+note while offline. Pair with Eidos Lite 0.31.0 or later, save a desktop
+checkpoint, then return to the iOS app and check that a clean paired Space
+receives it. Repeat with an unsaved recovery draft, an open editor, local file
+changes and an independent local checkpoint; those changes must remain intact.
 
-Seven published packages passed installation and enablement checks in an iOS
-simulator; Markmap rendering and Journals navigation were also verified there.
-Physical iPhone and TestFlight upgrade testing remain separate from simulator
-coverage. Themes, background services, plugin storage and other capabilities
-not implemented by the mobile host remain unsupported.
+This iteration uses simulator validation. Actual system background wakeups,
+locked-device file/Keychain protection and physical TestFlight installation are
+outside that coverage. Simulator execution of the foreground catch-up and native
+background task body does not establish natural BGProcessing scheduling.
+
+This is a TestFlight build, not an App Store release. Apple processing and
+external testing review are reported separately from archive and upload status.
+This TestFlight build is not intended for distribution in France.
