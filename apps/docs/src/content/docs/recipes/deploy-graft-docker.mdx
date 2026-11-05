@@ -2,264 +2,201 @@
 title: Deploy Graft with Docker
 ---
 
-Run your own Sync server for Eidos Lite. Follow these steps on a Linux server to
-get an HTTPS address you can connect to from Lite.
+Run your own Sync server for Eidos Lite. Start the container, open its setup page
+and choose where to store your data. Graft creates the access key for you.
 
-Use **local disk** for the simplest setup, or **S3-compatible storage** to store objects in
-a private bucket. Both options need persistent disk space on your server.
+Use **local disk** for the simplest setup, or configure **S3-compatible storage**
+in the browser. Both options need persistent disk space on your server.
 
 ## Before you start
 
-You need a Linux AMD64 or ARM64 server with:
+- A Linux AMD64 or ARM64 server with [Docker Engine and Compose v2](https://docs.docker.com/engine/install/) and curl.
+- An HTTPS address supplied by your existing proxy or hosting platform. If you need a proxy, use the optional Caddy configuration below.
+- Eidos Lite with Spark active on each computer that will use this server. An official Sync subscription is not required.
 
-- [Docker Engine and Compose v2](https://docs.docker.com/engine/install/).
-- Bash, curl and OpenSSL. Run the commands below in Bash as a user who can run Docker.
-- A domain pointing to the server, such as `sync.example.com`.
-- Ports 80 and 443 accessible from the internet, and [Caddy installed as a system service](https://caddyserver.com/docs/install) on the host.
+**Caddy is optional.** Replace `sync.example.com` below with your actual hostname.
+Run the commands on your server.
 
-Replace `sync.example.com` throughout this guide with your domain.
+## 1. Download and configure
 
-## 1. Download the deployment file
-
-Create a new, private installation directory:
+For a **new installation**, create a private directory and download the deployment file:
 
 ```bash
 mkdir -m 700 ~/graft-sync
 cd ~/graft-sync
 curl -fL --retry 3 -o compose.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.yaml
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.yaml
+cat > .env <<'EOF_ENV'
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+EOF_ENV
 ```
 
-The file uses the public [Graft Docker 0.1.1 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1)
+The file uses the public [Graft Docker 0.2.0 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.2.0)
 and pins the image by digest. No GitHub login, source checkout or local build is needed.
-Run all later Compose commands from this directory.
+Use an HTTPS address without a path. Run later Compose commands from this directory.
 
-## 2. Create the server access key
+## 2. Connect HTTPS
 
-Run this once for a new installation:
+### With your existing proxy or platform
 
-```bash
-mkdir -m 700 secrets
-(umask 077; openssl rand -hex 32 > secrets/access-key)
-chmod 444 secrets/access-key
-```
+Forward your HTTPS address to `http://127.0.0.1:8787` on the server. A proxy in
+another container needs the same Docker network and upstream `http://graft:8787`.
+Keep port 8787 private. Allow request bodies of at least 64 MiB and transfers of
+at least 120 seconds. Forward paths and authorization headers unchanged and
+disable API caching. Continue to step 3.
 
-Save the key in your password manager. It grants access to **all Spaces on this
-server** and is separate from a Space's encryption password.
+### Optional: add Caddy
 
-The private directories protect the key on the host. The file must be readable
-by the container's unprivileged user. Do not repeat the key generation command
-on an existing installation: it would replace the key.
-
-## 3. Choose storage
-
-Complete **one** option before starting the server.
-
-### Option A: Local disk
-
-Create `.env` with your public address:
+Use this option only if you need a proxy. Point your domain's DNS to the server,
+make ports 80 and 443 reachable, and ensure no other service occupies them.
 
 ```bash
-cat > .env <<'EOF'
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-EOF
+curl -fL --retry 3 -o compose.caddy.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.caddy.yaml
+curl -fL --retry 3 -o Caddyfile \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/Caddyfile
+cat >> .env <<'EOF_ENV'
+GRAFT_DOMAIN=sync.example.com
+COMPOSE_FILE=compose.yaml:compose.caddy.yaml
+EOF_ENV
 ```
 
-Docker will create a persistent data volume. Continue to step 4.
+Use the same hostname in `GRAFT_DOMAIN` and `GRAFT_PUBLIC_ORIGIN`. Caddy starts
+alongside Graft and manages certificates. No host installation or system-file editing is needed.
 
-### Option B: S3-compatible storage
-
-1. Create a private bucket with your S3-compatible storage provider.
-2. Copy its **S3 API endpoint** and **region** from the provider's configuration.
-3. Create bucket-scoped S3 credentials. Save the **Access Key ID** and **Secret Access Key**. Allow bucket access, object reads/writes/deletes and multipart uploads, including aborting incomplete uploads.
-
-The bucket does not need a public URL. Graft uses an existing bucket; it does not
-create one. Use the endpoint, region and S3 credentials supplied by your provider.
-
-Download the additional Compose file:
+## 3. Start and open setup
 
 ```bash
-curl -fL --retry 3 -o compose.s3.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.s3.yaml
+docker compose up -d --wait
+docker compose exec graft node services/graft-remote-docker/manage.mjs setup-link
 ```
 
-Paste each credential when prompted. Input is hidden and does not enter shell history:
+Open the printed initialization link in your browser. It points to `/setup` at
+your public address and includes a private, one-time credential. Keep the whole
+link private. If HTTPS is not ready, check DNS and proxy logs, then retry.
 
-```bash
-read -r -s -p 'S3 Access Key ID: ' graft_s3_key_id; printf '\n'
-(umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
-unset graft_s3_key_id
-read -r -s -p 'S3 Secret Access Key: ' graft_s3_secret; printf '\n'
-(umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
-unset graft_s3_secret
-chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
-```
+The link survives restarts until setup completes. If you close the page early,
+run the same command to obtain it again. Opening `/setup` without that link does
+not grant permission to configure the server.
 
-Create `.env`, replacing the domain, endpoint, region and bucket name with your values:
+## 4. Complete setup in the browser
 
-```bash
-cat > .env <<'EOF'
-COMPOSE_FILE=compose.yaml:compose.s3.yaml
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://s3.example.com
-GRAFT_S3_REGION=your-bucket-region
-GRAFT_S3_BUCKET=your-private-bucket
-GRAFT_S3_PREFIX=graft/
-GRAFT_S3_FORCE_PATH_STYLE=true
-EOF
-```
+Choose **Local disk** to continue without extra fields. To use **S3-compatible
+storage**, enter the details of an existing private bucket:
 
-The endpoint and region above are placeholders. Set `GRAFT_S3_FORCE_PATH_STYLE`
-according to your provider's addressing requirements.
-Use a dedicated bucket or a prefix reserved for this installation, ending in `/`.
-`COMPOSE_FILE` makes the commands below load both Compose files automatically.
+| Field                             | Value                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| S3 endpoint                       | Your provider's HTTPS S3 API endpoint                                             |
+| Region                            | The region specified by your provider                                             |
+| Bucket name                       | An existing dedicated bucket, or one with a prefix reserved for this installation |
+| Access Key ID / Secret Access Key | Bucket-scoped S3 credentials                                                      |
 
-S3-compatible storage holds objects, but the Docker volume still holds metadata and unfinished
-uploads. Reserve disk space for upload parts and an assembled copy of each upload
-being completed.
+Advanced settings contain the object prefix (default `graft/`), path-style
+addressing and an optional session token. Use a dedicated prefix ending in `/`
+and the addressing style your provider supports.
 
-## 4. Start the server
+For S3, choose **Test connection**. Graft writes, reads and deletes a temporary
+object. Correct errors before continuing. Credentials also need multipart-upload
+permissions, including aborting incomplete uploads; versioned buckets need
+permission to delete object versions. This connection test does not verify large
+multipart uploads. Avoid retention, Object Lock or expiration rules that interfere
+with the installation's objects.
 
-```bash
-docker compose config --quiet
-docker compose pull
-docker compose up -d
-docker compose ps
-curl --fail --show-error --silent --retry 10 --retry-all-errors --retry-delay 2 \
-  http://127.0.0.1:8787/healthz
-```
+Click **Complete setup**. Save the displayed **server address** and **access key**
+in your password manager. The key grants access to every Space on this server.
+The page displays it only once; see recovery below if you lose it.
 
-The last command should return a successful health response. If it fails, check
-the logs before continuing:
+Graft generates the key and saves configuration automatically. No terminal password
+generation, secret-file creation or permission commands are needed. Restarting
+or upgrading does not reopen setup.
 
-```bash
-docker compose logs --tail=100 graft
-```
+## 5. Connect Lite
 
-The container only listens on `127.0.0.1:8787`; Caddy will provide public access.
+In Lite, open **Sync → Add server**, enter a name, paste the server address and
+access key, then choose **Test and save**. Select the server for your Space and
+follow the prompts. See [Connect a self-hosted server](/recipes/sync-custom-server/).
 
-## 5. Enable HTTPS
+The server address must not include `/setup` or the initialization credential.
+Your **Space sync password** is separate: it encrypts and unlocks your Space.
+Save both. For an already connected Space, use **Switch server** instead of
+replacing its address.
 
-Add this block to `/etc/caddy/Caddyfile` on the host, preserving existing sites:
-
-```text
-sync.example.com {
-    reverse_proxy 127.0.0.1:8787
-}
-```
-
-Validate and reload Caddy:
-
-```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-curl -fsS https://sync.example.com/healthz
-```
-
-Wait for the public health check to succeed before connecting Lite. For certificate
-errors, check DNS and whether ports 80 and 443 reach Caddy.
-
-Using another proxy? Allow request bodies of at least 64 MiB and transfers of at
-least 120 seconds. Forward paths and authorization headers unchanged and disable
-API caching. A containerized proxy needs a shared Docker network with upstream
-`graft:8787`, rather than the host-loopback configuration above.
-
-## 6. Connect Lite
-
-Display the server key:
-
-```bash
-cat secrets/access-key
-```
-
-Follow [Connect a self-hosted server](/recipes/sync-custom-server/) in Lite.
-Use `https://sync.example.com` as the address and paste the key.
-Also keep your Space's sync password safe: the server key cannot replace it.
-
-Once connected, add a record and a small attachment. Download the Space on another
-computer and open both, then edit a record there and confirm the first computer
-receives the change. This checks synchronization beyond the server health check.
-
-Initial connection confirms that uploaded data is stored. This server version
-does not require Lite to download the entire upload for confirmation, though
-the server still reads stored objects. Older servers may require a full download.
-If confirmation fails, keep your local Space and retry after fixing the problem.
+Add a record and a small attachment, then download the Space on another computer.
+Open both, edit a record there and confirm the first computer receives the change.
+This checks synchronization beyond a server health check.
 
 ## Maintain the installation
 
-### Stop and restart
+### Retrieve the access key
 
-Run from `~/graft-sync`:
+If you did not save the key, run this on the server:
 
 ```bash
-docker compose stop
-docker compose start
+docker compose exec graft node services/graft-remote-docker/manage.mjs access-key
 ```
 
-Keep the deployment directory and its Docker data volume. **Do not use
-`docker compose down -v` unless you intend to delete the server's local data.**
-Run one Graft instance per data volume.
+This retrieves the existing key without changing it or reopening setup. Do not
+include keys or initialization links in screenshots or support messages.
 
-### Back up and upgrade
+### Stop, restart and back up
 
-Pause synchronization and stop the container before backing up:
+Use `docker compose stop` and `docker compose start` from the deployment directory.
+Keep its files and data volumes. **Do not use `docker compose down -v` unless you
+intend to delete the installation's local data.** Run one Graft instance per data volume.
 
-- **Local storage:** copy the complete `/data` volume.
-- **S3-compatible storage:** copy both `/data` and the matching bucket objects
-  while the server is stopped. Neither copy alone is sufficient.
-- Securely back up the Compose files, `.env` and access keys. Keep Space sync passwords separately.
+Pause synchronization and stop Graft before backing up:
 
-Restart after the backup. Test restoration into a separate empty volume and
-check a client download before relying on a backup. Object storage alone is not
-a backup: synchronization can delete stored objects.
+- **Local storage:** back up the complete `/data` volume, including its private configuration.
+- **S3 storage:** back up `/data` and matching bucket objects while stopped. Neither copy alone is sufficient. S3 mode still uses server disk for metadata, upload parts and assembled uploads.
+- Back up Compose files, `.env`, externally managed secrets and, if used, Caddy's certificate data. Keep Space sync passwords separately.
 
-To upgrade, back up first. Download the new release's Compose files into a
-temporary directory and compare them with your installation. Update the image
-reference and required settings, preserving your `.env`, secrets and data volume.
-Then run:
+Protect backups: web configuration contains the server key and any S3 credentials.
+Test restoration into a separate empty volume and verify a client download.
+Object storage alone is not a backup; synchronization can delete objects.
+
+### Upgrade an existing installation
+
+Back up first. Download the new release's files into a separate directory and
+compare them with your installation. Update the image reference and necessary
+settings, preserving data volumes, `.env` and credentials. Then run:
 
 ```bash
 docker compose pull
-docker compose up -d
-curl -fsS https://sync.example.com/healthz
+docker compose up -d --wait
 ```
 
-Check synchronization in Lite before discarding the previous image and backup.
+**Upgrading from 0.1.1:** keep your existing Compose file and mounted access-key
+file. Update its image reference to the new release's digest. Existing key-file
+deployments remain supported and skip web setup. Replacing their Compose file
+with the new default would omit the key mount. The `compose.secrets.yaml` release
+asset supports externally managed keys with the new template.
 
-### Provider examples and storage changes
+Changing storage mode, endpoint, bucket or prefix does not migrate data. Deploy
+a separate server with fresh storage, then use Lite's **Switch server** flow.
 
-Changing storage mode, endpoint, bucket or prefix does **not** migrate data.
-For an existing installation, deploy a separate server with fresh storage and
-use Lite's **Switch server** flow.
+### S3 provider examples
 
-For **Cloudflare R2**, use the bucket's S3 API endpoint and
+For **Cloudflare R2**, use the bucket's S3 endpoint and
 [region `auto`](https://developers.cloudflare.com/r2/api/s3/api/).
-[Create R2 S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with
-**Object Read & Write** permission limited to that bucket, rather than a general
-Cloudflare API token. For a jurisdiction-restricted bucket, use the endpoint
-shown in its configuration.
+[Create S3 credentials](https://developers.cloudflare.com/r2/api/tokens/) with
+bucket-scoped **Object Read & Write** permission, rather than a general API token.
+For **Backblaze B2**, use the bucket's endpoint and region and a bucket-restricted
+[application key](https://www.backblaze.com/docs/cloud-storage-application-keys):
+`keyID` is the Access Key ID and `applicationKey` is the Secret Access Key.
 
-For **Backblaze B2**, copy the
-endpoint and region from your bucket details and create a bucket-restricted
-[application key](https://www.backblaze.com/docs/cloud-storage-application-keys).
-Save `keyID` in `secrets/s3-access-key-id` and `applicationKey` in
-`secrets/s3-secret-access-key`.
-
-Credentials need bucket access, object reads/writes/deletes and multipart uploads,
-including aborting incomplete uploads. Versioned buckets also need permission to
-delete object versions. Object Lock and retention rules can prevent deletion.
-Avoid expiration rules on live objects in your installation's prefix.
-Provider storage, request and transfer charges apply.
-
-This release was tested with local storage, MinIO and Cloudflare R2. The B2
-configuration uses its S3 API but has not been tested against a live B2 bucket.
+Web setup was tested with local disk and MinIO S3. R2 storage was also tested in
+the previous server release; B2 is a configuration example, not a claim of live
+B2 acceptance. Provider storage, request and transfer charges apply.
 
 ## Troubleshooting
 
-| Symptom                             | Check                                                                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Compose reports missing variables   | Check `.env` in the deployment directory; S3-compatible storage requires all option B fields.                     |
-| Local health check fails            | Run `docker compose ps` and `docker compose logs --tail=100 graft`. Check secret permissions and free disk space. |
-| Public health check fails           | Check DNS, firewall ports and Caddy configuration.                                                                |
-| Lite reports an authorization error | Use the server key, not the Space password or S3 credentials.                                                     |
-| S3 transfers fail                   | Check the endpoint, region, bucket name, addressing style and credential permissions described in option B.       |
+| Problem                               | Next step                                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container fails to start              | Run `docker compose logs --tail=100 graft`; check volume permissions and free disk space.                                                    |
+| Setup link does not open              | Check the public address, DNS and HTTPS proxy. With optional Caddy, inspect `docker compose logs --tail=100 caddy`.                          |
+| Setup asks for an initialization link | Run the `setup-link` command and open its complete output.                                                                                   |
+| Setup rejects a submission            | Open the link directly at the HTTPS address matching `GRAFT_PUBLIC_ORIGIN`, without a redirect to another origin.                            |
+| Setup says it is complete             | Use your saved key or the `access-key` recovery command.                                                                                     |
+| S3 test fails                         | Check endpoint, region, bucket, addressing style and permissions. If deletion was denied, clean up any leftover test object before retrying. |
+| `/healthz` returns 503 before setup   | Expected: finish setup first. Container liveness uses `/livez`; it does not prove synchronization works.                                     |
+| Lite reports an authorization error   | Use the server key, not the setup credential, S3 credentials or Space sync password.                                                         |

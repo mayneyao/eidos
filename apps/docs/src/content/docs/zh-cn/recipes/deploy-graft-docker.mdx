@@ -2,255 +2,189 @@
 title: 使用 Docker 部署 Graft
 ---
 
-在自己的 Linux 服务器上运行 Eidos Lite 同步服务。按照下面的步骤完成部署后，
-你会得到一个可以在 Lite 中连接的 HTTPS 地址。
+在自己的服务器上运行 Eidos Lite 同步服务：启动容器、打开设置页面、选择存储，
+Graft 会自动创建访问密钥。
 
-**本地磁盘**配置最简单；也可以选择 **S3 兼容存储**，将对象存入私有桶。
+**本地磁盘**配置最简单，也可以在浏览器中配置 **S3 兼容存储**。
 两种方式都需要在服务器上保留持久化磁盘空间。
 
 ## 开始前准备
 
-准备一台 Linux AMD64 或 ARM64 服务器，并确保：
+- 一台 Linux AMD64 或 ARM64 服务器，已安装 [Docker Engine 和 Compose v2](https://docs.docker.com/engine/install/) 及 curl。
+- 一个由已有代理或部署平台提供的 HTTPS 地址。没有代理时，可以使用下文可选的 Caddy 配置。
+- 需要连接的电脑已安装 Eidos Lite 并激活 Spark，不需要官方 Sync 订阅。
 
-- 已安装 [Docker Engine 和 Compose v2](https://docs.docker.com/engine/install/)。
-- 已安装 Bash、curl 和 OpenSSL。以下命令在 Bash 中执行，当前用户需要有运行 Docker 的权限。
-- 有一个域名，例如 `sync.example.com`，DNS 已指向服务器。
-- 80 和 443 端口允许外部访问，宿主机上已[安装 Caddy 系统服务](https://caddyserver.com/docs/install)。
+**Caddy 是可选的。**将下文的 `sync.example.com` 替换为实际域名，命令在服务器上执行。
 
-将下文的 `sync.example.com` 全部替换为你的域名。
+## 1. 下载并配置
 
-## 1. 下载部署文件
-
-为本次安装新建一个私有目录：
+为**新安装**创建私有目录，下载部署文件：
 
 ```bash
 mkdir -m 700 ~/graft-sync
 cd ~/graft-sync
 curl -fL --retry 3 -o compose.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.yaml
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.yaml
+cat > .env <<'EOF_ENV'
+GRAFT_PUBLIC_ORIGIN=https://sync.example.com
+EOF_ENV
 ```
 
-该文件使用公开的 [Graft Docker 0.1.1 镜像](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.1.1)，
+该文件使用公开的 [Graft Docker 0.2.0 镜像](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.2.0)，
 通过摘要固定镜像内容。不需要登录 GitHub、下载源码或自行构建。
-后续所有 Compose 命令都在这个目录中运行。
+填写不带路径的 HTTPS 地址，后续 Compose 命令均在这个目录中执行。
 
-## 2. 创建服务器访问密钥
+## 2. 接入 HTTPS
 
-仅在首次安装时执行：
+### 使用已有代理或部署平台
 
-```bash
-mkdir -m 700 secrets
-(umask 077; openssl rand -hex 32 > secrets/access-key)
-chmod 444 secrets/access-key
-```
+将 HTTPS 地址转发到服务器上的 `http://127.0.0.1:8787`。
+如果代理运行在另一个容器中，将它加入同一 Docker 网络，使用
+`http://graft:8787` 作为上游。保持 8787 端口私有。
+代理需允许至少 64 MiB 请求体和至少 120 秒传输，原样转发路径和授权请求头，
+关闭 API 缓存。然后继续第 3 步。
 
-将密钥保存到密码管理器。它可以访问**这台服务器上的所有 Space**，
-与用于加密 Space 的同步密码是两回事。
+### 可选：添加 Caddy
 
-私有目录保护宿主机上的密钥；文件本身需要允许容器内的普通用户读取。
-已有安装不要重复执行生成命令，否则会替换原来的密钥。
-
-## 3. 选择存储方式
-
-启动服务器之前，完成以下**其中一种**配置。
-
-### 选项 A：本地磁盘
-
-创建 `.env`，填写公开访问地址：
+仅在需要代理时选择此项。将域名 DNS 指向服务器，开放 80 和 443 端口，
+并确认没有其他服务占用它们。
 
 ```bash
-cat > .env <<'EOF'
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-EOF
+curl -fL --retry 3 -o compose.caddy.yaml \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.caddy.yaml
+curl -fL --retry 3 -o Caddyfile \
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/Caddyfile
+cat >> .env <<'EOF_ENV'
+GRAFT_DOMAIN=sync.example.com
+COMPOSE_FILE=compose.yaml:compose.caddy.yaml
+EOF_ENV
 ```
 
-Docker 会创建持久化数据卷。接着执行第 4 步即可。
+`GRAFT_DOMAIN` 与 `GRAFT_PUBLIC_ORIGIN` 使用同一域名。
+Caddy 会随 Graft 一起启动并管理证书，无需在宿主机安装或编辑系统文件。
 
-### 选项 B：S3 兼容存储
-
-1. 在 S3 兼容存储服务中创建一个私有存储桶。
-2. 从服务商配置中复制 **S3 API 端点**和**区域**。
-3. 创建限定到该桶的 S3 凭据，保存 **Access Key ID** 和 **Secret Access Key**。凭据需要允许桶访问、对象读写删除和分片上传，包括取消未完成的上传。
-
-桶不需要公开访问地址。Graft 使用已有的桶，不会自动创建。
-请填写服务商提供的端点、区域和 S3 凭据。
-
-下载额外的 Compose 文件：
+## 3. 启动并打开设置
 
 ```bash
-curl -fL --retry 3 -o compose.s3.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.1.1/compose.s3.yaml
+docker compose up -d --wait
+docker compose exec graft node services/graft-remote-docker/manage.mjs setup-link
 ```
 
-按提示分别粘贴凭据。输入不会显示，也不会进入命令历史：
+在浏览器中打开输出的初始化链接。它指向公开地址下的 `/setup`，
+包含私有的一次性凭据，请勿分享整个链接。
+如果 HTTPS 尚未就绪，检查 DNS 和代理日志后重试。
 
-```bash
-read -r -s -p 'S3 Access Key ID: ' graft_s3_key_id; printf '\n'
-(umask 077; printf '%s' "$graft_s3_key_id" > secrets/s3-access-key-id)
-unset graft_s3_key_id
-read -r -s -p 'S3 Secret Access Key: ' graft_s3_secret; printf '\n'
-(umask 077; printf '%s' "$graft_s3_secret" > secrets/s3-secret-access-key)
-unset graft_s3_secret
-chmod 444 secrets/s3-access-key-id secrets/s3-secret-access-key
-```
+完成设置前，链接在重启后仍可使用。中途关闭页面后，重新执行相同命令即可取回。
+仅打开 `/setup`，没有链接中的初始化凭据，不能配置服务器。
 
-创建 `.env`，将域名、端点、区域和桶名替换为你的实际配置：
+## 4. 在浏览器中完成设置
 
-```bash
-cat > .env <<'EOF'
-COMPOSE_FILE=compose.yaml:compose.s3.yaml
-GRAFT_PUBLIC_ORIGIN=https://sync.example.com
-GRAFT_S3_ENDPOINT=https://s3.example.com
-GRAFT_S3_REGION=your-bucket-region
-GRAFT_S3_BUCKET=your-private-bucket
-GRAFT_S3_PREFIX=graft/
-GRAFT_S3_FORCE_PATH_STYLE=true
-EOF
-```
+选择**本地磁盘**即可继续，无需填写其他字段。
+使用 **S3 兼容存储**时，填写已有私有桶的信息：
 
-上面的端点和区域是占位示例。根据服务商的寻址方式要求设置
-`GRAFT_S3_FORCE_PATH_STYLE`。
-使用专用桶，或为本次安装保留一个独占前缀，前缀以 `/` 结尾。
-`COMPOSE_FILE` 会让后续命令自动加载两个 Compose 文件。
+| 字段                              | 填写内容                                     |
+| --------------------------------- | -------------------------------------------- |
+| S3 端点                           | 服务商提供的 HTTPS S3 API 端点               |
+| 区域                              | 服务商指定的区域                             |
+| 存储桶名称                        | 本次安装专用的已有桶，或其中包含独占前缀的桶 |
+| Access Key ID / Secret Access Key | 限定到该桶的 S3 凭据                         |
 
-S3 兼容存储保存对象数据，但 Docker 数据卷仍要保存元数据和未完成的上传。
-服务器磁盘需要容纳上传分片，以及每个正在完成上传的对象的一份组装副本。
+高级设置包含对象前缀（默认 `graft/`）、路径式寻址和可选会话令牌。
+使用以 `/` 结尾的独占前缀，并选择服务商支持的寻址方式。
 
-## 4. 启动服务器
+使用 S3 时点击**测试连接**。Graft 会通过临时对象检查读、写、删除，
+有错误时先修正再继续。凭据还需允许分片上传，包括取消未完成的上传；
+启用版本控制的桶需要允许删除对象版本。连接测试不代表已验证大文件分片上传。
+避免配置妨碍有效对象使用和删除的保留、对象锁定或自动过期规则。
 
-```bash
-docker compose config --quiet
-docker compose pull
-docker compose up -d
-docker compose ps
-curl --fail --show-error --silent --retry 10 --retry-all-errors --retry-delay 2 \
-  http://127.0.0.1:8787/healthz
-```
+点击**完成设置**，将显示的**服务器地址**和**访问密钥**保存到密码管理器。
+该密钥可以访问这台服务器上的所有 Space，页面仅展示一次；遗失后可按下文取回。
 
-最后一条命令应返回成功的健康检查响应。如果失败，先查看日志：
+密钥生成和配置保存会自动完成，无需在终端生成密码、创建密钥文件或修改文件权限。
+重启和升级不会重新开放初始化。
 
-```bash
-docker compose logs --tail=100 graft
-```
+## 5. 连接 Lite
 
-容器只监听 `127.0.0.1:8787`，接下来通过 Caddy 提供公开访问。
+在 Lite 中打开**同步 → 添加服务器**，填写名称，粘贴服务器地址和访问密钥，
+选择**测试并保存**，再为 Space 选择该服务器并按照提示连接。
+详见[连接自托管服务器](/zh-cn/recipes/sync-custom-server/)。
 
-## 5. 配置 HTTPS
+服务器地址不要包含 `/setup` 或初始化凭据。
+**Space 同步密码**与服务器访问密钥不同，用于加密和解锁 Space，两者都要保存。
+已有云端连接的 Space 请使用**切换服务器**，不要直接替换地址。
 
-在宿主机的 `/etc/caddy/Caddyfile` 中添加以下配置，保留已有站点：
-
-```text
-sync.example.com {
-    reverse_proxy 127.0.0.1:8787
-}
-```
-
-检查配置并重新加载 Caddy：
-
-```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-curl -fsS https://sync.example.com/healthz
-```
-
-公开健康检查成功后再连接 Lite。如果证书签发失败，检查 DNS，
-以及 80 和 443 端口是否能到达 Caddy。
-
-如果使用其他代理，请允许至少 64 MiB 的请求体和至少 120 秒的传输时间，
-原样转发路径和授权请求头，并关闭 API 缓存。
-如果代理也运行在容器中，需要使用共享 Docker 网络，将上游设为 `graft:8787`，
-而不是照搬上面的本机地址配置。
-
-## 6. 连接 Lite
-
-在服务器上查看访问密钥：
-
-```bash
-cat secrets/access-key
-```
-
-按照 [连接自托管服务器](/zh-cn/recipes/sync-custom-server/) 在 Lite 中操作，
-服务器地址填写 `https://sync.example.com`，粘贴访问密钥。
-同时妥善保存 Space 同步密码，服务器访问密钥不能代替它。
-
-连接后，添加一条记录和一个小附件。在另一台电脑上下载 Space，打开记录和附件，
-再从第二台电脑修改记录，确认第一台能收到更新。
-这样可以确认整套配置能够同步，而不只是健康检查正常。
-
-首次连接会确认上传的数据已保存。使用这个版本的服务器时，
-确认过程不需要 Lite 把完整上传内容再下载回来，但服务器仍会读取已存储的对象。
-旧版服务器可能需要完整下载。如果确认失败，保留本地 Space，
-解决提示的问题后重试。
+添加一条记录和一个小附件，在另一台电脑下载 Space，打开记录和附件，再修改记录，
+确认第一台电脑能收到更新。这样可以验证同步，而不只是健康检查正常。
 
 ## 日常维护
 
-### 停止和重新启动
+### 取回访问密钥
 
-在 `~/graft-sync` 目录执行：
+如果没有保存密钥，在服务器上执行：
 
 ```bash
-docker compose stop
-docker compose start
+docker compose exec graft node services/graft-remote-docker/manage.mjs access-key
 ```
 
-保留部署目录及其 Docker 数据卷。
-**除非确实要删除服务器的本地数据，否则不要执行 `docker compose down -v`。**
+该命令取回已有密钥，不会更换密钥或重新开放初始化。
+不要在截图或支持消息中包含密钥和初始化链接。
+
+### 停止、重启和备份
+
+在部署目录中使用 `docker compose stop` 和 `docker compose start`，保留文件和数据卷。
+**除非确实要删除本地安装数据，否则不要执行 `docker compose down -v`。**
 每个数据卷只运行一个 Graft 实例。
 
-### 备份和升级
+先暂停同步、停止 Graft，再备份：
 
-先暂停同步、停止容器，再进行备份：
+- **本地存储：**备份完整的 `/data` 数据卷，包括其中的私有配置。
+- **S3 存储：**在停止期间同时备份 `/data` 和对应桶内对象，缺少任意一份都无法完整恢复。S3 模式仍使用服务器磁盘保存元数据、上传分片和组装中的上传文件。
+- 备份 Compose 文件、`.env`、外部管理的密钥，以及可选的 Caddy 证书数据。Space 同步密码另行保存。
 
-- **本地存储：**备份完整的 `/data` 数据卷。
-- **S3 兼容存储：**在服务器停止期间，同时备份 `/data` 和对应的桶内对象。只备份其中一份无法完整恢复。
-- 安全保存 Compose 文件、`.env` 和访问密钥的备份。Space 同步密码另行保存。
+妥善保护备份，网页配置中包含服务器密钥和 S3 凭据。
+在独立空数据卷中测试恢复，并通过客户端下载验证。
+对象存储本身不等于备份，同步操作可能删除对象。
 
-备份后重新启动容器。先在独立的空数据卷中测试恢复，
-通过客户端下载确认内容完整，再依赖这份备份。
-对象存储本身不等于备份：同步操作可能删除已存储的对象。
+### 升级已有安装
 
-升级前先备份。将新版发布的 Compose 文件下载到临时目录，与现有文件比较，
-更新镜像引用和必要设置，保留你的 `.env`、密钥及数据卷。然后执行：
+升级前先备份。将新版文件下载到独立目录，与现有安装比较，更新镜像引用和必要配置，
+保留数据卷、`.env` 和凭据，然后执行：
 
 ```bash
 docker compose pull
-docker compose up -d
-curl -fsS https://sync.example.com/healthz
+docker compose up -d --wait
 ```
 
-在 Lite 中确认同步正常后，再考虑清理旧镜像和备份。
+**从 0.1.1 升级：**保留已有 Compose 文件和挂载的访问密钥文件，
+将镜像引用更新为新版发布的摘要。已有外部密钥部署继续可用，并跳过网页初始化。
+直接替换为新版默认 Compose 会遗漏原密钥挂载；使用新模板管理外部密钥时，
+可以叠加发布附带的 `compose.secrets.yaml`。
 
-### 服务商示例和存储迁移
+修改存储模式、端点、桶名或前缀不会迁移数据。
+请使用全新存储部署另一台服务器，再通过 Lite 的**切换服务器**迁移。
 
-修改存储模式、端点、桶名或前缀，**不会**自动迁移数据。
-已有服务需要更换存储时，请用全新存储部署另一台服务，
-然后在 Lite 中使用**切换服务器**。
+### S3 服务商示例
 
-使用 **Cloudflare R2** 时，填写桶的 S3 API 端点，
-[区域填写 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)。
-[创建 R2 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，选择限定到该桶的
-**Object Read & Write（对象读写）**权限，而不是使用通用 Cloudflare API Token。
-如果桶有数据管辖区限制，使用该桶配置中显示的端点。
-
+使用 **Cloudflare R2** 时，填写桶的 S3 端点，
+[区域填写 `auto`](https://developers.cloudflare.com/r2/api/s3/api/)，
+[创建限定到桶的 S3 凭据](https://developers.cloudflare.com/r2/api/tokens/)，
+选择 **Object Read & Write（对象读写）**权限，而不是通用 API Token。
 使用 **Backblaze B2** 时，从桶详情复制端点和区域，创建限定到该桶的
-[应用密钥](https://www.backblaze.com/docs/cloud-storage-application-keys)，
-将 `keyID` 保存到 `secrets/s3-access-key-id`，
-将 `applicationKey` 保存到 `secrets/s3-secret-access-key`。
+[应用密钥](https://www.backblaze.com/docs/cloud-storage-application-keys)：
+`keyID` 对应 Access Key ID，`applicationKey` 对应 Secret Access Key。
 
-凭据需要允许桶访问、对象读写删除和分片上传，包括取消未完成的上传。
-启用版本控制的桶还需要允许删除对象版本。对象锁定和保留规则可能阻止删除。
-不要给本次安装前缀中的有效对象设置自动过期规则。
-存储、请求和传输仍会产生服务商费用。
-
-本版本已实测本地存储、MinIO 和 Cloudflare R2。
-B2 配置使用其 S3 API，但没有进行真实 B2 存储桶实测。
+网页初始化已实测本地磁盘和 MinIO S3。R2 存储在上一服务版本中也经过实测；
+B2 属于配置示例，不代表已经完成真实 B2 验收。存储、请求和传输会产生服务商费用。
 
 ## 常见问题
 
-| 现象                 | 排查方法                                                                                     |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| Compose 提示缺少变量 | 检查部署目录中的 `.env`；S3 兼容存储需要填写选项 B 的全部字段。                              |
-| 本机健康检查失败     | 运行 `docker compose ps` 和 `docker compose logs --tail=100 graft`，检查密钥权限和磁盘空间。 |
-| 公开健康检查失败     | 检查 DNS、防火墙端口和 Caddy 配置。                                                          |
-| Lite 提示授权失败    | 填写服务器访问密钥，而不是 Space 同步密码或 S3 凭据。                                        |
-| S3 传输失败          | 检查端点、区域、桶名、寻址方式，以及选项 B 中说明的凭据权限。                                |
+| 现象                       | 排查方法                                                                                        |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| 容器无法启动               | 执行 `docker compose logs --tail=100 graft`，检查数据卷权限和磁盘空间。                         |
+| 初始化链接打不开           | 检查公开地址、DNS 和 HTTPS 代理；使用可选 Caddy 时查看 `docker compose logs --tail=100 caddy`。 |
+| 页面要求初始化链接         | 执行 `setup-link` 命令，打开其完整输出。                                                        |
+| 页面拒绝提交               | 直接打开与 `GRAFT_PUBLIC_ORIGIN` 一致的 HTTPS 地址，不要跳转到其他来源。                        |
+| 页面显示设置已完成         | 使用保存的密钥，或执行 `access-key` 命令取回。                                                  |
+| S3 测试失败                | 检查端点、区域、桶名、寻址方式和权限。若删除被拒绝，先清理残留的测试对象再重试。                |
+| 设置前 `/healthz` 返回 503 | 属于预期行为，先完成设置。容器使用 `/livez` 检查进程，不代表同步已可用。                        |
+| Lite 提示授权失败          | 填写服务器访问密钥，不要使用初始化凭据、S3 凭据或 Space 同步密码。                              |
