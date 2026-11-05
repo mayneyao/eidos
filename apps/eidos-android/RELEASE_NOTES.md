@@ -23,11 +23,6 @@ phone changes. Use manual Sync to send changes from the phone.
   with colors that follow light and dark mode and no reserved desktop scrollbar
   gutter. Touch scrolling remains available in nested editor panels.
 
-## Bug fixes
-
-- Closing table row search restores grid keyboard focus, so keyboard navigation
-  can continue after leaving search. Search-result jumps retain their destination.
-
 ## Install and testing scope
 
 Download `eidos-android-0.4.0.apk` and verify it against `SHA256SUMS`. Install over
