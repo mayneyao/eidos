@@ -85,6 +85,12 @@ Publish 可以把这段不透明 hostname 换成独立的 Publish Handle。打�
 修改账户 username。Handle 使用 3–30 个小写字母、数字或连字符，以字母开头，并且不能占用
 Publish 或 Relay 的保留命名空间。
 
+Publish Pro 还支持在**账户 → Publish → 概览 → 自有域名**中
+[接入 1 个自定义域名](/zh-cn/recipes/publish-custom-domain/)。
+该域名承载账户下的所有发布内容，保留现有路径，并自动配置 HTTPS。
+激活后，新的发布结果优先使用自定义域名，原有 `eidos.ink` 链接继续可用。
+无需重新发布现有内容，也无需修改 CLI 的 API 地址或密钥。
+
 普通终端输出会持续展示文件校验、附件发现、逐对象哈希、内容去重、待上传总字节、
 Serving Target 准备和 Version 激活进度。Version 就绪并激活后命令才会成功返回。失败时返回非零
 exit code。
@@ -253,22 +259,23 @@ eidos publish inventory.eidos --slug inventory
 引用都相同时，不会创建新 Version。资源数不作为商业额度，实际限制是去重后的总存储与
 历史策略。当前标准 Publish 额度为：
 
-| 限制                  | Publish                  |
-| --------------------- | ------------------------ |
-| 账号去重后总存储      | 10 GiB                   |
-| 单个 `.eidos` 文件    | 256 MiB                  |
-| 单个 source 附件      | 1 GiB                    |
-| Markdown 正文         | 16 MiB                   |
-| 非当前 Version 历史   | 30 天                    |
-| 资源数                | 不限数量                 |
-| 访问方式              | 公开、密码保护、账号私有 |
-| Canonical hostname    | 一个独立 Publish Handle  |
-| 删除 Built with Eidos | 是                       |
-| 每月 Form 回复        | 5,000                    |
-| Collect Inbox         | 5 GiB                    |
-| 单次回复附件数        | 20                       |
-| 单个提交附件          | 100 MiB                  |
-| 已导入回复保留        | 30 天                    |
+| 限制                  | Publish                        |
+| --------------------- | ------------------------------ |
+| 账号去重后总存储      | 10 GiB                         |
+| 单个 `.eidos` 文件    | 256 MiB                        |
+| 单个 source 附件      | 1 GiB                          |
+| Markdown 正文         | 16 MiB                         |
+| 非当前 Version 历史   | 30 天                          |
+| 资源数                | 不限数量                       |
+| 访问方式              | 公开、密码保护、账号私有       |
+| Publish Handle        | 一个 `handle.eidos.ink` 主机名 |
+| 自定义域名            | 每个账户 1 个，自动 HTTPS      |
+| 删除 Built with Eidos | 是                             |
+| 每月 Form 回复        | 5,000                          |
+| Collect Inbox         | 5 GiB                          |
+| 单次回复附件数        | 20                             |
+| 单个提交附件          | 100 MiB                        |
+| 已导入回复保留        | 30 天                          |
 
 当 `.eidos` 文件需要更高上限或独立 Runtime 容量时，可以联系 Eidos 开通 Custom 方案。
 以上为付费 Publish 的限制。本地构建与预览保持免费。付费方案的历史保留期从活动 Version 被替换时开始
@@ -282,7 +289,8 @@ Source Bundle 总计最多 50 MiB。保留的源文件、附件和生成产物�
 可在账户页的资源列表中选择“取消发布”立即释放名额。历史版本在清理前仍计入存储。
 Free 保留上一版本 24 小时。禁止搜索收录不代表私密，知道公开链接的人仍可访问。
 
-账号页展示的套餐和实时用量是最终依据。Publish 1.0 不包含外部自定义域名。
+账号页展示的套餐和实时用量是最终依据。
+自定义域名需要有效的 Pro 方案，并保留账户页显示的 DNS 记录。
 
 ## 人类输出与自动化
 
