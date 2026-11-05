@@ -1,6 +1,7 @@
 name: Build and Release CLI
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "cli-v*"
@@ -34,10 +35,14 @@ jobs:
         shell: bash
         env:
           TAG: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          version="${TAG#cli-v}"
           cargo_version="$(cargo metadata --manifest-path apps/cli/Cargo.toml --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "eidos"))')"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="cli-v$cargo_version"
+          fi
+          version="${TAG#cli-v}"
           if [[ "$TAG" != "cli-v$version" || "$version" != "$cargo_version" ]]; then
             echo "Tag $TAG does not match apps/cli/Cargo.toml version $cargo_version" >&2
             exit 1
@@ -58,7 +63,7 @@ jobs:
       - name: Audit single-release notes
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: cli-v${{ steps.version.outputs.version }}
         run: |
           audit_args=(--surface cli --tag "$TAG" --unpublished-tag cli-v1.1.1)
           if [[ "$TAG" == "cli-v0.37.1" ]]; then
@@ -185,6 +190,7 @@ jobs:
           retention-days: 7
 
   release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     needs: [verify, build]
     runs-on: ubuntu-22.04
     permissions:
