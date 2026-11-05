@@ -125,6 +125,7 @@ export default defineConfig({
                     "recipes/deploy-graft-cloudflare",
                     "recipes/deploy-graft-docker",
                     "recipes/manage-cloud-sync",
+                    "recipes/publish-custom-domain",
                   ],
                 },
               ],

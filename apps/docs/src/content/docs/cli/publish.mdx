@@ -96,6 +96,12 @@ stable fallback. The handle does not change your account username. Handles
 contain 3–30 lowercase letters, digits, or hyphens, start with a letter, and
 cannot use reserved Publish or Relay namespaces.
 
+With Publish Pro, you can also [connect one custom domain](/recipes/publish-custom-domain/)
+in **Account → Publish → Overview → Your own domain**. The domain serves all
+your publications at their existing paths, with automatic HTTPS. After activation,
+new publishing results prefer the custom domain; existing `eidos.ink` links remain usable.
+You do not need to republish existing content or change the CLI API origin or key.
+
 The terminal output shows progress while the CLI checks the file,
 finds local attachments, hashes and deduplicates source objects, uploads
 pending bytes, prepares the serving target, and activates the Version. The command returns
@@ -302,7 +308,8 @@ and the history policy form the quota. Current standard Publish limits are:
 | Inactive Version history      | 30 days                           |
 | Resources                     | No quota                          |
 | Access modes                  | Public, password, account-private |
-| Canonical hostname            | One independent Publish handle    |
+| Publish handle                | One `handle.eidos.ink` hostname   |
+| Custom domain                 | One per account, automatic HTTPS  |
 | Delete Built with Eidos badge | Yes                               |
 | Form responses per month      | 5,000                             |
 | Collect Inbox                 | 5 GiB                             |
@@ -319,8 +326,8 @@ active Version. Expired history releases only content with no remaining Version
 references. The service retains Form definition snapshots needed to interpret
 collected responses separately from the full published source.
 
-The account page is authoritative for the current plan and usage. External
-custom domains are not part of Publish 1.0.
+The account page is authoritative for the current plan and usage.
+Custom domains require an active Pro plan and the DNS records shown in your account.
 
 Publish Free accepts Markdown up to 2 MiB, at most 20 attachments of 25 MiB each,
 and a Source Bundle up to 50 MiB. All retained source and generated artifacts
