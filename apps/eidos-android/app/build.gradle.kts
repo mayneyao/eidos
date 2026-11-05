@@ -13,8 +13,8 @@ android {
         applicationId = "space.eidos.android"
         minSdk = 28
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.3.1"
+        versionCode = 8
+        versionName = "0.4.0"
         testInstrumentationRunner = "space.eidos.android.EidosTestRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

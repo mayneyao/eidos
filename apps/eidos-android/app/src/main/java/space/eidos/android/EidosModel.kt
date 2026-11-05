@@ -1508,7 +1508,20 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         refreshFiles(includeGraft = false)
     }
 
-    fun export(path: String, uri: Uri) = launchAction { repository.exportFile(path, uri) }
+    fun export(path: String, uri: Uri, sourceSpaceId: String = repository.spaceId) {
+        val owner = repository
+        viewModelScope.launch {
+            // The system picker can return during the foreground file refresh.
+            // Keep the completed selection until the ordinary IO gate is idle.
+            state.first { !it.busy && !it.peerBusy }
+            launchAction {
+                check(repository === owner && owner.spaceId == sourceSpaceId) {
+                    tr("Space 已切换，请重新选择导出文件")
+                }
+                owner.exportFile(path, uri)
+            }
+        }
+    }
 
     fun importDirectory(uri: Uri) = importResult { folder ->
         repository.importDirectory(uri, folder)
