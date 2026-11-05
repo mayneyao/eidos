@@ -7,7 +7,7 @@ import fs from "node:fs/promises"
 import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const filename = fileURLToPath(import.meta.url)
 const repo = path.resolve(path.dirname(filename), "../../..")
@@ -256,6 +256,13 @@ async function main() {
     bundle: true,
     platform: "node",
     format: "cjs",
+    // Plugin validation loads its compiler from the checked-out toolchain.
+    define: {
+      "import.meta.url": JSON.stringify(
+        pathToFileURL(path.join(repo, "apps/eidos-lite-desktop/package.json"))
+          .href
+      ),
+    },
   })
   const electron = require("electron")
   const results = []
