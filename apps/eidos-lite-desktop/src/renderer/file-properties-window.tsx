@@ -22,7 +22,6 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
   const [path, setPath] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [spacePath, setSpacePath] = useState<string | null>(null)
   const [targetLoaded, setTargetLoaded] = useState(false)
   const [sparkActive, setSparkActive] = useState(false)
   const windowContent = useRef<HTMLElement>(null)
@@ -52,20 +51,6 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
     return () => {
       active = false
       window.removeEventListener("focus", refreshSpark)
-    }
-  }, [])
-  useEffect(() => {
-    let active = true
-    void window.eidosLite
-      .getSpace()
-      .then((space) => {
-        if (active) setSpacePath(space?.displayPath ?? "")
-      })
-      .catch(() => {
-        if (active) setSpacePath("")
-      })
-    return () => {
-      active = false
     }
   }, [])
   const [icon, setIcon] = useState<{ path: string; url: string } | null>(null)
@@ -157,7 +142,7 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
     <main ref={windowContent} className="file-properties-window">
       {error ? (
         <p role="alert">{error}</p>
-      ) : path && spacePath !== null ? (
+      ) : path ? (
         <FilePropertiesContent
           ref={contentRef}
           relativePath={path}
@@ -165,7 +150,6 @@ export function FilePropertiesWindow({ theme }: { theme: ResolvedAppearance }) {
           disabled={false}
           readOnly={!sparkActive}
           refreshToken={revision}
-          spacePath={spacePath}
           iconUrl={icon?.path === path ? icon.url : undefined}
           onContentHeight={resize}
           onChanged={() => {}}

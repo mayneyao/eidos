@@ -25,6 +25,9 @@ export interface LiteWindowChromeOptions {
   titleBarStyle: "default" | "hidden" | "hiddenInset"
   autoHideMenuBar: boolean
   titleBarOverlay?: boolean | LiteWindowControlsOverlay
+  minimizable?: boolean
+  maximizable?: boolean
+  fullscreenable?: boolean
 }
 
 const WINDOW_CONTROLS_OVERLAY_HEIGHT = 40
@@ -70,7 +73,18 @@ export function liteWindowChromeOptions(
   platform: NodeJS.Platform = process.platform,
   kind: LiteWindowKind = "space"
 ): LiteWindowChromeOptions {
-  if (kind === "properties" || kind === "release-notes") {
+  if (kind === "properties") {
+    return {
+      titleBarStyle: "default",
+      autoHideMenuBar: true,
+      maximizable: false,
+      fullscreenable: false,
+      // A native Windows caption displays both boxes if either is enabled.
+      // Clear both styles to remove the pair, rather than leaving a gray box.
+      ...(platform === "win32" ? { minimizable: false } : {}),
+    }
+  }
+  if (kind === "release-notes") {
     return { titleBarStyle: "default", autoHideMenuBar: true }
   }
   if (platform === "darwin") {

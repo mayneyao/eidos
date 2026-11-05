@@ -1996,16 +1996,9 @@ export class WindowController {
       ...bounds,
       minWidth: kind === "properties" ? 340 : compact ? 680 : 900,
       minHeight: kind === "properties" ? 120 : compact ? 520 : 600,
-      ...(kind === "properties"
-        ? { maximizable: false, fullscreenable: false }
-        : {}),
       show: false,
       title: "Eidos Lite",
-      titleBarStyle: chrome.titleBarStyle,
-      autoHideMenuBar: chrome.autoHideMenuBar,
-      ...(chrome.titleBarOverlay
-        ? { titleBarOverlay: chrome.titleBarOverlay }
-        : {}),
+      ...chrome,
       ...(process.platform === "darwin" &&
       kind !== "properties" &&
       kind !== "release-notes"
