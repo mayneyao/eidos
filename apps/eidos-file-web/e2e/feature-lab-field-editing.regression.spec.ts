@@ -75,7 +75,7 @@ async function toggleMultiSelectOption(
     const option = page
       .locator("[data-radix-popper-content-wrapper]")
       .last()
-      .getByRole("option", { name: optionName, exact: true })
+      .getByRole("checkbox", { name: optionName, exact: true })
     if (!(await option.isVisible())) await trigger.click()
     await expect(option).toBeVisible({ timeout: 2_000 })
     await option.click()
