@@ -1,13 +1,16 @@
 ## What's new
 
-### Manage your remote Spaces
+### Install plugins into your Space
 
-Open the menu beside a Space in Open Synced Space to copy its address, rename its remote display name, or delete its remote copy and saved history. Deletion requires confirmation and keeps local folders, files and history. Older servers show only the actions they support.
+Community installation links and `.eidos-plugin` files open plugin details in the main window. Review the target Space and requested access before installing. If Lite is closed, it reopens the last Space; open a Space to continue when that folder is unavailable.
+
+A first installation enables the plugin in that Space. Updates preserve existing enablement, and automatic background startup still requires separate permission. Theme plugins continue to apply throughout Lite.
 
 ## Improvements
 
-- **First Sync connection**: Supported servers verify stored encrypted data without downloading the entire upload back to your computer. Lite shows when an older server or earlier upload needs compatibility verification with a full download. Interrupted connections retain their recovery state for retry.
+- **Device Sync compatibility**: Compatible paired mobile apps can request committed Local history from this computer. Save a Local checkpoint to make pending changes available for transfer.
+- **Windows file properties**: A compact properties window shows readable file locations and sizes, with native close controls and standard keyboard closing.
 
 ## Bug fixes
 
-- **What's new**: Release notes open in their own window without overlapping window controls or a loading placeholder. Closing the window returns you to Settings.
+- **Table search**: Pressing Escape returns focus to the grid so you can navigate cells and immediately search again, including repeated search sessions.

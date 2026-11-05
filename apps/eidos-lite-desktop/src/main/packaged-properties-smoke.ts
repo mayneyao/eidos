@@ -1,7 +1,11 @@
 import { performance } from "node:perf_hooks"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
 import { app, type BrowserWindow } from "electron"
 import type { WindowController } from "./window-controller"
 import { observePackagedSmokeWindow } from "./packaged-startup-smoke"
+
+const execFileAsync = promisify(execFile)
 
 export async function verifyPackagedProperties(
   controller: WindowController,
@@ -60,14 +64,37 @@ export async function verifyPackagedProperties(
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
     const readyMs = performance.now() - started
-    window.close()
+    const nativeScript = process.env.EIDOS_LITE_NATIVE_PROPERTIES_SCRIPT
+    let nativeAcceptance: unknown = null
+    if (process.platform === "win32" && nativeScript) {
+      const evidence = process.env.EIDOS_LITE_NATIVE_PROPERTIES_EVIDENCE
+      if (!evidence)
+        throw new Error("Native Windows properties evidence path is missing")
+      const handle = window.getNativeWindowHandle().readBigUInt64LE().toString()
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-File",
+          nativeScript,
+          "-WindowHandle",
+          handle,
+          "-EvidenceDirectory",
+          evidence,
+        ],
+        { timeout: 30_000 }
+      )
+      nativeAcceptance = JSON.parse(stdout)
+    }
+    if (!window.isDestroyed()) window.close()
     const closeDeadline = Date.now() + 10_000
     while (!window.isDestroyed()) {
       if (Date.now() > closeDeadline)
         throw new Error("Properties close did not finish")
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
-    return { createdMs, shownMs, readyMs, closed: true }
+    return { createdMs, shownMs, readyMs, closed: true, nativeAcceptance }
   } finally {
     if (!window.isDestroyed()) window.destroy()
   }
