@@ -8,6 +8,7 @@ import type {
 import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 
 interface MaterializationHooks {
+  assertRootIdentity?(): Promise<void>
   closeRuntimes(): Promise<void>
   validateWorktree(relativePaths?: readonly string[]): Promise<void>
   reopenRuntimes(): Promise<void>
@@ -112,6 +113,7 @@ export class SpaceOperationGate {
     }
     this.activeMutations += 1
     try {
+      if (this.hooks.assertRootIdentity) await this.hooks.assertRootIdentity()
       return await operation()
     } finally {
       this.activeMutations -= 1
@@ -124,6 +126,7 @@ export class SpaceOperationGate {
       await this.waitForRuntimeReadAvailability()
     }
     try {
+      if (this.hooks.assertRootIdentity) await this.hooks.assertRootIdentity()
       return await operation()
     } finally {
       this.activeRuntimeReads -= 1
@@ -149,6 +152,7 @@ export class SpaceOperationGate {
       }
       this.transition("syncing", detail)
       try {
+        if (this.hooks.assertRootIdentity) await this.hooks.assertRootIdentity()
         return await operation(signal)
       } finally {
         if (this.state.phase === "syncing") this.transition("ready")

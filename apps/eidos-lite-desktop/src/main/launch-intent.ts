@@ -54,7 +54,8 @@ export function launchFilePathsFromArguments(
 
 export async function resolveEidosFileLaunchIntent(
   requestedPath: string,
-  knownSpaceRoots: readonly string[] = []
+  knownSpaceRoots: readonly string[] = [],
+  userDataDirectory?: string
 ): Promise<EidosFileLaunchIntent> {
   const absolutePath = path.resolve(requestedPath)
   if (!isEidosFilePath(absolutePath)) {
@@ -69,7 +70,9 @@ export async function resolveEidosFileLaunchIntent(
   }
   const realFilePath = await fs.realpath(absolutePath)
   const knownSpaces = await Promise.allSettled(
-    knownSpaceRoots.map((root) => canonicalizeSpaceRoot(root))
+    knownSpaceRoots.map((root) =>
+      canonicalizeSpaceRoot(root, userDataDirectory)
+    )
   )
   const containingSpaces = knownSpaces.flatMap((result) => {
     if (result.status === "rejected") return []
@@ -87,7 +90,8 @@ export async function resolveEidosFileLaunchIntent(
   const canonical =
     containingSpaces.sort(
       (left, right) => right.root.length - left.root.length
-    )[0] ?? (await canonicalizeSpaceRoot(path.dirname(realFilePath)))
+    )[0] ??
+    (await canonicalizeSpaceRoot(path.dirname(realFilePath), userDataDirectory))
   const relativePath = normalizeRelativePath(
     path.relative(canonical.root, realFilePath).split(path.sep).join("/")
   )

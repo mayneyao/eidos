@@ -399,7 +399,10 @@ export class SpaceCloneCoordinator {
     await this.options.validateWorktree(entry.targetPath)
     if (entry.kind === "local-recovery") return
     if (!entry.remoteUrl) throw new Error("Remote clone journal has no Remote")
-    const canonical = await canonicalizeSpaceRoot(entry.targetPath)
+    const canonical = await canonicalizeSpaceRoot(
+      entry.targetPath,
+      this.options.stateDirectory
+    )
     await new SpaceSyncStateStore(
       path.join(this.options.stateDirectory, "spaces", canonical.id),
       this.options.remoteOrigin

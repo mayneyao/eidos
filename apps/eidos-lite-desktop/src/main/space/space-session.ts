@@ -125,6 +125,7 @@ import {
 } from "./eidos-file-url-images"
 import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 import {
+  assertSpaceRootIdentity,
   canonicalizeSpaceRoot,
   flattenSpaceTree,
   joinSpaceRelativePath,
@@ -539,6 +540,7 @@ export class SpaceSession {
     this.gate = new SpaceOperationGate(
       new SpaceOperationJournal(stateDirectory),
       {
+        assertRootIdentity: () => assertSpaceRootIdentity(this.canonical),
         closeRuntimes: () => this.runtimePool.closeHandles(),
         validateWorktree: (relativePaths) =>
           this.validateMaterializedWorktree(relativePaths),
@@ -579,7 +581,7 @@ export class SpaceSession {
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
-    const canonical = await canonicalizeSpaceRoot(root)
+    const canonical = await canonicalizeSpaceRoot(root, userDataDirectory)
     return this.createCanonical(canonical, userDataDirectory, options)
   }
 
@@ -592,6 +594,7 @@ export class SpaceSession {
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
     }
   ): Promise<SpaceSession> {
+    await assertSpaceRootIdentity(canonical)
     const session = new SpaceSession(
       canonical,
       options.graft,
@@ -2685,7 +2688,11 @@ export class SpaceSession {
 
   private syncTask: Promise<unknown> = Promise.resolve()
   private withSyncTask<T>(action: () => Promise<T>): Promise<T> {
-    const task = this.syncTask.then(action, action)
+    const run = async () => {
+      await assertSpaceRootIdentity(this.canonical)
+      return action()
+    }
+    const task = this.syncTask.then(run, run)
     this.syncTask = task.catch(() => {})
     return task
   }
