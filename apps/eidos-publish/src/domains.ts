@@ -338,6 +338,17 @@ export class PublishDomain extends DurableObject<Env> {
       } catch (cause) {
         record.error =
           cause instanceof DomainError ? cause.code : "domain_check_unavailable"
+        console.warn(
+          JSON.stringify({
+            event: "custom_domain_check_failed",
+            hostname: record.hostname,
+            code: record.error,
+            detail:
+              cause instanceof Error
+                ? `${cause.name}: ${cause.message}`.slice(0, 300)
+                : "Unknown error",
+          })
+        )
         // A transient provider outage may use the existing bounded lease; never extend it.
         if (record.verifiedUntil <= Date.now()) record.state = "suspended"
       }
