@@ -23,6 +23,12 @@ phone changes. Use manual Sync to send changes from the phone.
   with colors that follow light and dark mode and no reserved desktop scrollbar
   gutter. Touch scrolling remains available in nested editor panels.
 
+## Bug fixes
+
+- Exporting from the file list waits for the foreground refresh to finish when
+  returning from Android's file picker, instead of leaving an empty destination.
+  The selected file stays bound to its originating Space.
+
 ## Install and testing scope
 
 Download `eidos-android-0.4.0.apk` and verify it against `SHA256SUMS`. Install over

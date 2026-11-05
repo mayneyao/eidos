@@ -599,6 +599,7 @@
   "Space 名称已存在": "A Space with this name already exists",
   "Space 已不存在": "This Space no longer exists",
   "Space 已切换，请重新选择导入文件": "The Space changed. Choose files to import again.",
+  "Space 已切换，请重新选择导出文件": "The Space changed. Choose the file to export again.",
   "Space 已存在": "Space already exists",
   "一次最多分享 100 个文件": "Share up to 100 files at a time",
   "一次最多接收 100 个文件": "Receive up to 100 files at a time",

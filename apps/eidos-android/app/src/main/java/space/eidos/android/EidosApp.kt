@@ -116,6 +116,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
         }
         var connectionSheet by rememberSaveable { mutableStateOf(false) }
         var exportPath by rememberSaveable { mutableStateOf<String?>(null) }
+        var exportSpaceId by rememberSaveable { mutableStateOf<String?>(null) }
         var transferMenu by remember { mutableStateOf(false) }
         var exportFolder by rememberSaveable { mutableStateOf("") }
         val importDirectory =
@@ -135,11 +136,14 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                 ActivityResultContracts.CreateDocument("application/octet-stream")
             ) { uri ->
                 val path = exportPath
-                if (uri != null && path != null) model.export(path, uri)
+                val spaceId = exportSpaceId
+                if (uri != null && path != null && spaceId != null) model.export(path, uri, spaceId)
                 exportPath = null
+                exportSpaceId = null
             }
         val exportFile: (String) -> Unit = { path ->
             exportPath = path
+            exportSpaceId = state.spaceId
             export.launch(path.substringAfterLast('/'))
         }
         val exportEntry: (SpaceFile) -> Unit = { file ->
