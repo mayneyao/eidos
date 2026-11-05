@@ -1,7 +1,30 @@
 # Custom domain deployment
 
-The implementation is disabled by default. Passing local tests or uploading a
-disabled Worker does not establish customer-domain availability.
+Custom domains use Cloudflare for SaaS on `eidos.ink`. Each hostname requires
+fresh account-bound DNS proof, an active certificate, correct traffic DNS, and
+explicit activation. Passing local tests or uploading a disabled Worker does
+not establish customer-domain availability.
+
+## Hosted ingress
+
+The zone-scoped `*/*` route sends custom hostname traffic to Publish. Preserve
+these more specific routes:
+
+- `eidos.ink/*` has no Worker assigned, preserving the zone apex origin.
+- `*.eidos.ink/*` remains owned by Relay, including existing official Publish
+  addresses and Relay's own control host.
+- `*-staging.eidos.ink/*` routes to Publish staging.
+- Other existing routes, including `ext.eidos.ink/*`, keep their current owner.
+
+The apex exclusion is a zone route managed separately because Wrangler's
+per-Worker route list cannot represent a route without a Worker. Verify this
+exclusion and route precedence before changing the broad SaaS route.
+
+The main development configuration builds the Runtime from the current
+Dockerfile. A Worker-only rollout must explicitly retain the active immutable
+Runtime image in its isolated release candidate. Do not assume merging Worker
+changes authorizes replacing that image or deploying a new Runtime. Staging
+custom domains stay disabled until a separately configured pilot is authorized.
 
 ## Configuration
 
