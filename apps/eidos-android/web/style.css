@@ -148,18 +148,6 @@ button {
   padding: 0;
   font-size: 22px;
 }
-.data-content *::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-.data-content *::-webkit-scrollbar-thumb {
-  border: 0;
-  background: var(--scrollbar-thumb);
-  border-radius: 4px;
-}
-.data-content *::-webkit-scrollbar-track {
-  background: transparent;
-}
 .data-content {
   flex: 1;
   min-height: 0;
