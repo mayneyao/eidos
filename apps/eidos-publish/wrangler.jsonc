@@ -20,9 +20,13 @@
       "pattern": "publish.eidos.space",
       "custom_domain": true,
     },
+    {
+      "pattern": "*/*",
+      "zone_name": "eidos.ink",
+    },
   ],
   "vars": {
-    "CUSTOM_DOMAINS_ENABLED": "false",
+    "CUSTOM_DOMAINS_ENABLED": "true",
     "CUSTOM_DOMAIN_ZONE_ID": "843391e0f78a7ff5a10da82b51215877",
     "CUSTOM_DOMAIN_CNAME_TARGET": "customers.eidos.ink",
     "CUSTOM_DOMAIN_DCV_DELEGATION_TARGET": "b6f11749c54280f2.dcv.cloudflare.com",
