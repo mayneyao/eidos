@@ -129,6 +129,13 @@ fun PluginFileScreen(session: PluginFileSession, repository: SpaceRepository, cl
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
                         WebView(ctx).apply {
+                            // Match the other visible WebViews: wrap-content can
+                            // leave percentage-height scroll containers at zero.
+                            layoutParams =
+                                android.view.ViewGroup.LayoutParams(
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                )
                             val active = AtomicBoolean(true)
                             tag = active
                             settings.javaScriptEnabled = true
