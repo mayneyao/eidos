@@ -3,7 +3,17 @@ import {
   decodePublicationPath,
   publicationUrlPath,
 } from "./publication-path"
-import { loadFileBundle, FILE_VIEW_CSP } from "./file"
+import {
+  loadFileBundle,
+  validateFilePublicationOrigin,
+  FILE_VIEW_CSP,
+} from "./file"
+import { activeCustomDomain, resolveCustomDomain } from "./domains"
+const BINDING_HEADER = "x-eidos-publish-binding"
+function requestAudience(request: Request): string {
+  const binding = request.headers.get(BINDING_HEADER)
+  return new URL(request.url).hostname + (binding ? `#${binding}` : "")
+}
 import { publicationHostLabel, publicationHostname } from "./hostnames"
 import {
   brandedDocumentHeaders,
@@ -147,8 +157,18 @@ export async function routePublicRequest(
   ctx: ExecutionContext
 ): Promise<Response> {
   const url = new URL(request.url)
-  const label = publicationHostLabel(url.hostname, env)
-  if (label === null) return publicNotFound()
+  const headers = new Headers(request.headers)
+  headers.delete(BINDING_HEADER)
+  const officialLabel = publicationHostLabel(url.hostname, env)
+  const custom =
+    officialLabel === null ? await resolveCustomDomain(env, url.hostname) : null
+  if (officialLabel === null && custom === null) return publicNotFound()
+  if (custom) headers.set(BINDING_HEADER, custom.bindingId)
+  request = new Request(request, { headers })
+  const label =
+    officialLabel ??
+    (await env.PUBLISH_TENANTS.getByName(custom!.tenantId).getActiveHandle()) ??
+    custom!.tenantId
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     isPublishBrandStylesheet(url.pathname)
@@ -173,17 +193,18 @@ export async function routePublicRequest(
       env,
       ctx,
       label,
+      custom?.tenantId ?? (await resolveTenantId(env, label)),
       runtimeMatch[1] ?? "",
       "/" + (runtimeMatch[2] ?? "")
     )
   }
-  const tenantId = await resolveTenantId(env, label)
+  const tenantId = custom?.tenantId ?? (await resolveTenantId(env, label))
   if (tenantId === null) return publicNotFound()
   const tenant = env.PUBLISH_TENANTS.getByName(tenantId)
   if (request.method === "GET" || request.method === "HEAD") {
     const slug = shellSlug(url.pathname)
     if (slug !== null) {
-      return await servePublicationDocument(
+      const response = await servePublicationDocument(
         request,
         env,
         label,
@@ -191,6 +212,24 @@ export async function routePublicRequest(
         tenant,
         slug
       )
+      if (
+        !response.ok ||
+        !response.headers.get("Cache-Control")?.startsWith("public")
+      )
+        return response
+      const preferred = await activeCustomDomain(env, tenantId)
+      const canonicalUrl = new URL(request.url)
+      if (preferred) canonicalUrl.hostname = preferred.hostname
+      canonicalUrl.search = ""
+      canonicalUrl.hash = ""
+      const output = new Headers(response.headers)
+      output.set("Link", `<${canonicalUrl}>; rel="canonical"`)
+      // Host-specific responses must not survive a binding or access-policy change in shared caches.
+      if (custom) output.set("Cache-Control", "private, no-store")
+      return new Response(response.body, {
+        status: response.status,
+        headers: output,
+      })
     }
   }
   try {
@@ -394,7 +433,7 @@ async function servePublicationDocument(
     stripRedirectSecrets(redirect)
     return Response.redirect(redirect.toString(), 308)
   }
-  const hostname = publicationHostname(canonical, env)
+  const hostname = requestAudience(request)
   if (
     resolved.value.publication.visibility === "private" &&
     !(await privateViewerAuthorized(
@@ -424,10 +463,17 @@ async function servePublicationDocument(
     resolved.value.formPolicy.respondentAccess === "signed_in" &&
     (await formRespondentUserId(request, hostname, env)) === null
   ) {
-    return formAuthorizationRedirect(env, canonical, slug)
+    return formAuthorizationRedirect(request, env, canonical, slug)
   }
   if (resolved.value.version.driverId === "org.eidos.driver.file") {
     const bundle = await loadFileBundle(env, resolved.value.version)
+    if (customHostname(request, env))
+      await validateFilePublicationOrigin(
+        env,
+        tenantId,
+        bundle,
+        new URL(request.url).hostname
+      )
     if (!bundle.manifest.presentation) {
       const response = await servePublishedFile(
         request,
@@ -484,7 +530,7 @@ async function createRuntimeSession(
     !(await privateViewerAuthorized(
       request,
       resolved.value.ownerUserId,
-      publicationHostname(canonical, env),
+      requestAudience(request),
       env
     ))
   ) {
@@ -497,7 +543,7 @@ async function createRuntimeSession(
       body.slug,
       resolved.value.publication.publicationId,
       resolved.value.publication.accessRevision,
-      publicationHostname(canonical, env),
+      requestAudience(request),
       env.PUBLISH_PASSWORD_SESSION_SECRET
     ))
   ) {
@@ -513,7 +559,7 @@ async function createRuntimeSession(
   const now = Math.floor(Date.now() / 1000)
   const claims: RuntimeTicketClaims = {
     iss: "eidos-publish",
-    aud: publicationHostname(canonical, env),
+    aud: requestAudience(request),
     tenantId,
     publicationId: resolved.value.publication.publicationId,
     versionId: version.versionId,
@@ -586,6 +632,7 @@ async function proxyRuntime(
   env: Env,
   ctx: ExecutionContext,
   hostLabel: string,
+  expectedTenantId: string | null,
   slug: string,
   runtimePath: string
 ): Promise<Response> {
@@ -612,7 +659,11 @@ async function proxyRuntime(
       "Runtime ticket is required"
     )
   const claims = await verifyTicket(token, env.RUNTIME_TICKET_SECRET)
-  if (claims === null || claims.aud !== publicationHostname(hostLabel, env)) {
+  if (
+    claims === null ||
+    claims.aud !== requestAudience(request) ||
+    claims.tenantId !== expectedTenantId
+  ) {
     return runtimeProblem(
       401,
       "invalid_runtime_ticket",
@@ -772,7 +823,7 @@ async function servePublishedFile(
   ) {
     return publicNotFound()
   }
-  const hostname = publicationHostname(canonical, env)
+  const hostname = requestAudience(request)
   if (
     resolved.value.publication.visibility === "private" &&
     !(await privateViewerAuthorized(
@@ -1049,7 +1100,7 @@ async function resolveAuthorizedForm(
   ) {
     return publicNotFound()
   }
-  const audience = publicationHostname(canonical, env)
+  const audience = requestAudience(request)
   if (
     resolved.value.publication.visibility === "private" &&
     !(await privateViewerAuthorized(
@@ -1079,7 +1130,7 @@ async function resolveAuthorizedForm(
     resolved.value.formPolicy.respondentAccess === "signed_in" &&
     respondentUserId === null
   ) {
-    return formAuthorizationRequired(env, canonical, slug)
+    return formAuthorizationRequired(request, env, canonical, slug)
   }
   return { audience, respondentUserId, resolved: resolved.value }
 }
@@ -1203,7 +1254,11 @@ async function exchangePrivateViewer(
     return publicNotFound()
   }
   const navigation = publicationNavigation(url.searchParams)
-  const exchanged = await exchangeSignedInAuthorization(env, code, url.hostname)
+  const exchanged = await exchangeSignedInAuthorization(
+    env,
+    code,
+    requestAudience(request)
+  )
   if (exchanged instanceof Response) return exchanged
   const resolved = await tenant.resolvePublication(exchanged.publicationSlug)
   if (
@@ -1214,12 +1269,15 @@ async function exchangePrivateViewer(
     return publicNotFound()
   }
   const canonical = canonicalLabel(resolved.value.canonicalHandle, tenantId)
-  if (publicationHostname(canonical, env) !== url.hostname)
+  if (
+    !request.headers.has(BINDING_HEADER) &&
+    publicationHostname(canonical, env) !== url.hostname
+  )
     return publicNotFound()
   const now = Math.floor(Date.now() / 1000)
   const viewer: ViewerSessionClaims = {
     iss: "eidos-publish-viewer",
-    aud: url.hostname,
+    aud: requestAudience(request),
     sub: exchanged.userId,
     sid: exchanged.sessionId,
     iat: now,
@@ -1253,7 +1311,11 @@ async function exchangeFormRespondent(
   ) {
     return publicNotFound()
   }
-  const exchanged = await exchangeSignedInAuthorization(env, code, url.hostname)
+  const exchanged = await exchangeSignedInAuthorization(
+    env,
+    code,
+    requestAudience(request)
+  )
   if (exchanged instanceof Response) return exchanged
   const resolved = await tenant.resolvePublication(exchanged.publicationSlug)
   if (
@@ -1264,13 +1326,16 @@ async function exchangeFormRespondent(
     return publicNotFound()
   }
   const canonical = canonicalLabel(resolved.value.canonicalHandle, tenantId)
-  if (publicationHostname(canonical, env) !== url.hostname) {
+  if (
+    !request.headers.has(BINDING_HEADER) &&
+    publicationHostname(canonical, env) !== url.hostname
+  ) {
     return publicNotFound()
   }
   const now = Math.floor(Date.now() / 1000)
   const claims: RespondentSessionClaims = {
     iss: "eidos-publish-respondent",
-    aud: url.hostname,
+    aud: requestAudience(request),
     sub: exchanged.userId,
     sid: exchanged.sessionId,
     iat: now,
@@ -1335,10 +1400,9 @@ function privateAuthorizationRedirect(
     "/api/publish/viewer-authorize",
     env.AUTH_USERINFO_URL
   )
-  authorize.searchParams.set(
-    "host",
-    publicationHostname(canonicalLabelValue, env)
-  )
+  authorize.searchParams.set("host", new URL(request.url).hostname)
+  const bindingId = request.headers.get(BINDING_HEADER)
+  if (bindingId) authorize.searchParams.set("binding", bindingId)
   authorize.searchParams.set("slug", slug)
   appendPublicationNavigation(
     authorize.searchParams,
@@ -1355,6 +1419,7 @@ function privateAuthorizationRedirect(
 }
 
 function formAuthorizationUrl(
+  request: Request,
   env: Env,
   canonicalLabelValue: string,
   slug: string
@@ -1363,16 +1428,16 @@ function formAuthorizationUrl(
     "/api/publish/viewer-authorize",
     env.AUTH_USERINFO_URL
   )
-  authorize.searchParams.set(
-    "host",
-    publicationHostname(canonicalLabelValue, env)
-  )
+  authorize.searchParams.set("host", new URL(request.url).hostname)
+  const bindingId = request.headers.get(BINDING_HEADER)
+  if (bindingId) authorize.searchParams.set("binding", bindingId)
   authorize.searchParams.set("slug", slug)
   authorize.searchParams.set("purpose", "form")
   return authorize.toString()
 }
 
 function formAuthorizationRedirect(
+  request: Request,
   env: Env,
   canonicalLabelValue: string,
   slug: string
@@ -1380,7 +1445,7 @@ function formAuthorizationRedirect(
   return new Response(null, {
     status: 303,
     headers: {
-      Location: formAuthorizationUrl(env, canonicalLabelValue, slug),
+      Location: formAuthorizationUrl(request, env, canonicalLabelValue, slug),
       "Cache-Control": "private, no-store",
       "Referrer-Policy": "no-referrer",
     },
@@ -1388,6 +1453,7 @@ function formAuthorizationRedirect(
 }
 
 function formAuthorizationRequired(
+  request: Request,
   env: Env,
   canonicalLabelValue: string,
   slug: string
@@ -1398,7 +1464,12 @@ function formAuthorizationRequired(
         code: "form_authentication_required",
         message: "Sign in to submit this Form",
       },
-      authorizationUrl: formAuthorizationUrl(env, canonicalLabelValue, slug),
+      authorizationUrl: formAuthorizationUrl(
+        request,
+        env,
+        canonicalLabelValue,
+        slug
+      ),
     },
     {
       status: 401,
@@ -1453,7 +1524,7 @@ async function exchangePublicationPassword(
   const now = Math.floor(Date.now() / 1000)
   const claims: PasswordSessionClaims = {
     iss: "eidos-publish-password",
-    aud: publicationHostname(canonical, env),
+    aud: requestAudience(request),
     publicationId: verification.value.publicationId,
     accessRevision: verification.value.accessRevision,
     iat: now,
@@ -2134,6 +2205,10 @@ function validRespondentSessionClaims(
   )
 }
 
+function customHostname(request: Request, env: Env): boolean {
+  return publicationHostLabel(new URL(request.url).hostname, env) === null
+}
+
 function canonicalLabel(handle: string | null, tenantId: string): string {
   return handle ?? tenantId
 }
@@ -2179,6 +2254,7 @@ function proxyRequestHeaders(source: Headers): Headers {
       lower !== "authorization" &&
       lower !== "cookie" &&
       lower !== "host" &&
+      lower !== BINDING_HEADER &&
       !lower.startsWith("cf-") &&
       !lower.startsWith("x-eidos-internal-")
     ) {

@@ -1,4 +1,5 @@
 import { gunzipSync } from "node:zlib"
+import { DomainError, domainStub, normalizeCustomHostname } from "./domains"
 import { sha256 } from "@noble/hashes/sha2.js"
 import { parseManifest } from "../../../packages/plugin-runtime/src/manifest"
 import {
@@ -117,6 +118,25 @@ async function loadPlugin(
   if (typeof code !== "string" || !code.trim())
     throw invalid("Plugin View module is missing")
   return { manifest, view, code }
+}
+
+export async function validateFilePublicationOrigin(
+  env: Env,
+  tenantId: string,
+  bundle: ValidatedSourceBundle,
+  hostname: string
+): Promise<void> {
+  const plugin = await loadPlugin(env, tenantId, bundle)
+  for (const origin of plugin?.manifest.browser?.networkOrigins ?? []) {
+    const host = new URL(origin).hostname
+    if (
+      host === hostname ||
+      (normalizeCustomHostname(host, env.PUBLISH_ROOT) === host &&
+        (await domainStub(env, host).resolve()))
+    ) {
+      throw new DomainError("plugin_publication_origin_forbidden", 403)
+    }
+  }
 }
 
 export async function validateFileVersion(
