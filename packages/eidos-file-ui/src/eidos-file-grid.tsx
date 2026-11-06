@@ -647,6 +647,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const pendingRowCreatesRef = useRef(
     new Map<string, Promise<EidosFileRowMutationResult>>()
   )
+  // Keep outstanding creates protected even if their overlay closes or a
+  // scope change clears the optimistic-row lookup before the write settles.
+  const [pendingRowCreateCount, setPendingRowCreateCount] = useState(0)
   const rowIdAliasesRef = useRef(new Map<string, string>())
   // Newly appended rows are pinned to their creation index for the duration
   // of their edit session so a sort/filter revalidation never yanks the row
@@ -765,7 +768,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const rowCommandInFlightRef = useRef(false)
   const [rowCommandInFlight, setRowCommandInFlight] = useState(false)
   useEidosFilePendingEdit(
-    mutationInFlight || failedMutation !== null || rowCommandInFlight
+    mutationInFlight ||
+      failedMutation !== null ||
+      rowCommandInFlight ||
+      pendingRowCreateCount > 0
   )
   const beginRowCommand = useCallback(() => {
     if (rowCommandInFlightRef.current) return false
@@ -1996,8 +2002,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const appendRow = useCallback(async () => {
     if (!onAddRow || !canInsertRow) return undefined
     const generation = generationRef.current
+    let waitingForSettlement = false
+    setPendingRowCreateCount((count) => count + 1)
+    const finishCreate = () => setPendingRowCreateCount((count) => count - 1)
     try {
       const result = await onAddRow()
+      if (result.settled) {
+        waitingForSettlement = true
+        void result.settled.then(finishCreate, finishCreate)
+      }
       const optimistic = result.settled !== undefined
       const index = optimistic
         ? rowCountRef.current
@@ -2090,6 +2103,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     } catch (error) {
       onError?.(error)
       return undefined
+    } finally {
+      if (!waitingForSettlement) finishCreate()
     }
   }, [canInsertRow, onAddRow, onError, refreshColumnStats, releaseDraftRowPins])
 
