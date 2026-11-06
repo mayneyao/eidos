@@ -27,13 +27,13 @@ For a **new installation**, create a private directory and download the deployme
 mkdir -m 700 ~/graft-sync
 cd ~/graft-sync
 curl -fL --retry 3 -o compose.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.yaml
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.1/compose.yaml
 cat > .env <<'EOF_ENV'
 GRAFT_PUBLIC_ORIGIN=https://sync.example.com
 EOF_ENV
 ```
 
-The file uses the public [Graft Docker 0.2.0 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.2.0)
+The file uses the public [Graft Docker 0.2.1 release](https://github.com/eidos-space/graft/releases/tag/graft-docker-v0.2.1)
 and pins the image by digest. No GitHub login, source checkout or local build is needed.
 Use an HTTPS address without a path. Run later Compose commands from this directory.
 
@@ -54,9 +54,9 @@ make ports 80 and 443 reachable, and ensure no other service occupies them.
 
 ```bash
 curl -fL --retry 3 -o compose.caddy.yaml \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/compose.caddy.yaml
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.1/compose.caddy.yaml
 curl -fL --retry 3 -o Caddyfile \
-  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.0/Caddyfile
+  https://github.com/eidos-space/graft/releases/download/graft-docker-v0.2.1/Caddyfile
 cat >> .env <<'EOF_ENV'
 GRAFT_DOMAIN=sync.example.com
 COMPOSE_FILE=compose.yaml:compose.caddy.yaml
