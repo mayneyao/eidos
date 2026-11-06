@@ -27,7 +27,8 @@ export class SyncExecutor {
     private readonly prepareEncryptedSync?: (
       session: SpaceSession,
       remote: string,
-      token: string
+      token: string,
+      automatic?: { signal: AbortSignal }
     ) => Promise<void>
   ) {
     this.injectedFailures = [...injectedFailures]
@@ -37,7 +38,10 @@ export class SyncExecutor {
     session: SpaceSession,
     emitProgress: (progress: EidosSyncProgress) => void,
     action: EidosSyncAction = "fetch",
-    automatic?: { signal: AbortSignal }
+    automatic?: {
+      signal: AbortSignal
+      prepareMaterialization?: () => Promise<void>
+    }
   ): Promise<EidosSyncRunResponse> {
     const tracker = new SyncRunTracker(randomUUID(), emitProgress)
     const logger = eidosLiteLogger()
@@ -96,7 +100,12 @@ export class SyncExecutor {
         throw new Error(
           "The cloud connection changed. Check its status before syncing again."
         )
-      await this.prepareEncryptedSync?.(session, remoteUrl, access.accessToken)
+      await this.prepareEncryptedSync?.(
+        session,
+        remoteUrl,
+        access.accessToken,
+        automatic
+      )
       automatic?.signal.throwIfAborted()
       access.assertCurrent?.()
       const outcome = await session.syncHostedRemote(

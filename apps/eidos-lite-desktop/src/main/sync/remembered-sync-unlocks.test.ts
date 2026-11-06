@@ -614,6 +614,99 @@ describe(
       expect(model.unlock).toHaveBeenCalledOnce()
     })
 
+    it("connects activity cancellation to a coalesced automatic unlock without reporting a password failure", async () => {
+      const model = fixture()
+      const host = model.create()
+      await host.remember(
+        model.session,
+        identity.remote,
+        Buffer.from("synthetic password")
+      )
+      const unlock = vi
+        .spyOn(model.session, "unlockEncryptedSync")
+        .mockImplementation(async (input, _guard, signal, automatic) => {
+          expect(automatic?.signal).toBe(signal)
+          try {
+            await new Promise<void>((_resolve, reject) => {
+              signal?.addEventListener("abort", () => reject(signal.reason), {
+                once: true,
+              })
+            })
+          } finally {
+            input.password.fill(0)
+          }
+        })
+      const first = new AbortController()
+      const second = new AbortController()
+      const initial = host.autoUnlock(
+        model.session,
+        identity.remote,
+        "token",
+        first
+      )
+      const rejectedInitial = expect(initial).rejects.toMatchObject({
+        name: "AbortError",
+      })
+      await vi.waitFor(() => expect(unlock).toHaveBeenCalledOnce())
+      const coalesced = host.autoUnlock(
+        model.session,
+        identity.remote,
+        "token",
+        second
+      )
+      const rejectedCoalesced = expect(coalesced).rejects.toMatchObject({
+        name: "AbortError",
+      })
+      second.abort()
+      first.abort()
+      await Promise.all([rejectedInitial, rejectedCoalesced])
+      expect(model.lock).toHaveBeenCalledOnce()
+      expect(
+        (await host.status(model.session, identity.remote))?.rememberError
+      ).toBeUndefined()
+      expect(
+        unlock.mock.calls[0]![0].password.every((byte) => byte === 0)
+      ).toBe(true)
+    })
+
+    it("lets activity stop an identity lookup that holds no repository resources", async () => {
+      const model = fixture()
+      const host = model.create()
+      await host.remember(
+        model.session,
+        identity.remote,
+        Buffer.from("synthetic password")
+      )
+      let finish!: (
+        value: Awaited<ReturnType<SyncControlPlane["repositories"]>>
+      ) => void
+      vi.spyOn(model.control, "repositories").mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      const controller = new AbortController()
+      const pending = host.autoUnlock(
+        model.session,
+        identity.remote,
+        "token",
+        controller
+      )
+      const rejected = expect(pending).rejects.toMatchObject({
+        name: "AbortError",
+      })
+      await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
+      controller.abort()
+      await rejected
+      expect(model.unlock).not.toHaveBeenCalled()
+      finish({ namespace: "synthetic", repositories: [] })
+      await Promise.resolve()
+      expect(
+        (await host.status(model.session, identity.remote))?.rememberError
+      ).toBeUndefined()
+    })
+
     it("cannot revive a session when locking races the initial status read", async () => {
       const model = fixture()
       const host = model.create()

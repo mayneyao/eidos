@@ -114,6 +114,8 @@ export interface EidosFileMarkdownHtml {
 }
 
 export interface EidosFileUIHost {
+  /** Unsubmitted, saving or failed editor state. Hosts may defer external refreshes. */
+  onPendingEditChange?: (editorId: string, pending: boolean) => void
   /** Host-owned personal menu preferences, independent of saved View layout. */
   menuOrders?: { "grid.cell"?: readonly string[] }
   onMenuOrderChange?: (
@@ -181,6 +183,7 @@ const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
+  onPendingEditChange,
   menuOrders,
   onMenuOrderChange,
   interactionMode,
@@ -207,6 +210,8 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedOnPendingEditChange =
+    onPendingEditChange ?? parent.onPendingEditChange
   const resolvedMenuOrders = menuOrders ?? parent.menuOrders
   const resolvedOnMenuOrderChange =
     onMenuOrderChange ?? parent.onMenuOrderChange
@@ -237,6 +242,7 @@ export function EidosFileUIProvider({
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
+      onPendingEditChange: resolvedOnPendingEditChange,
       ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
       ...(resolvedOnMenuOrderChange
         ? { onMenuOrderChange: resolvedOnMenuOrderChange }
@@ -281,6 +287,7 @@ export function EidosFileUIProvider({
         : {}),
     }),
     [
+      resolvedOnPendingEditChange,
       resolvedMenuOrders,
       resolvedOnMenuOrderChange,
       resolvedInteractionMode,

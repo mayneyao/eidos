@@ -23,7 +23,8 @@ vi.mock("electron", () => ({ utilityProcess: { fork: vi.fn() } }))
 
 async function fixture(
   transport: GraftSdkTransport = new GraftInProcessTransport(),
-  database = false
+  database = false,
+  prepareMaterialization?: () => Promise<void>
 ) {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), "eidos-automatic-sync-")
@@ -133,7 +134,10 @@ async function fixture(
     current: () => true,
     available: () => true,
     execute: (signal) =>
-      executor.run(session, () => undefined, "sync", { signal }),
+      executor.run(session, () => undefined, "sync", {
+        signal,
+        prepareMaterialization,
+      }),
     emit: () => undefined,
   })
   return {
@@ -286,6 +290,63 @@ describe("Automatic Sync with the native Graft SDK", () => {
       ).toBe(true)
       expect(f.sync.status(f.session.canonical.id)?.state).toBe("idle")
       expect((await f.session.snapshot()).operation.phase).toBe("ready")
+      stop()
+    } finally {
+      await f.close()
+    }
+  }, 30_000)
+
+  it("requires renderer admission and recovers a successful apply whose whole materialized snapshot failed", async () => {
+    const prepare = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(
+        new DOMException("Pending shared draft", "AbortError")
+      )
+      .mockResolvedValue(undefined)
+    const f = await fixture(new GraftInProcessTransport(), false, prepare)
+    try {
+      await fs.writeFile(
+        path.join(f.source, "note.txt"),
+        "Remote replacement\n"
+      )
+      await f.sourceGraft.stageAll(f.source)
+      await f.sourceGraft.commit(f.source, "Remote update")
+      await f.sourceGraft.push(f.source)
+      const apply = vi.spyOn(f.graft, "applyMerge")
+      await f.tick()
+      expect(prepare).toHaveBeenCalledOnce()
+      expect(apply).not.toHaveBeenCalled()
+      expect(await fs.readFile(path.join(f.root, "note.txt"), "utf8")).toBe(
+        "initial\n"
+      )
+      const target = f.session as unknown as {
+        freshSnapshotAndEmit(
+          refresh: boolean,
+          paths?: readonly string[] | null
+        ): Promise<SpaceSnapshot>
+      }
+      const fresh = target.freshSnapshotAndEmit.bind(target)
+      vi.spyOn(target, "freshSnapshotAndEmit").mockImplementation(
+        async (refresh, paths) => {
+          if (paths !== undefined)
+            throw new Error("Synthetic shell directory read failed after apply")
+          return fresh(refresh, paths)
+        }
+      )
+      const materialized = vi.fn()
+      const stop = f.session.onChanged((snapshot) => {
+        if (snapshot.materializedPaths !== undefined) materialized(snapshot)
+      })
+      await f.tick()
+      expect(apply).toHaveBeenCalledOnce()
+      expect(materialized).not.toHaveBeenCalled()
+      expect(await fs.readFile(path.join(f.root, "note.txt"), "utf8")).toBe(
+        "Remote replacement\n"
+      )
+      // This is the release fallback's actual production read, not a cached snapshot.
+      const recovered = await f.session.refresh()
+      expect(recovered.operation.phase).toBe("ready")
+      expect(recovered.graft.clean).toBe(true)
       stop()
     } finally {
       await f.close()

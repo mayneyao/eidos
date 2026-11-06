@@ -96,3 +96,8 @@ const result = JSON.parse(
 console.info(JSON.stringify(result, null, 2))
 assert.equal(code, 0, "Electron host acceptance failed")
 assert.equal(result.status, "passed")
+const encryptedResult = JSON.parse(
+  await fs.readFile(path.join(evidence, "encrypted-result.json"), "utf8")
+)
+console.info(JSON.stringify(encryptedResult, null, 2))
+assert.equal(encryptedResult.status, "passed")

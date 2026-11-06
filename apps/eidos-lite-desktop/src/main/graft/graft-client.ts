@@ -948,10 +948,13 @@ function mergeVersionDiffs(
 export class GraftClient {
   private originEncrypted = false
   async encryptedSyncStatus(
-    root: string
+    root: string,
+    options: GraftRemoteOperationOptions = {}
   ): Promise<{ state: "locked" | "unlocked" } | undefined> {
-    if (!(await this.isEncryptedRemote(root))) return undefined
-    const value = record(await this.runSdk(root, "encryptedSyncStatus"))
+    if (!(await this.isEncryptedRemote(root, options))) return undefined
+    const value = record(
+      await this.runSdk(root, "encryptedSyncStatus", [], options)
+    )
     return { state: value.state === "unlocked" ? "unlocked" : "locked" }
   }
   lockEncryptedSync(root: string): Promise<unknown> {
@@ -987,8 +990,11 @@ export class GraftClient {
     }
   }
 
-  async isEncryptedRemote(root: string): Promise<boolean> {
-    const value = record(await this.runSdk(root, "listRemotes"))
+  async isEncryptedRemote(
+    root: string,
+    options: GraftRemoteOperationOptions = {}
+  ): Promise<boolean> {
+    const value = record(await this.runSdk(root, "listRemotes", [], options))
     return (
       Array.isArray(value.remotes) &&
       value.remotes.some(

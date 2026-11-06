@@ -7,6 +7,7 @@ import { WindowController } from "../../window-controller"
 import { SpaceSession } from "../../space/space-session"
 import { resolveEidosLiteServiceEnvironment } from "../../../shared/service-environment"
 import { runAutomaticSyncElectronSmokeCore } from "../automatic-sync-electron-smoke"
+import { runEncryptedAutomaticUnlockElectronSmoke } from "../encrypted-automatic-unlock-electron-smoke"
 
 // An explicit non-UI Electron integration entry. It creates no BrowserWindow,
 // never starts Vite, and never launches Electron's default application.
@@ -26,19 +27,21 @@ void app.whenReady().then(async () => {
       controller,
       "createGraftClient"
     ) as () => GraftClient
+    const createSession = async (root: string) => {
+      const graft = createClient.call(controller)
+      const session = await SpaceSession.create(
+        root,
+        path.join(evidenceRoot, "session-state"),
+        { graft }
+      )
+      return { session, graft, close: () => session.close() }
+    }
     await runAutomaticSyncElectronSmokeCore(
       path.join(evidenceRoot, "Space"),
       resultPath,
-      async (root) => {
-        const graft = createClient.call(controller)
-        const session = await SpaceSession.create(
-          root,
-          path.join(evidenceRoot, "session-state"),
-          { graft }
-        )
-        return { session, graft, close: () => session.close() }
-      }
+      createSession
     )
+    await runEncryptedAutomaticUnlockElectronSmoke(evidenceRoot, createSession)
     assert.equal(
       BrowserWindow.getAllWindows().length,
       0,

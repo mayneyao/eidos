@@ -86,6 +86,7 @@ interface FormulaEditorTarget {
 }
 
 export interface EidosFileWorkbenchProps {
+  onPendingEditChange?(editorId: string, pending: boolean): void
   onOpenSpaceFile?(path: string): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
   relativePath: string
@@ -120,6 +121,7 @@ export interface EidosFileWorkbenchProps {
 }
 
 export function EidosFileWorkbench({
+  onPendingEditChange,
   onOpenSpaceFile,
   onOpenFileInSidebar,
   relativePath,
@@ -600,6 +602,7 @@ export function EidosFileWorkbench({
 
   return (
     <EidosFileUIProvider
+      onPendingEditChange={onPendingEditChange}
       locale={locale}
       themeName={theme}
       weekStartsOnMonday={weekStartsOnMonday}
@@ -618,6 +621,7 @@ export function EidosFileWorkbench({
     >
       <EidosFileEditorShell
         ref={editorRef}
+        data-eidos-file-workbench=""
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
         searchNavigation={{
           search,

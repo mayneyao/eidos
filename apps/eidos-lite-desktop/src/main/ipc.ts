@@ -98,6 +98,7 @@ import {
 } from "./space/eidos-file-attachments"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
 import { AutomaticSync } from "./sync/automatic-sync"
+import { AutomaticMaterializationCoordinator } from "./sync/automatic-materialization"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
 import { classifyMergeFailure } from "./sync/merge-failure"
 import { requiredMergeStateToken } from "./sync/merge-token"
@@ -791,6 +792,7 @@ export function registerIpc(
     number,
     { spaceId: string; pending: boolean }
   >()
+  const automaticMaterialization = new AutomaticMaterializationCoordinator()
   const automaticActivity = () => automaticSync.activity()
   const automaticInputOwners = new Set<Electron.WebContents>()
   const watchAutomaticActivity = (
@@ -1185,8 +1187,8 @@ export function registerIpc(
   const syncExecutor = new SyncExecutor(
     syncControl,
     options.syncFailuresForTesting,
-    (session, remote, token) =>
-      rememberedUnlocks.autoUnlock(session, remote, token)
+    (session, remote, token, automatic) =>
+      rememberedUnlocks.autoUnlock(session, remote, token, automatic)
   )
   const publishEngine = new EidosPublishEngine(services, syncControl)
   const broadcastAccountStatus = (status: SyncAccountStatus) => {
@@ -1456,15 +1458,32 @@ export function registerIpc(
             throw new DOMException("Sync connection changed", "AbortError")
           }
           signal.throwIfAborted()
-          return syncExecutor.run(
-            session,
-            (progress) => {
-              if (!event.sender.isDestroyed())
-                event.sender.send(IPC_CHANNELS.syncProgress, progress)
-            },
-            "sync",
-            { signal }
-          )
+          let releaseMaterialization: (() => void) | undefined
+          try {
+            return await syncExecutor.run(
+              session,
+              (progress) => {
+                if (!event.sender.isDestroyed())
+                  event.sender.send(IPC_CHANNELS.syncProgress, progress)
+              },
+              "sync",
+              {
+                signal,
+                prepareMaterialization: async () => {
+                  if (controller.sessionFor(event.sender) !== session)
+                    throw new DOMException("Space changed", "AbortError")
+                  releaseMaterialization =
+                    await automaticMaterialization.prepare(
+                      event.sender,
+                      session.canonical.id,
+                      signal
+                    )
+                },
+              }
+            )
+          } finally {
+            releaseMaterialization?.()
+          }
         },
         emit: (automatic) =>
           emitStatus(
@@ -3620,6 +3639,12 @@ export function registerIpc(
         pending,
       })
       if (pending) automaticSync.activity()
+    }
+  )
+  ipcMain.on(
+    IPC_CHANNELS.syncMaterializationReply,
+    (event, token: unknown, allowed: unknown) => {
+      automaticMaterialization.reply(event.sender.id, token, allowed)
     }
   )
   ipcMain.handle(IPC_CHANNELS.syncRecoverLocal, async (event) => {

@@ -42,13 +42,17 @@ not prevent background Sync. Sleep and missed intervals do not create a backlog.
 
 Automatic Sync creates a local checkpoint of saved changes using the same ignore
 rules as manual checkpoints, then checks the remote and sends or receives
-versions. Unsaved text drafts in any tab keep automatic Sync queued. Save them
-before leaving the computer if you want those changes to sync.
+versions. Unsaved text drafts, unsubmitted table cells, invalid or failed record
+edits, and unsaved record Markdown keep automatic Sync queued. Save, correct or
+discard these edits to resume. A clean table can stay open while Sync receives
+updates; you do not need to close the editor.
 
 Returning to Lite or using the keyboard or mouse cancels background scans and
 transfers. A local fast-forward that has already begun replacing files must finish
 validation and reopen the files safely before editing continues; this
-local step cannot be interrupted. Manual Sync takes priority over automatic work.
+local step cannot be interrupted. Eidos File editors briefly become read-only
+through replacement and refresh so new input cannot be lost. Manual Sync takes
+priority over automatic work.
 
 Network and temporary server errors retry with increasing delays, up to fifteen
 minutes between attempts, or longer if the server requests a cooldown. Password, account, quota, and history conflicts appear

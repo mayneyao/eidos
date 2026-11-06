@@ -1292,7 +1292,7 @@ export function SettingsPage() {
                   </div>
                   <p className="settings-service-notice">
                     {t(
-                      "After changes also checks for remote updates every 10 minutes. Sync waits for unsaved text drafts. Returning to work pauses transfers; a local update already being applied finishes safely first."
+                      "After changes also checks for remote updates every 10 minutes. Sync waits for unsubmitted edits. Returning to work pauses transfers; a local update already being applied finishes safely first."
                     )}
                   </p>
                   {syncAccount && syncSignedIn ? (

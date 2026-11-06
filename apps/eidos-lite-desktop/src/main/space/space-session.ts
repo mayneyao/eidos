@@ -2682,7 +2682,10 @@ export class SpaceSession {
     reportTransfer: SyncTransferProgressReporter = () => undefined,
     action: EidosSyncAction = "fetch",
     expectedRemoteUrl?: string,
-    automatic?: { signal: AbortSignal }
+    automatic?: {
+      signal: AbortSignal
+      prepareMaterialization?: () => Promise<void>
+    }
   ): Promise<EidosSyncOutcome> {
     return this.withSyncTask(() =>
       this.syncHostedRemoteInternal(
@@ -2935,7 +2938,10 @@ export class SpaceSession {
     reportTransfer: SyncTransferProgressReporter,
     action: EidosSyncAction,
     expectedRemoteUrl?: string,
-    automatic?: { signal: AbortSignal }
+    automatic?: {
+      signal: AbortSignal
+      prepareMaterialization?: () => Promise<void>
+    }
   ): Promise<EidosSyncOutcome> {
     automatic?.signal.throwIfAborted()
     const repositoryOptions = automatic
@@ -3123,6 +3129,8 @@ export class SpaceSession {
         )
       }
       let shouldApplyFastForward = true
+      await automatic?.prepareMaterialization?.()
+      automatic?.signal.throwIfAborted()
       let fastForwardPlan: EidosSyncMergePlan | null = null
       const stopProgress = this.gate.subscribe((state) => {
         if (state.phase === "quiescing") {
@@ -4759,7 +4767,8 @@ export class SpaceSession {
   unlockEncryptedSync(
     input: GraftEncryptedInput,
     assertCurrent: () => void = () => undefined,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    automatic?: { signal: AbortSignal }
   ): Promise<unknown> {
     return this.gate.withRepositoryOperation(
       "Unlocking encrypted Sync",
@@ -4769,20 +4778,63 @@ export class SpaceSession {
           : gateSignal
         operationSignal.throwIfAborted()
         assertCurrent()
-        if ((await this.officialSyncRemoteUrl()) !== input.connection.url)
+        if (
+          (await this.officialSyncRemoteUrl(
+            automatic ? { signal: operationSignal } : undefined
+          )) !== input.connection.url
+        )
           throw new Error("The cloud connection changed before unlocking")
-        return this.graft.encryptedSync(this.canonical.root, "unlock", input, {
-          signal: operationSignal,
-        })
-      }
+        try {
+          return await this.graft.encryptedSync(
+            this.canonical.root,
+            "unlock",
+            input,
+            {
+              signal: operationSignal,
+            }
+          )
+        } catch (error) {
+          if (automatic && operationSignal.aborted)
+            throw new DOMException(
+              "Automatic unlock yielded to foreground work",
+              "AbortError"
+            )
+          throw error
+        }
+      },
+      automatic
+        ? {
+            background: "automatic-sync-unlock",
+            signal: automatic.signal,
+            preemptible: true,
+          }
+        : undefined
     )
   }
 
-  hasEncryptedSync(): Promise<boolean> {
-    return this.graft.isEncryptedRemote(this.canonical.root)
+  hasEncryptedSync(automatic?: { signal: AbortSignal }): Promise<boolean> {
+    return automatic
+      ? this.repository.runBackground(
+          "automatic-sync-encryption",
+          (signal) =>
+            this.graft.isEncryptedRemote(this.canonical.root, {
+              signal: AbortSignal.any([signal, automatic.signal]),
+            }),
+          { preemptible: true }
+        )
+      : this.graft.isEncryptedRemote(this.canonical.root)
   }
-  encryptedSyncStatus() {
-    return this.graft.encryptedSyncStatus(this.canonical.root)
+  encryptedSyncStatus(automatic?: { signal: AbortSignal }) {
+    return automatic
+      ? this.repository.runBackground(
+          "automatic-sync-encryption-status",
+          (signal) =>
+            this.graft.encryptedSyncStatus(this.canonical.root, {
+              signal: AbortSignal.any([signal, automatic.signal]),
+            }),
+          { preemptible: true }
+        )
+      : this.graft.encryptedSyncStatus(this.canonical.root)
   }
   lockEncryptedSync() {
     return this.graft.lockEncryptedSync(this.canonical.root)

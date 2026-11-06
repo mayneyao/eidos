@@ -216,6 +216,9 @@ export const IPC_CHANNELS = {
   syncQueueStatus: "eidos-lite:sync-queue-status",
   syncQueueChanged: "eidos-lite:sync-queue-changed",
   syncDraftState: "eidos-lite:sync-draft-state",
+  syncPrepareMaterialization: "eidos-lite:sync-prepare-materialization",
+  syncReleaseMaterialization: "eidos-lite:sync-release-materialization",
+  syncMaterializationReply: "eidos-lite:sync-materialization-reply",
   syncRecoverLocal: "eidos-lite:sync-recover-local",
   syncRecoverHosted: "eidos-lite:sync-recover-hosted",
   syncMergeStatus: "eidos-lite:sync-merge-status",
@@ -2167,6 +2170,11 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
   setSyncDraftState(spaceId: string | null, pending: boolean): void
+  onSyncPrepareMaterialization(
+    listener: (token: string, spaceId: string) => void
+  ): () => void
+  onSyncReleaseMaterialization(listener: (token: string) => void): () => void
+  replySyncMaterialization(token: string, allowed: boolean): void
   peerSync(
     action:
       | "start"
