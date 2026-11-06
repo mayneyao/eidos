@@ -23,6 +23,7 @@
     "@vitest/snapshot": "4.1.11",
     "@vitest/spy": "4.1.11",
     "@vitest/utils": "4.1.11",
+    "jsdom": "26.1.0",
     "typescript": "7.0.2",
     "vitest": "4.1.11",
     "wrangler": "4.124.0"

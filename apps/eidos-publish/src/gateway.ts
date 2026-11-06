@@ -42,7 +42,7 @@ import {
   refreshKnownTenantEntitlementsIfStale,
   refreshTenantEntitlementsIfStale,
 } from "./entitlements"
-import { FORM_CLIENT_SCRIPT_PATH } from "./form"
+import { FORM_CLIENT_SCRIPT_PATH, LEGACY_FORM_CLIENT_SCRIPT_PATH } from "./form"
 import { runtimeDescriptor, type EidosRuntimeContainer } from "./runtime"
 import type { PublishHandleDurableObject, PublishTenant } from "./tenant"
 
@@ -181,8 +181,15 @@ export async function routePublicRequest(
   ) {
     return await publicAsset(request, env, url.pathname)
   }
-  if (request.method === "GET" && url.pathname === FORM_CLIENT_SCRIPT_PATH) {
-    return formClientScriptResponse()
+  if (
+    request.method === "GET" &&
+    [FORM_CLIENT_SCRIPT_PATH, LEGACY_FORM_CLIENT_SCRIPT_PATH].includes(
+      url.pathname
+    )
+  ) {
+    return formClientScriptResponse(
+      url.pathname === LEGACY_FORM_CLIENT_SCRIPT_PATH
+    )
   }
   const runtimeMatch = /^\/_eidos\/runtime\/([^/]+)\/(api\/.*)$/.exec(
     url.pathname
@@ -202,6 +209,20 @@ export async function routePublicRequest(
   if (tenantId === null) return publicNotFound()
   const tenant = env.PUBLISH_TENANTS.getByName(tenantId)
   if (request.method === "GET" || request.method === "HEAD") {
+    const success = /^\/_eidos\/forms\/([^/]+)\/success$/.exec(url.pathname)
+    if (success) {
+      const slug = decodePublicationPath(success[1] ?? "")
+      if (slug === null) return publicNotFound()
+      return await servePublicationDocument(
+        request,
+        env,
+        label,
+        tenantId,
+        tenant,
+        slug,
+        true
+      )
+    }
     const slug = shellSlug(url.pathname)
     if (slug !== null) {
       const response = await servePublicationDocument(
@@ -405,10 +426,17 @@ async function servePublicationDocument(
   label: string,
   tenantId: string,
   tenant: DurableObjectStub<PublishTenant>,
-  slug: string
+  slug: string,
+  formSuccess = false
 ): Promise<Response> {
   let resolved = await tenant.resolvePublication(slug)
   if (!resolved.ok) return publicNotFound()
+  if (
+    formSuccess &&
+    resolved.value.version.driverId !== "org.eidos.driver.form"
+  ) {
+    return publicNotFound()
+  }
   try {
     if (
       await refreshKnownTenantEntitlementsIfStale(env, tenantId, tenant, {
@@ -950,6 +978,10 @@ async function serveStaticDocument(
     headers.set("X-Robots-Tag", "noindex, nofollow")
     headers.set("Cache-Control", "private, no-store")
   }
+  if (version.driverId === "org.eidos.driver.form") {
+    headers.delete("Content-Length")
+    headers.delete("ETag")
+  }
   if (request.method === "HEAD") {
     const object = await env.PUBLISH_OBJECTS.head(artifact.objectKey)
     return validStoredAsset(object, artifact.bytes, artifact.sha256)
@@ -966,13 +998,28 @@ async function serveStaticDocument(
     await object?.body.cancel()
     return publicNotFound()
   }
-  const document = new Response(object.body, { headers })
+  let document = new Response(object.body, { headers })
+  if (version.driverId === "org.eidos.driver.form") {
+    // Upgrade existing immutable Form artifacts at the serving boundary. Keep
+    // the v3 asset itself unchanged for documents already open in a browser.
+    document = upgradeFormDocumentClient(document)
+  }
   return brandPublishedDocument(
     document,
     undefined,
     showBranding,
     version.clientMetadata
   )
+}
+
+export function upgradeFormDocumentClient(document: Response): Response {
+  return new HTMLRewriter()
+    .on(`script[src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}"]`, {
+      element(element) {
+        element.setAttribute("src", FORM_CLIENT_SCRIPT_PATH)
+      },
+    })
+    .transform(document)
 }
 
 function validStoredAsset(

@@ -1,6 +1,7 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 
 import { canonicalJson, canonicalSha256 } from "./canonical"
+import { FORM_CLIENT_SCRIPT as FORM_CLIENT_SCRIPT_V4 } from "./form-client"
 import type {
   PublicationVersionRecord,
   PublicFormDefinition,
@@ -385,15 +386,18 @@ export async function completeFormSubmission(
   )
 }
 
-export function formClientScriptResponse(): Response {
-  return new Response(FORM_CLIENT_SCRIPT, {
-    headers: {
-      "Cache-Control": "public, max-age=31536000, immutable",
-      "Content-Type": "text/javascript; charset=utf-8",
-      "Cross-Origin-Resource-Policy": "same-origin",
-      "X-Content-Type-Options": "nosniff",
-    },
-  })
+export function formClientScriptResponse(legacy = false): Response {
+  return new Response(
+    legacy ? LEGACY_FORM_CLIENT_SCRIPT : FORM_CLIENT_SCRIPT_V4,
+    {
+      headers: {
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Type": "text/javascript; charset=utf-8",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Content-Type-Options": "nosniff",
+      },
+    }
+  )
 }
 
 export function formDocumentCsp(): string {
@@ -926,7 +930,8 @@ function durableProblem(result: {
   )
 }
 
-const FORM_CLIENT_SCRIPT = String.raw`(() => {
+// Frozen v3 bytes: existing browsers can cache this URL for one year.
+const LEGACY_FORM_CLIENT_SCRIPT = String.raw`(() => {
   "use strict";
   const root = document.getElementById("eidos-form-root");
   const slug = root && root.dataset.slug;
