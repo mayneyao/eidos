@@ -1,33 +1,132 @@
 use crate::graft::GraftHost;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use serde_json::{json, Value};
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
+    sync::{mpsc, Arc, Mutex},
+    thread::JoinHandle,
+    time::Duration,
 };
 
-struct Service(Child);
+const PREPARE: &str =
+    "npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund";
+
+struct Service {
+    child: Option<Child>,
+    stdout_reader: Option<JoinHandle<()>>,
+    stderr_reader: Option<JoinHandle<()>>,
+    stderr: Arc<Mutex<Vec<u8>>>,
+}
+
+impl Service {
+    fn start(mut command: Command, deadline: Duration) -> Result<(Self, Value)> {
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .with_context(|| {
+                format!("Could not start Node.js for the official Graft test fixture. Use the repository's .node-version and prepare it with: {PREPARE}")
+            })?;
+        let stdout = child.stdout.take().unwrap();
+        let mut stderr = child.stderr.take().unwrap();
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let errors = captured.clone();
+        let stderr_reader = std::thread::spawn(move || {
+            let mut buffer = [0; 1024];
+            while let Ok(count) = stderr.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                let mut errors = errors.lock().unwrap();
+                let keep = count.min((16 * 1024_usize).saturating_sub(errors.len()));
+                errors.extend_from_slice(&buffer[..keep]);
+            }
+        });
+        let (ready, output) = mpsc::channel();
+        let stdout_reader = std::thread::spawn(move || {
+            let mut line = String::new();
+            let result = BufReader::new(stdout)
+                .take(4097)
+                .read_line(&mut line)
+                .map(|_| line);
+            let _ = ready.send(result);
+        });
+        let mut service = Self {
+            child: Some(child),
+            stdout_reader: Some(stdout_reader),
+            stderr_reader: Some(stderr_reader),
+            stderr: captured,
+        };
+        let info: Result<Value> = (|| {
+            let line = output
+                .recv_timeout(deadline)
+                .context("Graft fixture ready deadline expired or stdout reader stopped")??;
+            anyhow::ensure!(
+                !line.is_empty(),
+                "Graft fixture exited before its ready message (stdout EOF)"
+            );
+            anyhow::ensure!(
+                line.len() <= 4096,
+                "Graft fixture ready message exceeded its limit"
+            );
+            let info: Value =
+                serde_json::from_str(&line).context("Graft fixture ready message is not JSON")?;
+            let origin = info["origin"]
+                .as_str()
+                .context("Graft fixture ready JSON has no origin")?;
+            let parsed = url::Url::parse(origin)?;
+            anyhow::ensure!(
+                parsed.scheme() == "http"
+                    && parsed.host_str() == Some("127.0.0.1")
+                    && parsed.port().is_some_and(|port| port > 0),
+                "Graft fixture must bind an ephemeral loopback port"
+            );
+            anyhow::ensure!(
+                info["uuid"].is_string(),
+                "Graft fixture ready JSON has no repository UUID"
+            );
+            Ok(info)
+        })();
+        match info {
+            Ok(info) => Ok((service, info)),
+            Err(error) => {
+                let status = service.stop();
+                let stderr = service.stderr.lock().unwrap();
+                Err(anyhow!("{error:#}; child status: {status:?}. Prepare the official fixture with: {PREPARE}\nFixture stderr (bounded):\n{}", String::from_utf8_lossy(&stderr)))
+            }
+        }
+    }
+
+    fn stop(&mut self) -> Option<ExitStatus> {
+        let status = self.child.take().and_then(|mut child| {
+            let _ = child.kill();
+            child.wait().ok()
+        });
+        if let Some(reader) = self.stdout_reader.take() {
+            let _ = reader.join();
+        }
+        if let Some(reader) = self.stderr_reader.take() {
+            let _ = reader.join();
+        }
+        status
+    }
+}
+
 impl Drop for Service {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        self.stop();
     }
 }
 
 #[test]
 fn encrypted_custom_sync_roundtrip_reopens_and_rejects_changed_credentials() -> Result<()> {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut service = Service(
-        Command::new("node")
-            .arg(workspace.join("scripts/fixtures/mobile-custom-sync-server.mjs"))
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()?,
-    );
-    let mut line = String::new();
-    BufReader::new(service.0.stdout.take().unwrap()).read_line(&mut line)?;
-    let info: Value = serde_json::from_str(&line)?;
+    let mut command = Command::new("node");
+    command.arg(workspace.join("scripts/fixtures/mobile-custom-sync-server.mjs"));
+    let (_service, info) = Service::start(command, Duration::from_secs(30))?;
     let directory = tempfile::tempdir()?;
     let desktop = directory.path().join("desktop");
     let phone = directory.path().join("phone");
@@ -128,4 +227,43 @@ fn encrypted_custom_sync_roundtrip_reopens_and_rejects_changed_credentials() -> 
     target.execute(&phone, "close", json!({}))?;
     source.execute(&desktop, "close", json!({}))?;
     Ok(())
+}
+
+#[test]
+fn fixture_startup_reports_missing_node_and_child_stderr() -> Result<()> {
+    let missing = tempfile::tempdir()?.path().join("missing-node");
+    let error = Service::start(Command::new(missing), Duration::from_secs(2))
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("Could not start Node.js"));
+    assert!(error.to_string().contains(PREPARE));
+    let mut command = Command::new("node");
+    command.args([
+        "-e",
+        "process.stderr.write('synthetic fixture startup failure');process.exitCode=7",
+    ]);
+    let error = Service::start(command, Duration::from_secs(5))
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("stdout EOF"));
+    assert!(error
+        .to_string()
+        .contains("synthetic fixture startup failure"));
+    Ok(())
+}
+
+#[test]
+fn fixture_startup_rejects_non_json_and_stops_an_unready_child() {
+    let mut command = Command::new("node");
+    command.args(["-e", "console.log('not-json');setInterval(()=>{},1000)"]);
+    let error = Service::start(command, Duration::from_secs(5))
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("not JSON"));
+    let mut command = Command::new("node");
+    command.args(["-e", "setInterval(()=>{},1000)"]);
+    let error = Service::start(command, Duration::from_millis(100))
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("ready deadline expired"));
 }

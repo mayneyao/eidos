@@ -541,6 +541,20 @@ The script stops its service and removes its forwarding rule on
 exit. No hosted account or real user data is used. Regular device tests exercise
 the same roundtrip over Graft's filesystem remote when no test URL is supplied.
 
+Workspace Cargo tests additionally exercise encrypted custom-server Sync with
+the [fixture-owned official Graft service](../../scripts/fixtures/graft-remote/README.md).
+Use the repository's `.node-version` and prepare its separate locked package:
+
+```sh
+npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
+node scripts/fixtures/mobile-custom-sync-server.mjs --check
+cargo test -p eidos-mobile-host --features ffi --locked
+```
+
+This fixture does not use the desktop application's dependencies. A root
+`pnpm install` does not replace this preparation, and the Cargo test never
+installs dependencies or skips its encrypted roundtrip automatically.
+
 The compatibility command requires Python 3 and an explicit development device
 serial (replace the example above with your emulator's serial). It builds the
 current host CLI and Android APKs, installs only on that device, and exchanges

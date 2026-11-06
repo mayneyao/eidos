@@ -187,11 +187,17 @@ pnpm --filter @eidos.space/ios-editor typecheck
 pnpm --filter @eidos.space/ios-editor build:web
 cargo fmt --all --check
 cargo clippy -p eidos-mobile-host --features ffi --all-targets --locked -- -D warnings
+npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
+node scripts/fixtures/mobile-custom-sync-server.mjs --check
 cargo test -p eidos-mobile-host --features ffi --locked
 xcodebuild -project apps/eidos-ios/EidosIOS.xcodeproj -scheme EidosIOS \
   -destination 'platform=iOS Simulator,id=<simulator-uuid>' \
   -derivedDataPath apps/eidos-ios/build/DerivedData test
 ```
+
+The Cargo encrypted Sync test uses the [fixture-owned official Graft service](../../scripts/fixtures/graft-remote/README.md).
+Use the repository's `.node-version`; its separate locked npm installation is
+required even after `pnpm install`. The test never installs dependencies itself.
 
 Tests cover local saves, stale-digest recovery, folder transfer, native Runtime validation, Graft divergence/reopen/resolution, Space selection, real WKWebView editing and share-draft submission. A disposable desktop peer fixture tests pinned-TLS transfer in both directions. Some XCUITest WebView accessibility queries currently fail on the simulator; the full UI suite is not a passing gate yet.
 
