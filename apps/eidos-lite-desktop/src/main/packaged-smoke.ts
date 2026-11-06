@@ -2025,6 +2025,17 @@ export async function runPackagedSmoke(
   resultPath: string,
   startup: PackagedSmokeStartup
 ): Promise<void> {
+  if (process.env.EIDOS_LITE_SMOKE_SCOPE === "automatic-sync-cancel") {
+    const { runAutomaticSyncElectronSmoke } =
+      await import("./sync/automatic-sync-electron-smoke")
+    await runAutomaticSyncElectronSmoke(
+      controller,
+      spaceRoot,
+      resultPath,
+      startup
+    )
+    return
+  }
   if (process.env.EIDOS_LITE_SMOKE_SCOPE === "markdown-image") {
     await runPackagedMarkdownImageSmoke(
       controller,

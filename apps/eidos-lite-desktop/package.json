@@ -14,6 +14,7 @@
     "build:release": "pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-release && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
     "test": "pnpm run prepare:terminal && pnpm run prepare:vtab && node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "test:performance": "node scripts/performance-smoke.mjs",
+    "test:auto-sync:electron": "node scripts/automatic-sync-electron-smoke.mjs",
     "test:performance:large": "node scripts/large-space-performance.mjs",
     "test:graft": "node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
     "test:service-discovery": "EIDOS_LITE_RUN_SERVICE_DISCOVERY=1 node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/services/service-environment.discovery.test.ts",
