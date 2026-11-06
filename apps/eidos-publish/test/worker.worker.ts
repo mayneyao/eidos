@@ -76,11 +76,15 @@ it("upgrades old static Form documents while retaining the immutable v3 client",
     "client.v4.js",
     "client.v3.js"
   )
-  const response = upgradeFormDocumentClient(new Response(legacy))
+  const response = upgradeFormDocumentClient(new Response(legacy), true)
   const html = await response.text()
   expect(html).toContain('src="/_eidos/forms/client.v4.js"')
   expect(html).not.toContain('src="/_eidos/forms/client.v3.js"')
   expect(html).toContain('data-slug="调查/反馈 表"')
+  const latestArtifact = legacy.replace("client.v3.js", "client.v4.js")
+  expect(
+    await upgradeFormDocumentClient(new Response(latestArtifact)).text()
+  ).toContain('src="/_eidos/forms/client.v3.js"')
   const oldScript = await formClientScriptResponse(true).text()
   expect(await digestHex(new TextEncoder().encode(oldScript))).toBe(
     "061718d98da475f9eee8319d2ac4a2626b019441c8a26b2a3ba2860f48136971"
@@ -1992,7 +1996,7 @@ describe("Eidos Publish control plane", () => {
     expect(revalidated.status).toBe(200)
     expect(revalidated.headers.get("etag")).toBeNull()
     expect(await revalidated.text()).toContain(
-      'src="/_eidos/forms/client.v4.js"'
+      'src="/_eidos/forms/client.v3.js"'
     )
     const formHead = await SELF.fetch(`${publicOrigin}/${slug}`, {
       method: "HEAD",
@@ -2124,7 +2128,7 @@ describe("Eidos Publish control plane", () => {
     expect(formHtml).toContain('class="eidos-publish-brand-page"')
     expect(formHtml).toContain("Built with <strong>Eidos</strong>")
     expect(formHtml).toContain('href="/_eidos/publish-brand.v5.css"')
-    expect(formHtml).toContain('src="/_eidos/forms/client.v4.js"')
+    expect(formHtml).toContain('src="/_eidos/forms/client.v3.js"')
     expect(formHtml).toContain('id="eidos-form-definition"')
     expect(formHtml).toContain('"title":"Product feedback"')
     expect(formHtml).toContain('"inputKey":"input_email_00000001"')

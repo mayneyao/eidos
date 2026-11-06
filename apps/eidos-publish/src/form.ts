@@ -757,7 +757,7 @@ export function formDocument(
     }
   </style>
 </head>
-<body><main id="eidos-form-root" data-eidos-published-form data-slug="${escapeHtml(slug)}"><p class="form-loading">Loading form…</p></main><script id="eidos-form-definition" type="application/json">${embeddedJson(definition)}</script><script src="${FORM_CLIENT_SCRIPT_PATH}" defer></script></body>
+<body><main id="eidos-form-root" data-eidos-published-form data-slug="${escapeHtml(slug)}"><p class="form-loading">Loading form…</p></main><script id="eidos-form-definition" type="application/json">${embeddedJson(definition)}</script><script src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}" defer></script></body>
 </html>`
 }
 
