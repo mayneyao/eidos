@@ -331,7 +331,7 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(primary).toContain("margin: 0")
   })
 
-  it("overlays update progress without squeezing the sidebar Settings entry", () => {
+  it("positions the update action without squeezing the sidebar Settings entry", () => {
     expect(rule(".sidebar-footer")).toContain("position: relative")
     expect(rule(".sidebar-footer")).not.toContain("border-top")
     expect(rule(".sidebar-settings-button")).toContain(
@@ -341,6 +341,9 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".sidebar-update-action")).toContain("position: absolute")
     // The update pill floats at the bottom, aligned with the footer actions.
     expect(rule(".sidebar-update-action")).toContain("bottom: 0.625rem")
+    expect(rule(".sidebar-update-action")).toContain(
+      "max-width: calc(100% - 5rem)"
+    )
     expect(rule(".sidebar-update-action")).not.toContain("border-top")
     expect(rule(".sidebar-update-action")).toContain(
       "animation: sidebar-update-enter"
@@ -357,6 +360,34 @@ describe("Eidos Lite surface hierarchy", () => {
         '.sidebar-update-action[data-sidebar-update-state="downloading"]\n  .sidebar-update-pill'
       )
     ).toContain("font-variant-numeric: tabular-nums")
+    expect(rule(".sidebar-update-percent")).toContain("flex: none")
+    expect(rule(".sidebar-update-percent")).toContain("width: 5ch")
+  })
+
+  it("shares plugin installation progress colors and fill behind the update label", () => {
+    const surface = ruleContaining(
+      ".settings-button.plugin-install-btn.is-downloading:disabled,"
+    )
+    const fill = ruleContaining(
+      ".settings-button.plugin-install-btn .plugin-btn-progress-fill,"
+    )
+    expect(surface).toContain(".sidebar-update-pill")
+    expect(surface).toContain("var(--primary-action) 12%")
+    expect(surface).toContain("color: var(--ink)")
+    expect(fill).toContain(".sidebar-update-progress-fill")
+    expect(fill).toContain("inset: 0 auto 0 0")
+    expect(fill).toContain("height: 100%")
+    expect(fill).toContain("var(--primary-action) 30%")
+    expect(fill).toContain("pointer-events: none")
+    expect(fill).toContain("z-index: 0")
+    expect(rule(".sidebar-update-pill")).toContain("isolation: isolate")
+    expect(rule(".sidebar-update-pill")).toContain("overflow: hidden")
+    expect(rule(".sidebar-update-content")).toContain("z-index: 1")
+    const reducedMotion = styles.slice(
+      styles.lastIndexOf("@media (prefers-reduced-motion: reduce)")
+    )
+    expect(reducedMotion).toContain(".sidebar-update-progress-fill")
+    expect(reducedMotion).toContain("transition: none")
   })
 
   it("aligns the sidebar Settings entry and toggle with the file tree inset", () => {

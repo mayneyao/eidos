@@ -11,7 +11,10 @@ import { validateSourceBundle } from "../src/bundle"
 import { brandPublishedDocument } from "../src/branding"
 import { canonicalJson, canonicalSha256 } from "../src/canonical"
 import { refreshTenantEntitlements } from "../src/entitlements"
-import { runtimeProxyRequestHeaders } from "../src/gateway"
+import {
+  runtimeProxyRequestHeaders,
+  upgradeFormDocumentClient,
+} from "../src/gateway"
 import {
   isRelayPublicHostname,
   publicationHostLabel,
@@ -43,7 +46,10 @@ import {
   prepareFormVersion,
   probeFormTarget,
   validateFormVersion,
+  formDocument,
 } from "../src/form"
+import { formClientFixture } from "./form-client-fixture"
+import { formClientScriptResponse } from "../src/collect"
 import { authoritativeMultipartObject } from "../src/index"
 import {
   normalizeCustomHostname,
@@ -63,6 +69,26 @@ const MULTI_SELECT_FIELD_ID = "0198c72d-82b5-7000-8000-000000000015"
 
 afterEach(async () => {
   await abortAllDurableObjects()
+})
+
+it("upgrades old static Form documents while retaining the immutable v3 client", async () => {
+  const legacy = formDocument("调查/反馈 表", formClientFixture).replace(
+    "client.v4.js",
+    "client.v3.js"
+  )
+  const response = upgradeFormDocumentClient(new Response(legacy))
+  const html = await response.text()
+  expect(html).toContain('src="/_eidos/forms/client.v4.js"')
+  expect(html).not.toContain('src="/_eidos/forms/client.v3.js"')
+  expect(html).toContain('data-slug="调查/反馈 表"')
+  const oldScript = await formClientScriptResponse(true).text()
+  expect(await digestHex(new TextEncoder().encode(oldScript))).toBe(
+    "061718d98da475f9eee8319d2ac4a2626b019441c8a26b2a3ba2860f48136971"
+  )
+  expect(oldScript).toContain('status.className = "status is-success"')
+  expect(await formClientScriptResponse().text()).toContain(
+    "location.assign(successPath)"
+  )
 })
 
 it("uses Workers-compatible requests and refuses DNS and provider redirects", async () => {
@@ -1958,6 +1984,38 @@ describe("Eidos Publish control plane", () => {
     expect(initiallyPublicPage.headers.get("cache-control")).toBe(
       "private, no-store"
     )
+    expect(initiallyPublicPage.headers.get("etag")).toBeNull()
+    expect(initiallyPublicPage.headers.get("content-length")).toBeNull()
+    const revalidated = await SELF.fetch(`${publicOrigin}/${slug}`, {
+      headers: { "If-None-Match": `"sha256-${prepared.artifact.sha256}"` },
+    })
+    expect(revalidated.status).toBe(200)
+    expect(revalidated.headers.get("etag")).toBeNull()
+    expect(await revalidated.text()).toContain(
+      'src="/_eidos/forms/client.v4.js"'
+    )
+    const formHead = await SELF.fetch(`${publicOrigin}/${slug}`, {
+      method: "HEAD",
+    })
+    expect(formHead.headers.get("etag")).toBeNull()
+    expect(formHead.headers.get("content-length")).toBeNull()
+    const successUrl = `${publicOrigin}/_eidos/forms/${slug}/success`
+    const initialSuccess = await SELF.fetch(successUrl)
+    expect(initialSuccess.status).toBe(200)
+    expect(initialSuccess.headers.get("cache-control")).toBe(
+      "private, no-store"
+    )
+    expect(await initialSuccess.text()).toContain(
+      'src="/_eidos/forms/client.v4.js"'
+    )
+    expect((await SELF.fetch(successUrl, { method: "HEAD" })).status).toBe(200)
+    expect(
+      (
+        await SELF.fetch(
+          `${publicOrigin}/_eidos/forms/%2F%2Fevil.example/success`
+        )
+      ).status
+    ).toBe(404)
     const inboxUpdatedAfterPage = await runInDurableObject(
       pageInboxStub,
       (_instance, state) =>
@@ -1998,6 +2056,9 @@ describe("Eidos Publish control plane", () => {
     expect(signIn.status).toBe(303)
     const signInLocation = new URL(signIn.headers.get("location")!)
     expect(signInLocation.searchParams.get("purpose")).toBe("form")
+    expect((await SELF.fetch(successUrl, { redirect: "manual" })).status).toBe(
+      303
+    )
     const unauthorizedDefinition = await SELF.fetch(
       `${publicOrigin}/_eidos/forms/${slug}/definition`
     )
@@ -2063,12 +2124,12 @@ describe("Eidos Publish control plane", () => {
     expect(formHtml).toContain('class="eidos-publish-brand-page"')
     expect(formHtml).toContain("Built with <strong>Eidos</strong>")
     expect(formHtml).toContain('href="/_eidos/publish-brand.v5.css"')
-    expect(formHtml).toContain('src="/_eidos/forms/client.v3.js"')
+    expect(formHtml).toContain('src="/_eidos/forms/client.v4.js"')
     expect(formHtml).toContain('id="eidos-form-definition"')
     expect(formHtml).toContain('"title":"Product feedback"')
     expect(formHtml).toContain('"inputKey":"input_email_00000001"')
     expect(formHtml).not.toContain(EMAIL_FIELD_ID)
-    const script = await SELF.fetch(`${publicOrigin}/_eidos/forms/client.v3.js`)
+    const script = await SELF.fetch(`${publicOrigin}/_eidos/forms/client.v4.js`)
     expect(script.status).toBe(200)
     const scriptSource = await script.text()
     expect(scriptSource).not.toContain('"Content-Length"')
@@ -2133,6 +2194,20 @@ describe("Eidos Publish control plane", () => {
       { headers: { Cookie: customCookie } }
     )
     expect(customDefinition.status).toBe(200)
+    const customSuccess = await SELF.fetch(
+      `https://forms.example.com/_eidos/forms/${slug}/success`,
+      { headers: { Cookie: customCookie } }
+    )
+    expect(customSuccess.status).toBe(200)
+    expect(customSuccess.headers.get("cache-control")).toBe("private, no-store")
+    expect(
+      (
+        await SELF.fetch(
+          `https://forms.example.com/_eidos/forms/${slug}/success`,
+          { headers: { Cookie: respondentCookie }, redirect: "manual" }
+        )
+      ).status
+    ).toBe(303)
     await tenantStub.clearCustomDomain(customBinding.bindingId)
 
     const publicDefinitionResponse = await SELF.fetch(
@@ -2250,6 +2325,31 @@ describe("Eidos Publish control plane", () => {
     )
     expect(completed.status).toBe(200)
     expect(await completed.json()).toMatchObject({
+      submissionId: submission.submissionId,
+      state: "committed",
+      sequence: "1",
+    })
+    // Success-page GETs (including refresh) never commit or change Inbox data.
+    for (let refresh = 0; refresh < 2; refresh++) {
+      expect(
+        (
+          await SELF.fetch(successUrl, {
+            headers: { Cookie: respondentCookie },
+          })
+        ).status
+      ).toBe(200)
+    }
+    const retryComplete = await SELF.fetch(
+      `${publicOrigin}/_eidos/forms/${slug}/submissions/${submission.submissionId}/complete`,
+      {
+        method: "POST",
+        headers: {
+          "X-Eidos-Submission-Intent": publicDefinition.submissionIntent,
+          Cookie: respondentCookie,
+        },
+      }
+    )
+    expect(await retryComplete.json()).toMatchObject({
       submissionId: submission.submissionId,
       state: "committed",
       sequence: "1",
@@ -2399,6 +2499,72 @@ describe("Eidos Publish control plane", () => {
     expect(await duplicateAfterContentRetention.json()).toMatchObject({
       error: { code: "response_already_submitted" },
     })
+
+    const pro = { ...proPrincipal(token).publish_access, revision: 10 }
+    await tenantStub.initialize(token, tenantState.publicSiteId, pro, null)
+    expect(
+      await tenantStub.setPublicationAccess(
+        slug,
+        "password",
+        "test-only-form-password",
+        pro,
+        "form-password-test",
+        "a".repeat(64)
+      )
+    ).toMatchObject({ ok: true })
+    const passwordSuccess = await SELF.fetch(successUrl, {
+      redirect: "manual",
+      headers: { Cookie: respondentCookie },
+    })
+    expect(passwordSuccess.status).toBe(401)
+    const passwordChallengeHtml = await passwordSuccess.text()
+    expect(passwordChallengeHtml).toContain('action="/_eidos/password"')
+    expect(passwordChallengeHtml).not.toContain(
+      definition.presentation.successMessage
+    )
+    const passwordSession = await passwordExchange(
+      tenantState.canonicalHost,
+      slug,
+      "test-only-form-password"
+    )
+    expect(passwordSession.status).toBe(303)
+    const passwordCookie = passwordSession.headers
+      .get("set-cookie")!
+      .split(";", 1)[0]!
+    const authorizedSuccess = await SELF.fetch(successUrl, {
+      headers: { Cookie: `${respondentCookie}; ${passwordCookie}` },
+    })
+    expect(authorizedSuccess.status).toBe(200)
+    expect(authorizedSuccess.headers.get("content-security-policy")).toContain(
+      "script-src 'self'"
+    )
+    expect(authorizedSuccess.headers.get("cache-control")).toBe(
+      "private, no-store"
+    )
+    expect(await authorizedSuccess.text()).toContain(
+      'src="/_eidos/forms/client.v4.js"'
+    )
+    expect(
+      await tenantStub.setPublicationAccess(
+        slug,
+        "private",
+        null,
+        pro,
+        "form-private-test",
+        "b".repeat(64)
+      )
+    ).toMatchObject({ ok: true })
+    const privateSuccess = await SELF.fetch(successUrl, {
+      redirect: "manual",
+      headers: { Cookie: `${respondentCookie}; ${passwordCookie}` },
+    })
+    expect(privateSuccess.status).toBe(303)
+    expect(new URL(privateSuccess.headers.get("location")!).pathname).toBe(
+      "/api/publish/viewer-authorize"
+    )
+    expect(
+      (await SELF.fetch(`${publicOrigin}/_eidos/forms/missing/success`)).status
+    ).toBe(404)
   })
 
   it("streams multipart parts and verifies the completed whole-object digest", async () => {

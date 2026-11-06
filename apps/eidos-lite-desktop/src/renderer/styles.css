@@ -2517,7 +2517,7 @@ body {
   right: 0.5rem;
   bottom: 0.625rem;
   min-width: 0;
-  max-width: calc(100% - 1rem);
+  max-width: calc(100% - 5rem);
   animation: sidebar-update-enter 160ms var(--sidebar-motion-ease-out) both;
 }
 
@@ -2526,6 +2526,9 @@ body {
 }
 
 .sidebar-update-pill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   display: inline-flex;
   max-width: 100%;
   height: 1.75rem;
@@ -2559,6 +2562,8 @@ body {
   .sidebar-update-pill {
   width: 100%;
   justify-content: flex-start;
+  gap: 0.25rem;
+  padding-inline: 0.375rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2578,15 +2583,43 @@ body {
   outline-offset: 2px;
 }
 
-.sidebar-update-pill > svg {
+.sidebar-update-content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: inherit;
+}
+
+.sidebar-update-content > svg {
   width: 0.75rem;
   height: 0.75rem;
   flex: none;
 }
 
-.sidebar-update-pill > span {
+.sidebar-update-content > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sidebar-update-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sidebar-update-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-update-percent {
+  flex: none;
+  width: 5ch;
+  text-align: right;
 }
 
 @keyframes sidebar-update-enter {
@@ -15104,7 +15137,9 @@ body:has(.file-properties-window)
   cursor: wait;
   opacity: 0.9;
 }
-.settings-button.plugin-install-btn.is-downloading:disabled {
+.settings-button.plugin-install-btn.is-downloading:disabled,
+.sidebar-update-action[data-sidebar-update-state="downloading"]
+  .sidebar-update-pill {
   background: color-mix(
     in oklab,
     var(--primary-action) 12%,
@@ -15119,7 +15154,8 @@ body:has(.file-properties-window)
   cursor: wait;
   opacity: 1;
 }
-.settings-button.plugin-install-btn .plugin-btn-progress-fill {
+.settings-button.plugin-install-btn .plugin-btn-progress-fill,
+.sidebar-update-pill .sidebar-update-progress-fill {
   position: absolute;
   inset: 0 auto 0 0;
   height: 100%;
@@ -15218,7 +15254,8 @@ body:has(.file-properties-window)
     animation: none;
     background-position: 50% 0;
   }
-  .settings-button.plugin-install-btn .plugin-btn-progress-fill {
+  .settings-button.plugin-install-btn .plugin-btn-progress-fill,
+  .sidebar-update-pill .sidebar-update-progress-fill {
     transition: none;
   }
 }

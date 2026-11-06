@@ -2,8 +2,10 @@
 title: Deploy Graft with Docker
 ---
 
-Run your own Sync server for Eidos Lite. Start the container, open its setup page
-and choose where to store your data. Graft creates the access key for you.
+Run your own Sync server for Eidos Lite. Start the container, generate its private
+initialization link on the server, then open that complete link to choose storage.
+Graft creates the access key for you. The root address and `/setup` alone are not
+authorized setup entry points.
 
 Use **local disk** for the simplest setup, or configure **S3-compatible storage**
 in the browser. Both options need persistent disk space on your server.
@@ -66,14 +68,19 @@ alongside Graft and manages certificates. No host installation or system-file ed
 
 ## 3. Start and open setup
 
+**Run both commands on your server, from the directory containing `compose.yaml`.**
+Get the initialization link before opening the browser; do not open the root
+address or type `/setup` manually to configure storage.
+
 ```bash
 docker compose up -d --wait
 docker compose exec graft node services/graft-remote-docker/manage.mjs setup-link
 ```
 
-Open the printed initialization link in your browser. It points to `/setup` at
-your public address and includes a private, one-time credential. Keep the whole
-link private. If HTTPS is not ready, check DNS and proxy logs, then retry.
+Open the **complete URL printed by `setup-link`, including `#token=…`**, in your
+browser. It points to `/setup` at your public address and proves access to the
+server terminal. Keep the whole link private. Filling in storage details does not
+provide this authorization. If HTTPS is not ready, check DNS and proxy logs, then retry.
 
 The link survives restarts until setup completes. If you close the page early,
 run the same command to obtain it again. Opening `/setup` without that link does
@@ -190,13 +197,14 @@ B2 acceptance. Provider storage, request and transfer charges apply.
 
 ## Troubleshooting
 
-| Problem                               | Next step                                                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Container fails to start              | Run `docker compose logs --tail=100 graft`; check volume permissions and free disk space.                                                    |
-| Setup link does not open              | Check the public address, DNS and HTTPS proxy. With optional Caddy, inspect `docker compose logs --tail=100 caddy`.                          |
-| Setup asks for an initialization link | Run the `setup-link` command and open its complete output.                                                                                   |
-| Setup rejects a submission            | Open the link directly at the HTTPS address matching `GRAFT_PUBLIC_ORIGIN`, without a redirect to another origin.                            |
-| Setup says it is complete             | Use your saved key or the `access-key` recovery command.                                                                                     |
-| S3 test fails                         | Check endpoint, region, bucket, addressing style and permissions. If deletion was denied, clean up any leftover test object before retrying. |
-| `/healthz` returns 503 before setup   | Expected: finish setup first. Container liveness uses `/livez`; it does not prove synchronization works.                                     |
-| Lite reports an authorization error   | Use the server key, not the setup credential, S3 credentials or Space sync password.                                                         |
+| Problem                                         | Next step                                                                                                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Container fails to start                        | Run `docker compose logs --tail=100 graft`; check volume permissions and free disk space.                                                                                                                                |
+| Setup link does not open                        | Check the public address, DNS and HTTPS proxy. With optional Caddy, inspect `docker compose logs --tail=100 caddy`.                                                                                                      |
+| Test connection / Complete setup stays disabled | Run `docker compose exec graft node services/graft-remote-docker/manage.mjs setup-link` on the server from the Compose directory; open its complete output, including `#token=…`. Storage fields cannot authorize setup. |
+| Initialization link is invalid or incomplete    | Retrieve it again from the same installation. Links do not expire with time; they become invalid when setup completes. If already complete, use the `access-key` command above instead.                                  |
+| Setup rejects a submission                      | Open the link directly at the HTTPS address matching `GRAFT_PUBLIC_ORIGIN`, without a redirect to another origin.                                                                                                        |
+| Setup says it is complete                       | Use your saved key or the `access-key` recovery command.                                                                                                                                                                 |
+| S3 test fails                                   | Check endpoint, region, bucket, addressing style and permissions. If deletion was denied, clean up any leftover test object before retrying.                                                                             |
+| `/healthz` returns 503 before setup             | Expected: finish setup first. Container liveness uses `/livez`; it does not prove synchronization works.                                                                                                                 |
+| Lite reports an authorization error             | Use the server key, not the setup credential, S3 credentials or Space sync password.                                                                                                                                     |

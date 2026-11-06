@@ -1,0 +1,46 @@
+{
+  "accountId": "b77bb32b49e596faa7a5092912181186",
+  "zoneId": "1d01b46c298f314a66964325da8a8266",
+  "zoneName": "eidos.space",
+  "bucket": "eidos-media",
+  "storageClass": "Standard",
+  "customDomain": "media.eidos.space",
+  "minimumTls": "1.2",
+  "developmentUrlEnabled": false,
+  "cors": {
+    "rules": [
+      {
+        "allowed": {
+          "origins": ["*"],
+          "methods": ["GET", "HEAD"],
+          "headers": ["Range"]
+        },
+        "exposeHeaders": [
+          "Content-Length",
+          "Content-Range",
+          "Accept-Ranges",
+          "ETag"
+        ],
+        "maxAgeSeconds": 3600
+      }
+    ]
+  },
+  "cacheRulesetId": "5bf650f52be54f0d81f869cb2cfb9f0b",
+  "cacheRuleId": "74aa8de25a5d4aa59ad154ba47128835",
+  "cacheRule": {
+    "action": "set_cache_settings",
+    "description": "Cache immutable Eidos release media",
+    "expression": "(http.host eq \"media.eidos.space\" and starts_with(http.request.uri.path, \"/releases/\"))",
+    "enabled": true,
+    "action_parameters": {
+      "cache": true,
+      "edge_ttl": {
+        "mode": "bypass_by_default",
+        "status_code_ttl": [
+          { "status_code_range": { "from": 400, "to": 599 }, "value": -1 }
+        ]
+      },
+      "browser_ttl": { "mode": "respect_origin" }
+    }
+  }
+}
