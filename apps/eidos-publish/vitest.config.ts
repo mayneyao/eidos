@@ -71,11 +71,13 @@ export default defineConfig({
             ) {
               const body = await request.json<{ code: string }>()
               return Response.json({
-                userId: "pro-user",
-                publicationSlug:
-                  body.code === "b".repeat(43) || body.code === "c".repeat(43)
-                    ? "feedback"
-                    : "private-data",
+                userId:
+                  body.code === "d".repeat(43) ? "standard-form" : "pro-user",
+                publicationSlug: ["b", "c", "d"].some(
+                  (value) => body.code === value.repeat(43)
+                )
+                  ? "feedback"
+                  : "private-data",
                 sessionId:
                   body.code === "c".repeat(43)
                     ? "session-revoked"
