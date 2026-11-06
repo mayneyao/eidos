@@ -538,8 +538,7 @@ async function servePublicationDocument(
       resolved.value.version,
       resolved.value.publication.accessMode !== "public",
       resolved.value.publication.showBranding,
-      resolved.value.noIndex,
-      formSuccess
+      resolved.value.noIndex
     )
     return resolved.value.version.driverId === "org.eidos.driver.form" &&
       !formSuccess
@@ -953,8 +952,7 @@ async function serveStaticDocument(
   version: PublicationVersionRecord,
   protectedDocument: boolean,
   showBranding: boolean,
-  noIndex: boolean,
-  formSuccess = false
+  noIndex: boolean
 ): Promise<Response> {
   const target = version.servingTarget
   if (
@@ -1018,9 +1016,9 @@ async function serveStaticDocument(
   }
   let document = new Response(object.body, { headers })
   if (version.driverId === "org.eidos.driver.form") {
-    // Compatibility fallback: new visits use v3, while v4 pages already open
-    // can still navigate to the success document and refresh it safely.
-    document = upgradeFormDocumentClient(document, formSuccess)
+    // Upgrade existing immutable Form artifacts at the serving boundary. Keep
+    // the v3 asset itself unchanged for documents already open in a browser.
+    document = upgradeFormDocumentClient(document)
   }
   return brandPublishedDocument(
     document,
@@ -1030,24 +1028,13 @@ async function serveStaticDocument(
   )
 }
 
-export function upgradeFormDocumentClient(
-  document: Response,
-  formSuccess = false
-): Response {
+export function upgradeFormDocumentClient(document: Response): Response {
   return new HTMLRewriter()
-    .on(
-      `script[src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}"], script[src="${FORM_CLIENT_SCRIPT_PATH}"]`,
-      {
-        element(element) {
-          element.setAttribute(
-            "src",
-            formSuccess
-              ? FORM_CLIENT_SCRIPT_PATH
-              : LEGACY_FORM_CLIENT_SCRIPT_PATH
-          )
-        },
-      }
-    )
+    .on(`script[src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}"]`, {
+      element(element) {
+        element.setAttribute("src", FORM_CLIENT_SCRIPT_PATH)
+      },
+    })
     .transform(document)
 }
 
