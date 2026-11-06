@@ -138,17 +138,32 @@ fn encrypted_custom_sync_roundtrip_reopens_and_rejects_changed_credentials() -> 
         &desktop.join("data.eidos"),
         "create",
         json!({"title":"Shared encrypted data"}),
-    )?;
+    )
+    .context("encrypted Sync phase: create source data file")?;
     let input = |name: &str| {
         json!({"url": format!("{}/personal/test", info["origin"].as_str().unwrap()),
         "uuid": info["uuid"], "token":"mobile-custom-sync-synthetic-token-00000000", "password":"mobile synthetic password",
         "stateDirectory": directory.path().join(format!("private-{name}"))})
     };
+    for name in ["desktop", "phone"] {
+        let state = directory.path().join(format!("private-{name}"));
+        assert!(
+            state.parent().unwrap().is_dir(),
+            "fresh state parent must exist"
+        );
+        assert!(!state.exists(), "fresh state base must not be precreated");
+    }
     let mut source = GraftHost::default();
     let mut target = GraftHost::default();
-    source.execute(&desktop, "checkpoint", json!({}))?;
-    source.execute(&desktop, "encryptedInitialize", input("desktop"))?;
-    target.execute(&phone, "encryptedClone", input("phone"))?;
+    source
+        .execute(&desktop, "checkpoint", json!({}))
+        .context("encrypted Sync phase: checkpoint source")?;
+    source
+        .execute(&desktop, "encryptedInitialize", input("desktop"))
+        .context("encrypted Sync phase: initialize source")?;
+    target
+        .execute(&phone, "encryptedClone", input("phone"))
+        .context("encrypted Sync phase: clone target")?;
     assert_eq!(
         std::fs::read_to_string(phone.join("note.md"))?,
         "desktop first"

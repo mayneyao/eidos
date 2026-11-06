@@ -77,15 +77,31 @@ impl EncryptedSync {
         );
         let probe = RepositorySession::new(root);
         probe.validate_encrypted_host_directory_targets(std::slice::from_ref(&base))?;
-        if !base.exists() {
-            std::fs::create_dir_all(&base)?;
-            set_private(&base)?;
+        #[cfg(windows)]
+        create_private_windows(
+            &base,
+            "Encrypted Sync: create private state base",
+            "Encrypted Sync: validate private state base",
+        )?;
+        #[cfg(not(windows))]
+        {
+            if !base.exists() {
+                std::fs::create_dir_all(&base)?;
+                set_private(&base)?;
+            }
+            e2ee::native_fs::validate_private_directory(&base)?;
         }
-        e2ee::native_fs::validate_private_directory(&base)?;
         let slot = base.join(format!(
             "{:x}",
             Sha256::digest(format!("{url}\0{uuid}").as_bytes())
         ));
+        #[cfg(windows)]
+        let created = create_private_windows(
+            &slot,
+            "Encrypted Sync: create private repository slot",
+            "Encrypted Sync: validate private repository slot",
+        )?;
+        #[cfg(not(windows))]
         let created = match std::fs::create_dir(&slot) {
             Ok(()) => {
                 set_private(&slot)?;
@@ -94,6 +110,7 @@ impl EncryptedSync {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
             Err(error) => return Err(error.into()),
         };
+        #[cfg(not(windows))]
         e2ee::native_fs::validate_private_directory(&slot)?;
         let directories = [
             slot.join("checkpoint"),
@@ -245,7 +262,88 @@ fn set_private(path: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
 }
-#[cfg(not(unix))]
+#[cfg(all(not(unix), not(windows)))]
 fn set_private(path: &Path) -> std::io::Result<()> {
     e2ee::native_fs::validate_private_directory(path)
+}
+
+#[cfg(windows)]
+fn create_private_windows(
+    path: &Path,
+    create_phase: &'static str,
+    validate_phase: &'static str,
+) -> Result<bool> {
+    use anyhow::Context;
+
+    // The SDK installs the protected owner DACL at creation. Do not recursively
+    // create parents or change permissions on an existing directory. Persistent
+    // slots must be validated and reopened, never replaced with a fresh name.
+    let created = match e2ee::native_fs::create_private_directory(path) {
+        Ok(()) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
+        Err(error) => return Err(error).context(create_phase),
+    };
+    e2ee::native_fs::validate_private_directory(path).context(validate_phase)?;
+    Ok(created)
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    fn create(path: &Path) -> Result<bool> {
+        create_private_windows(
+            path,
+            "test private directory create",
+            "test private directory validate",
+        )
+    }
+
+    #[test]
+    fn secure_base_and_slot_are_created_and_valid_existing_state_is_reused() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let base = temporary.path().join("host-private");
+        let slot = base.join("repository-slot");
+        assert!(create(&base)?);
+        assert!(create(&slot)?);
+        e2ee::native_fs::validate_private_directory(&base)?;
+        e2ee::native_fs::validate_private_directory(&slot)?;
+        let sentinel = slot.join("sentinel");
+        std::fs::write(&sentinel, b"retain recovery state")?;
+        assert!(!create(&base)?);
+        assert!(!create(&slot)?);
+        assert_eq!(std::fs::read(&sentinel)?, b"retain recovery state");
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_existing_directory_and_file_are_rejected_without_repair() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let inherited = temporary.path().join("inherited-directory");
+        std::fs::create_dir(&inherited)?;
+        let sentinel = inherited.join("sentinel");
+        std::fs::write(&sentinel, b"existing data")?;
+        assert!(e2ee::native_fs::validate_private_directory(&inherited).is_err());
+        assert!(create(&inherited).is_err());
+        assert!(e2ee::native_fs::validate_private_directory(&inherited).is_err());
+        assert_eq!(std::fs::read(&sentinel)?, b"existing data");
+        let file = temporary.path().join("existing-file");
+        std::fs::write(&file, b"keep file")?;
+        assert!(create(&file).is_err());
+        assert_eq!(std::fs::read(file)?, b"keep file");
+        Ok(())
+    }
+
+    #[test]
+    fn missing_parent_is_not_created_recursively() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let parent = temporary.path().join("missing-parent");
+        let error = create(&parent.join("host-private")).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<std::io::Error>().unwrap().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert!(!parent.exists());
+        Ok(())
+    }
 }
