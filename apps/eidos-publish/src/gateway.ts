@@ -42,7 +42,7 @@ import {
   refreshKnownTenantEntitlementsIfStale,
   refreshTenantEntitlementsIfStale,
 } from "./entitlements"
-import { FORM_CLIENT_SCRIPT_PATH } from "./form"
+import { FORM_CLIENT_SCRIPT_PATH, LEGACY_FORM_CLIENT_SCRIPT_PATH } from "./form"
 import { runtimeDescriptor, type EidosRuntimeContainer } from "./runtime"
 import type { PublishHandleDurableObject, PublishTenant } from "./tenant"
 
@@ -57,6 +57,7 @@ const VIEWER_COOKIE = "__Host-eidos_publish_viewer"
 const RESPONDENT_COOKIE = "__Host-eidos_publish_respondent"
 const MAX_RESPONDENT_SESSION_SECONDS = 12 * 60 * 60
 const PASSWORD_COOKIE_PREFIX = "__Host-eidos_publish_password_"
+const FORM_SUCCESS_RETURN_COOKIE_PREFIX = "__Host-eidos_publish_form_success_"
 const MAX_PASSWORD_SESSION_SECONDS = 12 * 60 * 60
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -181,8 +182,15 @@ export async function routePublicRequest(
   ) {
     return await publicAsset(request, env, url.pathname)
   }
-  if (request.method === "GET" && url.pathname === FORM_CLIENT_SCRIPT_PATH) {
-    return formClientScriptResponse()
+  if (
+    request.method === "GET" &&
+    [FORM_CLIENT_SCRIPT_PATH, LEGACY_FORM_CLIENT_SCRIPT_PATH].includes(
+      url.pathname
+    )
+  ) {
+    return formClientScriptResponse(
+      url.pathname === LEGACY_FORM_CLIENT_SCRIPT_PATH
+    )
   }
   const runtimeMatch = /^\/_eidos\/runtime\/([^/]+)\/(api\/.*)$/.exec(
     url.pathname
@@ -202,6 +210,20 @@ export async function routePublicRequest(
   if (tenantId === null) return publicNotFound()
   const tenant = env.PUBLISH_TENANTS.getByName(tenantId)
   if (request.method === "GET" || request.method === "HEAD") {
+    const success = /^\/_eidos\/forms\/([^/]+)\/success$/.exec(url.pathname)
+    if (success) {
+      const slug = decodePublicationPath(success[1] ?? "")
+      if (slug === null) return publicNotFound()
+      return await servePublicationDocument(
+        request,
+        env,
+        label,
+        tenantId,
+        tenant,
+        slug,
+        true
+      )
+    }
     const slug = shellSlug(url.pathname)
     if (slug !== null) {
       const response = await servePublicationDocument(
@@ -405,10 +427,17 @@ async function servePublicationDocument(
   label: string,
   tenantId: string,
   tenant: DurableObjectStub<PublishTenant>,
-  slug: string
+  slug: string,
+  formSuccess = false
 ): Promise<Response> {
   let resolved = await tenant.resolvePublication(slug)
   if (!resolved.ok) return publicNotFound()
+  if (
+    formSuccess &&
+    resolved.value.version.driverId !== "org.eidos.driver.form"
+  ) {
+    return publicNotFound()
+  }
   try {
     if (
       await refreshKnownTenantEntitlementsIfStale(env, tenantId, tenant, {
@@ -443,7 +472,10 @@ async function servePublicationDocument(
       env
     ))
   ) {
-    return privateAuthorizationRedirect(request, env, canonical, slug)
+    const response = privateAuthorizationRedirect(request, env, canonical, slug)
+    return resolved.value.version.driverId === "org.eidos.driver.form"
+      ? withFormSuccessReturn(request, slug, response, formSuccess)
+      : response
   }
   if (
     resolved.value.publication.accessMode === "password" &&
@@ -456,14 +488,22 @@ async function servePublicationDocument(
       env.PUBLISH_PASSWORD_SESSION_SECRET
     ))
   ) {
-    return passwordChallenge(request, slug)
+    const response = passwordChallenge(request, slug)
+    return resolved.value.version.driverId === "org.eidos.driver.form"
+      ? withFormSuccessReturn(request, slug, response, formSuccess)
+      : response
   }
   if (
     resolved.value.version.driverId === "org.eidos.driver.form" &&
     resolved.value.formPolicy.respondentAccess === "signed_in" &&
     (await formRespondentUserId(request, hostname, env)) === null
   ) {
-    return formAuthorizationRedirect(request, env, canonical, slug)
+    return withFormSuccessReturn(
+      request,
+      slug,
+      formAuthorizationRedirect(request, env, canonical, slug),
+      formSuccess
+    )
   }
   if (resolved.value.version.driverId === "org.eidos.driver.file") {
     const bundle = await loadFileBundle(env, resolved.value.version)
@@ -491,15 +531,20 @@ async function servePublicationDocument(
     }
   }
   if (resolved.value.version.servingTarget?.kind === "static") {
-    return await serveStaticDocument(
+    const response = await serveStaticDocument(
       request,
       env,
       resolved.value.staticArtifact,
       resolved.value.version,
       resolved.value.publication.accessMode !== "public",
       resolved.value.publication.showBranding,
-      resolved.value.noIndex
+      resolved.value.noIndex,
+      formSuccess
     )
+    return resolved.value.version.driverId === "org.eidos.driver.form" &&
+      !formSuccess
+      ? withFormSuccessReturn(request, slug, response, false)
+      : response
   }
   return await publicAsset(
     request,
@@ -908,7 +953,8 @@ async function serveStaticDocument(
   version: PublicationVersionRecord,
   protectedDocument: boolean,
   showBranding: boolean,
-  noIndex: boolean
+  noIndex: boolean,
+  formSuccess = false
 ): Promise<Response> {
   const target = version.servingTarget
   if (
@@ -950,6 +996,10 @@ async function serveStaticDocument(
     headers.set("X-Robots-Tag", "noindex, nofollow")
     headers.set("Cache-Control", "private, no-store")
   }
+  if (version.driverId === "org.eidos.driver.form") {
+    headers.delete("Content-Length")
+    headers.delete("ETag")
+  }
   if (request.method === "HEAD") {
     const object = await env.PUBLISH_OBJECTS.head(artifact.objectKey)
     return validStoredAsset(object, artifact.bytes, artifact.sha256)
@@ -966,13 +1016,39 @@ async function serveStaticDocument(
     await object?.body.cancel()
     return publicNotFound()
   }
-  const document = new Response(object.body, { headers })
+  let document = new Response(object.body, { headers })
+  if (version.driverId === "org.eidos.driver.form") {
+    // Compatibility fallback: new visits use v3, while v4 pages already open
+    // can still navigate to the success document and refresh it safely.
+    document = upgradeFormDocumentClient(document, formSuccess)
+  }
   return brandPublishedDocument(
     document,
     undefined,
     showBranding,
     version.clientMetadata
   )
+}
+
+export function upgradeFormDocumentClient(
+  document: Response,
+  formSuccess = false
+): Response {
+  return new HTMLRewriter()
+    .on(
+      `script[src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}"], script[src="${FORM_CLIENT_SCRIPT_PATH}"]`,
+      {
+        element(element) {
+          element.setAttribute(
+            "src",
+            formSuccess
+              ? FORM_CLIENT_SCRIPT_PATH
+              : LEGACY_FORM_CLIENT_SCRIPT_PATH
+          )
+        },
+      }
+    )
+    .transform(document)
 }
 
 function validStoredAsset(
@@ -1284,7 +1360,7 @@ async function exchangePrivateViewer(
     exp: now + MAX_TICKET_SECONDS,
     kid: "v2",
   }
-  return new Response(null, {
+  const response = new Response(null, {
     status: 303,
     headers: {
       Location: publicationLocation(exchanged.publicationSlug, navigation),
@@ -1293,6 +1369,12 @@ async function exchangePrivateViewer(
       "Set-Cookie": `${VIEWER_COOKIE}=${await signViewerSession(viewer, env.RUNTIME_TICKET_SECRET)}; Max-Age=${MAX_TICKET_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     },
   })
+  return restoreFormSuccessReturn(
+    request,
+    exchanged.publicationSlug,
+    response,
+    resolved.value.version.driverId === "org.eidos.driver.form"
+  )
 }
 
 async function exchangeFormRespondent(
@@ -1342,7 +1424,7 @@ async function exchangeFormRespondent(
     exp: now + MAX_RESPONDENT_SESSION_SECONDS,
     kid: "v2",
   }
-  return new Response(null, {
+  const response = new Response(null, {
     status: 303,
     headers: {
       Location: `/${publicationUrlPath(exchanged.publicationSlug)}`,
@@ -1351,6 +1433,12 @@ async function exchangeFormRespondent(
       "Set-Cookie": `${RESPONDENT_COOKIE}=${await signRespondentSession(claims, env.RUNTIME_TICKET_SECRET)}; Max-Age=${MAX_RESPONDENT_SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     },
   })
+  return restoreFormSuccessReturn(
+    request,
+    exchanged.publicationSlug,
+    response,
+    true
+  )
 }
 
 async function exchangeSignedInAuthorization(
@@ -1531,7 +1619,7 @@ async function exchangePublicationPassword(
     exp: now + MAX_PASSWORD_SESSION_SECONDS,
     kid: "v1",
   }
-  return new Response(null, {
+  const response = new Response(null, {
     status: 303,
     headers: {
       Location: publicationLocation(body.slug, body.navigation),
@@ -1540,6 +1628,64 @@ async function exchangePublicationPassword(
       "Set-Cookie": `${passwordCookieName(body.slug)}=${await signPasswordSession(claims, env.PUBLISH_PASSWORD_SESSION_SECRET)}; Max-Age=${MAX_PASSWORD_SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     },
   })
+  return restoreFormSuccessReturn(
+    request,
+    body.slug,
+    response,
+    resolved.value.version.driverId === "org.eidos.driver.form"
+  )
+}
+
+function formSuccessReturnCookieName(slug: string): string {
+  return (
+    FORM_SUCCESS_RETURN_COOKIE_PREFIX +
+    passwordCookieName(slug).slice(PASSWORD_COOKIE_PREFIX.length)
+  )
+}
+
+function withFormSuccessReturn(
+  request: Request,
+  slug: string,
+  response: Response,
+  returningToSuccess: boolean
+): Response {
+  const name = formSuccessReturnCookieName(slug)
+  if (
+    !returningToSuccess &&
+    cookieValue(request.headers.get("cookie"), name) === null
+  )
+    return response
+  const headers = new Headers(response.headers)
+  // Navigation hint only: no credentials or answers, and no access grant.
+  headers.append(
+    "Set-Cookie",
+    `${name}=${returningToSuccess ? "1" : ""}; Max-Age=${returningToSuccess ? MAX_TICKET_SECONDS : 0}; Path=/; HttpOnly; Secure; SameSite=Lax`
+  )
+  return new Response(response.body, { status: response.status, headers })
+}
+
+function restoreFormSuccessReturn(
+  request: Request,
+  slug: string,
+  response: Response,
+  form: boolean
+): Response {
+  if (!form) return response
+  const marker = cookieValue(
+    request.headers.get("cookie"),
+    formSuccessReturnCookieName(slug)
+  )
+  if (marker === null) return response
+  const headers = new Headers(response.headers)
+  // Called only after the existing exchange has authorized this publication.
+  // The cookie cannot choose a redirect URL or bypass any authorization check.
+  if (marker === "1")
+    headers.set("Location", `/_eidos/forms/${encodeURIComponent(slug)}/success`)
+  headers.append(
+    "Set-Cookie",
+    `${formSuccessReturnCookieName(slug)}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`
+  )
+  return new Response(response.body, { status: response.status, headers })
 }
 
 async function passwordViewerAuthorized(

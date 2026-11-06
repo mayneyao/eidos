@@ -541,6 +541,9 @@ importers:
       '@vitest/utils':
         specifier: 4.1.11
         version: 4.1.11
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2

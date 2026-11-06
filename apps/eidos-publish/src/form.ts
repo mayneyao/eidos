@@ -40,7 +40,8 @@ const FIELD_TYPES = new Set<PublishedFormFieldType>([
   "url",
 ])
 
-export const FORM_CLIENT_SCRIPT_PATH = "/_eidos/forms/client.v3.js"
+export const FORM_CLIENT_SCRIPT_PATH = "/_eidos/forms/client.v4.js"
+export const LEGACY_FORM_CLIENT_SCRIPT_PATH = "/_eidos/forms/client.v3.js"
 
 export class FormPreparationError extends Error {
   readonly code: string
@@ -399,7 +400,7 @@ function publishedFormOptions(
   })
 }
 
-function formDocument(
+export function formDocument(
   slug: string,
   definition: PublicFormDocumentDefinition
 ): string {
@@ -756,7 +757,7 @@ function formDocument(
     }
   </style>
 </head>
-<body><main id="eidos-form-root" data-eidos-published-form data-slug="${escapeHtml(slug)}"><p class="form-loading">Loading form…</p></main><script id="eidos-form-definition" type="application/json">${embeddedJson(definition)}</script><script src="${FORM_CLIENT_SCRIPT_PATH}" defer></script></body>
+<body><main id="eidos-form-root" data-eidos-published-form data-slug="${escapeHtml(slug)}"><p class="form-loading">Loading form…</p></main><script id="eidos-form-definition" type="application/json">${embeddedJson(definition)}</script><script src="${LEGACY_FORM_CLIENT_SCRIPT_PATH}" defer></script></body>
 </html>`
 }
 
