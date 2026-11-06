@@ -74,9 +74,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
 
       - name: Prepare pinned Graft test fixture
-        run: |
-          npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
-          node scripts/fixtures/mobile-custom-sync-server.mjs --check
+        run: npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
+
+      - name: Check pinned Graft test fixture
+        run: node scripts/fixtures/mobile-custom-sync-server.mjs --check
 
       - name: Run tests
         run: cargo test --workspace --locked --features eidos-mobile-host/ffi
