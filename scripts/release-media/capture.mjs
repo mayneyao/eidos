@@ -349,7 +349,7 @@ try {
   const manifest = {
     schemaVersion: 1,
     scenarioId: "table-search-escape",
-    scenarioRevision: 1,
+    scenarioRevision: 2,
     dataOrigin: "synthetic",
     introducedInRelease: "lite-v0.31.0",
     capturedAppVersion: "0.31.1",
@@ -381,8 +381,13 @@ try {
       heightPixels: stream.height,
       fps: 30,
       recorder: "ScreenCaptureKit",
+      filter: "SCContentFilter(display:excludingWindows:)",
       cursor: "native CGEvent + showsCursor",
-      exclusions: "Other applications excluded; desktop background retained",
+      exclusions:
+        "Other applications' on-screen windows present at capture start excluded individually; target application and desktop application windows retained",
+      exclusionLimit:
+        "Initial window snapshot only; new windows, target-app dialogs and desktop content require full-video privacy review",
+      nativeWindowControls: "Real macOS traffic lights; no synthetic overlay",
       speed: 1,
       audio: false,
     },

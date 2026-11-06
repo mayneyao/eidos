@@ -27,8 +27,11 @@ struct Recorder {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }), content.applications.contains(where: { $0.processID == pid }) else { throw NSError(domain: "Media", code: 4, userInfo: [NSLocalizedDescriptionKey: "Target application or main display unavailable"]) }
         let desktopApps = Set(["com.apple.dock", "com.apple.wallpaper.agent", "com.apple.WindowManager"])
-        let excluded = content.applications.filter { $0.processID != pid && !desktopApps.contains($0.bundleIdentifier) }
-        let filter = SCContentFilter(display: display, excludingApplications: excluded, exceptingWindows: [])
+        let excludedWindows = content.windows.filter { window in
+            guard let owner = window.owningApplication else { return true }
+            return owner.processID != pid && !desktopApps.contains(owner.bundleIdentifier)
+        }
+        let filter = SCContentFilter(display: display, excludingWindows: excludedWindows)
         filter.includeMenuBar = false
         let config = SCStreamConfiguration()
         config.sourceRect = CGRect(x: x, y: y, width: width, height: height)

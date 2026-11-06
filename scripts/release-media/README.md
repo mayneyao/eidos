@@ -9,8 +9,10 @@ It is not proof of the signed release package or of mobile capture.
 Requirements: macOS 15+, Xcode command-line tools, Node 22+ with WebSocket and
 parseEnv support, FFmpeg/ffprobe, workspace dependencies, Screen Recording and
 Accessibility permission for the local tool host. Capture uses ScreenCaptureKit
-to retain the native app window and 32 logical points of actual desktop on every
-side; other applications are excluded from the recording. Native mouse and
+to retain the native app window, real macOS red/yellow/green window controls and
+32 logical points of actual desktop on every side. The display filter excludes
+other applications' windows individually rather than using application sharing;
+it does not draw replacement controls or alter the recorded title bar. Native mouse and
 keyboard events perform the interaction. CDP reads the real UI and asserts focus
 and search-result state without injecting application data or rendered results.
 
@@ -57,8 +59,24 @@ Escape focus recovery, verifies fixture bytes remain unchanged, then writes:
 
 Input stops if the intended app loses foreground focus. Any failed assertion or
 recording finalization fails the run; an incomplete video is never publishable.
-Review the entire video and poster for readability, privacy and accurate
-behavior. Then explicitly bind approval to those exact file hashes:
+The foreground guard runs before each native input action; it is not continuous
+window or notification monitoring. Stop the capture with Ctrl-C and discard the
+take if foreground focus, the target window position or the scene changes, or
+an unexpected window or notification appears.
+
+The exclusion list is a snapshot of on-screen windows at capture start. Windows
+owned by the target PID and the desktop applications (Dock, Wallpaper and Window
+Manager) remain in the capture; ownerless windows and other applications' known
+windows are excluded. A new window created after that snapshot is not guaranteed
+to be excluded. Target-app dialogs, desktop content and notifications can still
+appear. Prepare a clean desktop with notifications suppressed before recording.
+This filter does not automatically guarantee privacy for arbitrary new popups.
+
+For every take, watch the entire video and inspect the poster for readable text,
+the real window controls, accurate behavior and private content, including all
+padding and any transient dialogs. Reject and re-record a take containing
+unexpected or private content. Only after this full privacy and content review,
+explicitly bind approval to those exact file hashes:
 
 ```bash
 node scripts/release-media/review.mjs --dir "$PWD/.artifacts/release-media" --approve
@@ -66,6 +84,9 @@ node scripts/release-media/review.mjs --dir "$PWD/.artifacts/release-media" --ap
 
 This records local editorial approval; it does not upload or claim that a
 particular human reviewed the files. Any subsequent byte change requires review.
+Scenario revision 2 records the display/window exclusion filter and its limits
+in the private manifest. Its bundle gets a new immutable URL; published earlier
+recordings are never overwritten.
 
 ## Upload and reference
 
