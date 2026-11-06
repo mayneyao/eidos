@@ -29,11 +29,12 @@ fun SyncConnectionSheet(
             Modifier.verticalScroll(rememberScrollState()).padding(24.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(tr("手动连接 Graft 远程"), style = MaterialTheme.typography.titleLarge)
+            Text(tr("直接连接 Graft 仓库"), style = MaterialTheme.typography.titleLarge)
             Text(
-                tr("输入远程 Space 的 HTTPS 地址和访问令牌。配置保存后，由你选择同步或发布本机版本。"),
+                tr("输入未加密 Graft 仓库的完整地址和可选令牌。桌面加密 Space 请使用服务器列表连接。"),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (url.trim().removePrefix("graft+").startsWith("http://")) Text(tr("HTTP 会以明文传输文件和访问令牌，请仅在可信网络中使用。"), style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(
                 url,
                 { url = it },

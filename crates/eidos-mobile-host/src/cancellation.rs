@@ -3,9 +3,21 @@ use anyhow::{anyhow, ensure, Result};
 use graft_sdk::{CancellationToken, TransferDirection, TransferProgress, TransferProgressReporter};
 use serde_json::{json, Value};
 use std::{
+    cell::RefCell,
     collections::HashMap,
     sync::{Arc, LazyLock, Mutex},
 };
+
+thread_local! { static CURRENT: RefCell<Option<CancellationToken>> = const { RefCell::new(None) }; }
+pub(crate) fn current_token() -> Option<CancellationToken> {
+    CURRENT.with(|value| value.borrow().clone())
+}
+struct CurrentGuard(Option<CancellationToken>);
+impl Drop for CurrentGuard {
+    fn drop(&mut self) {
+        CURRENT.with(|value| *value.borrow_mut() = self.0.take());
+    }
+}
 
 #[derive(Clone)]
 struct Operation {
@@ -114,6 +126,7 @@ pub fn run<T>(id: Option<&str>, operation: impl FnOnce() -> Result<T>) -> Result
         .cloned()
         .ok_or_else(|| anyhow!("Cancellation identity is not active"))?;
     ensure!(!token.token.is_cancelled(), "Graft operation cancelled");
+    let _guard = CurrentGuard(CURRENT.with(|value| value.replace(Some(token.token.clone()))));
     // One reporter spans the user's operation (fetch plus checkout), so the
     // planned total includes metadata already received and never resets at a
     // native dispatch boundary. Upload and download retain separate counters.

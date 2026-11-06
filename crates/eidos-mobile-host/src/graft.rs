@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 
 pub struct GraftHost {
     session: Option<(PathBuf, RepositorySession)>,
+    encrypted: Option<crate::encrypted_sync::EncryptedSync>,
     identity: RepositorySessionIdentity,
 }
 
@@ -24,6 +25,7 @@ impl GraftHost {
     pub fn with_identity(name: &str, email: &str) -> Self {
         Self {
             session: None,
+            encrypted: None,
             identity: RepositorySessionIdentity {
                 name: name.into(),
                 email: email.into(),
@@ -39,6 +41,9 @@ impl GraftHost {
                 if let Some((_, session)) = self.session.take() {
                     session.close()?;
                 }
+                if let Some(authority) = self.encrypted.take() {
+                    authority.disconnect()?;
+                }
             }
             return Ok(json!({}));
         }
@@ -52,6 +57,9 @@ impl GraftHost {
             if let Some((_, previous)) = self.session.take() {
                 previous.close()?;
             }
+            if let Some(authority) = self.encrypted.take() {
+                authority.disconnect()?;
+            }
             let session = RepositorySession::new_with_identity(
                 &root,
                 Some(RepositorySessionIdentity {
@@ -61,6 +69,27 @@ impl GraftHost {
             );
             session.open()?;
             self.session = Some((root.clone(), session));
+        }
+        if matches!(
+            method,
+            "encryptedInitialize" | "encryptedUnlock" | "encryptedClone"
+        ) {
+            return self.connect_encrypted(&root, method, request);
+        }
+        if method == "disconnectRemote" {
+            let session = &self
+                .session
+                .as_ref()
+                .ok_or_else(|| anyhow!("Session unavailable"))?
+                .1;
+            ensure!(
+                matches!(session.get_merge_status()?, graft_sdk::MergeStatus::None),
+                "Complete or abort the active merge before disconnecting"
+            );
+            if let Some(authority) = self.encrypted.take() {
+                authority.disconnect()?;
+            }
+            return Ok(session.remove_remote("origin")?);
         }
         let session = &self
             .session
@@ -338,6 +367,92 @@ impl GraftHost {
             }
             _ => Err(anyhow!("Unsupported Android Graft operation: {method}")),
         }
+    }
+
+    fn connect_encrypted(&mut self, root: &Path, method: &str, request: Value) -> Result<Value> {
+        let current = &self
+            .session
+            .as_ref()
+            .ok_or_else(|| anyhow!("Session unavailable"))?
+            .1;
+        let remotes = if root.join(".graft").exists() {
+            serde_json::to_value(current.list_remotes()?)?
+        } else {
+            json!({"remotes": []})
+        };
+        if let Some(origin) = remotes["remotes"]
+            .as_array()
+            .and_then(|items| items.iter().find(|entry| entry["name"] == "origin"))
+        {
+            ensure!(origin["kind"] == "encrypted_http" && origin["url"] == request["url"],
+                "This Space is connected to another remote or encryption identity; disconnect it first");
+        }
+        if method == "encryptedClone" {
+            ensure!(
+                root.read_dir()?.next().is_none(),
+                "Clone destination must be empty"
+            );
+        }
+        let authority = crate::encrypted_sync::EncryptedSync::new(root, &request)?;
+        if remotes["remotes"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|entry| entry["name"] == "origin"))
+        {
+            current.validate_initialization_remote_config("origin", &authority.config)?;
+        }
+        let password = required(&request, "password")?;
+        if method == "encryptedInitialize" {
+            authority.initialize(password, current)?;
+        } else {
+            authority.unlock(password)?;
+        }
+        // Wrong credentials never replace the current session or durable origin.
+        if let Some((_, previous)) = self.session.take() {
+            previous.close()?;
+        }
+        if let Some(previous) = self.encrypted.take() {
+            previous.disconnect()?;
+        }
+        let session = RepositorySession::new_with_remote_credentials(
+            root,
+            Some(self.identity.clone()),
+            authority.credentials.clone(),
+        );
+        session.validate_encrypted_host_directories(&authority.directories)?;
+        session.open()?;
+        let result = (|| -> Result<Value> {
+            if method == "encryptedClone" {
+                session.clone_repository_with_config(authority.config.clone(), Some("main"))?;
+            } else {
+                if !root.join(".graft").exists() {
+                    session.init()?;
+                }
+                if !remotes["remotes"]
+                    .as_array()
+                    .is_some_and(|items| items.iter().any(|entry| entry["name"] == "origin"))
+                {
+                    session.add_remote_with_config("origin", authority.config.clone())?;
+                }
+                session.configure_remote(&RemoteConfigureOptions {
+                    name: "origin".into(),
+                    url: format!(
+                        "graft+e2ee:{}#{}",
+                        required(&request, "url")?,
+                        required(&request, "uuid")?
+                    ),
+                    bearer_token: None,
+                    overwrite: false,
+                    upstream_branch: Some("main".into()),
+                })?;
+                if method == "encryptedInitialize" {
+                    authority.push_initial(&session)?;
+                }
+            }
+            Ok(json!({"state": "unlocked"}))
+        })();
+        self.session = Some((root.to_path_buf(), session));
+        self.encrypted = Some(authority);
+        result
     }
 }
 

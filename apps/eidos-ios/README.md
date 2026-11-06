@@ -133,8 +133,37 @@ No immediate update is promised while suspended, force-quit, permission-denied,
 offline or restricted by iOS. Real device background launch/expiry and locked
 device behavior remain acceptance checks.
 
-Account login, cloud Sync and Publish entry points are hidden from the mobile UI.
+Account login, official cloud Sync and Publish entry points are hidden from the mobile UI.
 Phone-to-phone sync and Internet relay are outside this version; see [ALIGNMENT.md](ALIGNMENT.md).
+
+## Custom Graft servers
+
+Open **Sync → Custom server** to use your own server without an Eidos account.
+Enter the server origin (for example `https://graft.example.com`) and the server
+access key, then browse its Spaces. Personal Graft servers use the same discovery,
+repository list and encrypted identity contract as Eidos Lite. Select an existing
+Space and enter its sync password to download it into a separate local Space, or
+choose **Enable sync for this Space** to create a new encrypted repository and
+upload the current local Space. Access keys and sync passwords are kept in the
+device Keychain, outside Space files and separate from account and LAN pairing
+credentials. A failed password or changed encryption identity preserves the
+existing connection and files.
+
+Use **Sync now** to save a local version, receive remote changes and send the
+result. Conflicting histories retain both sides and open **Review and merge**;
+they are never silently replaced. **Disconnect this Space from the server**
+removes its connection and credentials while retaining local files and history.
+Downloads stay outside the Space list until transfer succeeds; retry uses the
+same isolated destination. Keep the app in the foreground during transfer.
+
+Encrypted repositories require HTTPS; the pinned SDK permits HTTP only on
+loopback addresses for local testing. The advanced plain-repository section also
+accepts complete HTTP or HTTPS Graft repository URLs and an optional token,
+including LAN addresses. HTTP sends the token and plain repository content
+without transport encryption. Initial publication to an empty plain repository
+uses **Send local version**; a server with newer history rejects overwriting it.
+The iOS networking exception permits explicitly configured arbitrary HTTP
+origins for server discovery; account endpoints remain HTTPS-only.
 
 ## Architecture
 

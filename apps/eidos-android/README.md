@@ -192,9 +192,41 @@ a successful sync time. Keep the phone in the foreground while transferring.
 The shared delivery checklist and verification commands are in
 [Mobile LAN v1](../eidos-ios/ALIGNMENT.md).
 
-Account login, cloud connection/download, custom remote connection and Publish
+Account login, official cloud connection/download and Publish
 entry points are hidden from the mobile UI. Phone-to-phone sync and an Internet
 relay are not provided.
+
+### Custom Graft servers
+
+Open **Sync → Custom server** without signing in. Enter the same server origin
+and server access key used in Eidos Lite, then choose **Browse server Spaces**.
+The server must implement the personal Graft management/discovery contract.
+Select a Space, enter its existing sync password, and download it as a new local
+Space. To send an existing local Space, choose **Enable sync for current Space**
+with a new sync password. Keep that password: the server access key does not
+replace it, and Eidos cannot recover it.
+
+Credentials and sync passwords are encrypted using Android Keystore in app
+storage, outside the Space. They never enter the editor WebView or depend on
+an Eidos account session. A connected Space retains its connection across app
+restarts; use **Sync now** to exchange committed versions. Update an existing
+connection's credentials from the matching server Space row. Disconnecting
+removes the phone's connection and token while keeping local files, history
+and the server copy. Disconnect explicitly before selecting another repository.
+
+Encrypted servers require HTTPS, with loopback HTTP reserved for local testing
+under the same Graft SDK policy used by Lite. Non-loopback HTTP never falls back
+to unencrypted sync. **Advanced: plain Graft repository** also supports direct
+HTTP/HTTPS repository URLs and optional Bearer tokens for servers without the
+personal management contract. That path cannot open encrypted desktop Spaces;
+HTTP sends its files and token without transport encryption.
+
+Downloads register a fresh local Space only after transfer succeeds. An
+interrupted initial upload retains its exact server repository, password and
+private initialization journal; retry with the same Space and password. A
+changed server encryption identity, wrong password, authentication failure or
+diverged history cannot silently replace the connected origin or discard local
+files. Conflict review remains explicit. Local files remain usable offline.
 
 ### Automatic committed updates
 
@@ -333,7 +365,7 @@ a claim that an offline device knows the remote's latest state.
   pending worktree and staged changes. Drafts and temporary writes live outside
   the versioned Space. Local versions do not require an account or network.
 
-Manually connect a Graft remote in the Sync screen with its HTTPS URL and an
+Manually connect a plain Graft remote in the Sync screen with its HTTP/HTTPS URL and an
 optional access token. Credentials are encrypted with Android Keystore outside
 the Space. Use **Publish local version** for the first upload to an empty
 remote; **Sync now** saves local changes, fetches, fast-forwards where possible,
@@ -383,7 +415,7 @@ controls job quotas and foreground-service time limits; this is not an unlimited
 background transfer service. System-interrupted scheduled work can retry from
 Graft state; explicitly cancelled tasks remain cancelled.
 
-Use **Advanced: Download remote Space manually** in the Space selector to download a custom remote into
+Use **Sync → Custom server → Advanced: plain Graft repository → Download remote Space** to download a plain remote into
 a new local Space. Enter a local name, remote URL, and optional access token.
 The downloaded Space appears in the selector only after its files and attachments
 are available locally. Failed downloads can be retried without replacing the
@@ -407,8 +439,8 @@ supported. A completed download can finish registration offline after reopening.
 A native clone requires a separate empty destination and cannot replace local files.
 Existing remotes cannot be silently
 replaced by saving another URL. Updating credentials requires reentering the
-token; leaving it blank clears the previous token. Release builds require HTTPS;
-debug builds additionally allow HTTP on `127.0.0.1` for local protocol tests.
+token; leaving it blank clears the previous token. Plain repositories accept HTTP
+and HTTPS. Encrypted repositories follow the HTTPS/loopback policy above.
 
 Spaces are stored under the application's private `files/spaces/<id>`
 directories; the initial Space uses `personal`. Uninstalling the application removes this data. Export files you

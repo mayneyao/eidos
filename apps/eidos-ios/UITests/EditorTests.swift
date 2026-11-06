@@ -272,6 +272,22 @@ final class EditorTests: XCTestCase {
         let more = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '更多 '")).firstMatch
         if more.exists { more.tap(); XCTAssertFalse(app.buttons["发布"].exists) }
     }
+    func testCustomServerConfigurationIsAvailableWithoutAnAccount() {
+        let app = chineseApp(); app.launch()
+        XCTAssertTrue(app.buttons["main-tab-sync"].waitForExistence(timeout: 10))
+        app.buttons["main-tab-sync"].tap()
+        let entry = app.buttons["custom-server-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        let origin = app.textFields["custom-server-origin"]
+        XCTAssertTrue(origin.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.secureTextFields["custom-server-token"].exists)
+        XCTAssertTrue(app.buttons["custom-server-load"].exists)
+        XCTAssertFalse(app.buttons["登录 Eidos 账号"].exists)
+        XCTAssertFalse(app.buttons["查看云端 Space"].exists)
+        origin.tap(); origin.typeText("http://192.168.1.20:8080")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Custom server HTTP configuration"; screenshot.lifetime = .keepAlways; add(screenshot)
+    }
     func testSpaceSelectionAndSyncScreenSurviveRelaunch() {
         let app = chineseApp()
         app.launch()

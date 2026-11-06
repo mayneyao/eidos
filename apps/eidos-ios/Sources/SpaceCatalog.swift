@@ -6,7 +6,7 @@ struct SpaceEntry: Codable, Identifiable, Equatable {
 }
 
 final class SpaceCatalog {
-    private struct State: Codable { var selected: String; var spaces: [SpaceEntry]; var peerDownloads: [String: SpaceEntry]?; var peerSpaces: [String: SpaceEntry]? }
+    private struct State: Codable { var selected: String; var spaces: [SpaceEntry]; var peerDownloads: [String: SpaceEntry]?; var peerSpaces: [String: SpaceEntry]?; var customDownloads: [String: SpaceEntry]?; var customSpaces: [String: SpaceEntry]? }
     private let documents: URL
     private let index: URL
     private var state: State
@@ -92,6 +92,31 @@ final class SpaceCatalog {
         try save(next)
     }
 
+    func prepareCustom(name: String, url: String) throws -> SpaceEntry {
+        if state.customSpaces?[url] != nil { throw LocalError.message(tr("此服务器 Space 已下载，请从 Space 列表打开")) }
+        if let entry = state.customDownloads?[url] { return entry }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        try LocalSpace.validateName(name)
+        let entry = SpaceEntry(id: UUID().uuidString, name: name)
+        _ = try LocalSpace(root: root(entry))
+        var next = state
+        if next.customDownloads == nil { next.customDownloads = [:] }
+        next.customDownloads?[url] = entry
+        try save(next)
+        return entry
+    }
+
+    func completeCustom(url: String, entry: SpaceEntry) throws {
+        if state.customSpaces?[url] == entry { return }
+        guard state.customDownloads?[url] == entry else { throw LocalError.message(tr("下载 Space 已变更，请重试")) }
+        var next = state
+        next.spaces.append(entry)
+        if next.customSpaces == nil { next.customSpaces = [:] }
+        next.customSpaces?[url] = entry
+        next.customDownloads?.removeValue(forKey: url)
+        try save(next)
+    }
+
     private func save(_ next: State) throws {
         try FileManager.default.createDirectory(at: index.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(next).write(to: index, options: [.atomic, .completeFileProtectionUnlessOpen])
@@ -114,12 +139,16 @@ final class SpaceCatalog {
         if next.selected == entry.id { next.selected = next.spaces[0].id }
         next.peerSpaces = next.peerSpaces?.filter { $0.value.id != entry.id }
         next.peerDownloads = next.peerDownloads?.filter { $0.value.id != entry.id }
+        next.customDownloads = next.customDownloads?.filter { $0.value.id != entry.id }
+        next.customSpaces = next.customSpaces?.filter { $0.value.id != entry.id }
         let quarantine = documents.appendingPathComponent(".deleted-space-" + UUID().uuidString)
         try FileManager.default.moveItem(at: local.root, to: quarantine)
         do { try save(next) }
         catch { try? FileManager.default.moveItem(at: quarantine, to: local.root); throw error }
         try DeviceSecrets.remove(PeerSync.key(local))
         try DeviceSecrets.remove(SyncAccount.profileKey(local))
+        try DeviceSecrets.remove(CustomSync.key(local))
+        try DeviceSecrets.remove(CustomSync.pendingKey(local))
         UserDefaults.standard.removeObject(forKey: "background-sync:" + LocalSpace.storageIdentity(local.root))
         UserDefaults.standard.removeObject(forKey: "background-result:" + entry.id)
         try DraftStore.shared.discardAll(under: local.root)

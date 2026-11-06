@@ -77,7 +77,11 @@ targets:
           - CFBundleURLName: space.eidos.ios.oauth
             CFBundleURLSchemes: ["space.eidos.ios"]
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          # Explicitly configured self-hosted Graft HTTP origins. The custom
+          # server UI describes cleartext transport; HTTPS remains the default.
+          # Do not add NSAllowsLocalNetworking here: iOS ignores the broader
+          # exception when a fine-grained ATS key is present.
+          NSAllowsArbitraryLoads: true
   EidosShare:
     type: app-extension
     platform: iOS

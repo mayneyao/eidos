@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import android.util.AtomicFile
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
@@ -206,7 +207,8 @@ class SpaceRepository(
             throw error
         }
         syncProfiles.clear()
-        for (directory in listOf(quarantine, staging, drafts, File(context.filesDir, "trash-$spaceId"))) {
+        SyncProfileStore(context, "custom-pending-$spaceId").clear()
+        for (directory in listOf(quarantine, staging, drafts, File(context.filesDir, "trash-$spaceId"), File(context.filesDir, "encrypted-sync-$spaceId"))) {
             if (directory.exists())
                 Files.walk(directory.toPath()).use { paths ->
                     paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
@@ -441,6 +443,20 @@ class SpaceRepository(
     }
 
     private fun authorize(profile: SyncProfile, cancellationId: String? = null) {
+        if (profile.uuid != null) {
+            val client = CustomSyncClient(checkNotNull(profile.server), profile.token)
+            client.verify(CustomSyncRepository(URI(profile.url).path.substringAfterLast('/'), "", profile.url, profile.uuid))
+            NativeGraft.call(root.path, "encryptedUnlock", encryptedRequest(profile), cancellationId)
+            return
+        }
+        if (NativeGraft.call(root.path, "status").optBoolean("initialized")) {
+            val remotes = NativeGraft.call(root.path, "remotes").getJSONArray("remotes")
+            for (index in 0 until remotes.length()) {
+                val remote = remotes.getJSONObject(index)
+                if (remote.getString("name") == "origin") check(remote.getString("kind") != "encrypted_http" &&
+                    remote.getString("url").removePrefix("graft+") == profile.url) { tr("请先断开当前 Space 的服务器连接") }
+            }
+        }
         NativeGraft.call(root.path, "clearCredentials", cancellationId = cancellationId)
         val request =
             JSONObject()
@@ -451,6 +467,63 @@ class SpaceRepository(
         val token = SyncAccount(context).resolve(profile)
         if (token.isNotEmpty()) request.put("token", token)
         NativeGraft.call(root.path, "configureRemote", request, cancellationId)
+    }
+
+    private fun encryptedRequest(profile: SyncProfile): JSONObject {
+        val directory = File(context.filesDir, "encrypted-sync-$spaceId").apply { mkdirs(); setReadable(false, false); setReadable(true, true); setWritable(false, false); setWritable(true, true); setExecutable(false, false); setExecutable(true, true) }
+        return JSONObject().put("url", profile.url).put("token", profile.token).put("uuid", profile.uuid)
+            .put("password", profile.password).put("stateDirectory", directory.path)
+    }
+
+    suspend fun connectCustomRemote(url: String, token: String): GraftState = io {
+        val profile = syncProfiles.validate(url, token).copy(custom = true)
+        val previous = syncProfiles.load()
+        syncProfiles.save(profile)
+        try { authorize(profile) } catch (error: Exception) {
+            NativeGraft.call(root.path, "close")
+            if (previous != null) syncProfiles.save(previous) else syncProfiles.clear()
+            throw error
+        }
+        syncOutcome("pending")
+        graftState(NativeGraft.call(root.path, "status"))
+    }
+
+    suspend fun connectEncrypted(profile: SyncProfile, initialize: Boolean): GraftState = io {
+        CustomSyncAddress.password(profile.password.orEmpty())
+        val saved = syncProfiles.load()
+        check(saved == null || saved.url == profile.url && saved.uuid == profile.uuid) { tr("请先断开当前 Space 的服务器连接") }
+        val pendingStore = SyncProfileStore(context, "custom-pending-$spaceId")
+        val pending = pendingStore.load()
+        if (initialize) {
+            if (pending == null) {
+                NativeGraft.call(root.path, "checkpoint")
+                pendingStore.save(profile)
+            } else check(pending.url == profile.url && pending.uuid == profile.uuid && pending.password == profile.password) {
+                tr("请使用上次初始化的服务器和同步密码继续连接")
+            }
+        }
+        NativeGraft.cancellable { id ->
+            NativeGraft.call(root.path, if (initialize) "encryptedInitialize" else "encryptedUnlock", encryptedRequest(profile), id)
+            currentCoroutineContext().ensureActive()
+        }
+        syncProfiles.save(profile)
+        if (initialize) pendingStore.clear()
+        syncOutcome("pending")
+        graftState(NativeGraft.call(root.path, "status"))
+    }
+
+    internal suspend fun cloneEncryptedRemote(profile: SyncProfile, progress: (String, Long) -> Unit): GraftState = io {
+        CustomSyncAddress.password(profile.password.orEmpty())
+        check(root.listFiles()?.isEmpty() == true) { tr("下载目标必须是空 Space") }
+        CustomSyncClient(checkNotNull(profile.server), profile.token).verify(CustomSyncRepository(URI(profile.url).path.substringAfterLast('/'), "", profile.url, profile.uuid))
+        NativeGraft.cancellable(onDownload = { progress(tr("正在下载并写入文件"), it) }) { id ->
+            NativeGraft.call(root.path, "encryptedClone", encryptedRequest(profile), id)
+            currentCoroutineContext().ensureActive()
+        }
+        syncProfiles.save(profile)
+        val status = NativeGraft.call(root.path, "status")
+        syncCompleted(profile.url, status)
+        graftState(status)
     }
 
     suspend fun connectRemote(url: String, token: String): GraftState = io {
@@ -466,9 +539,10 @@ class SpaceRepository(
         url: String,
         token: String,
         progress: (String, Long) -> Unit = { _, _ -> },
+        custom: Boolean = false,
     ): GraftState = io {
         progress(tr("正在验证连接"), 0)
-        val profile = syncProfiles.validate(url, token)
+        val profile = syncProfiles.validate(url, token).copy(custom = custom)
         check(root.listFiles()?.isEmpty() == true) { tr("下载目标必须是空 Space") }
         val request =
             JSONObject()
@@ -504,8 +578,8 @@ class SpaceRepository(
     }
 
     suspend fun disconnectRemote(): GraftState = io {
+        NativeGraft.call(root.path, "disconnectRemote")
         syncProfiles.clear()
-        NativeGraft.call(root.path, "clearCredentials")
         graftState(NativeGraft.call(root.path, "status"))
     }
 

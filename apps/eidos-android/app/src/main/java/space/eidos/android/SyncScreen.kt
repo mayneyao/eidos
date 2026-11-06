@@ -22,6 +22,7 @@ import androidx.lifecycle.repeatOnLifecycle
 internal enum class SyncDestination {
     Overview,
     Versions,
+    CustomServer,
 }
 
 @Composable
@@ -44,7 +45,7 @@ internal fun SyncScreen(
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             windowInsets = WindowInsets(0, 0, 0, 0),
-            title = { Text(if (destination == SyncDestination.Versions) tr("本地版本") else tr("同步")) },
+            title = { Text(when (destination) { SyncDestination.Versions -> tr("本地版本"); SyncDestination.CustomServer -> tr("自定义服务器"); else -> tr("同步") }) },
             navigationIcon = {
                 if (destination != SyncDestination.Overview)
                     IconButton(onClick = { destination = SyncDestination.Overview }) {
@@ -57,10 +58,16 @@ internal fun SyncScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (destination == SyncDestination.Overview) {
+                SyncNavigationRow(tr("自定义服务器"), state.graft?.remoteUrl ?: tr("连接自建 Graft 服务器，无需 Eidos 账号"), Icons.Outlined.Dns, ready) {
+                    destination = SyncDestination.CustomServer
+                }
+                HorizontalDivider()
                 PeerSyncScreen(state, model) { id ->
                     destination = SyncDestination.Versions
                     model.showPeerVersions(id)
                 }
+            } else if (destination == SyncDestination.CustomServer) {
+                CustomSyncScreen(state, model)
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                     item {
