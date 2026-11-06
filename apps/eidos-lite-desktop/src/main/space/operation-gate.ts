@@ -24,6 +24,9 @@ interface MaterializationOptions<T> {
   beforeClose?(signal: AbortSignal): Promise<void>
   materialize(signal: AbortSignal): Promise<T>
   afterValidate?(result: T): Promise<void>
+  /** Rechecked before handles close; cancellation is unsafe after materialization starts. */
+  admit?(): void
+  background?: string
 }
 
 interface PendingDrain {
@@ -141,23 +144,33 @@ export class SpaceOperationGate {
       key?: string
       replace?: boolean
       preemptible?: boolean
+      background?: string
+      signal?: AbortSignal
     } = {}
   ): Promise<T> {
     if (this.closing || this.state.phase === "closed") {
       return Promise.reject(new Error("Space is closed"))
     }
-    return this.repository.runForeground(async (signal) => {
+    const execute = async (repositorySignal: AbortSignal) => {
+      const signal = options.signal
+        ? AbortSignal.any([repositorySignal, options.signal])
+        : repositorySignal
+      signal.throwIfAborted()
       if (this.closing || this.state.phase === "closed") {
         throw new Error("Space is closed")
       }
       this.transition("syncing", detail)
       try {
         if (this.hooks.assertRootIdentity) await this.hooks.assertRootIdentity()
+        signal.throwIfAborted()
         return await operation(signal)
       } finally {
         if (this.state.phase === "syncing") this.transition("ready")
       }
-    }, options)
+    }
+    return options.background
+      ? this.repository.runBackground(options.background, execute, options)
+      : this.repository.runForeground(execute, options)
   }
 
   withQuiescedRepositoryOperation<T>(
@@ -222,6 +235,7 @@ export class SpaceOperationGate {
     return this.withRepositoryOperation(
       options.detail ?? options.kind,
       async (signal) => {
+        options.admit?.()
         const operationId = randomUUID()
         const startedAt = new Date().toISOString()
         const journal = async (
@@ -253,6 +267,7 @@ export class SpaceOperationGate {
         if (options.beforeClose) {
           try {
             await options.beforeClose(signal)
+            options.admit?.()
           } catch (error) {
             try {
               await this.journal.clear()
@@ -269,6 +284,7 @@ export class SpaceOperationGate {
         try {
           this.acceptingRuntimeReads = false
           await this.waitForRuntimeDrain()
+          options.admit?.()
           await this.hooks.closeRuntimes()
           runtimesClosed = true
           this.transition("materializing", options.detail ?? options.kind)
@@ -291,6 +307,17 @@ export class SpaceOperationGate {
           this.transition("ready")
           return result
         } catch (error) {
+          if (
+            !runtimesClosed &&
+            error instanceof Error &&
+            error.name === "AbortError"
+          ) {
+            await this.journal.clear()
+            this.acceptingMutations = true
+            this.acceptingRuntimeReads = true
+            this.transition("ready")
+            throw error
+          }
           if (!runtimesClosed) {
             this.acceptingMutations = false
             this.transition("failed", this.errorMessage(error), false)
@@ -311,7 +338,7 @@ export class SpaceOperationGate {
           throw error
         }
       },
-      { preemptible: true }
+      { preemptible: !options.background, background: options.background }
     )
   }
 

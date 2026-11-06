@@ -53,6 +53,97 @@ class DiskFullOperationJournal extends SpaceOperationJournal {
 }
 
 describe("SpaceOperationGate", () => {
+  it("preempts an automatic network task for a foreground repository read", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const started = deferred()
+    let received: AbortSignal | undefined
+    const automatic = gate.withRepositoryOperation(
+      "Automatic fetch",
+      (signal) =>
+        new Promise((_resolve, reject) => {
+          received = signal
+          started.resolve()
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          })
+        }),
+      { background: "automatic-sync", preemptible: true }
+    )
+    const rejected = expect(automatic).rejects.toMatchObject({
+      name: "AbortError",
+    })
+    await started.promise
+    const foreground = gate.withRepositoryOperation("Open history", async () =>
+      calls.push("foreground")
+    )
+    expect(received?.aborted).toBe(true)
+    await rejected
+    await foreground
+    expect(calls).toEqual(["foreground"])
+    expect(gate.current().phase).toBe("ready")
+  })
+
+  it("rechecks activity after draining runtime reads and keeps handles open when admission is cancelled", async () => {
+    const { gate, calls, journal } = await gateWithHooks()
+    const releaseRead = deferred()
+    const beforeClose = deferred()
+    const activity = new AbortController()
+    const reader = gate.withRuntimeRead(() => releaseRead.promise)
+    const update = gate.withMaterialization({
+      kind: "automatic-fast-forward",
+      background: "automatic-sync-materialization",
+      admit: () => activity.signal.throwIfAborted(),
+      beforeClose: async () => beforeClose.resolve(),
+      materialize: async () => calls.push("apply"),
+    })
+    const rejected = expect(update).rejects.toMatchObject({
+      name: "AbortError",
+    })
+    await beforeClose.promise
+    activity.abort()
+    releaseRead.resolve()
+    await reader
+    await rejected
+    expect(calls).toEqual([])
+    expect(gate.current().phase).toBe("ready")
+    await expect(journal.read()).resolves.toBeNull()
+    await expect(gate.withMutation(async () => "editable")).resolves.toBe(
+      "editable"
+    )
+  })
+
+  it("finishes the local safety section after activity returns and gives queued foreground reads priority", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const applying = deferred()
+    const finish = deferred()
+    const activity = new AbortController()
+    const update = gate.withMaterialization({
+      kind: "automatic-fast-forward",
+      background: "automatic-sync-materialization",
+      admit: () => activity.signal.throwIfAborted(),
+      materialize: async (signal) => {
+        calls.push("apply")
+        applying.resolve()
+        await finish.promise
+        expect(signal.aborted).toBe(false)
+      },
+    })
+    await applying.promise
+    activity.abort()
+    const foreground = gate.withRepositoryOperation("Open history", async () =>
+      calls.push("foreground")
+    )
+    finish.resolve()
+    await Promise.all([update, foreground])
+    expect(calls).toEqual([
+      "close",
+      "apply",
+      "validate",
+      "reopen",
+      "foreground",
+    ])
+    expect(gate.current().phase).toBe("ready")
+  })
   it("drains mutations, closes handles, validates, and reopens in order", async () => {
     const { gate, calls, journal } = await gateWithHooks()
     const mutation = deferred()

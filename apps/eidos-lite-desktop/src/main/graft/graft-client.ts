@@ -101,6 +101,7 @@ interface GraftRemoteOperationOptions {
   signal?: AbortSignal
   onProgress?: (progress: GraftTransferProgress) => void
   forCheckout?: boolean
+  automaticTransfer?: true
 }
 
 interface GraftMergeMutationOptions {
@@ -1336,8 +1337,12 @@ export class GraftClient {
     }
   }
 
-  async commit(root: string, message: string): Promise<GraftCommitResult> {
-    const value = record(await this.runSdk(root, "commit", [message]))
+  async commit(
+    root: string,
+    message: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftCommitResult> {
+    const value = record(await this.runSdk(root, "commit", [message], options))
     const id = stringValue(record(value.commit).id) ?? stringValue(value.id)
     if (!id || !/^[0-9a-f]{64}$/i.test(id)) {
       throw new Error("Graft did not return the saved checkpoint id")

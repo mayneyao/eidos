@@ -148,6 +148,8 @@ export type GraftSdkWorkerRequest =
       type: "command"
       command: GraftSdkCommand
       args: unknown[]
+      /** Worker-owned cancellation watchdog; only fetch/fetchForCheckout/push. */
+      automaticTransfer?: true
     }
   | {
       requestId: number
@@ -155,6 +157,10 @@ export type GraftSdkWorkerRequest =
     }
 
 export type GraftSdkWorkerResponse =
+  | {
+      requestId: number
+      type: "automatic-cancel-retiring"
+    }
   | {
       requestId: number
       type: "progress"

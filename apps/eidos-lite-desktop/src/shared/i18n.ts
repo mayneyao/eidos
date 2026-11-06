@@ -4,6 +4,13 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Automatic Sync": "自动同步",
+  "Every 10 minutes": "每 10 分钟",
+  "After changes": "变更后",
+  "Sync saved changes in open, connected Spaces when Eidos Lite is idle. Includes custom servers.":
+    "Eidos Lite 闲时自动同步已打开并连接的 Space 中已保存的变更，支持自定义服务器。",
+  "After changes also checks for remote updates every 10 minutes. Sync waits for unsaved text drafts. Returning to work pauses transfers; a local update already being applied finishes safely first.":
+    "“变更后”也会每 10 分钟检查远端更新。存在未保存的文本草稿时会等待；恢复操作时暂停传输，已开始应用的本地更新会先安全完成。",
   "Sign in to use Eidos Sync and Publish.": "登录以使用 Eidos Sync 与发布。",
   "Sign in to use Eidos Sync": "登录以使用 Eidos Sync",
   "Checking connection…": "正在检查连接…",

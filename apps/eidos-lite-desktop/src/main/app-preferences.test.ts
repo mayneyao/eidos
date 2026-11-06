@@ -78,6 +78,7 @@ describe("Eidos Lite preferences", () => {
         "toggle-sidebar": "Mod+Shift+B",
       },
       automaticUpdates: false,
+      automaticSync: "interval",
       defaultSpaceLocation: "/Users/example/Spaces",
     })
 
@@ -101,6 +102,7 @@ describe("Eidos Lite preferences", () => {
         "toggle-sidebar": "Mod+Shift+B",
       },
       automaticUpdates: false,
+      automaticSync: "interval",
       defaultSpaceLocation: "/Users/example/Spaces",
     })
   })

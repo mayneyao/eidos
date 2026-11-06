@@ -865,6 +865,11 @@ function WorkspaceApp({
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const textPreviewIdentity = useRef("")
+  textPreviewIdentity.current = textPreview
+    ? `${textPreview.relativePath}:${textPreview.type === "text" ? textPreview.revision : textPreview.modifiedAtMs}`
+    : ""
+  const materializedPreviewRequest = useRef(0)
   const [textPreviewEditingMode, setTextPreviewEditingMode] =
     useState<EidosLiteMarkdownEditingMode>(
       DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
@@ -1052,7 +1057,7 @@ function WorkspaceApp({
     explorerDirectory
       ? (explorerDirectoryEntry?.children ?? [])
       : (space?.entries ?? []),
-    space?.externalChangePaths ?? space?.materializedPaths
+    space?.externalChangePaths ?? space?.materializedPaths ?? undefined
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
@@ -1545,24 +1550,30 @@ function WorkspaceApp({
       )
       if (refreshed) setFileMaterializationKey((current) => current + 1)
       const materialized = materializedPaths ? new Set(materializedPaths) : null
-      if (materialized && materialized.size > 0) {
-        setTextFileDrafts((current) => {
-          const next = { ...current }
-          for (const relativePath of materialized) delete next[relativePath]
-          return next
-        })
-      }
+      // Input can arrive after a non-interruptible local apply began, including
+      // while this preview read is pending. Keep every draft and its original
+      // revision so the refreshed editor exposes the existing save conflict.
       if (
         textPreview &&
         (!materialized || materialized.has(textPreview.relativePath))
       ) {
+        const request = ++materializedPreviewRequest.current
+        const identity = textPreviewIdentity.current
+        const stillCurrent = () =>
+          request === materializedPreviewRequest.current &&
+          identity === textPreviewIdentity.current &&
+          titleActionRef.current.spaceId === snapshot.id &&
+          titleActionRef.current.path === textPreview.relativePath
         try {
           const preview = await window.eidosLite.previewTextFile(
             textPreview.relativePath
           )
           await prepareTextFilePreview(preview, textPreviewEditingMode)
+          if (!stillCurrent()) return
           setTextPreview(preview)
         } catch {
+          if (!stillCurrent()) return
+          if (textDraftLifecycle.getDraft(textPreview.relativePath)) return
           // Discarding a newly added or renamed file can intentionally remove
           // the path that was being previewed. Return to the Space landing
           // state instead of keeping stale text or surfacing a false error.
@@ -1612,7 +1623,7 @@ function WorkspaceApp({
     const stop = window.eidosLite.onSpaceChanged((snapshot) => {
       receivedSpace = true
       setInitialSpaceOpening(false)
-      if (snapshot.materializedPaths?.length) {
+      if (snapshot.materializedPaths !== undefined) {
         void refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
         return
       }
@@ -1925,6 +1936,15 @@ function WorkspaceApp({
     },
     []
   )
+
+  useEffect(() => {
+    // Include drafts in background tabs. Tag the report with its Space so a
+    // delayed report from a released Space cannot admit a replacement Space.
+    window.eidosLite.setSyncDraftState?.(
+      space?.id ?? null,
+      Object.keys(textFileDrafts).length > 0
+    )
+  }, [space?.id, textFileDrafts])
 
   useEffect(() => {
     const api = window.eidosLite

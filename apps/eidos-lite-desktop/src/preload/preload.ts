@@ -648,6 +648,8 @@ const api: EidosLiteApi = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.syncProgress, handler)
   },
   getSyncQueueStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncQueueStatus),
+  setSyncDraftState: (spaceId, pending) =>
+    ipcRenderer.send(IPC_CHANNELS.syncDraftState, spaceId, pending),
   onSyncQueueChanged: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

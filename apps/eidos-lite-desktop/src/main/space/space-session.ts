@@ -2403,13 +2403,22 @@ export class SpaceSession {
     return this.checkpointSnapshotAndEmit(checkpoint)
   }
 
-  async officialSyncRemoteUrl(): Promise<string | null> {
+  async officialSyncRemoteUrl(automatic?: {
+    signal: AbortSignal
+  }): Promise<string | null> {
+    automatic?.signal.throwIfAborted()
     if (this.syncSwitchRecoveryError) throw this.syncSwitchRecoveryError
     const state = await this.syncState.read()
     if (!state) return null
-    const configured = await this.repository.runForeground(() =>
-      this.graft.remoteUrl(this.canonical.root)
-    )
+    const readRemote = (signal?: AbortSignal) =>
+      this.graft.remoteUrl(this.canonical.root, undefined, { signal })
+    const configured = automatic
+      ? await this.repository.runBackground(
+          "automatic-sync-remote",
+          (signal) => readRemote(AbortSignal.any([signal, automatic.signal])),
+          { preemptible: true }
+        )
+      : await this.repository.runForeground(readRemote)
     if (configured !== state.remoteUrl) {
       throw new Error(
         "The configured Graft Remote does not match this Space's verified Sync state."
@@ -2672,7 +2681,8 @@ export class SpaceSession {
     reportProgress: SyncProgressReporter = () => undefined,
     reportTransfer: SyncTransferProgressReporter = () => undefined,
     action: EidosSyncAction = "fetch",
-    expectedRemoteUrl?: string
+    expectedRemoteUrl?: string,
+    automatic?: { signal: AbortSignal }
   ): Promise<EidosSyncOutcome> {
     return this.withSyncTask(() =>
       this.syncHostedRemoteInternal(
@@ -2681,7 +2691,8 @@ export class SpaceSession {
         reportProgress,
         reportTransfer,
         action,
-        expectedRemoteUrl
+        expectedRemoteUrl,
+        automatic
       )
     )
   }
@@ -2923,9 +2934,54 @@ export class SpaceSession {
     reportProgress: SyncProgressReporter,
     reportTransfer: SyncTransferProgressReporter,
     action: EidosSyncAction,
-    expectedRemoteUrl?: string
+    expectedRemoteUrl?: string,
+    automatic?: { signal: AbortSignal }
   ): Promise<EidosSyncOutcome> {
-    const remoteUrl = await this.officialSyncRemoteUrl()
+    automatic?.signal.throwIfAborted()
+    const repositoryOptions = automatic
+      ? {
+          background: "automatic-sync",
+          signal: automatic.signal,
+          preemptible: true,
+        }
+      : { preemptible: true }
+    const finish = (
+      state: EidosSyncOutcome["state"],
+      message: string,
+      pulled: boolean,
+      pushed: boolean,
+      relation: GraftRepositoryStatus,
+      materializedPaths: string[] | null = null
+    ) =>
+      this.syncResult(
+        state,
+        message,
+        pulled,
+        pushed,
+        relation,
+        materializedPaths,
+        Boolean(automatic)
+      )
+    const readStatus = () =>
+      automatic
+        ? this.repository.runBackground(
+            "automatic-sync-status",
+            (signal) =>
+              this.graft.status(
+                this.canonical.root,
+                this.graftStatusOptions(
+                  AbortSignal.any([signal, automatic.signal])
+                )
+              ),
+            { preemptible: true }
+          )
+        : this.repository.runForeground((signal) =>
+            this.graft.status(
+              this.canonical.root,
+              this.graftStatusOptions(signal)
+            )
+          )
+    const remoteUrl = await this.officialSyncRemoteUrl(automatic)
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
     if (expectedRemoteUrl && remoteUrl !== expectedRemoteUrl)
       throw new Error(
@@ -2936,7 +2992,7 @@ export class SpaceSession {
       async (signal) => {
         await this.configureHostedSyncRemote(remoteUrl, accessToken, { signal })
       },
-      { preemptible: true }
+      repositoryOptions
     )
 
     let activeMerge = await this.gate.withRepositoryOperation(
@@ -2947,16 +3003,14 @@ export class SpaceSession {
               signal,
             })
           : Promise.resolve({ state: "none" as const }),
-      { preemptible: true }
+      repositoryOptions
     )
     if (action === "pull") {
       activeMerge = await this.completeResolvedMerge(activeMerge)
     }
     if (activeMerge.state === "merging" && action !== "fetch") {
-      const relation = await this.repository.runForeground((signal) =>
-        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
-      )
-      return this.syncResult(
+      const relation = await readStatus()
+      return finish(
         "conflict",
         "A reviewed merge is already in progress. Reopen the conflict workspace to continue or abort it.",
         false,
@@ -2972,12 +3026,39 @@ export class SpaceSession {
         ? "Checking local versions for upload"
         : "Fetching Eidos Sync",
       async (signal) => {
-        const before = await this.graft.status(
+        let before = await this.graft.status(
           this.canonical.root,
           this.graftStatusOptions(signal)
         )
         this.assertGraftPathsSafeForMerge(before)
-        if (before.dirty && (action === "pull" || action === "sync")) {
+        if (
+          automatic &&
+          before.dirty &&
+          access === "read_write" &&
+          !before.hasConflicts
+        ) {
+          // The same staging operation as a manual whole-Space checkpoint:
+          // ignored files remain ignored and unsaved editor drafts stay drafts.
+          await this.graft.stageAll(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+          signal.throwIfAborted()
+          await this.graft.commit(
+            this.canonical.root,
+            "Automatic Sync checkpoint",
+            { signal }
+          )
+          before = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+        }
+        if (
+          !automatic &&
+          before.dirty &&
+          (action === "pull" || action === "sync")
+        ) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
         // Explicit uploads use the known remote head. The server still enforces
@@ -2986,6 +3067,7 @@ export class SpaceSession {
         await this.graft.fetch(this.canonical.root, {
           signal,
           onProgress: reportTransfer,
+          ...(automatic ? { automaticTransfer: true as const } : {}),
           ...(action === "pull" || action === "sync"
             ? { forCheckout: true }
             : {}),
@@ -2996,11 +3078,12 @@ export class SpaceSession {
           this.graftStatusOptions(signal)
         )
       },
-      { preemptible: true }
+      repositoryOptions
     )
+    automatic?.signal.throwIfAborted()
     reportProgress("analyze", "Comparing Local and Hosted checkpoints")
     if (action === "fetch") {
-      return this.syncResult(
+      return finish(
         "checked",
         "Remote history checked. Local files and saved versions were not changed.",
         false,
@@ -3009,9 +3092,18 @@ export class SpaceSession {
       )
     }
     if (relation.hasConflicts || repositorySyncState(relation) === "diverged") {
-      return this.syncResult(
+      return finish(
         "conflict",
         "Local and Hosted history have diverged. No files were replaced. Review History before choosing a recovery path.",
+        false,
+        false,
+        relation
+      )
+    }
+    if (automatic && relation.dirty) {
+      return finish(
+        "checked",
+        "Remote history checked. Local changes are waiting for the next idle Sync.",
         false,
         false,
         relation
@@ -3053,11 +3145,20 @@ export class SpaceSession {
         )
         pulled = await this.gate.withMaterialization({
           kind: "pull-hosted-sync",
+          ...(automatic
+            ? {
+                background: "automatic-sync-materialization",
+                admit: () => automatic.signal.throwIfAborted(),
+              }
+            : {}),
           detail: "Updating Space from Eidos Sync",
           beforeClose: async (signal) => {
+            const preparationSignal = automatic
+              ? AbortSignal.any([signal, automatic.signal])
+              : signal
             const current = await this.graft.status(
               this.canonical.root,
-              this.graftStatusOptions(signal)
+              this.graftStatusOptions(preparationSignal)
             )
             if (current.dirty) {
               throw new Error(
@@ -3078,7 +3179,7 @@ export class SpaceSession {
               this.canonical.root,
               "origin/main",
               current.currentHead ?? null,
-              { signal }
+              { signal: preparationSignal }
             )
             if (fastForwardPlan.kind !== "fast_forward") {
               throw new Error(
@@ -3117,15 +3218,19 @@ export class SpaceSession {
       } finally {
         stopProgress()
       }
-      relation = await this.repository.runForeground((signal) =>
-        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
-      )
+      if (automatic?.signal.aborted) {
+        // A local fast-forward that already crossed the safety boundary must
+        // still refresh the visible files, even when focus returned mid-apply.
+        await this.freshSnapshotAndEmit(false, materializedPaths)
+      }
+      automatic?.signal.throwIfAborted()
+      relation = await readStatus()
     }
 
     let pushed = false
     if (repositorySyncState(relation) === "ahead" && action !== "pull") {
       if (access === "read_only") {
-        return this.syncResult(
+        return finish(
           "read-only",
           "Hosted updates are applied, but this subscription cannot push local checkpoints.",
           pulled,
@@ -3161,9 +3266,10 @@ export class SpaceSession {
             await this.graft.push(this.canonical.root, accessToken, {
               signal,
               onProgress: reportTransfer,
+              ...(automatic ? { automaticTransfer: true as const } : {}),
             })
           },
-          { preemptible: true }
+          repositoryOptions
         )
 
       try {
@@ -3184,6 +3290,7 @@ export class SpaceSession {
             await this.graft.fetch(this.canonical.root, {
               signal,
               onProgress: reportTransfer,
+              ...(automatic ? { automaticTransfer: true as const } : {}),
             })
             await this.recordSyncHistoryCheck()
             return this.graft.status(
@@ -3191,13 +3298,13 @@ export class SpaceSession {
               this.graftStatusOptions(signal)
             )
           },
-          { preemptible: true }
+          repositoryOptions
         )
         if (
           relation.hasConflicts ||
           repositorySyncState(relation) === "diverged"
         ) {
-          return this.syncResult(
+          return finish(
             "conflict",
             "Local and Hosted history have diverged. No files were replaced. Review History before choosing a recovery path.",
             pulled,
@@ -3207,7 +3314,7 @@ export class SpaceSession {
           )
         }
         if (repositorySyncState(relation) === "behind") {
-          return this.syncResult(
+          return finish(
             "checked",
             "Hosted history changed while uploading. Receive the newer versions, then upload again.",
             pulled,
@@ -3217,7 +3324,7 @@ export class SpaceSession {
           )
         }
         if (repositorySyncState(relation) === "up_to_date") {
-          return this.syncResult(
+          return finish(
             "synced",
             "The upload was already published by another attempt.",
             pulled,
@@ -3233,16 +3340,11 @@ export class SpaceSession {
         pushed = true
       }
       if (pushed) {
-        relation = await this.repository.runForeground((signal) =>
-          this.graft.status(
-            this.canonical.root,
-            this.graftStatusOptions(signal)
-          )
-        )
+        relation = await readStatus()
       }
     }
 
-    return this.syncResult(
+    return finish(
       relation.ahead > 0 || relation.behind > 0
         ? "checked"
         : access === "read_only"
@@ -5339,7 +5441,8 @@ export class SpaceSession {
       currentHead?: string | null
       sync?: SpaceSyncHistoryStatus
     },
-    materializedPaths: string[] | null = null
+    materializedPaths: string[] | null = null,
+    automatic = false
   ): Promise<EidosSyncOutcome> {
     return {
       state,
@@ -5361,7 +5464,10 @@ export class SpaceSession {
         : {}),
       ahead: relation.ahead,
       behind: relation.behind,
-      snapshot: await this.freshSnapshotAndEmit(true),
+      snapshot: await this.freshSnapshotAndEmit(
+        !automatic,
+        pulled ? materializedPaths : undefined
+      ),
     }
   }
 
@@ -5604,7 +5710,7 @@ export class SpaceSession {
 
   private async freshSnapshotAndEmit(
     authoritativeGraft = false,
-    materializedPaths: readonly string[] = []
+    materializedPaths?: readonly string[] | null
   ): Promise<SpaceSnapshot> {
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.invalidateSnapshotCaches()
@@ -5616,9 +5722,15 @@ export class SpaceSession {
       !authoritativeGraft,
       authoritativeGraftStatus
     )
-    const emittedSnapshot = materializedPaths.length
-      ? { ...snapshot, materializedPaths: [...materializedPaths] }
-      : snapshot
+    const emittedSnapshot =
+      materializedPaths !== undefined
+        ? {
+            ...snapshot,
+            materializedPaths: materializedPaths
+              ? [...materializedPaths]
+              : null,
+          }
+        : snapshot
     for (const listener of this.changeListeners) listener(emittedSnapshot)
     return emittedSnapshot
   }

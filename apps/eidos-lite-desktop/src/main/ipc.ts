@@ -97,6 +97,7 @@ import {
   type EidosFileAttachmentDataSource,
 } from "./space/eidos-file-attachments"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
+import { AutomaticSync } from "./sync/automatic-sync"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
 import { classifyMergeFailure } from "./sync/merge-failure"
 import { requiredMergeStateToken } from "./sync/merge-token"
@@ -781,11 +782,48 @@ export function registerIpc(
   const syncAccountAdmission = new SyncAccountAdmission()
   const manualSyncOperations = new Map<AbortController, boolean>()
   const disconnectingSpaces = new Set<string>()
+  const automaticSync = new AutomaticSync({
+    focused: () => BrowserWindow.getFocusedWindow() !== null,
+    onError: (error) =>
+      eidosLiteLogger()?.warn("sync.automatic.failed", {}, error),
+  })
+  const syncDraftStates = new Map<
+    number,
+    { spaceId: string; pending: boolean }
+  >()
+  const automaticActivity = () => automaticSync.activity()
+  const automaticInputOwners = new Set<Electron.WebContents>()
+  const watchAutomaticActivity = (
+    _event: Electron.Event,
+    window: BrowserWindow
+  ) => {
+    const owner = window.webContents
+    automaticInputOwners.add(owner)
+    owner.on("before-input-event", automaticActivity)
+    owner.on("before-mouse-event", automaticActivity)
+    owner.once("destroyed", () => automaticInputOwners.delete(owner))
+  }
+  for (const window of BrowserWindow.getAllWindows())
+    watchAutomaticActivity({} as Electron.Event, window)
+  app.on("browser-window-created", watchAutomaticActivity)
+  app.on("browser-window-focus", automaticActivity)
+  app.on("browser-window-blur", automaticActivity)
+  const automaticTimer = setInterval(() => void automaticSync.tick(), 1_000)
+  automaticTimer.unref()
+  const unsubscribeAutomaticPreferences = controller.onPreferencesChanged(
+    (preferences) => automaticSync.configure(preferences.automaticSync)
+  )
+  void controller.getPreferences().then(
+    (preferences) => automaticSync.configure(preferences.automaticSync),
+    (error) =>
+      eidosLiteLogger()?.warn("sync.automatic.preferences-failed", {}, error)
+  )
   const assertCloudConnectionAvailable = (session: SpaceSession) => {
     if (disconnectingSpaces.has(session.canonical.id))
       throw new Error("This Space is disconnecting from cloud sync")
   }
   const cancelManualSyncOperations = (officialOnly = false) => {
+    automaticSync.activity()
     for (const [operation, custom] of manualSyncOperations)
       if (!officialOnly || !custom) operation.abort()
   }
@@ -814,10 +852,14 @@ export function registerIpc(
   }
   const syncLifecycle = new SyncSessionLifecycle({
     suspendAutomatic: () => {
+      automaticSync.suspend()
       cancelManualSyncOperations()
       rememberedUnlocks.suspendAutomatic()
     },
-    resumeAutomatic: () => rememberedUnlocks.resumeAutomatic(),
+    resumeAutomatic: () => {
+      automaticSync.resume()
+      rememberedUnlocks.resumeAutomatic()
+    },
     lockSessions: () => {
       cancelManualSyncOperations()
       return lockAndDrainSync()
@@ -934,8 +976,14 @@ export function registerIpc(
           for (const session of await controller.customSyncSessions(
             previous.origin
           )) {
+            automaticSync.activity()
             await syncQueue.clear(session.canonical.id)
             await session.clearHostedSyncCredentials()
+            automaticSync.recover(session.canonical.id, [
+              "authentication-required",
+              "remote-not-found",
+              "encryption-locked",
+            ])
           }
         return saved
       } finally {
@@ -1142,6 +1190,14 @@ export function registerIpc(
   )
   const publishEngine = new EidosPublishEngine(services, syncControl)
   const broadcastAccountStatus = (status: SyncAccountStatus) => {
+    if (status.state === "signed-in") {
+      for (const spaceId of syncOwnerSpaces.values())
+        automaticSync.recover(spaceId, [
+          "authentication-required",
+          "device-revoked",
+          "entitlement-inactive",
+        ])
+    }
     if (status.state === "signed-in")
       void spark
         .status(true)
@@ -1171,8 +1227,10 @@ export function registerIpc(
         rememberedUnlocks.blockCustomAutomatic()
         const sessions = await controller.customSyncSessions()
         await controller.lockEncryptedSyncSessions(true, false, true)
-        for (const session of sessions)
+        for (const session of sessions) {
+          automaticSync.detach(session.canonical.id)
           await syncQueue.clear(session.canonical.id)
+        }
       }
       return status
     })
@@ -1180,7 +1238,27 @@ export function registerIpc(
     return task
   }
   const attachedSenders = new Set<number>()
+  const syncOwnerSpaces = new Map<number, string>()
   const spaceChangeUnsubscribers = new Map<number, () => void>()
+  const releaseSyncOwner = (ownerId: number) => {
+    const spaceId = syncOwnerSpaces.get(ownerId)
+    if (spaceId) {
+      automaticSync.detach(spaceId)
+      void syncQueue.detach(spaceId)
+    }
+    syncOwnerSpaces.delete(ownerId)
+    syncDraftStates.delete(ownerId)
+    attachedSenders.delete(ownerId)
+    spaceChangeUnsubscribers.get(ownerId)?.()
+    spaceChangeUnsubscribers.delete(ownerId)
+  }
+  const syncQueueProjection = (spaceId: string) => {
+    const manual = syncQueue.status(spaceId)
+    const automatic = automaticSync.status(spaceId)
+    return manual.state === "idle" && automatic?.state !== "idle" && automatic
+      ? automatic
+      : manual
+  }
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
   const csvSourceCleanupSenders = new Set<number>()
   const assetLeases = new Map<string, RegisteredAssetLease>()
@@ -1314,6 +1392,12 @@ export function registerIpc(
   }
   const attachSyncQueue = async (event: Electron.IpcMainInvokeEvent) => {
     const session = controller.requireSession(event.sender)
+    if (
+      syncOwnerSpaces.has(event.sender.id) &&
+      syncOwnerSpaces.get(event.sender.id) !== session.canonical.id
+    )
+      releaseSyncOwner(event.sender.id)
+    syncOwnerSpaces.set(event.sender.id, session.canonical.id)
     assertCloudConnectionAvailable(session)
     const emitStatus = (status: EidosSyncQueueStatus) => {
       if (!event.sender.isDestroyed()) {
@@ -1339,13 +1423,79 @@ export function registerIpc(
           action
         )
       },
-      emit: emitStatus,
+      emit: (status) =>
+        emitStatus(
+          status.state === "idle"
+            ? syncQueueProjection(session.canonical.id)
+            : status
+        ),
     })
+    const remoteUrl = await session.storedHostedSyncRemoteUrl()
+    if (remoteUrl)
+      automaticSync.attach({
+        spaceId: session.canonical.id,
+        revision: JSON.stringify([remoteUrl, bindingRevision]),
+        current: () =>
+          !event.sender.isDestroyed() &&
+          controller.sessionFor(event.sender) === session,
+        available: () => {
+          const drafts = syncDraftStates.get(event.sender.id)
+          return (
+            drafts?.spaceId === session.canonical.id &&
+            !drafts.pending &&
+            !disconnectingSpaces.has(session.canonical.id) &&
+            syncQueue.status(session.canonical.id).state === "idle"
+          )
+        },
+        execute: async (signal) => {
+          if (
+            (await session.storedHostedSyncRemoteUrl()) !== remoteUrl ||
+            (await session.syncBindingRevision()) !== bindingRevision
+          ) {
+            automaticSync.detach(session.canonical.id)
+            throw new DOMException("Sync connection changed", "AbortError")
+          }
+          signal.throwIfAborted()
+          return syncExecutor.run(
+            session,
+            (progress) => {
+              if (!event.sender.isDestroyed())
+                event.sender.send(IPC_CHANNELS.syncProgress, progress)
+            },
+            "sync",
+            { signal }
+          )
+        },
+        emit: (automatic) =>
+          emitStatus(
+            syncQueue.status(session.canonical.id).state === "idle"
+              ? automatic
+              : syncQueue.status(session.canonical.id)
+          ),
+      })
+    else automaticSync.detach(session.canonical.id)
     if (!attachedSenders.has(event.sender.id)) {
       attachedSenders.add(event.sender.id)
       spaceChangeUnsubscribers.set(
         event.sender.id,
         session.onChanged((snapshot) => {
+          if (snapshot.graft.clean !== true)
+            automaticSync.changed(session.canonical.id)
+          void session
+            .storedHostedSyncRemoteUrl()
+            .then((remote) => {
+              if (controller.sessionFor(event.sender) !== session) return
+              if (!remote) automaticSync.detach(session.canonical.id)
+              else if (!automaticSync.status(session.canonical.id))
+                void attachSyncQueue(event).catch((error) =>
+                  eidosLiteLogger()?.warn(
+                    "sync.automatic.attach-failed",
+                    {},
+                    error
+                  )
+                )
+            })
+            .catch(() => undefined)
           if (snapshot.graft.clean !== true) return
           void syncQueue
             .clearResolvedFailure(session.canonical.id, "local-changes")
@@ -1358,10 +1508,7 @@ export function registerIpc(
         })
       )
       event.sender.once("destroyed", () => {
-        attachedSenders.delete(event.sender.id)
-        spaceChangeUnsubscribers.get(event.sender.id)?.()
-        spaceChangeUnsubscribers.delete(event.sender.id)
-        void syncQueue.detach(session.canonical.id)
+        releaseSyncOwner(event.sender.id)
       })
     }
     return { session, status }
@@ -1573,6 +1720,7 @@ export function registerIpc(
     controller.chooseAndBindSpace(event.sender)
   )
   controller.onSpaceReleased = (ownerId) => {
+    releaseSyncOwner(ownerId)
     void terminalSessionsPromise?.then((manager) => manager.closeOwner(ownerId))
   }
   ipcMain.handle(IPC_CHANNELS.newSpace, (event) =>
@@ -2687,6 +2835,7 @@ export function registerIpc(
                 attached.session.canonical.id,
                 "encryption-locked"
               )
+              automaticSync.recover(session.canonical.id, ["encryption-locked"])
             }
           } catch {}
         }
@@ -2727,6 +2876,21 @@ export function registerIpc(
         )
         assertAccountCurrent()
         rememberedUnlocks.assertCurrent(session ?? undefined, generation)
+        if (
+          session &&
+          projected.remote.state !== "not-connected" &&
+          (projected.provider === "custom"
+            ? projected.canClone
+            : projected.account.state === "signed-in") &&
+          projected.entitlement.state === "read-write"
+        ) {
+          automaticSync.recover(session.canonical.id, [
+            "authentication-required",
+            "device-revoked",
+            "entitlement-inactive",
+            "quota-exceeded",
+          ])
+        }
         return projected
       },
     })
@@ -2830,6 +2994,7 @@ export function registerIpc(
           noLink: true,
         })
         if (confirmation.response !== 1) return null
+        automaticSync.detach(session.canonical.id)
         await rememberedUnlocks.disconnect(session)
         await syncQueue.clear(session.canonical.id)
         return await session.disconnectHostedSync()
@@ -2894,6 +3059,7 @@ export function registerIpc(
         attached.session.canonical.id,
         "encryption-locked"
       )
+      automaticSync.recover(session.canonical.id, ["encryption-locked"])
       assertCurrent()
       const status = await projectEncryptedStatus(
         session,
@@ -3413,7 +3579,9 @@ export function registerIpc(
         throw new Error("Invalid Sync action")
       }
       const { session } = await attachSyncQueue(event)
-      return syncQueue.runNow(session.canonical.id, action)
+      return automaticSync.manual(session.canonical.id, () =>
+        syncQueue.runNow(session.canonical.id, action)
+      )
     }
   )
   ipcMain.handle(IPC_CHANNELS.syncQueueStatus, async (event) => {
@@ -3435,8 +3603,25 @@ export function registerIpc(
       // Preserve the saved failure if access still cannot be verified.
       eidosLiteLogger()?.warn("sync.access.reconcile-failed", {}, error)
     }
-    return syncQueue.status(session.canonical.id)
+    return syncQueueProjection(session.canonical.id)
   })
+  ipcMain.on(
+    IPC_CHANNELS.syncDraftState,
+    (event, spaceId: unknown, pending: unknown) => {
+      const session = controller.sessionFor(event.sender)
+      if (
+        !session ||
+        session.canonical.id !== spaceId ||
+        typeof pending !== "boolean"
+      )
+        return
+      syncDraftStates.set(event.sender.id, {
+        spaceId: session.canonical.id,
+        pending,
+      })
+      if (pending) automaticSync.activity()
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.syncRecoverLocal, async (event) => {
     const session = controller.requireSession(event.sender)
     const remoteUrl = await session.officialSyncRemoteUrl()
@@ -3705,6 +3890,9 @@ export function registerIpc(
           .continueSyncMerge(request.stateToken, request.message)
       })
       if (response.ok && response.value.state === "none") {
+        const session = controller.sessionFor(event.sender)
+        if (session)
+          automaticSync.recover(session.canonical.id, ["remote-conflict"])
         try {
           // Device merges also complete through this handler. They must not
           // create a failed Hosted Sync job for a local-only Space.
@@ -3844,6 +4032,16 @@ export function registerIpc(
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
+      clearInterval(automaticTimer)
+      unsubscribeAutomaticPreferences()
+      app.removeListener("browser-window-created", watchAutomaticActivity)
+      app.removeListener("browser-window-focus", automaticActivity)
+      app.removeListener("browser-window-blur", automaticActivity)
+      for (const owner of automaticInputOwners) {
+        owner.removeListener("before-input-event", automaticActivity)
+        owner.removeListener("before-mouse-event", automaticActivity)
+      }
+      await automaticSync.close()
       clearInterval(sparkRefreshTimer)
       syncAccountAdmission.beginChange()
       cancelManualSyncOperations()

@@ -1,4 +1,5 @@
 import path from "node:path"
+import { AutomaticTransferCancellation } from "./automatic-transfer-cancellation"
 import type {
   CloneOptions,
   CommitChangedPathsOptions,
@@ -72,6 +73,12 @@ let session: EidosGraftRepositorySession | null = null
 let sessionRoot: string | null = null
 const encryptedHost = new EncryptedGraftHost()
 const operationControllers = new Map<number, AbortController>()
+const automaticCancellation = new AutomaticTransferCancellation((requestId) => {
+  // Admission remains sealed even if native completion races this message.
+  // The parent terminates this exact utility and waits for its actual exit;
+  // process.exit can itself wait for a hung native runtime's shutdown.
+  parentPort.postMessage({ requestId, type: "automatic-cancel-retiring" })
+})
 let sessionTransition: Promise<unknown> | null = null
 
 type WorkerError = Extract<GraftSdkWorkerResponse, { ok: false }>["error"]
@@ -694,6 +701,17 @@ parentPort.on("message", (event) => {
   const request = event.data as GraftSdkWorkerRequest
   if (request.type === "cancel") {
     operationControllers.get(request.requestId)?.abort()
+    automaticCancellation.cancel(request.requestId)
+    return
+  }
+  try {
+    automaticCancellation.start(request)
+  } catch (error) {
+    parentPort.postMessage({
+      requestId: request.requestId,
+      ok: false,
+      error: serializeError(error),
+    })
     return
   }
   if (request.type === "command") {
@@ -703,10 +721,12 @@ parentPort.on("message", (event) => {
     (result) => {
       parentPort.postMessage({ requestId: request.requestId, ok: true, result })
       operationControllers.delete(request.requestId)
+      automaticCancellation.finish(request.requestId)
       if (request.type === "close") setTimeout(() => process.exit(0), 0)
     },
     (error) => {
       operationControllers.delete(request.requestId)
+      automaticCancellation.finish(request.requestId)
       parentPort.postMessage({
         requestId: request.requestId,
         ok: false,
