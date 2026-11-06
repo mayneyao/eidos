@@ -2063,6 +2063,61 @@ describe("Eidos Publish control plane", () => {
     expect((await SELF.fetch(successUrl, { redirect: "manual" })).status).toBe(
       303
     )
+    const respondentReturn = await SELF.fetch(successUrl, {
+      redirect: "manual",
+    })
+    const successReturnCookie = respondentReturn.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-eidos_publish_form_success_"))
+      ?.split(";", 1)[0]
+    expect(successReturnCookie).toBeTruthy()
+    expect(
+      respondentReturn.headers
+        .getSetCookie()
+        .some((cookie) => cookie.includes("HttpOnly; Secure; SameSite=Lax"))
+    ).toBe(true)
+    const respondentReturnExchange = await SELF.fetch(
+      `${publicOrigin}/_eidos/form/exchange?code=${"b".repeat(43)}`,
+      { redirect: "manual", headers: { Cookie: successReturnCookie! } }
+    )
+    expect(respondentReturnExchange.headers.get("location")).toBe(
+      `/_eidos/forms/${slug}/success`
+    )
+    expect(
+      respondentReturnExchange.headers
+        .getSetCookie()
+        .some(
+          (cookie) =>
+            cookie.startsWith("__Host-eidos_publish_form_success_") &&
+            cookie.includes("Max-Age=0")
+        )
+    ).toBe(true)
+    const abandonedSuccess = await SELF.fetch(`${publicOrigin}/${slug}`, {
+      redirect: "manual",
+      headers: { Cookie: successReturnCookie! },
+    })
+    expect(
+      abandonedSuccess.headers
+        .getSetCookie()
+        .some(
+          (cookie) =>
+            cookie.startsWith("__Host-eidos_publish_form_success_") &&
+            cookie.includes("Max-Age=0")
+        )
+    ).toBe(true)
+    const forgedReturn = await SELF.fetch(
+      `${publicOrigin}/_eidos/form/exchange?code=${"b".repeat(43)}`,
+      {
+        redirect: "manual",
+        headers: {
+          Cookie: successReturnCookie!.replace(
+            /=1$/,
+            "=https%3A%2F%2Fevil.example"
+          ),
+        },
+      }
+    )
+    expect(forgedReturn.headers.get("location")).toBe(`/${slug}`)
     const unauthorizedDefinition = await SELF.fetch(
       `${publicOrigin}/_eidos/forms/${slug}/definition`
     )
@@ -2522,6 +2577,11 @@ describe("Eidos Publish control plane", () => {
     })
     expect(passwordSuccess.status).toBe(401)
     const passwordChallengeHtml = await passwordSuccess.text()
+    const passwordReturnCookie = passwordSuccess.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-eidos_publish_form_success_"))
+      ?.split(";", 1)[0]
+    expect(passwordReturnCookie).toBeTruthy()
     expect(passwordChallengeHtml).toContain('action="/_eidos/password"')
     expect(passwordChallengeHtml).not.toContain(
       definition.presentation.successMessage
@@ -2535,6 +2595,25 @@ describe("Eidos Publish control plane", () => {
     const passwordCookie = passwordSession.headers
       .get("set-cookie")!
       .split(";", 1)[0]!
+    const passwordReturnExchange = await SELF.fetch(
+      `${publicOrigin}/_eidos/password`,
+      {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Cookie: passwordReturnCookie!,
+        },
+        body: new URLSearchParams({
+          slug,
+          password: "test-only-form-password",
+        }),
+      }
+    )
+    expect(passwordReturnExchange.status).toBe(303)
+    expect(passwordReturnExchange.headers.get("location")).toBe(
+      `/_eidos/forms/${slug}/success`
+    )
     const authorizedSuccess = await SELF.fetch(successUrl, {
       headers: { Cookie: `${respondentCookie}; ${passwordCookie}` },
     })
@@ -2566,6 +2645,35 @@ describe("Eidos Publish control plane", () => {
     expect(new URL(privateSuccess.headers.get("location")!).pathname).toBe(
       "/api/publish/viewer-authorize"
     )
+    const privateReturnCookie = privateSuccess.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-eidos_publish_form_success_"))
+      ?.split(";", 1)[0]
+    expect(privateReturnCookie).toBeTruthy()
+    const wrongOwnerReturn = await SELF.fetch(
+      `${publicOrigin}/_eidos/private/exchange?code=${"b".repeat(43)}`,
+      { redirect: "manual", headers: { Cookie: privateReturnCookie! } }
+    )
+    expect(wrongOwnerReturn.status).toBe(404)
+    const privateReturnExchange = await SELF.fetch(
+      `${publicOrigin}/_eidos/private/exchange?code=${"d".repeat(43)}`,
+      { redirect: "manual", headers: { Cookie: privateReturnCookie! } }
+    )
+    expect(privateReturnExchange.status).toBe(303)
+    expect(privateReturnExchange.headers.get("location")).toBe(
+      `/_eidos/forms/${slug}/success`
+    )
+    const viewerCookie = privateReturnExchange.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-eidos_publish_viewer="))!
+      .split(";", 1)[0]!
+    expect(
+      (
+        await SELF.fetch(successUrl, {
+          headers: { Cookie: `${viewerCookie}; ${respondentCookie}` },
+        })
+      ).status
+    ).toBe(200)
     expect(
       (await SELF.fetch(`${publicOrigin}/_eidos/forms/missing/success`)).status
     ).toBe(404)
