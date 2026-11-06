@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import type { EidosFileViewRendererProps } from "./eidos-file-editor-view"
 import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
@@ -163,6 +164,8 @@ function InlineFormText({
   onCommit: (value: string) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [editing, setEditing] = useState(false)
+  useEidosFilePendingEdit(editing)
 
   useEffect(() => {
     if (document.activeElement !== ref.current && ref.current) {
@@ -209,7 +212,13 @@ function InlineFormText({
         disabled && "cursor-default",
         className
       )}
-      onBlur={commit}
+      onFocus={() => {
+        if (!disabled) setEditing(true)
+      }}
+      onBlur={() => {
+        commit()
+        setEditing(false)
+      }}
       onKeyDown={handleKeyDown}
     >
       {value}
@@ -304,6 +313,7 @@ function FormInsertMenu({
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
+  useEidosFilePendingEdit(open)
   const handingOffFocusRef = useRef(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -420,6 +430,7 @@ function QuestionOptionsPopover({
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
+  useEidosFilePendingEdit(open)
   return (
     <Popover
       open={open}
@@ -568,6 +579,7 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
     : "preview"
   const [selection, setSelection] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [pendingSaves, setPendingSaves] = useState(0)
   const propertyDraftRef = useRef<EidosFileFormViewProperties | null>(
     properties
   )
@@ -576,6 +588,12 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set())
+  useEidosFilePendingEdit(
+    pendingSaves > 0 ||
+      saveError !== null ||
+      (!submitted && Object.keys(draft).length > 0) ||
+      error !== null
+  )
   const settingsDisabled = props.disabled || !canBuild
 
   useEffect(() => {
@@ -601,6 +619,7 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
   const saveView = (changes: UpdateEidosFileViewInput): Promise<void> => {
     if (settingsDisabled) return Promise.resolve()
     setSaveError(null)
+    setPendingSaves((count) => count + 1)
     const operation = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
@@ -608,14 +627,16 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
         props.onSnapshot?.(snapshot)
       })
     saveQueueRef.current = operation
-    void operation.catch((cause) => {
-      setSaveError(
-        cause instanceof Error
-          ? cause.message
-          : t("Unable to save form settings.")
-      )
-      props.onError?.(cause)
-    })
+    void operation
+      .catch((cause) => {
+        setSaveError(
+          cause instanceof Error
+            ? cause.message
+            : t("Unable to save form settings.")
+        )
+        props.onError?.(cause)
+      })
+      .finally(() => setPendingSaves((count) => count - 1))
     return operation
   }
 

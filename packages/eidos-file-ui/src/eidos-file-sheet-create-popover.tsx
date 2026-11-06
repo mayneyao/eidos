@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "./ui/primitives"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 
 import {
   EidosFileCsvImportPopover,
@@ -42,6 +43,7 @@ export function EidosFileSheetCreatePopover({
   const [includeContent, setIncludeContent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit((open && screen === "create") || submitting)
   const nameId = useId()
 
   const reset = () => {

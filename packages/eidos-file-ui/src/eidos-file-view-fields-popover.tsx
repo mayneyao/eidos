@@ -19,6 +19,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import {
   eidosFileFieldDisplayName,
@@ -169,6 +170,7 @@ export function EidosFileViewFieldsPopover({
   const [search, setSearch] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit(open || embedded || busy)
   const handingOffFocusRef = useRef(false)
   const orderedFields = useMemo(
     () => orderedViewFields(fields, view),

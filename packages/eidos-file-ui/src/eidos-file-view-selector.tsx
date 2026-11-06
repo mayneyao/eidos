@@ -37,6 +37,7 @@ import {
   visibleEidosFileFields,
 } from "./eidos-file-field-visibility"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { cn } from "./lib/cn"
 import {
   Button,
@@ -331,6 +332,7 @@ export function EidosFileViewSelector({
   const [formStartMode, setFormStartMode] = useState<FormStartMode>("existing")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  useEidosFilePendingEdit((open && panel !== "list") || busy)
   const fitImageId = useId()
   const hideEmptyFieldsId = useId()
   const showEmptyGroupsId = useId()

@@ -36,6 +36,7 @@ import {
 
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import {
@@ -864,6 +865,7 @@ export function EidosFileFieldFilterEditor({
   onPendingChange?: (pending: boolean) => void
 }) {
   const { translate: t } = useEidosFileUI()
+  useEidosFilePendingEdit(true)
   const editorRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState<EidosFileFilterRule>(() => {
     const index = directFieldFilterRuleIndex(value, field)
@@ -1294,6 +1296,7 @@ export function EidosFileFilterPopover({
   )
   const pendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit(open || pendingAction !== null)
   useEffect(() => {
     if (open && !pendingRef.current) {
       setDraft(value ?? { type: "group", conjunction: "and", children: [] })
@@ -1453,6 +1456,7 @@ export function EidosFileSortPopover({
   )
   const pendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit(open || pendingAction !== null)
   useEffect(() => {
     if (open && !pendingRef.current) {
       setDraft(value)

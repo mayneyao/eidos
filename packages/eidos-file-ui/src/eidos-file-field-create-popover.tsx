@@ -24,6 +24,7 @@ import {
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
   EidosFileFieldTypePicker,
@@ -131,6 +132,7 @@ export function EidosFileFieldCreatePopover({
     useState<EidosFileLookupAggregate>("first")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit(open || embedded || submitting)
   const formRef = useRef<HTMLFormElement>(null)
   const nameId = useId()
   const relationTables = tables.filter(

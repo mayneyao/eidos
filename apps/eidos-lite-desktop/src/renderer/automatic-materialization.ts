@@ -1,3 +1,6 @@
+const EDITOR_SURFACES =
+  "[data-eidos-file-workbench], #portal, [data-eidos-file-root]"
+
 /** Renderer-owned input fence, retained through async snapshot reads and React rekey. */
 export class AutomaticMaterializationFence {
   readonly pending = new Set<string>()
@@ -17,7 +20,7 @@ export class AutomaticMaterializationFence {
     const start = (event: Event) => {
       if (
         event.target instanceof Element &&
-        event.target.closest("[data-eidos-file-workbench], #portal") &&
+        event.target.closest(EDITOR_SURFACES) &&
         !this.locked
       )
         this.compositions.add(event.target)
@@ -52,21 +55,33 @@ export class AutomaticMaterializationFence {
       return false
     this.token = token
     this.refreshed = false
-    for (const element of document.querySelectorAll<HTMLElement>(
-      "[data-eidos-file-workbench], #portal"
-    )) {
-      const alreadyInert = element.hasAttribute("inert")
-      element.setAttribute("inert", "")
-      this.restores.push(() => {
-        if (!alreadyInert) element.removeAttribute("inert")
-      })
+    const fenced = new WeakSet<HTMLElement>()
+    const fenceSurfaces = () => {
+      if (this.token !== token) return
+      for (const element of document.querySelectorAll<HTMLElement>(
+        EDITOR_SURFACES
+      )) {
+        if (fenced.has(element)) continue
+        fenced.add(element)
+        const alreadyInert = element.hasAttribute("inert")
+        element.setAttribute("inert", "")
+        this.restores.push(() => {
+          if (!alreadyInert) element.removeAttribute("inert")
+        })
+      }
     }
+    fenceSurfaces()
+    // An already requested configuration popover can mount outside the main
+    // workbench while apply is in flight. Its shared root inherits this fence.
+    const observer = new MutationObserver(fenceSurfaces)
+    observer.observe(document.body, { childList: true, subtree: true })
+    this.restores.push(() => observer.disconnect())
     // DOM capture also covers portal editors and prevents React handlers before
     // the disabled render. Native inert blocks actual user input/focus.
     const block = (event: Event) => {
       if (
         !(event.target instanceof Element) ||
-        !event.target.closest("[data-eidos-file-workbench], #portal")
+        !event.target.closest(EDITOR_SURFACES)
       )
         return
       event.preventDefault()

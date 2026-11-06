@@ -30,6 +30,7 @@ import {
 } from "./ui/primitives"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import {
   eidosFileFieldTypeOptions,
   EidosFileFieldTypeIcon,
@@ -87,6 +88,7 @@ export function EidosFileFieldPropertyPanel({
   onEditLookup?: (field: EidosFileFieldInfo) => void
 }) {
   const { translate: t } = useEidosFileUI()
+  useEidosFilePendingEdit(true)
   const [name, setName] = useState(field.name)
   const [pendingType, setPendingType] =
     useState<MutableEidosFileFieldType | null>(null)

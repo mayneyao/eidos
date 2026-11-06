@@ -9,6 +9,7 @@ import type {
 import { vi } from "vitest"
 
 import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileUIProvider } from "./context"
 import { EidosFileFieldCreatePopover } from "./eidos-file-field-create-popover"
 import {
   EidosFileFormModeToolbar,
@@ -322,6 +323,81 @@ describe("EidosFileFormView", () => {
 
     expect(source.insertRow).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Saved locally.")
+  })
+
+  it("reports only active unblurred form configuration, failed saves and unapplied preview input", async () => {
+    const source = createSource()
+    const pending = new Set<string>()
+    const onPending = (id: string, value: boolean) => {
+      if (value) pending.add(id)
+      else pending.delete(id)
+    }
+    const render = async (mode: "build" | "preview") =>
+      act(async () =>
+        root.render(
+          <EidosFileUIProvider onPendingEditChange={onPending}>
+            <EidosFileFormView
+              source={source}
+              table={table}
+              view={view}
+              query={{}}
+              search=""
+              disabled={false}
+              reloadToken={0}
+              commands={[]}
+              selection={{ rowIds: [] }}
+              state={{ formMode: mode }}
+              capabilities={{
+                read: true,
+                mutate: true,
+                resolveAssets: true,
+                rawFile: false,
+                nativeFileSystem: false,
+              }}
+            />
+          </EidosFileUIProvider>
+        )
+      )
+    await render("build")
+    expect(pending.size).toBe(0)
+    const title = container.querySelector<HTMLDivElement>(
+      '[contenteditable="true"][aria-label="Form title"]'
+    )!
+    await act(async () => {
+      title.focus()
+      title.textContent = "Unblurred form title"
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    expect(source.updateView).not.toHaveBeenCalled()
+    vi.mocked(source.updateView).mockRejectedValueOnce(
+      new Error("Form settings save failed")
+    )
+    await act(async () => {
+      title.blur()
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Not saved")
+    expect(source.updateView).toHaveBeenCalledOnce()
+    expect(pending.size).toBeGreaterThan(0)
+    await act(async () => root.render(null))
+    expect(pending.size).toBe(0)
+    await render("preview")
+    expect(pending.size).toBe(0)
+    const input = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Name"]'
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, "Unsubmitted preview input")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    expect(input.value).toBe("Unsubmitted preview input")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    await act(async () => root.render(null))
+    expect(pending.size).toBe(0)
   })
 
   it("restores hidden fields at a chosen canvas position", async () => {
