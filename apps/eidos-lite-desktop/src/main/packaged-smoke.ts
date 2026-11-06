@@ -1841,32 +1841,151 @@ const rendererProbe = `
     )
   }, "Pierre editable text surface")
   await openSourceFile("Empty.md")
-  const emptyEditable = await waitFor(() => {
+  const emptyTarget = await waitFor(() => {
     const surface = document.querySelector(
       '[data-text-file-editor="Empty.md"] [data-markdown-editing-mode="source"] .text-file-editor-virtualizer'
     )
     if (!surface) return false
     for (const candidate of surface.querySelectorAll("*")) {
-      const editable = candidate.shadowRoot?.querySelector(
+      const root = candidate.shadowRoot
+      const editable = root?.querySelector(
         '[contenteditable="true"]'
       )
-      if (editable instanceof HTMLElement) return editable
+      if (root instanceof ShadowRoot && editable instanceof HTMLElement) {
+        return { surface, host: candidate, root, editable }
+      }
     }
     return false
   }, "empty Markdown editable surface")
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-  emptyEditable.focus()
-  const emptySelection = window.getSelection()
-  const emptyRange = document.createRange()
-  emptyRange.selectNodeContents(emptyEditable)
-  emptyRange.collapse(false)
-  emptySelection.removeAllRanges()
-  emptySelection.addRange(emptyRange)
+  const emptyEditable = emptyTarget.editable
+  const keyboardTimeline = []
+  const keyboardEvents = []
+  let focusRequested = false
+  const readKeyboardState = () => {
+    const currentSurface = document.querySelector(
+      '[data-text-file-editor="Empty.md"] [data-markdown-editing-mode="source"] .text-file-editor-virtualizer'
+    )
+    const sameTarget = emptyEditable.isConnected &&
+      emptyTarget.host.isConnected && currentSurface === emptyTarget.surface &&
+      emptyTarget.host.shadowRoot === emptyTarget.root &&
+      emptyEditable.getRootNode() === emptyTarget.root &&
+      emptyTarget.root.querySelector('[contenteditable="true"]') === emptyEditable
+    let range = null
+    let rangeApi = "unavailable"
+    let rangeError = null
+    try {
+      if (typeof Selection.prototype.getComposedRanges === "function") {
+        rangeApi = "getComposedRanges"
+        const ranges = document.getSelection()?.getComposedRanges({
+          shadowRoots: [emptyTarget.root],
+        }) ?? []
+        if (ranges.length === 1) range = ranges[0]
+      } else if (typeof emptyTarget.root.getSelection === "function") {
+        rangeApi = "ShadowRoot.getSelection"
+        const selection = emptyTarget.root.getSelection()
+        if (selection?.rangeCount === 1) range = selection.getRangeAt(0)
+      }
+    } catch (error) {
+      rangeError = error instanceof Error ? error.name : "selection-error"
+    }
+    const endpoint = (node, offset) => {
+      const element = node instanceof Element ? node : node?.parentElement
+      const line = element?.closest('[data-line-index]')
+      const inActiveLine = Boolean(node && line &&
+        node.getRootNode() === emptyTarget.root && emptyEditable.contains(node) &&
+        emptyEditable.contains(line) && line.hasAttribute('data-editor-active-line'))
+      return {
+        node: node?.nodeName ?? null,
+        offset: offset ?? null,
+        lineIndex: line?.getAttribute('data-line-index') ?? null,
+        inActiveLine,
+      }
+    }
+    const start = endpoint(range?.startContainer, range?.startOffset)
+    const end = endpoint(range?.endContainer, range?.endOffset)
+    const collapsed = Boolean(range && range.startContainer === range.endContainer &&
+      range.startOffset === range.endOffset)
+    const documentFocused = document.hasFocus()
+    const hostFocused = document.activeElement === emptyTarget.host
+    const editableFocused = emptyTarget.root.activeElement === emptyEditable
+    return {
+      at: Date.now(), sameTarget, documentFocused, hostFocused, editableFocused,
+      documentActiveElement: document.activeElement?.tagName ?? null,
+      shadowActiveElement: emptyTarget.root.activeElement?.tagName ?? null,
+      caret: { rangeApi, rangeError, collapsed, start, end },
+      ready: Boolean(sameTarget && documentFocused && hostFocused && editableFocused &&
+        collapsed && start.inActiveLine && end.inActiveLine),
+    }
+  }
+  const markKeyboard = (phase) => {
+    if (keyboardTimeline.length < 8) keyboardTimeline.push({ phase, at: Date.now() })
+  }
+  const readKeyboardDiagnostics = () => ({
+    timeline: keyboardTimeline,
+    events: keyboardEvents,
+    state: readKeyboardState(),
+  })
+  const requireSameKeyboardTarget = (state) => {
+    if (!state.sameTarget) {
+      throw new Error("Empty Markdown input target was replaced or disconnected: " +
+        JSON.stringify(readKeyboardDiagnostics()))
+    }
+  }
+  const observeKeyboardEvent = (event) => {
+    if (keyboardEvents.length >= 8) return
+    const entry = {
+      at: Date.now(), type: event.type, inputType: event.inputType ?? null,
+      isTrusted: event.isTrusted, defaultPrevented: event.defaultPrevented,
+      defaultPreventedAtCapture: event.defaultPrevented,
+      state: readKeyboardState(),
+    }
+    keyboardEvents.push(entry)
+    // Observe Pierre's eventual preventDefault without changing event handling.
+    queueMicrotask(() => { entry.defaultPrevented = event.defaultPrevented })
+  }
+  emptyEditable.addEventListener("beforeinput", observeKeyboardEvent, true)
+  emptyEditable.addEventListener("input", observeKeyboardEvent, true)
+  window.__eidosLiteEmptyMarkdownKeyboardProbe = {
+    requestFocus: () => {
+      focusRequested = true
+      markKeyboard("FocusRequested")
+    },
+    captureBeforeInsert: () => {
+      const state = readKeyboardState()
+      requireSameKeyboardTarget(state)
+      if (!window.__eidosLiteEmptyMarkdownInputReady || !state.ready) return false
+      markKeyboard("BeforeInsertText")
+      return readKeyboardDiagnostics()
+    },
+    readDiagnostics: readKeyboardDiagnostics,
+  }
+  const coordinationDeadline = window.__eidosLiteEmptyMarkdownCoordinationDeadline
+  if (!Number.isFinite(coordinationDeadline)) {
+    throw new Error("Empty Markdown coordination deadline is missing")
+  }
+  markKeyboard("TargetReady")
+  window.__eidosLiteEmptyMarkdownTargetReady = true
+  let emptyCaretReady = false
+  while (Date.now() < coordinationDeadline) {
+    const state = readKeyboardState()
+    requireSameKeyboardTarget(state)
+    if (focusRequested && state.ready) {
+      emptyCaretReady = true
+      break
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  }
+  if (!emptyCaretReady) {
+    throw new Error("Empty Markdown active-line caret did not become ready: " +
+      JSON.stringify(readKeyboardDiagnostics()))
+  }
   const emptyContents = ${JSON.stringify(EMPTY_MARKDOWN_SMOKE_CONTENT)}
+  markKeyboard("InputReady")
   window.__eidosLiteEmptyMarkdownInputReady = true
   let emptyInputObserved = false
   const emptyInputDeadline = Date.now() + 5000
   while (Date.now() < emptyInputDeadline) {
+    requireSameKeyboardTarget(readKeyboardState())
     if ((emptyEditable.textContent ?? "").includes("Empty Markdown is editable")) {
       emptyInputObserved = true
       break
@@ -1883,10 +2002,14 @@ const rendererProbe = `
           shadowActiveElement: emptyEditable.getRootNode() instanceof ShadowRoot
             ? emptyEditable.getRootNode().activeElement?.tagName ?? null
             : null,
+          keyboard: readKeyboardDiagnostics(),
         })
     )
   }
+  markKeyboard("InputObserved")
   window.__eidosLiteEmptyMarkdownInputObserved = true
+  emptyEditable.removeEventListener("beforeinput", observeKeyboardEvent, true)
+  emptyEditable.removeEventListener("input", observeKeyboardEvent, true)
   let savedEmpty = false
   const emptySaveDeadline = Date.now() + 15000
   while (Date.now() < emptySaveDeadline) {
@@ -2130,8 +2253,9 @@ export async function runPackagedSmoke(
         "Packaged smoke foreground precondition:",
         JSON.stringify(foreground)
       )
+    const emptyInputDeadline = Date.now() + 60_000
     const reportPromise = window.webContents.executeJavaScript(
-      rendererProbe,
+      `window.__eidosLiteEmptyMarkdownCoordinationDeadline = ${emptyInputDeadline};\n${rendererProbe}`,
       true
     ) as Promise<RendererSmokeResult>
     let rendererProbeFailure: unknown
@@ -2143,36 +2267,44 @@ export async function runPackagedSmoke(
     // so reaching the Markdown editor can legitimately take longer than one
     // individual UI assertion's 15-second timeout. Keep the outer coordination
     // window generous while still surfacing a real renderer failure immediately.
-    const emptyInputDeadline = Date.now() + 60_000
-    let emptyInputReady = false
-    while (Date.now() < emptyInputDeadline) {
-      if (rendererProbeFailure !== undefined) {
-        const step = await window.webContents.executeJavaScript(
-          "window.__eidosLiteSmokeStep || 'unknown'",
+    const probeWebContents = window.webContents
+    const waitForEmptyKeyboardStage = async (
+      expression: string,
+      stage: string
+    ): Promise<unknown> => {
+      while (Date.now() < emptyInputDeadline) {
+        if (rendererProbeFailure !== undefined) {
+          const step = await probeWebContents.executeJavaScript(
+            "window.__eidosLiteSmokeStep || 'unknown'",
+            true
+          )
+          throw new Error(
+            `Renderer smoke failed before Markdown input at ${step}: ${String(rendererProbeFailure)}`
+          )
+        }
+        const result: unknown = await probeWebContents.executeJavaScript(
+          expression,
           true
         )
-        throw new Error(
-          `Renderer smoke failed before Markdown input at ${step}: ${String(rendererProbeFailure)}`
-        )
+        if (result) return result
+        await new Promise((resolve) => setTimeout(resolve, 50))
       }
-      emptyInputReady = Boolean(
-        await window.webContents.executeJavaScript(
-          "window.__eidosLiteEmptyMarkdownInputReady === true",
-          true
-        )
-      )
-      if (emptyInputReady) break
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    }
-    if (!emptyInputReady) {
-      const step = await window.webContents.executeJavaScript(
+      const step = await probeWebContents.executeJavaScript(
         "window.__eidosLiteSmokeStep || 'unknown'",
         true
       )
+      const keyboard: unknown = await probeWebContents.executeJavaScript(
+        "window.__eidosLiteEmptyMarkdownKeyboardProbe?.readDiagnostics() ?? null",
+        true
+      )
       throw new Error(
-        `Empty Markdown input probe did not become ready at ${step}`
+        `Empty Markdown ${stage} did not become ready at ${step}: ${JSON.stringify(keyboard)}`
       )
     }
+    await waitForEmptyKeyboardStage(
+      "window.__eidosLiteEmptyMarkdownTargetReady === true",
+      "target"
+    )
     const focusModifier = process.platform === "darwin" ? "meta" : "control"
     window.webContents.focus()
     window.webContents.sendInputEvent({
@@ -2185,7 +2317,27 @@ export async function runPackagedSmoke(
       keyCode: "1",
       modifiers: [focusModifier],
     })
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await window.webContents.executeJavaScript(
+      "window.__eidosLiteEmptyMarkdownKeyboardProbe.requestFocus()",
+      true
+    )
+    const keyboardBefore = await waitForEmptyKeyboardStage(
+      "window.__eidosLiteEmptyMarkdownKeyboardProbe.captureBeforeInsert()",
+      "active-line caret"
+    )
+    console.info(
+      "Packaged smoke empty Markdown before insert:",
+      JSON.stringify({
+        at: Date.now(),
+        window: {
+          isVisible: window.isVisible(),
+          isFocused: window.isFocused(),
+          isMinimized: window.isMinimized(),
+        },
+        webContentsFocused: window.webContents.isFocused(),
+        keyboard: keyboardBefore,
+      })
+    )
     await window.webContents.insertText(EMPTY_MARKDOWN_SMOKE_CONTENT)
     const emptyInputObservedDeadline = Date.now() + 5_000
     let emptyInputObserved = false
@@ -2203,6 +2355,15 @@ export async function runPackagedSmoke(
       await reportPromise
       throw new Error("Empty Markdown input was not observed by the editor")
     }
+    console.info(
+      "Packaged smoke empty Markdown input diagnostics:",
+      JSON.stringify(
+        await window.webContents.executeJavaScript(
+          "window.__eidosLiteEmptyMarkdownKeyboardProbe.readDiagnostics()",
+          true
+        )
+      )
+    )
     const saveModifier = process.platform === "darwin" ? "meta" : "control"
     window.webContents.sendInputEvent({
       type: "keyDown",
