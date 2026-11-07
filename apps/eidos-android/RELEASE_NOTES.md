@@ -22,11 +22,6 @@ Encrypted custom-server connections require HTTPS, except for a loopback server
 on the same device. The advanced connection for plain Graft repositories remains
 separate.
 
-## Bug fixes
-
-- Adding a table row and immediately editing it retains the entered values,
-  avoiding revision errors and disappearing new rows.
-
 ## Install and testing scope
 
 Download `eidos-android-0.5.0.apk` and verify it against `SHA256SUMS`. Install over
