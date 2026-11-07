@@ -43,10 +43,11 @@ class FileExportReturnTest {
     }
 
     @Test
-    fun pickerResultDuringForegroundRefreshExportsEveryByte() {
+    fun pickerResultDuringForegroundRefreshExportsEveryByte(): Unit = runBlocking {
         val app = compose.activity.application
         val id = "export-return-${UUID.randomUUID()}"
-        val repository = SpaceRepository(app, id)
+        val blocker = ForegroundExportIoBlocker()
+        val repository = SpaceRepository(app, id, blocker.storageSpace)
         val root = File(app.filesDir, "spaces/$id")
         val destination = File(app.cacheDir, "test-share/$id/export.md").apply {
             parentFile!!.mkdirs()
@@ -59,12 +60,15 @@ class FileExportReturnTest {
             compose.runOnUiThread { model = EidosModel(app, repository) }
             compose.waitUntil(15_000) { !model.state.value.busy }
             File(root, "note.md").writeText(content)
-            compose.runOnUiThread {
-                model.foregroundStarted()
-                assertTrue(model.state.value.busy)
-                model.export("note.md", uri)
+            blocker.whileHoldingIo(repository, root) {
+                compose.runOnUiThread { model.foregroundStarted() }
+                waitForExportState(compose, model) { model.state.value.busy }
+                compose.runOnUiThread {
+                    assertTrue("The picker result must arrive during held foreground refresh: ${exportStateDescription(model)}", model.state.value.busy)
+                    model.export("note.md", uri)
+                }
             }
-            compose.waitUntil(15_000) {
+            waitForExportState(compose, model) {
                 !model.state.value.busy && destination.readText() == content
             }
             assertEquals(content, destination.readText())

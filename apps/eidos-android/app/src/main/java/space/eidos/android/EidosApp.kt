@@ -118,14 +118,20 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
         var exportPath by rememberSaveable { mutableStateOf<String?>(null) }
         var exportSpaceId by rememberSaveable { mutableStateOf<String?>(null) }
         var transferMenu by remember { mutableStateOf(false) }
-        var exportFolder by rememberSaveable { mutableStateOf("") }
+        var exportFolder by rememberSaveable { mutableStateOf<String?>(null) }
+        var exportFolderSpaceId by rememberSaveable { mutableStateOf<String?>(null) }
         val importDirectory =
             rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) {
                 it?.let(model::importDirectory)
             }
         val exportDirectory =
-            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) {
-                if (it != null) model.exportDirectory(exportFolder, it)
+            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                val path = exportFolder
+                val spaceId = exportFolderSpaceId
+                if (uri != null && path != null && spaceId != null)
+                    model.exportDirectory(path, uri, spaceId)
+                exportFolder = null
+                exportFolderSpaceId = null
             }
         val import =
             rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
@@ -149,6 +155,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
         val exportEntry: (SpaceFile) -> Unit = { file ->
             if (file.directory) {
                 exportFolder = file.path
+                exportFolderSpaceId = state.spaceId
                 exportDirectory.launch(null)
             } else exportFile(file.path)
         }
@@ -316,6 +323,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                     onClick = {
                                                         transferMenu = false
                                                         exportFolder = state.folder
+                                                        exportFolderSpaceId = state.spaceId
                                                         exportDirectory.launch(null)
                                                     },
                                                 )

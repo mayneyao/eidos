@@ -22,6 +22,12 @@ Encrypted custom-server connections require HTTPS, except for a loopback server
 on the same device. The advanced connection for plain Graft repositories remains
 separate.
 
+## Bug fixes
+
+- **Folder export**: Folder export no longer gets silently skipped after
+  returning from Android’s folder picker. Pending exports keep their original
+  Space, preventing files from another Space from being exported.
+
 ## Install and testing scope
 
 Download `eidos-android-0.5.0.apk` and verify it against `SHA256SUMS`. Install over
