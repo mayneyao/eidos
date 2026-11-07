@@ -37,6 +37,7 @@ import {
 import DataEditor, {
   CompactSelection,
   GridCellKind,
+  AllCellRenderers,
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
@@ -62,6 +63,7 @@ import {
   useUndoRedo,
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
+import { pendingEditEditor, useEidosFilePendingEdit } from "./use-pending-edit"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { useEidosFileGridTouch } from "./use-eidos-file-grid-touch"
@@ -143,6 +145,20 @@ const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
   EidosFileUrlImageCellRenderer,
   EidosFileRelationCellRenderer,
 ]
+
+const providePendingEditor: NonNullable<DataEditorProps["provideEditor"]> = (
+  cell
+) => {
+  const renderer =
+    cell.kind === GridCellKind.Custom
+      ? EIDOS_FILE_GRID_CUSTOM_RENDERERS.find((candidate) =>
+          candidate.isMatch(cell)
+        )
+      : AllCellRenderers.find((candidate) => candidate.kind === cell.kind)
+  const provide = renderer?.provideEditor as DataEditorProps["provideEditor"]
+  const editor = provide?.(cell)
+  return editor ? pendingEditEditor(editor) : undefined
+}
 
 function eidosFileRowIdentity(row: EidosFileRow): string | undefined {
   const rowId = row._id
@@ -546,6 +562,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     assetSession,
     keyboardShortcuts,
     interactionMode,
+    onPendingEditChange,
     themeName,
     timeZone,
     translate: t,
@@ -630,6 +647,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const pendingRowCreatesRef = useRef(
     new Map<string, Promise<EidosFileRowMutationResult>>()
   )
+  // Keep outstanding creates protected even if their overlay closes or a
+  // scope change clears the optimistic-row lookup before the write settles.
+  const [pendingRowCreateCount, setPendingRowCreateCount] = useState(0)
   const rowIdAliasesRef = useRef(new Map<string, string>())
   // Newly appended rows are pinned to their creation index for the duration
   // of their edit session so a sort/filter revalidation never yanks the row
@@ -747,6 +767,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     useState<EidosFileGridFailedMutation | null>(null)
   const rowCommandInFlightRef = useRef(false)
   const [rowCommandInFlight, setRowCommandInFlight] = useState(false)
+  useEidosFilePendingEdit(
+    mutationInFlight ||
+      failedMutation !== null ||
+      rowCommandInFlight ||
+      pendingRowCreateCount > 0
+  )
   const beginRowCommand = useCallback(() => {
     if (rowCommandInFlightRef.current) return false
     rowCommandInFlightRef.current = true
@@ -1976,8 +2002,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const appendRow = useCallback(async () => {
     if (!onAddRow || !canInsertRow) return undefined
     const generation = generationRef.current
+    let waitingForSettlement = false
+    setPendingRowCreateCount((count) => count + 1)
+    const finishCreate = () => setPendingRowCreateCount((count) => count - 1)
     try {
       const result = await onAddRow()
+      if (result.settled) {
+        waitingForSettlement = true
+        void result.settled.then(finishCreate, finishCreate)
+      }
       const optimistic = result.settled !== undefined
       const index = optimistic
         ? rowCountRef.current
@@ -2070,6 +2103,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     } catch (error) {
       onError?.(error)
       return undefined
+    } finally {
+      if (!waitingForSettlement) finishCreate()
     }
   }, [canInsertRow, onAddRow, onError, refreshColumnStats, releaseDraftRowPins])
 
@@ -2981,6 +3016,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onVisibleRegionChanged={onVisibleRegionChanged}
           onItemHovered={onItemHovered}
           customRenderers={EIDOS_FILE_GRID_CUSTOM_RENDERERS}
+          provideEditor={onPendingEditChange ? providePendingEditor : undefined}
           onDragOverCell={onDragOverCell}
           onDragLeave={() => setFileDropHighlights([])}
           onDrop={onDrop}

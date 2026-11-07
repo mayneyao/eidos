@@ -51,5 +51,6 @@ export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
+  automaticSync: "interval",
   defaultSpaceLocation: null,
 }

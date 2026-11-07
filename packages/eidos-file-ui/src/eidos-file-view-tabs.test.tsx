@@ -6,6 +6,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import { EidosFileViewTabs } from "./eidos-file-view-tabs"
+import { EidosFileUIProvider } from "./context"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -158,6 +159,59 @@ describe("EidosFileViewTabs", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("reports only an active View configuration draft and releases it on explicit close", async () => {
+    const pending = new Set<string>()
+    const onPending = (id: string, value: boolean) => {
+      if (value) pending.add(id)
+      else pending.delete(id)
+    }
+    const rename = vi.fn(async () => {})
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider onPendingEditChange={onPending}>
+          <EidosFileViewTabs
+            views={views}
+            fields={[]}
+            activeView={views[0]}
+            onSelect={vi.fn()}
+            onCreate={vi.fn()}
+            onRename={rename}
+            onDuplicate={vi.fn()}
+            onDelete={vi.fn()}
+            onReorder={vi.fn()}
+            onUpdate={vi.fn()}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    expect(pending.size).toBe(0)
+    await openViewMenu(container, "gallery")
+    await act(async () => {
+      Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent?.includes("Configure view"))!
+        .click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const input = document.querySelector<HTMLInputElement>(
+      "#eidos-file-managed-view-name"
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, "Unconfirmed View name")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    expect(rename).not.toHaveBeenCalled()
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    )
+    expect(pending.size).toBe(0)
   })
 
   it("uses each view tab as the configuration entry point", async () => {

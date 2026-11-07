@@ -1,11 +1,9 @@
 package space.eidos.android
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import java.net.URI
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -13,7 +11,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
 
-data class SyncProfile(val url: String, val token: String) {
+data class SyncProfile(val url: String, val token: String, val custom: Boolean = false,
+    val server: String? = null, val uuid: String? = null, val password: String? = null) {
     override fun toString() = "SyncProfile(credentials redacted)"
 }
 
@@ -50,25 +49,8 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
     }
 
     fun validate(url: String, token: String): SyncProfile {
-        val clean = url.trim().removeSuffix("/")
-        val uri =
-            runCatching { URI(clean) }.getOrElse { throw IllegalArgumentException(tr("请输入有效的远程地址")) }
-        val debugLoopback =
-            (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
-                uri.host == "127.0.0.1"
-        require(uri.scheme == "https" || (uri.scheme == "http" && debugLoopback)) {
-            tr("请输入 HTTPS 远程地址")
-        }
-        require(
-            !uri.host.isNullOrBlank() &&
-                uri.rawUserInfo == null &&
-                uri.rawQuery == null &&
-                uri.rawFragment == null &&
-                (uri.port == -1 || uri.port in 1..65535)
-        ) {
-            tr("地址不能包含凭证、查询参数或片段")
-        }
-        require(token.none { it == '\r' || it == '\n' }) { tr("访问令牌不能包含换行") }
+        val clean = CustomSyncAddress.repository(url)
+        require(token.none(Char::isISOControl)) { tr("访问令牌不能包含换行") }
         return SyncProfile(clean, token.trim())
     }
 
@@ -80,6 +62,10 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
             JSONObject()
                 .put("url", profile.url)
                 .put("token", profile.token)
+                .put("custom", profile.custom)
+                .put("server", profile.server)
+                .put("uuid", profile.uuid)
+                .put("password", profile.password)
                 .toString()
                 .toByteArray(Charsets.UTF_8)
         val encrypted =
@@ -106,7 +92,10 @@ class SyncProfileStore(private val context: Context, spaceId: String) {
             JSONObject(
                 String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
             )
-        return SyncProfile(data.getString("url"), data.getString("token"))
+        return SyncProfile(data.getString("url"), data.getString("token"), data.optBoolean("custom"),
+            data.optString("server").takeIf { it.isNotEmpty() && it != "null" },
+            data.optString("uuid").takeIf { it.isNotEmpty() && it != "null" },
+            data.optString("password").takeIf { it.isNotEmpty() && it != "null" })
     }
 
     fun clear() {

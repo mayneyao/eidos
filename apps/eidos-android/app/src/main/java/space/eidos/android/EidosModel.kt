@@ -53,6 +53,7 @@ data class AppState(
     val publish: PublishPage? = null,
     val account: SyncAccountView? = null,
     val cloudSpaces: List<CloudSpace>? = null,
+    val customSpaces: List<CustomSyncRepository>? = null,
     val spaceId: String = "personal",
     val spaceName: String = tr("个人 Space"),
     val spaces: List<LocalSpace> = emptyList(),
@@ -290,12 +291,15 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     private var returnedFilesJob: Job? = null
+    private var actionJob: Job? = null
+
+    fun cancelCustomSync() { actionJob?.cancel() }
 
     private fun launchAction(action: suspend () -> Unit) {
         if (mutable.value.busy || mutable.value.peerBusy) return
         graftRefreshJob?.cancel()
         returnedFilesJob?.cancel()
-        viewModelScope.launch {
+        actionJob = viewModelScope.launch {
             mutable.update { it.copy(busy = true, error = null) }
             updateBackgroundGate()
             try {
@@ -1005,8 +1009,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             val context = getApplication<Application>()
             for (space in catalog.spaces()) {
                 if (
-                    SyncProfileStore(context, space.id).load()?.token?.startsWith("account:") ==
-                        true
+                    SyncProfileStore(context, space.id).load()?.let { !it.custom && it.token.startsWith("account:") } == true
                 ) {
                     BackgroundSync.cancel(context, space.id)
                     BackgroundSync.setAutomatic(context, space.id, false)
@@ -1253,9 +1256,68 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun connectRemote(url: String, token: String, done: () -> Unit) = launchAction {
-        val graft = repository.connectRemote(url, token)
+        val graft = repository.connectCustomRemote(url, token)
         mutable.update { it.copy(graft = graft, syncMessage = tr("连接配置已保存，尚未验证远程访问")) }
         done()
+    }
+
+    fun loadCustomSpaces(origin: String, token: String) = launchAction {
+        val spaces = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val client = CustomSyncClient(origin, token)
+            val result = client.repositories()
+            client.remember(getApplication())
+            result
+        }
+        mutable.update { it.copy(customSpaces = spaces) }
+    }
+
+    fun clearCustomSpaces() { mutable.update { it.copy(customSpaces = null) } }
+
+    fun connectCustomSpace(origin: String, token: String, password: String, remote: CustomSyncRepository? = null) = launchAction {
+        CustomSyncAddress.password(password)
+        val profile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val client = CustomSyncClient(origin, token)
+            val pending = if (remote == null) SyncProfileStore(getApplication(), "custom-pending-${repository.spaceId}").load() else null
+            val selected = remote ?: if (pending != null) {
+                check(pending.server == client.origin && pending.password == password) { tr("请使用上次初始化的服务器和同步密码继续连接") }
+                CustomSyncRepository(java.net.URI(pending.url).path.substringAfterLast('/'), mutable.value.spaceName, pending.url, pending.uuid)
+            } else run {
+                val prefs = getApplication<Application>().getSharedPreferences("custom-repositories", 0)
+                val key = repository.spaceId + ":" + client.origin
+                val id = prefs.getString(key, null) ?: java.util.UUID.randomUUID().toString().also {
+                    check(prefs.edit().putString(key, it).commit())
+                }
+                client.provision(mutable.value.spaceName, id)
+            }
+            client.verify(selected)
+            SyncProfile(selected.url, client.token, custom = true, server = client.origin, uuid = checkNotNull(selected.uuid), password = password)
+        }
+        val graft = repository.connectEncrypted(profile, remote == null)
+        mutable.update { it.copy(graft = graft, syncMessage = tr("自定义服务器已连接，可立即同步")) }
+    }
+
+    fun downloadCustomSpace(origin: String, token: String, password: String, remote: CustomSyncRepository) = launchAction {
+        CustomSyncAddress.password(password)
+        mutable.update { it.copy(downloadProgress = DownloadProgress(remote.displayName)) }
+        try {
+            val profile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val client = CustomSyncClient(origin, token)
+                client.verify(remote)
+                SyncProfile(remote.url, client.token, custom = true, server = client.origin, uuid = checkNotNull(remote.uuid), password = password)
+            }
+            val local = cloneJournal.download(remote.displayName, profile.url, profile.token, ::reportDownload, encrypted = profile)
+            activateSpace(local.id)
+            mutable.update { it.copy(captureNotice = tr("远程 Space 已下载到本机，可离线使用")) }
+        } finally { mutable.update { it.copy(pendingClone = cloneJournal.pending(), downloadProgress = null) } }
+    }
+
+    fun cloneCustomSpace(name: String, url: String, token: String, done: () -> Unit) = launchAction {
+        mutable.update { it.copy(downloadProgress = DownloadProgress(name)) }
+        try {
+            val local = cloneJournal.download(name, url, token, ::reportDownload, custom = true)
+            activateSpace(local.id)
+            done()
+        } finally { mutable.update { it.copy(pendingClone = cloneJournal.pending(), downloadProgress = null) } }
     }
 
     fun disconnectRemote() = launchAction {

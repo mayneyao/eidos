@@ -34,6 +34,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
   automaticUpdates: true,
+  automaticSync: "interval",
   defaultSpaceLocation: null,
 }
 
@@ -147,6 +148,12 @@ export function normalizeEidosLitePreferences(
       typeof candidate.automaticUpdates === "boolean"
         ? candidate.automaticUpdates
         : DEFAULT_EIDOS_LITE_PREFERENCES.automaticUpdates,
+    automaticSync:
+      candidate.automaticSync === "off" ||
+      candidate.automaticSync === "on-change" ||
+      candidate.automaticSync === "interval"
+        ? candidate.automaticSync
+        : DEFAULT_EIDOS_LITE_PREFERENCES.automaticSync,
     defaultSpaceLocation:
       typeof defaultSpaceLocation === "string" && defaultSpaceLocation.trim()
         ? defaultSpaceLocation

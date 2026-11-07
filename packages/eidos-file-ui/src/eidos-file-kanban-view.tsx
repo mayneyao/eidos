@@ -25,6 +25,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { cn } from "./lib/cn"
 import { Button, Input } from "./ui/primitives"
 import {
@@ -489,6 +490,7 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
   const [creating, setCreating] = useState(false)
   const creatingRef = useRef(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  useEidosFilePendingEdit(adding || creating || createError !== null)
 
   const create = async () => {
     const next = title.trim()

@@ -26,6 +26,48 @@ at a time; LAN sharing can remain enabled independently.
 transfers, and conflicts. After connecting, follow [Everyday cloud sync and recovery](/recipes/manage-cloud-sync/)
 to send and receive versions, resolve conflicts, or recover access.
 
+## Automatic Sync in Lite
+
+In **Settings → Account & Services → Sync → Automatic Sync**, choose:
+
+- **Every 10 minutes** (default): sync open, connected Spaces about every ten minutes.
+- **After changes**: sync saved changes after a short delay, and still check for remote updates every ten minutes.
+- **Off**: use the Sync panel to send and receive versions manually.
+
+The default also applies to existing connections, including custom servers. It
+does not connect local-only Spaces or sync folders whose windows are closed.
+Lite waits for thirty seconds without interaction while it is in the foreground,
+or a short pause after it moves into the background. Working in another app does
+not prevent background Sync. Sleep and missed intervals do not create a backlog.
+
+Automatic Sync creates a local checkpoint of saved changes using the same ignore
+rules as manual checkpoints, then checks the remote and sends or receives
+versions. Unsaved text drafts, unsubmitted table cells, invalid or failed record
+edits, and unsaved record Markdown keep automatic Sync queued. Save, correct or
+discard these edits to resume. A clean table can stay open while Sync receives
+updates; you do not need to close the editor.
+
+Open filter, sort, View, field, table and import configuration editors also pause
+automatic Sync until you finish or close them. Unsubmitted form preview input and
+new Kanban record drafts wait too.
+
+Returning to Lite or using the keyboard or mouse cancels background scans and
+transfers. A local fast-forward that has already begun replacing files must finish
+validation and reopen the files safely before editing continues; this
+local step cannot be interrupted. Eidos File editors briefly become read-only
+through replacement and refresh so new input cannot be lost. Manual Sync takes
+priority over automatic work.
+
+Network and temporary server errors retry with increasing delays, up to fifteen
+minutes between attempts, or longer if the server requests a cooldown. Password, account, quota, and history conflicts appear
+in the existing Sync panel. Automatic Sync never resolves divergent history or
+opens a recovery dialog. Use the panel to unlock, restore access, or review a
+conflict, then sync manually to resume automatic work.
+
+If a stalled transfer requires its background process to restart, session-only
+unlock is lost. The Sync panel will ask for the password again unless the device
+can restore a remembered password securely. Local files remain available.
+
 ## Keep a separate backup
 
 Sync also transfers deletions to other devices. Keep an independent [backup](/user-guide/data-safety/).

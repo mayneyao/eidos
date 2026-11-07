@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "./ui/primitives"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import {
   eidosFileFieldKey,
   isEidosFileRecordLabelEligible,
@@ -218,6 +219,9 @@ export function EidosFileSheetTabs({
     null
   )
   const [error, setError] = useState<string | null>(null)
+  useEidosFilePendingEdit(
+    Boolean(renameRequest || settingsTarget || deleteTarget || busy)
+  )
   const nameId = useId()
   const errorId = useId()
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import type {
   EidosFileColumnStatConfig,
   EidosFileFieldInfo,
@@ -199,6 +199,23 @@ export function EidosFileDataGrid({
   onImportDroppedFiles,
 }: EidosFileDataGridProps) {
   const { interactionMode } = useEidosFileUI()
+  const rowWriteTail = useRef<Promise<void> | null>(null)
+  const enqueueRowWrite = useCallback(<T,>(write: () => Promise<T>) => {
+    // The source captures expectedRevision when called. Wait until the prior
+    // write has accepted its response before forming the next request.
+    const result = rowWriteTail.current
+      ? rowWriteTail.current.then(write)
+      : write()
+    const tail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    rowWriteTail.current = tail
+    void tail.then(() => {
+      if (rowWriteTail.current === tail) rowWriteTail.current = null
+    })
+    return result
+  }, [])
   const [mobileField, setMobileField] = useState<{
     fieldId?: string
     create?: boolean
@@ -249,7 +266,8 @@ export function EidosFileDataGrid({
   )
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
-    const settled = source.insertRow(table.table.id, {}).then((result) => {
+    const settled = enqueueRowWrite(async () => {
+      const result = await source.insertRow(table.table.id, {})
       onMutation?.(result)
       return result
     })
@@ -259,67 +277,68 @@ export function EidosFileDataGrid({
       rowCount: table.rowCount + 1,
       settled,
     }
-  }, [onMutation, source, table.rowCount, table.table.id])
+  }, [enqueueRowWrite, onMutation, source, table.rowCount, table.table.id])
 
   const editCell = useCallback(
-    async (
+    (
       row: EidosFileRow,
       field: EidosFileFieldInfo,
       value: EidosFileSqlPrimitive
-    ) => {
-      const fieldKey = eidosFileFieldKey(field)
-      const rowId = String(row._id)
-      const fields = { [fieldKey]: value }
-      let result: EidosFileRowMutationResult
-      try {
-        result = await source.updateRow(table.table.id, rowId, fields)
-      } catch (error) {
-        if (
-          !isStaleRevision(error) ||
-          !tables ||
-          !source.getRow ||
-          !isSafeReapplicationField(field) ||
-          !hasOwn(row, fieldKey)
-        ) {
-          throw error
-        }
-
-        let currentRow: EidosFileRow | null
+    ) =>
+      enqueueRowWrite(async () => {
+        const fieldKey = eidosFileFieldKey(field)
+        const rowId = String(row._id)
+        const fields = { [fieldKey]: value }
+        let result: EidosFileRowMutationResult
         try {
-          const currentSnapshot = await source.getSnapshot()
-          const currentTable = currentSnapshot.tables.find(
-            (candidate) => candidate.table.id === table.table.id
-          )
-          const currentField = currentTable?.fields.find(
-            (candidate) => candidate.id === field.id
-          )
+          result = await source.updateRow(table.table.id, rowId, fields)
+        } catch (error) {
           if (
-            !currentField ||
-            !isSafeReapplicationField(currentField) ||
-            !sameEditorSchema(tables, currentSnapshot.tables) ||
-            !sameStructuredValue(field, currentField)
+            !isStaleRevision(error) ||
+            !tables ||
+            !source.getRow ||
+            !isSafeReapplicationField(field) ||
+            !hasOwn(row, fieldKey)
           ) {
             throw error
           }
-          currentRow = await source.getRow(table.table.id, rowId)
-        } catch {
-          throw error
-        }
 
-        if (
-          !currentRow ||
-          !hasOwn(currentRow, fieldKey) ||
-          !sameLogicalValue(row[fieldKey], currentRow[fieldKey])
-        ) {
-          throw error
-        }
+          let currentRow: EidosFileRow | null
+          try {
+            const currentSnapshot = await source.getSnapshot()
+            const currentTable = currentSnapshot.tables.find(
+              (candidate) => candidate.table.id === table.table.id
+            )
+            const currentField = currentTable?.fields.find(
+              (candidate) => candidate.id === field.id
+            )
+            if (
+              !currentField ||
+              !isSafeReapplicationField(currentField) ||
+              !sameEditorSchema(tables, currentSnapshot.tables) ||
+              !sameStructuredValue(field, currentField)
+            ) {
+              throw error
+            }
+            currentRow = await source.getRow(table.table.id, rowId)
+          } catch {
+            throw error
+          }
 
-        result = await source.updateRow(table.table.id, rowId, fields)
-      }
-      onMutation?.(result)
-      return result
-    },
-    [onMutation, source, table.table.id, tables]
+          if (
+            !currentRow ||
+            !hasOwn(currentRow, fieldKey) ||
+            !sameLogicalValue(row[fieldKey], currentRow[fieldKey])
+          ) {
+            throw error
+          }
+
+          result = await source.updateRow(table.table.id, rowId, fields)
+        }
+        onMutation?.(result)
+        return result
+      }),
+    [enqueueRowWrite, onMutation, source, table.table.id, tables]
   )
 
   const updateField = useCallback(

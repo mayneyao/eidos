@@ -49,6 +49,78 @@ class FakeUtilityProcess extends EventEmitter {
 }
 
 describe("GraftUtilityTransport", () => {
+  it.each([true, false])(
+    "waits for actual exit after retirement even when a late native response has ok=%s",
+    async (ok) => {
+      const child = new FakeUtilityProcess()
+      const next = new FakeUtilityProcess()
+      vi.spyOn(child, "kill").mockReturnValue(true)
+      let transferId = 0
+      vi.spyOn(child, "postMessage").mockImplementation((request) => {
+        if (request.type === "open")
+          queueMicrotask(() =>
+            child.emit("message", {
+              requestId: request.requestId,
+              ok: true,
+              result: {},
+            })
+          )
+        if (request.type === "command") transferId = request.requestId
+      })
+      vi.mocked(utilityProcess.fork)
+        .mockReset()
+        .mockReturnValueOnce(child as unknown as UtilityProcess)
+        .mockReturnValueOnce(next as unknown as UtilityProcess)
+      const transport = new GraftUtilityTransport("/tmp/graft-worker.js")
+      await transport.open("/tmp/automatic-exit-race")
+      const controller = new AbortController()
+      let settled = false
+      const result = transport.command("fetchForCheckout", [], {
+        signal: controller.signal,
+        automaticTransfer: true,
+      })
+      const rejected = expect(result).rejects.toMatchObject({
+        name: "AbortError",
+      })
+      void result.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      controller.abort()
+      child.emit("message", {
+        requestId: transferId,
+        type: "automatic-cancel-retiring",
+      })
+      child.emit(
+        "message",
+        ok
+          ? { requestId: transferId, ok: true, result: {} }
+          : {
+              requestId: transferId,
+              ok: false,
+              error: { name: "Error", message: "late failure" },
+            }
+      )
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      expect(child.kill).toHaveBeenCalledOnce()
+      await transport.open("/tmp/automatic-exit-race")
+      expect(utilityProcess.fork).toHaveBeenCalledTimes(1)
+      child.emit("exit", 143)
+      await rejected
+      expect(settled).toBe(true)
+      await transport.open("/tmp/automatic-exit-race")
+      expect(utilityProcess.fork).toHaveBeenCalledTimes(2)
+      await expect(transport.command("status")).resolves.toEqual({
+        operation: "status",
+      })
+      await transport.close()
+    }
+  )
   it("revokes an encrypted clone on abort and waits for lock and close acknowledgements", async () => {
     const child = new FakeUtilityProcess()
     const requests: GraftSdkWorkerRequest[] = []

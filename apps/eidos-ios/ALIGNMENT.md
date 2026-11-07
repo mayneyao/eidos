@@ -23,10 +23,18 @@ usable without its computer or an account.
 | Conflicts         | Each phone publishes to its private incoming history. Desktop merges compatible changes and publishes reviewed history. True conflicts preserve the phone's files and lead to the complete desktop Sync merge workspace. After desktop resolution, the phone retries; edits made while waiting remain part of the next sync. |
 | Disconnect        | Disconnect a Space or remove a paired computer without deleting local files or history.                                                                                                                                                                                                                                      |
 
-Account login, cloud Sync and Publish have no mobile entry points in this
+Account login, official cloud Sync and Publish have no mobile entry points in this
 version. Phone-to-phone sync and Internet relay are
 outside this delivery. True LAN conflicts never open a mobile whole-file choice
 screen. Failure, cancellation and pending review never update the success time.
+
+**Sync → Custom server** provides a separate, account-independent path for
+self-hosted Graft. It supports server discovery, encrypted Space download with a
+sync password, creating a new encrypted remote for local files, and advanced
+plain-repository URLs. Credentials remain separate from paired desktop devices.
+Custom-server conflicts use the native merge review; LAN conflicts continue to
+the paired desktop. Encrypted transport requires HTTPS (loopback HTTP is for
+testing); ordinary repository URLs can use explicitly chosen HTTP LAN servers.
 
 ## Verification
 

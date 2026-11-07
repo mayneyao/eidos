@@ -1241,6 +1241,72 @@ describe("EidosFileKanbanView", () => {
     expect(todoColumn?.textContent).toContain("Draft release")
   })
 
+  it("reports an open new-record editor and failed record creation until explicit discard", async () => {
+    const pending = new Set<string>()
+    const onPending = (id: string, value: boolean) => {
+      if (value) pending.add(id)
+      else pending.delete(id)
+    }
+    const onAddRow = vi
+      .fn()
+      .mockRejectedValue(new Error("Record creation failed"))
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider onPendingEditChange={onPending}>
+          <EidosFileKanbanView
+            table={table}
+            view={view}
+            loadGroupCounts={vi.fn(async () => [])}
+            loadGroupPage={vi.fn(async (_field, _value, offset, limit) => ({
+              tableId: "tasks",
+              offset,
+              limit,
+              total: 0,
+              rows: [],
+            }))}
+            onCellEdit={vi.fn()}
+            onAddRow={onAddRow}
+          />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+    })
+    expect(pending.size).toBe(0)
+    const column = container.querySelector<HTMLElement>(
+      '[data-board-id="eidos-file-kanban:todo"]'
+    )!
+    await act(async () =>
+      Array.from(column.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Add record"))!
+        .click()
+    )
+    const input = column.querySelector<HTMLInputElement>("input")!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, "Unsubmitted record")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    expect(onAddRow).not.toHaveBeenCalled()
+    await act(async () =>
+      Array.from(column.querySelectorAll("button"))
+        .find((button) => button.textContent === "Add")!
+        .click()
+    )
+    expect(column.textContent).toContain("Record creation failed")
+    expect(input.value).toBe("Unsubmitted record")
+    expect(pending.size).toBeGreaterThan(0)
+    await act(async () =>
+      Array.from(column.querySelectorAll("button"))
+        .find((button) => button.textContent === "Cancel")!
+        .click()
+    )
+    expect(pending.size).toBe(0)
+    expect(onAddRow).toHaveBeenCalledOnce()
+  })
+
   it("does not rerun the column virtualizer while typing a new record", async () => {
     await act(async () => {
       root.render(

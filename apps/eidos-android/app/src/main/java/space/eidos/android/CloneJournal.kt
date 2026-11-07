@@ -56,13 +56,15 @@ class CloneJournal(private val context: Context) {
         url: String,
         token: String,
         progress: (DownloadProgress) -> Unit = {},
+        custom: Boolean = false,
+        encrypted: SyncProfile? = null,
     ): LocalSpace =
         withContext(Dispatchers.IO) {
             lock.withLock {
                 check(pending() == null) { tr("请先处理尚未完成的下载") }
                 val space = SpaceCatalog(context).prepare(name)
                 val profiles = SyncProfileStore(context, space.id)
-                val profile = profiles.validate(url, token)
+                val profile = encrypted ?: profiles.validate(url, token).copy(custom = custom)
                 profiles.save(profile)
                 val job = PendingClone(space, false)
                 try {
@@ -114,10 +116,16 @@ class CloneJournal(private val context: Context) {
         progress: (DownloadProgress) -> Unit,
     ): LocalSpace {
         try {
-            SpaceRepository(context, job.space.id).cloneRemote(profile.url, profile.token) {
+            val repository = SpaceRepository(context, job.space.id)
+            val report: (String, Long) -> Unit = {
                 stage,
                 bytes ->
                 progress(DownloadProgress(job.space.name, stage, bytes))
+            }
+            if (profile.uuid != null) repository.cloneEncryptedRemote(profile, report)
+            else {
+                repository.cloneRemote(profile.url, profile.token, report, custom = profile.custom)
+                SyncProfileStore(context, job.space.id).save(profile)
             }
             progress(DownloadProgress(job.space.name, tr("正在导入本机 Space")))
             save(job.copy(ready = true))

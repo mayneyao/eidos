@@ -1,0 +1,6 @@
+{
+  "accountId": "b77bb32b49e596faa7a5092912181186",
+  "bucket": "eidos-media",
+  "publicOrigin": "https://media.eidos.space",
+  "cacheControl": "public, max-age=31536000, immutable"
+}

@@ -246,7 +246,7 @@ internal constructor(
 
     fun resolve(profile: SyncProfile): String =
         synchronized(lock) {
-            if (!profile.token.startsWith(MARKER)) return@synchronized profile.token
+            if (profile.custom || !profile.token.startsWith(MARKER)) return@synchronized profile.token
             SyncEnvironment.requireRemote(profile.url)
             check(profile.token == credential()) { tr("此 Space 属于其他账号，请登录原账号") }
             accessToken()

@@ -17,6 +17,7 @@ import {
 import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { Button, Input } from "./ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 import {
@@ -106,6 +107,17 @@ function FieldEditorControl({
   const [optionError, setOptionError] = useState<string | null>(null)
   const [optionBusy, setOptionBusy] = useState(false)
   const [optionOpen, setOptionOpen] = useState(false)
+  const savedDraft =
+    field.type === "datetime"
+      ? dateTimeInputValue(value, timeZone)
+      : value === null || value === undefined
+        ? ""
+        : String(value)
+  useEidosFilePendingEdit(
+    draft !== savedDraft ||
+      Boolean(datetimeError || numberError || urlError || optionError) ||
+      optionBusy
+  )
   const optionSaving = useRef(false)
   const optionInput = useRef<HTMLInputElement>(null)
   const discardNextBlur = useRef(false)

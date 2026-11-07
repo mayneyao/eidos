@@ -15,6 +15,7 @@ import {
   type EidosFileFormulaInputRef,
 } from "./eidos-file-formula-composer"
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
   Button,
@@ -80,6 +81,7 @@ export function EidosFileFormulaEditorPopover({
     useState<EidosFileFormulaResultType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
   const [saving, setSaving] = useState(false)
+  useEidosFilePendingEdit(open || embedded || saving)
   const [error, setError] = useState<string | null>(null)
   const sessionKey = field
     ? `${field.tableName}:${field.tableColumnName}`
@@ -280,6 +282,7 @@ export function EidosFileLookupEditorPopover({
   const [targetField, setTargetField] = useState("")
   const [aggregate, setAggregate] = useState<EidosFileLookupAggregate>("first")
   const [saving, setSaving] = useState(false)
+  useEidosFilePendingEdit(open || embedded || saving)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {

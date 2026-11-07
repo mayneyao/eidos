@@ -66,6 +66,7 @@ lerna-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.artifacts/release-media/
 
 node_modules
 dev-dist

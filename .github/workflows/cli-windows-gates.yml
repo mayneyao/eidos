@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/cli-windows-gates.yml"
+      - ".node-version"
+      - "scripts/fixtures/mobile-custom-sync-server.mjs"
+      - "scripts/fixtures/graft-remote/**"
       - ".github/workflows/build-and-release-cli.yml"
       - "apps/cli/**"
       - "apps/plugin-sandbox/**"
@@ -23,6 +26,9 @@ on:
       - dev
     paths:
       - ".github/workflows/cli-windows-gates.yml"
+      - ".node-version"
+      - "scripts/fixtures/mobile-custom-sync-server.mjs"
+      - "scripts/fixtures/graft-remote/**"
       - ".github/workflows/build-and-release-cli.yml"
       - "apps/cli/**"
       - "apps/plugin-sandbox/**"
@@ -51,6 +57,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Setup Node.js for native test fixture
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -61,6 +72,12 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+
+      - name: Prepare pinned Graft test fixture
+        run: npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
+
+      - name: Check pinned Graft test fixture
+        run: node scripts/fixtures/mobile-custom-sync-server.mjs --check
 
       - name: Run tests
         run: cargo test --workspace --locked --features eidos-mobile-host/ffi

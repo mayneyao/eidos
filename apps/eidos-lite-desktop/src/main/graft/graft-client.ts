@@ -101,6 +101,7 @@ interface GraftRemoteOperationOptions {
   signal?: AbortSignal
   onProgress?: (progress: GraftTransferProgress) => void
   forCheckout?: boolean
+  automaticTransfer?: true
 }
 
 interface GraftMergeMutationOptions {
@@ -947,10 +948,13 @@ function mergeVersionDiffs(
 export class GraftClient {
   private originEncrypted = false
   async encryptedSyncStatus(
-    root: string
+    root: string,
+    options: GraftRemoteOperationOptions = {}
   ): Promise<{ state: "locked" | "unlocked" } | undefined> {
-    if (!(await this.isEncryptedRemote(root))) return undefined
-    const value = record(await this.runSdk(root, "encryptedSyncStatus"))
+    if (!(await this.isEncryptedRemote(root, options))) return undefined
+    const value = record(
+      await this.runSdk(root, "encryptedSyncStatus", [], options)
+    )
     return { state: value.state === "unlocked" ? "unlocked" : "locked" }
   }
   lockEncryptedSync(root: string): Promise<unknown> {
@@ -986,8 +990,11 @@ export class GraftClient {
     }
   }
 
-  async isEncryptedRemote(root: string): Promise<boolean> {
-    const value = record(await this.runSdk(root, "listRemotes"))
+  async isEncryptedRemote(
+    root: string,
+    options: GraftRemoteOperationOptions = {}
+  ): Promise<boolean> {
+    const value = record(await this.runSdk(root, "listRemotes", [], options))
     return (
       Array.isArray(value.remotes) &&
       value.remotes.some(
@@ -1336,8 +1343,12 @@ export class GraftClient {
     }
   }
 
-  async commit(root: string, message: string): Promise<GraftCommitResult> {
-    const value = record(await this.runSdk(root, "commit", [message]))
+  async commit(
+    root: string,
+    message: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftCommitResult> {
+    const value = record(await this.runSdk(root, "commit", [message], options))
     const id = stringValue(record(value.commit).id) ?? stringValue(value.id)
     if (!id || !/^[0-9a-f]{64}$/i.test(id)) {
       throw new Error("Graft did not return the saved checkpoint id")

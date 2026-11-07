@@ -218,6 +218,7 @@ function installHost(overrides: Record<string, unknown>) {
     getAccountStatus: async () => ({ signedIn: false }),
     getUpdateStatus: async () => ({ state: "idle" }),
     getSyncQueueStatus: async () => null,
+    setSyncDraftState: vi.fn(),
     getSyncMergeStatus: async () => ({ ok: true, value: { state: "none" } }),
     takeLaunchEidosFile: async () => null,
     getPluginInstallIntent: async () => null,
@@ -233,6 +234,205 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+it("keeps typing during an automatic local apply and delayed preview refresh with its old revision", async () => {
+  let changed!: (snapshot: SpaceSnapshot) => void
+  let finishPreview!: (preview: TextFilePreviewResult) => void
+  const preview = vi
+    .fn()
+    .mockResolvedValueOnce(initial)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishPreview = resolve
+        })
+    )
+  const save = vi.fn()
+  const reportDrafts = vi.fn()
+  installHost({
+    previewTextFile: preview,
+    saveTextFile: save,
+    setSyncDraftState: reportDrafts,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe(initial.content)
+  )
+  await act(async () =>
+    changed({
+      ...staleSpace,
+      operation: { phase: "materializing", recoverable: true },
+    })
+  )
+  await act(async () =>
+    surface.mock.lastCall![0].onChange("# Typed while applying")
+  )
+  await act(async () =>
+    changed({ ...staleSpace, materializedPaths: [oldPath] })
+  )
+  await vi.waitFor(() => expect(preview).toHaveBeenCalledTimes(2))
+  await act(async () =>
+    surface.mock.lastCall![0].onChange(
+      "# Typed while applying\nAnd during refresh"
+    )
+  )
+  await act(async () =>
+    finishPreview({ ...initial, content: "# Remote", revision: "remote-two" })
+  )
+  expect(surface.mock.lastCall?.[0].content).toBe(
+    "# Typed while applying\nAnd during refresh"
+  )
+  expect(host.textContent).toContain("Changed on disk")
+  expect(textDraftLifecycle.getDraft(oldPath)).toEqual({
+    content: "# Typed while applying\nAnd during refresh",
+    revision: "one",
+  })
+  expect(reportDrafts).toHaveBeenLastCalledWith("s", true)
+  await act(async () =>
+    host
+      .querySelector("[data-text-file-editor]")!
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })
+      )
+  )
+  expect(save).not.toHaveBeenCalled()
+  textDraftLifecycle.update(oldPath, null)
+})
+
+it("rebases a clean editor after automatic receive so its next save uses the new disk revision", async () => {
+  let changed!: (snapshot: SpaceSnapshot) => void
+  const remote = { ...initial, content: "# Remote", revision: "remote-two" }
+  const preview = vi
+    .fn()
+    .mockResolvedValueOnce(initial)
+    .mockResolvedValueOnce(remote)
+  const save = vi.fn(async () => ({
+    status: "saved",
+    file: { ...remote, content: "# Remote edited", revision: "three" },
+  }))
+  installHost({
+    previewTextFile: preview,
+    saveTextFile: save,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe(initial.content)
+  )
+  await act(async () =>
+    changed({ ...staleSpace, materializedPaths: [oldPath] })
+  )
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe("# Remote")
+  )
+  await act(async () => surface.mock.lastCall![0].onChange("# Remote edited"))
+  await act(async () =>
+    host
+      .querySelector("[data-text-file-editor]")!
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })
+      )
+  )
+  expect(save).toHaveBeenCalledWith({
+    relativePath: oldPath,
+    content: "# Remote edited",
+    expectedRevision: "remote-two",
+  })
+  expect(host.textContent).not.toContain("Changed on disk")
+})
+
+it("discards a delayed automatic preview after the user navigates to another file", async () => {
+  let changed!: (snapshot: SpaceSnapshot) => void
+  let finish!: (preview: TextFilePreviewResult) => void
+  const other = {
+    ...initial,
+    relativePath: "other.md",
+    content: "# Other",
+    revision: "other",
+  }
+  const preview = vi
+    .fn()
+    .mockResolvedValueOnce(initial)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    .mockResolvedValueOnce(other)
+  installHost({
+    previewTextFile: preview,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe(initial.content)
+  )
+  await act(async () =>
+    changed({ ...staleSpace, materializedPaths: [oldPath] })
+  )
+  await vi.waitFor(() => expect(preview).toHaveBeenCalledTimes(2))
+  await act(async () => navigateCurrentWindow("other.md"))
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe("# Other")
+  )
+  await act(async () =>
+    finish({ ...initial, content: "# Remote", revision: "remote-two" })
+  )
+  expect(surface.mock.lastCall?.[0].content).toBe("# Other")
+})
+
+it("keeps a recoverable text draft when an automatic receive deletes its file", async () => {
+  let changed!: (snapshot: SpaceSnapshot) => void
+  const preview = vi
+    .fn()
+    .mockResolvedValueOnce(initial)
+    .mockRejectedValueOnce(new Error("File no longer exists"))
+  installHost({
+    previewTextFile: preview,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(surface.mock.lastCall?.[0].content).toBe(initial.content)
+  )
+  await act(async () =>
+    changed({
+      ...staleSpace,
+      operation: { phase: "materializing", recoverable: true },
+    })
+  )
+  await act(async () => surface.mock.lastCall![0].onChange("# Keep my draft"))
+  await act(async () =>
+    changed({
+      ...staleSpace,
+      entries: staleSpace.entries.filter(
+        (entry) => entry.relativePath !== oldPath
+      ),
+      materializedPaths: [oldPath],
+    })
+  )
+  await vi.waitFor(() => expect(preview).toHaveBeenCalledTimes(2))
+  expect(textDraftLifecycle.getDraft(oldPath)).toEqual({
+    content: "# Keep my draft",
+    revision: "one",
+  })
+  expect(surface.mock.lastCall?.[0].content).toBe("# Keep my draft")
+  textDraftLifecycle.update(oldPath, null)
+})
 
 it.each(["toolbar", "recent"])(
   "shows Spark activation guidance instead of missing-file recovery when catalog creation is denied from %s",

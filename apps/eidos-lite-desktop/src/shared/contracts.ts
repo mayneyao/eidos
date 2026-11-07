@@ -215,6 +215,10 @@ export const IPC_CHANNELS = {
   syncProgress: "eidos-lite:sync-progress",
   syncQueueStatus: "eidos-lite:sync-queue-status",
   syncQueueChanged: "eidos-lite:sync-queue-changed",
+  syncDraftState: "eidos-lite:sync-draft-state",
+  syncPrepareMaterialization: "eidos-lite:sync-prepare-materialization",
+  syncReleaseMaterialization: "eidos-lite:sync-release-materialization",
+  syncMaterializationReply: "eidos-lite:sync-materialization-reply",
   syncRecoverLocal: "eidos-lite:sync-recover-local",
   syncRecoverHosted: "eidos-lite:sync-recover-hosted",
   syncMergeStatus: "eidos-lite:sync-merge-status",
@@ -734,7 +738,7 @@ export interface SpaceSnapshot {
   invalidatedSessionIds: string[]
   fileIssues?: EidosFileIssue[]
   /** Files rewritten outside their resident Runtime before this snapshot was emitted. */
-  materializedPaths?: string[]
+  materializedPaths?: string[] | null
   /** Filesystem paths observed by the Space watcher after an out-of-band write. */
   externalChangePaths?: string[]
 }
@@ -805,6 +809,7 @@ export interface EidosLiteAppInfo {
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
 export type EidosLiteLanguage = "system" | "en" | "zh"
+export type EidosLiteAutomaticSync = "off" | "interval" | "on-change"
 export type EidosLiteTerminalLayout = "bottom" | "side"
 export type EidosLiteMarkdownEditingMode = "source" | "wysiwyg"
 export type EidosLiteMarkdownCompatibilityProfile = "eidos" | "obsidian"
@@ -833,6 +838,8 @@ export interface EidosLitePreferences {
   keyboardShortcuts: EidosLiteKeyboardShortcuts
   /** Check for updates on startup; downloading always requires a user action. */
   automaticUpdates: boolean
+  /** Applies to open, already connected Spaces; transfers wait for idle time. */
+  automaticSync: EidosLiteAutomaticSync
   defaultSpaceLocation: string | null
 }
 
@@ -1254,6 +1261,7 @@ export type EidosSyncQueueState =
   | "paused"
 
 export type EidosSyncQueueTrigger =
+  | "automatic"
   | "local-checkpoint"
   | "manual"
   | "crash-recovery"
@@ -1263,6 +1271,7 @@ export interface EidosSyncQueueStatus {
   state: EidosSyncQueueState
   trigger: EidosSyncQueueTrigger | null
   attempt: number
+  /** Zero means automatic retries continue with a bounded delay. */
   maxAttempts: number
   queuedAtMs?: number
   nextAttemptAtMs?: number
@@ -2160,6 +2169,12 @@ export interface EidosLiteApi extends PluginApi {
     selection?: EidosSyncProviderSelection
   ): Promise<EidosSyncCloneResponse>
   runSync(action?: EidosSyncAction): Promise<EidosSyncRunResponse>
+  setSyncDraftState(spaceId: string | null, pending: boolean): void
+  onSyncPrepareMaterialization(
+    listener: (token: string, spaceId: string) => void
+  ): () => void
+  onSyncReleaseMaterialization(listener: (token: string) => void): () => void
+  replySyncMaterialization(token: string, allowed: boolean): void
   peerSync(
     action:
       | "start"

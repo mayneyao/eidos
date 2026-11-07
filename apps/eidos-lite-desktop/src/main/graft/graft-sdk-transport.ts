@@ -19,6 +19,7 @@ export interface GraftSdkTransport {
     options?: {
       signal?: AbortSignal
       onProgress?: (progress: GraftTransferProgress) => void
+      automaticTransfer?: true
     }
   ): Promise<unknown>
   revisionTextDiff(

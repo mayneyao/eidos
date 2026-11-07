@@ -172,6 +172,31 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.textDraftPrepareClose, handler)
   },
+  onSyncPrepareMaterialization: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      token: string,
+      spaceId: string
+    ) => listener(token, spaceId)
+    ipcRenderer.on(IPC_CHANNELS.syncPrepareMaterialization, handler)
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.syncPrepareMaterialization,
+        handler
+      )
+  },
+  onSyncReleaseMaterialization: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, token: string) =>
+      listener(token)
+    ipcRenderer.on(IPC_CHANNELS.syncReleaseMaterialization, handler)
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.syncReleaseMaterialization,
+        handler
+      )
+  },
+  replySyncMaterialization: (token, allowed) =>
+    ipcRenderer.send(IPC_CHANNELS.syncMaterializationReply, token, allowed),
   onTextDraftReleaseClose: (listener) => {
     const handler = () => listener()
     ipcRenderer.on(IPC_CHANNELS.textDraftReleaseClose, handler)
@@ -648,6 +673,8 @@ const api: EidosLiteApi = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.syncProgress, handler)
   },
   getSyncQueueStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncQueueStatus),
+  setSyncDraftState: (spaceId, pending) =>
+    ipcRenderer.send(IPC_CHANNELS.syncDraftState, spaceId, pending),
   onSyncQueueChanged: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

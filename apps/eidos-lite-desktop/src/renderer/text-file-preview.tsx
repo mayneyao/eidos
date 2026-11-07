@@ -151,6 +151,20 @@ function EditableTextFile({
   const mountedRef = useRef(true)
 
   useRendererLayoutEffect(() => {
+    if (preview.revision !== revisionRef.current) {
+      if (draft || draftRef.current !== savedRef.current) {
+        // A Sync refresh can finish after the user starts typing. Preserve the
+        // text and its old compare-and-swap revision, and expose the same
+        // conflict recovery as a save against a changed file.
+        conflictRef.current = preview
+        setState("conflict")
+        setError(null)
+        return
+      }
+      savedRef.current = preview.content
+      revisionRef.current = preview.revision
+      conflictRef.current = null
+    }
     const content = draft?.content ?? preview.content
     if (content === draftRef.current) return
     draftRef.current = content
@@ -163,7 +177,7 @@ function EditableTextFile({
           ? "saved"
           : "dirty"
     )
-  }, [draft?.content, preview.content])
+  }, [draft?.content, preview.content, preview.revision])
 
   useEffect(() => {
     mountedRef.current = true

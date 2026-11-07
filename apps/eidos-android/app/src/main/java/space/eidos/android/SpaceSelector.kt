@@ -64,6 +64,10 @@ internal fun SpaceSelector(state: AppState, model: EidosModel) {
                     creating = true
                 },
             )
+            if (state.pendingClone != null) DropdownMenuItem(
+                text = { Text(tr("继续未完成的下载")) },
+                onClick = { menu = false; recovering = true },
+            )
         }
     }
     if (deleting) AlertDialog(

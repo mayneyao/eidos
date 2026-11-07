@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { useMobileBack } from "./mobile-back"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
@@ -619,6 +620,9 @@ export function EidosFileRecordInspector({
     : ""
   const [contentMode, setContentMode] = useState<"preview" | "edit">("preview")
   const [contentDraft, setContentDraft] = useState(contentValue)
+  useEidosFilePendingEdit(
+    savingField !== null || failedEdit !== null || contentDraft !== contentValue
+  )
   const [contentFocusToken, setContentFocusToken] = useState(0)
   const directWysiwygContent =
     variant === "page" &&

@@ -91,6 +91,13 @@ struct SyncView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        CustomSyncView(space: space, spaceName: spaceName, onChange: onChange, onDownloaded: onDownloaded)
+                    } label: {
+                        Label(tr("自定义服务器"), systemImage: "server.rack")
+                    }.accessibilityIdentifier("custom-server-entry").disabled(busy)
+                } footer: { Text(tr("使用自己部署的 Graft 服务器，无需登录账号。")) }
                 if devices.isEmpty { Section {
                     VStack(alignment: .leading, spacing: 20) {
                         if devices.isEmpty { pairingIntro }

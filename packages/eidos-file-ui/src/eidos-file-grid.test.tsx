@@ -17,6 +17,7 @@ import {
 } from "@eidos.space/eidos-file"
 import {
   CompactSelection,
+  getDefaultTheme,
   GridCellKind,
   type DataEditorProps,
   type EditableGridCell,
@@ -25,8 +26,13 @@ import {
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { AutomaticMaterializationFence } from "../../../apps/eidos-lite-desktop/src/renderer/automatic-materialization"
 import { EidosFileUIProvider } from "./context"
-import { EidosFileGrid, type EidosFileGridRowEdit } from "./eidos-file-grid"
+import {
+  EidosFileGrid,
+  type EidosFileGridAppendResult,
+  type EidosFileGridRowEdit,
+} from "./eidos-file-grid"
 import { EidosFileEditorShell } from "./eidos-file-editor-shell"
 import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 import {
@@ -2815,6 +2821,204 @@ describe("EidosFileGrid", () => {
       kind: GridCellKind.Text,
       data: "Row 250",
     })
+  })
+
+  it.each(["resolve", "reject"] as const)(
+    "keeps automatic materialization blocked after the append overlay closes until create %ss",
+    async (outcome) => {
+      const fence = new AutomaticMaterializationFence(() => {})
+      let resolve!: (result: EidosFileRowMutationResult) => void
+      let reject!: (error: Error) => void
+      const settled = new Promise<EidosFileRowMutationResult>((done, fail) => {
+        resolve = done
+        reject = fail
+      })
+      const onError = vi.fn()
+      const onAddRow = vi.fn(() => ({
+        tableId: "tasks",
+        row: { _id: "optimistic:pending" },
+        rowCount: 251,
+        settled,
+      }))
+      const pending = (id: string, value: boolean) => {
+        if (value) fence.pending.add(id)
+        else fence.pending.delete(id)
+      }
+      const loadPage = createLoadPage()
+      const onCellEdit = createCellEdit()
+      const render = (overlay?: React.ReactNode) =>
+        root.render(
+          <EidosFileUIProvider onPendingEditChange={pending}>
+            <EidosFileGrid
+              table={table}
+              loadPage={loadPage}
+              onAddRow={onAddRow}
+              onCellEdit={onCellEdit}
+              onError={onError}
+            />
+            {overlay}
+          </EidosFileUIProvider>
+        )
+      try {
+        await act(async () => render())
+        expect(fence.prepare("idle", "space", "space")).toBe(true)
+        await fence.release("idle")
+        await act(async () => {
+          await mocks.props?.onRowAppended?.()
+        })
+        const cell = {
+          kind: GridCellKind.Text,
+          data: "",
+          displayData: "",
+          allowOverlay: true,
+        } as const
+        const provider = mocks.props?.provideEditor?.(cell)
+        const Editor = typeof provider === "object" ? provider.editor : provider
+        expect(Editor).toBeDefined()
+        await act(async () =>
+          render(
+            Editor && (
+              <Editor
+                value={cell}
+                onChange={() => {}}
+                onFinishedEditing={() => render()}
+                isHighlighted={false}
+                target={{ x: 0, y: 0, width: 100, height: 32 }}
+                forceEditMode={true}
+                theme={getDefaultTheme()}
+              />
+            )
+          )
+        )
+        expect(fence.prepare("overlay", "space", "space")).toBe(false)
+        // Glide cancels its overlay by unmounting the provided editor.
+        await act(async () => render())
+        expect(fence.pending.size).toBeGreaterThan(0)
+        expect(fence.prepare("creating", "space", "space")).toBe(false)
+        await act(async () => {
+          if (outcome === "resolve")
+            resolve({ tableId: "tasks", row: rowAt(250), rowCount: 251 })
+          else reject(new Error("Create failed"))
+        })
+        expect(fence.pending.size).toBe(0)
+        expect(fence.prepare("settled", "space", "space")).toBe(true)
+        await fence.release("settled")
+        expect(onError).toHaveBeenCalledTimes(outcome === "reject" ? 1 : 0)
+      } finally {
+        fence.dispose()
+      }
+    }
+  )
+
+  it("releases an outstanding create guard when the Grid is disposed", async () => {
+    const pending = new Set<string>()
+    let resolve!: (result: EidosFileRowMutationResult) => void
+    const settled = new Promise<EidosFileRowMutationResult>((done) => {
+      resolve = done
+    })
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider
+          onPendingEditChange={(id, value) => {
+            if (value) pending.add(id)
+            else pending.delete(id)
+          }}
+        >
+          <EidosFileGrid
+            table={table}
+            loadPage={createLoadPage()}
+            onAddRow={() => ({
+              tableId: "tasks",
+              row: { _id: "optimistic:dispose" },
+              rowCount: 251,
+              settled,
+            })}
+            onCellEdit={createCellEdit()}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    act(() => root.render(null))
+    expect(pending.size).toBe(0)
+    await act(async () => {
+      resolve({ tableId: "tasks", row: rowAt(250), rowCount: 251 })
+    })
+    expect(pending.size).toBe(0)
+  })
+
+  it("protects a requested append before its placeholder arrives and until every create settles", async () => {
+    const pending = new Set<string>()
+    let provideFirst!: (result: EidosFileGridAppendResult) => void
+    let resolveFirst!: (result: EidosFileRowMutationResult) => void
+    let rejectSecond!: (error: Error) => void
+    const firstResult = new Promise<EidosFileGridAppendResult>((done) => {
+      provideFirst = done
+    })
+    const firstSettled = new Promise<EidosFileRowMutationResult>((done) => {
+      resolveFirst = done
+    })
+    const secondSettled = new Promise<EidosFileRowMutationResult>((_, fail) => {
+      rejectSecond = fail
+    })
+    const onError = vi.fn()
+    const onAddRow = vi
+      .fn()
+      .mockReturnValueOnce(firstResult)
+      .mockReturnValueOnce({
+        tableId: "tasks",
+        row: { _id: "optimistic:second" },
+        rowCount: 252,
+        settled: secondSettled,
+      })
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider
+          onPendingEditChange={(id, value) => {
+            if (value) pending.add(id)
+            else pending.delete(id)
+          }}
+        >
+          <EidosFileGrid
+            table={table}
+            loadPage={createLoadPage()}
+            onAddRow={onAddRow}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    let appended: ReturnType<NonNullable<DataEditorProps["onRowAppended"]>>
+    act(() => {
+      appended = mocks.props?.onRowAppended?.()
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    expect(mocks.props?.rows).toBe(250)
+    await act(async () => {
+      provideFirst({
+        tableId: "tasks",
+        row: { _id: "optimistic:first" },
+        rowCount: 251,
+        settled: firstSettled,
+      })
+      await appended
+      await mocks.props?.onRowAppended?.()
+    })
+    expect(mocks.props?.rows).toBe(252)
+    await act(async () => {
+      resolveFirst({ tableId: "tasks", row: rowAt(250), rowCount: 251 })
+    })
+    expect(pending.size).toBeGreaterThan(0)
+    await act(async () => {
+      rejectSecond(new Error("Second create failed"))
+    })
+    expect(pending.size).toBe(0)
+    expect(mocks.props?.rows).toBe(251)
+    expect(onError).toHaveBeenCalledTimes(1)
   })
 
   it("renders and edits a new row before its authoritative insert settles", async () => {

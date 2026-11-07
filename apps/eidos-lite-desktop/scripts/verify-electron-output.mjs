@@ -3,7 +3,9 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const outputRoot = path.join(appRoot, "dist-electron")
+const outputRoot = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(appRoot, "dist-electron")
 
 const fixedFiles = new Set([
   "contracts.ts",
@@ -17,6 +19,8 @@ const fixedFiles = new Set([
 ])
 const chunkNames = [
   "application",
+  "automatic-sync",
+  "automatic-sync-electron-smoke",
   "compiler",
   "dist",
   "encrypted-staging-smoke",
@@ -32,6 +36,7 @@ const chunkNames = [
   "space-paths",
   "space-session",
   "sync-encryption",
+  "sync-failure",
   "terminal-session-manager",
   "text-draft-copy",
   "updater",
@@ -58,7 +63,9 @@ for (const fileName of fixedFiles) {
 
 const matchedChunks = new Set()
 for (const chunkName of chunkNames) {
-  const pattern = new RegExp(`^${chunkName}-[A-Za-z0-9_-]+\\.js$`)
+  // Vite's pinned [hash] output uses eight characters. Keeping that boundary
+  // also prevents automatic-sync from matching its longer smoke chunk name.
+  const pattern = new RegExp(`^${chunkName}-[A-Za-z0-9_-]{8}\\.js$`)
   const matches = files.filter((fileName) => pattern.test(fileName))
   if (matches.length !== 1) {
     errors.push(

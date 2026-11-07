@@ -24,6 +24,8 @@ interface PendingRequest {
   operation: string
   repositoryKey: string | null
   startedAtMs: number
+  automaticTransfer?: boolean
+  cancelled?: boolean
   onProgress?: (progress: GraftTransferProgress) => void
   cleanup(): void
   resolve(value: unknown): void
@@ -36,7 +38,7 @@ interface GraftUtilityTransportOptions {
 
 function isWorkerResponse(
   value: unknown
-): value is Exclude<GraftSdkWorkerResponse, { type: "progress" }> {
+): value is Extract<GraftSdkWorkerResponse, { ok: boolean }> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -66,6 +68,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   private pending = new Map<number, PendingRequest>()
   private nextRequestId = 1
   private readonly expectedExits = new WeakSet<UtilityProcess>()
+  private readonly cancelledExits = new WeakSet<UtilityProcess>()
   private openInFlight: Promise<void> | null = null
   target: string | null = null
 
@@ -118,6 +121,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     options: {
       signal?: AbortSignal
       onProgress?: (progress: GraftTransferProgress) => void
+      automaticTransfer?: true
     } = {}
   ): Promise<unknown> {
     if (!this.child) {
@@ -129,6 +133,10 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         type: "command",
         command,
         args,
+        ...(options.automaticTransfer &&
+        ["fetch", "fetchForCheckout", "push"].includes(command)
+          ? { automaticTransfer: true }
+          : {}),
       },
       options.signal,
       options.onProgress
@@ -263,7 +271,8 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     child.stderr?.once("end", stderrLines.end)
     child.on("message", (message) => this.receive(child, message))
     child.on("exit", (code) => {
-      const expected = this.expectedExits.has(child)
+      const cancelledTransfer = this.cancelledExits.has(child)
+      const expected = this.expectedExits.has(child) || cancelledTransfer
       eidosLiteLogger()?.record(
         expected ? "info" : "error",
         "graft-worker",
@@ -275,18 +284,20 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         }
       )
       if (this.child === child) this.child = null
-      const error = Object.assign(
-        new Error(
-          expected
-            ? "Graft SDK utility process closed"
-            : `Graft SDK utility process crashed with exit code ${code}`
-        ),
-        {
-          code: expected
-            ? "EIDOS_LITE_GRAFT_WORKER_CLOSED"
-            : "EIDOS_LITE_GRAFT_WORKER_CRASHED",
-        }
-      )
+      const error = cancelledTransfer
+        ? abortError()
+        : Object.assign(
+            new Error(
+              expected
+                ? "Graft SDK utility process closed"
+                : `Graft SDK utility process crashed with exit code ${code}`
+            ),
+            {
+              code: expected
+                ? "EIDOS_LITE_GRAFT_WORKER_CLOSED"
+                : "EIDOS_LITE_GRAFT_WORKER_CRASHED",
+            }
+          )
       for (const [requestId, pending] of this.pending) {
         if (pending.child !== child) continue
         pending.cleanup()
@@ -335,6 +346,8 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     return new Promise((resolve, reject) => {
       const cancel = () => {
         if (this.child === child) {
+          const pending = this.pending.get(request.requestId)
+          if (pending) pending.cancelled = true
           child.postMessage({ type: "cancel", requestId: request.requestId })
         }
       }
@@ -345,6 +358,8 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         operation,
         repositoryKey,
         startedAtMs,
+        automaticTransfer:
+          request.type === "command" && request.automaticTransfer === true,
         onProgress,
         cleanup,
         resolve,
@@ -355,6 +370,29 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   }
 
   private receive(child: UtilityProcess, message: unknown): void {
+    // Once the worker has sealed admission and committed to retirement, even a
+    // late native success must wait for real process exit and lock release.
+    if (this.cancelledExits.has(child)) return
+    if (
+      typeof message === "object" &&
+      message !== null &&
+      "type" in message &&
+      message.type === "automatic-cancel-retiring" &&
+      "requestId" in message &&
+      typeof message.requestId === "number"
+    ) {
+      const pending = this.pending.get(message.requestId)
+      if (
+        this.child === child &&
+        pending?.child === child &&
+        pending.automaticTransfer &&
+        pending.cancelled
+      ) {
+        this.cancelledExits.add(child)
+        child.kill()
+      }
+      return
+    }
     if (isWorkerProgress(message)) {
       const pending = this.pending.get(message.requestId)
       if (pending?.child === child) pending.onProgress?.(message.progress)

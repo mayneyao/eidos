@@ -13,6 +13,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react"
 import { flushSync } from "react-dom"
+import { AutomaticMaterializationFence } from "./automatic-materialization"
 import {
   TreeExpansionMenu,
   type TreeExpansionActions,
@@ -865,6 +866,11 @@ function WorkspaceApp({
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const textPreviewIdentity = useRef("")
+  textPreviewIdentity.current = textPreview
+    ? `${textPreview.relativePath}:${textPreview.type === "text" ? textPreview.revision : textPreview.modifiedAtMs}`
+    : ""
+  const materializedPreviewRequest = useRef(0)
   const [textPreviewEditingMode, setTextPreviewEditingMode] =
     useState<EidosLiteMarkdownEditingMode>(
       DEFAULT_RENDERER_PREFERENCES.markdownFileEditingMode
@@ -977,6 +983,33 @@ function WorkspaceApp({
   })
   const [versionRefreshKey, setVersionRefreshKey] = useState(0)
   const [fileMaterializationKey, setFileMaterializationKey] = useState(0)
+  const [automaticMaterializationLocked, setAutomaticMaterializationLocked] =
+    useState(false)
+  const [automaticSyncMode, setAutomaticSyncMode] = useState(
+    DEFAULT_RENDERER_PREFERENCES.automaticSync
+  )
+  const [eidosPendingEdits, setEidosPendingEdits] = useState(false)
+  const materializationSpaceId = useRef<string | null>(null)
+  const automaticMaterializationFence = useMemo(
+    () =>
+      new AutomaticMaterializationFence((locked) => {
+        flushSync(() => setAutomaticMaterializationLocked(locked))
+      }),
+    []
+  )
+  const updateEidosPendingEdit = useCallback(
+    (editorId: string, pending: boolean) => {
+      const edits = automaticMaterializationFence.pending
+      if (pending) edits.add(editorId)
+      else edits.delete(editorId)
+      setEidosPendingEdits(edits.size > 0)
+    },
+    [automaticMaterializationFence]
+  )
+  useLayoutEffect(() => {
+    automaticMaterializationFence.connect()
+    return () => automaticMaterializationFence.dispose()
+  }, [automaticMaterializationFence])
   const [externalFileRefreshToken, setExternalFileRefreshToken] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
@@ -1052,7 +1085,7 @@ function WorkspaceApp({
     explorerDirectory
       ? (explorerDirectoryEntry?.children ?? [])
       : (space?.entries ?? []),
-    space?.externalChangePaths ?? space?.materializedPaths
+    space?.externalChangePaths ?? space?.materializedPaths ?? undefined
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
@@ -1245,6 +1278,7 @@ function WorkspaceApp({
 
   useEffect(() => {
     const acceptPreferences = (preferences: EidosLitePreferences) => {
+      setAutomaticSyncMode(preferences.automaticSync)
       const previousTerminalPreferences = acceptedTerminalPreferencesRef.current
       const legacyLayout = previousTerminalPreferences
         ? null
@@ -1460,6 +1494,16 @@ function WorkspaceApp({
 
   const acceptSpaceSnapshot = useCallback(
     (snapshot: SpaceSnapshot) => {
+      if (
+        materializationSpaceId.current &&
+        materializationSpaceId.current !== snapshot.id
+      ) {
+        automaticMaterializationFence.dispose()
+        automaticMaterializationFence.connect()
+        setAutomaticMaterializationLocked(false)
+        setEidosPendingEdits(false)
+      }
+      materializationSpaceId.current = snapshot.id
       setSpace(snapshot)
       const activeIssue = snapshot.fileIssues?.find(
         (issue) => issue.sessionId === activeSession
@@ -1467,7 +1511,7 @@ function WorkspaceApp({
       if (activeIssue) setFileIssue(activeIssue)
       invalidateCachedSessions(snapshot.invalidatedSessionIds)
     },
-    [activeSession, invalidateCachedSessions]
+    [activeSession, invalidateCachedSessions, automaticMaterializationFence]
   )
 
   const refreshCachedEidosFiles = useCallback(
@@ -1494,6 +1538,16 @@ function WorkspaceApp({
             : []
         )
       )
+      // An admitted automatic receive started with clean shared editors. If a
+      // replacement cannot reopen, retire that cached editor instead of letting
+      // it write its stale rows into the newly materialized Runtime.
+      if (automaticMaterializationFence.locked) {
+        invalidateCachedSessions(
+          results.flatMap((result, index) =>
+            result.status === "rejected" ? [candidates[index]!.sessionId] : []
+          )
+        )
+      }
       setCachedFiles((current) =>
         current.flatMap((file) => {
           if (invalidated.has(file.sessionId)) return []
@@ -1521,7 +1575,12 @@ function WorkspaceApp({
       }
       return refreshed.size > 0
     },
-    [acceptSpaceSnapshot, cachedFiles]
+    [
+      acceptSpaceSnapshot,
+      cachedFiles,
+      automaticMaterializationFence,
+      invalidateCachedSessions,
+    ]
   )
 
   const refreshMaterializedFiles = useCallback(
@@ -1545,24 +1604,30 @@ function WorkspaceApp({
       )
       if (refreshed) setFileMaterializationKey((current) => current + 1)
       const materialized = materializedPaths ? new Set(materializedPaths) : null
-      if (materialized && materialized.size > 0) {
-        setTextFileDrafts((current) => {
-          const next = { ...current }
-          for (const relativePath of materialized) delete next[relativePath]
-          return next
-        })
-      }
+      // Input can arrive after a non-interruptible local apply began, including
+      // while this preview read is pending. Keep every draft and its original
+      // revision so the refreshed editor exposes the existing save conflict.
       if (
         textPreview &&
         (!materialized || materialized.has(textPreview.relativePath))
       ) {
+        const request = ++materializedPreviewRequest.current
+        const identity = textPreviewIdentity.current
+        const stillCurrent = () =>
+          request === materializedPreviewRequest.current &&
+          identity === textPreviewIdentity.current &&
+          titleActionRef.current.spaceId === snapshot.id &&
+          titleActionRef.current.path === textPreview.relativePath
         try {
           const preview = await window.eidosLite.previewTextFile(
             textPreview.relativePath
           )
           await prepareTextFilePreview(preview, textPreviewEditingMode)
+          if (!stillCurrent()) return
           setTextPreview(preview)
         } catch {
+          if (!stillCurrent()) return
+          if (textDraftLifecycle.getDraft(textPreview.relativePath)) return
           // Discarding a newly added or renamed file can intentionally remove
           // the path that was being previewed. Return to the Space landing
           // state instead of keeping stale text or surfacing a false error.
@@ -1612,8 +1677,10 @@ function WorkspaceApp({
     const stop = window.eidosLite.onSpaceChanged((snapshot) => {
       receivedSpace = true
       setInitialSpaceOpening(false)
-      if (snapshot.materializedPaths?.length) {
-        void refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
+      if (snapshot.materializedPaths !== undefined) {
+        void automaticMaterializationFence.trackRefresh(
+          refreshMaterializedFiles(snapshot, snapshot.materializedPaths)
+        )
         return
       }
       if (snapshot.externalChangePaths !== undefined) {
@@ -1925,6 +1992,49 @@ function WorkspaceApp({
     },
     []
   )
+
+  useEffect(() => {
+    // Include drafts in background tabs. Tag the report with its Space so a
+    // delayed report from a released Space cannot admit a replacement Space.
+    window.eidosLite.setSyncDraftState?.(
+      space?.id ?? null,
+      Object.keys(textFileDrafts).length > 0 || eidosPendingEdits
+    )
+  }, [space?.id, textFileDrafts, eidosPendingEdits])
+
+  useEffect(() => {
+    const api = window.eidosLite
+    if (!api.onSyncPrepareMaterialization) return
+    const stopPrepare = api.onSyncPrepareMaterialization((token, spaceId) => {
+      api.replySyncMaterialization(
+        token,
+        automaticMaterializationFence.prepare(token, space?.id ?? null, spaceId)
+      )
+    })
+    const stopRelease = api.onSyncReleaseMaterialization((token) => {
+      void automaticMaterializationFence.release(token, async () => {
+        // A local apply may succeed before the main-process shell snapshot
+        // fails. No materialized event then arrives. Refresh explicitly before
+        // admitting input; if it still cannot read, retire the clean editors.
+        try {
+          const snapshot = await api.refreshSpace()
+          if (!snapshot || snapshot.id !== space?.id)
+            throw new Error("The Space changed while refreshing Sync")
+          await refreshMaterializedFiles(snapshot)
+        } catch (cause) {
+          setCachedFiles([])
+          setActiveSession(null)
+          setError(
+            `Space files changed, but the editor could not refresh. Reopen the file to continue. ${errorMessage(cause)}`
+          )
+        }
+      })
+    })
+    return () => {
+      stopPrepare()
+      stopRelease()
+    }
+  }, [automaticMaterializationFence, space?.id, refreshMaterializedFiles])
 
   useEffect(() => {
     const api = window.eidosLite
@@ -3727,6 +3837,14 @@ function WorkspaceApp({
     syncMergeStatus.state === "merging" ? syncMergeStatus.unmergedCount : 0
   const syncBadgeCount = mergeConflictCount || space.graft.sync?.ahead || 0
   const hostedSyncQueueStatus = space.graft.sync ? syncQueueStatus : null
+  const automaticDraftsWaiting =
+    automaticSyncMode !== "off" &&
+    Boolean(space.graft.sync) &&
+    (eidosPendingEdits || Object.keys(textFileDrafts).length > 0)
+  const hostedSyncLabel =
+    automaticDraftsWaiting && hostedSyncQueueStatus?.state !== "running"
+      ? t("Automatic Sync is waiting for unsubmitted edits")
+      : syncQueueLabel(hostedSyncQueueStatus)
   const versionChangeCount =
     syncMergeStatus.state !== "merging" &&
     space.graft.initialized &&
@@ -4236,28 +4354,6 @@ function WorkspaceApp({
           {isSidebarUpdateVisible(updateStatus) ? (
             <SidebarUpdateAction
               status={updateStatus}
-              label={
-                updateStatus.state === "available"
-                  ? t("Download update")
-                  : updateStatus.state === "downloading"
-                    ? t("Downloading {percent}%", {
-                        percent: Math.round(updateStatus.progressPercent ?? 0),
-                      })
-                    : t("Restart to update")
-              }
-              description={
-                updateStatus.state === "available"
-                  ? t("Update {version} is available.", {
-                      version: updateStatus.version ?? "",
-                    })
-                  : updateStatus.state === "downloading"
-                    ? t("Downloading update… {percent}%", {
-                        percent: Math.round(updateStatus.progressPercent ?? 0),
-                      })
-                    : t("Version {version} is ready to install.", {
-                        version: updateStatus.version ?? "",
-                      })
-              }
               onDownload={() => void window.eidosLite.downloadUpdate()}
               onRestart={() => void window.eidosLite.restartToInstallUpdate()}
             />
@@ -4549,13 +4645,14 @@ function WorkspaceApp({
               className="icon-button titlebar-tool-button"
               data-titlebar-action="sync"
               data-sync-queue-state={hostedSyncQueueStatus?.state ?? "idle"}
+              data-sync-drafts-pending={automaticDraftsWaiting || undefined}
               aria-pressed={syncPanelMode === "enable"}
               aria-label={
                 mergeConflictCount > 0
                   ? `Sync, ${mergeConflictCount} unresolved conflicts`
                   : syncBadgeCount > 0
                     ? t("{count} versions to upload", { count: syncBadgeCount })
-                    : syncQueueLabel(hostedSyncQueueStatus)
+                    : hostedSyncLabel
               }
               aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
                 "toggle-sync",
@@ -4566,7 +4663,7 @@ function WorkspaceApp({
               title={shortcutTitle(
                 syncBadgeCount > 0 && mergeConflictCount === 0
                   ? t("{count} versions to upload", { count: syncBadgeCount })
-                  : syncQueueLabel(hostedSyncQueueStatus),
+                  : hostedSyncLabel,
                 syncShortcutLabel
               )}
             >
@@ -5009,6 +5106,7 @@ function WorkspaceApp({
                     }
                   >
                     <EidosFileWorkbench
+                      onPendingEditChange={updateEidosPendingEdit}
                       onOpenFileInSidebar={openFileInSidebar}
                       onOpenSpaceFile={async (path) => {
                         const entry = findSpaceEntry(space.entries, path) ?? {
@@ -5113,7 +5211,10 @@ function WorkspaceApp({
                         }
                         recordNavigationLocation(location)
                       }}
-                      disabled={localInteractionBlocked}
+                      disabled={
+                        localInteractionBlocked ||
+                        automaticMaterializationLocked
+                      }
                       theme={theme}
                       weekStartsOnMonday={weekStartsOnMonday}
                       timeZone={timeZone === "system" ? undefined : timeZone}

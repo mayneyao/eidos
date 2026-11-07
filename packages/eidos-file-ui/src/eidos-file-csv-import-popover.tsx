@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFilePendingEdit } from "./use-pending-edit"
 import {
   eidosFileFieldTypeOptions,
   EidosFileFieldTypeIcon,
@@ -180,6 +181,7 @@ export function EidosFileCsvImportPopover({
     : t("Table and field names cannot be empty")
   const displayedError = namingError ?? error
   const busy = selecting || validating || importing
+  useEidosFilePendingEdit(open || busy || canceling)
 
   const startPreview = useCallback(
     async (

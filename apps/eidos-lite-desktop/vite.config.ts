@@ -87,6 +87,19 @@ const aliases = [
 ]
 
 export default defineConfig(({ mode, command }) => {
+  const capturePort = process.env.EIDOS_LITE_CAPTURE_CDP_PORT
+  if (
+    capturePort &&
+    (command !== "serve" ||
+      !/^\d+$/.test(capturePort) ||
+      Number(capturePort) < 1024 ||
+      Number(capturePort) > 65535 ||
+      !path.isAbsolute(process.env.EIDOS_LITE_DEV_USER_DATA ?? ""))
+  ) {
+    throw new Error(
+      "Capture debugging requires a development server, a valid port and an isolated absolute EIDOS_LITE_DEV_USER_DATA"
+    )
+  }
   // Forward an explicit local SDK choice to Electron and its utility workers.
   // Keep local development configuration out of packaged builds.
   if (command === "serve") {
@@ -130,6 +143,17 @@ export default defineConfig(({ mode, command }) => {
       tailwindcss(),
       electron({
         main: {
+          ...(capturePort
+            ? {
+                onstart({ startup }) {
+                  void startup([
+                    ".",
+                    "--no-sandbox",
+                    `--remote-debugging-port=${capturePort}`,
+                  ])
+                },
+              }
+            : {}),
           entry: [
             "src/main/main.ts",
             "src/runtime/runtime-worker.ts",

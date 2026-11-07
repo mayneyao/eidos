@@ -18,6 +18,23 @@ import {
   isSyncEncryptionAccountDomain,
 } from "../../shared/sync-encryption"
 
+// Identity reads hold no repository/runtime resources. Cancellation can leave
+// their bounded service request settling without delaying foreground work.
+function waitForUnlockRead<T>(
+  request: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  if (!signal) return request
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener("abort", abort, { once: true })
+    if (signal.aborted) abort()
+    void request
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", abort))
+  })
+}
+
 export interface RememberedSyncIdentity {
   domain: string
   account: string
@@ -533,22 +550,33 @@ export class RememberedSyncUnlocks {
   }
   private async identity(
     session: SpaceSession,
-    remote: string
+    remote: string,
+    signal?: AbortSignal
   ): Promise<RememberedSyncIdentity> {
+    signal?.throwIfAborted()
     const custom = customSyncOrigin(remote)
     const verified = custom
-      ? await this.control.syncIdentity?.(remote)
+      ? await waitForUnlockRead(
+          Promise.resolve(this.control.syncIdentity?.(remote)),
+          signal
+        )
       : undefined
     if (custom && !verified)
       throw new Error("The custom Sync identity is unavailable")
     const domain = verified?.domain ?? this.domain
     assertSyncEncryptionBinding(remote, domain)
-    const account = verified?.subject ?? (await this.control.accountSubject())
+    signal?.throwIfAborted()
+    const account =
+      verified?.subject ??
+      (await waitForUnlockRead(this.control.accountSubject(), signal))
     const context = custom
-      ? await this.control.operationContext?.(remote)
+      ? await waitForUnlockRead(
+          Promise.resolve(this.control.operationContext?.(remote)),
+          signal
+        )
       : undefined
     const repository = (
-      await this.control.repositories(context)
+      await waitForUnlockRead(this.control.repositories(context), signal)
     ).repositories.find((entry) => entry.remoteUrl === remote)
     if (!repository?.encryption)
       throw new Error("This Space has no verified encrypted identity")
@@ -646,8 +674,10 @@ export class RememberedSyncUnlocks {
   async autoUnlock(
     session: SpaceSession,
     remote: string,
-    token: string
+    token: string,
+    automatic?: { signal: AbortSignal }
   ): Promise<void> {
+    automatic?.signal.throwIfAborted()
     if (
       !isSyncEncryptionAccountDomain(this.domain) ||
       this.automaticBlocked ||
@@ -658,9 +688,23 @@ export class RememberedSyncUnlocks {
     )
       return
     const existing = this.pending.get(session.canonical.id)
-    if (existing) return existing
+    if (existing) {
+      const cancel = () =>
+        this.automaticOperations.get(session.canonical.id)?.abort()
+      automatic?.signal.addEventListener("abort", cancel, { once: true })
+      try {
+        await existing
+        automatic?.signal.throwIfAborted()
+      } finally {
+        automatic?.signal.removeEventListener("abort", cancel)
+      }
+      return
+    }
     const generation = this.captureGeneration(Boolean(customSyncOrigin(remote)))
     const operation = new AbortController()
+    const cancel = () => operation.abort(automatic?.signal.reason)
+    automatic?.signal.addEventListener("abort", cancel, { once: true })
+    const background = automatic ? { signal: operation.signal } : undefined
     this.automaticOperations.set(session.canonical.id, operation)
     this.automaticRemotes.set(session.canonical.id, remote)
     const assertCurrent = () => {
@@ -678,11 +722,14 @@ export class RememberedSyncUnlocks {
       let password: Buffer | null = null
       let unlockStarted = false
       try {
-        if (!(await session.hasEncryptedSync())) return
+        if (!(await session.hasEncryptedSync(background))) return
         assertCurrent()
-        if ((await session.encryptedSyncStatus())?.state === "unlocked") return
+        if (
+          (await session.encryptedSyncStatus(background))?.state === "unlocked"
+        )
+          return
         assertCurrent()
-        const identity = await this.identity(session, remote)
+        const identity = await this.identity(session, remote, operation.signal)
         assertCurrent()
         password = await this.store.read(identity)
         assertCurrent()
@@ -691,13 +738,21 @@ export class RememberedSyncUnlocks {
         await session.unlockEncryptedSync(
           this.input(identity, token, password),
           assertCurrent,
-          operation.signal
+          operation.signal,
+          background
         )
         assertCurrent()
         this.errors.delete(session.canonical.id)
-      } catch {
-        if (operation.signal.aborted || !this.current(session, generation)) {
+      } catch (error) {
+        const yielded =
+          automatic && error instanceof Error && error.name === "AbortError"
+        if (
+          operation.signal.aborted ||
+          !this.current(session, generation) ||
+          yielded
+        ) {
           if (unlockStarted) await session.lockEncryptedSync()
+          if (yielded) throw error
         } else {
           this.errors.set(
             session.canonical.id,
@@ -711,7 +766,9 @@ export class RememberedSyncUnlocks {
     this.pending.set(session.canonical.id, task)
     try {
       await task
+      automatic?.signal.throwIfAborted()
     } finally {
+      automatic?.signal.removeEventListener("abort", cancel)
       if (this.pending.get(session.canonical.id) === task)
         this.pending.delete(session.canonical.id)
       if (this.automaticOperations.get(session.canonical.id) === operation)

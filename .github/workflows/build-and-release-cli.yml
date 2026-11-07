@@ -60,6 +60,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
+      - name: Setup Node.js for native test fixture
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
       - name: Audit single-release notes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,6 +85,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libdbus-1-dev
           cargo clippy --workspace --all-targets --locked --features eidos-mobile-host/ffi -- -D warnings
+
+      - name: Prepare pinned Graft test fixture
+        run: |
+          npm ci --prefix scripts/fixtures/graft-remote --ignore-scripts --no-audit --no-fund
+          node scripts/fixtures/mobile-custom-sync-server.mjs --check
 
       - name: Run tests
         run: cargo test --workspace --locked --features eidos-mobile-host/ffi

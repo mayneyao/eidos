@@ -27,7 +27,8 @@ export class SyncExecutor {
     private readonly prepareEncryptedSync?: (
       session: SpaceSession,
       remote: string,
-      token: string
+      token: string,
+      automatic?: { signal: AbortSignal }
     ) => Promise<void>
   ) {
     this.injectedFailures = [...injectedFailures]
@@ -36,7 +37,11 @@ export class SyncExecutor {
   async run(
     session: SpaceSession,
     emitProgress: (progress: EidosSyncProgress) => void,
-    action: EidosSyncAction = "fetch"
+    action: EidosSyncAction = "fetch",
+    automatic?: {
+      signal: AbortSignal
+      prepareMaterialization?: () => Promise<void>
+    }
   ): Promise<EidosSyncRunResponse> {
     const tracker = new SyncRunTracker(randomUUID(), emitProgress)
     const logger = eidosLiteLogger()
@@ -60,6 +65,7 @@ export class SyncExecutor {
       tracker.transition(phase, detail)
     }
     try {
+      automatic?.signal.throwIfAborted()
       transition("authorization", "Authorizing this device and Hosted Space")
       const injectedFailure = this.injectedFailures.shift()
       if (injectedFailure) {
@@ -69,7 +75,8 @@ export class SyncExecutor {
         )
         throw createPackagedSyncFault(injectedFailure)
       }
-      const remoteUrl = await session.officialSyncRemoteUrl()
+      const remoteUrl = await session.officialSyncRemoteUrl(automatic)
+      automatic?.signal.throwIfAborted()
       custom = Boolean(remoteUrl && customSyncOrigin(remoteUrl))
       if (!remoteUrl)
         throw new Error("This Space is not connected to Eidos Sync")
@@ -77,18 +84,29 @@ export class SyncExecutor {
         typeof session.syncEncryptionUuid === "function"
           ? await session.syncEncryptionUuid()
           : undefined
-      const access = encryptionUuid
-        ? await this.syncControl.repositoryAccess(
+      const authorization = encryptionUuid
+        ? this.syncControl.repositoryAccess(
             remoteUrl,
             undefined,
             encryptionUuid
           )
-        : await this.syncControl.repositoryAccess(remoteUrl)
-      if ((await session.officialSyncRemoteUrl()) !== remoteUrl)
+        : this.syncControl.repositoryAccess(remoteUrl)
+      const access = await interruptibleAuthorization(
+        authorization,
+        automatic?.signal
+      )
+      automatic?.signal.throwIfAborted()
+      if ((await session.officialSyncRemoteUrl(automatic)) !== remoteUrl)
         throw new Error(
           "The cloud connection changed. Check its status before syncing again."
         )
-      await this.prepareEncryptedSync?.(session, remoteUrl, access.accessToken)
+      await this.prepareEncryptedSync?.(
+        session,
+        remoteUrl,
+        access.accessToken,
+        automatic
+      )
+      automatic?.signal.throwIfAborted()
       access.assertCurrent?.()
       const outcome = await session.syncHostedRemote(
         access.accessToken,
@@ -96,7 +114,8 @@ export class SyncExecutor {
         transition,
         (progress) => tracker.transfer(progress),
         action,
-        remoteUrl
+        remoteUrl,
+        automatic
       )
       access.assertCurrent?.()
       const telemetry = tracker.complete(outcome.message)
@@ -118,6 +137,12 @@ export class SyncExecutor {
         },
       }
     } catch (error) {
+      if (
+        automatic &&
+        (automatic.signal.aborted ||
+          (error instanceof Error && error.name === "AbortError"))
+      )
+        throw error
       const failure = custom
         ? classifyCustomSyncFailure(error, currentPhase)
         : classifySyncFailure(error, currentPhase)
@@ -143,4 +168,21 @@ export class SyncExecutor {
       }
     }
   }
+}
+
+// Authorization does not hold a repository lock. Let foreground/manual work
+// proceed on cancellation while the bounded, read-only access check settles.
+function interruptibleAuthorization<T>(
+  request: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  if (!signal) return request
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener("abort", abort, { once: true })
+    if (signal.aborted) abort()
+    void request
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", abort))
+  })
 }

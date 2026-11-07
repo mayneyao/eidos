@@ -8,6 +8,9 @@ use eidos_runtime_host::{
 use serde_json::{json, Value};
 
 pub mod cancellation;
+mod encrypted_sync;
+#[cfg(test)]
+mod encrypted_sync_tests;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod graft;

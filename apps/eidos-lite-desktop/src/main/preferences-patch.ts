@@ -128,6 +128,15 @@ export function eidosLitePreferencesPatch(
     }
     patch.automaticUpdates = candidate.automaticUpdates
   }
+  if ("automaticSync" in candidate) {
+    if (
+      candidate.automaticSync !== "off" &&
+      candidate.automaticSync !== "interval" &&
+      candidate.automaticSync !== "on-change"
+    )
+      throw new Error("Invalid automatic Sync preference")
+    patch.automaticSync = candidate.automaticSync
+  }
   if ("defaultSpaceLocation" in candidate) {
     if (
       candidate.defaultSpaceLocation !== null &&

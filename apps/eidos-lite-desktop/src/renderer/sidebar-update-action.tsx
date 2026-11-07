@@ -1,13 +1,12 @@
 import { Download, LoaderCircle, RotateCcw } from "lucide-react"
 
 import type { EidosLiteUpdateStatus } from "../shared/contracts"
+import { useEidosLiteI18n } from "./i18n"
 
 interface SidebarUpdateActionProps {
   status: EidosLiteUpdateStatus & {
     state: "available" | "downloading" | "downloaded"
   }
-  label: string
-  description: string
   onDownload(): void
   onRestart(): void
 }
@@ -26,13 +25,35 @@ export function isSidebarUpdateVisible(
 
 export function SidebarUpdateAction({
   status,
-  label,
-  description,
   onDownload,
   onRestart,
 }: SidebarUpdateActionProps) {
+  const { t } = useEidosLiteI18n()
   const downloading = status.state === "downloading"
   const downloaded = status.state === "downloaded"
+  const progress =
+    typeof status.progressPercent === "number" &&
+    Number.isFinite(status.progressPercent)
+      ? Math.round(Math.max(0, Math.min(100, status.progressPercent)))
+      : undefined
+  const label = downloading
+    ? progress === undefined
+      ? t("Downloading…")
+      : t("Downloading {percent}%", { percent: progress })
+    : downloaded
+      ? t("Restart to update")
+      : t("Download update")
+  const description = downloading
+    ? progress === undefined
+      ? t("Downloading update…")
+      : t("Downloading update… {percent}%", { percent: progress })
+    : downloaded
+      ? t("Version {version} is ready to install.", {
+          version: status.version ?? "",
+        })
+      : t("Update {version} is available.", {
+          version: status.version ?? "",
+        })
 
   return (
     <div
@@ -47,11 +68,29 @@ export function SidebarUpdateAction({
           aria-label={description}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(status.progressPercent ?? 0)}
+          aria-valuenow={progress}
           title={description}
         >
-          <LoaderCircle className="spin" aria-hidden="true" />
-          <span>{label}</span>
+          {progress !== undefined && progress > 0 ? (
+            <span
+              className="sidebar-update-progress-fill"
+              style={{ width: `${progress}%` }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <span className="sidebar-update-content">
+            <LoaderCircle className="spin" aria-hidden="true" />
+            {progress === undefined ? (
+              <span>{label}</span>
+            ) : (
+              <span className="sidebar-update-label">
+                <span className="sidebar-update-label-text">
+                  {t("Downloading")}
+                </span>{" "}
+                <span className="sidebar-update-percent">{progress}%</span>
+              </span>
+            )}
+          </span>
         </span>
       ) : (
         <button
@@ -61,12 +100,14 @@ export function SidebarUpdateAction({
           aria-label={`${label}. ${description}`}
           title={description}
         >
-          {downloaded ? (
-            <RotateCcw aria-hidden="true" />
-          ) : (
-            <Download aria-hidden="true" />
-          )}
-          <span>{label}</span>
+          <span className="sidebar-update-content">
+            {downloaded ? (
+              <RotateCcw aria-hidden="true" />
+            ) : (
+              <Download aria-hidden="true" />
+            )}
+            <span>{label}</span>
+          </span>
         </button>
       )}
     </div>
