@@ -7,17 +7,18 @@ Sync keeps a local copy of a Space on each device. Local files remain usable off
 
 ## Choose a sync method
 
-| What you want to do                           | Recipe                                                       | Requirements                                                     |
-| --------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- |
-| Sync a phone and computer on the same network | [LAN sync](/recipes/sync-lan/)                               | Lite, a mobile app, and the same local network; no cloud account |
-| Sync computers through the official service   | [Eidos Sync](/recipes/sync-eidos/)                           | An Eidos account with Sync access                                |
-| Sync computers through your own server        | [Connect a self-hosted server](/recipes/sync-custom-server/) | Spark activated on each computer and a compatible Graft server   |
+| What you want to do                           | Recipe                                                                | Requirements                                                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Sync a phone and computer on the same network | [LAN sync](/recipes/sync-lan/)                                        | Lite, a mobile app, and the same local network; no cloud account                             |
+| Sync computers through the official service   | [Eidos Sync](/recipes/sync-eidos/)                                    | An Eidos account with Sync access                                                            |
+| Sync computers through your own server        | [Connect a self-hosted server](/recipes/sync-custom-server/)          | Spark activated on each computer and a compatible Graft server                               |
+| Sync Android through your own server          | [Connect on Android](/recipes/sync-custom-server/#connect-on-android) | The Android app and a compatible Graft server; no Eidos account or Spark required on Android |
 
 Need a server first? Follow [Deploy Graft on Cloudflare](/recipes/deploy-graft-cloudflare/) for one-click deployment and initial setup.
 
 ## After connecting
 
-Open the Space's **Sync** panel and choose **Cloud sync** or **LAN sync**.
+In Lite, open the Space's **Sync** panel and choose **Cloud sync** or **LAN sync**.
 Under cloud sync, use **Server** to select Eidos Sync or a saved server.
 Cloud sync supports macOS, Windows, and Linux. Each Space uses one cloud service
 at a time; LAN sharing can remain enabled independently.
@@ -25,6 +26,13 @@ at a time; LAN sharing can remain enabled independently.
 **Versions** manages local changes and version history. **Sync** manages connections,
 transfers, and conflicts. After connecting, follow [Everyday cloud sync and recovery](/recipes/manage-cloud-sync/)
 to send and receive versions, resolve conflicts, or recover access.
+
+On Android, open **Sync → Custom server** to browse and download encrypted
+Spaces from your server. Enter the server access key and the Space's separate
+sync password, then use **Sync now** to send and receive versions. Follow
+[Connect on Android](/recipes/sync-custom-server/#connect-on-android) for setup,
+credential storage and disconnecting. Computers using the same server still
+require Spark in Lite.
 
 ## Automatic Sync in Lite
 
@@ -71,4 +79,5 @@ can restore a remembered password securely. Local files remain available.
 ## Keep a separate backup
 
 Sync also transfers deletions to other devices. Keep an independent [backup](/user-guide/data-safety/).
-Cloud sync's end-to-end encryption protects remote copies; it does not encrypt the local folder.
+Eidos Sync and encrypted custom-server connections protect remote copies with
+end-to-end encryption; this does not encrypt the local folder.
