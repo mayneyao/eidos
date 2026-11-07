@@ -1,44 +1,35 @@
-# Eidos Android 0.4.0
+# Eidos Android 0.5.0
 
-This update adds automatic checks for committed LAN updates and restores native
-scroll indicators in the embedded editors. Android 9 or newer is required.
+Connect encrypted Spaces to your own Graft server without an Eidos account.
+Android 9 or newer is required.
 
 ## What's new
 
-### Automatic committed updates from paired computers
+### Custom-server Sync
 
-Downloaded Spaces check for committed updates from their paired computer after
-launch, on returning to the app, and while the foreground is idle. Android also
-schedules background checks. The computer must be online on the same local
-network and run a compatible Eidos Lite version with automatic-update support.
+Open **Sync → Custom server** and enter the same HTTPS server address and access
+key used on your computer. Browse the server's encrypted Spaces, then use the
+Space's sync password to download one or connect your current local Space.
+You can also enable sync for a new Space and publish it to an empty repository.
+Use **Sync now** to send and receive versions.
 
-Only clean, fast-forward updates are applied. Unsaved drafts, open editors or
-plugin pages, local changes, conflicts and independent phone commits defer the
-update. Automatic checks never create a checkpoint, merge histories or upload
-phone changes. Use manual Sync to send changes from the phone.
+The server access key and sync password are encrypted locally with Android
+Keystore. Saved connections survive restarting the app. Disconnecting removes
+this phone's connection and credentials while keeping local files, version
+history and the server copy.
 
-## Improvements
-
-- Embedded Markdown, table and plugin views use Android WebView scroll indicators,
-  with colors that follow light and dark mode and no reserved desktop scrollbar
-  gutter. Touch scrolling remains available in nested editor panels.
-
-## Bug fixes
-
-- Exporting from the file list waits for the foreground refresh to finish when
-  returning from Android's file picker, instead of leaving an empty destination.
-  The selected file stays bound to its originating Space.
+Encrypted custom-server connections require HTTPS, except for a loopback server
+on the same device. The advanced connection for plain Graft repositories remains
+separate.
 
 ## Install and testing scope
 
-Download `eidos-android-0.4.0.apk` and verify it against `SHA256SUMS`. Install over
+Download `eidos-android-0.5.0.apk` and verify it against `SHA256SUMS`. Install over
 the previous stable APK to retain local data. Signed GitHub APKs support ARM64
 and x86-64; Google Play distribution is not configured.
 
-This release was checked with Android emulators, including an in-place upgrade
-from the public 0.3.1 APK, offline editing and the affected editor and LAN flows.
-Controlled background-worker and locked-screen tests do not prove natural
-15-minute scheduling, Doze behavior or manufacturer battery policies. Android
-may delay or stop background work; updates are not guaranteed to arrive
-immediately. Keep the app open during initial downloads and manual transfers.
-Physical devices and a full TalkBack pass were outside this round's scope.
+Custom-server testing covered encrypted transfers over real HTTPS, saved
+credentials, the native configuration screens and reopening a saved file after
+a complete app restart in an Android emulator. Physical devices, natural
+background scheduling, Doze behavior and a full TalkBack pass were outside this
+round's scope. Keep the app open during initial downloads and manual transfers.
