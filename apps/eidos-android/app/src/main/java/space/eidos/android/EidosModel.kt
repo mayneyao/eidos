@@ -8,6 +8,7 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 enum class MainTab {
@@ -91,6 +93,12 @@ data class AppState(
     val busy: Boolean = false,
     val error: String? = null,
 )
+
+internal suspend fun awaitDirectoryExportIdle(
+    state: StateFlow<AppState>,
+    timeoutMillis: Long = 30_000,
+): Boolean =
+    withTimeoutOrNull(timeoutMillis) { state.first { !it.busy && !it.peerBusy } } != null
 
 class EidosModel(application: Application, repository: SpaceRepository) :
     AndroidViewModel(application) {
@@ -1591,10 +1599,24 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         refreshFiles(includeGraft = false)
     }
 
-    fun exportDirectory(path: String, uri: Uri) = launchAction {
-        check(mutable.value.webFile == null) { tr("请先关闭编辑器") }
-        repository.exportDirectory(path, uri)
-        mutable.update { it.copy(captureNotice = tr("目录已完整导出")) }
+    fun exportDirectory(path: String, uri: Uri, sourceSpaceId: String = repository.spaceId) {
+        val owner = repository
+        viewModelScope.launch {
+            // Retain the completed picker selection across the foreground refresh,
+            // but expire it if another operation keeps the IO gate busy.
+            if (!awaitDirectoryExportIdle(state)) {
+                mutable.update { it.copy(error = tr("请稍后重试")) }
+                return@launch
+            }
+            launchAction {
+                check(repository === owner && owner.spaceId == sourceSpaceId) {
+                    tr("Space 已切换，请重新选择导出文件")
+                }
+                check(mutable.value.webFile == null) { tr("请先关闭编辑器") }
+                owner.exportDirectory(path, uri)
+                mutable.update { it.copy(captureNotice = tr("目录已完整导出")) }
+            }
+        }
     }
 
     fun receiveShare(files: List<Uri>, text: String?) {
