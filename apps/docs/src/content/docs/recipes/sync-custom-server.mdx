@@ -6,6 +6,10 @@ Custom-server connections are a Spark feature in Eidos Lite on macOS, Windows,
 and Linux. Each computer uses its existing Spark activation; the server does
 not use a device seat. No official Sync subscription is required.
 
+Android can connect to the same encrypted Spaces without an Eidos account or
+Spark activation. Computers using Lite still need Spark. Follow
+[Connect on Android](#connect-on-android) for the phone's setup steps.
+
 Use a [Docker deployment](/recipes/deploy-graft-docker/), the
 [personal Graft Cloudflare template](https://github.com/eidos-space/graft-cloudflare),
 or a server compatible with its discovery and repository management API. Lite
@@ -36,7 +40,7 @@ Space. They are separate secrets. Lite does not send the sync password to the
 server, or send your server token to the Eidos account service. HTTPS is required.
 
 The personal template uses one token for all of its repositories and devices.
-Changing that token requires updating it on each computer, but does not change
+Changing that token requires updating it on each connected device, but does not change
 your Space's encryption password or identity.
 
 ## Download on another computer
@@ -49,9 +53,36 @@ to finish. Check a known record and attachment before editing.
 Use the same review, upload, receive, and conflict-resolution steps in [Everyday cloud sync and recovery](/recipes/manage-cloud-sync/). Each Space has one cloud connection at a time; different Spaces can use
 different servers.
 
+## Connect on Android
+
+1. Open **Sync → Custom server**. Enter the server's base HTTPS address, without
+   a repository path, and its **Server access key**, then choose **Browse server Spaces**.
+2. Enter the **Space sync password** set when the Space was connected on your
+   computer. Beside the encrypted Space, choose **Download to this device**. Keep the
+   app open until the download finishes, then check a known record and attachment.
+3. Use **Sync now** to send and receive versions. Downloaded files remain usable
+   offline, and the connection is retained across app restarts.
+4. To stop syncing this phone, choose **Disconnect** and confirm. Local files,
+   version history and the server copy remain available.
+
+The server access key authorizes access; the Space sync password decrypts the
+Space. Keep the password separately: an access key cannot replace it. Android
+encrypts saved access keys and sync passwords using Android Keystore, outside
+the Space and editor. Disconnecting clears that Space's connection and
+credentials from the phone.
+
+To send an unconnected local Space to a new encrypted repository, enter a new sync password
+and choose **Enable sync for current Space**, then **Publish to an empty repository**.
+Keep that password. Use **Sync now** when remote versions already exist.
+
+Encrypted connections require HTTPS. HTTP is allowed only for loopback testing
+on the same device. **Advanced: plain Graft repository** is a separate connection
+for complete repository URLs; it cannot open encrypted desktop Spaces. Its HTTP
+option transfers files and access tokens without transport encryption.
+
 ## Authorization and changing services
 
-An existing Spark owner refreshes benefits once to receive this feature.
+In Lite, an existing Spark owner refreshes benefits once to receive this feature.
 The signed device license can then be verified offline, including after signing
 out of the Eidos account. Normal custom-server sync connects directly to your
 server. Releasing Spark on this computer stops further custom-server operations

@@ -7,22 +7,28 @@ description: 选择同步方式，并按独立操作指南完成设置。
 
 ## 选择同步方式
 
-| 你想做什么                   | 操作指南                                               | 需要什么                                    |
-| ---------------------------- | ------------------------------------------------------ | ------------------------------------------- |
-| 在同一局域网内同步手机与电脑 | [局域网同步](/zh-cn/recipes/sync-lan/)                 | Lite、移动端应用和同一局域网，无需云端账号  |
-| 通过官方服务同步多台电脑     | [Eidos Sync](/zh-cn/recipes/sync-eidos/)               | 具有 Sync 权限的 Eidos 账号                 |
-| 使用自己的服务器同步电脑     | [连接自托管服务器](/zh-cn/recipes/sync-custom-server/) | 每台电脑激活 Spark，以及兼容的 Graft 服务器 |
+| 你想做什么                   | 操作指南                                                                  | 需要什么                                                           |
+| ---------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 在同一局域网内同步手机与电脑 | [局域网同步](/zh-cn/recipes/sync-lan/)                                    | Lite、移动端应用和同一局域网，无需云端账号                         |
+| 通过官方服务同步多台电脑     | [Eidos Sync](/zh-cn/recipes/sync-eidos/)                                  | 具有 Sync 权限的 Eidos 账号                                        |
+| 使用自己的服务器同步电脑     | [连接自托管服务器](/zh-cn/recipes/sync-custom-server/)                    | 每台电脑激活 Spark，以及兼容的 Graft 服务器                        |
+| 使用自己的服务器同步 Android | [在 Android 上连接](/zh-cn/recipes/sync-custom-server/#在-android-上连接) | Android 应用和兼容的 Graft 服务器；Android 无需 Eidos 账号或 Spark |
 
 还没有服务器？先按[在 Cloudflare 部署 Graft](/zh-cn/recipes/deploy-graft-cloudflare/)完成一键部署和首次设置。
 
 ## 连接后怎么用
 
-打开 Space 的 **Sync** 面板，选择 **Cloud sync** 或 **LAN sync**。
+在 Lite 中打开 Space 的 **Sync** 面板，选择 **Cloud sync** 或 **LAN sync**。
 云端同步通过 **Server** 选择 Eidos Sync 或已保存的服务器，支持 macOS、Windows 和 Linux。
 每个 Space 同时使用一个云端服务；局域网共享可以独立开启。
 
 **Versions** 管理本地改动和版本历史，**Sync** 管理连接、传输和冲突。
 云端连接建立后，按[云同步日常操作与恢复](/zh-cn/recipes/manage-cloud-sync/)发送和接收版本、处理冲突或恢复访问。
+
+在 Android 中打开**同步 → 自定义服务器**，浏览并下载服务器上的加密 Space。
+填写服务器访问密钥和独立的 Space 同步密码，再使用**立即同步**发送和接收版本。
+设置、凭据保存及断开连接的具体步骤见[在 Android 上连接](/zh-cn/recipes/sync-custom-server/#在-android-上连接)。
+使用同一服务器的电脑仍需在 Lite 中激活 Spark。
 
 ## Lite 自动同步
 
@@ -59,4 +65,4 @@ description: 选择同步方式，并按独立操作指南完成设置。
 ## 保留独立备份
 
 同步也会把删除操作传到其他设备，不能替代[独立备份](/zh-cn/user-guide/data-safety/)。
-云端同步的端到端加密保护远端副本，不会加密本地文件夹。
+Eidos Sync 和加密自定义服务器连接使用端到端加密保护远端副本，不会加密本地文件夹。
