@@ -1,7 +1,6 @@
 ## Bug fixes
 
-- **Serve keyboard search**: Closing row search with Escape restores focus to the grid so you can navigate cells and immediately search again.
-- **Plugin loading**: Localized packages retain their bundled resources, and isolated guest modules avoid duplicate binding errors when loading compatible plugin views.
+- **Serve row editing**: Adding a table row and immediately typing into its cells preserves the entered values. Pending row writes finish in order, preventing revision errors and new rows disappearing while you edit.
 
 ## Use with an Agent
 
@@ -26,7 +25,7 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v3.3.1 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
+The installers select v3.3.2 and verify the downloaded archive against the release `SHA256SUMS` before replacing an existing binary.
 
 Create a local Eidos File with an initial table, then open its browser editor:
 

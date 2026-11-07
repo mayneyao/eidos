@@ -43,7 +43,7 @@ pnpm build:eidos-file-web
 
 Run focused Chromium E2E coverage for changed high-risk flows. For Relation changes, require both the runtime-data-source empty-array regression and the readable Relation metadata E2E. Expand to the full browser matrix when shared browser/runtime behavior changed.
 
-Inspect `apps/eidos-file-web/dist` and verify that `index.html`, hashed JS/CSS, SQLite WASM, fixtures/templates, `manifest.webmanifest`, `sw.js`, and `pwa-update-policy.js` exist. Do not deploy a stale pre-existing `dist` directory after a failed build.
+Inspect `apps/eidos-file-web/dist` and verify that `index.html`, hashed JS/CSS, SQLite WASM, `manifest.webmanifest`, `sw.js`, and `pwa-update-policy.js` exist. Check static fixture/template assets when a current application entry point actually references them. The current sample entry creates a three-row Tasks table with Name and Done fields in memory; it does not require a static `.eidos` file or template directory in `dist`. Do not deploy a stale pre-existing `dist` directory after a failed build.
 
 ## Deploy with commit provenance
 
@@ -68,14 +68,16 @@ curl -fsS -H 'Cache-Control: no-cache' "https://editor.eidos.space/sw.js?verify=
 
 Resolve the hashed main JS/CSS from the fetched HTML. Require them to return HTTP 200 and verify release-specific markers in the new bundle. For a bug fix, check both that obsolete markers are absent and new behavior markers are present.
 
-Run a production browser smoke that opens a bundled template and exercises the changed user flow. For Relation releases:
+Run production browser smoke in a fresh browser context with isolated site storage. A new tab or task space in the same profile can restore an existing user file and is not sufficient isolation. Use the application's actual **File → Open sample Eidos File** or **Try a sample** entry, or an explicitly owned temporary copy, and exercise the changed user flow. Do not assume a query-string template URL exists.
+
+If the context restores an existing user file, stop before editing it or granting write access. Do not clear the user's site storage to make the test proceed; use a separate storage context instead. Keep all mutations within the synthetic sample or owned copy. For Relation releases:
 
 - show record titles instead of UUIDs;
 - show the related table name while keeping technical IDs collapsed;
 - clear an existing Relation and confirm the save succeeds without `Unable to save record`;
 - reload or reopen the file and confirm the Relation remains empty.
 
-Check console errors and failed network requests. Do not mutate user-owned files; use a bundled template or a temporary browser-local copy.
+Check console errors and failed network requests. Do not mutate user-owned files or request write access to them; use the isolated sample or owned temporary copy.
 
 ## Account for PWA caching
 
