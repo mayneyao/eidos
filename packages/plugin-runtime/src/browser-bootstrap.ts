@@ -89,6 +89,46 @@ export function bootstrap(
   createI18n: typeof createPluginI18n,
   localeCandidates: typeof pluginLocaleCandidates
 ) {
+  const applyTheme = (value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return
+    const tokens = value as Record<string, unknown>
+    for (const name of [
+      "background",
+      "foreground",
+      "muted",
+      "surface-hover",
+      "surface-selected",
+      "border",
+      "accent",
+      "scrollbar-thumb",
+      "scrollbar-thumb-hover",
+      "scrollbar-thumb-active",
+      "font-family",
+      "color-scheme",
+    ]) {
+      const key = `--eidos-${name}`
+      const token = tokens[key]
+      if (typeof token !== "string" || token.length > 256) continue
+      const property =
+        name === "font-family"
+          ? "font-family"
+          : name === "color-scheme"
+            ? "color-scheme"
+            : "color"
+      if (CSS.supports(property, token) && !/url\s*\(|var\s*\(/i.test(token))
+        window.document.documentElement.style.setProperty(key, token)
+    }
+  }
+  // Lite supplies presentation values before navigation. Applying them here
+  // precedes mount and the first paint; updates still arrive through host.theme.
+  const themePrefix = "eidos-plugin-theme:"
+  if (window.name.startsWith(themePrefix)) {
+    try {
+      applyTheme(JSON.parse(window.name.slice(themePrefix.length)))
+    } catch {
+      /* Ignore a malformed presentation hint. */
+    }
+  }
   const parent = window.parent
   const i18n = createI18n(
     binding.languageData ?? { defaultLocale: "en", messages: {} },
@@ -156,35 +196,7 @@ export function bootstrap(
         r.value &&
         typeof r.value === "object"
       ) {
-        for (const name of [
-          "background",
-          "foreground",
-          "muted",
-          "surface-hover",
-          "surface-selected",
-          "border",
-          "accent",
-          "scrollbar-thumb",
-          "scrollbar-thumb-hover",
-          "scrollbar-thumb-active",
-          "font-family",
-          "color-scheme",
-        ]) {
-          const key = `--eidos-${name}`,
-            value = r.value[key]
-          if (typeof value !== "string" || value.length > 256) continue
-          const property =
-            name === "font-family"
-              ? "font-family"
-              : name === "color-scheme"
-                ? "color-scheme"
-                : "color"
-          if (
-            CSS.supports(property, value) &&
-            !/url\s*\(|var\s*\(/i.test(value)
-          )
-            window.document.documentElement.style.setProperty(key, value)
-        }
+        applyTheme(r.value)
         return
       }
       if (r.observation === "host.explorer" && explorerState) {

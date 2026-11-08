@@ -4,6 +4,16 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Sort by": "排序依据",
+  Order: "排序方向",
+  Folders: "文件夹",
+  Yesterday: "昨天",
+  Earlier: "更早",
+  "No files": "没有文件",
+  "Clear filters": "清除筛选",
+  "Browse folders": "浏览目录",
+  "Could not load files.": "无法读取文件。",
+  "Reading files…": "正在读取文件…",
   "Automatic Sync": "自动同步",
   "Every 10 minutes": "每 10 分钟",
   "After changes": "变更后",
@@ -1890,7 +1900,7 @@ const zh: Record<string, string> = {
   "Open an Eidos File": "打开 Eidos File",
   "Choose any {extension} file in this Space. Recently used files reopen from a small in-memory runtime cache.":
     "选择此空间中的任意 {extension} 文件。最近使用的文件会从小型内存运行时缓存中重新打开。",
-  "Recent files": "最近打开",
+  "Recent files": "最近文件",
   "Open a file from the Space Explorer to start working.":
     "从左侧目录树选择一个文件开始工作。",
   "Space root": "空间根目录",

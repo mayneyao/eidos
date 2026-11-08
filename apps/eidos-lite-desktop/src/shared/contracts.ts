@@ -27,6 +27,10 @@ import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type { PluginApi } from "./plugins"
 import type { ExplorerFileFilter } from "./explorer-file-filter"
 import type {
+  ExplorerFilesPage,
+  ExplorerFilesQuery,
+} from "./explorer-file-list"
+import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
 } from "./keyboard-shortcuts"
@@ -116,6 +120,7 @@ export const IPC_CHANNELS = {
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   searchPaths: "eidos-lite:space-paths-search",
   filterFiles: "eidos-lite:space-files-filter",
+  listExplorerFiles: "eidos-lite:space-files-list",
   explorerFilterFields: "eidos-lite:space-filter-fields",
   searchText: "eidos-lite:space-text-search",
   searchTextProgress: "eidos-lite:space-text-search-progress",
@@ -1951,6 +1956,7 @@ export interface EidosLiteApi extends PluginApi {
     directory: string | null
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
+  listExplorerFiles(query: ExplorerFilesQuery): Promise<ExplorerFilesPage>
   searchSpaceText(
     requestId: string,
     query: string,

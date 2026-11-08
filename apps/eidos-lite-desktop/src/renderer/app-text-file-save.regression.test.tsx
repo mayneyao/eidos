@@ -235,6 +235,85 @@ function installHost(overrides: Record<string, unknown>) {
   }) as unknown as EidosLiteApi
 }
 
+it("switches between date groups, an Explorer plugin and the existing sidebar text search", async () => {
+  let selected: string | null = null
+  const listFiles = vi.fn(async () => ({
+    entries: [],
+    earlierCount: 0,
+    total: 0,
+    hasMore: false,
+  }))
+  const chooseExplorer = vi.fn(async (key: string | null) => {
+    selected = key
+  })
+  const openExplorer = vi.fn(async () => ({
+    instance: null,
+    warning: "Preview unavailable",
+  }))
+  installHost({
+    previewTextFile: async () => initial,
+    reportFileOpened: async () => undefined,
+    listExplorerFiles: listFiles,
+    listPlugins: async () => ({
+      plugins: [
+        {
+          enabled: true,
+          hash: "tags-v1",
+          manifest: {
+            apiVersion: 1,
+            id: "demo.tags",
+            name: "Tags Explorer",
+            version: "0.1.0",
+            views: [
+              { id: "tags", title: "Tags", kind: "page", entry: "./main.ts" },
+            ],
+            placements: [{ location: "sidebar/explorer", view: "tags" }],
+          },
+        },
+      ],
+      space: { explorer: selected },
+    }),
+    setPluginExplorer: chooseExplorer,
+    openPluginExplorer: openExplorer,
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector('[aria-label="Tags"]')).not.toBeNull()
+  )
+  const click = async (label: string) => {
+    const button = host.querySelector<HTMLButtonElement>(
+      `button[aria-label="${label}"]`
+    )
+    expect(button).not.toBeNull()
+    await act(async () => button!.click())
+  }
+  await click("Recent files")
+  await vi.waitFor(() => expect(listFiles).toHaveBeenCalledTimes(1))
+  expect(
+    host.querySelector('[data-layout="modified"]')?.getAttribute("aria-pressed")
+  ).toBe("true")
+  await click("Tags")
+  await vi.waitFor(() =>
+    expect(openExplorer).toHaveBeenCalledWith("demo.tags/tags", {
+      activePath: oldPath,
+      rootDirectory: null,
+      sort: { by: "name", direction: "ascending" },
+    })
+  )
+  expect(chooseExplorer).toHaveBeenCalledWith("demo.tags/tags")
+  expect(host.textContent).toContain(
+    "Plugin explorer unavailable. Showing built-in explorer."
+  )
+  await click("Folders")
+  await vi.waitFor(() => expect(chooseExplorer).toHaveBeenLastCalledWith(null))
+  await click("Search Space text")
+  expect(host.querySelector('[aria-label="Search saved text"]')).not.toBeNull()
+  expect(
+    host.querySelector('[data-layout="tree"]')?.getAttribute("aria-pressed")
+  ).toBe("true")
+  expect(listFiles).toHaveBeenCalledTimes(1)
+})
+
 it("keeps typing during an automatic local apply and delayed preview refresh with its old revision", async () => {
   let changed!: (snapshot: SpaceSnapshot) => void
   let finishPreview!: (preview: TextFilePreviewResult) => void

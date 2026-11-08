@@ -389,7 +389,7 @@ it("lets users remove an unreadable installed plugin without trying to enable it
   expect(uninstall).toHaveBeenCalledWith("example.old-theme")
 })
 
-it("selects and restores the Space explorer from Plugin Manager", async () => {
+it("keeps Explorer selection in the sidebar view switcher", async () => {
   let selected: string | undefined = "example.browser/files"
   const select = vi.fn(async (key: string | null) => {
     selected = key ?? undefined
@@ -425,22 +425,10 @@ it("selects and restores the Space explorer from Plugin Manager", async () => {
   window.addEventListener("eidos-plugins-changed", changed)
   try {
     await act(async () => root.render(<PluginManager spaceAvailable />))
-    await click("Choose file explorer")
     expect(
-      container.querySelector('[aria-pressed="true"][title="File Browser"]')
-    ).not.toBeNull()
-    await click("Built-in explorer")
-    expect(select).toHaveBeenCalledWith(null)
-    expect(changed).toHaveBeenCalled()
-    await click("Choose file explorer")
-    await act(async () =>
-      container
-        .querySelector<HTMLButtonElement>(
-          '[title="File Browser"][aria-pressed]'
-        )!
-        .click()
-    )
-    expect(select).toHaveBeenLastCalledWith("example.browser/files")
+      container.querySelector('[aria-label="Choose file explorer"]')
+    ).toBeNull()
+    expect(select).not.toHaveBeenCalled()
   } finally {
     window.removeEventListener("eidos-plugins-changed", changed)
   }

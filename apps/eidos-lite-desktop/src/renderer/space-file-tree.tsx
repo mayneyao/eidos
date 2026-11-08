@@ -21,6 +21,12 @@ import {
 import type { SpaceTreeEntry } from "../shared/contracts"
 import type { TreeExpansionActions } from "./tree-expansion-menu"
 import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
+import {
+  EXPLORER_ROW_HEIGHT,
+  EXPLORER_TREE_CSS,
+  SPACE_FILE_TREE_STYLES,
+} from "./explorer-presentation"
+export { SPACE_FILE_TREE_STYLES } from "./explorer-presentation"
 import { hasSpacePathDragData, setSpacePathDragData } from "./space-path-drag"
 import { useEidosLiteI18n } from "./i18n"
 import {
@@ -49,6 +55,8 @@ interface SpaceFileTreeProps {
   activePath: string | null
   revealToken?: number
   disabled?: boolean
+  opening?: boolean
+  visible?: boolean
   renameRequest: SpaceTreeRenameRequest | null
   onSelect(entry: SpaceTreeEntry | null): void
   onOpen(entry: SpaceTreeEntry): void
@@ -213,7 +221,9 @@ function droppedTreePath(
   return isFolder ? `${destination}/` : destination
 }
 
-function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
+export function eventTreePath(
+  event: SyntheticEvent<HTMLElement>
+): string | null {
   for (const target of event.nativeEvent.composedPath()) {
     if (!(target instanceof HTMLElement)) continue
     const path = target.dataset.itemPath
@@ -222,7 +232,9 @@ function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
   return null
 }
 
-function eventTargetsRenameInput(event: SyntheticEvent<HTMLElement>): boolean {
+export function eventTargetsRenameInput(
+  event: SyntheticEvent<HTMLElement>
+): boolean {
   return event.nativeEvent
     .composedPath()
     .some(
@@ -271,67 +283,6 @@ export function buildSpaceFileTreeModel(
   return { paths, initialExpandedPaths, entryByTreePath }
 }
 
-const TREE_CSS = `
-  :host {
-    display: block;
-    min-height: 0;
-    box-sizing: border-box;
-    /* Pierre clamps scrollTop to row height × count minus viewport height.
-       Keep vertical spacing outside its scrollport so the native scrollbar
-       and the virtualizer agree on the bottom boundary. */
-    padding-block: 3px 8px;
-  }
-
-  button[data-type="item"] {
-    border-radius: 3px;
-  }
-
-  button[data-type="item"]:focus-visible {
-    outline-offset: -1px;
-  }
-
-  button[data-type="item"][data-item-dragging] {
-    opacity: 0.45;
-  }
-
-  button[data-type="item"][data-item-drag-target] {
-    background: var(--surface-selected);
-    box-shadow: inset 0 0 0 1px var(--focus);
-  }
-
-  button[data-type="item"][data-external-drop-target] {
-    background: var(--surface-selected);
-    box-shadow: inset 0 0 0 1px var(--focus);
-  }
-`
-
-export const SPACE_FILE_TREE_STYLES = {
-  height: "100%",
-  minHeight: 0,
-  width: "100%",
-  colorScheme: "inherit",
-  "--trees-bg-override": "transparent",
-  "--trees-bg-muted-override": "var(--surface-hover)",
-  "--trees-border-color-override": "var(--line)",
-  "--trees-fg-override": "var(--ink)",
-  "--trees-fg-muted-override": "var(--ink-muted)",
-  "--trees-font-family-override": "inherit",
-  "--trees-font-size-override": "12px",
-  "--trees-focus-ring-color-override": "var(--focus)",
-  "--trees-focus-ring-offset-override": "-1px",
-  "--trees-focus-ring-width-override": "1px",
-  "--trees-action-lane-width-override": "22px",
-  "--trees-icon-width-override": "15px",
-  "--trees-item-margin-x-override": "4px",
-  "--trees-item-row-gap-override": "5px",
-  "--trees-item-padding-x-override": "5px",
-  "--trees-level-gap-override": "7px",
-  "--trees-padding-inline-override": "5px",
-  "--trees-selected-bg-override":
-    "color-mix(in srgb, var(--surface-selected) 50%, transparent)",
-  "--trees-selected-fg-override": "var(--ink)",
-} as CSSProperties
-
 export function SpaceFileTree({
   entries,
   rootDirectory = null,
@@ -342,7 +293,9 @@ export function SpaceFileTree({
   onRetryFilter,
   activePath,
   revealToken = 0,
-  disabled,
+  disabled: disabledProp,
+  opening = false,
+  visible = true,
   renameRequest,
   onSelect,
   onOpen,
@@ -355,6 +308,7 @@ export function SpaceFileTree({
   onContextMenu,
   onExpansionActionsChange,
 }: SpaceFileTreeProps) {
+  const disabled = disabledProp || opening
   const { t } = useEidosLiteI18n()
   const [treeResetVersion, setTreeResetVersion] = useState(0)
   const [externalDropActive, setExternalDropActive] = useState(false)
@@ -492,12 +446,12 @@ export function SpaceFileTree({
         sortRef.current
       ),
     density: 1,
-    itemHeight: 28,
+    itemHeight: EXPLORER_ROW_HEIGHT,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
     icons: EIDOS_FILE_TREE_ICONS,
     stickyFolders: true,
-    unsafeCSS: TREE_CSS,
+    unsafeCSS: EXPLORER_TREE_CSS,
     dragAndDrop: {
       canDrag: (paths) =>
         disabledRef.current !== true &&
@@ -666,6 +620,7 @@ export function SpaceFileTree({
   }, [model, renameRequest, rootDirectory])
 
   useEffect(() => {
+    if (!visible) return
     if (
       activeRevealRef.current.model !== model ||
       activeRevealRef.current.path !== activePath ||
@@ -708,7 +663,14 @@ export function SpaceFileTree({
     if (!item.isSelected()) item.select()
     model.scrollToPath(activeTreePath, { offset: "nearest", focus: false })
     activeRevealRef.current.revealed = true
-  }, [activePath, model, treeSignature, revealToken, fileFilterSignature])
+  }, [
+    visible,
+    activePath,
+    model,
+    treeSignature,
+    revealToken,
+    fileFilterSignature,
+  ])
 
   const requestDirectoryLoad = useCallback(
     (treePath: string, relativePath: string) => {
@@ -743,7 +705,7 @@ export function SpaceFileTree({
   )
 
   useEffect(() => {
-    if (disabled) return
+    if (!visible || disabled) return
     const roots = bulkExpansionRef.current
     if (roots) {
       for (const path of tree.paths) {
@@ -788,6 +750,7 @@ export function SpaceFileTree({
   }, [
     directoryLoads,
     disabled,
+    visible,
     model,
     requestDirectoryLoad,
     tree,
@@ -907,7 +870,7 @@ export function SpaceFileTree({
       <FileTree
         model={model}
         aria-label="Space files"
-        aria-disabled={disabled === true}
+        aria-disabled={disabledProp === true}
         className="space-file-tree"
         data-space-file-tree="true"
         data-active-path={activePath ?? undefined}

@@ -2257,6 +2257,8 @@ body {
 }
 
 .explorer {
+  --explorer-scrollbar-width: 6px;
+  position: relative;
   flex: 1;
   min-height: 0;
   /* Keep native scrollbar interactions outside the overlaid resize handle. */
@@ -2278,6 +2280,7 @@ body {
   min-height: 0;
 }
 .plugin-explorer-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2286,7 +2289,18 @@ body {
 .plugin-explorer-content[hidden] {
   display: none;
 }
-.plugin-explorer-content > .space-heading {
+.plugin-explorer-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.plugin-explorer-pane[data-active="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.plugin-explorer-pane > .space-heading {
   min-height: 1.75rem;
   flex-shrink: 0;
 }
@@ -2302,6 +2316,14 @@ body {
 }
 .plugin-explorer-content .plugin-editor {
   height: 100%;
+}
+.plugin-explorer-pane > .plugin-editor {
+  /* Plugin scrollbars need the same reserved resize strip as the built-in list. */
+  margin-inline-end: var(--space-sidebar-resize-hit-width);
+  min-width: 0;
+}
+.plugin-explorer-pane > .plugin-editor iframe {
+  background: var(--lite-sidebar);
 }
 .plugin-explorer-error {
   display: flex;
@@ -2320,6 +2342,296 @@ body {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.explorer-sort-section-label {
+  display: block;
+  margin: 3px 0;
+  padding: 3px 8px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+.explorer-layout-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--explorer-tab-count, 2), 26px);
+  flex: 0 1 auto;
+  max-width: calc(100% - 96px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  height: 28px;
+  padding: 2px;
+  margin-left: auto;
+  border-radius: 6px;
+  background: var(--surface-hover);
+  -webkit-app-region: no-drag;
+}
+.explorer-layout-indicator {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: calc(100% - 4px);
+  border-radius: 4px;
+  background: var(--canvas);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--ink) 12%, transparent);
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translateX(calc(var(--explorer-tab-index, 0) * 26px));
+}
+.explorer-layout-switch > button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.explorer-layout-switch > button[aria-pressed="true"] {
+  color: var(--ink);
+}
+.explorer-layout-switch > button:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.explorer-layout-switch > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.explorer-layout-switch svg,
+.explorer-layout-switch img {
+  width: 14px;
+  height: 14px;
+}
+.explorer-layout-surface,
+.space-file-groups {
+  height: 100%;
+  min-height: 0;
+}
+.explorer-layout-surface {
+  position: absolute;
+  inset: 0;
+}
+.explorer-layout-surface[data-active="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.space-file-groups {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.explorer-card-scroll {
+  --explorer-scrollbar-thumb-current: transparent;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  padding: 0 8px 12px;
+}
+.explorer-card-scroll:hover {
+  --explorer-scrollbar-thumb-current: var(--scrollbar-thumb);
+}
+.explorer-card-scroll::-webkit-scrollbar {
+  width: var(--explorer-scrollbar-width);
+  height: var(--explorer-scrollbar-width);
+}
+.explorer-card-scroll::-webkit-scrollbar-thumb {
+  border-width: 1px;
+  background-color: var(--explorer-scrollbar-thumb-current);
+}
+.explorer-card-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+.explorer-card-scroll::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+.explorer-card-position {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding-bottom: 2px;
+}
+.explorer-card-group {
+  display: flex;
+  align-items: flex-end;
+  height: 40px;
+  padding: 16px 8px 6px;
+  color: var(--ink-muted);
+}
+.explorer-card-group[data-first-group="true"] {
+  height: 28px;
+  padding-top: 4px;
+}
+.explorer-card-group h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.explorer-file-card {
+  position: relative;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+.explorer-file-card:hover {
+  background: var(--surface-hover);
+}
+.explorer-file-card[data-selected="true"] {
+  background: color-mix(in srgb, var(--surface-selected) 60%, transparent);
+}
+.explorer-card-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.explorer-card-open:focus-visible,
+.explorer-earlier-toggle:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.explorer-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  line-height: 19px;
+}
+.explorer-card-title > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.explorer-card-location {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.explorer-card-title time {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.explorer-card-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  width: 100%;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+.explorer-earlier-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.explorer-earlier-toggle svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 160ms ease;
+}
+.explorer-earlier-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .explorer-layout-indicator,
+  .explorer-earlier-toggle svg {
+    transition: none;
+  }
+}
+.explorer-load-more {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  font-size: 11px;
+}
+.explorer-load-more svg {
+  width: 12px;
+  height: 12px;
+}
+.explorer-card-rename {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: calc(100% - 12px);
+  height: 22px;
+  padding: 2px 5px;
+  border: 1px solid var(--focus);
+  border-radius: 3px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.explorer-card-open:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.explorer-grouped-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.explorer-grouped-progress {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  background: var(--lite-sidebar);
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.explorer-grouped-progress svg {
+  width: 12px;
+  height: 12px;
 }
 
 .space-external-drop-hint {

@@ -7,13 +7,11 @@ import type {
   PluginListing,
   PluginOpenResult,
 } from "../shared/plugins"
-import {
-  ExplorerPicker,
-  PluginExplorerPanel,
-  usePluginExplorer,
-} from "./plugin-explorer"
+import { PluginExplorerPanel, usePluginExplorer } from "./plugin-explorer"
+import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 
-vi.mock("./i18n", () => ({
+vi.mock("./i18n", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useEidosLiteI18n: () => ({ t: (value: string) => value }),
 }))
 vi.mock("./plugin-editor", () => ({
@@ -113,10 +111,12 @@ it("opens sidebar files in the host and falls back without losing the built-in c
     const explorer = usePluginExplorer("space-a", state)
     return (
       <>
-        <ExplorerPicker
-          choices={explorer.choices}
-          selected={explorer.selected}
-          onSelect={(key) => void explorer.select(key)}
+        <ExplorerLayoutSwitch
+          value="tree"
+          plugins={explorer.choices}
+          selectedPlugin={explorer.selected}
+          onPluginSelect={(key) => void explorer.select(key)}
+          onChange={() => void explorer.select(null)}
         />
         <PluginExplorerPanel
           explorer={explorer}
@@ -135,8 +135,17 @@ it("opens sidebar files in the host and falls back without losing the built-in c
     })
     expect(open).toHaveBeenCalledWith("example.tree/tree", state)
     expect(host.querySelector("[data-plugin]")).not.toBeNull()
-    expect(host.querySelector("[data-builtin-heading]")).toBeNull()
-    expect(host.querySelector("[data-builtin]")).toBeNull()
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[data-layout="example.tree/tree"]')!
+        .click()
+    )
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(mounted).toHaveBeenCalledTimes(1)
+    const builtin = host.querySelector("[data-builtin]")!
+    expect(builtin.closest("[data-active]")?.getAttribute("data-active")).toBe(
+      "false"
+    )
     const button = (text: string) =>
       [...host.querySelectorAll<HTMLButtonElement>("button")].find(
         (button) => button.textContent === text
@@ -152,21 +161,109 @@ it("opens sidebar files in the host and falls back without losing the built-in c
     expect(host.querySelector("[data-builtin-heading]")).not.toBeNull()
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
     await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Choose file explorer"]'
-        )!
-        .click()
-    })
-    await act(async () => {
-      button("Built-in explorer").click()
+      host.querySelector<HTMLButtonElement>('[data-layout="tree"]')!.click()
     })
     expect(select).toHaveBeenCalledWith(null)
     expect(host.querySelector('[role="alert"]')).toBeNull()
+    expect(host.querySelector("[data-builtin]")).toBe(builtin)
+    expect(builtin.closest("[data-active]")?.getAttribute("data-active")).toBe(
+      "true"
+    )
   } finally {
     await act(async () => root.unmount())
   }
   expect(close).toHaveBeenCalledWith("ticket")
+})
+
+it("returns to the built-in view immediately and closes a late plugin mount", async () => {
+  let current: PluginListing = {
+    ...listing,
+    space: { ...listing.space!, explorer: undefined },
+  }
+  let finishSelection!: () => void
+  let finishMount!: (result: PluginOpenResult) => void
+  const select = vi.fn(async (key: string | null) => {
+    if (key)
+      await new Promise<void>((resolve) => {
+        finishSelection = resolve
+      })
+    current = {
+      ...current,
+      space: { ...current.space!, explorer: key ?? undefined },
+    }
+  })
+  const close = vi.fn(async () => {})
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: {
+      listPlugins: async () => current,
+      setPluginExplorer: select,
+      onPluginEvent: () => () => {},
+      closePluginEditor: close,
+      openPluginExplorer: () =>
+        new Promise<PluginOpenResult>((resolve) => {
+          finishMount = resolve
+        }),
+    },
+  })
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  function Harness() {
+    const explorer = usePluginExplorer("space-a", state)
+    return (
+      <>
+        <ExplorerLayoutSwitch
+          value="tree"
+          plugins={explorer.choices}
+          selectedPlugin={explorer.selected}
+          onChange={() => void explorer.select(null)}
+          onPluginSelect={(key) => void explorer.select(key)}
+        />
+        <PluginExplorerPanel
+          explorer={explorer}
+          state={state}
+          onOpenFile={() => {}}
+        >
+          <div data-builtin>Tree</div>
+        </PluginExplorerPanel>
+      </>
+    )
+  }
+  try {
+    await act(async () => root.render(<Harness />))
+    const builtin = host.querySelector("[data-builtin]")
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[data-layout="example.tree/tree"]')!
+        .click()
+    )
+    expect(
+      host
+        .querySelector('[data-layout="example.tree/tree"]')!
+        .getAttribute("aria-pressed")
+    ).toBe("true")
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[data-layout="tree"]')!.click()
+    )
+    expect(
+      host.querySelector('[data-layout="tree"]')!.getAttribute("aria-pressed")
+    ).toBe("true")
+    expect(host.querySelector("[data-builtin]")).toBe(builtin)
+    await act(async () => {
+      finishSelection()
+      finishMount({ instance })
+    })
+    expect(select.mock.calls.map(([key]) => key)).toEqual([
+      "example.tree/tree",
+      null,
+    ])
+    expect(current.space?.explorer).toBeUndefined()
+    expect(host.querySelector("[data-plugin]")).toBeNull()
+    expect(close).toHaveBeenCalledWith("ticket")
+  } finally {
+    await act(async () => root.unmount())
+  }
 })
 
 it("keeps the built-in explorer usable during plugin mounting and failure", async () => {
@@ -315,7 +412,12 @@ it("keeps the plugin mounted behind a temporary host search overlay", async () =
     expect(host.querySelector("[data-plugin]")).toBe(plugin)
     expect(mounted).toHaveBeenCalledTimes(1)
     expect(unmounted).not.toHaveBeenCalled()
-    expect(host.querySelector("[data-builtin-heading]")).toBeNull()
+    expect(
+      host
+        .querySelector("[data-builtin-heading]")
+        ?.closest("[data-active]")
+        ?.getAttribute("data-active")
+    ).toBe("false")
   } finally {
     await act(async () => root.unmount())
   }

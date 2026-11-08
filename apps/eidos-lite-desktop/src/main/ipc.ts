@@ -12,6 +12,7 @@ import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
+import { normalizeExplorerFilesQuery } from "../shared/explorer-file-list"
 import { SparkService } from "./account/spark-service"
 import { hasSparkFeature, type SparkStatus } from "../shared/spark"
 import { accountStorageKey } from "../shared/service-environment"
@@ -1794,6 +1795,11 @@ export function registerIpc(
   )
   ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>
     controller.requireSession(event.sender).getExplorerFilterFields()
+  )
+  ipcMain.handle(IPC_CHANNELS.listExplorerFiles, (event, query: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .listExplorerFiles(normalizeExplorerFilesQuery(query))
   )
   ipcMain.handle(
     IPC_CHANNELS.searchText,

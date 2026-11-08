@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import {
   parseRequest,
   PluginError,
@@ -49,6 +49,14 @@ export function PluginEditor({
 }) {
   const { t, locale } = useEidosLiteI18n()
   const frame = useRef<HTMLIFrameElement>(null)
+  const explorerSurface = hostEvent?.observation === "host.explorer"
+  // The browsing-context name is available synchronously to the sandbox,
+  // before mounting or waiting for the host.theme round trip.
+  const initialTheme = useMemo(
+    () =>
+      `eidos-plugin-theme:${JSON.stringify(pluginTheme(explorerSurface ? "explorer" : "editor"))}`,
+    [instance.ticket, explorerSurface]
+  )
   useEffect(() => {
     const element = frame.current
     const sendLocale = () =>
@@ -169,7 +177,9 @@ export function PluginEditor({
             protocol: PLUGIN_PROTOCOL,
             apiVersion: 1,
             observation: "host.theme",
-            value: pluginTheme(),
+            value: pluginTheme(
+              frame.current?.closest(".plugin-explorer") ? "explorer" : "editor"
+            ),
           },
           "*"
         )
@@ -464,6 +474,7 @@ export function PluginEditor({
           }}
         >
           <iframe
+            name={initialTheme}
             style={{ height: "100%", display: "block" }}
             ref={frame}
             title={instance.editor.label}

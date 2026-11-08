@@ -58,9 +58,16 @@ import { usePluginExplorer, PluginExplorerPanel } from "./plugin-explorer"
 import { EXPLORER_SORT_STORAGE_KEY, readExplorerSort } from "./explorer-sort"
 import {
   ALL_EXPLORER_FILES,
+  countExplorerFilterRules,
   type ExplorerFileFilter,
 } from "./explorer-file-filter"
 import { useExplorerFileFilter } from "./use-explorer-file-filter"
+import {
+  EXPLORER_LAYOUT_STORAGE_KEY,
+  readExplorerLayout,
+} from "./explorer-layout"
+import { SpaceFileGroups } from "./space-file-groups"
+import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
@@ -1048,6 +1055,16 @@ function WorkspaceApp({
     null
   )
   const [treeRevealToken, setTreeRevealToken] = useState(0)
+  const [explorerLayout, setExplorerLayout] = useState(() =>
+    readExplorerLayout(window.localStorage)
+  )
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(EXPLORER_LAYOUT_STORAGE_KEY, explorerLayout)
+    } catch {
+      /* Layout remains usable without storage. */
+    }
+  }, [explorerLayout])
   const [explorerSort, setExplorerSort] = useState(() =>
     readExplorerSort(window.localStorage)
   )
@@ -4015,7 +4032,9 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
-        treeExpansionActions={treeExpansionActions}
+        treeExpansionActions={
+          explorerLayout === "tree" ? treeExpansionActions : null
+        }
         sort={explorerSort}
         onSortChange={setExplorerSort}
         fileFilter={explorerFileFilter}
@@ -4176,6 +4195,23 @@ function WorkspaceApp({
             onBack={() => navigateHistory(-1)}
             onForward={() => navigateHistory(1)}
           />
+          <ExplorerLayoutSwitch
+            value={explorerLayout}
+            plugins={pluginExplorer.choices}
+            selectedPlugin={
+              pluginExplorer.error ? null : pluginExplorer.selected
+            }
+            onPluginSelect={(key) => {
+              void pluginExplorer.select(key)
+              setTextSearchVisible(false)
+            }}
+            disabled={localInteractionBlocked || pathMutationBusy}
+            onChange={(layout) => {
+              if (pluginExplorer.selected) void pluginExplorer.select(null)
+              setExplorerLayout(layout)
+              setTextSearchVisible(false)
+            }}
+          />
         </header>
         {pluginExplorer.instance && !pluginExplorer.error ? (
           <StartupComplete />
@@ -4234,64 +4270,123 @@ function WorkspaceApp({
               }
             >
               <StartupComplete />
-              <SpaceFileTree
-                sort={explorerSort}
-                fileFilter={explorerFileFilter}
-                filtering={filteredExplorer.loading}
-                filterError={filteredExplorer.error}
-                onRetryFilter={filteredExplorer.retry}
-                key={`${space.id}:${explorerDirectory ?? ""}`}
-                rootDirectory={explorerDirectory}
-                entries={filteredExplorer.entries}
-                activePath={activeDocumentPath}
-                revealToken={treeRevealToken}
-                disabled={localInteractionBlocked || busyFile !== null}
-                renameRequest={treeRenameRequest}
-                onSelect={setSelectedEntry}
-                onOpen={(entry) => void openEntry(entry)}
-                onLoadDirectory={(relativePath) => {
-                  return window.eidosLite
-                    .loadSpaceDirectory(relativePath)
-                    .then((snapshot) => {
-                      if (launchSpace.current?.id === snapshot.id)
-                        acceptSpaceSnapshot(snapshot)
-                    })
+              <div
+                className="explorer-layout-surface"
+                data-active={explorerLayout === "tree"}
+                aria-hidden={explorerLayout !== "tree"}
+                ref={(node) => {
+                  if (node) node.inert = explorerLayout !== "tree"
                 }}
-                onMove={moveTreeEntries}
-                onImportFiles={async (files, targetDirectory) => {
-                  setPathMutationBusy(true)
-                  setError(null)
-                  try {
-                    applyPathMutation(
-                      await window.eidosLite.importDroppedFiles(
-                        files,
-                        targetDirectory
-                      )
-                    )
-                  } catch (cause) {
-                    setError(errorMessage(cause))
-                  } finally {
-                    setPathMutationBusy(false)
+              >
+                <SpaceFileTree
+                  sort={explorerSort}
+                  fileFilter={explorerFileFilter}
+                  filtering={filteredExplorer.loading}
+                  filterError={filteredExplorer.error}
+                  onRetryFilter={filteredExplorer.retry}
+                  key={`${space.id}:${explorerDirectory ?? ""}`}
+                  rootDirectory={explorerDirectory}
+                  entries={filteredExplorer.entries}
+                  activePath={activeDocumentPath}
+                  revealToken={treeRevealToken}
+                  disabled={localInteractionBlocked}
+                  opening={busyFile !== null}
+                  visible={
+                    explorerLayout === "tree" &&
+                    !textSearchVisible &&
+                    (!pluginExplorer.selected || Boolean(pluginExplorer.error))
                   }
+                  renameRequest={
+                    explorerLayout === "tree" ? treeRenameRequest : null
+                  }
+                  onSelect={setSelectedEntry}
+                  onOpen={(entry) => void openEntry(entry)}
+                  onLoadDirectory={(relativePath) => {
+                    return window.eidosLite
+                      .loadSpaceDirectory(relativePath)
+                      .then((snapshot) => {
+                        if (launchSpace.current?.id === snapshot.id)
+                          acceptSpaceSnapshot(snapshot)
+                      })
+                  }}
+                  onMove={moveTreeEntries}
+                  onImportFiles={async (files, targetDirectory) => {
+                    setPathMutationBusy(true)
+                    setError(null)
+                    try {
+                      applyPathMutation(
+                        await window.eidosLite.importDroppedFiles(
+                          files,
+                          targetDirectory
+                        )
+                      )
+                    } catch (cause) {
+                      setError(errorMessage(cause))
+                    } finally {
+                      setPathMutationBusy(false)
+                    }
+                  }}
+                  onMoveError={(cause) =>
+                    setError(
+                      `Could not move selected items. ${errorMessage(cause)}`
+                    )
+                  }
+                  onRename={renameTreeEntry}
+                  onRenameError={(cause) =>
+                    setError(`Could not rename item. ${errorMessage(cause)}`)
+                  }
+                  onContextMenu={openEntryContextMenu}
+                  onExpansionActionsChange={setTreeExpansionActions}
+                />
+              </div>
+              <div
+                className="explorer-layout-surface"
+                data-active={explorerLayout === "modified"}
+                aria-hidden={explorerLayout !== "modified"}
+                ref={(node) => {
+                  if (node) node.inert = explorerLayout !== "modified"
                 }}
-                onMoveError={(cause) =>
-                  setError(
-                    `Could not move selected items. ${errorMessage(cause)}`
-                  )
-                }
-                onRename={renameTreeEntry}
-                onRenameError={(cause) =>
-                  setError(`Could not rename item. ${errorMessage(cause)}`)
-                }
-                onContextMenu={openEntryContextMenu}
-                onExpansionActionsChange={setTreeExpansionActions}
-              />
+              >
+                <SpaceFileGroups
+                  spaceId={space.id}
+                  directory={explorerDirectory}
+                  fileFilter={explorerFileFilter}
+                  changes={
+                    space.externalChangePaths ??
+                    space.materializedPaths ??
+                    undefined
+                  }
+                  key={`${space.id}:${explorerDirectory ?? ""}`}
+                  entries={space.entries}
+                  sort={explorerSort}
+                  visible={
+                    explorerLayout === "modified" &&
+                    !textSearchVisible &&
+                    (!pluginExplorer.selected || Boolean(pluginExplorer.error))
+                  }
+                  activePath={activeDocumentPath}
+                  revealToken={treeRevealToken}
+                  disabled={localInteractionBlocked || pathMutationBusy}
+                  openingPath={busyFile}
+                  loading={filteredExplorer.loading}
+                  error={filteredExplorer.error}
+                  hasFilter={countExplorerFilterRules(explorerFileFilter) > 0}
+                  renameRequest={treeRenameRequest}
+                  onRetry={filteredExplorer.retry}
+                  onClearFilter={() =>
+                    setExplorerFileFilter(ALL_EXPLORER_FILES)
+                  }
+                  onShowTree={() => setExplorerLayout("tree")}
+                  onSelect={setSelectedEntry}
+                  onOpen={(entry) => void openEntry(entry)}
+                  onRename={renameTreeEntry}
+                  onRenameError={(cause) =>
+                    setError(`Could not rename item. ${errorMessage(cause)}`)
+                  }
+                  onContextMenu={openEntryContextMenu}
+                />
+              </div>
             </Suspense>
-            {busyFile ? (
-              <p className="explorer-busy">
-                <LoaderCircle className="spin" /> Opening {busyFile}
-              </p>
-            ) : null}
           </nav>
         </PluginExplorerPanel>
         <footer className="sidebar-footer">

@@ -12,6 +12,11 @@ import { customSyncOrigin } from "../../shared/sync-encryption"
 import { searchSpaceText } from "./text-search"
 import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
 import {
+  selectExplorerFilesPage,
+  type ExplorerFilesPage,
+  type ExplorerFilesQuery,
+} from "../../shared/explorer-file-list"
+import {
   filterExplorerEntries,
   hasExplorerPropertyFilter,
   type ExplorerFileFilter,
@@ -415,6 +420,10 @@ export class SpaceSession {
     string,
     Promise<SpaceTreeEntry[]>
   >()
+  private readonly explorerListReads = new Map<
+    string,
+    Promise<SpaceTreeEntry[]>
+  >()
   private readonly repository: SpaceRepositoryCoordinator
   private readonly syncState: SpaceSyncStateStore
   private readonly syncConnection: SpaceSyncConnectionStore
@@ -669,7 +678,8 @@ export class SpaceSession {
   ): Promise<SpaceTreeEntry[]> {
     if (this.closed) throw new Error("Space is closed")
     const key = directory ?? ""
-    let read = this.filteredTreeReads.get(key)
+    let read =
+      this.explorerListReads.get(key) ?? this.filteredTreeReads.get(key)
     if (!read) {
       read = readSpaceFilterTree(this.canonical.root, directory).finally(() => {
         if (this.filteredTreeReads.get(key) === read)
@@ -677,7 +687,37 @@ export class SpaceSession {
       })
       this.filteredTreeReads.set(key, read)
     }
-    const entries = await read
+    return this.filterFileEntries(await read, filter)
+  }
+
+  async listExplorerFiles(
+    query: ExplorerFilesQuery
+  ): Promise<ExplorerFilesPage> {
+    if (this.closed) throw new Error("Space is closed")
+    const key = query.directory ?? ""
+    let read = this.explorerListReads.get(key)
+    if (!read) {
+      read = (
+        this.filteredTreeReads.get(key) ??
+        readSpaceFilterTree(this.canonical.root, query.directory)
+      ).catch((error: unknown) => {
+        if (this.explorerListReads.get(key) === read)
+          this.explorerListReads.delete(key)
+        throw error
+      })
+      if (this.explorerListReads.size >= 4) this.explorerListReads.clear()
+      this.explorerListReads.set(key, read)
+    }
+    return selectExplorerFilesPage(
+      await this.filterFileEntries(await read, query.filter),
+      query
+    )
+  }
+
+  private async filterFileEntries(
+    entries: SpaceTreeEntry[],
+    filter: ExplorerFileFilter
+  ): Promise<SpaceTreeEntry[]> {
     if (!hasExplorerPropertyFilter(filter))
       return filterExplorerEntries(entries, filter)
     const opened = await this.openExistingFileMetadata()
@@ -762,6 +802,7 @@ export class SpaceSession {
 
   async refreshExplorer(): Promise<SpaceSnapshot> {
     this.prioritizeLocalWork()
+    this.explorerListReads.clear()
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.directoryEntriesCache.clear()
     await this.reloadDirectoryEntries(loadedDirectories, false)
@@ -5797,6 +5838,7 @@ export class SpaceSession {
   }
 
   private invalidateSnapshotCaches(): void {
+    this.explorerListReads.clear()
     this.invalidateGraftStatusCache()
     this.directoryEntriesCache.clear()
     this.ignoreInspectionCache.clear()
@@ -5805,6 +5847,7 @@ export class SpaceSession {
   private invalidateDirectoryCaches(
     relativePaths: readonly string[]
   ): string[] {
+    this.explorerListReads.clear()
     if (relativePaths.length === 0) {
       const loaded = [...this.directoryEntriesCache.keys()]
       this.directoryEntriesCache.clear()

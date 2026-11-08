@@ -16,7 +16,9 @@ describe("Eidos Lite internationalization", () => {
       })
     ).toBe("可以更新到 0.2.0。")
     expect(translateEidosLite("en", "Settings")).toBe("Settings")
-    expect(translateEidosLite("zh", "Recent files")).toBe("最近打开")
+    expect(translateEidosLite("zh", "Recent files")).toBe("最近文件")
+    expect(translateEidosLite("zh", "Yesterday")).toBe("昨天")
+    expect(translateEidosLite("zh", "Earlier")).toBe("更早")
     expect(translateEidosLite("zh", "Built-in Plugins")).toBe("内置插件")
     expect(translateEidosLite("zh", "Retry")).toBe("重试")
     expect(

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { ListTree, Check } from "lucide-react"
 import type { ExplorerState } from "@eidos.space/plugin-sdk"
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
 import { PluginEditor } from "./plugin-editor"
@@ -20,6 +19,7 @@ export function explorerChoices(listing: PluginListing | null) {
                 key: `${p.manifest.id}/${view.id}`,
                 label: view.title,
                 pluginName: p.manifest.name,
+                icon: p.manifest.icon,
                 hash: p.hash,
               },
             ]
@@ -39,6 +39,14 @@ export function usePluginExplorer(
   const [instance, setInstance] = useState<PluginOpenResult["instance"]>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [selection, setSelection] = useState<{
+    spaceId: string
+    key: string | null
+    request: number
+  } | null>(null)
+  const selectionRequest = useRef(0)
+  const selectionQueue = useRef(Promise.resolve())
+  const instanceOwner = useRef("")
   const [explicitSelection, setExplicitSelection] = useState<string | null>(
     null
   )
@@ -83,10 +91,15 @@ export function usePluginExplorer(
   const listing =
     catalog && catalog.spaceId === spaceId ? catalog.listing : null
   const choices = explorerChoices(listing)
-  const selected = choices.find((c) => c.key === listing?.space?.explorer)
+  const selectedKey =
+    selection && selection.spaceId === spaceId
+      ? selection.key
+      : listing?.space?.explorer
+  const selected = choices.find((c) => c.key === selectedKey)
   const key = selected?.key
   const hash = selected?.hash
   useEffect(() => {
+    instanceOwner.current = ""
     setInstance(null)
     setError(null)
     if (!key || !spaceId) return
@@ -101,6 +114,7 @@ export function usePluginExplorer(
           return
         }
         if (!result.instance) setError(result.warning ?? "Explorer unavailable")
+        instanceOwner.current = `${spaceId}/${key}/${hash}`
         setInstance(result.instance)
       })
       .catch((cause) => {
@@ -112,15 +126,43 @@ export function usePluginExplorer(
     }
   }, [spaceId, key, hash, retry])
   const select = async (key: string | null) => {
+    if (!spaceId) return
+    if (key && key === selected?.key && !error) {
+      setExplicitSelection(spaceId)
+      return
+    }
+    const request = ++selectionRequest.current
+    setSelection({ spaceId, key, request })
+    setExplicitSelection(spaceId)
+    setError(null)
+    if (key && key === selected?.key && error) setRetry((value) => value + 1)
     try {
-      await window.eidosLite.setPluginExplorer(key)
+      // Persist in click order; a slow earlier choice must not win a later click.
+      const pending = selectionQueue.current
+        .catch(() => {})
+        .then(async () => {
+          if (spaceRef.current === spaceId)
+            await window.eidosLite.setPluginExplorer(key)
+        })
+      selectionQueue.current = pending
+      await pending
+      if (spaceRef.current !== spaceId || selectionRequest.current !== request)
+        return
       await refresh()
-      if (spaceRef.current === spaceId) {
-        setExplicitSelection(spaceId ?? null)
-        setRetry((value) => value + 1)
+      if (
+        spaceRef.current === spaceId &&
+        selectionRequest.current === request
+      ) {
+        setSelection(null)
       }
     } catch (cause) {
-      if (spaceRef.current === spaceId) setError(String(cause))
+      if (
+        spaceRef.current === spaceId &&
+        selectionRequest.current === request
+      ) {
+        setSelection(null)
+        setError(String(cause))
+      }
     }
   }
   return {
@@ -128,104 +170,15 @@ export function usePluginExplorer(
     selected: key ?? null,
     loading: Boolean(spaceId) && !listing && !error,
     explicitlySelected: Boolean(spaceId) && explicitSelection === spaceId,
-    instance: listing && key ? instance : null,
+    instance:
+      listing && key && instanceOwner.current === `${spaceId}/${key}/${hash}`
+        ? instance
+        : null,
     error,
     select,
     fail: setError,
     retry: () => setRetry((value) => value + 1),
   }
-}
-
-export function ExplorerPicker({
-  choices,
-  selected,
-  onSelect,
-  disabled = false,
-}: {
-  choices: ReturnType<typeof explorerChoices>
-  selected: string | null
-  onSelect(key: string | null): void
-  disabled?: boolean
-}) {
-  const { t } = useEidosLiteI18n()
-  const [open, setOpen] = useState(false)
-  const container = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !container.current?.contains(event.target)
-      )
-        setOpen(false)
-    }
-    document.addEventListener("pointerdown", outside, true)
-    return () => document.removeEventListener("pointerdown", outside, true)
-  }, [open])
-  if (!choices.length) return null
-  return (
-    <div
-      className="workspace-heading-menu"
-      ref={container}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && open) {
-          event.preventDefault()
-          event.stopPropagation()
-          setOpen(false)
-          trigger.current?.focus({ preventScroll: true })
-        }
-      }}
-    >
-      <button
-        ref={trigger}
-        type="button"
-        className="icon-button"
-        title={t("Choose file explorer")}
-        aria-label={t("Choose file explorer")}
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen(!open)}
-      >
-        <ListTree size={14} />
-      </button>
-      {open && (
-        <div
-          className="workspace-heading-menu-content"
-          role="group"
-          aria-label={t("Choose file explorer")}
-        >
-          {[
-            { key: null, label: t("Built-in explorer"), pluginName: "" },
-            ...choices,
-          ].map((choice) => (
-            <button
-              key={choice.key ?? "builtin"}
-              type="button"
-              aria-pressed={choice.key === selected}
-              title={choice.pluginName}
-              onClick={() => {
-                onSelect(choice.key)
-                setOpen(false)
-                trigger.current?.focus({ preventScroll: true })
-              }}
-            >
-              <Check
-                aria-hidden="true"
-                style={{
-                  visibility: choice.key === selected ? "visible" : "hidden",
-                }}
-              />
-              {choice.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export function PluginExplorerPanel({
@@ -283,21 +236,29 @@ export function PluginExplorerPanel({
       )}
       {overlay && <div className="plugin-explorer-overlay">{overlay}</div>}
       <div className="plugin-explorer-content" hidden={Boolean(overlay)}>
+        <div
+          className="plugin-explorer-pane"
+          data-active={!showPlugin}
+          aria-hidden={showPlugin}
+          {...(showPlugin ? { inert: "" } : {})}
+        >
+          {children}
+        </div>
         {showPlugin && explorer.instance ? (
-          <PluginEditor
-            key={explorer.instance.ticket}
-            instance={explorer.instance}
-            onDraft={() => {}}
-            onFallback={() => void explorer.select(null)}
-            onRetry={explorer.retry}
-            onError={explorer.fail}
-            onOpenFile={onOpenFile}
-            onNavigate={onNavigate}
-            hostEvent={{ observation: "host.explorer", value: state }}
-          />
-        ) : (
-          children
-        )}
+          <div className="plugin-explorer-pane" data-active="true">
+            <PluginEditor
+              key={explorer.instance.ticket}
+              instance={explorer.instance}
+              onDraft={() => {}}
+              onFallback={() => void explorer.select(null)}
+              onRetry={explorer.retry}
+              onError={explorer.fail}
+              onOpenFile={onOpenFile}
+              onNavigate={onNavigate}
+              hostEvent={{ observation: "host.explorer", value: state }}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   )
