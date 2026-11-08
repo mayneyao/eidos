@@ -634,9 +634,9 @@ async function capture(catalog) {
     const sourceDuration = Number(sourceProbe.format.duration)
     if (
       !Number.isFinite(sourceDuration) ||
-      sourceDuration < scene.durationSeconds
+      sourceDuration < actionsFinishedSeconds + 0.5
     )
-      throw Error("Source recording ended before the full scenario duration")
+      throw Error("Source recording did not retain the completed scenario")
     run("ffmpeg", [
       "-nostdin",
       "-hide_banner",
@@ -698,7 +698,10 @@ async function capture(catalog) {
       video.r_frame_rate !== "30/1" ||
       video.pix_fmt !== "yuv420p" ||
       probe.streams.length !== 1 ||
-      Math.abs(Number(probe.format.duration) - scene.durationSeconds) >
+      Math.abs(
+        Number(probe.format.duration) -
+          Math.min(scene.durationSeconds, sourceDuration)
+      ) >
         1 / 30 + 0.001
     )
       throw Error("Unexpected media codec, stream, frame rate or duration")
@@ -803,7 +806,7 @@ async function capture(catalog) {
         start: 0,
         duration: scene.durationSeconds,
         policy:
-          "Only post-scenario stationary finalization tail removed; all actions finish before this boundary",
+          "Cap only the post-scenario stationary finalization tail; preserve a shorter real presentation duration and verify every action finished before its end",
       },
       nativeHelperBinarySha256: await hashFile(native),
       recorderBinarySha256: await hashFile(recorder),
