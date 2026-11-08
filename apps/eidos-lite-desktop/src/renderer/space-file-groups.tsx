@@ -7,7 +7,13 @@ import {
   type KeyboardEvent,
 } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ChevronRight, LoaderCircle } from "lucide-react"
+import {
+  ChevronRight,
+  Image as ImageIcon,
+  LoaderCircle,
+  Play,
+  Video,
+} from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
   groupExplorerFiles,
@@ -23,7 +29,13 @@ import {
 } from "./explorer-file-filter"
 import { useExplorerRecentFiles } from "./use-explorer-recent-files"
 import { canSummarizeFile } from "./explorer-card-summary"
-import { useExplorerCardSummary } from "./use-explorer-card-summary"
+import { formatBytes } from "./format-bytes"
+import {
+  useExplorerCardLocations,
+  useExplorerCardSummary,
+} from "./use-explorer-card-summary"
+import { useExplorerThumbnail } from "./use-explorer-thumbnail"
+import { explorerMediaKind } from "../shared/explorer-media"
 import { setSpacePathDragData } from "./space-path-drag"
 import type { SpaceTreeRenameRequest } from "./space-file-tree"
 
@@ -90,48 +102,107 @@ function CardContent({
   visible,
   locale,
   includeDate,
+  location,
 }: {
   entry: SpaceTreeEntry
   spaceId: string
   visible: boolean
   locale: string
   includeDate: boolean
+  location?: string
 }) {
+  const { t } = useEidosLiteI18n()
   const summary = useExplorerCardSummary(spaceId, entry, visible)
-  const parent = entry.relativePath.split("/").slice(0, -1).join("/")
+  const mediaKind = explorerMediaKind(entry.name)
+  const thumbnail = useExplorerThumbnail(spaceId, entry, visible)
+  const [failedThumbnail, setFailedThumbnail] = useState<string | null>(null)
   const modifiedAt = Number.isFinite(entry.modifiedAtMs)
     ? new Date(entry.modifiedAtMs)
     : null
+  const eidos = summary.status === "ready" ? summary.eidos : undefined
+  const formatCount = (count: number) =>
+    new Intl.NumberFormat(locale).format(count)
+  const summaryText = eidos
+    ? `${eidos.tableNames.join(" · ") || t("No tables yet")}\n${t(eidos.tableCount === 1 ? "{count} table" : "{count} tables", { count: formatCount(eidos.tableCount) })}${eidos.recordCount === null ? "" : ` · ${t(eidos.recordCount === 1 ? "{count} record" : "{count} records", { count: formatCount(eidos.recordCount) })}`}`
+    : summary.status === "ready"
+      ? summary.text || t("No content yet")
+      : summary.status === "unavailable"
+        ? canSummarizeFile(entry.name)
+          ? t("Preview unavailable")
+          : `${entry.name.split(".").at(-1)?.toUpperCase() ?? t("File")} · ${formatBytes(entry.size, locale)}`
+        : ""
   return (
     <>
-      <span className="explorer-card-title">
-        <strong>{entry.name}</strong>
-        {parent && (
-          <span className="explorer-card-location" title={parent}>
-            {parent}
-          </span>
-        )}
-        {modifiedAt && (
-          <time
-            dateTime={modifiedAt.toISOString()}
-            title={modifiedAt.toLocaleString(locale)}
-          >
-            {new Intl.DateTimeFormat(
-              locale,
-              includeDate
-                ? {
-                    month: "numeric",
-                    day: "numeric",
-                    ...(modifiedAt.getFullYear() !== new Date().getFullYear()
-                      ? { year: "numeric" }
-                      : {}),
-                  }
-                : { hour: "2-digit", minute: "2-digit" }
-            ).format(modifiedAt)}
-          </time>
-        )}
+      {mediaKind && (
+        <span
+          className="explorer-card-thumbnail"
+          data-media-kind={mediaKind}
+          aria-hidden="true"
+        >
+          {thumbnail && thumbnail !== failedThumbnail ? (
+            <img
+              src={thumbnail}
+              alt=""
+              decoding="async"
+              loading="lazy"
+              draggable={false}
+              onError={() => setFailedThumbnail(thumbnail)}
+            />
+          ) : mediaKind === "video" ? (
+            <Video />
+          ) : (
+            <ImageIcon />
+          )}
+          {mediaKind === "video" &&
+            thumbnail &&
+            thumbnail !== failedThumbnail && (
+              <span className="explorer-card-video">
+                <Play />
+              </span>
+            )}
+        </span>
+      )}
+      <span className="explorer-card-body">
+        <span className="explorer-card-title">
+          <strong>
+            {summary.status === "ready"
+              ? summary.title || entry.name
+              : entry.name}
+          </strong>
+          {location && (
+            <span className="explorer-card-location" title={entry.relativePath}>
+              {location}
+            </span>
+          )}
+          {modifiedAt && (
+            <time
+              dateTime={modifiedAt.toISOString()}
+              title={modifiedAt.toLocaleString(locale)}
+            >
+              {new Intl.DateTimeFormat(
+                locale,
+                includeDate
+                  ? {
+                      month: "numeric",
+                      day: "numeric",
+                      ...(modifiedAt.getFullYear() !== new Date().getFullYear()
+                        ? { year: "numeric" }
+                        : {}),
+                    }
+                  : { hour: "2-digit", minute: "2-digit" }
+              ).format(modifiedAt)}
+            </time>
+          )}
+        </span>
+        <span
+          className="explorer-card-summary"
+          data-empty={
+            (summary.status === "ready" && !summary.text && !eidos) || undefined
+          }
+        >
+          {summaryText}
+        </span>
       </span>
-      {summary && <span className="explorer-card-summary">{summary}</span>}
     </>
   )
 }
@@ -161,14 +232,37 @@ export function SpaceFileGroups(props: Props) {
     () => groupExplorerFiles(recent.entries, props.sort, now),
     [recent.entries, props.sort, now]
   )
+  const groupContext = JSON.stringify([props.spaceId, props.directory ?? null])
+  const [collapsedGroups, setCollapsedGroups] = useState<{
+    context: string
+    ids: Set<string>
+  }>({ context: groupContext, ids: new Set() })
+  const collapsed =
+    collapsedGroups.context === groupContext
+      ? collapsedGroups.ids
+      : new Set<string>()
+  const toggleGroup = (id: string) => {
+    if (id === "earlier") {
+      recent.setExpanded(!recent.expanded)
+      return
+    }
+    setCollapsedGroups((current) => {
+      const ids = new Set(current.context === groupContext ? current.ids : [])
+      if (ids.has(id)) ids.delete(id)
+      else ids.add(id)
+      return { context: groupContext, ids }
+    })
+  }
   const rows = useMemo<CardRow[]>(() => {
     const result: CardRow[] = groups.flatMap((group) => [
       { key: "group:" + group.id, group },
-      ...group.files.map((entry) => ({
-        key: "file:" + entry.relativePath,
-        group,
-        entry,
-      })),
+      ...(collapsed.has(group.id)
+        ? []
+        : group.files.map((entry) => ({
+            key: "file:" + entry.relativePath,
+            group,
+            entry,
+          }))),
     ])
     if (recent.earlierCount) {
       const group: ModifiedFileGroup = {
@@ -192,6 +286,8 @@ export function SpaceFileGroups(props: Props) {
     return result
   }, [
     groups,
+    collapsedGroups,
+    groupContext,
     recent.earlier,
     recent.earlierCount,
     recent.expanded,
@@ -202,6 +298,7 @@ export function SpaceFileGroups(props: Props) {
     () => rows.flatMap((row) => (row.entry ? [row.entry] : [])),
     [rows]
   )
+  const locations = useExplorerCardLocations(props.spaceId, files)
   const [selected, setSelected] = useState<string[]>([])
   const [progress, setProgress] = useState(false)
   const [editing, setEditing] = useState<{
@@ -226,12 +323,10 @@ export function SpaceFileGroups(props: Props) {
       rows[index]!.loadMore
         ? 32
         : rows[index]!.entry
-          ? canSummarizeFile(rows[index]!.entry!.name)
-            ? 67
-            : 31
+          ? 70
           : index === 0
             ? 28
-            : 40,
+            : 34,
     overscan: 5,
   })
   const virtualRows = virtualizer.getVirtualItems()
@@ -433,21 +528,23 @@ export function SpaceFileGroups(props: Props) {
                   style={{ transform: "translateY(" + item.start + "px)" }}
                 >
                   <h3>
-                    {row.group.id === "earlier" ? (
-                      <button
-                        type="button"
-                        className="explorer-earlier-toggle"
-                        aria-expanded={recent.expanded}
-                        onClick={() => recent.setExpanded(!recent.expanded)}
-                      >
-                        <ChevronRight aria-hidden="true" />
-                        {t("Earlier")}
-                      </button>
-                    ) : row.group.label === "Date" ? (
-                      explorerGroupDateLabel(row.group, now, locale)
-                    ) : (
-                      t(row.group.label)
-                    )}
+                    <button
+                      type="button"
+                      className={`explorer-group-toggle${row.group.id === "earlier" ? " explorer-earlier-toggle" : ""}`}
+                      aria-expanded={
+                        row.group.id === "earlier"
+                          ? recent.expanded
+                          : !collapsed.has(row.group.id)
+                      }
+                      onClick={() => toggleGroup(row.group.id)}
+                    >
+                      <span>
+                        {row.group.label === "Date"
+                          ? explorerGroupDateLabel(row.group, now, locale)
+                          : t(row.group.label)}
+                      </span>
+                      <ChevronRight aria-hidden="true" />
+                    </button>
                   </h3>
                 </div>
               )
@@ -548,6 +645,7 @@ export function SpaceFileGroups(props: Props) {
                       visible={props.visible}
                       locale={locale}
                       includeDate={row.group.id === "earlier"}
+                      location={locations.get(entry.relativePath)}
                     />
                   </button>
                   {editing?.entry.relativePath === entry.relativePath && (

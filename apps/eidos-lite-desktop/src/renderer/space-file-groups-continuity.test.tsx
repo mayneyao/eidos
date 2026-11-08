@@ -88,13 +88,17 @@ it("retains real virtual rows, their DOM and scroll offset while the other layou
       scroll.dispatchEvent(new Event("scroll"))
     })
     const first = host.querySelector(".explorer-card-open")!
+    // The virtualizer may anchor the initial scroll as estimated media rows
+    // are measured. Switching layouts must preserve that settled offset.
+    const settledScrollTop = scroll.scrollTop
+    expect(settledScrollTop).toBeGreaterThan(0)
     expect(first).not.toBeNull()
     expect(first.getAttribute("data-path")).not.toBe("00.png")
     await render(false)
     expect(host.querySelector(".explorer-card-open")).toBe(first)
     await render(true)
     expect(host.querySelector(".explorer-card-open")).toBe(first)
-    expect(scroll.scrollTop).toBe(700)
+    expect(scroll.scrollTop).toBe(settledScrollTop)
   } finally {
     await act(async () => root.unmount())
     host.remove()

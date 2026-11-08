@@ -319,6 +319,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields),
   listExplorerFiles: (query) =>
     ipcRenderer.invoke(IPC_CHANNELS.listExplorerFiles, query),
+  getExplorerFileThumbnail: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.explorerFileThumbnail, request),
+  getExplorerEidosSummary: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.explorerFileSummary, request),
   searchSpaceText: (requestId, query, options) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query, options),
   cancelTextSearch: (requestId) =>

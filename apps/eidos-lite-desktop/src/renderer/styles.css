@@ -2425,6 +2425,8 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
+  container-name: recent-files;
 }
 .explorer-card-scroll {
   --explorer-scrollbar-thumb-current: transparent;
@@ -2462,8 +2464,8 @@ body {
 .explorer-card-group {
   display: flex;
   align-items: flex-end;
-  height: 40px;
-  padding: 16px 8px 6px;
+  height: 34px;
+  padding: 10px 8px 6px;
   color: var(--ink-muted);
 }
 .explorer-card-group[data-first-group="true"] {
@@ -2471,6 +2473,7 @@ body {
   padding-top: 4px;
 }
 .explorer-card-group h3 {
+  width: 100%;
   margin: 0;
   font-size: 12px;
   font-weight: 500;
@@ -2486,15 +2489,18 @@ body {
   background: var(--surface-hover);
 }
 .explorer-file-card[data-selected="true"] {
-  background: color-mix(in srgb, var(--surface-selected) 60%, transparent);
+  background: var(--surface-selected);
 }
 .explorer-card-open {
+  --explorer-card-thumbnail-size: 56px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  padding: 5px 8px;
+  height: 68px;
+  min-height: 68px;
+  padding: 6px 8px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -2503,8 +2509,58 @@ body {
   text-align: left;
   cursor: pointer;
 }
+.explorer-card-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.explorer-card-thumbnail {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--explorer-card-thumbnail-size);
+  height: var(--explorer-card-thumbnail-size);
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+.explorer-card-thumbnail > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.explorer-card-thumbnail > svg {
+  width: 24px;
+  height: 24px;
+}
+.explorer-card-video {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  right: 3px;
+  bottom: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 60%);
+  color: white;
+}
+.explorer-card-video svg {
+  width: 10px;
+  height: 10px;
+}
+@container recent-files (max-width: 330px) {
+  .explorer-card-open {
+    --explorer-card-thumbnail-size: 48px;
+  }
+}
 .explorer-card-open:focus-visible,
-.explorer-earlier-toggle:focus-visible {
+.explorer-group-toggle:focus-visible {
   outline: 1px solid var(--focus);
   outline-offset: -1px;
 }
@@ -2517,17 +2573,19 @@ body {
   line-height: 19px;
 }
 .explorer-card-title > strong {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
+  color: color-mix(in oklab, var(--ink) 65%, var(--ink-muted));
 }
 .explorer-card-location {
-  flex: 0 1 auto;
+  flex: none;
+  max-width: 35%;
   min-width: 0;
-  max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2538,8 +2596,18 @@ body {
   flex: none;
   margin-left: auto;
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
+  opacity: 0;
+}
+.explorer-file-card:hover .explorer-card-title time,
+.explorer-card-open:focus-visible .explorer-card-title time {
+  opacity: 1;
+}
+@media (hover: none) {
+  .explorer-card-title time {
+    opacity: 1;
+  }
 }
 .explorer-card-summary {
   display: -webkit-box;
@@ -2547,34 +2615,50 @@ body {
   -webkit-line-clamp: 2;
   overflow: hidden;
   min-width: 0;
-  width: 100%;
-  color: var(--ink-muted);
-  font-size: 12px;
-  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: pre-line;
   overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 17px;
+  height: 34px;
+  flex-shrink: 0;
 }
-.explorer-earlier-toggle {
+.explorer-group-toggle {
   display: flex;
   align-items: center;
   gap: 4px;
+  justify-content: flex-start;
+  width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: color-mix(in oklab, var(--ink-muted) 80%, transparent);
   font: inherit;
   cursor: pointer;
 }
-.explorer-earlier-toggle svg {
+.explorer-group-toggle svg {
+  flex: none;
   width: 12px;
   height: 12px;
   transition: transform 160ms ease;
+  opacity: 0;
 }
-.explorer-earlier-toggle[aria-expanded="true"] svg {
+.explorer-group-toggle[aria-expanded="true"] svg {
   transform: rotate(90deg);
+}
+.explorer-card-group:hover .explorer-group-toggle svg,
+.explorer-group-toggle:focus-visible svg {
+  opacity: 1;
+}
+@media (hover: none) {
+  .explorer-group-toggle svg {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .explorer-layout-indicator,
-  .explorer-earlier-toggle svg {
+  .explorer-group-toggle svg {
     transition: none;
   }
 }

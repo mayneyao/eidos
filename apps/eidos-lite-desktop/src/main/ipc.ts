@@ -13,6 +13,8 @@ import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
 import { normalizeExplorerFilesQuery } from "../shared/explorer-file-list"
+import { normalizeExplorerThumbnailRequest } from "../shared/explorer-media"
+import { normalizeExplorerSummaryRequest } from "../shared/explorer-summary"
 import { SparkService } from "./account/spark-service"
 import { hasSparkFeature, type SparkStatus } from "../shared/spark"
 import { accountStorageKey } from "../shared/service-environment"
@@ -1805,6 +1807,19 @@ export function registerIpc(
     controller
       .requireSession(event.sender)
       .listExplorerFiles(normalizeExplorerFilesQuery(query))
+  )
+  ipcMain.handle(IPC_CHANNELS.explorerFileThumbnail, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .getExplorerFileThumbnail(
+        normalizeExplorerThumbnailRequest(value),
+        systemFileThumbnail
+      )
+  )
+  ipcMain.handle(IPC_CHANNELS.explorerFileSummary, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .getExplorerEidosSummary(normalizeExplorerSummaryRequest(value))
   )
   ipcMain.handle(
     IPC_CHANNELS.searchText,

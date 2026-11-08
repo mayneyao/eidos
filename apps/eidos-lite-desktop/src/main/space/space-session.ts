@@ -157,6 +157,8 @@ import {
 import { SpaceSyncConnectionStore } from "./sync-connection"
 import { SyncSwitchJournal } from "./sync-switch"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
+import type { ExplorerSummaryRequest } from "../../shared/explorer-summary"
+import { readExplorerEidosSummary } from "./explorer-eidos-summary"
 import {
   decodeText,
   readTextFilePreview,
@@ -171,6 +173,8 @@ import type {
 } from "@eidos.space/plugin-sdk"
 import type { MediaFilePreviewResult } from "../plugins/document-host"
 import type { FileThumbnailProvider } from "./file-thumbnails"
+import type { ExplorerThumbnailRequest } from "../../shared/explorer-media"
+import { readExplorerFileThumbnail } from "./explorer-file-thumbnail"
 import {
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
@@ -938,6 +942,25 @@ export class SpaceSession {
     } finally {
       this.scheduleGraftStatusRefresh()
     }
+  }
+
+  async getExplorerFileThumbnail(
+    request: ExplorerThumbnailRequest,
+    provider?: FileThumbnailProvider
+  ): Promise<string | null> {
+    if (request.spaceId !== this.canonical.id)
+      throw Error("Thumbnail belongs to a different Space")
+    await assertSpaceRootIdentity(this.canonical)
+    return readExplorerFileThumbnail(this.canonical.root, request, provider)
+  }
+
+  async getExplorerEidosSummary(request: ExplorerSummaryRequest) {
+    if (request.spaceId !== this.canonical.id)
+      throw Error("Summary belongs to a different Space")
+    await assertSpaceRootIdentity(this.canonical)
+    return readExplorerEidosSummary(this.canonical.root, request, (filePath) =>
+      this.runtimePool.explorerSummary(filePath)
+    )
   }
 
   private companionCandidates(safe: string, identifier: string): string[] {

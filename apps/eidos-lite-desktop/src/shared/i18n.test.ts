@@ -19,6 +19,7 @@ describe("Eidos Lite internationalization", () => {
     expect(translateEidosLite("zh", "Recent files")).toBe("最近文件")
     expect(translateEidosLite("zh", "Yesterday")).toBe("昨天")
     expect(translateEidosLite("zh", "Earlier")).toBe("更早")
+    expect(translateEidosLite("zh", "No content yet")).toBe("暂无内容")
     expect(translateEidosLite("zh", "Built-in Plugins")).toBe("内置插件")
     expect(translateEidosLite("zh", "Retry")).toBe("重试")
     expect(
