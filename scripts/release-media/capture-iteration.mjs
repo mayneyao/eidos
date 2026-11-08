@@ -613,8 +613,18 @@ async function capture(catalog) {
     recordingStarted = true
     for (const step of scene.steps) await action(step)
     const actionsFinishedSeconds = (Date.now() - startedAt) / 1000
-    if (actionsFinishedSeconds >= scene.durationSeconds - 0.5)
+    if (actionsFinishedSeconds >= scene.durationSeconds - 2)
       throw Error("Scene did not finish before the export boundary")
+    // ScreenCaptureKit emits variable-rate frames and may omit an idle tail.
+    // Park the real native cursor after the final viewing dwell so the source
+    // retains a visible frame after every scenario assertion, without adding
+    // synthetic video frames or changing the application state.
+    await sleep(1000)
+    run(native, [
+      "move",
+      nativeWindow.X + viewport.width - 24,
+      nativeWindow.Y + viewport.height - 24,
+    ])
     await recordingDone
     if (posterSeconds === undefined) throw Error("No poster marker was reached")
     if (sessionErrors.length)
