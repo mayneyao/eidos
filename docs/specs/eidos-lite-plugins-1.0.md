@@ -488,6 +488,13 @@ Code rollback does not undo data writes or external side effects.
 
 ## 6. Views, placements and routing
 
+In Lite, `ui.navigate(viewId)` without a route MUST reuse an already open main
+page View of the same contribution. It brings that page forward without changing
+its binding or disposing the iframe. Stateful pages can update their contents
+through their existing subscriptions. Supplying an explicit route requests a new
+page binding and retains the remount behavior. Opening a different contribution
+still mounts its page normally.
+
 Navigation and plugin/settings placements target pages. file/open targets file
 views other than table-bound views; table/view targets a file view requiring
 `eidos/table`. File/open views declaring `eidos/schema` or `eidos/config` use only

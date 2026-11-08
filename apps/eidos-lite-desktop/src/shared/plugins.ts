@@ -93,7 +93,7 @@ export interface PluginRpcResult {
   /** Trusted workbench payload; never forwarded to a plugin guest. */
   resource?: PluginResourceChange
   draftPath?: string
-  navigation?: { key: string; route: string }
+  navigation?: { key: string; route: string; reuse?: boolean }
   notification?: string
   openFile?: string
   response: PluginResponse

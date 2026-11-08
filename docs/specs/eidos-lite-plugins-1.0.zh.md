@@ -289,6 +289,8 @@ View 仅暴露 settings.get；Lite Action 还支持 settings.set/reset。
 HostUI 提供 notify，
 openFile/navigate 为宿主可选操作；openFile 的相对路径仍由宿主校验和授权。
 
+在 Lite 中，不传 route 的 `ui.navigate(viewId)` 必须复用主区域已打开的同一贡献 page View，仅将页面带到前台，不改变绑定或销毁 iframe。有状态页面可通过已有订阅更新内容。显式传入 route 则请求新的页面绑定，保留重新挂载行为。打开不同贡献仍正常挂载其页面。
+
 View 宿主可以提供 `capabilities.ui.exportFile({ name, mimeType, data })`，用于导出生成文件。
 name 必须是不含路径的可移植文件名，mimeType 必须是不含参数的媒体类型，data 必须是
 不超过 16 MiB 的 Uint8Array。此操作不授予文件系统或绑定数据写入权限，只读 View 也可使用。

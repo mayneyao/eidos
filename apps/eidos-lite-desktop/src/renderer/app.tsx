@@ -914,13 +914,14 @@ function WorkspaceApp({
     label: string
   } | null>(null)
   const [pluginPageRevision, setPluginPageRevision] = useState(0)
-  const navigatePluginPage = (key: string) => {
+  const navigatePluginPage = (key: string, reuse = false) => {
     setPluginsVisible(false)
     setPluginDetailId(null)
     setPluginDetailName(null)
     setPluginEditor(null)
     setPluginPage(key)
-    setPluginPageRevision((value) => value + 1)
+    if (!reuse || pluginPage !== key)
+      setPluginPageRevision((value) => value + 1)
     recordNavigationLocation({ type: "plugin-page", key }, false)
   }
   useEffect(() => {

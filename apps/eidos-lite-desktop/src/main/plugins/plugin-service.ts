@@ -2637,7 +2637,11 @@ export class PluginService {
                 ? p.route
                 : await this.store.pageRoute(session.canonical.id, key)
             await this.store.setPageRoute(session.canonical.id, key, route)
-            navigation = { key, route }
+            navigation = {
+              key,
+              route,
+              ...(p.route === undefined ? { reuse: true } : {}),
+            }
             result = null
             break
           }

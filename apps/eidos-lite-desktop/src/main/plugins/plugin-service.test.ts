@@ -1547,6 +1547,25 @@ describe("Lite document-view integration", () => {
       navigation: { key: "example.page/home", route: "week/43" },
     })
     expect(
+      await rpc(page.ticket, "ui.navigate", { viewId: "home" })
+    ).toMatchObject({
+      navigation: {
+        key: "example.page/home",
+        route: "week/43",
+        reuse: true,
+      },
+    })
+    expect(service.instances.has(page.ticket)).toBe(true)
+    const explicitEmpty = await rpc(page.ticket, "ui.navigate", {
+      viewId: "home",
+      route: "",
+    })
+    expect(explicitEmpty.navigation).toEqual({
+      key: "example.page/home",
+      route: "",
+    })
+    await rpc(page.ticket, "ui.navigate", { viewId: "home", route: "week/43" })
+    expect(
       await rpc(page.ticket, "ui.navigate", { viewId: "other.plugin/home" })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
     const restarted = new PluginStore(store.directory)

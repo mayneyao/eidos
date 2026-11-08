@@ -40,7 +40,7 @@ export function PluginEditor({
   onFallback(): void
   onRetry(): void
   onNotification?(message: string): void
-  onNavigate?(key: string): void
+  onNavigate?(key: string, reuse?: boolean): void
   onOpenFile?(path: string): void
   onTableRequest?(request: PluginRequest): Promise<unknown>
   tableRevision?: unknown
@@ -366,7 +366,10 @@ export function PluginEditor({
             }
             source.postMessage(result.response, "*")
             if (result.navigation)
-              callbacks.current.onNavigate?.(result.navigation.key)
+              callbacks.current.onNavigate?.(
+                result.navigation.key,
+                result.navigation.reuse
+              )
             if (result.openFile) callbacks.current.onOpenFile?.(result.openFile)
           })
           .catch((cause: unknown) => {
