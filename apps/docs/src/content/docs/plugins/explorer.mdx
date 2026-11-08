@@ -122,6 +122,6 @@ Set `includeDirectories` to true to include directories, even empty ones. On exp
 
 Read `explorer.read().sort` for the selected sort order; `modifiedAtMs` supports time sorting. This example does not implement sorting, directory navigation, or selection styling. Add those for a complete browser.
 
-The plugin owns the entire explorer area, including its heading, search, sort controls, and file toolbar. Lite retains window navigation and application controls. Global Space text search temporarily overlays the sidebar without unmounting it. Explorer state does not grant file access; the host checks permissions separately.
+The plugin owns the entire explorer area, including its heading, search, sort controls, and file toolbar. Lite retains window navigation and application controls. Cmd+P searches file and folder names or saved text in a modal without unmounting the plugin. The Space text-search shortcut opens its text mode. Explorer state does not grant file access; the host checks permissions separately.
 
 See [Explorer](/plugins/api/explorer/) and [Filesystem](/plugins/api/fs/) for interface details.

@@ -88,7 +88,7 @@ export async function resolveObsidianSpaceEntry(
   const requestedPaths = [target, ...(hasExtension ? [] : [`${target}.md`])]
   const requested = new Set(requestedPaths.map(lower))
   const hits = (await searchSpacePaths(targetName, 200)).filter(
-    (hit) => hit.kind !== "symlink"
+    (hit) => hit.kind === "file" || hit.kind === "eidos"
   )
   const exact = hits.find((hit) => requested.has(lower(hit.relativePath)))
   const explicitPath =

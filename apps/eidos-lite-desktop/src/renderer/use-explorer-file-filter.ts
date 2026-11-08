@@ -23,9 +23,10 @@ export function useExplorerFileFilter(
   directory: string | null,
   filter: ExplorerFileFilter,
   entries: SpaceTreeEntry[],
-  changes?: readonly string[]
+  changes?: readonly string[],
+  recursive = false
 ) {
-  const active = countExplorerFilterRules(filter) > 0
+  const active = countExplorerFilterRules(filter) > 0 || recursive
   const context = JSON.stringify([spaceId, directory])
   const properties = hasExplorerPropertyFilter(filter)
   const [retryToken, setRetryToken] = useState(0)
@@ -76,7 +77,7 @@ export function useExplorerFileFilter(
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [key, scope, directory, spaceId, changes])
+  }, [key, scope, directory, spaceId, changes, active])
   return {
     entries: !active
       ? entries

@@ -432,7 +432,7 @@ export interface SpacePathSearchHit {
   matchedAlias?: string
   relativePath: string
   name: string
-  kind: Exclude<SpaceEntryKind, "directory">
+  kind: SpaceEntryKind
   score: number
 }
 
@@ -1950,7 +1950,11 @@ export interface EidosLiteApi extends PluginApi {
   refreshSpace(): Promise<SpaceSnapshot | null>
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
-  searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
+  searchSpacePaths(
+    query: string,
+    limit?: number,
+    includeDirectories?: boolean
+  ): Promise<SpacePathSearchHit[]>
   filterSpaceFiles(
     filter: ExplorerFileFilter,
     directory: string | null

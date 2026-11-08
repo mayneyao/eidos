@@ -46,7 +46,6 @@ import {
   Upload,
   X,
 } from "lucide-react"
-import { WorkspaceTextSearch } from "./workspace-text-search"
 import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
@@ -77,7 +76,6 @@ import type { PluginOpenResult, PluginInstallIntent } from "../shared/plugins"
 import {
   resolveTextSearchTarget,
   type TextSearchHit,
-  type TextSearchOptions,
   type TextSearchTarget,
 } from "../shared/text-search"
 
@@ -142,7 +140,7 @@ import {
   resolveObsidianSpaceEntry,
 } from "./obsidian-vault"
 import { PathActionDialog, type PathDialogState } from "./path-action-dialog"
-import { QuickOpen } from "./quick-open"
+import { QuickOpen, type QuickOpenMode } from "./quick-open"
 import {
   isPublishableEntry,
   publishMenuAvailability,
@@ -961,19 +959,17 @@ function WorkspaceApp({
       await window.eidosLite.closeEidosFile(sessionId)
   }, [])
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
-  const [textSearchVisible, setTextSearchVisible] = useState(false)
+  const [quickOpenMode, setQuickOpenMode] = useState<QuickOpenMode>("name")
+  const [explorerSearchVisible, setExplorerSearchVisible] = useState(false)
   const [explorerFileFilter, setExplorerFileFilter] =
     useState<ExplorerFileFilter>(ALL_EXPLORER_FILES)
   const [explorerFilterVisible, setExplorerFilterVisible] = useState(false)
   const explorerFilterTrigger = useRef<HTMLButtonElement>(null)
   useEffect(() => setExplorerFilterVisible(false), [space?.id])
   useEffect(() => setExplorerFileFilter(ALL_EXPLORER_FILES), [space?.id])
-  const [textSearchQuery, setTextSearchQuery] = useState("")
-  const [textSearchOptions, setTextSearchOptions] = useState<TextSearchOptions>(
-    {}
-  )
-  useEffect(() => setTextSearchQuery(""), [space?.id])
-  const [textSearchFocusToken, setTextSearchFocusToken] = useState(0)
+  const [explorerSearchQuery, setExplorerSearchQuery] = useState("")
+  useEffect(() => setExplorerSearchQuery(""), [space?.id])
+  const [explorerSearchFocusToken, setExplorerSearchFocusToken] = useState(0)
   const searchEntryRef = useRef<HTMLButtonElement>(null)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
@@ -1102,7 +1098,8 @@ function WorkspaceApp({
     explorerDirectory
       ? (explorerDirectoryEntry?.children ?? [])
       : (space?.entries ?? []),
-    space?.externalChangePaths ?? space?.materializedPaths ?? undefined
+    space?.externalChangePaths ?? space?.materializedPaths ?? undefined,
+    explorerSearchVisible && !!explorerSearchQuery.trim()
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
@@ -2797,8 +2794,9 @@ function WorkspaceApp({
   )
 
   const openTextSearchHit = useCallback(
-    async (hit: TextSearchHit) => {
+    async (hit: TextSearchHit, signal?: AbortSignal) => {
       const preview = await window.eidosLite.previewTextFile(hit.relativePath)
+      if (signal?.aborted) return
       if (preview.type !== "text" || preview.truncated)
         throw new Error(t("This file is no longer available as editable text."))
       const content =
@@ -2838,7 +2836,14 @@ function WorkspaceApp({
         },
         { fileOpenMode: "wysiwyg" }
       )
-      if (opened) {
+      if (!opened && !signal?.aborted)
+        throw new Error(
+          t("Could not open {name}. {value2}", {
+            name: hit.relativePath,
+            value2: t("Try again"),
+          })
+        )
+      if (opened && !signal?.aborted) {
         setMarkdownNavigationTarget({
           relativePath: hit.relativePath,
           requestId: Date.now(),
@@ -3313,7 +3318,8 @@ function WorkspaceApp({
         return
       }
       if (workspaceShortcut === "quick-open" && space) {
-        setQuickOpenVisible((current) => !current)
+        setQuickOpenMode("name")
+        setQuickOpenVisible(true)
         return
       }
       if (workspaceShortcut === "command-palette") {
@@ -3322,10 +3328,8 @@ function WorkspaceApp({
       }
       if (workspaceShortcut === "search-space-text" && space) {
         if (pathDialog || blocksLocalInteraction(space.operation.phase)) return
-        setSidebarCollapsed(false)
-        setQuickOpenVisible(false)
-        setTextSearchVisible(true)
-        setTextSearchFocusToken((current) => current + 1)
+        setQuickOpenMode("text")
+        setQuickOpenVisible(true)
         return
       }
       if (workspaceShortcut === "focus-file-content") {
@@ -3941,7 +3945,7 @@ function WorkspaceApp({
       acceptSpaceSnapshot(snapshot)
       setExplorerFolder({ spaceId: space.id, path })
       setSelectedEntry(null)
-      setTextSearchVisible(false)
+      setExplorerSearchVisible(false)
     } catch (cause) {
       if (request === folderNavigationRef.current) setError(errorMessage(cause))
     }
@@ -3976,7 +3980,7 @@ function WorkspaceApp({
           setExplorerFolder(null)
         }
         setSidebarCollapsed(false)
-        setTextSearchVisible(false)
+        setExplorerSearchVisible(false)
         setTreeRevealToken((value) => value + 1)
       }
     } catch (cause) {
@@ -4021,8 +4025,9 @@ function WorkspaceApp({
       onForward={() => navigateHistory(1)}
     />
   ) : null
-  const closeTextSearch = () => {
-    flushSync(() => setTextSearchVisible(false))
+  const closeExplorerSearch = () => {
+    flushSync(() => setExplorerSearchVisible(false))
+    setExplorerSearchQuery("")
     if (pluginExplorer.selected && !pluginExplorer.error)
       document
         .querySelector<HTMLIFrameElement>("#workspace-files-panel iframe")
@@ -4065,28 +4070,18 @@ function WorkspaceApp({
         navigationDisabled={
           pathMutationBusy || localInteractionBlocked || busyFile !== null
         }
-        searching={textSearchVisible}
-        query={textSearchQuery}
-        options={textSearchOptions}
-        onOptionsChange={setTextSearchOptions}
-        onQueryChange={setTextSearchQuery}
-        focusToken={textSearchFocusToken}
+        searching={explorerSearchVisible}
+        query={explorerSearchQuery}
+        onQueryChange={setExplorerSearchQuery}
+        focusToken={explorerSearchFocusToken}
         searchRef={searchEntryRef}
-        shortcut={workspaceShortcutLabel(
-          "search-space-text",
-          macos,
-          keyboardShortcuts
-        )}
-        ariaShortcut={workspaceShortcutAriaKeyShortcuts(
-          "search-space-text",
-          macos,
-          keyboardShortcuts
-        )}
+        shortcut=""
         onSearch={() => {
-          setTextSearchVisible(true)
-          setTextSearchFocusToken((current) => current + 1)
+          setExplorerLayout("tree")
+          setExplorerSearchVisible(true)
+          setExplorerSearchFocusToken((current) => current + 1)
         }}
-        onBack={closeTextSearch}
+        onBack={closeExplorerSearch}
         actions={[
           {
             label: t("New File"),
@@ -4128,14 +4123,6 @@ function WorkspaceApp({
           },
         ]}
       />
-      <WorkspaceTextSearch
-        key={space.id}
-        hidden={!textSearchVisible || !textSearchQuery}
-        query={textSearchQuery}
-        options={textSearchOptions}
-        onOpen={openTextSearchHit}
-        onClose={closeTextSearch}
-      />
     </>
   )
   return (
@@ -4174,13 +4161,13 @@ function WorkspaceApp({
         aria-hidden={sidebarCollapsed}
         onKeyDown={(event) => {
           if (
-            textSearchVisible &&
+            explorerSearchVisible &&
             event.key === "Escape" &&
             !event.nativeEvent.isComposing
           ) {
             event.preventDefault()
             event.stopPropagation()
-            closeTextSearch()
+            closeExplorerSearch()
           }
         }}
       >
@@ -4203,13 +4190,15 @@ function WorkspaceApp({
             }
             onPluginSelect={(key) => {
               void pluginExplorer.select(key)
-              setTextSearchVisible(false)
+              setExplorerSearchVisible(false)
+              setExplorerSearchQuery("")
             }}
             disabled={localInteractionBlocked || pathMutationBusy}
             onChange={(layout) => {
               if (pluginExplorer.selected) void pluginExplorer.select(null)
               setExplorerLayout(layout)
-              setTextSearchVisible(false)
+              setExplorerSearchVisible(false)
+              setExplorerSearchQuery("")
             }}
           />
         </header>
@@ -4235,13 +4224,13 @@ function WorkspaceApp({
           overlay={
             pluginExplorer.selected &&
             !pluginExplorer.error &&
-            textSearchVisible
+            explorerSearchVisible
               ? workspaceSearchPanel
               : null
           }
         >
           {workspaceSearchPanel}
-          {!textSearchVisible && (
+          {!explorerSearchVisible && (
             <ExplorerFilterBar
               key={space.id}
               theme={theme}
@@ -4256,11 +4245,7 @@ function WorkspaceApp({
               }}
             />
           )}
-          <nav
-            className="explorer"
-            hidden={textSearchVisible && !!textSearchQuery}
-            aria-label={`${space.name} files`}
-          >
+          <nav className="explorer" aria-label={`${space.name} files`}>
             <Suspense
               fallback={
                 <p className="explorer-busy" role="status">
@@ -4280,6 +4265,7 @@ function WorkspaceApp({
               >
                 <SpaceFileTree
                   sort={explorerSort}
+                  nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
                   fileFilter={explorerFileFilter}
                   filtering={filteredExplorer.loading}
                   filterError={filteredExplorer.error}
@@ -4293,7 +4279,6 @@ function WorkspaceApp({
                   opening={busyFile !== null}
                   visible={
                     explorerLayout === "tree" &&
-                    !textSearchVisible &&
                     (!pluginExplorer.selected || Boolean(pluginExplorer.error))
                   }
                   renameRequest={
@@ -4361,7 +4346,7 @@ function WorkspaceApp({
                   sort={explorerSort}
                   visible={
                     explorerLayout === "modified" &&
-                    !textSearchVisible &&
+                    !explorerSearchVisible &&
                     (!pluginExplorer.selected || Boolean(pluginExplorer.error))
                   }
                   activePath={activeDocumentPath}
@@ -4858,7 +4843,10 @@ function WorkspaceApp({
                     macos,
                     keyboardShortcuts
                   ),
-                  run: () => setQuickOpenVisible(true),
+                  run: () => {
+                    setQuickOpenMode("name")
+                    setQuickOpenVisible(true)
+                  },
                 },
                 {
                   key: "host/new-file",
@@ -5998,7 +5986,7 @@ function WorkspaceApp({
                     nonce: Date.now(),
                   })
                   setSidebarCollapsed(false)
-                  setTextSearchVisible(false)
+                  setExplorerSearchVisible(false)
                   if (contextMenu.entry.relativePath === activeDocumentPath) {
                     setTreeRevealToken((value) => value + 1)
                   }
@@ -6119,6 +6107,9 @@ function WorkspaceApp({
       ) : null}
       {quickOpenVisible && space ? (
         <QuickOpen
+          key={space.id}
+          mode={quickOpenMode}
+          onModeChange={setQuickOpenMode}
           recentFiles={recentFiles}
           activeTableSource={
             activeFile
@@ -6132,8 +6123,17 @@ function WorkspaceApp({
               : null
           }
           onClose={() => setQuickOpenVisible(false)}
+          onOpenText={openTextSearchHit}
           onOpen={(selection) => {
             setQuickOpenVisible(false)
+            if (selection.kind === "directory") {
+              setSidebarCollapsed(false)
+              setExplorerSearchQuery("")
+              setExplorerLayout("tree")
+              if (pluginExplorer.selected) void pluginExplorer.select(null)
+              void navigateExplorerDirectory(selection.relativePath)
+              return
+            }
             void openEntry({
               ...selection,
               size: 0,

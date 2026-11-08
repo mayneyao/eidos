@@ -306,8 +306,13 @@ const api: EidosLiteApi = {
   refreshExplorer: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExplorer),
   loadSpaceDirectory: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
-  searchSpacePaths: (query, limit) =>
-    ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
+  searchSpacePaths: (query, limit, includeDirectories) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.searchPaths,
+      query,
+      limit,
+      includeDirectories
+    ),
   filterSpaceFiles: (filter, directory) =>
     ipcRenderer.invoke(IPC_CHANNELS.filterFiles, filter, directory),
   getExplorerFilterFields: () =>

@@ -4,6 +4,14 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Could not open {name}. {value2}": "无法打开 {name}。{value2}",
+  "Filter tree by name": "按名称过滤目录树",
+  "Matching files": "匹配文件",
+  "Quick Open": "快速打开",
+  "Search files by name": "按名称搜索文件",
+  "Search mode": "搜索模式",
+  Tables: "表格",
+  Text: "文本",
   "Sort by": "排序依据",
   Order: "排序方向",
   Folders: "文件夹",

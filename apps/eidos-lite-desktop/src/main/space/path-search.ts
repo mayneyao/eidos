@@ -219,6 +219,7 @@ export class SpacePathIndex {
       try {
         const stats = await fs.lstat(absolutePath)
         if (stats.isDirectory() && !stats.isSymbolicLink()) {
+          this.addEntry(relativePath, stats)
           await this.walkSubtree(absolutePath, relativePath)
         } else if (stats.isFile() || stats.isSymbolicLink()) {
           this.addEntry(relativePath, stats)
@@ -229,10 +230,15 @@ export class SpacePathIndex {
     }
   }
 
-  search(query: string, limit?: number): SpacePathSearchHit[] {
+  search(
+    query: string,
+    limit?: number,
+    includeDirectories = false
+  ): SpacePathSearchHit[] {
     const resolvedLimit = normalizeSpacePathSearchLimit(limit)
     const scored: Array<{ entry: IndexedPath; score: number }> = []
     for (const entry of this.entries) {
+      if (entry.kind === "directory" && !includeDirectories) continue
       const score = scoreSpacePathCandidate(query, entry)
       if (score !== null) scored.push({ entry, score })
     }
@@ -257,7 +263,6 @@ export class SpacePathIndex {
     })
     const next: IndexedPath[] = []
     for (const entry of flattenSpaceTree(tree)) {
-      if (entry.kind === "directory") continue
       next.push(this.createEntry(entry.relativePath, entry.kind))
     }
     this.entries = next
@@ -282,6 +287,7 @@ export class SpacePathIndex {
       try {
         const stats = await fs.lstat(childAbsolute)
         if (stats.isDirectory() && !stats.isSymbolicLink()) {
+          this.addEntry(childRelative, stats)
           await this.walkSubtree(childAbsolute, childRelative)
         } else if (stats.isFile() || stats.isSymbolicLink()) {
           this.addEntry(childRelative, stats)
@@ -294,13 +300,15 @@ export class SpacePathIndex {
 
   private addEntry(
     relativePath: string,
-    stats: { isSymbolicLink(): boolean }
+    stats: { isSymbolicLink(): boolean; isDirectory(): boolean }
   ): void {
     const kind = stats.isSymbolicLink()
       ? "symlink"
-      : path.extname(relativePath).toLowerCase() === ".eidos"
-        ? "eidos"
-        : "file"
+      : stats.isDirectory()
+        ? "directory"
+        : path.extname(relativePath).toLowerCase() === ".eidos"
+          ? "eidos"
+          : "file"
     const entry = this.createEntry(relativePath, kind)
     const existingIndex = this.byPath.get(relativePath)
       ? this.entries.indexOf(this.byPath.get(relativePath)!)

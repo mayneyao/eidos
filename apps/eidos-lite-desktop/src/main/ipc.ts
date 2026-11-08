@@ -1773,13 +1773,18 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.searchPaths,
-    (event, query: unknown, limit: unknown) => {
+    (event, query: unknown, limit: unknown, includeDirectories: unknown) => {
       if (typeof query !== "string") throw new Error("Invalid search query")
+      if (
+        includeDirectories !== undefined &&
+        typeof includeDirectories !== "boolean"
+      )
+        throw new Error("Invalid path search options")
       const normalizedLimit =
         typeof limit === "number" && Number.isFinite(limit) ? limit : undefined
       return controller
         .requireSession(event.sender)
-        .searchPaths(query, normalizedLimit)
+        .searchPaths(query, normalizedLimit, includeDirectories === true)
     }
   )
   ipcMain.handle(

@@ -49,6 +49,7 @@ async function setup(
   const resets = vi.spyOn(FileTree.prototype, "resetPaths")
   const props = {
     entries,
+    nameQuery: "",
     rootDirectory,
     activePath: null,
     renameRequest: null,
@@ -104,6 +105,53 @@ async function setup(
   }
   return { props, model, expanded, expand, actions, render, dispose, host }
 }
+
+it("temporarily expands matches and restores browsing expansion, selection and scroll after clearing a name filter", async () => {
+  const item: SpaceTreeEntry = {
+    name: "match.md",
+    relativePath: "docs/nested/match.md",
+    kind: "file",
+    size: 0,
+    modifiedAtMs: 0,
+  }
+  const tree = await setup([
+    folder("docs", [folder("docs/nested", [item])]),
+    folder("other", []),
+    ...Array.from({ length: 80 }, (_, index) => folder(`extra-${index}`, [])),
+  ])
+  try {
+    const scroll = tree.host
+      .querySelector("[data-space-file-tree]")!
+      .shadowRoot!.querySelector<HTMLElement>(
+        "[data-file-tree-virtualized-scroll]"
+      )!
+    await act(async () => {
+      const docs = tree.model.getItem("docs/")!
+      if ("collapse" in docs) docs.collapse()
+      tree.model.getItem("other/")!.select()
+    })
+    scroll.scrollTop = 40
+    tree.props.nameQuery = "match"
+    await tree.render()
+    expect(tree.expanded("docs/")).toBe(true)
+    expect(tree.expanded("docs/nested/")).toBe(true)
+    expect(tree.model.getItem("other/")).toBeNull()
+    scroll.scrollTop = 0
+    await act(async () => tree.model.getItem("docs/nested/match.md")!.select())
+    tree.props.nameQuery = "missing"
+    await tree.render()
+    expect(tree.host.textContent).toContain("No matching files")
+    tree.props.nameQuery = ""
+    await tree.render()
+    expect(tree.expanded("docs/")).toBe(false)
+    expect(tree.expanded("other/")).toBe(true)
+    expect(tree.model.getSelectedPaths()).toEqual(["other/"])
+    await vi.waitFor(() => expect(scroll.scrollTop).toBe(40))
+    expect(tree.props.onOpen).not.toHaveBeenCalled()
+  } finally {
+    await tree.dispose()
+  }
+})
 
 it("recursively expands selected folders and collapses the whole tree without opening a file", async () => {
   const tree = await setup([

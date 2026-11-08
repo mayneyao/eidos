@@ -665,11 +665,12 @@ export class SpaceSession {
 
   async searchPaths(
     query: string,
-    limit?: number
+    limit?: number,
+    includeDirectories = false
   ): Promise<SpacePathSearchHit[]> {
     if (this.closed) throw new Error("Space is closed")
     await this.pathIndex.ensureScanned()
-    return this.pathIndex.search(query, limit)
+    return this.pathIndex.search(query, limit, includeDirectories)
   }
 
   async filterFiles(

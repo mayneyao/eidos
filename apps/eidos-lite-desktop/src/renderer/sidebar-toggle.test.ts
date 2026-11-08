@@ -52,9 +52,7 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource).toContain('data-sidebar-action="settings"')
   expect(appSource).not.toContain('data-titlebar-action="settings"')
   expect(appSource.match(/onToggle=\{toggleSidebar\}/g)).toHaveLength(2)
-  expect(appSource).toMatch(
-    /workspaceShortcutAriaKeyShortcuts\(\s*"search-space-text"/
-  )
+  expect(appSource).toContain('workspaceShortcut === "search-space-text"')
   expect(appSource).toContain(
     'workspaceShortcut === "toggle-terminal-position"'
   )
@@ -89,7 +87,7 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
     /\.explorer\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
   )
   expect(styles).toMatch(
-    /\.workspace-text-search\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
+    /\.plugin-explorer-pane > \.plugin-editor\s*\{[^}]*margin-inline-end:\s*var\(--space-sidebar-resize-hit-width\)/
   )
   expect(styles).toMatch(
     /\.sidebar-resizer::after\s*\{[\s\S]*?right:\s*0;[\s\S]*?width:\s*1px;/

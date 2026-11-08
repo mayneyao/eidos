@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { EidosLiteApi } from "../shared/contracts"
+import type { TextSearchHit, TextSearchProgress } from "../shared/text-search"
 import { QuickOpen } from "./quick-open"
 
 const recentFiles = [
@@ -81,6 +82,7 @@ describe("QuickOpen", () => {
     host = null
     root = null
     Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    vi.useRealTimers()
   })
 
   async function renderQuickOpen(props: {
@@ -92,6 +94,8 @@ describe("QuickOpen", () => {
     }) => void
     onOpenTable?: (tableId: string) => void
     onClose?: () => void
+    mode?: "name" | "text"
+    onOpenText?: (hit: TextSearchHit) => Promise<void>
     activeTableSource?: {
       relativePath: string
       tables: { tableId: string; name: string }[]
@@ -105,6 +109,8 @@ describe("QuickOpen", () => {
       root?.render(
         createElement(QuickOpen, {
           recentFiles: props.recentFiles ?? recentFiles,
+          mode: props.mode,
+          onOpenText: props.onOpenText,
           activeTableSource: props.activeTableSource ?? null,
           onOpen: props.onOpen ?? (() => undefined),
           onOpenTable: props.onOpenTable ?? (() => undefined),
@@ -236,7 +242,7 @@ describe("QuickOpen", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150))
     })
-    expect(searchSpacePaths).toHaveBeenCalledWith("meeting", 50)
+    expect(searchSpacePaths).toHaveBeenCalledWith("meeting", 50, true)
     expect(host?.textContent).toContain("meeting-notes.md")
 
     await act(async () => {
@@ -336,6 +342,262 @@ describe("QuickOpen", () => {
     })
     expect(host?.textContent).toContain("Index scan failed")
     expect(host?.textContent).not.toContain("No matching files")
+  })
+
+  function textApi() {
+    const listeners: ((progress: TextSearchProgress) => void)[] = []
+    const api = {
+      searchSpacePaths: vi.fn().mockResolvedValue([]),
+      searchSpaceText: vi.fn(
+        (_id: string, _query: string, _options: unknown) =>
+          new Promise<TextSearchProgress>(() => undefined)
+      ),
+      cancelTextSearch: vi.fn().mockResolvedValue(undefined),
+      onTextSearchProgress: vi.fn(
+        (listener: (progress: TextSearchProgress) => void) => {
+          listeners.push(listener)
+          return vi.fn()
+        }
+      ),
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+    return { api, listeners }
+  }
+  const tick = async (ms = 250) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms)
+    })
+  const hit: TextSearchHit = {
+    relativePath: "notes/readme.md",
+    revision: "1",
+    query: "hello",
+    snippet: "say hello here",
+    start: 4,
+    end: 9,
+    line: 3,
+    column: 5,
+    highlightRanges: [{ start: 4, end: 9 }],
+  }
+  const progress = (requestId: string, hits = [hit]): TextSearchProgress => ({
+    requestId,
+    hits,
+    scanned: 1,
+    skipped: 0,
+    errors: 0,
+    done: true,
+    stopped: null,
+  })
+  const clickMode = async (mode: string) =>
+    act(async () => {
+      Array.from(
+        host!.querySelectorAll<HTMLButtonElement>(".quick-open-modes button")
+      )
+        .find((button) => button.textContent === mode)!
+        .click()
+    })
+
+  it("preserves the query and focus across modes, cancels scans and ignores stale results", async () => {
+    vi.useFakeTimers()
+    const { api, listeners } = textApi()
+    let resolvePaths!: (hits: unknown[]) => void
+    api.searchSpacePaths.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePaths = resolve
+      })
+    )
+    await renderQuickOpen({})
+    const input = host!.querySelector("input")!
+    await act(async () => setInputValue(input, "hello"))
+    await tick(100)
+    await clickMode("Text")
+    await tick()
+    expect(input.value).toBe("hello")
+    expect(document.activeElement).toBe(input)
+    await act(async () =>
+      resolvePaths([
+        { relativePath: "stale.md", name: "stale.md", kind: "file" },
+      ])
+    )
+    expect(host!.textContent).not.toContain("stale.md")
+    const first = api.searchSpaceText.mock.calls[0]![0]
+    await act(async () => listeners[0]!(progress(first)))
+    expect(host!.querySelector("mark")?.textContent).toBe("hello")
+    await clickMode("Files")
+    expect(api.cancelTextSearch).toHaveBeenCalledWith(first)
+    await act(async () => listeners[0]!(progress(first)))
+    expect(host!.textContent).not.toContain("say hello here")
+    await clickMode("Text")
+    await act(async () => setInputValue(input, ""))
+    await tick()
+    expect(api.searchSpaceText).toHaveBeenCalledTimes(1)
+    expect(host!.querySelectorAll('[role="option"]')).toHaveLength(0)
+  })
+
+  it("passes options to text search, highlights supplied ranges and opens the selected match", async () => {
+    vi.useFakeTimers()
+    const { api, listeners } = textApi()
+    const onOpenText = vi.fn().mockResolvedValue(undefined)
+    const onClose = vi.fn()
+    await renderQuickOpen({ mode: "text", onOpenText, onClose })
+    const input = host!.querySelector("input")!
+    await act(async () => {
+      setInputValue(input, "hello")
+      host!
+        .querySelector<HTMLButtonElement>('[aria-label="Match case"]')!
+        .click()
+      host!
+        .querySelector<HTMLButtonElement>('[aria-label="Match whole word"]')!
+        .click()
+    })
+    await tick()
+    expect(api.searchSpaceText).toHaveBeenCalledWith(
+      expect.any(String),
+      "hello",
+      { caseSensitive: true, wholeWord: true }
+    )
+    const id = api.searchSpaceText.mock.calls[0]![0]
+    await act(async () => listeners.at(-1)!(progress(id)))
+    expect(host!.querySelector("mark")?.textContent).toBe("hello")
+    expect(host!.textContent).toContain("notes/readme.md:3")
+    await act(async () => keyDown(input, "Enter"))
+    expect(onOpenText).toHaveBeenCalledWith(hit, expect.any(AbortSignal))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("keeps text search loading on the input border until streaming results finish", async () => {
+    vi.useFakeTimers()
+    const { api, listeners } = textApi()
+    await renderQuickOpen({ mode: "text" })
+    const input = host!.querySelector("input")!
+    const row = host!.querySelector(".quick-open-input-row")!
+    await act(async () => setInputValue(input, "hello"))
+    await tick(100)
+    expect(input.getAttribute("aria-busy")).toBe("true")
+    expect(row.hasAttribute("data-loading")).toBe(false)
+    expect(host!.querySelector(".quick-open-empty")!.textContent).toBe("")
+    await tick(150)
+    expect(row.getAttribute("data-loading")).toBe("true")
+    expect(host!.querySelector(".spin")).toBeNull()
+    const id = api.searchSpaceText.mock.calls[0]![0]
+    await act(async () => listeners.at(-1)!({ ...progress(id), done: false }))
+    expect(host!.querySelectorAll('[role="option"]')).toHaveLength(1)
+    expect(row.getAttribute("data-loading")).toBe("true")
+    expect(host!.querySelector(".quick-open-status")!.textContent).toBe("")
+    expect(document.activeElement).toBe(input)
+    await act(async () => listeners.at(-1)!(progress(id)))
+    expect(row.hasAttribute("data-loading")).toBe(false)
+    expect(input.getAttribute("aria-busy")).toBe("false")
+    expect(host!.querySelector(".quick-open-status")!.textContent).toBe(
+      "1 matches in 1 files"
+    )
+    expect(host!.querySelector(".quick-open-input-row")).toBe(row)
+  })
+
+  it("shows invalid regex and open errors without dismissing the dialog", async () => {
+    vi.useFakeTimers()
+    const { api, listeners } = textApi()
+    const onClose = vi.fn()
+    await renderQuickOpen({
+      mode: "text",
+      onClose,
+      onOpenText: vi.fn().mockRejectedValue(new Error("Match changed")),
+    })
+    const input = host!.querySelector("input")!
+    await act(async () => {
+      setInputValue(input, "[")
+      host!
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Use regular expression"]'
+        )!
+        .click()
+    })
+    await tick()
+    expect(host!.querySelector('[role="alert"]')?.textContent).toContain(
+      "Invalid regular expression."
+    )
+    expect(api.searchSpaceText).not.toHaveBeenCalled()
+    await act(async () => setInputValue(input, "hello"))
+    await tick()
+    const id = api.searchSpaceText.mock.calls[0]![0]
+    await act(async () => listeners.at(-1)!(progress(id)))
+    await act(async () => keyDown(input, "Enter"))
+    expect(host!.querySelector('[role="alert"]')?.textContent).toContain(
+      "Match changed"
+    )
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("lets IME own confirmation and Escape, then restores focus on close", async () => {
+    vi.useFakeTimers()
+    const { api } = textApi()
+    const onClose = vi.fn()
+    const onOpen = vi.fn()
+    const previous = document.createElement("button")
+    document.body.append(previous)
+    previous.focus()
+    await renderQuickOpen({ onClose, onOpen })
+    const input = host!.querySelector("input")!
+    await act(async () => {
+      input.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true })
+      )
+      setInputValue(input, "中文")
+      keyDown(input, "Enter")
+      keyDown(input, "Escape")
+      host!
+        .querySelector("dialog")!
+        .dispatchEvent(new Event("cancel", { cancelable: true }))
+    })
+    await tick()
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(api.searchSpacePaths).not.toHaveBeenCalled()
+    await act(async () =>
+      input.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true })
+      )
+    )
+    await tick()
+    expect(api.searchSpacePaths).toHaveBeenCalledWith("中文", 50, true)
+    await act(async () => root!.unmount())
+    root = null
+    expect(document.activeElement).toBe(previous)
+    previous.remove()
+  })
+
+  it("retries failed text searches and cancels a pending open on unmount", async () => {
+    vi.useFakeTimers()
+    const { api, listeners } = textApi()
+    api.searchSpaceText.mockRejectedValueOnce(new Error("Scan failed"))
+    let openSignal: AbortSignal | undefined
+    const onOpenText = vi.fn((_hit: TextSearchHit, signal?: AbortSignal) => {
+      openSignal = signal
+      return new Promise<void>(() => undefined)
+    })
+    await renderQuickOpen({ mode: "text", onOpenText })
+    const input = host!.querySelector("input")!
+    await act(async () => setInputValue(input, "hello"))
+    await tick()
+    expect(host!.querySelector('[role="alert"]')?.textContent).toContain(
+      "Scan failed"
+    )
+    await act(async () =>
+      host!
+        .querySelector<HTMLButtonElement>(".quick-open-error button")!
+        .click()
+    )
+    await tick()
+    const id = api.searchSpaceText.mock.calls[1]![0]
+    await act(async () => listeners.at(-1)!(progress(id)))
+    await act(async () => keyDown(input, "Enter"))
+    expect(openSignal?.aborted).toBe(false)
+    await act(async () => root!.unmount())
+    root = null
+    expect(openSignal?.aborted).toBe(true)
+    expect(api.cancelTextSearch).toHaveBeenCalledWith(id)
   })
 
   it("lists active Eidos File tables before any query is typed", async () => {
