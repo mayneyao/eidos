@@ -1,5 +1,35 @@
 # Local release media
 
+## Recent files, unified search and Tags scenes
+
+`prepare-iteration.mjs --out /absolute/private/fresh-case` creates four synthetic
+Markdown notes with real relative modification times, an isolated profile and
+Eidos home, and a private fixture manifest. It refuses to replace an existing
+case. Keep generated files outside Git. Use the printed isolation variables
+when launching `pnpm dev:eidos-lite` from the candidate root.
+
+`capture-iteration.mjs --validate-only` checks scene definitions without opening
+an app. After native setup of the synthetic Space, record with `--repo`,
+`--expected-sha`, `--fixture`, `--scenario`, `--pid`, and a new `--out` directory.
+Scene IDs are `recent-files`, `files-and-text-search` and `explorer-tags`.
+The Tags scene requires `--plugin-receipt`: the exact archive path/hash, plugin
+identity and packaging host commit. That commit and both feature commits must
+be ancestors of the clean capture commit. Install and enable the actual archive
+in the isolated Eidos home before capture; development source is not a substitute.
+
+Update scene selectors and feature source references for the intended candidate
+before committing the tools. Recording refuses external draft scripts, dirty
+source, a different HEAD, a different Space, or changed fixture content/mtimes.
+Native input includes command+shift shortcuts; CDP only reads UI state, focus,
+geometry, navigation and real highlight ranges. It does not inject app results.
+
+The private manifest distinguishes the feature candidate and exact capture
+commit, reads the actual package version, and labels the build an unreleased
+candidate. Export checks include full decoding, H.264, 30fps, no audio,
+faststart, dimensions/duration and hashes. Successful export leaves review
+pending. Complete playback and poster/privacy review are still required before
+the existing hash-bound review step below. No upload or release is implied.
+
 Prepare, record, review and upload a short Eidos Lite demonstration on macOS.
 The first scenario demonstrates the table-search Escape/focus improvement from
 Lite 0.31.0, captured with the unchanged shared UI in 0.31.1. This is a real

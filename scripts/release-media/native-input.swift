@@ -76,21 +76,30 @@ case "move", "click":
 case "key":
     guard AXIsProcessTrusted() else { fail("Accessibility permission is required") }
     let key = CGKeyCode(number(1))
-    let flags: CGEventFlags = args.count > 2 && args[2] == "command" ? .maskCommand : []
-    if flags.contains(.maskCommand) {
-        let modifier = CGEvent(keyboardEventSource: nil, virtualKey: 55, keyDown: true)
-        modifier?.flags = .maskCommand
-        modifier?.post(tap: .cghidEventTap)
+    let names = args.count > 2 ? args[2].split(separator: "+").map(String.init) : []
+    guard Set(names).isSubset(of: ["command", "shift"]), Set(names).count == names.count else { fail("Expected command, shift or command+shift") }
+    let modifiers: [(CGKeyCode, CGEventFlags)] = [(55, .maskCommand), (56, .maskShift)].filter {
+        names.contains($0.0 == 55 ? "command" : "shift")
+    }
+    var flags: CGEventFlags = []
+    for (code, flag) in modifiers {
+        flags.insert(flag)
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)
+        event?.flags = flags
+        event?.post(tap: .cghidEventTap)
+    }
+    defer {
+        for (code, flag) in modifiers.reversed() {
+            flags.remove(flag)
+            let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false)
+            event?.flags = flags
+            event?.post(tap: .cghidEventTap)
+        }
     }
     let down = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true)
     let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false)
     down?.flags = flags; up?.flags = flags
     down?.post(tap: .cghidEventTap); usleep(40_000); up?.post(tap: .cghidEventTap)
-    if flags.contains(.maskCommand) {
-        let modifier = CGEvent(keyboardEventSource: nil, virtualKey: 55, keyDown: false)
-        modifier?.flags = []
-        modifier?.post(tap: .cghidEventTap)
-    }
 case "type":
     guard AXIsProcessTrusted(), args.count > 1 else { fail("Accessibility permission and text are required") }
     for character in args[1] {

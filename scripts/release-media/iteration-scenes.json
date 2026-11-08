@@ -1,0 +1,677 @@
+{
+  "schemaVersion": 1,
+  "scenarioRevision": 1,
+  "featureCandidateCommit": "f5124ab39e2d42fdedb54ffd9d2023f0e17eb71b",
+  "featureSourceCommits": {
+    "task2": "154b551011735db2e06abb6b04a18c152b39d3b9",
+    "task3": "f5124ab39e2d42fdedb54ffd9d2023f0e17eb71b"
+  },
+  "status": "draft-selectors-require-final-candidate-check",
+  "scenes": [
+    {
+      "id": "recent-files",
+      "durationSeconds": 20,
+      "initial": [
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "folder view selected",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          },
+          "condition": {
+            "attributes": {
+              "aria-pressed": "true"
+            }
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "dwell",
+          "ms": 900
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "recent view selected",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          },
+          "condition": {
+            "attributes": {
+              "aria-pressed": "true"
+            }
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Today group",
+          "target": {
+            "selector": ".explorer-card-group h3",
+            "text": "Today"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Yesterday group",
+          "target": {
+            "selector": ".explorer-card-group h3",
+            "text": "Yesterday"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "recent-day file present",
+          "target": {
+            "selector": "button.explorer-card-open[data-path=\"Launch/Launch checklist.md\"]"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1400
+        },
+        {
+          "op": "poster"
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "button.explorer-card-open[data-path=\"Notes/Weekly plan.md\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Weekly plan opened at real file route",
+          "condition": {
+            "urlIncludes": "/files/Notes/Weekly plan.md"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1600
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-earlier-toggle"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Earlier expanded",
+          "target": {
+            "selector": ".explorer-earlier-toggle"
+          },
+          "condition": {
+            "attributes": {
+              "aria-expanded": "true"
+            }
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Earlier file exposed",
+          "target": {
+            "selector": "button.explorer-card-open[data-path=\"Archive/First ideas.md\"]"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1300
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "returned to folder view",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          },
+          "condition": {
+            "attributes": {
+              "aria-pressed": "true"
+            }
+          }
+        },
+        {
+          "op": "expect",
+          "name": "switching Explorer retains open note",
+          "condition": {
+            "urlIncludes": "/files/Notes/Weekly plan.md"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1500
+        }
+      ]
+    },
+    {
+      "id": "files-and-text-search",
+      "durationSeconds": 32,
+      "initial": [
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "no search dialog before shortcut",
+          "target": {
+            "selector": "dialog.quick-open-backdrop"
+          },
+          "condition": {
+            "present": false
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "dwell",
+          "ms": 700
+        },
+        {
+          "op": "key",
+          "code": 35,
+          "modifiers": "command"
+        },
+        {
+          "op": "expect",
+          "name": "Cmd+P opens Files",
+          "target": {
+            "selector": "dialog.quick-open-backdrop button[aria-pressed=\"true\"], dialog.quick-open-backdrop [role=\"tab\"][aria-selected=\"true\"]",
+            "text": "Files"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Files input owns focus",
+          "target": {
+            "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
+          },
+          "condition": {
+            "focused": true
+          }
+        },
+        {
+          "op": "measure",
+          "name": "files-dialog",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          }
+        },
+        {
+          "op": "type",
+          "target": {
+            "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
+          },
+          "text": "Launch"
+        },
+        {
+          "op": "expect",
+          "name": "directory name is a real result",
+          "target": {
+            "selector": "dialog .quick-open-item-name",
+            "text": "Launch"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "file name is a real result",
+          "target": {
+            "selector": "dialog .quick-open-item-name",
+            "text": "Launch checklist.md"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Files results retain dialog height",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          },
+          "condition": {
+            "rectEqualTo": "files-dialog"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1400
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "dialog .quick-open-item-name",
+            "text": "Launch checklist.md"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "name search opens the chosen note",
+          "condition": {
+            "urlIncludes": "/files/Launch/Launch checklist.md"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1000
+        },
+        {
+          "op": "key",
+          "code": 3,
+          "modifiers": "command+shift"
+        },
+        {
+          "op": "expect",
+          "name": "Cmd+Shift+F opens Text",
+          "target": {
+            "selector": "dialog.quick-open-backdrop button[aria-pressed=\"true\"], dialog.quick-open-backdrop [role=\"tab\"][aria-selected=\"true\"]",
+            "text": "Text"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Text input owns focus",
+          "target": {
+            "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
+          },
+          "condition": {
+            "focused": true
+          }
+        },
+        {
+          "op": "measure",
+          "name": "text-dialog",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          }
+        },
+        {
+          "op": "type",
+          "target": {
+            "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
+          },
+          "text": "quiet launch"
+        },
+        {
+          "op": "expect",
+          "name": "Text result contains real highlighted query",
+          "target": {
+            "selector": "dialog mark",
+            "text": "quiet launch"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Text results retain dialog height",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          },
+          "condition": {
+            "rectEqualTo": "text-dialog"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1400
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "dialog [role=\"option\"]",
+            "textIncludes": "quiet launch"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Text match opens correct file",
+          "condition": {
+            "urlIncludes": "/files/Launch/Launch checklist.md"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "editor visibly highlights the real range",
+          "target": {
+            "selector": "body"
+          },
+          "condition": {
+            "highlightIncludes": "quiet launch"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1000
+        },
+        {
+          "op": "poster"
+        },
+        {
+          "op": "dwell",
+          "ms": 900
+        },
+        {
+          "op": "key",
+          "code": 3,
+          "modifiers": "command+shift"
+        },
+        {
+          "op": "expect",
+          "name": "Text search reopened",
+          "target": {
+            "selector": "dialog.quick-open-backdrop button[aria-pressed=\"true\"], dialog.quick-open-backdrop [role=\"tab\"][aria-selected=\"true\"]",
+            "text": "Text"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "type",
+          "target": {
+            "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
+          },
+          "text": "violet comet"
+        },
+        {
+          "op": "expect",
+          "name": "no results placeholder",
+          "target": {
+            "selector": "dialog .quick-open-empty"
+          },
+          "condition": {
+            "textIncludes": "No"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "empty results keep the same dialog height",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          },
+          "condition": {
+            "rectEqualTo": "text-dialog"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1600
+        },
+        {
+          "op": "key",
+          "code": 53
+        },
+        {
+          "op": "dwell",
+          "ms": 600
+        }
+      ]
+    },
+    {
+      "id": "explorer-tags",
+      "durationSeconds": 24,
+      "requiresPlugin": "demo.tags-explorer",
+      "initial": [
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Tags shares Explorer tab group",
+          "target": {
+            "selector": ".explorer-layout-switch button[aria-label=\"Tags\"]"
+          },
+          "condition": {
+            "count": 1
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "dwell",
+          "ms": 700
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[aria-label=\"Tags\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "packaged Tags view mounted",
+          "target": {
+            "selector": "main[aria-label=\"Notes by tag\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "expect",
+          "name": "design starts expanded",
+          "target": {
+            "selector": "section[data-tag=\"design\"] .group-toggle",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "attributes": {
+              "aria-expanded": "true"
+            }
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1100
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "section[data-tag=\"design\"] .group-toggle",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "design group collapsed",
+          "target": {
+            "selector": "section[data-tag=\"design\"] .group-toggle",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "attributes": {
+              "aria-expanded": "false"
+            }
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "section[data-tag=\"design\"] button[aria-label=\"Color for #design\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "color palette opens",
+          "target": {
+            "selector": "section[data-tag=\"design\"] [role=\"dialog\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "section[data-tag=\"design\"] button[aria-label=\"Blue\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "group color becomes blue",
+          "target": {
+            "selector": "section[data-tag=\"design\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "attributes": {
+              "data-color": "blue"
+            }
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1300
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "built-in recent view usable",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          },
+          "condition": {
+            "attributes": {
+              "aria-pressed": "true"
+            }
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 900
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[aria-label=\"Tags\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "collapsed state survives view switch",
+          "target": {
+            "selector": "section[data-tag=\"design\"] .group-toggle",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "attributes": {
+              "aria-expanded": "false"
+            }
+          }
+        },
+        {
+          "op": "expect",
+          "name": "color state survives view switch",
+          "target": {
+            "selector": "section[data-tag=\"design\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          },
+          "condition": {
+            "attributes": {
+              "data-color": "blue"
+            }
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1000
+        },
+        {
+          "op": "poster"
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "section[data-tag=\"design\"] .group-toggle",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "section[data-tag=\"design\"] button[data-path=\"Notes/Weekly plan.md\"]",
+            "contextProbe": "main[aria-label=\"Notes by tag\"]",
+            "frameSelector": ".plugin-explorer iframe"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "plugin opens note in host editor",
+          "condition": {
+            "urlIncludes": "/files/Notes/Weekly plan.md"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1800
+        }
+      ]
+    }
+  ]
+}
