@@ -211,8 +211,8 @@ export const notes = {
     "在宿主中打开已有的 Space 相对路径文件。",
   ],
   "HostUI.navigate": [
-    "Navigate to a plugin page View, optionally supplying its route.",
-    "跳转到插件的页面 View，可传入页面路由。",
+    "Navigate to this plugin's declared page View. In Lite, omitting route reuses the same contribution's already open main page without disposing its iframe or changing its binding. Supplying any explicit route, including an empty string, creates a new binding and remounts. A different page contribution mounts normally. Stateful pages can update through existing subscriptions.",
+    "跳转到本插件声明的页面 View。在 Lite 中，省略 route 会复用主区域已打开的同一贡献页面，不销毁 iframe 或改变绑定。显式传入任意 route（包括空字符串）会创建新绑定并重新挂载；不同页面贡献仍正常挂载。有状态页面可通过已有订阅更新内容。",
   ],
   "HostResources.listViews": [
     "List available file previews or saved Eidos views for a relative path.",

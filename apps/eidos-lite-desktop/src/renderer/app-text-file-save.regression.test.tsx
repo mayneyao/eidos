@@ -242,6 +242,88 @@ function installHost(overrides: Record<string, unknown>) {
   }) as unknown as EidosLiteApi
 }
 
+it("retains the main plugin iframe for route-free navigation and reopens explicit routes or different pages", async () => {
+  const pageKey = "test.agent/chat"
+  window.history.replaceState(
+    null,
+    "",
+    navigationHash("s", { type: "plugin-page", key: pageKey })
+  )
+  let nextTicket = 0
+  const openPage = vi.fn(async (key: string) => ({
+    instance: {
+      ticket: "page-" + ++nextTicket,
+      url: "eidos-plugin://chat/index.html",
+      editor: { key, label: "Conversation", pluginName: "Agent" },
+    },
+  }))
+  const close = vi.fn(async () => {})
+  installHost({
+    previewTextFile: async () => initial,
+    openPluginPage: openPage,
+    closePluginEditor: close,
+    pluginRequest: async (
+      _ticket: string,
+      request: { id: string; params: { viewId: string; route?: string } }
+    ) => ({
+      response: {
+        protocol: "eidos-plugin",
+        apiVersion: 1,
+        id: request.id,
+        result: null,
+      },
+      navigation: {
+        key: "test.agent/" + request.params.viewId,
+        route: request.params.route ?? "",
+        ...(request.params.route === undefined ? { reuse: true } : {}),
+      },
+    }),
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector(".plugin-page iframe")).not.toBeNull()
+  )
+  const first = host.querySelector<HTMLIFrameElement>(".plugin-page iframe")!
+  const navigate = async (viewId: string, route?: string) => {
+    const frame = host.querySelector<HTMLIFrameElement>(".plugin-page iframe")!
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: frame.contentWindow,
+          data: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            id: crypto.randomUUID(),
+            method: "ui.navigate",
+            params: { viewId, ...(route === undefined ? {} : { route }) },
+          },
+        })
+      )
+    })
+  }
+  await navigate("chat")
+  await navigate("chat")
+  expect(host.querySelector(".plugin-page iframe")).toBe(first)
+  expect(openPage).toHaveBeenCalledTimes(1)
+  expect(close).not.toHaveBeenCalled()
+
+  await navigate("chat", "")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(2))
+  const explicitEmpty = host.querySelector(".plugin-page iframe")
+  expect(explicitEmpty).not.toBe(first)
+  expect(close).toHaveBeenCalled()
+
+  await navigate("chat", "session-2")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(3))
+  const explicitSession = host.querySelector(".plugin-page iframe")
+  expect(explicitSession).not.toBe(explicitEmpty)
+
+  await navigate("other")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(4))
+  expect(openPage).toHaveBeenLastCalledWith("test.agent/other")
+  expect(host.querySelector(".plugin-page iframe")).not.toBe(explicitSession)
+})
+
 it("preserves date/plugin switching while tree filtering and modal search own separate queries", async () => {
   let selected: string | null = null
   const shortcuts = new Set<(command: EidosLiteShortcutCommand) => void>()

@@ -149,7 +149,7 @@ openFile?(relativePath: string): Promise<void>;
 
 支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
-跳转到插件的页面 View，可传入页面路由。
+跳转到本插件声明的页面 View。在 Lite 中，省略 route 会复用主区域已打开的同一贡献页面，不销毁 iframe 或改变绑定。显式传入任意 route（包括空字符串）会创建新绑定并重新挂载；不同页面贡献仍正常挂载。有状态页面可通过已有订阅更新内容。
 
 
 ```ts

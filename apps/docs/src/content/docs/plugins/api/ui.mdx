@@ -149,7 +149,7 @@ Returns: `Promise<void>`.
 
 Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
-Navigate to a plugin page View, optionally supplying its route.
+Navigate to this plugin's declared page View. In Lite, omitting route reuses the same contribution's already open main page without disposing its iframe or changing its binding. Supplying any explicit route, including an empty string, creates a new binding and remounts. A different page contribution mounts normally. Stateful pages can update through existing subscriptions.
 
 
 ```ts
