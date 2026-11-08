@@ -1057,6 +1057,9 @@ const zh: Record<string, string> = {
   "API Version": "API 版本",
   "Minimum Plugin API": "最低插件 API",
   "Host Plugin API": "客户端插件 API",
+  "Native process": "原生进程",
+  "Sandboxed View with a trusted native process (OS permissions)":
+    "沙箱视图与可信原生进程（系统权限）",
   Undeclared: "未声明",
   Type: "类型",
   Packaged: "安装包",

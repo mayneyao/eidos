@@ -12,6 +12,7 @@ import type {
 } from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
 import { PluginBackgroundHost } from "./plugin-background"
+import { PluginSidecarHost } from "./plugin-sidecar"
 import { PluginService, type PluginDocumentSession } from "./plugin-service"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
 const manifest: PluginManifest = {
@@ -395,6 +396,71 @@ const rpc = (
 const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
+
+it("brokers declared native sidecars with host-owned cwd and rejects undeclared, embedded and foreign callers", async () => {
+  const native = new PluginSidecarHost(async () => true)
+  const status = vi
+    .spyOn(native, "status")
+    .mockResolvedValue({ command: "pi", available: true, running: false })
+  const closeOwner = vi.spyOn(native, "closeOwner")
+  const revoke = vi.spyOn(native, "revoke")
+  service = new PluginService(
+    store,
+    undefined,
+    undefined,
+    undefined,
+    () => true,
+    native
+  )
+  session.canonical.root = root
+  const denied = await rpc(await open(), "sidecar.status")
+  expect(denied.response).toMatchObject({
+    error: { code: "PERMISSION_DENIED" },
+  })
+  expect(status).not.toHaveBeenCalled()
+  const declaration: PluginManifest = {
+    apiVersion: 1,
+    id: "example.native",
+    name: "Native",
+    version: "1.0.0",
+    requires: { pluginApi: "3.8.0" },
+    sidecar: { command: "pi", args: ["--mode", "rpc"] },
+    views: [{ id: "chat", title: "Chat", kind: "page", entry: "./main.ts" }],
+    placements: [{ location: "sidebar/explorer", view: "chat" }],
+  }
+  await store.install(encodePackage(declaration, modules), "space-a")
+  await store.enable(declaration.id, true, "space-a")
+  const page = (await service.openPage(1, session, "example.native/chat"))
+    .instance!
+  expect(
+    (await rpc(page.ticket, "sidecar.status", { cwd: "/untrusted" })).response
+  ).toMatchObject({ result: { available: true } })
+  expect(status.mock.calls[0][0].cwd).toBe(root)
+  expect(
+    (await rpc(page.ticket, "sidecar.status", null, 2)).response
+  ).toMatchObject({ error: { code: "INSTANCE_CLOSED" } })
+  const embedded = (
+    await service.openPage(
+      1,
+      session,
+      "example.native/chat",
+      "",
+      undefined,
+      undefined,
+      true
+    )
+  ).instance!
+  expect((await rpc(embedded.ticket, "sidecar.start")).response).toMatchObject({
+    error: { code: "PERMISSION_DENIED" },
+  })
+  await store.enable(declaration.id, false, "space-a")
+  await expect(status.mock.calls[0][0].authorize()).rejects.toThrow("revoked")
+  service.revoke(declaration.id, "space-a")
+  expect(revoke).toHaveBeenCalledWith(declaration.id, "space-a")
+  service.closeOwner(1)
+  expect(closeOwner).toHaveBeenCalledWith(1)
+  native.close()
+})
 
 it("keeps embedded file content in the workbench and enforces Space read access", async () => {
   await fs.writeFile(path.join(root, "notes.md"), "# Notes")

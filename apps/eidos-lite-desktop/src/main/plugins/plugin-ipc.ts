@@ -30,6 +30,7 @@ import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginBackgroundHost } from "./plugin-background"
+import { PluginSidecarHost } from "./plugin-sidecar"
 import { PluginBluetoothPicker } from "./plugin-bluetooth"
 import { PluginFileHooks } from "./plugin-file-hooks"
 import { PluginService } from "./plugin-service"
@@ -180,6 +181,26 @@ export function registerPluginIpc(controller: WindowController): {
         bluetoothPicker.choose(binding, signal, sandboxBinary),
     }
   )
+  const sidecars = new PluginSidecarHost(
+    async (binding, executable, signal) => {
+      const window = BrowserWindow.getAllWindows().find(
+        (candidate) => candidate.webContents.id === binding.owner
+      )
+      if (!window || window.isDestroyed()) return false
+      const result = await dialog.showMessageBox(window, {
+        signal,
+        type: "question",
+        title: "Start native plugin process",
+        message: `Allow ${binding.manifest.name} to start ${binding.manifest.sidecar!.command}?`,
+        detail: `This is a native program with your operating system permissions. The plugin's JavaScript sandbox and file/network declarations do not restrict it.\n\nExecutable: ${executable}\nArguments: ${JSON.stringify(binding.manifest.sidecar!.args ?? [])}\nWorking folder: ${binding.cwd}\n\nIt stays running when its View closes. Stopping it, disabling or updating this plugin, or closing the Space ends the process. No program is installed or downloaded.`,
+        buttons: ["Cancel", "Start"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      return result.response === 1
+    }
+  )
   const service = new PluginService(
     store,
     (owner, ticket) => {
@@ -208,7 +229,8 @@ export function registerPluginIpc(controller: WindowController): {
         !window.webContents.isDestroyed() &&
         controller.sessionFor(window.webContents)?.canonical.id === space
       )
-    }
+    },
+    sidecars
   )
   const owners = new Set<number>()
   const updatePluginLocale = (preferences: {
@@ -1489,6 +1511,7 @@ export function registerPluginIpc(controller: WindowController): {
       controller.pluginSpaceOpened = undefined
       controller.pluginSpaceClosed = undefined
       backgrounds.close()
+      sidecars.close()
       fileHooks.close()
       controller.fileHookRunner = undefined
       for (const channel of Object.values(PLUGIN_CHANNELS))

@@ -202,6 +202,7 @@ export function parseManifest(input: unknown): PluginManifest {
     [
       "description",
       "extension",
+      "sidecar",
       "background",
       "views",
       "fileTemplates",
@@ -299,6 +300,30 @@ export function parseManifest(input: unknown): PluginManifest {
       url!.search
     )
       invalid("Connection requires a fixed HTTPS URL")
+  }
+  if (m.sidecar !== undefined) {
+    const sidecar = record(m.sidecar)
+    fields(sidecar, ["command"], ["args"])
+    const required = String(record(m.requires).pluginApi).split(".").map(Number)
+    if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 8)))
+      invalid("sidecar requires plugin API 3.8.0 or newer")
+    if (
+      typeof sidecar.command !== "string" ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(sidecar.command)
+    )
+      invalid(
+        "Sidecar command must be an executable name, not a path or shell command"
+      )
+    if (
+      sidecar.args !== undefined &&
+      (!Array.isArray(sidecar.args) ||
+        sidecar.args.length > 64 ||
+        sidecar.args.some(
+          (arg) =>
+            typeof arg !== "string" || arg.length > 8192 || arg.includes("\0")
+        ))
+    )
+      invalid("Invalid sidecar arguments")
   }
   if (m.storage !== undefined) {
     const storage = record(m.storage)
@@ -610,6 +635,7 @@ export function parseManifest(input: unknown): PluginManifest {
       hooks.length ||
       m.extension ||
       m.background ||
+      m.sidecar ||
       m.placements ||
       m.settings ||
       m.storage ||

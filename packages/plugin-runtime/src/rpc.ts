@@ -33,6 +33,12 @@ export interface PluginRequest {
     | "background.request"
     | "background.observe"
     | "background.unobserve"
+    | "sidecar.status"
+    | "sidecar.start"
+    | "sidecar.stop"
+    | "sidecar.send"
+    | "sidecar.observe"
+    | "sidecar.unobserve"
     | "storage.list"
     | "storage.read"
     | "storage.write"
@@ -135,6 +141,12 @@ export function parseRequest(value: unknown): PluginRequest {
       "background.request",
       "background.observe",
       "background.unobserve",
+      "sidecar.status",
+      "sidecar.start",
+      "sidecar.stop",
+      "sidecar.send",
+      "sidecar.observe",
+      "sidecar.unobserve",
       "storage.list",
       "storage.read",
       "storage.write",

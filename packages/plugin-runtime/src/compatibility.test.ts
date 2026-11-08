@@ -23,6 +23,17 @@ const manifest: PluginManifest = {
   ],
   placements: [{ location: "table/view", view: "main" }],
 }
+it("keeps native sidecars Lite-only", () => {
+  const plugin = {
+    ...manifest,
+    requires: { pluginApi: "3.8.0" },
+    sidecar: { command: "pi" },
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite").compatible).toBe(true)
+  expect(
+    checkPluginCompatibility(plugin, "eidos-cli").missingFeatures
+  ).toContain("sidecar")
+})
 it("opts into Worker fetch in API 3.5 without changing older browser consumers", () => {
   expect(usesWorkerFetch(manifest)).toBe(false)
   expect(
@@ -70,7 +81,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.7.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.8.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],

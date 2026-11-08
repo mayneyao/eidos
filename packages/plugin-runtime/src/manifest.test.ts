@@ -21,6 +21,36 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("requires API 3.8 and a fixed executable name for native sidecars", () => {
+    const value = {
+      ...manifest(),
+      requires: { pluginApi: "3.8.0" },
+      sidecar: { command: "pi", args: ["--mode", "rpc"] },
+    }
+    expect(parseManifest(value).sidecar).toEqual(value.sidecar)
+    expect(
+      decodePackage(
+        encodePackage(parseManifest(value), {
+          "./main.ts": "export default () => {}",
+        })
+      ).manifest.sidecar
+    ).toEqual(value.sidecar)
+    for (const command of [
+      "../pi",
+      "/bin/pi",
+      "pi --mode rpc",
+      "pi;other",
+      "",
+      "-pi",
+    ])
+      expect(() => parseManifest({ ...value, sidecar: { command } })).toThrow()
+    expect(() =>
+      parseManifest({ ...value, requires: { pluginApi: "3.7.0" } })
+    ).toThrow()
+    expect(() =>
+      parseManifest({ ...value, sidecar: { command: "pi", env: {} } })
+    ).toThrow()
+  })
   it("preserves optional plugin descriptions through package round trips", () => {
     const value = { ...manifest(), description: "编辑本地 CSV files." }
     const parsed = parseManifest(value)

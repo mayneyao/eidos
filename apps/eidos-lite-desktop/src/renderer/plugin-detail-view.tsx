@@ -327,9 +327,11 @@ export function PluginDetailView({
     manifest?.browser?.network && manifest.browser.networkOrigins === undefined
   const execution = isTheme
     ? "No executable code"
-    : background
-      ? "Isolated iframe sandbox and QuickJS background sandbox"
-      : "Isolated iframe sandbox (null origin)"
+    : manifest?.sidecar
+      ? "Sandboxed View with a trusted native process (OS permissions)"
+      : background
+        ? "Isolated iframe sandbox and QuickJS background sandbox"
+        : "Isolated iframe sandbox (null origin)"
   const totalContributions =
     views.length +
     actions.length +
@@ -563,6 +565,12 @@ export function PluginDetailView({
               <div className="plugin-prop-item">
                 <dt>{t("Background service")}</dt>
                 <dd>1</dd>
+              </div>
+            )}
+            {manifest?.sidecar && (
+              <div className="plugin-prop-item">
+                <dt>{t("Native process")}</dt>
+                <dd>{manifest.sidecar.command}</dd>
               </div>
             )}
           </dl>

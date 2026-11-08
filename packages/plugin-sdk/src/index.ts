@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.7.
+// Public type-only SDK for Eidos Plugin API 3.8.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -32,6 +32,8 @@ export interface PluginManifest {
    */
   icon?: PluginIconDefinition
   extension?: string
+  /** Lite-only local executable, launched after native host approval. Requires API 3.8. */
+  sidecar?: { command: string; args?: string[] }
   /** A bundled Worker-style module. Started explicitly by a View or action. */
   background?: {
     entry: string
@@ -211,6 +213,7 @@ export interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 export interface CommonCapabilities {
+  readonly sidecar?: PluginSidecar
   readonly background?: PluginBackground
   readonly fs?: PluginFileSystem
   readonly filemeta?: PluginFileMeta
@@ -229,6 +232,26 @@ export type BackgroundMessage =
   | string
   | BackgroundMessage[]
   | { [key: string]: BackgroundMessage }
+export type SidecarEvent =
+  | { type: "message"; data: BackgroundMessage }
+  | { type: "stderr"; text: string }
+  | { type: "exit"; code: number | null; signal: string | null }
+  | { type: "error"; message: string }
+export interface SidecarStatus {
+  available: boolean
+  running: boolean
+  command: string
+}
+export interface PluginSidecar {
+  /** Discovery only: never executes or installs a program. */
+  status(): Promise<SidecarStatus>
+  start(): Promise<void>
+  stop(): Promise<void>
+  /** One JSON record on stdin. stdout is strict LF-delimited JSON. */
+  send(data: BackgroundMessage): Promise<void>
+  /** Subscribing never starts a process. View disposal only unsubscribes. */
+  onEvent(listener: (event: SidecarEvent) => void): Promise<Disposable>
+}
 export interface PluginBackground {
   /** Checks the current run without starting it or requesting permission. */
   isRunning(): Promise<boolean>

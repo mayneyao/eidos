@@ -56,6 +56,7 @@ export type BrowserBinding = {
   capabilities?: ViewCapability[]
   connections?: boolean
   explorer?: ExplorerState
+  sidecar?: boolean
 } & (
   | { kind: "eidos"; file?: FileMetadata }
   | { kind: "document"; file?: FileMetadata }
@@ -250,6 +251,7 @@ export function bootstrap(
             "background.request",
             "background.postMessage",
             "background.observe",
+            "sidecar.start",
           ].includes(method)
           ? 300000
           : method === "eidos.connection.request"
@@ -381,6 +383,33 @@ export function bootstrap(
     i18n,
     presentation: { mode: binding.embedded ? "embedded" : "standalone" },
     capabilities: {
+      sidecar: binding.sidecar
+        ? {
+            status: () => call("sidecar.status"),
+            start: () => call("sidecar.start"),
+            stop: () => call("sidecar.stop"),
+            send: (data) => call("sidecar.send", { data }),
+            async onEvent(listener) {
+              const id = crypto.randomUUID()
+              observers.set(id, (data) =>
+                listener(data as Parameters<typeof listener>[0])
+              )
+              const subscription = own({
+                dispose() {
+                  observers.delete(id)
+                  void call("sidecar.unobserve", { id }).catch(() => {})
+                },
+              })
+              try {
+                await call("sidecar.observe", { id })
+                return subscription
+              } catch (error) {
+                subscription.dispose()
+                throw error
+              }
+            },
+          }
+        : undefined,
       background: {
         isRunning: () => call("background.isRunning"),
         requestDevice: () => call("background.requestDevice"),

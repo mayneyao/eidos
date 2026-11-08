@@ -1,10 +1,47 @@
-# Eidos Plugins — API 3.7
+# Eidos Plugins — API 3.8
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.7.0
+Plugin API: 3.8.0
 
 Canonical language: English
+
+## Local native sidecars
+
+Lite API 3.8 accepts `sidecar: { command, args? }`. `command` is an executable
+basename (ASCII letters, digits, dot, underscore and hyphen), not a path or shell
+expression. Up to 64 arguments are fixed by the package. Source and archives
+contain no native executable; Lite discovers an already installed program in
+absolute PATH entries and standard user/system binary locations. The current
+Space MUST NOT participate in executable discovery. CLI Serve and mobile do not
+advertise this feature. A declaring package MUST require plugin API 3.8.0 or later.
+
+Page and file Views use `ctx.capabilities.sidecar.status/start/stop/send/onEvent`.
+Embedded resources and extensions cannot use this capability. Status and event
+subscription MUST NOT start, install or download anything. Start requires native
+host approval showing the resolved executable, fixed arguments, working folder
+and OS-level access. The native process is trusted code outside the JavaScript
+capability sandbox; filesystem and network declarations do not constrain it.
+The host supplies the canonical Space root as cwd and never invokes a shell.
+
+Each owner-window/Space/plugin/package revision owns one process. Closing a View
+only unsubscribes; another View can attach to the same run. Stop, revocation,
+package changes, owner closure and host shutdown cancel pending startup and stop
+the owned process group/tree. Approval is bounded to five minutes and late
+approval MUST NOT launch a process after cancellation. A new run needs approval.
+No automatic startup or crash restart is implied. Native side effects are not
+undone by stopping. Native programs MUST use canonical Runtime operations when
+modifying Eidos data; native execution itself cannot enforce this convention.
+
+`send` writes one JSON record followed by LF to stdin. stdout MUST contain JSON
+records delimited only by LF; Unicode U+2028/U+2029 are ordinary string content.
+`onEvent` receives `message { data }`, `stderr { text }`, `error { message }`, and
+`exit { code, signal }` envelopes. Frames are limited to 1 MiB, stdout to 16 MiB/s,
+and pending stdin to 4 MiB. stderr is dropped beyond 1 MiB/s. Owners MUST dispose
+subscriptions and reject stale asynchronous results. The host rechecks the
+current Space, enablement and package revision for every operation. Process
+startup means the OS accepted the executable; protocol readiness is the plugin's
+responsibility. A native agent's tool approvals are separate from startup approval.
 
 ## Localization
 

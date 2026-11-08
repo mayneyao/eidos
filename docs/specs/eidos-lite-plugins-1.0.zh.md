@@ -1,10 +1,37 @@
-# Eidos Plugins — API 3.7
+# Eidos Plugins — API 3.8
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.7.0
+Plugin API：3.8.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## 本机原生 sidecar
+
+Lite API 3.8 支持 `sidecar: { command, args? }`。`command` 是可执行文件名，
+只能包含 ASCII 字母、数字、点、下划线和连字符，不能是路径或 shell 表达式。
+最多 64 个参数固定在插件包内。源码和插件包不携带原生程序；Lite 只在绝对 PATH
+目录及标准用户、系统程序目录发现已安装的程序，当前 Space 不参与程序查找。
+声明此能力的插件必须要求 API 3.8.0 或以上。CLI Serve 和移动端不提供该能力。
+
+页面和文件 View 使用 `ctx.capabilities.sidecar.status/start/stop/send/onEvent`。
+嵌入资源及 extension 不可使用。查询状态和订阅事件不启动、下载或安装程序。
+启动必须由原生宿主确认，展示解析后的程序路径、固定参数、工作目录和系统权限。
+原生程序属于 JavaScript 能力沙箱之外的可信代码，原有文件和网络声明不能限制它。
+宿主提供规范化的 Space 根目录作为 cwd，并且不通过 shell 启动。
+
+每个窗口、Space、插件及包版本拥有一个进程。关闭 View 只取消订阅，重新打开可
+连接同一进程。停止、撤权、更新插件、关闭窗口或 Space、退出宿主会取消待启动请求
+并清理所拥有的进程组或进程树。启动确认最多等待五分钟；取消后的迟到确认不能启动
+程序。每次新运行重新确认，不隐含自动启动或崩溃重试，停止不会撤销已发生的修改。
+原生程序修改 Eidos 数据必须使用规范 Runtime 操作；原生执行本身不能强制该约定。
+
+`send` 向 stdin 写入单条 JSON 和 LF；stdout 仅以 LF 分隔 JSON，U+2028/U+2029
+仍是字符串内容。事件包括 `message { data }`、`stderr { text }`、
+`error { message }` 和 `exit { code, signal }`。单帧最多 1 MiB，stdout 每秒
+最多 16 MiB，待写 stdin 最多 4 MiB，stderr 每秒超过 1 MiB 的部分丢弃。
+调用方负责取消订阅和丢弃过期异步结果。每次操作重查 Space、启用状态和包版本。
+启动成功仅表示系统接受程序，协议就绪由插件判断。Agent 工具审批与启动确认独立。
 
 ## 多语言
 

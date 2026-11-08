@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "3.7.0",
+      "pluginApi": "3.8.0",
       "features": [
         "data.file",
         "data.eidos/table",
@@ -13,6 +13,7 @@
         "fileTemplates",
         "extension",
         "background",
+        "sidecar",
         "background.fileHistory",
         "i18n",
         "actions",
@@ -46,6 +47,7 @@
     { "key": "fileTemplates", "feature": "fileTemplates" },
     { "key": "extension", "feature": "extension" },
     { "key": "background", "feature": "background" },
+    { "key": "sidecar", "feature": "sidecar" },
     { "key": "actions", "feature": "actions" },
     { "key": "formatters", "feature": "formatters" },
     { "key": "hooks", "feature": "hooks" },
