@@ -43,6 +43,13 @@ the built-in SDK types; third-party dependencies require a matching lockfile and
 
 ## Lite development
 
+The compiler and bundled SDK contract support Lite API 3.8 `sidecar` declarations.
+Check these plugins with `--target lite`; CLI remains API 3.7 and rejects native
+sidecars. A declaration names an already installed program and fixed arguments;
+packaging does not install it. Publish matching SDK/tools and a compatible Lite
+before distributing plugins that require 3.8. Validate native startup and cleanup
+separately on each claimed OS; Windows shell shims are unsupported.
+
 Complete background examples live in
 [`lite-background`](../plugin-sandbox/examples/lite-background/README.md) and
 [`lite-bluetooth`](../plugin-sandbox/examples/lite-bluetooth/README.md).

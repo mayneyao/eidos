@@ -72,6 +72,15 @@ export const pages = [
     "Lite API 3.1。声明 workspace.filemeta.namespaces；patch 还需 filemeta.write 和贡献点的 write 权限。路径相对 Space。缺失命名空间返回空对象。patch 保留其他键；null 是值，remove 才删除键。数据上限 1 MiB，文件系统可能有更低限制。属性权限不包含文件内容写入。",
   ],
   [
+    "sidecar",
+    "sidecar",
+    "sidecar",
+    ["PluginSidecar", "SidecarStatus", "SidecarEvent"],
+    "native-processes",
+    "Lite API 3.8. Declare a local program name and fixed arguments in manifest.sidecar. Only standalone page and file Views receive this optional capability. Native startup requires host approval; the program retains OS permissions outside the JavaScript capability sandbox. CLI Serve and mobile do not expose native sidecars.",
+    "Lite API 3.8。在 manifest.sidecar 声明本机程序名与固定参数；只有独立的页面和文件 View 可获得该可选能力。启动需宿主确认；原生程序持有系统权限，不受 JavaScript 能力沙箱约束。CLI Serve 和移动端不提供原生 sidecar。",
+  ],
+  [
     "background",
     "background",
     "background",

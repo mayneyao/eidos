@@ -169,6 +169,20 @@ are under `ctx.capabilities`; getItems receives eidos.table, read-only eidos.con
   and report progress. Let Lite own task undo/redo. On conflicts, surface the
   failure instead of rereading and silently overwriting newer data.
 
+### Local native programs
+
+Lite API 3.8 supports `sidecar: { command, args? }`: an installed executable
+basename and fixed arguments, launched without a shell after native host approval.
+Standalone page/file Views feature-detect `ctx.capabilities.sidecar` and use
+`status`, `start`, `stop`, `send`, and `onEvent`. Register the returned observer
+with subscriptions. LF-delimited JSON is the transport; reattach by reading the
+program's state because events are not replayed. View disposal detaches only;
+stop, revocation, package changes, Space/window close and host shutdown end the
+owned process. Each new process needs approval. Native OS permissions are outside
+the JavaScript filesystem/network sandbox. Do not bundle or automatically install
+the program, infer write access from read-only tools, or claim CLI/mobile support.
+Windows `.cmd`/`.bat` shims are unsupported; validate each native OS explicitly.
+
 ### Themes
 
 Use `kind: "theme"` with a stylesheet and no executable contributions. Define

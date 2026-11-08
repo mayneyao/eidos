@@ -1,0 +1,86 @@
+---
+title: 使用已安装的本机程序
+description: 声明本机程序、请求启动确认，并从 Lite View 交换 JSON 消息。
+---
+
+Lite Plugin API `3.8.0` 允许独立的页面或文件 View 通过
+`ctx.capabilities.sidecar` 与已安装程序通信。插件声明程序名和固定参数，Lite
+负责发现程序、启动确认、消息传输及进程清理。CLI Serve 和移动端不提供该能力。
+打包前应使用匹配的 SDK/tools 检查目标宿主。
+
+原生程序以当前用户的操作系统权限运行，不受 JavaScript 文件和网络声明限制。
+程序的只读工具设置不是系统沙箱；应分别审查原生程序的工具策略与插件 JavaScript
+权限。
+
+## 声明程序
+
+下面的 `example-agent` 是占位程序名，代表已安装、通过 LF 分隔 JSON 通信的程序。
+参数应与所选程序实际支持的参数一致：
+
+```json
+{
+  "apiVersion": 1,
+  "id": "local.agent",
+  "name": "Local agent",
+  "version": "0.1.0",
+  "requires": { "pluginApi": "3.8.0" },
+  "sidecar": { "command": "example-agent", "args": [] },
+  "views": [
+    { "id": "chat", "title": "Agent", "kind": "page", "entry": "./main.ts" }
+  ],
+  "placements": [{ "location": "navigation", "view": "chat" }]
+}
+```
+
+`command` 必须是可执行文件名，不能是路径或 shell 命令。最多 64 个参数固定在
+manifest 中。接口不允许调用方传入工作目录、环境变量或动态参数，也不安装、下载
+程序。Lite 使用规范化的 Space 根目录作为工作目录，搜索绝对 PATH 目录及标准用户、
+系统程序位置，排除当前 Space 及解析到 Space 内的链接。Space 外正常安装程序的
+符号链接可以使用。
+
+启动时不会通过 shell 解释参数，因此 Windows `.cmd` 和 `.bat` 包装脚本不可用。
+应在每个声称支持的系统上验证程序发现和进程清理。
+
+## 从用户操作按需启动
+
+先检查 `ctx.capabilities.sidecar` 是否存在。`status()` 仅发现程序，不执行程序或
+弹出确认；`available` 不代表程序版本兼容。用户新建任务或发送消息时调用 `start()`，
+Lite 会展示程序、固定参数、工作目录及系统权限并请求原生确认。取消或超时后应允许重试。
+
+`start()` 复用现有的所属进程；每次启动新进程都必须重新确认，确认最多等待五分钟。
+启动成功仅表示系统接受了程序，协议就绪和版本兼容性仍由插件判断。
+
+## 交换消息与重新连接
+
+在 View 中先订阅，再发送程序协议命令：
+
+```ts
+const native = ctx.capabilities.sidecar
+if (!native) throw new Error("当前宿主不支持本机程序")
+ctx.subscriptions.add(
+  await native.onEvent((event) => {
+    // 将事件数据作为文本渲染，处理协议错误，并丢弃过期结果。
+    console.log(event)
+  })
+)
+// 在用户新建任务或发送消息的处理器中：
+await native.start()
+// 使用程序实际支持的协议，并自行关联请求 ID。
+await native.send({ type: "get_state", id: "state-1" })
+```
+
+`send()` 写入一个 JSON 值和 LF，不等待协议回复。包含 LF 的输入帧最多 1 MiB，
+包含新帧的待写 stdin 最多 4 MiB。stdout 必须使用 LF 分隔 JSON，也接受 CRLF；
+U+2028/U+2029 仍是字符串内容。事件包括 `message`、`stderr`、`error` 和 `exit`。
+输出非法或超限会终止进程。速率限制与签名见 [API 参考](/zh-cn/plugins/api/sidecar/)。
+
+每个所属窗口、Space、插件及包版本共享一个进程。关闭 View 只取消监听，不停止进程。
+事件不会重放，返回页面时应查询原生状态与消息历史。会话侧栏可以使用现有
+[Explorer 贡献点](/zh-cn/plugins/explorer/)，通过 `ui.navigate("chat", route)`
+在主区域打开对话。可选的插件私有存储或 JavaScript 后台用于协调选择和草稿；该后台
+不能启动原生进程。
+
+应展示进度、可恢复的启动错误，并通过程序协议提供停止生成的操作。
+`sidecar.stop()` 会结束共享进程。禁用或更新插件、离开 Space、关闭所属窗口、退出
+Lite 也会结束进程，再次运行需重新确认。停止不会撤销原生副作用，也不会删除程序自己
+保存的会话文件。

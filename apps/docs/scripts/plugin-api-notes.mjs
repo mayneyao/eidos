@@ -1,5 +1,33 @@
 // Human-written behavior, shared by the English and Chinese reference renderer.
 export const notes = {
+  "PluginManifest.sidecar": [
+    "Requires Lite API 3.8. command is an executable basename, not a path or shell expression; args contains at most 64 fixed strings. Lite discovers an already installed program, excluding relative PATH directories and paths resolving inside the current Space. No install, download, environment or dynamic-argument API is granted.",
+    "要求 Lite API 3.8。command 是可执行文件名，不是路径或 shell 表达式；args 最多 64 个固定字符串。Lite 查找已安装程序，排除相对 PATH 目录及解析到当前 Space 内的路径。不授予安装、下载、环境变量或动态参数接口。",
+  ],
+  "CommonCapabilities.sidecar": [
+    "Available only to standalone page and file Views declaring manifest.sidecar. Not provided to extensions, actions, embedded resources, JavaScript backgrounds, CLI Serve or mobile.",
+    "仅提供给声明 manifest.sidecar 的独立页面和文件 View；extension、命令、嵌入资源、JavaScript 后台、CLI Serve 和移动端均不提供。",
+  ],
+  "PluginSidecar.status": [
+    "Discovery only: available means an executable was found; running means an owned native process exists. Neither implies protocol readiness or a compatible program version. Does not execute, install or prompt.",
+    "仅查询：available 表示找到了程序，running 表示存在所属原生进程；均不保证协议就绪或程序版本兼容。不会执行、安装或弹出授权。",
+  ],
+  "PluginSidecar.start": [
+    "Requests native approval showing the executable, fixed argv, canonical Space cwd and OS access. Reuses the same owner/Space/plugin/revision run. Pending startup expires after five minutes and is cancelled with its initiating View; after startup, closing a View only detaches it. A new process requires new approval. Success means OS spawn, not protocol readiness.",
+    "请求原生确认，展示程序、固定参数、规范 Space 工作目录和系统权限。复用同一窗口、Space、插件和包版本的进程。待启动确认最多五分钟，随发起 View 取消；启动后关闭 View 仅断开连接。新进程须重新确认。成功仅表示系统启动程序，不代表协议就绪。",
+  ],
+  "PluginSidecar.stop": [
+    "Stops the shared owned process tree, affecting every attached View. Disabling/updating the plugin, leaving the Space, closing its owner window or quitting Lite also stops it. Native side effects are not undone.",
+    "停止共享的所属进程树，影响所有已连接 View。禁用或更新插件、离开 Space、关闭所属窗口或退出 Lite 也会停止进程；不会撤销原生程序已产生的修改。",
+  ],
+  "PluginSidecar.send": [
+    "Writes one JSON value followed by LF. Each frame including LF is limited to 1 MiB; queued stdin including the incoming frame is limited to 4 MiB. Completion means stream write completion, not a native protocol response.",
+    "写入一个 JSON 值并追加 LF。包含 LF 的单帧最多 1 MiB；含本次新帧的待写 stdin 最多 4 MiB。完成表示流写入完成，不表示收到原生协议回复。",
+  ],
+  "PluginSidecar.onEvent": [
+    "Subscribes without starting a process. Returns a disposable observer; closing the View unsubscribes. stdout is LF-delimited JSON (CRLF accepted), with a 1 MiB frame and 16 MiB/s rate limit; stderr over 1 MiB/s is dropped. Malformed output stops the process. Unicode line separators are ordinary string content. Reconcile native state after reattaching because events are not replayed.",
+    "订阅不会启动进程，返回可释放监听器，关闭 View 时取消订阅。stdout 以 LF 分隔 JSON（接受 CRLF），单帧最多 1 MiB、每秒最多 16 MiB；stderr 每秒超出 1 MiB 的部分丢弃。非法输出会终止进程。Unicode 行分隔符仍是字符串内容。事件不重放，重新连接后应查询原生状态。",
+  ],
   "PluginEvents.on": [
     "The event name determines the listener parameter type. Returns a Disposable; dispose() is idempotent. Unknown event names, non-function listeners and undeclared event permissions throw synchronously.",
     "事件名决定监听器参数类型。返回 Disposable，dispose() 可重复调用。未知事件名、非函数监听器和未声明的事件权限会同步抛错。",
@@ -8,9 +36,18 @@ export const notes = {
     "Successful file-open metadata. See FileOpenedEvent.",
     "成功打开文件的元数据，字段见 FileOpenedEvent。",
   ],
-  "FileOpenedEvent.id": ["Host-generated event identity, usable for deduplication.", "宿主生成的事件标识，可用于去重。"],
-  "FileOpenedEvent.path": ["File path relative to the current Space.", "相对当前 Space 的文件路径。"],
-  "FileOpenedEvent.timestamp": ["Time of the successful open, in Unix milliseconds.", "成功打开的时间，单位为 Unix 毫秒。"],
+  "FileOpenedEvent.id": [
+    "Host-generated event identity, usable for deduplication.",
+    "宿主生成的事件标识，可用于去重。",
+  ],
+  "FileOpenedEvent.path": [
+    "File path relative to the current Space.",
+    "相对当前 Space 的文件路径。",
+  ],
+  "FileOpenedEvent.timestamp": [
+    "Time of the successful open, in Unix milliseconds.",
+    "成功打开的时间，单位为 Unix 毫秒。",
+  ],
   "PluginManifest.background": [
     "A separate Worker-style entry. network: true permits public HTTPS/WSS after approval; up to eight exact networkOrigins optionally restrict it. bluetooth: true grants the selected device, optionally narrowed by a service whitelist. Device IDs are chosen by the host. API 3.6 adds autoStart: true for approved startup on Space opening, and fileHistory: true for file-open metadata in the owner window and Space; fileHistory does not grant file contents.",
     "独立的 Worker 风格入口。network: true 经授权允许公网 HTTPS/WSS，可用最多八个精确 networkOrigins 收窄。bluetooth: true 授权选中设备，可用服务白名单限制。设备 ID 由宿主选择。API 3.6 支持 autoStart: true，经授权随 Space 打开自动启动；fileHistory: true 监听所属窗口和 Space 的文件打开元数据，不授予文件内容。",
@@ -28,8 +65,8 @@ export const notes = {
     "唯一标识本次运行，停止并重启后改变，关闭 View 不改变。",
   ],
   "BackgroundHost.events": [
-    "Requires background.fileHistory: true and host approval. events.on(\"file.opened\", listener) returns a disposable listener for successful file opens, with no initial snapshot or replay. Events contain metadata only and stop on revocation. See the background guide for counting rules.",
-    "需声明 background.fileHistory: true 并经宿主授权。events.on(\"file.opened\", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。",
+    'Requires background.fileHistory: true and host approval. events.on("file.opened", listener) returns a disposable listener for successful file opens, with no initial snapshot or replay. Events contain metadata only and stop on revocation. See the background guide for counting rules.',
+    '需声明 background.fileHistory: true 并经宿主授权。events.on("file.opened", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。',
   ],
   "BackgroundHost.storage": [
     "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. Concurrent read-modify-write operations are not transactions.",

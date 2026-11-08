@@ -44,3 +44,13 @@ it("admits Markdown hooks on both native hosts and rejects unsupported profiles"
     })
   ).toThrow()
 })
+
+it("rejects native sidecars on both shared mobile hosts", () => {
+  expect(() =>
+    validateMobileManifest({
+      ...manifest,
+      requires: { pluginApi: "3.8.0" },
+      sidecar: { command: "pi", args: ["--mode", "rpc"] },
+    })
+  ).toThrow("移动端尚未支持")
+})

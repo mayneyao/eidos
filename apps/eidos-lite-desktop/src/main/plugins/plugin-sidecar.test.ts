@@ -155,6 +155,30 @@ it.each([
   )
 })
 
+it("includes the incoming JSON frame in the pending stdin limit", async () => {
+  const host = hostWith()
+  const native = binding("process.stdin.pause();setInterval(()=>{},1000)")
+  await host.start(native)
+  const errors: unknown[] = []
+  const writes = Array.from({ length: 6 }, () =>
+    host.send(native, "x".repeat(1024 * 1024 - 3)).catch((error: unknown) => {
+      errors.push(error)
+    })
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(
+        errors.filter(
+          (error) => error instanceof Error && error.message.includes("busy")
+        )
+      ).toHaveLength(2)
+    )
+  } finally {
+    host.stop(native)
+    await Promise.all(writes)
+  }
+})
+
 it("never grants a declined start or resolves a workspace-relative PATH program", async () => {
   const host = hostWith(async () => false)
   await expect(host.start(binding(echo))).rejects.toThrow("declined")

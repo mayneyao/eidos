@@ -327,7 +327,7 @@ export class PluginSidecarHost {
     const frame = JSON.stringify(data) + "\n"
     if (
       Buffer.byteLength(frame) > FRAME_LIMIT ||
-      child.stdin.writableLength > 4 * FRAME_LIMIT
+      child.stdin.writableLength + Buffer.byteLength(frame) > 4 * FRAME_LIMIT
     )
       throw new Error("Native process input is too large or busy")
     await new Promise<void>((resolve, reject) =>

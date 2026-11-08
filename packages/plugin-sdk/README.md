@@ -1,6 +1,15 @@
 # Eidos Plugin SDK
 
-Type-only API for the [Plugin API 3.7 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+Type-only API for the [Plugin API 3.8 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+
+Lite API 3.8 adds `manifest.sidecar: { command, args? }` and optional
+`ctx.capabilities.sidecar` for standalone page and file Views. Lite discovers
+an installed local program and requests native startup approval. The program
+retains OS permissions outside the JavaScript file/network capability sandbox.
+Closing a View detaches it; stopping, revoking, updating, leaving its Space or
+quitting Lite stops the owned process. CLI Serve and mobile do not expose this
+capability. See [local native programs](../../apps/docs/src/content/docs/plugins/native-processes.mdx)
+and the [API reference](../../apps/docs/src/content/docs/plugins/api/sidecar.mdx).
 
 Plugins can declare `i18n.defaultLocale`, `i18n.messages` JSON paths and optional
 `i18n.readme` Markdown paths. Use `%message.key%` in manifest display fields and

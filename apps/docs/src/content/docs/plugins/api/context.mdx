@@ -15,7 +15,7 @@ Signatures, parameters and return types are generated from the SDK. Optional mem
 
 ## Lifetime
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L209)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L211)
 
 ### Lifetime.signal
 
@@ -39,7 +39,19 @@ Related types: [Disposable](/plugins/api/types/#disposable).
 
 ## CommonCapabilities
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L213)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L215)
+
+### CommonCapabilities.sidecar
+
+Supported hosts: <Badge text="Lite" variant="note" />
+
+Available only to standalone page and file Views declaring manifest.sidecar. Not provided to extensions, actions, embedded resources, JavaScript backgrounds, CLI Serve or mobile.
+
+
+```ts
+readonly sidecar?: PluginSidecar;
+```
+
 
 ### CommonCapabilities.background
 
@@ -107,11 +119,11 @@ readonly ui: HostUI;
 ```
 
 
-Related types: [PluginBackground](/plugins/api/background/#pluginbackground), [PluginFileSystem](/plugins/api/fs/#pluginfilesystem), [PluginFileMeta](/plugins/api/filemeta/#pluginfilemeta), [PluginStorage](/plugins/api/storage/#pluginstorage), [PluginNetwork](/plugins/api/network/#pluginnetwork), [PluginSettings](/plugins/api/settings/#pluginsettings), [PluginConnections](/plugins/api/network/#pluginconnections), [HostUI](/plugins/api/ui/#hostui).
+Related types: [PluginSidecar](/plugins/api/sidecar/#pluginsidecar), [PluginBackground](/plugins/api/background/#pluginbackground), [PluginFileSystem](/plugins/api/fs/#pluginfilesystem), [PluginFileMeta](/plugins/api/filemeta/#pluginfilemeta), [PluginStorage](/plugins/api/storage/#pluginstorage), [PluginNetwork](/plugins/api/network/#pluginnetwork), [PluginSettings](/plugins/api/settings/#pluginsettings), [PluginConnections](/plugins/api/network/#pluginconnections), [HostUI](/plugins/api/ui/#hostui).
 
 ## CommonContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L299)
 
 
 ```ts
@@ -139,7 +151,7 @@ Related types: [PluginI18n](/plugins/api/context/#plugini18n), [CommonCapabiliti
 
 ## PluginI18n
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L280)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L303)
 
 ### PluginI18n.locale
 
@@ -182,7 +194,7 @@ Related types: [Disposable](/plugins/api/types/#disposable).
 
 ## ViewCapabilities
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L405)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L428)
 
 
 ```ts
@@ -218,7 +230,7 @@ Related types: [ExplorerContext](/plugins/api/explorer/#explorercontext), [TextD
 
 ## ViewContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L412)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L435)
 
 
 ```ts
@@ -256,7 +268,7 @@ Related types: [ViewBinding](/plugins/api/types/#viewbinding), [ViewCapabilities
 
 ## TextFileViewContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L417)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L440)
 
 
 ```ts
@@ -275,7 +287,7 @@ Related types: [ViewContext](/plugins/api/context/#viewcontext), [ViewBinding](/
 
 ## TableFileViewContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L421)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L444)
 
 
 ```ts
@@ -296,7 +308,7 @@ Related types: [ViewContext](/plugins/api/context/#viewcontext), [ViewBinding](/
 
 ## ActionContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L430)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L453)
 
 
 ```ts
@@ -327,7 +339,7 @@ Related types: [ActionBinding](/plugins/api/types/#actionbinding), [CommonCapabi
 
 ## ExtensionContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L437)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L460)
 
 
 ```ts
@@ -366,7 +378,7 @@ Related types: [PluginI18n](/plugins/api/context/#plugini18n), [FileHookHandler]
 
 ## TableActionContext
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L470)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L493)
 
 ### TableActionContext.i18n
 
@@ -396,7 +408,7 @@ Related types: [PluginI18n](/plugins/api/context/#plugini18n), [TableActionCapab
 
 ## Mount
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L514)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L537)
 
 
 ```ts
@@ -408,7 +420,7 @@ Related types: [ViewContext](/plugins/api/context/#viewcontext), [Disposable](/p
 
 ## Activate
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L518)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L541)
 
 
 ```ts

@@ -620,6 +620,7 @@
       "packages/plugin-runtime/src/sandbox.ts": "986748ccfd56f7daeeaae4ce2b812b467366c9fbe75a4f41200ffdd2d4654c01",
       "packages/plugin-runtime/src/save-shortcut.test.ts": "1cefe63b24610a389c24afb0debed63b9119fc6cfa98272ba3afda6429549804",
       "packages/plugin-runtime/src/serve-sandbox.test.ts": "b47bef249ceb86cb177aed2bc021cd019c4e54be028d9f59ac70e26c62086eb1",
+      "packages/plugin-runtime/src/sidecar-sandbox.test.ts": "33733b51ceb374efefdab22e347e90cf1d33f2a0d72846d0a2fb514f487074b4",
       "packages/plugin-runtime/src/source.ts": "c1d23d815055e16deba6eb541b9be23573c367dfef8c5a58c24a8b39aedf4051",
       "packages/plugin-runtime/src/table-action-sandbox.test.ts": "9546afdde7574cb991e1ff9314296017a8f814f6e51d6fc8209485e0f96ae39e",
       "packages/plugin-runtime/src/table-config-sandbox.test.ts": "f4528299d6984d1cc575ab23546c383fd89c1f27143cd7609e4148798e300aaa",
