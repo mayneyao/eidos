@@ -29,6 +29,10 @@ candidate. Export checks include full decoding, H.264, 30fps, no audio,
 faststart, dimensions/duration and hashes. Successful export leaves review
 pending. Complete playback and poster/privacy review are still required before
 the existing hash-bound review step below. No upload or release is implied.
+Export ends at the declared scenario duration, after all actions have completed;
+only a stationary recorder-finalization tail is removed. The private manifest
+retains source duration/hash, action completion time, exact helper binary hashes
+and recorder arguments. A short source or an over-budget scene still fails.
 
 Prepare, record, review and upload a short Eidos Lite demonstration on macOS.
 The first scenario demonstrates the table-search Escape/focus improvement from

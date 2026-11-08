@@ -612,6 +612,9 @@ async function capture(catalog) {
     startedAt = Date.now()
     recordingStarted = true
     for (const step of scene.steps) await action(step)
+    const actionsFinishedSeconds = (Date.now() - startedAt) / 1000
+    if (actionsFinishedSeconds >= scene.durationSeconds - 0.5)
+      throw Error("Scene did not finish before the export boundary")
     await recordingDone
     if (posterSeconds === undefined) throw Error("No poster marker was reached")
     if (sessionErrors.length)
@@ -625,6 +628,15 @@ async function capture(catalog) {
     if (!sameFiles(before, after))
       throw Error("Read-only scene changed fixture bytes or mtime")
     checkSource()
+    const sourceProbe = JSON.parse(
+      run("ffprobe", ["-v", "error", "-show_format", "-of", "json", source])
+    )
+    const sourceDuration = Number(sourceProbe.format.duration)
+    if (
+      !Number.isFinite(sourceDuration) ||
+      sourceDuration < scene.durationSeconds
+    )
+      throw Error("Source recording ended before the full scenario duration")
     run("ffmpeg", [
       "-nostdin",
       "-hide_banner",
@@ -634,6 +646,8 @@ async function capture(catalog) {
       "-i",
       source,
       "-an",
+      "-t",
+      scene.durationSeconds,
       "-c:v",
       "libx264",
       "-crf",
@@ -684,7 +698,8 @@ async function capture(catalog) {
       video.r_frame_rate !== "30/1" ||
       video.pix_fmt !== "yuv420p" ||
       probe.streams.length !== 1 ||
-      Math.abs(Number(probe.format.duration) - scene.durationSeconds) > 1
+      Math.abs(Number(probe.format.duration) - scene.durationSeconds) >
+        1 / 30 + 0.001
     )
       throw Error("Unexpected media codec, stream, frame rate or duration")
     run("ffmpeg", [
@@ -782,6 +797,27 @@ async function capture(catalog) {
           "Initial window snapshot only; new windows, app dialogs, desktop and notifications require full-video review",
       },
       duration: Number(probe.format.duration),
+      sourceDuration,
+      actionsFinishedSeconds,
+      exportBoundary: {
+        start: 0,
+        duration: scene.durationSeconds,
+        policy:
+          "Only post-scenario stationary finalization tail removed; all actions finish before this boundary",
+      },
+      nativeHelperBinarySha256: await hashFile(native),
+      recorderBinarySha256: await hashFile(recorder),
+      recorderArguments: [
+        pid,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        scene.durationSeconds,
+        viewport.scale,
+        source,
+      ],
+      sourceRecordingSha256: await hashFile(source),
       posterSeconds,
       assertions,
       measurements: measures,
