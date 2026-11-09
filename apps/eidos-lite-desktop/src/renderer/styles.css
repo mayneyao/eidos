@@ -1866,7 +1866,8 @@ body {
   min-height: 0;
   overflow: hidden;
   border-right: 1px solid var(--hairline);
-  background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
+  /* Match the opaque sidebar surface forwarded into plugin iframes. */
+  background: var(--lite-sidebar);
   contain: paint;
   opacity: 1;
   transform: translate3d(0, 0, 0);
