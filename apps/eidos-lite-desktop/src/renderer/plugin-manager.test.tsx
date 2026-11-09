@@ -804,11 +804,24 @@ it("restores main-process progress and errors after leaving plugin management", 
 it("previews a local package offline without installing until confirmed", async () => {
   const prepared = vi.fn(async () => true)
   const readme = vi.fn(async () => "# Local documentation")
+  const preview = {
+    token: "preview-token",
+    hash: "local-hash",
+    filename: "local.eidos-plugin",
+    manifest: {
+      apiVersion: 1 as const,
+      requires: { pluginApi: "3.0.0" },
+      id: "example.local",
+      name: "Local plugin",
+      version: "1.0.0",
+    },
+  }
   Object.assign(window.eidosLite, {
     pluginMarketplace: async () => {
       throw new Error("Offline")
     },
     pluginReadme: readme,
+    getPluginPackagePreviews: async () => [preview],
     installPreparedPlugin: prepared,
   })
   await act(async () =>
@@ -817,18 +830,7 @@ it("previews a local package offline without installing until confirmed", async 
         installRequest={{
           id: "example.local",
           sequence: 1,
-          package: {
-            token: "preview-token",
-            hash: "local-hash",
-            filename: "local.eidos-plugin",
-            manifest: {
-              apiVersion: 1,
-              requires: { pluginApi: "3.0.0" },
-              id: "example.local",
-              name: "Local plugin",
-              version: "1.0.0",
-            },
-          },
+          package: preview,
         }}
       />
     )
@@ -897,6 +899,180 @@ it("keeps multiple local package previews available for individual confirmation"
   expect(prepared).toHaveBeenCalledWith(first.token)
 })
 
+it("leaves a cancelled or failed local update available and removes it after success", async () => {
+  const preview = {
+    token: "update-token",
+    hash: "update-hash",
+    filename: "csv-2.eidos-plugin",
+    manifest: {
+      apiVersion: 1 as const,
+      requires: { pluginApi: "3.0.0" },
+      id: "example.csv",
+      name: "CSV",
+      version: "2.0.0",
+    },
+  }
+  let previews = [preview]
+  const prepared = vi
+    .fn()
+    .mockResolvedValueOnce(false)
+    .mockRejectedValueOnce(new Error("Failed to install"))
+    .mockImplementationOnce(async () => {
+      previews = []
+      return true
+    })
+  Object.assign(window.eidosLite, {
+    getPluginPackagePreviews: async () => previews,
+    installPreparedPlugin: prepared,
+  })
+  await act(async () =>
+    root.render(
+      <PluginManager
+        spaceAvailable
+        installRequest={{
+          id: preview.manifest.id,
+          sequence: 1,
+          package: preview,
+        }}
+      />
+    )
+  )
+  expect(container.textContent).toContain("Installed: v1.0.0")
+  expect(container.textContent).toContain("v2.0.0")
+  expect(container.textContent).toContain("Disabled in this Space")
+  expect(container.textContent).not.toContain("Not installed")
+  await click("Update")
+  expect(container.textContent).toContain("csv-2.eidos-plugin")
+  await click("Update")
+  expect(container.textContent).toContain("Failed to install")
+  ;[...container.querySelectorAll("button")]
+    .find((button) => button.textContent === "Update")
+    ?.focus()
+  await click("Update")
+  expect(container.textContent).not.toContain("csv-2.eidos-plugin")
+  expect(container.textContent).not.toContain("Update available: v2.0.0")
+  expect(container.textContent).toContain("Enable in this Space")
+  expect(document.activeElement).toBe(container.querySelector("h1"))
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await act(async () =>
+    root.render(
+      <PluginManager
+        spaceAvailable
+        installRequest={{
+          id: preview.manifest.id,
+          sequence: 1,
+          package: preview,
+        }}
+      />
+    )
+  )
+  expect(container.textContent).not.toContain("csv-2.eidos-plugin")
+  expect(container.textContent).toContain("Enable in this Space")
+})
+
+it("keeps a single pending package discoverable from another installed detail", async () => {
+  const preview = {
+    token: "pending",
+    hash: "new",
+    filename: "other.eidos-plugin",
+    manifest: {
+      apiVersion: 1 as const,
+      requires: { pluginApi: "3.0.0" },
+      id: "example.other",
+      name: "Other",
+      version: "2.0.0",
+    },
+  }
+  Object.assign(window.eidosLite, {
+    getPluginPackagePreviews: async () => [preview],
+  })
+  await act(async () =>
+    root.render(<PluginManager selectedPluginId="example.csv" />)
+  )
+  const select = container.querySelector<HTMLSelectElement>(
+    '[aria-label="Local packages awaiting review"]'
+  )!
+  expect(select).not.toBeNull()
+  expect(select.options).toHaveLength(2)
+})
+
+it("switches between multiple versions of the same local plugin", async () => {
+  let tasksChanged:
+    | ((tasks: Record<string, PluginInstallTask>) => void)
+    | undefined
+  const first = {
+    token: "one",
+    hash: "one",
+    filename: "csv-2.eidos-plugin",
+    manifest: {
+      apiVersion: 1 as const,
+      requires: { pluginApi: "3.0.0" },
+      id: "example.csv",
+      name: "CSV",
+      version: "2.0.0",
+    },
+  }
+  const second = {
+    ...first,
+    token: "two",
+    hash: "two",
+    filename: "csv-3.eidos-plugin",
+    manifest: { ...first.manifest, version: "3.0.0" },
+  }
+  Object.assign(window.eidosLite, {
+    getPluginPackagePreviews: async () => [first, second],
+    onPluginInstallTasks: (listener: typeof tasksChanged) => {
+      tasksChanged = listener
+      return () => {}
+    },
+    getPluginInstallTasks: async () => ({
+      "example.csv": {
+        id: "example.csv",
+        packageToken: first.token,
+        status: "failed",
+        percent: 0,
+        error: "First package failed",
+      },
+    }),
+  })
+  await act(async () =>
+    root.render(
+      <PluginManager
+        installRequest={{ id: first.manifest.id, sequence: 1, package: first }}
+      />
+    )
+  )
+  const select = container.querySelector<HTMLSelectElement>(
+    '[aria-label="Local packages awaiting review"]'
+  )!
+  expect(container.textContent).toContain("First package failed")
+  await act(async () => {
+    select.value = second.token
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+  })
+  expect(container.textContent).toContain("csv-3.eidos-plugin")
+  expect(container.textContent).not.toContain("First package failed")
+  await act(async () =>
+    tasksChanged?.({
+      "example.csv": {
+        id: "example.csv",
+        packageToken: first.token,
+        status: "installing",
+        percent: 50,
+      },
+    })
+  )
+  expect(
+    [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "Update"
+    )?.disabled
+  ).toBe(true)
+  expect(container.textContent).not.toContain("Installing…")
+  expect(container.textContent).toContain("Installed: v1.0.0")
+  expect(container.textContent).toContain("v3.0.0")
+})
+
 it("preserves restored navigation instead of replaying an earlier external request", async () => {
   const select = vi.fn()
   await act(async () =>
@@ -948,7 +1124,7 @@ it("discloses previewed access without mounting the installed revision's setting
       />
     )
   )
-  expect(container.textContent).toContain("Install for Space: My Space")
+  expect(container.textContent).not.toContain("Install for Space: My Space")
   expect(
     [...container.querySelectorAll("button")].some(
       (button) => button.textContent === "Settings"

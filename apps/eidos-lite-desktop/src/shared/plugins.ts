@@ -156,6 +156,7 @@ export type PluginInstallStatus =
 export interface PluginInstallTask {
   id: string
   spaceId?: string
+  packageToken?: string
   status: PluginInstallStatus
   percent: number
   error?: string

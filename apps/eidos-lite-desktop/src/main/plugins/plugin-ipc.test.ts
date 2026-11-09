@@ -155,9 +155,11 @@ beforeEach(async () => {
   }
   mock.showPluginInstall
     .mockReset()
-    .mockImplementation(
-      (_id, _preview, preferred) => preferred ?? mock.windows[0]
-    )
+    .mockImplementation((_id, _preview, preferred, onReady) => {
+      const owner = preferred ?? mock.windows[0]
+      onReady?.(owner)
+      return owner
+    })
   registered = registerPluginIpc({
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
@@ -417,19 +419,21 @@ it("previews shell-opened packages in the main window and installs only after co
   await packageVersion("2.0.0")
   mock.response = 0
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
+  expect(await call("packagePreviews", 1)).toEqual([preview])
   expect(mock.messageOptions.at(-1)).toMatchObject({
     message: expect.stringContaining("Space: Space 1"),
   })
   expect((await listing(3)).plugins).toHaveLength(0)
   mock.response = 1
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual([])
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: true,
     manifest: { version: "1.0.0" },
   })
-  const reviews = mock.messageOptions.length
-  expect(await call("installPrepared", 1, preview.token)).toBe(true)
-  expect(mock.messageOptions).toHaveLength(reviews)
+  await expect(call("installPrepared", 1, preview.token)).rejects.toThrow(
+    /preview/
+  )
   await call("enable", 1, id, false)
   await call("enable", 2, id, true)
   await registered.openPackage(file)
@@ -485,6 +489,64 @@ it("opens file-picker and dropped package previews without reviewing or installi
   await expect(
     call("previewPackage", 1, "relative.eidos-plugin")
   ).rejects.toThrow(/Invalid plugin/)
+})
+
+it("removes only successfully installed copies of a preview", async () => {
+  await call("previewPackage", 1, mock.selected)
+  const first = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("previewPackage", 1, mock.selected)
+  const duplicate = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await packageVersion("2.0.0")
+  await call("previewPackage", 1, mock.selected)
+  const update = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("previewPackage", 2, mock.selected)
+  const otherOwner = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  expect(await call("installPrepared", 1, first.token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual([update])
+  expect(await call("packagePreviews", 2)).toEqual([otherOwner])
+  await expect(call("installPrepared", 1, duplicate.token)).rejects.toThrow(
+    /preview/
+  )
+})
+
+it("does not silently discard earlier pending previews when more packages arrive", async () => {
+  for (let index = 0; index < 9; index++)
+    await call("previewPackage", 1, mock.selected)
+  expect(await call("packagePreviews", 1)).toHaveLength(9)
+})
+
+it("keeps a failed queued preview available for retry", async () => {
+  const bytes = await fs.readFile(mock.selected)
+  let finish!: (bytes: Uint8Array) => void
+  vi.spyOn(PluginRegistry.prototype, "download").mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  await call("previewPackage", 2, mock.selected)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  const first = call("installMarketplace", 1, id)
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  const second = call("installPrepared", 2, preview.token)
+  const results = Promise.allSettled([first, second])
+  switchTestSpace(2, "space-three")
+  finish(bytes)
+  expect((await results)[1]).toMatchObject({ status: "rejected" })
+  expect(await call("packagePreviews", 2)).toEqual([preview])
+  switchTestSpace(2, "space-2")
+  expect(await call("installPrepared", 2, preview.token)).toBe(true)
+  expect(await call("packagePreviews", 2)).toEqual([])
 })
 
 it("rejects a queued installation if its target Space changes before review", async () => {

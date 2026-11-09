@@ -1228,18 +1228,18 @@ export function registerPluginIpc(controller: WindowController): {
       manifest: pkg.manifest,
       localization: pluginLanguageData(pkg.manifest, pkg.resources),
     }
-    const owner = await controller.showPluginInstall(
+    await controller.showPluginInstall(
       pkg.manifest.id,
       preview,
-      preferred
+      preferred,
+      (owner) => {
+        preparedPackages.set(preview.token, {
+          owner: owner.webContents.id,
+          bytes,
+          preview,
+        })
+      }
     )
-    preparedPackages.set(preview.token, {
-      owner: owner.webContents.id,
-      bytes,
-      preview,
-    })
-    while (preparedPackages.size > 8)
-      preparedPackages.delete(preparedPackages.keys().next().value!)
     return true
   }
   ipcMain.handle(PLUGIN_CHANNELS.getInstallIntent, (event) => {
@@ -1304,9 +1304,9 @@ export function registerPluginIpc(controller: WindowController): {
       const id = prepared.preview.manifest.id
       return installs.run(
         id,
-        () => {
+        async () => {
           installs.progress({ id, phase: "installing", percent: 0 }, spaceId)
-          return installPlugin(
+          const installed = await installPlugin(
             event,
             false,
             undefined,
@@ -1314,8 +1314,20 @@ export function registerPluginIpc(controller: WindowController): {
             prepared.bytes,
             spaceId
           )
+          if (installed) {
+            for (const [candidateToken, candidate] of preparedPackages) {
+              if (
+                candidate.owner === owner &&
+                candidate.preview.manifest.id === id &&
+                candidate.preview.hash === prepared.preview.hash
+              )
+                preparedPackages.delete(candidateToken)
+            }
+          }
+          return installed
         },
-        spaceId
+        spaceId,
+        prepared.preview.token
       )
     }
   )

@@ -8960,6 +8960,18 @@ body {
   margin-bottom: 3px;
   margin-left: auto;
 }
+.plugin-package-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+}
+.plugin-package-selector .plugin-setting-input {
+  width: min(100%, 20rem);
+}
 .plugin-search-box {
   position: relative;
   display: inline-flex;

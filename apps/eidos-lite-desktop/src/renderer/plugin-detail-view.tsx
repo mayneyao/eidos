@@ -745,6 +745,11 @@ export function PluginDetailView({
                   ? t("Unknown version")
                   : `v${pluginVersion}`}
             </span>
+            {previewPending && plugin && (
+              <span className="plugin-detail-version">
+                · {t("Installed")}: v{plugin.manifest.version}
+              </span>
+            )}
             <span className="plugin-detail-dot">·</span>
             {hasUpdate && marketplacePlugin && (
               <>
@@ -763,7 +768,15 @@ export function PluginDetailView({
                 <span className="plugin-detail-dot">·</span>
               </>
             )}
-            {plugin && !previewPending ? (
+            {previewPending && plugin && (
+              <>
+                <span className="plugin-status-pill is-update">
+                  {t("Update")}
+                </span>
+                <span className="plugin-detail-dot">·</span>
+              </>
+            )}
+            {plugin ? (
               <span
                 className={`plugin-status-pill ${
                   plugin.enabled ? "is-enabled" : "is-disabled"
@@ -947,7 +960,7 @@ export function PluginDetailView({
               })}
             </p>
           )}
-          {(previewPending || marketplaceOnly) && (
+          {((previewPending && !plugin) || marketplaceOnly) && (
             <p className="plugin-manager-caption">
               {installSpaceName
                 ? t("Install for Space: {space}", { space: installSpaceName })

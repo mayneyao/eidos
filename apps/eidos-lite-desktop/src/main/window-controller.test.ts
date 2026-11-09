@@ -120,7 +120,18 @@ it("routes install links to a workbench instead of the focused Settings window",
   ;(
     controller as unknown as { sessionByWebContents: Map<number, unknown> }
   ).sessionByWebContents.set(2, session("space-2"))
-  expect(await controller.showPluginInstall("test.plugin")).toBe(workbench)
+  const ready = vi.fn(() =>
+    expect(workbench.webContents.send).not.toHaveBeenCalled()
+  )
+  expect(
+    await controller.showPluginInstall(
+      "test.plugin",
+      undefined,
+      undefined,
+      ready
+    )
+  ).toBe(workbench)
+  expect(ready).toHaveBeenCalledWith(workbench)
   expect(window.webContents.send).not.toHaveBeenCalled()
   expect(controller.getPluginInstallIntent(owner)).toBeNull()
   const contents = workbench.webContents as unknown as WebContents

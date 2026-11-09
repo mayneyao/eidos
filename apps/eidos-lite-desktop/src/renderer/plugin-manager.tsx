@@ -80,6 +80,10 @@ export function PluginManager({
   )
   const [listing, setListing] = useState<PluginListing | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [packageError, setPackageError] = useState<{
+    token: string
+    message: string
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [internalSelected, setInternalSelected] = useState<string | null>(null)
   const selected =
@@ -184,7 +188,8 @@ export function PluginManager({
   const installTasks = usePluginInstallTasks()
   const [packagePreviews, setPackagePreviews] = useState<
     PluginPackagePreview[]
-  >(() => (installRequest?.package ? [installRequest.package] : []))
+  >([])
+  const previewRevision = useRef(0)
   const [packageSelection, setPackageSelection] = useState<{
     sequence?: number
     token?: string
@@ -198,16 +203,12 @@ export function PluginManager({
       : installRequest?.package?.token
   useEffect(() => {
     let active = true
-    const preview = installRequest?.package
-    if (preview)
-      setPackagePreviews((previous) => [
-        ...previous.filter((item) => item.token !== preview.token),
-        preview,
-      ])
+    const revision = previewRevision.current
     void window.eidosLite
       .getPluginPackagePreviews?.()
       .then((previews) => {
-        if (active) setPackagePreviews(previews)
+        if (active && revision === previewRevision.current)
+          setPackagePreviews(previews)
       })
       .catch(() => {})
     return () => {
@@ -286,10 +287,6 @@ export function PluginManager({
   const builtin = builtins.find((item) => item.id === selected)
   const plugin = plugins.find((item) => item.manifest.id === selected)
   const packagePreview =
-    (installRequest?.package?.token === packageToken &&
-    installRequest?.id === selected
-      ? installRequest.package
-      : undefined) ??
     packagePreviews.find(
       (preview) =>
         preview.token === packageToken && preview.manifest.id === selected
@@ -297,9 +294,31 @@ export function PluginManager({
     (!plugin
       ? packagePreviews.find((preview) => preview.manifest.id === selected)
       : undefined)
+  const currentPackageToken = useRef<string | undefined>(undefined)
+  currentPackageToken.current = packagePreview?.token
+  const restoreDetailFocus = useRef(false)
+  useEffect(() => {
+    if (restoreDetailFocus.current) {
+      surface.current?.querySelector<HTMLElement>("h1")?.focus()
+      restoreDetailFocus.current = false
+    }
+  }, [selected, packagePreview?.token])
   const pendingPackages = packagePreviews.filter(
-    (preview) => !plugins.some((installed) => installed.hash === preview.hash)
+    (preview) =>
+      !plugins.some(
+        (installed) =>
+          installed.manifest.id === preview.manifest.id &&
+          installed.hash === preview.hash
+      )
   )
+  const selectedTask = selected ? installTasks[selected] : undefined
+  const matchingTask = packagePreview
+    ? selectedTask?.packageToken === packagePreview.token
+      ? selectedTask
+      : undefined
+    : selectedTask?.packageToken
+      ? undefined
+      : selectedTask
 
   const updatablePlugins = useMemo(() => {
     if (!listing?.plugins || !marketplace?.plugins) return []
@@ -379,15 +398,21 @@ export function PluginManager({
         })
       }
     >
-      {pendingPackages.length > 1 && (
-        <label className="plugin-manager-toolbar-actions">
+      {pendingPackages.length >
+        (packagePreview &&
+        pendingPackages.some(
+          (preview) => preview.token === packagePreview.token
+        )
+          ? 1
+          : 0) && (
+        <label className="plugin-package-selector">
           {t("Local packages awaiting review")}
           <select
             className="plugin-setting-input"
             aria-label={t("Local packages awaiting review")}
             value={packagePreview?.token ?? ""}
             onChange={(event) => {
-              const next = packagePreviews.find(
+              const next = pendingPackages.find(
                 (preview) => preview.token === event.currentTarget.value
               )
               if (next) {
@@ -434,26 +459,82 @@ export function PluginManager({
             marketplacePlugin={matchedMarketplacePlugin}
             spaceAvailable={spaceAvailable}
             installSpaceName={spaceName}
-            busy={busy}
-            installTask={
-              isPluginInstallActive(installTasks[selected])
-                ? installTasks[selected]
-                : undefined
+            busy={
+              busy ||
+              Boolean(
+                packagePreview &&
+                isPluginInstallActive(selectedTask) &&
+                !matchingTask
+              )
             }
-            installDisabled={!packagePreview && Boolean(marketplace?.cached)}
-            error={installTasks[selected]?.error ?? error}
+            installTask={
+              isPluginInstallActive(matchingTask) ? matchingTask : undefined
+            }
+            installDisabled={
+              !packagePreview &&
+              Boolean(
+                marketplace?.cached ||
+                (isPluginInstallActive(selectedTask) && !matchingTask)
+              )
+            }
+            error={
+              matchingTask?.error ??
+              (packagePreview && packageError?.token === packagePreview.token
+                ? packageError.message
+                : error)
+            }
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
             onInstall={() => {
               if (packagePreview) {
                 setError(null)
+                setPackageError(null)
                 void window.eidosLite
                   .installPreparedPlugin(packagePreview.token)
-                  .catch((cause: unknown) =>
-                    setError(
-                      cause instanceof Error ? cause.message : String(cause)
+                  .then(async (installed) => {
+                    if (!installed) return
+                    const previews =
+                      await window.eidosLite.getPluginPackagePreviews()
+                    if (
+                      previews.some(
+                        (item) => item.token === packagePreview.token
+                      )
                     )
+                      return
+                    await refresh().catch((cause: unknown) =>
+                      setError(
+                        cause instanceof Error ? cause.message : String(cause)
+                      )
+                    )
+                    previewRevision.current++
+                    const remaining = new Set(
+                      previews.map((item) => item.token)
+                    )
+                    restoreDetailFocus.current =
+                      currentPackageToken.current === packagePreview.token &&
+                      Boolean(surface.current?.contains(document.activeElement))
+                    setPackagePreviews((previous) =>
+                      previous.filter(
+                        (item) =>
+                          item.manifest.id !== packagePreview.manifest.id ||
+                          item.hash !== packagePreview.hash ||
+                          remaining.has(item.token)
+                      )
+                    )
+                    setPackageSelection((previous) =>
+                      previous.sequence === installRequest?.sequence &&
+                      previous.token === packagePreview.token
+                        ? { sequence: previous.sequence }
+                        : previous
+                    )
+                  })
+                  .catch((cause: unknown) =>
+                    setPackageError({
+                      token: packagePreview.token,
+                      message:
+                        cause instanceof Error ? cause.message : String(cause),
+                    })
                   )
                 return
               }
