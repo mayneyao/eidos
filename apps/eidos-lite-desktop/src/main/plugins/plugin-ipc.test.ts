@@ -517,10 +517,35 @@ it("removes only successfully installed copies of a preview", async () => {
   )
 })
 
-it("does not silently discard earlier pending previews when more packages arrive", async () => {
-  for (let index = 0; index < 9; index++)
-    await call("previewPackage", 1, mock.selected)
-  expect(await call("packagePreviews", 1)).toHaveLength(9)
+it("rejects an excess package without evicting accepted previews and frees capacity after success", async () => {
+  for (let index = 0; index < 8; index++) {
+    await packageVersion(`${index + 1}.0.0`)
+    await call("previewPackage", index < 4 ? 1 : 2, mock.selected)
+  }
+  const first = (await call("packagePreviews", 1)) as PluginPackagePreview[]
+  const second = (await call("packagePreviews", 2)) as PluginPackagePreview[]
+  await expect(registered.openPackage(mock.selected)).rejects.toThrow(
+    /Finish reviewing an open package/
+  )
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  expect(await call("packagePreviews", 2)).toEqual(second)
+  mock.response = 0
+  expect(await call("installPrepared", 1, first[0].token)).toBe(false)
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  await expect(call("previewPackage", 1, mock.selected)).rejects.toThrow(
+    /Finish reviewing an open package/
+  )
+  const failed = call("installPrepared", 1, first[0].token)
+  switchTestSpace(1, "changed-space")
+  await expect(failed).rejects.toThrow("Space changed before installation")
+  switchTestSpace(1, "space-1")
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  mock.response = 1
+  expect(await call("installPrepared", 1, first[0].token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual(first.slice(1))
+  expect(await call("previewPackage", 1, mock.selected)).toBe(true)
+  expect(await call("packagePreviews", 1)).toHaveLength(4)
+  expect(await call("packagePreviews", 2)).toEqual(second)
 })
 
 it("keeps a failed queued preview available for retry", async () => {

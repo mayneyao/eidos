@@ -1233,6 +1233,11 @@ export function registerPluginIpc(controller: WindowController): {
       preview,
       preferred,
       (owner) => {
+        if (preparedPackages.size >= 8)
+          throw new PluginError(
+            "INVALID_REQUEST",
+            "Up to 8 local packages can await review. Finish reviewing an open package, then try again."
+          )
         preparedPackages.set(preview.token, {
           owner: owner.webContents.id,
           bytes,
