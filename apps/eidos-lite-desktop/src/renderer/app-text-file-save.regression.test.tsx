@@ -161,6 +161,8 @@ afterEach(async () => {
   root = undefined
   host.remove()
   textDraftLifecycle.release()
+  window.localStorage.clear()
+  window.sessionStorage.clear()
   vi.unstubAllGlobals()
 })
 
@@ -219,6 +221,9 @@ function installHost(overrides: Record<string, unknown>) {
     setFormatterContext: vi.fn(async () => undefined),
     setPluginShortcuts: vi.fn(async () => []),
     getSpace: async () => staleSpace,
+    filterSpaceFiles: vi.fn<EidosLiteApi["filterSpaceFiles"]>(
+      async () => staleSpace.entries
+    ),
     listPlugins: async () => ({ plugins: [], space: { id: "s" } }),
     listRecentSpaces: async () => [],
     listPublicationBindings: async () => [],

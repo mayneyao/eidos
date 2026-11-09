@@ -170,18 +170,23 @@ it.each([undefined, 2 * 1024 * 1024, 16 * 1024 * 1024])(
       events: SidecarEvent[] = []
     host.observe(native, (event) => events.push(event))
     await host.start(native)
-    await vi.waitFor(() =>
-      expect(
-        events.some(
-          (event) =>
-            event.type === "message" &&
-            typeof event.data === "string" &&
-            event.data.length === limit - 2
-        )
-      ).toBe(true)
+    // Allow the full 16 MiB record to drain through OS pipes on CI.
+    await vi.waitFor(
+      () =>
+        expect(
+          events.some(
+            (event) =>
+              event.type === "message" &&
+              typeof event.data === "string" &&
+              event.data.length === limit - 2
+          )
+        ).toBe(true),
+      { timeout: 5000 }
     )
     expect(events.some((event) => event.type === "error")).toBe(false)
-  }
+    expect((await host.status(native)).running).toBe(true)
+  },
+  10000
 )
 
 it.each([
