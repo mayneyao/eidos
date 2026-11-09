@@ -704,6 +704,12 @@ export function VersionDiffPreview({
   onRestoreTextVersion?(path: string, revision: string): Promise<string[]>
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const [displayedTextPath, setDisplayedTextPath] = useState<string | null>(
+    null
+  )
+  useEffect(() => {
+    if (inspection.change.kind !== "text_file") setDisplayedTextPath(null)
+  }, [inspection.change.kind])
   useFileContentFocusRequest(focusRequestToken, () =>
     contentRef.current?.focus({ preventScroll: true })
   )
@@ -774,7 +780,11 @@ export function VersionDiffPreview({
   const title =
     inspection.type === "table"
       ? inspection.table.name
-      : fileName(inspection.change.path)
+      : fileName(
+          inspection.change.kind === "text_file"
+            ? (displayedTextPath ?? inspection.change.path)
+            : inspection.change.path
+        )
   const showsTextDiff =
     inspection.type === "file" &&
     inspection.change.kind === "text_file" &&
@@ -886,7 +896,15 @@ export function VersionDiffPreview({
                 {fileName(inspection.change.path)}
               </button>
             ) : (
-              <strong>{fileName(inspection.change.path)}</strong>
+              <strong
+                title={
+                  inspection.change.kind === "text_file"
+                    ? (displayedTextPath ?? inspection.change.path)
+                    : inspection.change.path
+                }
+              >
+                {title}
+              </strong>
             )}
             {inspection.type === "table" ? (
               <>
@@ -989,6 +1007,7 @@ export function VersionDiffPreview({
           inspection.mode === "history" && inspection.commit ? (
             <VersionTextDiff
               mode="history"
+              onDisplay={() => setDisplayedTextPath(inspection.change.path)}
               onRestoreVersion={
                 onRestoreTextVersion
                   ? (revision) =>
@@ -1004,6 +1023,7 @@ export function VersionDiffPreview({
           ) : (
             <VersionTextDiff
               mode="changes"
+              onDisplay={() => setDisplayedTextPath(inspection.change.path)}
               expectedHead={inspection.diff.currentHead}
               path={inspection.change.path}
               previousPath={inspection.change.previousPath}

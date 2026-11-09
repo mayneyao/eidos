@@ -5,9 +5,11 @@ import { useEidosLiteI18n } from "./i18n"
 export function VersionTextRecovery({
   content,
   onRestore,
+  disabled = false,
 }: {
   content: SpaceVersionTextContentDiff
   onRestore?(): Promise<string[]>
+  disabled?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const [busy, setBusy] = useState(false)
@@ -34,7 +36,7 @@ export function VersionTextRecovery({
       {onRestore &&
       (content.after.state === "utf8" || content.before.state === "utf8") ? (
         <button
-          disabled={busy}
+          disabled={disabled || busy}
           title={t(
             "Restoring keeps copies of your current file and unsaved draft beside the document."
           )}
@@ -68,7 +70,7 @@ export function VersionTextRecovery({
         return state.state === "utf8" ? (
           <button
             key={side}
-            disabled={busy}
+            disabled={disabled || busy}
             onClick={() => void save(state.content)}
           >
             {t(side === "before" ? "Save before copy" : "Save after copy")}

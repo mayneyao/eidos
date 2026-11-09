@@ -2917,7 +2917,7 @@ describe("VersionPanel table diff", () => {
       })
     )
 
-    expect(markup).toContain("Reading checkpoint text…")
+    expect(markup).toContain('class="version-text-diff-empty"')
     expect(markup).not.toContain("metadata only")
   })
 
@@ -2940,7 +2940,7 @@ describe("VersionPanel table diff", () => {
       })
     )
 
-    expect(markup).toContain("Reading local text…")
+    expect(markup).toContain('class="version-text-diff-empty"')
     expect(markup).not.toContain("metadata only")
   })
 

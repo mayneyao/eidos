@@ -1,7 +1,20 @@
 import { FileDiff, Virtualizer } from "@pierre/diffs/react"
-import type { FileDiffMetadata } from "@pierre/diffs"
+import {
+  getFiletypeFromFileName,
+  preloadHighlighter,
+  type FileDiffMetadata,
+} from "@pierre/diffs"
 
 import type { ResolvedAppearance } from "./app-appearance"
+
+export async function preparePierreTextDiff(
+  diff: FileDiffMetadata
+): Promise<void> {
+  await preloadHighlighter({
+    themes: ["pierre-light", "pierre-dark"],
+    langs: [diff.lang ?? getFiletypeFromFileName(diff.name)],
+  })
+}
 
 export default function PierreTextDiffSurface({
   diff,

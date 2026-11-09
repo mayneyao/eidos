@@ -1,5 +1,12 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import type { FileDiffMetadata } from "@pierre/diffs"
+import type * as PierreModule from "./pierre-text-diff-surface"
 import {
   ArrowRight,
   CircleAlert,
@@ -16,7 +23,90 @@ import type { ResolvedAppearance } from "./app-appearance"
 import type { VersionTextDiffComputationResponse } from "./version-text-diff-computation"
 import { VersionTextRecovery } from "./version-text-recovery"
 
-const PierreTextDiffSurface = lazy(() => import("./pierre-text-diff-surface"))
+interface PreparedTextDiff {
+  content: SpaceVersionTextContentDiff
+  diff: FileDiffMetadata | null
+  Surface?: typeof PierreModule.default
+}
+
+let textDiffSnapshot = 0
+
+// Reading and inline-only callers share the existing worker preparation. The
+// caller retains its displayed snapshot until both computation and renderer
+// preparation finish; cancellation also covers a late module/language load.
+function prepareTextDiff(
+  content: SpaceVersionTextContentDiff,
+  ready: (result: PreparedTextDiff) => void,
+  fail: (message: string) => void,
+  renameOnly = false
+): () => void {
+  const before = contentValue(content.before),
+    after = contentValue(content.after)
+  if (before === null || after === null || renameOnly) {
+    ready({ content, diff: null })
+    return () => undefined
+  }
+  let active = true
+  const worker = new Worker(
+    new URL("./version-text-diff-worker.ts", import.meta.url),
+    { type: "module" }
+  )
+  worker.onmessage = (
+    event: MessageEvent<VersionTextDiffComputationResponse>
+  ) => {
+    worker.terminate()
+    if (!active) return
+    if (!event.data.diff) {
+      fail(event.data.error ?? "Unable to compute this text diff")
+      return
+    }
+    const diff = event.data.diff
+    // Pierre defaults to the path as its identity. A mounted surface must also
+    // distinguish two computations for changed contents of the same path.
+    diff.cacheKey = `eidos-text-diff:${++textDiffSnapshot}`
+    void import("./pierre-text-diff-surface")
+      .then(async (renderer) => {
+        await renderer.preparePierreTextDiff(diff)
+        if (active) ready({ content, diff, Surface: renderer.default })
+      })
+      .catch((cause: unknown) => {
+        if (active) fail(errorMessage(cause))
+      })
+  }
+  worker.onerror = () => {
+    worker.terminate()
+    if (active) fail("Unable to compute this text diff")
+  }
+  worker.postMessage({ before, after, path: content.path })
+  return () => {
+    active = false
+    worker.terminate()
+  }
+}
+
+function OpeningStatus({ path }: { path?: string }) {
+  const [visible, setVisible] = useState<string>()
+  useEffect(() => {
+    setVisible(undefined)
+    if (!path) return
+    const timer = window.setTimeout(() => setVisible(path), 200)
+    return () => window.clearTimeout(timer)
+  }, [path])
+  return (
+    <span
+      className="version-diff-opening-slot"
+      role="status"
+      aria-live="polite"
+    >
+      {path && visible === path ? (
+        <>
+          <LoaderCircle className="spin" aria-hidden="true" />
+          <span title={path}>Opening {path}…</span>
+        </>
+      ) : null}
+    </span>
+  )
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -132,8 +222,12 @@ export function InlineTextDiff({
   fixedSoftWrap,
   toolbarEnd,
   toolbarStart,
+  prepared,
+  pendingPath,
+  error,
+  onRetry,
 }: {
-  content: SpaceVersionTextContentDiff
+  content?: SpaceVersionTextContentDiff
   theme: ResolvedAppearance
   title?: string
   defaultLayout?: "split" | "unified"
@@ -142,6 +236,10 @@ export function InlineTextDiff({
   fixedSoftWrap?: boolean
   toolbarEnd?: ReactNode
   toolbarStart?: ReactNode
+  prepared?: PreparedTextDiff
+  pendingPath?: string
+  error?: string
+  onRetry?(): void
 }) {
   const [layout, setLayout] = useState<"split" | "unified">(
     fixedLayout ?? defaultLayout ?? "split"
@@ -149,64 +247,64 @@ export function InlineTextDiff({
   const [softWrap, setSoftWrap] = useState(defaultSoftWrap ?? false)
   const resolvedLayout = fixedLayout ?? layout
   const resolvedSoftWrap = fixedSoftWrap ?? softWrap
-  const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
+  const [displayed, setDisplayed] = useState<PreparedTextDiff>()
   const [failure, setFailure] = useState<string | null>(null)
-  const before = contentValue(content.before)
-  const after = contentValue(content.after)
+  const before = content ? contentValue(content.before) : null
+  const after = content ? contentValue(content.after) : null
 
   useEffect(() => {
-    if (before === null || after === null) return
-    setDiff(null)
+    if (!content || prepared) return
     setFailure(null)
-    const worker = new Worker(
-      new URL("./version-text-diff-worker.ts", import.meta.url),
-      { type: "module" }
-    )
-    worker.onmessage = (
-      event: MessageEvent<VersionTextDiffComputationResponse>
-    ) => {
-      worker.terminate()
-      if (event.data.diff) setDiff(event.data.diff)
-      else setFailure(event.data.error ?? "Unable to compute this text diff")
-    }
-    worker.onerror = () => {
-      worker.terminate()
-      setFailure("Unable to compute this text diff")
-    }
-    worker.postMessage({ before, after, path: content.path })
-    return () => worker.terminate()
-  }, [after, before, content.path])
-
-  if (before === null || after === null) {
-    return (
-      <div>
-        {toolbarStart}
-        <VersionTextDiffUnavailable
-          before={content.before}
-          after={content.after}
-        />
-      </div>
-    )
-  }
+    return prepareTextDiff(content, setDisplayed, setFailure)
+  }, [
+    after,
+    before,
+    content?.path,
+    content?.before.state,
+    content?.after.state,
+    prepared,
+  ])
+  const shown = prepared ?? displayed
+  const shownContent = shown?.content
+  const Surface = shown?.Surface
+  const preparing =
+    !prepared &&
+    Boolean(content) &&
+    (!shownContent ||
+      shownContent.path !== content?.path ||
+      contentValue(shownContent.before) !== before ||
+      contentValue(shownContent.after) !== after) &&
+    !failure
+  const opening = pendingPath ?? (preparing ? content?.path : undefined)
+  const message = error ?? failure
 
   return (
-    <div className="version-text-diff" data-version-text-diff>
+    <div
+      className="version-text-diff"
+      data-version-text-diff
+      aria-busy={Boolean(opening)}
+    >
       <header className="version-inspector-diff-bar version-text-diff-toolbar">
         {toolbarStart ?? (
           <div>
             <strong>{title}</strong>
             <span>
               {byteCount(
-                content.before.state === "utf8" ? content.before.size : 0
+                shownContent?.before.state === "utf8"
+                  ? shownContent.before.size
+                  : 0
               )}
               B<span aria-hidden="true"> → </span>
               {byteCount(
-                content.after.state === "utf8" ? content.after.size : 0
+                shownContent?.after.state === "utf8"
+                  ? shownContent.after.size
+                  : 0
               )}
               B
             </span>
           </div>
         )}
+        <OpeningStatus path={opening} />
         {toolbarEnd ??
           (!fixedLayout ||
           (defaultSoftWrap !== undefined && fixedSoftWrap === undefined) ? (
@@ -242,35 +340,34 @@ export function InlineTextDiff({
           ) : null)}
       </header>
       <div className="version-text-diff-surface">
-        {failure ? (
+        {message ? (
           <div className="version-text-diff-message" role="alert">
             <CircleAlert aria-hidden="true" />
             <div>
               <strong>Could not render text changes</strong>
-              <p>{failure}</p>
+              <p>{message}</p>
+              {onRetry ? (
+                <button type="button" onClick={onRetry}>
+                  <RotateCcw aria-hidden="true" />
+                  Retry
+                </button>
+              ) : null}
             </div>
           </div>
-        ) : diff ? (
-          <Suspense
-            fallback={
-              <div className="version-text-diff-loading" role="status">
-                <LoaderCircle className="spin" aria-hidden="true" />
-                Loading text renderer…
-              </div>
-            }
-          >
-            <PierreTextDiffSurface
-              diff={diff}
-              layout={resolvedLayout}
-              softWrap={resolvedSoftWrap}
-              theme={theme}
-            />
-          </Suspense>
+        ) : shownContent && !shown?.diff ? (
+          <VersionTextDiffUnavailable
+            before={shownContent.before}
+            after={shownContent.after}
+          />
+        ) : shown?.diff && Surface ? (
+          <Surface
+            diff={shown.diff}
+            layout={resolvedLayout}
+            softWrap={resolvedSoftWrap}
+            theme={theme}
+          />
         ) : (
-          <div className="version-text-diff-loading" role="status">
-            <LoaderCircle className="spin" aria-hidden="true" />
-            Computing text changes…
-          </div>
+          <div className="version-text-diff-empty" aria-label="Text preview" />
         )}
       </div>
     </div>
@@ -282,27 +379,42 @@ export function VersionTextDiffContent({
   previousPath,
   theme,
   actions,
+  prepared,
+  pendingPath,
+  error,
+  onRetry,
 }: {
-  content: SpaceVersionTextContentDiff
+  content?: SpaceVersionTextContentDiff
   previousPath?: string
   theme: ResolvedAppearance
   actions?: ReactNode
+  prepared?: PreparedTextDiff
+  pendingPath?: string
+  error?: string
+  onRetry?(): void
 }) {
-  if (previousPath && textContentMatches(content)) {
+  if (content && previousPath && textContentMatches(content)) {
     return (
       <div>
-        {actions}
+        <header className="version-inspector-diff-bar version-text-diff-toolbar">
+          {actions}
+          <OpeningStatus path={pendingPath} />
+        </header>
         <VersionRenameSummary previousPath={previousPath} path={content.path} />
       </div>
     )
   }
-  if (!previousPath) {
+  if (!previousPath || !content || error) {
     return (
       <InlineTextDiff
         content={content}
         theme={theme}
         defaultSoftWrap={false}
         toolbarStart={actions}
+        prepared={prepared}
+        pendingPath={pendingPath}
+        error={error}
+        onRetry={onRetry}
       />
     )
   }
@@ -310,7 +422,7 @@ export function VersionTextDiffContent({
     <div className="version-text-change-stack">
       <VersionRenameSummary
         previousPath={previousPath}
-        path={content.path}
+        path={content?.path ?? ""}
         compact
       />
       <InlineTextDiff
@@ -318,6 +430,10 @@ export function VersionTextDiffContent({
         theme={theme}
         defaultSoftWrap={false}
         toolbarStart={actions}
+        prepared={prepared}
+        pendingPath={pendingPath}
+        error={error}
+        onRetry={onRetry}
       />
     </div>
   )
@@ -332,11 +448,13 @@ export function VersionTextDiff({
   previousPath,
   theme,
   onRestoreVersion,
+  onDisplay,
 }: {
   path: string
   previousPath?: string
   theme: ResolvedAppearance
   onRestoreVersion?(revision: string): Promise<string[]>
+  onDisplay?(): void
 } & (
   | {
       mode: "history"
@@ -351,16 +469,33 @@ export function VersionTextDiff({
       parentId?: never
     }
 )) {
-  const [content, setContent] = useState<SpaceVersionTextContentDiff | null>(
-    null
-  )
-  const [failure, setFailure] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const requestKey = JSON.stringify([
+    mode,
+    commitId,
+    parentId,
+    expectedHead,
+    path,
+    previousPath,
+    attempt,
+  ])
+  const [displayed, setDisplayed] = useState<{
+    key: string
+    prepared?: PreparedTextDiff
+    failure?: string
+    mode: "history" | "changes"
+    commitId?: string
+    parentId?: string | null
+    previousPath?: string
+  }>()
 
   useEffect(() => {
     let current = true
-    setContent(null)
-    setFailure(null)
+    let cancelPreparation = () => undefined as void
+    const identity = { key: requestKey, mode, commitId, parentId, previousPath }
+    const fail = (message: string) => {
+      if (current) setDisplayed({ ...identity, failure: message })
+    }
     const request =
       mode === "history"
         ? window.eidosLite.getVersionTextDiff(
@@ -372,73 +507,71 @@ export function VersionTextDiff({
         : window.eidosLite.getWorkingTextDiff(expectedHead, path, previousPath)
     void request
       .then((result) => {
-        if (current) setContent(result)
+        if (!current) return
+        cancelPreparation = prepareTextDiff(
+          result,
+          (prepared) => {
+            if (current) setDisplayed({ ...identity, prepared })
+          },
+          fail,
+          Boolean(previousPath && textContentMatches(result))
+        )
       })
       .catch((error) => {
-        if (current) setFailure(errorMessage(error))
+        fail(errorMessage(error))
       })
     return () => {
       current = false
+      cancelPreparation()
     }
-  }, [attempt, commitId, expectedHead, mode, parentId, path, previousPath])
-
-  if (failure) {
-    return (
-      <div className="version-text-diff-message" role="alert">
-        <CircleAlert aria-hidden="true" />
-        <div>
-          <strong>
-            {mode === "history"
-              ? "Could not read checkpoint text"
-              : "Could not read local text"}
-          </strong>
-          <p>{failure}</p>
-          <button
-            type="button"
-            onClick={() => setAttempt((value) => value + 1)}
-          >
-            <RotateCcw aria-hidden="true" />
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!content) {
-    return (
-      <div className="version-text-diff-loading" role="status">
-        <LoaderCircle className="spin" aria-hidden="true" />
-        {mode === "history"
-          ? "Reading checkpoint text…"
-          : "Reading local text…"}
-      </div>
-    )
-  }
-
-  const actions = (
-    <VersionTextRecovery
-      key={`${mode}:${commitId ?? expectedHead}:${path}:${attempt}`}
-      content={content}
-      onRestore={
-        onRestoreVersion &&
-        mode === "history" &&
-        (content.after.state === "utf8" ||
-          (content.after.state === "absent" && parentId))
-          ? () =>
-              onRestoreVersion(
-                content.after.state === "utf8" ? commitId! : parentId!
-              )
-          : undefined
-      }
-    />
-  )
+  }, [
+    requestKey,
+    attempt,
+    commitId,
+    expectedHead,
+    mode,
+    parentId,
+    path,
+    previousPath,
+  ])
+  const displayRef = useRef(onDisplay)
+  displayRef.current = onDisplay
+  useLayoutEffect(() => {
+    if (displayed?.key === requestKey) displayRef.current?.()
+  }, [displayed, requestKey])
+  const opening = displayed?.key !== requestKey ? path : undefined
+  const content = displayed?.prepared?.content
+  const actions =
+    content && displayed ? (
+      <VersionTextRecovery
+        key={displayed.key}
+        content={content}
+        disabled={Boolean(opening)}
+        onRestore={
+          onRestoreVersion &&
+          displayed.mode === "history" &&
+          (content.after.state === "utf8" ||
+            (content.after.state === "absent" && displayed.parentId))
+            ? () =>
+                onRestoreVersion(
+                  content.after.state === "utf8"
+                    ? displayed.commitId!
+                    : displayed.parentId!
+                )
+            : undefined
+        }
+      />
+    ) : undefined
   return (
     <VersionTextDiffContent
       content={content}
-      previousPath={previousPath}
+      previousPath={displayed?.previousPath}
       theme={theme}
       actions={actions}
+      prepared={displayed?.prepared}
+      pendingPath={opening}
+      error={displayed?.failure}
+      onRetry={() => setAttempt((value) => value + 1)}
     />
   )
 }

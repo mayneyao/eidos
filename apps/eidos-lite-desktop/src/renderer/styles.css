@@ -12878,6 +12878,31 @@ body:has(.file-properties-window)
   gap: 0.3rem;
 }
 
+.version-text-diff-toolbar > .version-diff-opening-slot {
+  display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  overflow: hidden;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.version-diff-opening-slot > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.version-diff-opening-slot > svg {
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.version-text-diff-empty {
+  min-height: 5rem;
+}
+
 .version-diff-wrap-control {
   display: inline-flex;
   flex: 0 0 auto;
