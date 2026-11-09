@@ -19,6 +19,7 @@ export function useExplorerRecentFiles(options: {
   sinceMs: number
   visible: boolean
   refreshKey: object | string
+  respectGitignore?: boolean
 }) {
   const context = JSON.stringify([options.spaceId, options.directory])
   const signature = explorerFilterSignature(options.filter)
@@ -31,6 +32,7 @@ export function useExplorerRecentFiles(options: {
       options.sort.direction,
       options.sinceMs,
       options.refreshKey,
+      options.respectGitignore,
     ]
   )
   const [recent, setRecent] = useState<{
@@ -63,6 +65,7 @@ export function useExplorerRecentFiles(options: {
     sinceMs: options.sinceMs,
     period,
     offset,
+    respectGitignore: options.respectGitignore !== false,
   })
   useEffect(() => {
     setExpanded(false)

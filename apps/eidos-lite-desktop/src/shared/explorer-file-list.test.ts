@@ -71,7 +71,14 @@ it("sends only the week on the initial request and pages Earlier in batches of 5
   ).toBe(0)
 })
 it("rejects invalid periods, offsets, order and time values at the IPC boundary", () => {
-  expect(normalizeExplorerFilesQuery(query)).toEqual(query)
+  expect(normalizeExplorerFilesQuery(query)).toEqual({
+    ...query,
+    respectGitignore: true,
+  })
+  expect(
+    normalizeExplorerFilesQuery({ ...query, respectGitignore: false })
+      .respectGitignore
+  ).toBe(false)
   for (const patch of [
     { period: "all" },
     { offset: -1 },
@@ -79,6 +86,8 @@ it("rejects invalid periods, offsets, order and time values at the IPC boundary"
     { sinceMs: Infinity },
     { sort: { by: "evil", direction: "ascending" } },
     { directory: 42 },
+    { respectGitignore: "false" },
+    { respectGitignore: null },
   ])
     expect(() => normalizeExplorerFilesQuery({ ...query, ...patch })).toThrow(
       "Invalid Explorer query"

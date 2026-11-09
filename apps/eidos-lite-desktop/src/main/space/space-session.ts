@@ -679,14 +679,19 @@ export class SpaceSession {
 
   async filterFiles(
     filter: ExplorerFileFilter,
-    directory: string | null
+    directory: string | null,
+    respectGitignore = false
   ): Promise<SpaceTreeEntry[]> {
     if (this.closed) throw new Error("Space is closed")
-    const key = directory ?? ""
+    const key = JSON.stringify([directory, respectGitignore])
     let read =
       this.explorerListReads.get(key) ?? this.filteredTreeReads.get(key)
     if (!read) {
-      read = readSpaceFilterTree(this.canonical.root, directory).finally(() => {
+      read = readSpaceFilterTree(
+        this.canonical.root,
+        directory,
+        respectGitignore
+      ).finally(() => {
         if (this.filteredTreeReads.get(key) === read)
           this.filteredTreeReads.delete(key)
       })
@@ -699,12 +704,17 @@ export class SpaceSession {
     query: ExplorerFilesQuery
   ): Promise<ExplorerFilesPage> {
     if (this.closed) throw new Error("Space is closed")
-    const key = query.directory ?? ""
+    const respectGitignore = query.respectGitignore !== false
+    const key = JSON.stringify([query.directory, respectGitignore])
     let read = this.explorerListReads.get(key)
     if (!read) {
       read = (
         this.filteredTreeReads.get(key) ??
-        readSpaceFilterTree(this.canonical.root, query.directory)
+        readSpaceFilterTree(
+          this.canonical.root,
+          query.directory,
+          respectGitignore
+        )
       ).catch((error: unknown) => {
         if (this.explorerListReads.get(key) === read)
           this.explorerListReads.delete(key)

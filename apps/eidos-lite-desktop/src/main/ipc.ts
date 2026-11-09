@@ -1791,13 +1791,18 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.filterFiles,
-    (event, filter: unknown, directory: unknown) => {
+    (event, filter: unknown, directory: unknown, respectGitignore: unknown) => {
       const normalized = normalizeExplorerFileFilter(filter)
       if (directory !== null && typeof directory !== "string")
         throw new Error("Invalid file filter")
+      if (
+        respectGitignore !== undefined &&
+        typeof respectGitignore !== "boolean"
+      )
+        throw new Error("Invalid ignore filter")
       return controller
         .requireSession(event.sender)
-        .filterFiles(normalized, directory)
+        .filterFiles(normalized, directory, respectGitignore === true)
     }
   )
   ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>

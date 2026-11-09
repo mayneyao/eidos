@@ -313,8 +313,13 @@ const api: EidosLiteApi = {
       limit,
       includeDirectories
     ),
-  filterSpaceFiles: (filter, directory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.filterFiles, filter, directory),
+  filterSpaceFiles: (filter, directory, respectGitignore) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.filterFiles,
+      filter,
+      directory,
+      respectGitignore
+    ),
   getExplorerFilterFields: () =>
     ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields),
   listExplorerFiles: (query) =>

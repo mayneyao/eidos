@@ -310,7 +310,8 @@ export async function listSpaceTree(
   options: {
     maxEntries?: number
     ignoredPaths?(
-      relativePaths: readonly string[]
+      relativePaths: readonly string[],
+      directories: ReadonlySet<string>
     ): Promise<ReadonlySet<string>>
   } = {}
 ): Promise<SpaceTreeEntry[]> {
@@ -349,7 +350,12 @@ export async function listSpaceTree(
     )
     const ignored = options.ignoredPaths
       ? await options.ignoredPaths(
-          candidates.map((candidate) => candidate.relativePath)
+          candidates.map((candidate) => candidate.relativePath),
+          new Set(
+            candidates
+              .filter(({ entry }) => entry.isDirectory())
+              .map(({ relativePath }) => relativePath)
+          )
         )
       : new Set<string>()
     const visible = candidates.filter(

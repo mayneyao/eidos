@@ -13,6 +13,7 @@ export interface ExplorerFilesQuery {
   sinceMs: number
   period: "recent" | "earlier"
   offset: number
+  respectGitignore?: boolean
 }
 export interface ExplorerFilesPage {
   entries: SpaceTreeEntry[]
@@ -35,6 +36,8 @@ export function normalizeExplorerFilesQuery(
     typeof query.offset !== "number" ||
     !Number.isSafeInteger(query.offset) ||
     query.offset < 0 ||
+    (query.respectGitignore !== undefined &&
+      typeof query.respectGitignore !== "boolean") ||
     !query.sort ||
     !["name", "modified", "type"].includes(query.sort.by) ||
     !["ascending", "descending"].includes(query.sort.direction)
@@ -47,6 +50,7 @@ export function normalizeExplorerFilesQuery(
     sinceMs: query.sinceMs,
     period: query.period,
     offset: query.offset,
+    respectGitignore: query.respectGitignore !== false,
   }
 }
 export function selectExplorerFilesPage(

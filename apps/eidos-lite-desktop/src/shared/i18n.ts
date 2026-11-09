@@ -1918,6 +1918,7 @@ const zh: Record<string, string> = {
   "Choose any {extension} file in this Space. Recently used files reopen from a small in-memory runtime cache.":
     "选择此空间中的任意 {extension} 文件。最近使用的文件会从小型内存运行时缓存中重新打开。",
   "Recent files": "最近文件",
+  "Hide files matched by .gitignore": "隐藏 .gitignore 匹配的文件",
   "Open a file from the Space Explorer to start working.":
     "从左侧目录树选择一个文件开始工作。",
   "Space root": "空间根目录",

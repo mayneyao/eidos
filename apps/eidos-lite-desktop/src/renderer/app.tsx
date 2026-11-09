@@ -67,6 +67,10 @@ import {
 } from "./explorer-layout"
 import { SpaceFileGroups } from "./space-file-groups"
 import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
+import {
+  EXPLORER_IGNORE_OPTIONS_STORAGE_KEY,
+  readExplorerIgnoreOptions,
+} from "./explorer-ignore-options"
 import { PluginEditor } from "./plugin-editor"
 import { fileViewRequest } from "./plugin-file-request"
 import { PluginWorkspace, PluginPage } from "./plugin-workspace"
@@ -1065,6 +1069,19 @@ function WorkspaceApp({
   const [explorerSort, setExplorerSort] = useState(() =>
     readExplorerSort(window.localStorage)
   )
+  const [explorerIgnoreOptions, setExplorerIgnoreOptions] = useState(() =>
+    readExplorerIgnoreOptions(window.localStorage)
+  )
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        EXPLORER_IGNORE_OPTIONS_STORAGE_KEY,
+        JSON.stringify(explorerIgnoreOptions)
+      )
+    } catch {
+      /* The current view remains usable without persistent preferences. */
+    }
+  }, [explorerIgnoreOptions])
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -1100,7 +1117,8 @@ function WorkspaceApp({
       ? (explorerDirectoryEntry?.children ?? [])
       : (space?.entries ?? []),
     space?.externalChangePaths ?? space?.materializedPaths ?? undefined,
-    explorerSearchVisible && !!explorerSearchQuery.trim()
+    explorerSearchVisible && !!explorerSearchQuery.trim(),
+    explorerIgnoreOptions.respectGitignore
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
@@ -4241,6 +4259,10 @@ function WorkspaceApp({
               open={explorerFilterVisible}
               triggerRef={explorerFilterTrigger}
               onChange={setExplorerFileFilter}
+              respectGitignore={explorerIgnoreOptions.respectGitignore}
+              onRespectGitignoreChange={(respectGitignore) =>
+                setExplorerIgnoreOptions({ respectGitignore })
+              }
               onClose={() => {
                 setExplorerFilterVisible(false)
               }}
@@ -4335,6 +4357,7 @@ function WorkspaceApp({
               >
                 <SpaceFileGroups
                   spaceId={space.id}
+                  respectGitignore={explorerIgnoreOptions.respectGitignore}
                   directory={explorerDirectory}
                   fileFilter={explorerFileFilter}
                   changes={

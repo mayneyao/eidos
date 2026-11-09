@@ -1969,7 +1969,8 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<SpacePathSearchHit[]>
   filterSpaceFiles(
     filter: ExplorerFileFilter,
-    directory: string | null
+    directory: string | null,
+    respectGitignore?: boolean
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
   listExplorerFiles(query: ExplorerFilesQuery): Promise<ExplorerFilesPage>

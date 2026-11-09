@@ -43,6 +43,7 @@ interface Props {
   spaceId: string
   directory?: string | null
   fileFilter?: ExplorerFileFilter
+  respectGitignore?: boolean
   changes?: readonly string[]
   entries: SpaceTreeEntry[]
   sort: ExplorerSort
@@ -227,6 +228,7 @@ export function SpaceFileGroups(props: Props) {
     sinceMs: explorerRecentCutoff(now),
     visible: props.visible,
     refreshKey,
+    respectGitignore: props.respectGitignore,
   })
   const groups = useMemo(
     () => groupExplorerFiles(recent.entries, props.sort, now),

@@ -24,16 +24,19 @@ export function useExplorerFileFilter(
   filter: ExplorerFileFilter,
   entries: SpaceTreeEntry[],
   changes?: readonly string[],
-  recursive = false
+  recursive = false,
+  respectGitignore = false
 ) {
-  const active = countExplorerFilterRules(filter) > 0 || recursive
-  const context = JSON.stringify([spaceId, directory])
+  const active =
+    countExplorerFilterRules(filter) > 0 || recursive || respectGitignore
+  const context = JSON.stringify([spaceId, directory, respectGitignore])
   const properties = hasExplorerPropertyFilter(filter)
   const [retryToken, setRetryToken] = useState(0)
   const scope = JSON.stringify([
     spaceId,
     directory,
     explorerFilterSignature(filter),
+    respectGitignore,
   ])
   const key = JSON.stringify([scope, treeSignature(entries), retryToken])
   const [result, setResult] = useState<{
@@ -47,7 +50,11 @@ export function useExplorerFileFilter(
     if (!active || !spaceId) return
     let cancelled = false
     const request = () =>
-      void window.eidosLite.filterSpaceFiles(filter, directory).then(
+      void (
+        respectGitignore
+          ? window.eidosLite.filterSpaceFiles(filter, directory, true)
+          : window.eidosLite.filterSpaceFiles(filter, directory)
+      ).then(
         (next) => {
           if (!cancelled) setResult({ key, scope, context, entries: next })
         },

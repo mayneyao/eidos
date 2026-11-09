@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { explorerGitignoreFilter } from "./explorer-gitignore"
 import type { SpaceTreeEntry } from "../../shared/contracts"
 import type {
   EidosFileDataSource,
@@ -83,11 +84,17 @@ export async function filterSpaceFiles(
 
 export async function readSpaceFilterTree(
   root: string,
-  directory: string | null
+  directory: string | null,
+  respectGitignore = false
 ): Promise<SpaceTreeEntry[]> {
   const scope = directory ? normalizeMutableRelativePath(directory) : null
-  const absolute = await resolveSpaceDirectory(await fs.realpath(root), scope)
-  const entries = await listSpaceTree(absolute)
+  const canonical = await fs.realpath(root)
+  const absolute = await resolveSpaceDirectory(canonical, scope)
+  const ignoredPaths = respectGitignore
+    ? explorerGitignoreFilter(canonical, scope)
+    : undefined
+  if (await ignoredPaths?.scopeExcluded()) return []
+  const entries = await listSpaceTree(absolute, { ignoredPaths })
   const prefix = (items: SpaceTreeEntry[]): SpaceTreeEntry[] =>
     items.map((entry) => ({
       ...entry,
