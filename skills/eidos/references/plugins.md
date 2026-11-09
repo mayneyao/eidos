@@ -50,6 +50,11 @@ silence a compatibility error.
 
 ## 2. Establish the toolchain and scaffold
 
+For `sidebar/explorer`, read [Sidebar design](sidebar-design.md) before choosing
+layout metrics or building a standalone preview. The host owns its chrome and
+resize boundary; the plugin owns its content and scroll region. A full-page Web
+preview alone does not establish sidebar alignment or native scrolling behavior.
+
 Check Node.js (`node --version`); authoring tools require Node >=22.12.
 Reuse the project's package manager, lockfile, and installed tool version.
 For a new project:
@@ -178,7 +183,12 @@ Standalone page/file Views feature-detect `ctx.capabilities.sidecar` and use
 with subscriptions. LF-delimited JSON is the transport; reattach by reading the
 program's state because events are not replayed. View disposal detaches only;
 stop, revocation, package changes, Space/window close and host shutdown end the
-owned process. Each new process needs approval. Native OS permissions are outside
+owned process. The host remembers consent per Space, package revision and exact
+program identity (path, resolved target, bytes, argv and Space root). Installation
+or enablement may include this review; unresolved programs require first-use
+review. Unchanged launches reuse consent after restart. Changed identities need
+review again. Stop retains consent; disabling or uninstalling revokes it.
+Native OS permissions are outside
 the JavaScript filesystem/network sandbox. Do not bundle or automatically install
 the program, infer write access from read-only tools, or claim CLI/mobile support.
 Windows `.cmd`/`.bat` shims are unsupported; validate each native OS explicitly.
