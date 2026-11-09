@@ -362,7 +362,11 @@ async function capture(catalog) {
   }
   // All browser-evaluated functions below only read real DOM or read-only host accessors.
   const readNodes = (target) => {
-    const nodes = [...document.querySelectorAll(target.selector)]
+    const host = target.shadowHost
+      ? document.querySelector(target.shadowHost)
+      : null
+    const scope = target.shadowHost ? host?.shadowRoot : document
+    const nodes = [...(scope?.querySelectorAll(target.selector) ?? [])]
       .filter((node) => {
         const text = (node.textContent ?? "").replace(/\s+/g, " ").trim()
         return (
@@ -383,7 +387,8 @@ async function capture(catalog) {
           r.y < innerHeight &&
           style.visibility !== "hidden" &&
           style.display !== "none" &&
-          !node.closest("[hidden],[aria-hidden=true],[inert]")
+          !node.closest("[hidden],[aria-hidden=true],[inert]") &&
+          !host?.closest("[hidden],[aria-hidden=true],[inert]")
         return {
           text: (node.textContent ?? "").replace(/\s+/g, " ").trim(),
           value: "value" in node ? node.value : null,

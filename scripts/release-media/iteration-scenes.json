@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scenarioRevision": 3,
+  "scenarioRevision": 4,
   "featureCandidateCommit": "f5124ab39e2d42fdedb54ffd9d2023f0e17eb71b",
   "featureSourceCommits": {
     "task2": "154b551011735db2e06abb6b04a18c152b39d3b9",
@@ -216,7 +216,8 @@
           "op": "expect",
           "name": "ignored folder appears in tree",
           "target": {
-            "selector": ".space-file-tree [data-item-path=\"Scratch/\"]"
+            "shadowHost": "file-tree-container[data-space-file-tree]",
+            "selector": "[data-item-path=\"Scratch/\"]"
           },
           "condition": {
             "count": 1
@@ -264,7 +265,8 @@
           "op": "expect",
           "name": "ignored folder hidden from tree",
           "target": {
-            "selector": ".space-file-tree [data-item-path=\"Scratch/\"]"
+            "shadowHost": "file-tree-container[data-space-file-tree]",
+            "selector": "[data-item-path=\"Scratch/\"]"
           },
           "condition": {
             "count": 0
