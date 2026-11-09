@@ -5,10 +5,20 @@ Follow the complete [release-media recording standard](../../.codex/skills/eidos
 single-line functional shortcut policy. New recordings must retain the direct
 native per-key timeline described there; do not reconstruct key timings later.
 
+New takes also require a measured first-image-frame clock. The recorder installs
+both stream and recording outputs before capture, then retains the first valid
+screen sample's `displayTime`, native timebase and presentation timestamp along
+with the recording-start callback. Both capture scripts apply that measured
+callback-to-media offset and reset source PTS before frame-based labels; they
+reject a missing/inconsistent first-frame clock. This is source wiring only:
+the coordinated native pilot and full playback must still verify alignment.
+See Apple's [frame display time](https://developer.apple.com/documentation/screencapturekit/scstreamframeinfo/displaytime)
+and [recording output registration](<https://developer.apple.com/documentation/screencapturekit/scstream/addrecordingoutput(_:)>).
+
 ## Recent files, unified search and Tags scenes
 
-`prepare-iteration.mjs --out /absolute/private/fresh-case` creates four synthetic
-Markdown notes with real relative modification times, an isolated profile and
+`prepare-iteration.mjs --out /absolute/private/fresh-case` creates five synthetic
+Markdown notes plus a root `.gitignore`, real relative modification times, an isolated profile and
 Eidos home, and a private fixture manifest. It refuses to replace an existing
 case. Keep generated files outside Git. Use the printed isolation variables
 when launching `pnpm dev:eidos-lite` from the candidate root.
@@ -17,6 +27,11 @@ when launching `pnpm dev:eidos-lite` from the candidate root.
 an app. After native setup of the synthetic Space, record with `--repo`,
 `--expected-sha`, `--fixture`, `--scenario`, `--pid`, and a new `--out` directory.
 Scene IDs are `recent-files`, `files-and-text-search` and `explorer-tags`.
+For the 0.33.0 release, record only the first two: Recent demonstrates the shared
+`.gitignore` hiding switch across Recent/folders; search shows filename-only
+sidebar filtering and a native Files/Text mode switch in one Cmd+P dialog.
+Do not append the ignored note to an already-prepared case; use a fresh output
+directory so the fixture manifest binds every file and its timestamp.
 The Tags scene requires `--plugin-receipt`: the exact archive path/hash, plugin
 identity and packaging host commit. That commit and both feature commits must
 be ancestors of the clean capture commit. Install and enable the actual archive

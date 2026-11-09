@@ -33,6 +33,8 @@ export function within(root, path) {
 }
 
 export function safeRelative(path) {
+  // The release fixture may contain this one intentional root-level dotfile.
+  if (path === ".gitignore") return path
   if (
     typeof path !== "string" ||
     !path ||

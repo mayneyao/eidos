@@ -9,7 +9,7 @@ import {
   CAPTURE_PROFILE as profile,
   parseInputTimeline,
   buildShortcutIntervals,
-  shortcutVideoFilter,
+  captureVideoFilter,
   validateVideoProfile,
 } from "./capture-profile.mjs"
 
@@ -47,6 +47,56 @@ test("native timestamps retain nanosecond precision and become recording-relativ
   assert.equal(parsed.events[0].relativeSeconds, 1.25)
   assert.equal(parsed.events[1].relativeSeconds, 1.29)
   assert.equal(parsed.events[0].postStartedNs, "9000001250000000")
+})
+
+const firstFrameClock = (offsetNs = 100_000_000n) => {
+  const first = String(BigInt(clock.monotonicNs) - offsetNs)
+  return {
+    ...clock,
+    firstFrame: {
+      clock: "mach_absolute_time",
+      displayTimeTicks: first,
+      monotonicNs: first,
+      status: 0,
+      timebaseNumer: 1,
+      timebaseDenom: 1,
+      presentationTimeValue: first,
+      presentationTimeScale: 1_000_000_000,
+      recordingOutputAddedBeforeCapture: true,
+    },
+  }
+}
+
+test("new native takes apply measured callback-to-first-frame offset before HUD frame selection", () => {
+  const parse = (header) =>
+    parseInputTimeline(
+      [header, ...pair(0.2)].map((row) => JSON.stringify(row)).join("\n"),
+      { requireFirstFrame: true }
+    )
+  const parsed = parse(firstFrameClock())
+  assert.equal(parsed.events[0].relativeSeconds, 0.3)
+  assert.equal(parsed.mediaAlignment.callbackToMediaOffsetSeconds, 0.1)
+  assert.equal(parsed.mediaAlignment.nativeMeasurement, true)
+  assert.equal(parsed.mediaAlignment.playbackReview, "pending")
+  assert.equal(parsed.clock.monotonicNs, clock.monotonicNs)
+  assert.equal(buildShortcutIntervals(parsed, 90)[0].startFrame, 9)
+  assert.equal(
+    parse(firstFrameClock(-10_000_000n)).mediaAlignment
+      .callbackToMediaOffsetSeconds,
+    -0.01
+  )
+  assert.throws(() => parse(clock), /first-frame clock/)
+  const inconsistent = firstFrameClock()
+  inconsistent.firstFrame.monotonicNs = String(
+    BigInt(inconsistent.firstFrame.monotonicNs) + 1n
+  )
+  assert.throws(() => parse(inconsistent), /native timebase/)
+  const idle = firstFrameClock()
+  idle.firstFrame.status = 1
+  assert.throws(() => parse(idle), /first-frame clock/)
+  const late = firstFrameClock()
+  late.firstFrame.recordingOutputAddedBeforeCapture = false
+  assert.throws(() => parse(late), /first-frame clock/)
 })
 
 test("missing clocks, backwards events, partial keys and orphan releases fail closed", () => {
@@ -180,7 +230,7 @@ test("iteration scenes validate shortcut labels without accessing native capture
   assert.equal(result.runtimeVerified, false)
   assert.deepEqual(
     result.scenes.map((s) => s.shortcutLabels),
-    [0, 4, 0]
+    [0, 3, 0]
   )
   const directory = await mkdtemp(join(tmpdir(), "eidos-media-scenes-"))
   try {
@@ -190,7 +240,8 @@ test("iteration scenes validate shortcut labels without accessing native capture
         "utf8"
       )
     )
-    catalog.scenes[1].steps[1].shortcutLabel = "first line\nsecond line"
+    catalog.scenes[1].steps.find((step) => step.op === "key").shortcutLabel =
+      "first line\nsecond line"
     const path = join(directory, "invalid-scenes.json")
     await writeFile(path, JSON.stringify(catalog))
     assert.throws(
@@ -208,7 +259,7 @@ test("iteration scenes validate shortcut labels without accessing native capture
 })
 
 test(
-  "FFmpeg normalizes frame rate before single-line timed labels without adding canvas",
+  "FFmpeg normalizes nonzero first PTS and frame rate before labels without adding canvas",
   {
     skip:
       process.platform !== "darwin"
@@ -225,7 +276,7 @@ test(
       await writeFile(textFile, intervals[0].label)
       await writeFile(
         filterFile,
-        `fps=${profile.fps},` + shortcutVideoFilter(intervals, [textFile])
+        "setpts=PTS+7/TB," + captureVideoFilter(intervals, [textFile])
       )
       execFileSync("ffmpeg", [
         "-nostdin",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scenarioRevision": 2,
+  "scenarioRevision": 3,
   "featureCandidateCommit": "f5124ab39e2d42fdedb54ffd9d2023f0e17eb71b",
   "featureSourceCommits": {
     "task2": "154b551011735db2e06abb6b04a18c152b39d3b9",
@@ -10,7 +10,7 @@
   "scenes": [
     {
       "id": "recent-files",
-      "durationSeconds": 20,
+      "durationSeconds": 28,
       "initial": [
         {
           "op": "click",
@@ -145,6 +145,58 @@
         {
           "op": "click",
           "target": {
+            "selector": "button.explorer-filter-button"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "gitignore files initially hidden",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          },
+          "condition": {
+            "checked": true
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "gitignore hiding disabled",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          },
+          "condition": {
+            "checked": false
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "button.explorer-filter-button"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "ignored note appears in Recent",
+          "target": {
+            "selector": "button.explorer-card-open[data-path=\"Scratch/Ignored scratch.md\"]"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1200
+        },
+        {
+          "op": "click",
+          "target": {
             "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
           }
         },
@@ -162,6 +214,106 @@
         },
         {
           "op": "expect",
+          "name": "ignored folder appears in tree",
+          "target": {
+            "selector": ".space-file-tree [data-item-path=\"Scratch/\"]"
+          },
+          "condition": {
+            "count": 1
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "button.explorer-filter-button"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "gitignore state shared with folders",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          },
+          "condition": {
+            "checked": false
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "gitignore hiding enabled again",
+          "target": {
+            "selector": "[data-eidos-file-filter-popover][aria-label=\"Filter files\"] input[type=\"checkbox\"]"
+          },
+          "condition": {
+            "checked": true
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": "button.explorer-filter-button"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "ignored folder hidden from tree",
+          "target": {
+            "selector": ".space-file-tree [data-item-path=\"Scratch/\"]"
+          },
+          "condition": {
+            "count": 0
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 900
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Recent view selected again",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"modified\"]"
+          },
+          "condition": {
+            "attributes": {
+              "aria-pressed": "true"
+            }
+          }
+        },
+        {
+          "op": "expect",
+          "name": "ignored note hidden from Recent",
+          "target": {
+            "selector": "button.explorer-card-open[data-path=\"Scratch/Ignored scratch.md\"]"
+          },
+          "condition": {
+            "count": 0
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 900
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".explorer-layout-switch button[data-layout=\"tree\"]"
+          }
+        },
+        {
+          "op": "expect",
           "name": "switching Explorer retains open note",
           "condition": {
             "urlIncludes": "/files/Notes/Weekly plan.md"
@@ -169,13 +321,13 @@
         },
         {
           "op": "dwell",
-          "ms": 1500
+          "ms": 1000
         }
       ]
     },
     {
       "id": "files-and-text-search",
-      "durationSeconds": 32,
+      "durationSeconds": 34,
       "initial": [
         {
           "op": "click",
@@ -197,7 +349,60 @@
       "steps": [
         {
           "op": "dwell",
-          "ms": 700
+          "ms": 600
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".space-heading button[aria-label=\"Filter tree by name\"]"
+          }
+        },
+        {
+          "op": "type",
+          "target": {
+            "selector": ".workspace-heading-search input[aria-label=\"Filter tree by name\"]"
+          },
+          "text": "quiet launch"
+        },
+        {
+          "op": "expect",
+          "name": "sidebar input filters names only",
+          "target": {
+            "selector": ".workspace-heading-search input[aria-label=\"Filter tree by name\"]"
+          },
+          "condition": {
+            "value": "quiet launch"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "body-only phrase has no filename match",
+          "target": {
+            "selector": ".space-file-tree-shell .explorer-filter-empty"
+          },
+          "condition": {
+            "textIncludes": "No matching files"
+          }
+        },
+        {
+          "op": "dwell",
+          "ms": 1000
+        },
+        {
+          "op": "click",
+          "target": {
+            "selector": ".workspace-heading-search button[aria-label=\"Close search\"]"
+          }
+        },
+        {
+          "op": "expect",
+          "name": "sidebar filename filter closed",
+          "target": {
+            "selector": ".workspace-heading-search"
+          },
+          "condition": {
+            "count": 0
+          }
         },
         {
           "op": "key",
@@ -279,26 +484,9 @@
         {
           "op": "click",
           "target": {
-            "selector": "dialog .quick-open-item-name",
-            "text": "Launch checklist.md"
+            "selector": "dialog .quick-open-modes button",
+            "text": "Text"
           }
-        },
-        {
-          "op": "expect",
-          "name": "name search opens the chosen note",
-          "condition": {
-            "urlIncludes": "/files/Launch/Launch checklist.md"
-          }
-        },
-        {
-          "op": "dwell",
-          "ms": 1000
-        },
-        {
-          "op": "key",
-          "code": 3,
-          "modifiers": "command+shift",
-          "shortcutLabel": "⌘ ⇧ F · Search text"
         },
         {
           "op": "expect",
@@ -319,6 +507,16 @@
           },
           "condition": {
             "focused": true
+          }
+        },
+        {
+          "op": "expect",
+          "name": "Files and Text share the same dialog geometry",
+          "target": {
+            "selector": "dialog.quick-open-backdrop .quick-open-panel"
+          },
+          "condition": {
+            "rectEqualTo": "files-dialog"
           }
         },
         {
@@ -413,35 +611,18 @@
           }
         },
         {
-          "op": "type",
+          "op": "expect",
+          "name": "direct Text shortcut owns focus",
           "target": {
             "selector": "dialog.quick-open-backdrop input[role=\"combobox\"]"
           },
-          "text": "violet comet"
-        },
-        {
-          "op": "expect",
-          "name": "no results placeholder",
-          "target": {
-            "selector": "dialog .quick-open-empty"
-          },
           "condition": {
-            "textIncludes": "No"
-          }
-        },
-        {
-          "op": "expect",
-          "name": "empty results keep the same dialog height",
-          "target": {
-            "selector": "dialog.quick-open-backdrop .quick-open-panel"
-          },
-          "condition": {
-            "rectEqualTo": "text-dialog"
+            "focused": true
           }
         },
         {
           "op": "dwell",
-          "ms": 1600
+          "ms": 900
         },
         {
           "op": "key",
@@ -449,8 +630,18 @@
           "shortcutLabel": "Esc · Close search"
         },
         {
+          "op": "expect",
+          "name": "Escape closes unified search",
+          "target": {
+            "selector": "dialog.quick-open-backdrop"
+          },
+          "condition": {
+            "count": 0
+          }
+        },
+        {
           "op": "dwell",
-          "ms": 600
+          "ms": 1600
         }
       ]
     },

@@ -18,8 +18,9 @@ export const CAPTURE_PROFILE = Object.freeze({
 })
 
 // The native recorder and input helper share this monotonic clock. Its zero is
-// the recording-start callback, not a timestamp guessed after a child exits.
-export function parseInputTimeline(jsonl) {
+// the recording-start callback; new takes also retain the first stream frame's
+// measured display clock so callback latency does not shift the public labels.
+export function parseInputTimeline(jsonl, { requireFirstFrame = false } = {}) {
   const rows = jsonl.trim().split("\n").filter(Boolean).map(JSON.parse)
   const clock = rows.shift()
   if (
@@ -29,6 +30,33 @@ export function parseInputTimeline(jsonl) {
   )
     throw new Error("Missing native recording clock")
   const origin = BigInt(clock.monotonicNs)
+  const frame = clock.firstFrame
+  if (
+    (requireFirstFrame && !frame) ||
+    (frame &&
+      (frame.clock !== "mach_absolute_time" ||
+        !/^\d+$/.test(frame.monotonicNs) ||
+        !/^\d+$/.test(frame.displayTimeTicks) ||
+        !Number.isInteger(frame.timebaseNumer) ||
+        frame.timebaseNumer <= 0 ||
+        !Number.isInteger(frame.timebaseDenom) ||
+        frame.timebaseDenom <= 0 ||
+        !/^-?\d+$/.test(frame.presentationTimeValue) ||
+        !Number.isInteger(frame.presentationTimeScale) ||
+        frame.presentationTimeScale <= 0 ||
+        ![0, 4].includes(frame.status) ||
+        frame.recordingOutputAddedBeforeCapture !== true))
+  )
+    throw new Error("Missing or invalid measured first-frame clock")
+  const mediaOrigin = frame ? BigInt(frame.monotonicNs) : origin
+  if (frame) {
+    const ticks = BigInt(frame.displayTimeTicks)
+    if (
+      (ticks * BigInt(frame.timebaseNumer)) / BigInt(frame.timebaseDenom) !==
+      mediaOrigin
+    )
+      throw new Error("First-frame clock does not match its native timebase")
+  }
   let previous = origin
   const held = new Set()
   const events = rows.map((event) => {
@@ -44,7 +72,7 @@ export function parseInputTimeline(jsonl) {
       throw new Error("Invalid native key event")
     const start = BigInt(event.postStartedNs)
     const end = BigInt(event.postCompletedNs)
-    if (start < previous || end < start)
+    if (start < previous || start < mediaOrigin || end < start)
       throw new Error("Non-monotonic native input timeline")
     previous = end
     const identity = `${event.kind}:${event.keyCode}`
@@ -59,13 +87,28 @@ export function parseInputTimeline(jsonl) {
       throw new Error("Relevant shortcut is missing its scene label")
     return {
       ...event,
-      relativeSeconds: Number(start - origin) / 1e9,
+      relativeSeconds: Number(start - mediaOrigin) / 1e9,
       postDurationSeconds: Number(end - start) / 1e9,
     }
   })
   if (held.size)
     throw new Error("Native input timeline contains unreleased keys")
-  return { schemaVersion: 1, clock, events, directNativeEvents: true }
+  return {
+    schemaVersion: 1,
+    clock,
+    events,
+    directNativeEvents: true,
+    mediaAlignment: frame
+      ? {
+          reference: "first SCStream video sample displayTime",
+          firstFrameMonotonicNs: frame.monotonicNs,
+          recordingCallbackMonotonicNs: clock.monotonicNs,
+          callbackToMediaOffsetSeconds: Number(origin - mediaOrigin) / 1e9,
+          nativeMeasurement: true,
+          playbackReview: "pending",
+        }
+      : null,
+  }
 }
 
 export function buildShortcutIntervals(timeline, frameCount) {
@@ -123,6 +166,16 @@ export function shortcutVideoFilter(intervals, textFiles) {
         `enable='gte(n,${interval.startFrame})*lt(n,${interval.endFrameExclusive})'`,
       ].join(":")
     )
+    .join(",")
+}
+
+export function captureVideoFilter(intervals, textFiles) {
+  return [
+    "setpts=PTS-STARTPTS",
+    `fps=${CAPTURE_PROFILE.fps}`,
+    shortcutVideoFilter(intervals, textFiles),
+  ]
+    .filter(Boolean)
     .join(",")
 }
 

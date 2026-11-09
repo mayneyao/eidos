@@ -8,7 +8,7 @@ import {
   CAPTURE_PROFILE as profile,
   parseInputTimeline,
   buildShortcutIntervals,
-  shortcutVideoFilter,
+  captureVideoFilter,
   validateVideoProfile,
 } from "./capture-profile.mjs"
 
@@ -278,7 +278,9 @@ try {
           if (line === "RECORDING_STARTED") {
             if (!recordingClock)
               throw new Error("Recorder did not provide a native clock")
-            parseInputTimeline(JSON.stringify(recordingClock))
+            parseInputTimeline(JSON.stringify(recordingClock), {
+              requireFirstFrame: true,
+            })
             writeFileSync(
               rawTimelinePath,
               JSON.stringify(recordingClock) + "\n",
@@ -364,7 +366,9 @@ try {
   if (beforeFixture !== afterFixture)
     throw new Error("Read-only scenario changed fixture bytes")
   const timelineBytes = await readFile(rawTimelinePath)
-  const timeline = parseInputTimeline(timelineBytes.toString("utf8"))
+  const timeline = parseInputTimeline(timelineBytes.toString("utf8"), {
+    requireFirstFrame: true,
+  })
   const sourceProbe = JSON.parse(
     run("ffprobe", ["-v", "error", "-show_format", "-of", "json", source])
   )
@@ -380,12 +384,9 @@ try {
     })
   )
   const filterPath = resolve(out, `shortcut-filter-${captureId}.txt`)
-  const shortcutFilter = shortcutVideoFilter(intervals, textFiles)
-  await writeFile(
-    filterPath,
-    [`fps=${profile.fps}`, shortcutFilter].filter(Boolean).join(","),
-    { flag: "wx" }
-  )
+  await writeFile(filterPath, captureVideoFilter(intervals, textFiles), {
+    flag: "wx",
+  })
   await writeFile(
     timelinePath,
     JSON.stringify({ ...timeline, intervals, profileId: profile.id }, null, 2) +
@@ -478,6 +479,7 @@ try {
       rawPath: rawTimelinePath,
       rawSha256: createHash("sha256").update(timelineBytes).digest("hex"),
       clock: recordingClock,
+      mediaAlignment: timeline.mediaAlignment,
       directNativeEvents: true,
       eventCount: timeline.events.length,
       scope:

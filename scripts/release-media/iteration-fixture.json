@@ -16,23 +16,53 @@
     },
     {
       "path": "Notes/Research notes.md",
-      "mtime": { "daysAgo": 1, "localHour": 10 },
+      "mtime": {
+        "daysAgo": 1,
+        "localHour": 10
+      },
       "text": "---\ntags:\n  - research\n---\n# Research notes\n\nKeep each workflow short and easy to repeat.\n"
     },
     {
       "path": "Launch/Launch checklist.md",
-      "mtime": { "daysAgo": 4, "localHour": 10 },
+      "mtime": {
+        "daysAgo": 4,
+        "localHour": 10
+      },
       "text": "---\ntags: [design]\n---\n# Launch checklist\n\nPrepare a quiet launch for the local workspace.\n\n- Review the notes\n- Verify the search results\n",
-      "textSearch": { "query": "quiet launch", "line": 6, "expectedMatches": 1 }
+      "textSearch": {
+        "query": "quiet launch",
+        "line": 6,
+        "expectedMatches": 1
+      }
     },
     {
       "path": "Archive/First ideas.md",
-      "mtime": { "daysAgo": 45, "localHour": 10 },
+      "mtime": {
+        "daysAgo": 45,
+        "localHour": 10
+      },
       "text": "# First ideas\n\nStart with a few small notes and a useful folder structure.\n\n#archive\n"
+    },
+    {
+      "path": ".gitignore",
+      "mtime": {
+        "daysAgo": 0,
+        "localHour": 9
+      },
+      "text": "Scratch/\n"
+    },
+    {
+      "path": "Scratch/Ignored scratch.md",
+      "mtime": {
+        "daysAgo": 0,
+        "localHour": 11
+      },
+      "text": "# Ignored scratch\n\nThis synthetic note is intentionally matched by .gitignore.\n"
     }
   ],
   "filesQuery": "Launch",
   "filesExpected": ["Launch", "Launch/Launch checklist.md"],
   "noResultsQuery": "violet comet",
-  "sourcePolicy": "Only synthetic ordinary files; no raw SQLite writes. Optional .eidos seed must come from the exact candidate or canonical CLI."
+  "sourcePolicy": "Only synthetic ordinary files; no raw SQLite writes. Optional .eidos seed must come from the exact candidate or canonical CLI.",
+  "gitignoreExpectedHidden": "Scratch/Ignored scratch.md"
 }

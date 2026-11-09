@@ -7,7 +7,7 @@ import {
   CAPTURE_PROFILE as profile,
   parseInputTimeline,
   buildShortcutIntervals,
-  shortcutVideoFilter,
+  captureVideoFilter,
   validateVideoProfile,
 } from "./capture-profile.mjs"
 import {
@@ -387,6 +387,7 @@ async function capture(catalog) {
         return {
           text: (node.textContent ?? "").replace(/\s+/g, " ").trim(),
           value: "value" in node ? node.value : null,
+          checked: "checked" in node ? node.checked : null,
           attrs: Object.fromEntries(
             [...node.attributes].map((a) => [a.name, a.value])
           ),
@@ -469,6 +470,7 @@ async function capture(catalog) {
           (!has("textIncludes") || !!node?.text.includes(c.textIncludes)) &&
           (!has("textEquals") || node?.text === c.textEquals) &&
           (!has("value") || node?.value === c.value) &&
+          (!has("checked") || node?.checked === c.checked) &&
           (!has("highlightIncludes") ||
             state.highlights?.some(
               (h) => h.visible && h.text.includes(c.highlightIncludes)
@@ -658,7 +660,9 @@ async function capture(catalog) {
             if (line.startsWith("RECORDING_CLOCK "))
               recordingClock = JSON.parse(line.slice("RECORDING_CLOCK ".length))
             if (line === "RECORDING_STARTED") {
-              parseInputTimeline(JSON.stringify(recordingClock))
+              parseInputTimeline(JSON.stringify(recordingClock), {
+                requireFirstFrame: true,
+              })
               writeFileSync(
                 rawTimelinePath,
                 JSON.stringify(recordingClock) + "\n",
@@ -716,7 +720,10 @@ async function capture(catalog) {
       sourceDuration < actionsFinishedSeconds + 0.5
     )
       throw Error("Source recording did not retain the completed scenario")
-    const timeline = parseInputTimeline(await readFile(rawTimelinePath, "utf8"))
+    const timeline = parseInputTimeline(
+      await readFile(rawTimelinePath, "utf8"),
+      { requireFirstFrame: true }
+    )
     const intervals = buildShortcutIntervals(
       timeline,
       Math.floor(Math.min(scene.durationSeconds, sourceDuration) * profile.fps)
@@ -729,13 +736,9 @@ async function capture(catalog) {
       })
     )
     const filterPath = out + "/shortcut-filter.txt"
-    await writeFile(
-      filterPath,
-      [`fps=${profile.fps}`, shortcutVideoFilter(intervals, textFiles)]
-        .filter(Boolean)
-        .join(","),
-      { flag: "wx" }
-    )
+    await writeFile(filterPath, captureVideoFilter(intervals, textFiles), {
+      flag: "wx",
+    })
     await writeFile(
       timelinePath,
       JSON.stringify(
@@ -904,6 +907,7 @@ async function capture(catalog) {
         rawPath: rawTimelinePath,
         rawSha256: await hashFile(rawTimelinePath),
         clock: recordingClock,
+        mediaAlignment: timeline.mediaAlignment,
         directNativeEvents: true,
         eventCount: timeline.events.length,
         scope:
