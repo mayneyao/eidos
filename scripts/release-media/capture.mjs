@@ -1,8 +1,16 @@
 import { spawn, execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
+import { writeFileSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  CAPTURE_PROFILE as profile,
+  parseInputTimeline,
+  buildShortcutIntervals,
+  shortcutVideoFilter,
+  validateVideoProfile,
+} from "./capture-profile.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const args = process.argv.slice(2)
@@ -22,12 +30,36 @@ if (
 )
   throw new Error("macOS and --pid are required")
 await mkdir(out, { recursive: true })
-const run = (file, argv) =>
-  execFileSync(file, argv.map(String), {
+const native = resolve(out, "native-input")
+const recorder = resolve(out, "record-desktop")
+const captureId = Date.now()
+const rawTimelinePath = resolve(out, `key-events-${captureId}.jsonl`)
+const timelinePath = resolve(out, `input-timeline-${captureId}.json`)
+let recordingClock = null
+const run = (file, argv) => {
+  const env = { ...process.env, EIDOS_MEDIA_TARGET_PID: String(pid) }
+  delete env.EIDOS_MEDIA_INPUT_TIMELINE
+  delete env.EIDOS_MEDIA_RECORDING_START_NS
+  delete env.EIDOS_MEDIA_KEY_LABEL
+  if (file === native && recordingClock && ["key", "type"].includes(argv[0])) {
+    env.EIDOS_MEDIA_INPUT_TIMELINE = rawTimelinePath
+    env.EIDOS_MEDIA_RECORDING_START_NS = recordingClock.monotonicNs
+    // Relevance belongs to this scene, not a global keylogger or an implicit
+    // "show every key" rule. Generic select-all and Unicode typing stay private.
+    const labels = {
+      "53:": "Esc · Return to the grid",
+      "125:": "↓ · Navigate the grid",
+      "3:command": "⌘ F · Search rows",
+    }
+    const label = argv[0] === "key" && labels[`${argv[1]}:${argv[2] ?? ""}`]
+    if (label) env.EIDOS_MEDIA_KEY_LABEL = label
+  }
+  return execFileSync(file, argv.map(String), {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, EIDOS_MEDIA_TARGET_PID: String(pid) },
+    env,
   }).trim()
+}
 const executable = run("ps", ["-p", pid, "-o", "command="])
 if (
   !executable.startsWith(root + "/node_modules/") ||
@@ -43,8 +75,6 @@ if (
   )
 )
   throw new Error("5179 is owned by another checkout")
-const native = resolve(out, "native-input")
-const recorder = resolve(out, "record-desktop")
 run("swiftc", [
   root + "/scripts/release-media/native-input.swift",
   "-o",
@@ -139,17 +169,27 @@ try {
       "Space identity did not match --space; inspect local space-preflight.json"
     )
   }
-  run(native, ["bounds", pid, 350, 130, 1200, 820, "Release Demo — Eidos Lite"])
+  run(native, [
+    "bounds",
+    pid,
+    350,
+    130,
+    profile.windowWidth,
+    profile.windowHeight,
+    "Release Demo — Eidos Lite",
+  ])
   const window = JSON.parse(run(native, ["info", pid])).windows.find(
     (w) => w.title === "Release Demo — Eidos Lite"
   )
   if (!window) throw new Error("Demo window unavailable")
   const b = window.bounds
+  if (b.Width !== profile.windowWidth || b.Height !== profile.windowHeight)
+    throw new Error("Could not obtain the standard 1200×820-point window")
   const rect = {
-    x: b.X - 32,
-    y: b.Y - 32,
-    width: b.Width + 64,
-    height: b.Height + 64,
+    x: b.X - profile.desktopPadding,
+    y: b.Y - profile.desktopPadding,
+    width: b.Width + profile.desktopPadding * 2,
+    height: b.Height + profile.desktopPadding * 2,
   }
   const viewport = await evaluate(() => ({
     width: innerWidth,
@@ -161,6 +201,8 @@ try {
     Math.abs(viewport.height - b.Height) > 1
   )
     throw new Error("Unexpected native/content coordinate mapping")
+  if (viewport.scale !== profile.scale)
+    throw new Error("Standard release capture requires a 2× display scale")
   if (await evaluate(() => !!document.querySelector('input[type="search"]')))
     run(native, ["key", 53])
   const beforeFixture = createHash("sha256")
@@ -218,15 +260,37 @@ try {
         : reject(new Error("Native recording failed: " + stderr))
     )
   })
+  void recordingDone.catch(() => {})
   await new Promise((done, reject) => {
     const timer = setTimeout(
       () => reject(new Error("Recording did not start")),
       10_000
     )
+    let stdout = ""
     recording.stdout.on("data", (data) => {
-      if (data.toString().includes("RECORDING_STARTED")) {
+      stdout += data.toString()
+      const lines = stdout.split("\n")
+      stdout = lines.pop()
+      try {
+        for (const line of lines) {
+          if (line.startsWith("RECORDING_CLOCK "))
+            recordingClock = JSON.parse(line.slice("RECORDING_CLOCK ".length))
+          if (line === "RECORDING_STARTED") {
+            if (!recordingClock)
+              throw new Error("Recorder did not provide a native clock")
+            parseInputTimeline(JSON.stringify(recordingClock))
+            writeFileSync(
+              rawTimelinePath,
+              JSON.stringify(recordingClock) + "\n",
+              { flag: "wx" }
+            )
+            clearTimeout(timer)
+            done()
+          }
+        }
+      } catch (error) {
         clearTimeout(timer)
-        done()
+        reject(error)
       }
     })
     recording.once("exit", () => {
@@ -289,12 +353,45 @@ try {
       !document.querySelector('input[type="search"]') &&
       document.activeElement?.tagName === "CANVAS"
   )
+  // Retain a real sample after the final tip's minimum duration. A stationary
+  // ScreenCaptureKit tail can otherwise end before the nominal recorder timer.
+  await sleep(profile.minimumTipSeconds * 1000 + 200)
+  run(native, ["move", b.X + viewport.width - 24, b.Y + viewport.height - 24])
   await recordingDone
   const afterFixture = createHash("sha256")
     .update(await readFile(expectedSpace + "/Projects.eidos"))
     .digest("hex")
   if (beforeFixture !== afterFixture)
     throw new Error("Read-only scenario changed fixture bytes")
+  const timelineBytes = await readFile(rawTimelinePath)
+  const timeline = parseInputTimeline(timelineBytes.toString("utf8"))
+  const sourceProbe = JSON.parse(
+    run("ffprobe", ["-v", "error", "-show_format", "-of", "json", source])
+  )
+  const intervals = buildShortcutIntervals(
+    timeline,
+    Math.round(Number(sourceProbe.format.duration) * profile.fps)
+  )
+  const textFiles = await Promise.all(
+    intervals.map(async (interval, index) => {
+      const path = resolve(out, `shortcut-${captureId}-${index}.txt`)
+      await writeFile(path, interval.label, { flag: "wx" })
+      return path
+    })
+  )
+  const filterPath = resolve(out, `shortcut-filter-${captureId}.txt`)
+  const shortcutFilter = shortcutVideoFilter(intervals, textFiles)
+  await writeFile(
+    filterPath,
+    [`fps=${profile.fps}`, shortcutFilter].filter(Boolean).join(","),
+    { flag: "wx" }
+  )
+  await writeFile(
+    timelinePath,
+    JSON.stringify({ ...timeline, intervals, profileId: profile.id }, null, 2) +
+      "\n",
+    { flag: "wx" }
+  )
   run("ffmpeg", [
     "-hide_banner",
     "-loglevel",
@@ -302,17 +399,19 @@ try {
     "-y",
     "-i",
     source,
+    "-filter_script:v",
+    filterPath,
     "-an",
     "-c:v",
     "libx264",
     "-crf",
-    21,
+    profile.crf,
     "-preset",
-    "medium",
+    profile.preset,
     "-pix_fmt",
     "yuv420p",
     "-r",
-    30,
+    profile.fps,
     "-movflags",
     "+faststart",
     out + "/demo.mp4",
@@ -331,7 +430,7 @@ try {
     "-c:v",
     "libwebp",
     "-quality",
-    88,
+    profile.posterQuality,
     out + "/poster.webp",
   ])
   const probe = JSON.parse(
@@ -346,23 +445,61 @@ try {
     ])
   )
   const stream = probe.streams.find((s) => s.codec_type === "video")
+  validateVideoProfile(probe)
+  buildShortcutIntervals(timeline, Number(stream.nb_frames))
+  run("ffmpeg", [
+    "-nostdin",
+    "-v",
+    "error",
+    "-xerror",
+    "-i",
+    out + "/demo.mp4",
+    "-f",
+    "null",
+    "-",
+  ])
   const manifest = {
     schemaVersion: 1,
     scenarioId: "table-search-escape",
-    scenarioRevision: 2,
+    scenarioRevision: 3,
     dataOrigin: "synthetic",
     introducedInRelease: "lite-v0.31.0",
-    capturedAppVersion: "0.31.1",
+    capturedAppVersion: JSON.parse(
+      await readFile(root + "/apps/eidos-lite-desktop/package.json", "utf8")
+    ).version,
     buildKind: "development",
     sourceCommit: run("git", ["rev-parse", "HEAD"]),
+    captureProfile: profile,
+    inputTimeline: {
+      path: timelinePath,
+      sha256: createHash("sha256")
+        .update(await readFile(timelinePath))
+        .digest("hex"),
+      rawPath: rawTimelinePath,
+      rawSha256: createHash("sha256").update(timelineBytes).digest("hex"),
+      clock: recordingClock,
+      directNativeEvents: true,
+      eventCount: timeline.events.length,
+      scope:
+        "All keyboard posts made by the instrumented native helper during recording; manual or external input is not observed",
+    },
+    shortcutAnnotations: {
+      burnedIntoMp4: true,
+      events: intervals.length,
+      maximumConcurrentLabels: 1,
+      minimumSeconds: profile.minimumTipSeconds,
+      newRelevantKeyReplacesImmediately: true,
+      addedCanvasPixels: 0,
+      intervals,
+    },
     toolingChanges: run("git", ["status", "--short"]),
     sharedUiTreeAtIntroducedTag: run("git", [
       "rev-parse",
       "lite-v0.31.0:packages/eidos-file-ui",
     ]),
-    sharedUiTreeAtCaptureTag: run("git", [
+    sharedUiTreeAtCaptureCommit: run("git", [
       "rev-parse",
-      "lite-v0.31.1:packages/eidos-file-ui",
+      "HEAD:packages/eidos-file-ui",
     ]),
     fixtureSha256: beforeFixture,
     fixtureUnchanged: true,
@@ -392,6 +529,7 @@ try {
       audio: false,
     },
     duration: Number(probe.format.duration),
+    sourceDuration: Number(sourceProbe.format.duration),
     posterSeconds,
     assertions,
     output: {

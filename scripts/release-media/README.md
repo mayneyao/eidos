@@ -1,5 +1,10 @@
 # Local release media
 
+Follow the complete [release-media recording standard](../../.codex/skills/eidos-release/references/release-media.md).
+`capture-profile.mjs` supplies the shared 2528×1768, 30fps, CRF 18 profile and
+single-line functional shortcut policy. New recordings must retain the direct
+native per-key timeline described there; do not reconstruct key timings later.
+
 ## Recent files, unified search and Tags scenes
 
 `prepare-iteration.mjs --out /absolute/private/fresh-case` creates four synthetic
@@ -34,10 +39,17 @@ only a stationary recorder-finalization tail is removed. The private manifest
 retains source duration/hash, action completion time, exact helper binary hashes
 and recorder arguments. A short source or an over-budget scene still fails.
 
+This multi-scene adapter has not yet adopted `capture-profile.mjs`, the native
+per-key timeline sidecars or burned-in shortcut labels. Its existing exports
+are not final release media under the standard above. Adapt the adapter before
+recording a new release take; scene validation alone does not verify native
+timing, encoding compliance or the final annotated video.
+
 Prepare, record, review and upload a short Eidos Lite demonstration on macOS.
-The first scenario demonstrates the table-search Escape/focus improvement from
-Lite 0.31.0, captured with the unchanged shared UI in 0.31.1. This is a real
-development app using the canonical Runtime and a synthetic project fixture.
+The default scenario demonstrates table-search Escape/focus recovery in the
+actual candidate. Its package version and source commit are saved in the
+manifest. This is a real development app using the canonical Runtime and a
+synthetic project fixture.
 It is not proof of the signed release package or of mobile capture.
 
 Requirements: macOS 15+, Xcode command-line tools, Node 22+ with WebSocket and
@@ -87,6 +99,12 @@ Escape focus recovery, verifies fixture bytes remain unchanged, then writes:
 
 - `demo.mp4`: H.264, 30fps, no audio, faststart, original padding retained.
 - `poster.webp`: a successful search result frame.
+- `key-events-<capture-id>.jsonl`: private recording clock plus each native
+  key/modifier press and release, including unlabeled generic keys. Typed
+  characters are indexed without storing their text.
+- `input-timeline-<capture-id>.json`: private derived relative timestamps and
+  the selected non-overlapping functional shortcut intervals. Its hash and
+  the raw event-log hash are bound into the source manifest.
 - `source.manifest.json`: private provenance, exact capture version, scenario,
   seed checksum, dimensions, tooling changes and assertion evidence.
 - `source-<timestamp>.mp4`: private raw recording; never uploaded by this tool.
@@ -97,6 +115,15 @@ The foreground guard runs before each native input action; it is not continuous
 window or notification monitoring. Stop the capture with Ctrl-C and discard the
 take if foreground focus, the target window position or the scene changes, or
 an unexpected window or notification appears.
+
+The recorder emits a native monotonic start clock; the input helper records
+actual post-call times using that same clock. Labels are derived from these
+events, with 1.5-second minimum display and immediate replacement by a new
+relevant key. Generic keys remain in the audit log without affecting the HUD.
+The final frame stays 2528×1768; no subtitle footer is added. The timeline
+observes this helper's keyboard posts, not manual keys or another input tool.
+Adapt new scenes to this contract before recording. Full playback must still
+verify synchronization and readability against the actual captured frames.
 
 The exclusion list is a snapshot of on-screen windows at capture start. Windows
 owned by the target PID and the desktop applications (Dock, Wallpaper and Window
@@ -173,6 +200,7 @@ Checks:
 
 ```bash
 node --test scripts/release-media/upload.test.mjs
+node --test scripts/release-media/capture-profile.test.mjs
 pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 ```
 

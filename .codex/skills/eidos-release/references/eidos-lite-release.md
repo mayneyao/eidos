@@ -178,6 +178,13 @@ its own release history.
 
 ## Tag and monitor
 
+If the release includes demo media, follow [release-media.md](release-media.md).
+Draft the notes, record with synchronized bottom-of-video shortcut labels,
+review the final annotated files, upload and verify media, then backfill the
+changelog candidate and finalize both app-note languages before merging and
+tagging. Publish the website entry only after the product Release exists, using
+its real publication timestamp and verified public assets.
+
 Performance reports do not determine release readiness. Merge the release PR, check out its exact merge commit on the
 intended remote, prove the tag is absent, then create one lightweight tag:
 

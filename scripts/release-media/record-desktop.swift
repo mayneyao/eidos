@@ -8,6 +8,15 @@ final class RecordingDelegate: NSObject, SCRecordingOutputDelegate {
     var finished = false
     var failure: Error?
     func recordingOutputDidStartRecording(_ output: SCRecordingOutput) {
+        let clock: [String: Any] = [
+            "type": "recording-start", "schemaVersion": 1,
+            "clock": "DispatchTime.uptimeNanoseconds",
+            "monotonicNs": String(DispatchTime.now().uptimeNanoseconds),
+            "utc": ISO8601DateFormatter().string(from: Date()),
+            "reference": "SCRecordingOutputDelegate.didStartRecording callback"
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: clock, options: [.sortedKeys])
+        print("RECORDING_CLOCK " + String(data: data, encoding: .utf8)!)
         started = true
         print("RECORDING_STARTED")
         fflush(stdout)
