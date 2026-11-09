@@ -4,7 +4,7 @@
 
 Switch between **Folders** and **Recent files** to browse your Space by folder or modification date. Recent files groups files into **Today**, **Yesterday**, individual days from the past week, and **Earlier**, with previews to help you find your work.
 
-The existing **Filter files** menu now includes an option to hide files matched by `.gitignore`. The setting is shared between the folder tree and Recent files.
+The existing **Filter files** menu now includes an option to hide files matched by `.gitignore`. It is enabled by default; turn it off to show those files. The setting is shared between the folder tree and Recent files.
 
 ### File and text search together
 
