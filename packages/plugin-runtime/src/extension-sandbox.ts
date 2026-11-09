@@ -345,6 +345,38 @@ function activateGuest(
               ? null
               : Uint8Array.from(atob(res), (c) => c.charCodeAt(0))
           },
+          async readVersioned(key) {
+            const result = await invoke<{
+              data: string | null
+              version: string | null
+            }>("storage.readVersioned", { key })
+            return {
+              ...result,
+              data:
+                result.data === null
+                  ? null
+                  : Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0)),
+            }
+          },
+          compareAndWrite(key, expectedVersion, val) {
+            if (val.byteLength > 4 * 1024 * 1024)
+              return Promise.reject(
+                failure("INVALID_REQUEST", "Storage object exceeds 4 MiB")
+              )
+            let binary = ""
+            for (let offset = 0; offset < val.length; offset += 8192)
+              binary += String.fromCharCode(
+                ...val.subarray(offset, offset + 8192)
+              )
+            return invoke<{ applied: boolean; version: string | null }>(
+              "storage.compareAndWrite",
+              {
+                key,
+                expectedVersion,
+                data: btoa(binary),
+              }
+            )
+          },
           write(key, val) {
             if (val.byteLength > 4 * 1024 * 1024)
               return Promise.reject(

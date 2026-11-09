@@ -567,6 +567,38 @@ export function bootstrap(
             ? null
             : Uint8Array.from(atob(value), (c) => c.charCodeAt(0))
         },
+        async readVersioned(key) {
+          const result = await call<{
+            data: string | null
+            version: string | null
+          }>("storage.readVersioned", { key })
+          return {
+            ...result,
+            data:
+              result.data === null
+                ? null
+                : Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0)),
+          }
+        },
+        compareAndWrite(key, expectedVersion, value) {
+          if (value.byteLength > 4 * 1024 * 1024)
+            return Promise.reject(
+              error("INVALID_REQUEST", "Storage object exceeds 4 MiB")
+            )
+          let binary = ""
+          for (let offset = 0; offset < value.length; offset += 8192)
+            binary += String.fromCharCode(
+              ...value.subarray(offset, offset + 8192)
+            )
+          return call<{ applied: boolean; version: string | null }>(
+            "storage.compareAndWrite",
+            {
+              key,
+              expectedVersion,
+              data: btoa(binary),
+            }
+          )
+        },
         write(key, value) {
           if (value.byteLength > 4 * 1024 * 1024)
             return Promise.reject(

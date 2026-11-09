@@ -109,7 +109,7 @@ extension?: string;
 
 支持宿主: <Badge text="Lite" variant="note" />
 
-固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 start({ command, args }) 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。
+固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 `start({ command, args })` 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。
 
 
 ```ts
@@ -216,6 +216,7 @@ browser?: {
 ```ts
 storage?: {
     maxBytes: number;
+    atomic?: true;
 };
 ```
 
@@ -620,7 +621,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L673)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L690)
 
 
 ```ts

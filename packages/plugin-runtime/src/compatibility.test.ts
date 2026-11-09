@@ -81,7 +81,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.9.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.11.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],
@@ -105,6 +105,18 @@ it("checks minimum API independently of SDK and plugin versions", () => {
       ).compatible
     ).toBe(compatible)
   }
+})
+it("advertises atomic storage only in Lite and retains the declared feature requirement", () => {
+  const atomic: PluginManifest = {
+    ...manifest,
+    requires: { pluginApi: "3.11.0" },
+    storage: { maxBytes: 100, atomic: true },
+  }
+  expect(checkPluginCompatibility(atomic, "eidos-lite").compatible).toBe(true)
+  expect(pluginHostInfo("eidos-lite").features).toContain("storage.atomic")
+  expect(
+    checkPluginCompatibility(atomic, "eidos-cli").missingFeatures
+  ).toContain("storage.atomic")
 })
 it("accepts standalone themes in Lite and rejects them in CLI Serve", () => {
   const theme: PluginManifest = {

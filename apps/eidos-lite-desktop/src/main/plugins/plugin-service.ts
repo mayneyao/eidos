@@ -213,6 +213,16 @@ export class PluginService {
             "PERMISSION_DENIED",
             "Plugin storage not granted"
           )
+        if (
+          ["storage.readVersioned", "storage.compareAndWrite"].includes(
+            method
+          ) &&
+          !pkg.manifest.storage.atomic
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Atomic storage not granted"
+          )
         let storage = this.storage.get(pluginId)
         if (!storage) {
           storage = new PluginStorage(
@@ -1521,6 +1531,16 @@ export class PluginService {
           throw new PluginError(
             "PERMISSION_DENIED",
             "Plugin storage not granted"
+          )
+        if (
+          ["storage.readVersioned", "storage.compareAndWrite"].includes(
+            request.method
+          ) &&
+          !pkg.manifest.storage.atomic
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Atomic storage not granted"
           )
         let storage = this.storage.get(instance.pluginId)
         if (!storage) {

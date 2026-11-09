@@ -47,6 +47,16 @@ const selection = bytes ? new TextDecoder().decode(bytes) : null
 
 Values are `Uint8Array`; encode text or JSON yourself. Reading a missing key returns null. `maxBytes` is the total quota, and writes can fail when it is exceeded.
 
+For shared data that multiple windows may update, declare
+`"storage": { "maxBytes": 1048576, "atomic": true }` and require Plugin API
+`3.11.0`. `readVersioned(key)` returns consistent bytes and an opaque version;
+`compareAndWrite(key, version, nextBytes)` writes only while that version is
+current. A missing object has version `null`; an empty stored object does not.
+If `applied` is false, read again and replay the specific edit on the latest data.
+Keep ordinary `write` for unconditional replacement; a separate `read` followed
+by `write` does not protect concurrent edits. The same quota and 4 MiB object
+limit apply. These methods do not change agent process ownership.
+
 Use settings for user preferences, storage for local plugin data, and [eidos/config](/plugins/tables/) for configuration that should travel with an Eidos file.
 
 ## 3. Show feedback or open a page

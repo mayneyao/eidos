@@ -173,7 +173,7 @@ readonly events: PluginEvents;
 
 Supported hosts: <Badge text="Lite" variant="note" />
 
-Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. Concurrent read-modify-write operations are not transactions.
+Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. An ordinary read followed by an unconditional write is not a transaction. Lite API 3.11 adds opt-in storage.atomic: true for versioned reads and conditional writes; retry conflicts by rereading and replaying only the intended edit.
 
 
 ```ts

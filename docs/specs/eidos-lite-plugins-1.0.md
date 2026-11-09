@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.9
+# Eidos Plugins — API 3.11
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.9.0
+Plugin API: 3.11.0
 
 Canonical language: English
 
@@ -155,7 +155,7 @@ With `storage.maxBytes`, background `storage` exposes the existing plugin-privat
 binary object API and quota. Hosts MUST enforce the current plugin grant, serialize
 storage operations with View/action operations, atomically replace written objects,
 and reject writes after revocation. Storage is device-local, plugin-scoped and shared
-across Spaces; read-modify-write is not a transaction. Plugins must partition keys
+across Spaces; ordinary read followed by unconditional write is not a transaction. Plugins must partition keys
 as needed. Timers provide no persistence guarantee: unflushed state can be lost on
 termination. `background.isRunning()` MUST NOT start a worker or request permission.
 Private host-service frames MUST NOT reach application message observers.
@@ -566,6 +566,34 @@ must use the working-copy capability.
 Private storage provides list/read/write/delete, declared quota, atomic serialized
 writes, 4 MiB per object, and a maximum of 25000 objects. Anonymous network reads
 remain bounded HTTPS requests to declared origins, without exposing credentials.
+
+### Atomic private storage
+
+Lite API 3.11 adds `storage.atomic: true`, requiring `requires.pluginApi` 3.11.0
+or later and the `storage.atomic` compatibility feature. It uses the existing
+private-storage grant and limits, without adding native execution authority.
+Other hosts MUST reject the declaration unless they advertise the feature.
+
+`readVersioned(key)` returns `{ data: Uint8Array | null, version: string | null }`
+from one consistent object snapshot. `null` means absent; a zero-byte object has
+non-null data and a non-null token. Tokens are opaque identities of the current
+bytes, stable across host restarts, not monotonic counters. Plugins MUST NOT
+interpret token contents or treat tokens as authority.
+
+`compareAndWrite(key, expectedVersion, data)` compares the current token and,
+only if equal, validates quota and atomically replaces the bytes. It returns
+`{ applied: true, version }` on success or `{ applied: false, version }` with the
+current token on conflict. A conflict MUST NOT write. Read, comparison, quota
+validation and replacement MUST share one canonical-directory critical section
+across all host storage instances and owner windows. Ordinary writes and deletes
+MUST use that same section, including cross-key quota accounting. Failed,
+revoked or malformed requests MUST release the section without replacing data.
+The scope is the single owning host process; out-of-process filesystem writers
+are not covered. Written objects continue to use atomic temporary-file rename.
+
+Plugins may resolve a conflict by reading the new snapshot and replaying only
+the specific user intent. They MUST NOT overwrite newer state with a stale full
+snapshot. This capability does not change background or sidecar ownership.
 
 ## 8. Text documents and editing
 

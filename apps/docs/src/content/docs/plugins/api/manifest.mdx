@@ -109,7 +109,7 @@ extension?: string;
 
 Supported hosts: <Badge text="Lite" variant="note" />
 
-Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows start({ command, args }) with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.
+Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows `start({ command, args })` with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.
 
 
 ```ts
@@ -216,6 +216,7 @@ browser?: {
 ```ts
 storage?: {
     maxBytes: number;
+    atomic?: true;
 };
 ```
 
@@ -620,7 +621,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L673)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L690)
 
 
 ```ts

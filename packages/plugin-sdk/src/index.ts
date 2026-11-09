@@ -57,7 +57,7 @@ export interface PluginManifest {
   placements?: Placement[]
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; network?: true; networkOrigins?: string[] }
-  storage?: { maxBytes: number }
+  storage?: { maxBytes: number; atomic?: true }
   /** Explicit permission to access files in the current Space. */
   workspace?: {
     files?: boolean | { read?: boolean; write?: boolean }
@@ -420,6 +420,23 @@ export interface PluginStorage {
   read(key: string): Promise<Uint8Array | null>
   write(key: string, value: Uint8Array): Promise<void>
   delete(key: string): Promise<void>
+  /** API 3.11, storage.atomic: true. Snapshot and opaque current-bytes token. */
+  readVersioned?(key: string): Promise<StorageSnapshot>
+  /** Atomically compare the current token and replace bytes. Conflicts do not write. */
+  compareAndWrite?(
+    key: string,
+    expectedVersion: string | null,
+    data: Uint8Array
+  ): Promise<StorageWriteResult>
+}
+export interface StorageSnapshot {
+  data: Uint8Array | null
+  /** Null means absent; an empty object has a non-null token. Tokens survive restarts. */
+  version: string | null
+}
+export interface StorageWriteResult {
+  applied: boolean
+  version: string | null
 }
 
 /** Display identity only. IDs and paths are never authority for operations. */

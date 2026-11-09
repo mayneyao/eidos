@@ -15,6 +15,8 @@ export const apiHosts = {
   PluginEventMap: ["Lite"],
   PluginFileMeta: ["Lite"],
   PluginStorage: ["Lite"],
+  StorageSnapshot: ["Lite"],
+  StorageWriteResult: ["Lite"],
   PluginNetwork: ["Lite"],
   ExplorerContext: ["Lite"],
   HostResources: ["Lite"],

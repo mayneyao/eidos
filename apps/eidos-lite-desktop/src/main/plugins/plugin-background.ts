@@ -199,7 +199,8 @@ export class PluginBackgroundHost {
           binding.space,
           randomUUID(),
           !!binding.manifest.background?.fileHistory,
-          !!binding.manifest.storage
+          !!binding.manifest.storage,
+          !!binding.manifest.storage?.atomic
         ) + binding.code,
         { mode: 0o600, flag: "wx" }
       )
@@ -318,6 +319,8 @@ export class PluginBackgroundHost {
                 ![
                   "storage.list",
                   "storage.read",
+                  "storage.readVersioned",
+                  "storage.compareAndWrite",
                   "storage.write",
                   "storage.delete",
                 ].includes(message.method)
@@ -325,6 +328,16 @@ export class PluginBackgroundHost {
                 throw new PluginError(
                   "PERMISSION_DENIED",
                   "Background storage not granted"
+                )
+              if (
+                ["storage.readVersioned", "storage.compareAndWrite"].includes(
+                  message.method
+                ) &&
+                !binding.manifest.storage.atomic
+              )
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Atomic storage not granted"
                 )
               const value = await binding.storageRequest(
                 message.method,

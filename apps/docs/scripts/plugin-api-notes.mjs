@@ -1,8 +1,8 @@
 // Human-written behavior, shared by the English and Chinese reference renderer.
 export const notes = {
   "PluginManifest.sidecar": [
-    "Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows start({ command, args }) with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.",
-    "固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 start({ command, args }) 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。",
+    "Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows `start({ command, args })` with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.",
+    "固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 `start({ command, args })` 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。",
   ],
   "CommonCapabilities.sidecar": [
     "Available only to standalone page and file Views declaring manifest.sidecar. Not provided to extensions, actions, embedded resources, JavaScript backgrounds, CLI Serve or mobile.",
@@ -69,8 +69,8 @@ export const notes = {
     '需声明 background.fileHistory: true 并经宿主授权。events.on("file.opened", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。',
   ],
   "BackgroundHost.storage": [
-    "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. Concurrent read-modify-write operations are not transactions.",
-    "需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。并发读改写不是事务。",
+    "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. An ordinary read followed by an unconditional write is not a transaction. Lite API 3.11 adds opt-in storage.atomic: true for versioned reads and conditional writes; retry conflicts by rereading and replaying only the intended edit.",
+    "需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。普通读取后无条件写入不是事务。Lite API 3.11 可声明 storage.atomic: true，进行版本化读取和条件写入；冲突后应重新读取，并仅重放本次编辑。",
   ],
   "PluginManifest.fileTemplates": [
     "Static UTF-8 templates, up to 256 KiB each. The referenced document View must have a matching file/open placement.",
@@ -183,6 +183,14 @@ export const notes = {
   "PluginStorage.delete": [
     "Delete a private stored object.",
     "删除私有存储对象。",
+  ],
+  "PluginStorage.readVersioned": [
+    "Lite API 3.11; requires storage.atomic: true. Read bytes and their opaque current-bytes token together. Both are null for an absent key; an empty stored object has a non-null token. Tokens are stable for identical bytes, not monotonic revision numbers.",
+    "Lite API 3.11，需声明 storage.atomic: true。同时读取字节和代表当前字节的不透明令牌。键不存在时两者均为 null；已存储的空对象有非 null 令牌。相同字节的令牌稳定，不是单调递增的版本号。",
+  ],
+  "PluginStorage.compareAndWrite": [
+    "Lite API 3.11; requires storage.atomic: true. Compare expectedVersion with the current token and replace bytes in one host operation. A conflict returns applied: false and the current token without writing. Reread and replay the specific edit before retrying. The 4 MiB object limit and declared plugin quota still apply.",
+    "Lite API 3.11，需声明 storage.atomic: true。在一次宿主操作中比较 expectedVersion 与当前令牌并替换字节。冲突返回 applied: false 和当前令牌，不写入；重试前应重读并重放本次编辑。仍受 4 MiB 单对象上限和插件声明配额限制。",
   ],
   "PluginFileMeta.read": [
     "Read the complete namespace object; a missing namespace returns an empty object.",

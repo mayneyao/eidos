@@ -333,7 +333,15 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.storage !== undefined) {
     const storage = record(m.storage)
-    fields(storage, ["maxBytes"])
+    fields(storage, ["maxBytes"], ["atomic"])
+    if (storage.atomic !== undefined) {
+      const required = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (storage.atomic !== true) invalid("storage.atomic must be true")
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 11)))
+        invalid("Atomic storage requires plugin API 3.11.0 or newer")
+    }
     if (
       !Number.isSafeInteger(storage.maxBytes) ||
       Number(storage.maxBytes) < 1 ||

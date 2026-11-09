@@ -54,6 +54,7 @@ export function pluginFeatures(manifest: PluginManifest): string[] {
   }
   if (manifest.browser?.workers) features.add("browser.workers")
   if (manifest.background?.fileHistory) features.add("background.fileHistory")
+  if (manifest.storage?.atomic) features.add("storage.atomic")
   if (manifest.workspace?.filemeta) features.add("filemeta")
   if (
     manifest.placements?.some(

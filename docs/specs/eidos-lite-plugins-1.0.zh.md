@@ -1,10 +1,30 @@
-# Eidos Plugins — API 3.9
+# Eidos Plugins — API 3.11
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.9.0
+Plugin API：3.11.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## 原子私有存储
+
+Lite API 3.11 新增 `storage.atomic: true`，须声明最低 API 3.11.0，且宿主提供
+`storage.atomic` 兼容特征。它沿用私有存储授权、配额、单对象 4 MiB 和最多 25000
+对象限制，不增加原生执行权限。不提供该特征的宿主须拒绝此声明。
+
+`readVersioned(key)` 一致地读取 `{ data: Uint8Array | null, version: string | null }`。
+`null` 表示对象不存在；零字节对象的数据与 token 均非 null。token 是当前字节的
+不透明身份，跨宿主重启稳定，不能当作递增计数或权限证明，也不应解析其内容。
+
+`compareAndWrite(key, expectedVersion, data)` 在同一原子操作中比较 token、检查配额并
+以临时文件重命名替换数据。成功返回 `{ applied: true, version }`；冲突返回
+`{ applied: false, version }`，不得写入。规范化后的同一存储目录必须由所有存储实例、
+窗口及 View/action/background 共用临界区；普通 write/delete 和跨 key 配额检查也须
+进入同一区域，不能插入比较与重命名之间。失败、撤权和无效请求须释放临界区且不替换
+数据。范围限于同一拥有者宿主进程，不覆盖其它进程直接修改文件。
+
+插件遇到冲突应重读最新快照，仅重放本次用户意图，不能拿旧的完整状态覆盖新数据。
+此能力不改变后台或 sidecar 的所有权与生命周期。
 
 ## 本机原生 sidecar
 

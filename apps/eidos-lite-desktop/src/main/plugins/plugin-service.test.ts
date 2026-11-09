@@ -1270,6 +1270,10 @@ describe("Lite document-view integration", () => {
     )
     const granted = await open()
     expect(
+      (await rpc(granted, "storage.readVersioned", { key: "sprite@2x" }))
+        .response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+    expect(
       (await rpc(granted, "storage.write", { key: "sprite@2x", data: "AP8B" }))
         .response
     ).toMatchObject({ result: null })
@@ -1282,6 +1286,58 @@ describe("Lite document-view integration", () => {
     await store.enable("example.csv", false, "space-a")
     expect(
       (await rpc(granted, "storage.read", { key: "sprite@2x" })).response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+  })
+  it("grants atomic storage only to live declared owners and keeps conflicts non-writing", async () => {
+    service.closeOwner(1)
+    await store.install(
+      encodePackage(
+        {
+          ...manifest,
+          requires: { pluginApi: "3.11.0" },
+          storage: { maxBytes: 100, atomic: true },
+        },
+        modules
+      ),
+      "space-a"
+    )
+    const ticket = await open()
+    expect(
+      (await rpc(ticket, "storage.readVersioned", { key: "a" })).response
+    ).toMatchObject({ result: { data: null, version: null } })
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "YQ==",
+        })
+      ).response
+    ).toMatchObject({ result: { applied: true } })
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "Yg==",
+        })
+      ).response
+    ).toMatchObject({ result: { applied: false } })
+    expect(
+      (await rpc(ticket, "storage.read", { key: "a" })).response
+    ).toMatchObject({ result: "YQ==" })
+    expect(
+      (await rpc(ticket, "storage.readVersioned", { key: "a" }, 2)).response
+    ).toMatchObject({ error: { code: "INSTANCE_CLOSED" } })
+    await store.enable("example.csv", false, "space-a")
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "Yg==",
+        })
+      ).response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
   it("authorizes table adapters only for live table instances in their owning Space", async () => {

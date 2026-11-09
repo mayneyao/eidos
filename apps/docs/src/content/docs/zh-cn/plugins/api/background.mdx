@@ -173,7 +173,7 @@ readonly events: PluginEvents;
 
 支持宿主: <Badge text="Lite" variant="note" />
 
-需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。并发读改写不是事务。
+需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。普通读取后无条件写入不是事务。Lite API 3.11 可声明 storage.atomic: true，进行版本化读取和条件写入；冲突后应重新读取，并仅重放本次编辑。
 
 
 ```ts

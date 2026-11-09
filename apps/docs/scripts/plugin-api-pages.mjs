@@ -143,10 +143,10 @@ See the [background guide](/plugins/background/) for a subscription example and 
     "storage",
     "storage",
     "storage",
-    ["PluginStorage"],
+    ["PluginStorage", "StorageSnapshot", "StorageWriteResult"],
     "services",
-    "Declare storage.maxBytes. Binary objects are private to the plugin and local to the device, persisting across View and app restarts. read returns null for an absent key. Writes are subject to the declared quota and host limits.",
-    "声明 storage.maxBytes。二进制对象是插件私有的本机数据，跨 View 和应用重启保留。不存在的键读取为 null，写入受声明配额和宿主限制。",
+    "Declare storage.maxBytes. Binary objects are private to the plugin and local to the device, persisting across View and app restarts. read returns null for an absent key. Writes are subject to the declared quota and host limits. Lite API 3.11 adds opt-in storage.atomic: true for readVersioned and compareAndWrite. These compare and replace current object bytes atomically across owner windows; conflicts do not write. Re-read and replay the specific edit, not a stale full snapshot.",
+    "声明 storage.maxBytes。二进制对象是插件私有的本机数据，跨 View 和应用重启保留。不存在的键读取为 null，写入受声明配额和宿主限制。Lite API 3.11 可声明 storage.atomic: true，使用 readVersioned 和 compareAndWrite 跨窗口原子比较并替换字节；冲突不写入，应重读并重放本次编辑，不得覆盖旧的完整快照。",
   ],
   [
     "network",
