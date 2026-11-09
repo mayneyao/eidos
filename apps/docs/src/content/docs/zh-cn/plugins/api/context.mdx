@@ -15,7 +15,7 @@ import { Badge } from "@astrojs/starlight/components"
 
 ## Lifetime
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L209)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L217)
 
 ### Lifetime.signal
 
@@ -39,7 +39,19 @@ readonly subscriptions: {
 
 ## CommonCapabilities
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L213)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L221)
+
+### CommonCapabilities.sidecar
+
+支持宿主: <Badge text="Lite" variant="note" />
+
+仅提供给声明 manifest.sidecar 的独立页面和文件 View；extension、命令、嵌入资源、JavaScript 后台、CLI Serve 和移动端均不提供。
+
+
+```ts
+readonly sidecar?: PluginSidecar;
+```
+
 
 ### CommonCapabilities.background
 
@@ -107,11 +119,11 @@ readonly ui: HostUI;
 ```
 
 
-关联类型: [PluginBackground](/zh-cn/plugins/api/background/#pluginbackground), [PluginFileSystem](/zh-cn/plugins/api/fs/#pluginfilesystem), [PluginFileMeta](/zh-cn/plugins/api/filemeta/#pluginfilemeta), [PluginStorage](/zh-cn/plugins/api/storage/#pluginstorage), [PluginNetwork](/zh-cn/plugins/api/network/#pluginnetwork), [PluginSettings](/zh-cn/plugins/api/settings/#pluginsettings), [PluginConnections](/zh-cn/plugins/api/network/#pluginconnections), [HostUI](/zh-cn/plugins/api/ui/#hostui).
+关联类型: [PluginSidecar](/zh-cn/plugins/api/sidecar/#pluginsidecar), [PluginBackground](/zh-cn/plugins/api/background/#pluginbackground), [PluginFileSystem](/zh-cn/plugins/api/fs/#pluginfilesystem), [PluginFileMeta](/zh-cn/plugins/api/filemeta/#pluginfilemeta), [PluginStorage](/zh-cn/plugins/api/storage/#pluginstorage), [PluginNetwork](/zh-cn/plugins/api/network/#pluginnetwork), [PluginSettings](/zh-cn/plugins/api/settings/#pluginsettings), [PluginConnections](/zh-cn/plugins/api/network/#pluginconnections), [HostUI](/zh-cn/plugins/api/ui/#hostui).
 
 ## CommonContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L314)
 
 
 ```ts
@@ -139,7 +151,7 @@ readonly capabilities: CommonCapabilities;
 
 ## PluginI18n
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L280)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L318)
 
 ### PluginI18n.locale
 
@@ -182,7 +194,7 @@ onDidChangeLocale(listener: (event: {
 
 ## ViewCapabilities
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L405)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L460)
 
 
 ```ts
@@ -218,7 +230,7 @@ readonly eidos?: EidosCapabilities;
 
 ## ViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L412)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L467)
 
 
 ```ts
@@ -256,7 +268,7 @@ readonly capabilities: ViewCapabilities;
 
 ## TextFileViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L417)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L472)
 
 
 ```ts
@@ -275,7 +287,7 @@ export type TextFileViewContext = ViewContext & {
 
 ## TableFileViewContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L421)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L476)
 
 
 ```ts
@@ -296,7 +308,7 @@ export type TableFileViewContext = ViewContext & {
 
 ## ActionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L430)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L485)
 
 
 ```ts
@@ -327,7 +339,7 @@ readonly capabilities: CommonCapabilities & {
 
 ## ExtensionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L437)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L492)
 
 
 ```ts
@@ -366,7 +378,7 @@ readonly capabilities: {
 
 ## TableActionContext
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L470)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L525)
 
 ### TableActionContext.i18n
 
@@ -396,7 +408,7 @@ readonly capabilities: TableActionCapabilities;
 
 ## Mount
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L514)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L569)
 
 
 ```ts
@@ -408,7 +420,7 @@ export type Mount = (ctx: ViewContext, root: HTMLElement) => void | Disposable |
 
 ## Activate
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L518)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L573)
 
 
 ```ts

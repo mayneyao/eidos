@@ -40,7 +40,9 @@ class FakeRuntimeUtilityProcess extends EventEmitter {
             ? { tables: [] }
             : request.type === "inspectMergeTables"
               ? []
-              : undefined,
+              : request.type === "explorerSummary"
+                ? { tableNames: ["Notes"], tableCount: 1, recordCount: 2 }
+                : undefined,
       })
     })
   }
@@ -65,6 +67,76 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("reuses a private summary worker and releases it with Space handles", async () => {
+    const worker = new FakeRuntimeUtilityProcess()
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValue(worker as unknown as UtilityProcess)
+    const pool = new RuntimePool("/space", "/worker.js")
+    try {
+      expect(await pool.explorerSummary("/space/notes.eidos")).toEqual({
+        tableNames: ["Notes"],
+        tableCount: 1,
+        recordCount: 2,
+      })
+      await pool.explorerSummary("/space/tasks.eidos")
+      expect(utilityProcess.fork).toHaveBeenCalledTimes(1)
+      expect(pool.openRelativePaths()).toEqual([])
+      await pool.closeHandles()
+      expect(worker.requests.at(-1)?.type).toBe("close")
+    } finally {
+      await pool.destroy()
+    }
+  })
+  it("times out only the summary worker and recovers without replacing the editor or property worker", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-pool-summary-timeout-"))
+    )
+    await writeFile(path.join(root, "note.eidos"), "fixture")
+    class SlowSummary extends FakeRuntimeUtilityProcess {
+      postMessage(request: RuntimeWorkerRequest): void {
+        if (request.type === "explorerSummary") this.requests.push(request)
+        else super.postMessage(request)
+      }
+    }
+    const editor = new FakeRuntimeUtilityProcess()
+    const property = new FakeRuntimeUtilityProcess()
+    const slow = new SlowSummary()
+    const recovered = new FakeRuntimeUtilityProcess()
+    const killedEditor = vi.spyOn(editor, "kill")
+    const killedProperty = vi.spyOn(property, "kill")
+    const killedSummary = vi.spyOn(slow, "kill")
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(editor as unknown as UtilityProcess)
+      .mockReturnValueOnce(property as unknown as UtilityProcess)
+      .mockReturnValueOnce(slow as unknown as UtilityProcess)
+      .mockReturnValueOnce(recovered as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/worker.js")
+    try {
+      await pool.open("note.eidos")
+      await pool.filemeta("note.md", "space.eidos.meta")
+      const resident = pool.residentRelativePaths()
+      vi.useFakeTimers()
+      const inspection = pool.explorerSummary(path.join(root, "note.eidos"))
+      const rejected = expect(inspection).rejects.toThrow("runtime closed")
+      await vi.advanceTimersByTimeAsync(2500)
+      await rejected
+      expect(killedSummary).toHaveBeenCalledOnce()
+      expect(killedEditor).not.toHaveBeenCalled()
+      expect(killedProperty).not.toHaveBeenCalled()
+      expect(pool.residentRelativePaths()).toEqual(resident)
+      await expect(
+        pool.explorerSummary(path.join(root, "note.eidos"))
+      ).resolves.toMatchObject({ tableNames: ["Notes"], recordCount: 2 })
+      await pool.filemeta("note.md", "space.eidos.meta")
+      expect(utilityProcess.fork).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it("passes initial table content configuration to the isolated creation worker", async () => {
     const root = await realpath(
       await mkdtemp(path.join(tmpdir(), "lite-pool-create-content-"))

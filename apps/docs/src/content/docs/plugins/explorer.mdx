@@ -109,10 +109,10 @@ The revision counter discards late results after rapid navigation. Failed refres
 ## 3. Enable it in Lite and check the result
 
 1. Load `plugin.json` in Plugin Manager and enable it for the Space.
-2. Select **File List** under **Plugins → Choose file explorer**.
+2. Select **File List** in the view switcher at the top right of the sidebar, beside Folders and Recent files. Enabled plugins appear here automatically.
 3. Check that the sidebar lists files. Click one to open its configured View.
 4. Add or remove a test file in the Space and check that the list refreshes.
-5. Switch back to the built-in explorer in Plugin Manager.
+5. Select **Folders** or **Recent files** in the same switcher to return to a built-in view.
 
 Lite saves the selection per Space. If the plugin fails, Lite restores the built-in heading and tree with a retry action.
 
@@ -122,6 +122,6 @@ Set `includeDirectories` to true to include directories, even empty ones. On exp
 
 Read `explorer.read().sort` for the selected sort order; `modifiedAtMs` supports time sorting. This example does not implement sorting, directory navigation, or selection styling. Add those for a complete browser.
 
-The plugin owns the entire explorer area, including its heading, search, sort controls, and file toolbar. Lite retains window navigation and application controls. Global Space text search temporarily overlays the sidebar without unmounting it. Explorer state does not grant file access; the host checks permissions separately.
+The plugin owns the entire explorer area, including its heading, search, sort controls, and file toolbar. Lite retains window navigation and application controls. Cmd+P searches file and folder names or saved text in a modal without unmounting the plugin. The Space text-search shortcut opens its text mode. Explorer state does not grant file access; the host checks permissions separately.
 
 See [Explorer](/plugins/api/explorer/) and [Filesystem](/plugins/api/fs/) for interface details.

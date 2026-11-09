@@ -10,6 +10,37 @@ import {
 import { sandboxCsp } from "@eidos.space/plugin-runtime/sandbox"
 import { PluginStore } from "./plugin-store"
 import { PluginService, type PluginDocumentSession } from "./plugin-service"
+import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
+
+it("retains legacy direct-connect origins while keeping API 3.5+ fetch behind the host broker", () => {
+  const base = {
+    apiVersion: 1 as const,
+    id: "test.network",
+    name: "Network",
+    version: "1.0.0",
+    browser: { networkOrigins: ["https://example.com"] },
+  }
+  for (const [version, worker] of [
+    ["3.4.0", false],
+    ["3.5.0", true],
+    ["3.7.0", true],
+  ] as const) {
+    const manifest = { ...base, requires: { pluginApi: version } }
+    expect(usesWorkerFetch(manifest)).toBe(worker)
+    const csp = sandboxCsp(manifest.browser, usesWorkerFetch(manifest))
+    const connect = csp
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("connect-src"))
+    expect(connect).toBe(
+      worker
+        ? "connect-src eidos-space-media:"
+        : "connect-src eidos-space-media: https://example.com"
+    )
+    expect(csp).toContain("script-src 'unsafe-inline' 'wasm-unsafe-eval'")
+    expect(csp).not.toContain("'unsafe-eval'")
+  }
+})
 
 // Supply the pinned catalog and checksum-verified Release assets during release acceptance.
 const catalog = process.env.EIDOS_PLUGIN_TEST_CATALOG
@@ -33,7 +64,11 @@ it.skipIf(!catalog || !archives)(
     )
     const store = new PluginStore(directory)
     const service = new PluginService(store)
-    const session = { canonical: { id: "acceptance" } } as PluginDocumentSession
+    const session = {
+      canonical: { id: "acceptance" },
+      previewTextFile: (file) => readTextFilePreview(directory, file),
+      saveTextFile: (request) => saveTextFile(directory, request),
+    } as PluginDocumentSession
     try {
       for (const entry of entries) {
         const bytes = await fs.readFile(
@@ -47,14 +82,27 @@ it.skipIf(!catalog || !archives)(
           checkPluginCompatibility(pkg.manifest, "eidos-lite").compatible,
           entry.id
         ).toBe(true)
-        expect(usesWorkerFetch(pkg.manifest), entry.id).toBe(false)
+        const workerFetch = usesWorkerFetch(pkg.manifest)
         const csp = sandboxCsp(
           pkg.manifest.browser,
           usesWorkerFetch(pkg.manifest)
         )
-        for (const origin of pkg.manifest.browser?.networkOrigins ?? [])
-          expect(csp).toContain(origin)
+        const connect = csp
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => part.startsWith("connect-src"))
+        if (workerFetch)
+          expect(connect, entry.id).toBe("connect-src eidos-space-media:")
+        else
+          for (const origin of pkg.manifest.browser?.networkOrigins ?? [])
+            expect(connect, entry.id).toContain(origin)
         const hash = await store.install(bytes, "acceptance")
+        if (pkg.manifest.kind === "theme") {
+          await store.selectTheme(entry.id)
+          expect(
+            (await new PluginStore(directory).list("acceptance")).activeThemeId
+          ).toBe(entry.id)
+        }
         const before = await store.config()
         await store.install(bytes, "another-space")
         expect(await store.config(), entry.id).toEqual(before)
@@ -77,6 +125,22 @@ it.skipIf(!catalog || !archives)(
             `${entry.id}/${view.id}`
           )
           expect(opened.instance).toBeDefined()
+          service.close(1, opened.instance!.ticket)
+        }
+        for (const placement of pkg.manifest.placements ?? []) {
+          if (placement.location !== "file/open") continue
+          const file = "fixture" + placement.extensions[0]
+          await fs.writeFile(
+            path.join(directory, file),
+            "# Synthetic fixture\n"
+          )
+          const opened = await service.open(
+            1,
+            session,
+            file,
+            `${entry.id}/${placement.view}`
+          )
+          expect(opened.instance, entry.id).toBeDefined()
           service.close(1, opened.instance!.ticket)
         }
         expect(service.instances.size).toBe(0)

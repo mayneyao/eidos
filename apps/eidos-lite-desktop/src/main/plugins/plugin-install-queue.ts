@@ -22,6 +22,7 @@ export class PluginInstallQueue {
   progress(progress: PluginInstallProgress, spaceId?: string): void {
     if (!this.pending.has(this.key(progress.id, spaceId))) return
     this.set({
+      ...this.tasks.get(this.key(progress.id, spaceId)),
       id: progress.id,
       spaceId,
       status: progress.phase,
@@ -32,19 +33,21 @@ export class PluginInstallQueue {
   run(
     id: string,
     install: () => Promise<boolean>,
-    spaceId?: string
+    spaceId?: string,
+    packageToken?: string
   ): Promise<boolean> {
     const key = this.key(id, spaceId)
     const existing = this.pending.get(key)
     if (existing) return existing
-    this.set({ id, spaceId, status: "queued", percent: 0 })
+    this.set({ id, spaceId, packageToken, status: "queued", percent: 0 })
     const result = this.tail.then(async () => {
-      this.set({ id, spaceId, status: "downloading", percent: 0 })
+      this.set({ id, spaceId, packageToken, status: "downloading", percent: 0 })
       try {
         const installed = await install()
         this.set({
           id,
           spaceId,
+          packageToken,
           status: installed ? "installed" : "cancelled",
           percent: installed ? 100 : 0,
         })
@@ -53,6 +56,7 @@ export class PluginInstallQueue {
         this.set({
           id,
           spaceId,
+          packageToken,
           status: "failed",
           percent: 0,
           error: cause instanceof Error ? cause.message : String(cause),

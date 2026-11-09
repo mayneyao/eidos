@@ -10,6 +10,121 @@ import type {
 import type { SpaceTreeEntry } from "../shared/contracts"
 
 const originalApi = Object.getOwnPropertyDescriptor(window, "eidosLite")
+
+it("applies ignore rules to unfiltered folders and rejects a scan after the option changes", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const pending: Array<(entries: SpaceTreeEntry[]) => void> = []
+  const scan = vi.fn(
+    () => new Promise<SpaceTreeEntry[]>((resolve) => pending.push(resolve))
+  )
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { filterSpaceFiles: scan },
+  })
+  const entries: SpaceTreeEntry[] = [
+    {
+      name: "generated.md",
+      relativePath: "generated.md",
+      kind: "file",
+      size: 1,
+      modifiedAtMs: 1,
+    },
+  ]
+  let current!: ReturnType<typeof useExplorerFileFilter>
+  function Harness({ ignore }: { ignore: boolean }) {
+    current = useExplorerFileFilter(
+      "fixture",
+      null,
+      [],
+      entries,
+      undefined,
+      false,
+      ignore
+    )
+    return null
+  }
+  const root = createRoot(document.createElement("div"))
+  try {
+    await act(async () => root.render(<Harness ignore />))
+    expect(scan).toHaveBeenCalledWith([], null, true)
+    await act(async () => root.render(<Harness ignore={false} />))
+    expect(current.entries).toBe(entries)
+    await act(async () => pending[0]!([]))
+    expect(current.entries).toBe(entries)
+    await act(async () => root.render(<Harness ignore />))
+    await act(async () => pending[1]!([]))
+    expect(current.entries).toEqual([])
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
+it("scans unopened folders without filters and rejects another Space's scan", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const pending: Array<(entries: SpaceTreeEntry[]) => void> = []
+  const scan = vi.fn(
+    () => new Promise<SpaceTreeEntry[]>((resolve) => pending.push(resolve))
+  )
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { filterSpaceFiles: scan },
+  })
+  const entries: SpaceTreeEntry[] = [
+    {
+      name: "notes",
+      relativePath: "notes",
+      kind: "directory",
+      modifiedAtMs: 1,
+      size: 0,
+      children: [],
+      childrenLoaded: false,
+    },
+  ]
+  const nested: SpaceTreeEntry = {
+    name: "deep.md",
+    relativePath: "notes/deep.md",
+    kind: "file",
+    size: 1,
+    modifiedAtMs: 2,
+  }
+  let current!: ReturnType<typeof useExplorerFileFilter>
+  function Harness({ space = "first", recursive = false }) {
+    current = useExplorerFileFilter(
+      space,
+      null,
+      [],
+      entries,
+      undefined,
+      recursive
+    )
+    return null
+  }
+  const root = createRoot(document.createElement("div"))
+  try {
+    await act(async () => root.render(<Harness />))
+    expect(scan).not.toHaveBeenCalled()
+    await act(async () => root.render(<Harness recursive />))
+    expect(scan).toHaveBeenCalledWith([], null)
+    expect(current.loading).toBe(true)
+    await act(async () =>
+      pending[0]!([
+        { ...entries[0]!, children: [nested], childrenLoaded: true },
+      ])
+    )
+    expect(current.entries[0]!.children).toEqual([nested])
+    await act(async () => root.render(<Harness recursive space="second" />))
+    expect(current.entries).toBe(entries)
+    await act(async () => root.render(<Harness recursive space="third" />))
+    await act(async () => pending[1]!([nested]))
+    expect(current.entries).toBe(entries)
+    await act(async () => pending[2]!([]))
+    expect(current.entries).toEqual([])
+    await act(async () => root.render(<Harness space="third" />))
+    expect(current.entries).toBe(entries)
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
 afterEach(() => {
   if (originalApi) Object.defineProperty(window, "eidosLite", originalApi)
   else Reflect.deleteProperty(window, "eidosLite")

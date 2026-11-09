@@ -559,7 +559,7 @@ export function PluginPage({
 }: {
   pageKey: string
   onClose(): void
-  onNavigate(key: string): void
+  onNavigate(key: string, reuse?: boolean): void
   onOpenFile?(path: string): void
   onTitleChange?(label: string): void
 }) {

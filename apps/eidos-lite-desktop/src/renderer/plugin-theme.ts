@@ -1,5 +1,7 @@
 /** Resolve shared semantic tokens before crossing the opaque iframe boundary. */
-export function pluginTheme(): Record<string, string> {
+export function pluginTheme(
+  surface: "editor" | "explorer" = "editor"
+): Record<string, string> {
   const style = getComputedStyle(document.documentElement)
   const probe = document.createElement("span")
   probe.hidden = true
@@ -7,7 +9,7 @@ export function pluginTheme(): Record<string, string> {
   const values: Record<string, string> = {}
   try {
     for (const [name, token] of Object.entries({
-      background: "--canvas",
+      background: surface === "explorer" ? "--lite-sidebar" : "--canvas",
       foreground: "--ink",
       muted: "--ink-muted",
       "surface-hover": "--surface-hover",

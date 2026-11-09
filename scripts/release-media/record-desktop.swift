@@ -1,13 +1,63 @@
 import AppKit
 import AVFoundation
 import ScreenCaptureKit
+import Darwin
 
 @available(macOS 15.0, *)
-final class RecordingDelegate: NSObject, SCRecordingOutputDelegate {
+final class RecordingDelegate: NSObject, SCRecordingOutputDelegate, SCStreamOutput {
     var started = false
     var finished = false
     var failure: Error?
+    private let clockLock = NSLock()
+    private var callbackNs: UInt64?
+    private var firstFrame: [String: Any]?
+    private var announced = false
     func recordingOutputDidStartRecording(_ output: SCRecordingOutput) {
+        clockLock.lock()
+        callbackNs = DispatchTime.now().uptimeNanoseconds
+        announceClockIfReady()
+        clockLock.unlock()
+    }
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen, CMSampleBufferIsValid(sampleBuffer), CMSampleBufferGetImageBuffer(sampleBuffer) != nil,
+              let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
+              let frame = attachments.first, let statusValue = frame[.status] as? Int,
+              let status = SCFrameStatus(rawValue: statusValue), status == .complete || status == .started,
+              let ticks = frame[.displayTime] as? UInt64 else { return }
+        clockLock.lock()
+        defer { clockLock.unlock() }
+        guard firstFrame == nil else { return }
+        var timebase = mach_timebase_info_data_t()
+        mach_timebase_info(&timebase)
+        guard timebase.denom > 0 else { return }
+        let numer = UInt64(timebase.numer), denom = UInt64(timebase.denom)
+        let displayNs = (ticks / denom) * numer + (ticks % denom) * numer / denom
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        guard pts.isValid, pts.isNumeric else { return }
+        firstFrame = [
+            "clock": "mach_absolute_time", "displayTimeTicks": String(ticks),
+            "monotonicNs": String(displayNs), "status": statusValue,
+            "timebaseNumer": timebase.numer, "timebaseDenom": timebase.denom,
+            "presentationTimeValue": String(pts.value), "presentationTimeScale": pts.timescale,
+            "observedMonotonicNs": String(DispatchTime.now().uptimeNanoseconds),
+            "recordingOutputAddedBeforeCapture": true
+        ]
+        announceClockIfReady()
+    }
+    // Called with clockLock held. Never start input before both clocks exist.
+    private func announceClockIfReady() {
+        guard !announced, let callbackNs, let firstFrame else { return }
+        announced = true
+        let clock: [String: Any] = [
+            "type": "recording-start", "schemaVersion": 1,
+            "clock": "DispatchTime.uptimeNanoseconds",
+            "monotonicNs": String(callbackNs),
+            "utc": ISO8601DateFormatter().string(from: Date()),
+            "reference": "SCRecordingOutputDelegate.didStartRecording callback",
+            "firstFrame": firstFrame
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: clock, options: [.sortedKeys])
+        print("RECORDING_CLOCK " + String(data: data, encoding: .utf8)!)
         started = true
         print("RECORDING_STARTED")
         fflush(stdout)
@@ -49,6 +99,9 @@ struct Recorder {
         recordingConfig.outputFileType = .mp4
         let output = SCRecordingOutput(configuration: recordingConfig, delegate: delegate)
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        // Both outputs are installed before capture so their first video sample
+        // belongs to the same stream. displayTime supplies a measured media zero.
+        try stream.addStreamOutput(delegate, type: .screen, sampleHandlerQueue: DispatchQueue(label: "eidos.release-media.frame-clock"))
         try stream.addRecordingOutput(output)
         try await stream.startCapture()
         let startDeadline = Date().addingTimeInterval(10)

@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { PluginStorage } from "./plugin-storage"
 import type { PluginBackgroundHost } from "./plugin-background"
+import type { PluginSidecarHost, SidecarBinding } from "./plugin-sidecar"
 import type { JsonValue } from "@eidos.space/plugin-sandbox"
 import { readPluginNetwork } from "./plugin-network"
 import { PluginFetch } from "./plugin-fetch"
@@ -173,7 +174,8 @@ export class PluginService {
     private readonly backgroundOwnerActive: (
       owner: number,
       space: string
-    ) => boolean = () => true
+    ) => boolean = () => true,
+    private readonly sidecars?: PluginSidecarHost
   ) {}
   private async backgroundBinding(
     owner: number,
@@ -210,6 +212,16 @@ export class PluginService {
           throw new PluginError(
             "PERMISSION_DENIED",
             "Plugin storage not granted"
+          )
+        if (
+          ["storage.readVersioned", "storage.compareAndWrite"].includes(
+            method
+          ) &&
+          !pkg.manifest.storage.atomic
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Atomic storage not granted"
           )
         let storage = this.storage.get(pluginId)
         if (!storage) {
@@ -724,6 +736,7 @@ export class PluginService {
         languageData: pluginLanguageData(pkg.manifest, pkg.resources),
         locale: this.locale,
         workerFetch: usesWorkerFetch(pkg.manifest),
+        sidecar: !!pkg.manifest.sidecar && !embedded,
         embedded,
         exportFile: !!this.exportFile,
         ...(table
@@ -847,6 +860,7 @@ export class PluginService {
         languageData: pluginLanguageData(pkg.manifest, pkg.resources),
         locale: this.locale,
         workerFetch: usesWorkerFetch(pkg.manifest),
+        sidecar: !!pkg.manifest.sidecar && !embedded,
         embedded,
         resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
         exportFile: !!this.exportFile,
@@ -981,12 +995,14 @@ export class PluginService {
   }
   closeOwner(owner: number) {
     this.backgroundGenerations.delete(owner)
+    this.sidecars?.closeOwner(owner)
     this.backgrounds?.closeOwner(owner)
     this.formatterContexts.delete(owner)
     for (const [ticket, instance] of this.instances)
       if (instance.owner === owner) this.close(owner, ticket)
   }
   revoke(pluginId: string, spaceId?: string) {
+    this.sidecars?.revoke(pluginId, spaceId)
     this.backgrounds?.revoke(pluginId, spaceId)
     for (const [ticket, instance] of this.instances)
       if (
@@ -1284,6 +1300,113 @@ export class PluginService {
         capabilityScope.assertActive()
         capabilityParams = envelope.args
       }
+      if (request.method.startsWith("sidecar.")) {
+        const pkg = await this.store.read(instance.hash)
+        const cwd = session.canonical.root
+        if (
+          !pkg.manifest.sidecar ||
+          !this.sidecars ||
+          !cwd ||
+          instance.embedded ||
+          instance.extension
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Native sidecar unavailable"
+          )
+        const authorize = async () => {
+          const current = await this.store.binding(
+            instance.pluginId,
+            session.canonical.id
+          )
+          if (
+            !current?.enabled ||
+            current.hash !== instance.hash ||
+            !this.backgroundOwnerActive(owner, session.canonical.id)
+          )
+            throw new PluginError(
+              "PERMISSION_DENIED",
+              "Native process grant revoked"
+            )
+        }
+        const native: SidecarBinding = {
+          owner,
+          space: session.canonical.id,
+          hash: instance.hash,
+          cwd,
+          manifest: this.displayManifest(pkg),
+          authorize,
+        }
+        await authorize()
+        capabilityScope.assertActive()
+        const params = object(capabilityParams ?? {})
+        if (
+          request.method === "sidecar.observe" ||
+          request.method === "sidecar.unobserve"
+        ) {
+          if (
+            typeof params.id !== "string" ||
+            !params.id ||
+            params.id.length > 128
+          )
+            throw new PluginError("INVALID_REQUEST", "Invalid sidecar observer")
+          const observation = params.id
+          if (request.method === "sidecar.unobserve") {
+            instance.observations.get(observation)?.dispose()
+          } else {
+            if (
+              instance.observations.has(observation) ||
+              instance.observations.size >= 64
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Duplicate or excessive observers"
+              )
+            const unsubscribe = this.sidecars.observe(native, (value) => {
+              if (!capabilityScope.signal.aborted)
+                emit({
+                  protocol: PLUGIN_PROTOCOL,
+                  apiVersion: 1,
+                  observation,
+                  value,
+                })
+            })
+            const subscription = {
+              dispose: () => {
+                unsubscribe()
+                instance.observations.delete(observation)
+              },
+            }
+            instance.observations.set(observation, subscription)
+            capabilityScope.subscriptions.add(subscription)
+          }
+          return { response: { ...base, result: null } }
+        }
+        let result: unknown = null
+        switch (request.method) {
+          case "sidecar.status":
+            result = await this.sidecars.status(native)
+            break
+          case "sidecar.start":
+            await this.sidecars.start(
+              native,
+              capabilityScope.signal,
+              params.launch
+            )
+            break
+          case "sidecar.stop":
+            await this.sidecars.stop(native)
+            break
+          case "sidecar.send":
+            await this.sidecars.send(native, (params.data ?? null) as JsonValue)
+            break
+          default:
+            throw new PluginError("INVALID_REQUEST", "Unknown sidecar method")
+        }
+        await authorize()
+        capabilityScope.assertActive()
+        return { response: { ...base, result } }
+      }
       if (request.method.startsWith("background.")) {
         const pkg = await this.store.read(instance.hash)
         if (!pkg.manifest.background || !this.backgrounds || instance.embedded)
@@ -1408,6 +1531,16 @@ export class PluginService {
           throw new PluginError(
             "PERMISSION_DENIED",
             "Plugin storage not granted"
+          )
+        if (
+          ["storage.readVersioned", "storage.compareAndWrite"].includes(
+            request.method
+          ) &&
+          !pkg.manifest.storage.atomic
+        )
+          throw new PluginError(
+            "PERMISSION_DENIED",
+            "Atomic storage not granted"
           )
         let storage = this.storage.get(instance.pluginId)
         if (!storage) {
@@ -2528,7 +2661,11 @@ export class PluginService {
                 ? p.route
                 : await this.store.pageRoute(session.canonical.id, key)
             await this.store.setPageRoute(session.canonical.id, key, route)
-            navigation = { key, route }
+            navigation = {
+              key,
+              route,
+              ...(p.route === undefined ? { reuse: true } : {}),
+            }
             result = null
             break
           }

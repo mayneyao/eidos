@@ -28,6 +28,7 @@ import {
 import { serializeRuntimeWorkerError } from "./runtime-worker-error"
 import { filemeta } from "./filemeta"
 import { inspectEidosMergeTables } from "./merge-table-inspection"
+import { inspectExplorerEidosSummary } from "./explorer-eidos-summary"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -335,6 +336,10 @@ async function runtimeCall(
 
 async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
   switch (request.type) {
+    case "explorerSummary":
+      if (openedRuntime)
+        throw Error("Explorer inspection requires a private worker")
+      return inspectExplorerEidosSummary(request.filePath)
     case "filemeta":
       return filemeta(
         request.root,

@@ -1,15 +1,28 @@
 ## What's new
 
-### Automatic Sync
+### Recent files in the sidebar
 
-Choose **Every 10 minutes**, **After changes**, or **Off** in **Settings → Account & Services → Sync → Automatic Sync**. Every 10 minutes is the default, including for existing connections and custom servers. Only open, connected Spaces participate; local-only folders stay local.
+Switch between **Folders** and **Recent files** to browse your Space by folder or modification date. Recent files groups files into **Today**, **Yesterday**, individual days from the past week, and **Earlier**, with previews to help you find your work.
 
-Lite creates checkpoints of saved changes and exchanges versions while you are idle. Unsaved edits and open configuration editors keep automatic Sync waiting. Conflicts remain available for review in the Sync panel instead of being resolved automatically.
+The existing **Filter files** menu now includes an option to hide files matched by `.gitignore`. It is enabled by default; turn it off to show those files. The setting is shared between the folder tree and Recent files.
+
+### File and text search together
+
+Press **Cmd/Ctrl+P** to search file and folder names, then switch to **Text** to search file contents in the same window. **Cmd/Ctrl+Shift+F** opens Text search directly. The window keeps a consistent height, including when there are no matches.
+
+The sidebar's former full-text search has moved into this Files/Text search window. Sidebar search now quickly filters the directory tree by filename.
+
+### More capabilities for plugins
+
+Plugins can integrate with locally installed command-line programs after you approve native access. Supported plugins can offer executable and argument settings, and use atomic private storage to avoid overwriting concurrent updates. These capabilities are available to plugin developers; no agent plugin is bundled with this release.
 
 ## Improvements
 
-- **Update downloads**: The sidebar shows a compact progress indicator with the download percentage, then offers **Restart to update** when the package is ready.
+- **Diff previews**: Switching files keeps the current preview visible until the next diff is ready. Longer loads show a small toolbar indicator instead of replacing the content with a loading screen.
+- **Plugin appearance**: Plugin views receive the current theme before their first paint, reducing flashes when opening them.
 
 ## Bug fixes
 
-- **New table rows**: Adding a row and immediately editing its cells preserves the entered values instead of reporting a revision error or making the new row disappear.
+- **Local plugin updates**: Opening a local plugin package keeps its review and update actions available, including when the plugin detail page is already open.
+- **Plugin navigation**: Returning to the same plugin page preserves the current view and unsaved input.
+- **Titlebar buttons**: Sidebar, Back, and Forward icons keep the same size when the sidebar opens or closes.

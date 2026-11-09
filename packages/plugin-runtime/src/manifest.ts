@@ -202,6 +202,7 @@ export function parseManifest(input: unknown): PluginManifest {
     [
       "description",
       "extension",
+      "sidecar",
       "background",
       "views",
       "fileTemplates",
@@ -300,9 +301,65 @@ export function parseManifest(input: unknown): PluginManifest {
     )
       invalid("Connection requires a fixed HTTPS URL")
   }
+  if (m.sidecar !== undefined) {
+    const sidecar = record(m.sidecar)
+    fields(
+      sidecar,
+      ["command"],
+      ["args", "configurable", "maxOutputFrameBytes"]
+    )
+    const required = String(record(m.requires).pluginApi).split(".").map(Number)
+    if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 8)))
+      invalid("sidecar requires plugin API 3.8.0 or newer")
+    if (sidecar.configurable !== undefined) {
+      if (typeof sidecar.configurable !== "boolean")
+        invalid("sidecar.configurable must be boolean")
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 9)))
+        invalid("Configurable sidecars require plugin API 3.9.0 or newer")
+    }
+    if (sidecar.maxOutputFrameBytes !== undefined) {
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 12)))
+        invalid(
+          "Sidecar output frame limits require plugin API 3.12.0 or newer"
+        )
+      if (
+        !Number.isSafeInteger(sidecar.maxOutputFrameBytes) ||
+        Number(sidecar.maxOutputFrameBytes) < 1 ||
+        Number(sidecar.maxOutputFrameBytes) > 16 * 1024 * 1024
+      )
+        invalid(
+          "sidecar.maxOutputFrameBytes must be an integer from 1 to 16777216"
+        )
+    }
+    if (
+      typeof sidecar.command !== "string" ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(sidecar.command)
+    )
+      invalid(
+        "Sidecar command must be an executable name, not a path or shell command"
+      )
+    if (
+      sidecar.args !== undefined &&
+      (!Array.isArray(sidecar.args) ||
+        sidecar.args.length > 64 ||
+        sidecar.args.some(
+          (arg) =>
+            typeof arg !== "string" || arg.length > 8192 || arg.includes("\0")
+        ))
+    )
+      invalid("Invalid sidecar arguments")
+  }
   if (m.storage !== undefined) {
     const storage = record(m.storage)
-    fields(storage, ["maxBytes"])
+    fields(storage, ["maxBytes"], ["atomic"])
+    if (storage.atomic !== undefined) {
+      const required = String(record(m.requires).pluginApi)
+        .split(".")
+        .map(Number)
+      if (storage.atomic !== true) invalid("storage.atomic must be true")
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 11)))
+        invalid("Atomic storage requires plugin API 3.11.0 or newer")
+    }
     if (
       !Number.isSafeInteger(storage.maxBytes) ||
       Number(storage.maxBytes) < 1 ||
@@ -610,6 +667,7 @@ export function parseManifest(input: unknown): PluginManifest {
       hooks.length ||
       m.extension ||
       m.background ||
+      m.sidecar ||
       m.placements ||
       m.settings ||
       m.storage ||

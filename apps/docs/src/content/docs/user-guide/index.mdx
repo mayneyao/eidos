@@ -11,6 +11,20 @@ Local files remain available offline without an account.
 Eidos File stores structured data in portable SQLite files.
 Lite provides folder navigation, local history, and optional Sync.
 
+## Browse recent files
+
+The Explorer's folder and **Recent files** layouts respect directory-scoped `.gitignore` files
+by default, including separate repositories inside one Space. Ignored directories
+are skipped before scanning their contents.
+
+Open **Filter** in either layout and toggle **Hide files matched by .gitignore**
+to include or hide those files. Both layouts share this preference; Lite remembers
+it on this device. It combines with file filter conditions and applies to recent
+and **Earlier** results and counts. Quick Open and full-text search retain their
+own scope. This filters `.gitignore` patterns without changing files, Git tracking,
+or Sync rules. Patterns are case-sensitive, and nested rules may override parent
+rules except inside an already excluded directory.
+
 ## Learn by making a book list
 
 [Install and open a Space](/getting-started/eidos-lite/).

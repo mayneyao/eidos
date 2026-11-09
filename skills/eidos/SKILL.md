@@ -12,6 +12,11 @@ authoring uses `@eidos.space/plugin-tools`; `eidos plugin` manages installed
 packages. Do not require the Eidos CLI for a source-only plugin task, or apply
 the data-mutation workflow below to plugin source files.
 
+For a Lite sidebar / Explorer plugin, also read
+[references/sidebar-design.md](references/sidebar-design.md) before building its
+layout or preview. It defines host/plugin geometry ownership, sidebar density,
+scrolling, alignment and validation in the actual Lite shell.
+
 Use `eidos` as the typed transaction boundary for `.eidos` files and their File-field attachments. Use ordinary filesystem tools for standalone Markdown, and Graft for history or sync when an enclosing directory has `.graft`.
 
 Before the first Eidos CLI operation, run `eidos --version`. If the command is unavailable, stop the CLI-dependent operation and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request. Independent plugin source work can continue.

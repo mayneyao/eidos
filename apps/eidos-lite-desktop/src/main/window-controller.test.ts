@@ -120,7 +120,18 @@ it("routes install links to a workbench instead of the focused Settings window",
   ;(
     controller as unknown as { sessionByWebContents: Map<number, unknown> }
   ).sessionByWebContents.set(2, session("space-2"))
-  expect(await controller.showPluginInstall("test.plugin")).toBe(workbench)
+  const ready = vi.fn(() =>
+    expect(workbench.webContents.send).not.toHaveBeenCalled()
+  )
+  expect(
+    await controller.showPluginInstall(
+      "test.plugin",
+      undefined,
+      undefined,
+      ready
+    )
+  ).toBe(workbench)
+  expect(ready).toHaveBeenCalledWith(workbench)
   expect(window.webContents.send).not.toHaveBeenCalled()
   expect(controller.getPluginInstallIntent(owner)).toBeNull()
   const contents = workbench.webContents as unknown as WebContents
@@ -147,6 +158,28 @@ it("restores the last Space before presenting a cold plugin install", async () =
   expect(startup).toHaveBeenCalledOnce()
   expect(reopen).toHaveBeenCalledWith(window)
   expect(controller.getPluginInstallIntent(owner)?.id).toBe("test.plugin")
+})
+
+it("does not replace the current install intent when package registration is rejected", async () => {
+  const { controller, window, owner, contents } = fixture()
+  ;(
+    controller as unknown as { sessionByWebContents: Map<number, unknown> }
+  ).sessionByWebContents.set(owner.id, session("space-one"))
+  await controller.showPluginInstall("test.accepted")
+  const accepted = controller.getPluginInstallIntent(owner)
+  contents.send.mockClear()
+  await expect(
+    controller.showPluginInstall(
+      "test.rejected",
+      undefined,
+      window as unknown as BrowserWindow,
+      () => {
+        throw new Error("Review capacity reached")
+      }
+    )
+  ).rejects.toThrow("Review capacity reached")
+  expect(contents.send).not.toHaveBeenCalled()
+  expect(controller.getPluginInstallIntent(owner)).toEqual(accepted)
 })
 function session(id: string) {
   const snapshot = { id, name: id } as SpaceSnapshot

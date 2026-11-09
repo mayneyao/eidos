@@ -1,0 +1,112 @@
+---
+title: Use an installed native program
+description: Declare a local program, request startup approval and exchange JSON messages from a Lite View.
+---
+
+Lite Plugin API `3.8.0` lets a standalone page or file View communicate with an
+already installed program through `ctx.capabilities.sidecar`. The plugin declares
+the program name and fixed arguments; Lite owns discovery, startup approval,
+message transport and process cleanup. CLI Serve and mobile do not provide this
+capability. Check the target with matching SDK/tools before packaging.
+
+The native program runs with the operating system permissions of the user.
+JavaScript filesystem and network declarations do not restrict it. A program's
+read-only tool setting is not an OS sandbox. Review the program and its tool
+policy separately from the plugin's JavaScript permissions.
+
+## Declare the program
+
+This example uses `example-agent` as a placeholder for an installed program
+that reads and writes LF-delimited JSON. Use arguments supported by that program:
+
+```json
+{
+  "apiVersion": 1,
+  "id": "local.agent",
+  "name": "Local agent",
+  "version": "0.1.0",
+  "requires": { "pluginApi": "3.8.0" },
+  "sidecar": { "command": "example-agent", "args": [] },
+  "views": [
+    { "id": "chat", "title": "Agent", "kind": "page", "entry": "./main.ts" }
+  ],
+  "placements": [{ "location": "navigation", "view": "chat" }]
+}
+```
+
+`command` must be an executable basename, not a path or shell command. Up to 64
+arguments are fixed in the manifest. There is no caller-supplied cwd, environment,
+dynamic argument, installation or download API. Lite uses the canonical Space
+folder as cwd. Absolute PATH directories and standard user/system locations are
+searched; the current Space and links resolving inside it are excluded. Normal
+installed-program symlinks outside the Space can be used.
+
+No shell interprets the arguments. Windows `.cmd` and `.bat` shims cannot be used;
+verify executable discovery and cleanup on every OS you intend to support.
+
+## Start from the user's action
+
+Feature-detect `ctx.capabilities.sidecar`. `status()` only discovers the program:
+it never executes it or prompts. `available` does not verify the program version.
+Call `start()` when the user creates a task or sends a message. Lite checks
+consent for the current Space, plugin revision and actual program. Installation
+or enablement can review the executable, fixed arguments, working folder and OS
+access together. If the program could not be resolved then, first use asks for
+that review. A cancelled or expired approval leaves the user able to retry.
+
+`start()` reuses an existing owned run. Consent survives host restart. A changed
+package, program path/content, arguments or Space root needs a matching new
+review; disabling or uninstalling revokes consent. Stop only ends the process.
+New approval requests have a five-minute deadline. Startup success means the OS accepted the
+executable; negotiate protocol readiness and program compatibility yourself.
+
+## Exchange messages and reattach
+
+In a View, subscribe before sending protocol commands:
+
+```ts
+const native = ctx.capabilities.sidecar
+if (!native) throw new Error("Native programs are unavailable in this host")
+ctx.subscriptions.add(
+  await native.onEvent((event) => {
+    // Render event data as text, handle protocol errors and reject stale results.
+    console.log(event)
+  })
+)
+// In the user's task or send handler:
+await native.start()
+// Use the installed program's actual protocol, with your own request IDs.
+await native.send({ type: "get_state", id: "state-1" })
+```
+
+`send()` writes one JSON value plus LF; it does not wait for a protocol reply.
+The input frame including LF is limited to 1 MiB, and pending stdin including the
+incoming frame to 4 MiB. stdout must be LF-delimited JSON; CRLF is accepted.
+Unicode U+2028/U+2029 remain ordinary string content. Events are `message`,
+`stderr`, `error` and `exit`. Malformed or oversized output stops the process.
+See the [API reference](/plugins/api/sidecar/) for rate limits and signatures.
+
+Programs that return large histories in one response can opt into
+`sidecar.maxOutputFrameBytes` with `requires.pluginApi: "3.12.0"`. Set an integer
+from 1 to 16777216 bytes; the default remains 1048576 bytes. This counts the UTF-8
+JSON record excluding CRLF and does not change the stdin limits. The stdout rate
+limit is the greater of 16 MiB/s and twice the declared record limit per second.
+For example, `"maxOutputFrameBytes": 16777216` accepts records up to 16 MiB and
+permits 32 MiB/s. The feature is `sidecar.outputFrameLimit`, available only in
+Lite. Use matching SDK/tools and check the installed host before packaging.
+Keep the first `error` visible when `exit` follows; do not replace it with a
+generic disconnection message or silently discard history to fit the transport.
+
+Each owner window, Space, plugin and package revision shares one process.
+Closing a View only detaches its observers. Events are not replayed: returning
+to the page should query native state and message history. A session sidebar can
+use the existing [Explorer contribution](/plugins/explorer/) and
+`ui.navigate("chat", route)` to open a conversation in the main area. Optional
+plugin-private storage or a JavaScript background can coordinate selection and
+drafts; that background cannot launch the native process.
+
+Provide visible progress, recoverable startup errors and a way to stop generation
+using the program's protocol. `sidecar.stop()` ends the shared process. Disabling
+or updating the plugin, leaving the Space, closing its owner window or quitting
+Lite also ends it. A later run requires new approval. Stopping does not undo native
+side effects or delete the program's own conversation files.

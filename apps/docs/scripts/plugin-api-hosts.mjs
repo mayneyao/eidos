@@ -2,6 +2,12 @@
 // Sources: Lite plugin IPC, Serve plugin-view.tsx, mobile-plugin-host/src/host.ts
 // and mobile-plugin-host/src/profile.ts. Member entries override interface defaults.
 export const apiHosts = {
+  PluginSidecar: ["Lite"],
+  SidecarStatus: ["Lite"],
+  SidecarLaunch: ["Lite"],
+  SidecarEvent: ["Lite"],
+  "PluginManifest.sidecar": ["Lite"],
+  "CommonCapabilities.sidecar": ["Lite"],
   PluginBackground: ["Lite"],
   BackgroundHost: ["Lite"],
   FileOpenedEvent: ["Lite"],
@@ -9,6 +15,8 @@ export const apiHosts = {
   PluginEventMap: ["Lite"],
   PluginFileMeta: ["Lite"],
   PluginStorage: ["Lite"],
+  StorageSnapshot: ["Lite"],
+  StorageWriteResult: ["Lite"],
   PluginNetwork: ["Lite"],
   ExplorerContext: ["Lite"],
   HostResources: ["Lite"],

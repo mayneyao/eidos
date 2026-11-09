@@ -12,6 +12,7 @@ import type {
 } from "@eidos.space/plugin-sdk"
 import { PluginStore } from "./plugin-store"
 import { PluginBackgroundHost } from "./plugin-background"
+import { PluginSidecarHost } from "./plugin-sidecar"
 import { PluginService, type PluginDocumentSession } from "./plugin-service"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
 const manifest: PluginManifest = {
@@ -395,6 +396,71 @@ const rpc = (
 const open = async () =>
   (await service.open(1, session, "data.csv", "example.csv/table")).instance!
     .ticket
+
+it("brokers declared native sidecars with host-owned cwd and rejects undeclared, embedded and foreign callers", async () => {
+  const native = new PluginSidecarHost(async () => true)
+  const status = vi
+    .spyOn(native, "status")
+    .mockResolvedValue({ command: "pi", available: true, running: false })
+  const closeOwner = vi.spyOn(native, "closeOwner")
+  const revoke = vi.spyOn(native, "revoke")
+  service = new PluginService(
+    store,
+    undefined,
+    undefined,
+    undefined,
+    () => true,
+    native
+  )
+  session.canonical.root = root
+  const denied = await rpc(await open(), "sidecar.status")
+  expect(denied.response).toMatchObject({
+    error: { code: "PERMISSION_DENIED" },
+  })
+  expect(status).not.toHaveBeenCalled()
+  const declaration: PluginManifest = {
+    apiVersion: 1,
+    id: "example.native",
+    name: "Native",
+    version: "1.0.0",
+    requires: { pluginApi: "3.8.0" },
+    sidecar: { command: "pi", args: ["--mode", "rpc"] },
+    views: [{ id: "chat", title: "Chat", kind: "page", entry: "./main.ts" }],
+    placements: [{ location: "sidebar/explorer", view: "chat" }],
+  }
+  await store.install(encodePackage(declaration, modules), "space-a")
+  await store.enable(declaration.id, true, "space-a")
+  const page = (await service.openPage(1, session, "example.native/chat"))
+    .instance!
+  expect(
+    (await rpc(page.ticket, "sidecar.status", { cwd: "/untrusted" })).response
+  ).toMatchObject({ result: { available: true } })
+  expect(status.mock.calls[0][0].cwd).toBe(root)
+  expect(
+    (await rpc(page.ticket, "sidecar.status", null, 2)).response
+  ).toMatchObject({ error: { code: "INSTANCE_CLOSED" } })
+  const embedded = (
+    await service.openPage(
+      1,
+      session,
+      "example.native/chat",
+      "",
+      undefined,
+      undefined,
+      true
+    )
+  ).instance!
+  expect((await rpc(embedded.ticket, "sidecar.start")).response).toMatchObject({
+    error: { code: "PERMISSION_DENIED" },
+  })
+  await store.enable(declaration.id, false, "space-a")
+  await expect(status.mock.calls[0][0].authorize()).rejects.toThrow("revoked")
+  service.revoke(declaration.id, "space-a")
+  expect(revoke).toHaveBeenCalledWith(declaration.id, "space-a")
+  service.closeOwner(1)
+  expect(closeOwner).toHaveBeenCalledWith(1)
+  native.close()
+})
 
 it("keeps embedded file content in the workbench and enforces Space read access", async () => {
   await fs.writeFile(path.join(root, "notes.md"), "# Notes")
@@ -1204,6 +1270,10 @@ describe("Lite document-view integration", () => {
     )
     const granted = await open()
     expect(
+      (await rpc(granted, "storage.readVersioned", { key: "sprite@2x" }))
+        .response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+    expect(
       (await rpc(granted, "storage.write", { key: "sprite@2x", data: "AP8B" }))
         .response
     ).toMatchObject({ result: null })
@@ -1216,6 +1286,58 @@ describe("Lite document-view integration", () => {
     await store.enable("example.csv", false, "space-a")
     expect(
       (await rpc(granted, "storage.read", { key: "sprite@2x" })).response
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
+  })
+  it("grants atomic storage only to live declared owners and keeps conflicts non-writing", async () => {
+    service.closeOwner(1)
+    await store.install(
+      encodePackage(
+        {
+          ...manifest,
+          requires: { pluginApi: "3.11.0" },
+          storage: { maxBytes: 100, atomic: true },
+        },
+        modules
+      ),
+      "space-a"
+    )
+    const ticket = await open()
+    expect(
+      (await rpc(ticket, "storage.readVersioned", { key: "a" })).response
+    ).toMatchObject({ result: { data: null, version: null } })
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "YQ==",
+        })
+      ).response
+    ).toMatchObject({ result: { applied: true } })
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "Yg==",
+        })
+      ).response
+    ).toMatchObject({ result: { applied: false } })
+    expect(
+      (await rpc(ticket, "storage.read", { key: "a" })).response
+    ).toMatchObject({ result: "YQ==" })
+    expect(
+      (await rpc(ticket, "storage.readVersioned", { key: "a" }, 2)).response
+    ).toMatchObject({ error: { code: "INSTANCE_CLOSED" } })
+    await store.enable("example.csv", false, "space-a")
+    expect(
+      (
+        await rpc(ticket, "storage.compareAndWrite", {
+          key: "a",
+          expectedVersion: null,
+          data: "Yg==",
+        })
+      ).response
     ).toMatchObject({ error: { code: "PERMISSION_DENIED" } })
   })
   it("authorizes table adapters only for live table instances in their owning Space", async () => {
@@ -1480,6 +1602,25 @@ describe("Lite document-view integration", () => {
     ).toMatchObject({
       navigation: { key: "example.page/home", route: "week/43" },
     })
+    expect(
+      await rpc(page.ticket, "ui.navigate", { viewId: "home" })
+    ).toMatchObject({
+      navigation: {
+        key: "example.page/home",
+        route: "week/43",
+        reuse: true,
+      },
+    })
+    expect(service.instances.has(page.ticket)).toBe(true)
+    const explicitEmpty = await rpc(page.ticket, "ui.navigate", {
+      viewId: "home",
+      route: "",
+    })
+    expect(explicitEmpty.navigation).toEqual({
+      key: "example.page/home",
+      route: "",
+    })
+    await rpc(page.ticket, "ui.navigate", { viewId: "home", route: "week/43" })
     expect(
       await rpc(page.ticket, "ui.navigate", { viewId: "other.plugin/home" })
     ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })

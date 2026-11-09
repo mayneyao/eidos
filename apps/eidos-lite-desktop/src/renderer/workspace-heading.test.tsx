@@ -189,7 +189,7 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
     )
   try {
     await act(async () => root.render(<WorkspaceHeading {...props} />))
-    await click("Search Space text")
+    await click("Filter tree by name")
     expect(search).toHaveBeenCalledOnce()
     await click("Create")
     expect(host.querySelectorAll('[role="group"] button')).toHaveLength(2)
@@ -220,7 +220,9 @@ it("opens heading actions, dismisses outside or with Escape, and switches to a b
     await act(async () =>
       root.render(<WorkspaceHeading {...props} searching />)
     )
-    expect(host.querySelector('[aria-label="Search Space text"]')).toBeNull()
+    expect(
+      host.querySelector('button[aria-label="Filter tree by name"]')
+    ).toBeNull()
     const input = host.querySelector("input")!
     expect(document.activeElement).toBe(input)
     expect(input.value).toBe("saved query")

@@ -18,6 +18,7 @@ import {
 import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { loadRecentFiles, storeRecentFiles } from "./recent-files"
+import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 
 const surface = vi.hoisted(() =>
   vi.fn<
@@ -38,11 +39,17 @@ vi.mock("./markdown-editor-surface", () => ({
 vi.mock("./space-file-tree", () => ({
   SpaceFileTree: ({
     onContextMenu,
+    nameQuery,
+    visible,
   }: {
     onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
+    nameQuery?: string
+    visible?: boolean
   }) => (
     <button
       data-test-folder-menu
+      data-test-name-query={nameQuery}
+      data-test-tree-visible={visible}
       onClick={() =>
         onContextMenu(
           {
@@ -154,6 +161,8 @@ afterEach(async () => {
   root = undefined
   host.remove()
   textDraftLifecycle.release()
+  window.localStorage.clear()
+  window.sessionStorage.clear()
   vi.unstubAllGlobals()
 })
 
@@ -212,6 +221,9 @@ function installHost(overrides: Record<string, unknown>) {
     setFormatterContext: vi.fn(async () => undefined),
     setPluginShortcuts: vi.fn(async () => []),
     getSpace: async () => staleSpace,
+    filterSpaceFiles: vi.fn<EidosLiteApi["filterSpaceFiles"]>(
+      async () => staleSpace.entries
+    ),
     listPlugins: async () => ({ plugins: [], space: { id: "s" } }),
     listRecentSpaces: async () => [],
     listPublicationBindings: async () => [],
@@ -234,6 +246,299 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+it("retains the main plugin iframe for route-free navigation and reopens explicit routes or different pages", async () => {
+  const pageKey = "test.agent/chat"
+  window.history.replaceState(
+    null,
+    "",
+    navigationHash("s", { type: "plugin-page", key: pageKey })
+  )
+  let nextTicket = 0
+  const openPage = vi.fn(async (key: string) => ({
+    instance: {
+      ticket: "page-" + ++nextTicket,
+      url: "eidos-plugin://chat/index.html",
+      editor: { key, label: "Conversation", pluginName: "Agent" },
+    },
+  }))
+  const close = vi.fn(async () => {})
+  installHost({
+    previewTextFile: async () => initial,
+    openPluginPage: openPage,
+    closePluginEditor: close,
+    pluginRequest: async (
+      _ticket: string,
+      request: { id: string; params: { viewId: string; route?: string } }
+    ) => ({
+      response: {
+        protocol: "eidos-plugin",
+        apiVersion: 1,
+        id: request.id,
+        result: null,
+      },
+      navigation: {
+        key: "test.agent/" + request.params.viewId,
+        route: request.params.route ?? "",
+        ...(request.params.route === undefined ? { reuse: true } : {}),
+      },
+    }),
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector(".plugin-page iframe")).not.toBeNull()
+  )
+  const first = host.querySelector<HTMLIFrameElement>(".plugin-page iframe")!
+  const navigate = async (viewId: string, route?: string) => {
+    const frame = host.querySelector<HTMLIFrameElement>(".plugin-page iframe")!
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: frame.contentWindow,
+          data: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            id: crypto.randomUUID(),
+            method: "ui.navigate",
+            params: { viewId, ...(route === undefined ? {} : { route }) },
+          },
+        })
+      )
+    })
+  }
+  await navigate("chat")
+  await navigate("chat")
+  expect(host.querySelector(".plugin-page iframe")).toBe(first)
+  expect(openPage).toHaveBeenCalledTimes(1)
+  expect(close).not.toHaveBeenCalled()
+
+  await navigate("chat", "")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(2))
+  const explicitEmpty = host.querySelector(".plugin-page iframe")
+  expect(explicitEmpty).not.toBe(first)
+  expect(close).toHaveBeenCalled()
+
+  await navigate("chat", "session-2")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(3))
+  const explicitSession = host.querySelector(".plugin-page iframe")
+  expect(explicitSession).not.toBe(explicitEmpty)
+
+  await navigate("other")
+  await vi.waitFor(() => expect(openPage).toHaveBeenCalledTimes(4))
+  expect(openPage).toHaveBeenLastCalledWith("test.agent/other")
+  expect(host.querySelector(".plugin-page iframe")).not.toBe(explicitSession)
+})
+
+it("preserves date/plugin switching while tree filtering and modal search own separate queries", async () => {
+  let selected: string | null = null
+  const shortcuts = new Set<(command: EidosLiteShortcutCommand) => void>()
+  const folder: SpaceTreeEntry = {
+    name: "business",
+    relativePath: "business",
+    kind: "directory",
+    size: 0,
+    modifiedAtMs: 1,
+    childrenLoaded: true,
+    children: [],
+  }
+  const space = { ...staleSpace, entries: [...staleSpace.entries, folder] }
+  const paths = vi.fn(async () => [{ ...folder, score: 1 }])
+  const preview = vi.fn(async () => initial)
+  const showModal = Object.getOwnPropertyDescriptor(
+    HTMLDialogElement.prototype,
+    "showModal"
+  )
+  const closeDialog = Object.getOwnPropertyDescriptor(
+    HTMLDialogElement.prototype,
+    "close"
+  )
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = true
+      },
+    },
+    close: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = false
+      },
+    },
+  })
+  const listFiles = vi.fn(async () => ({
+    entries: [],
+    earlierCount: 0,
+    total: 0,
+    hasMore: false,
+  }))
+  const chooseExplorer = vi.fn(async (key: string | null) => {
+    selected = key
+  })
+  const openExplorer = vi.fn(async () => ({
+    instance: null,
+    warning: "Preview unavailable",
+  }))
+  installHost({
+    getSpace: async () => space,
+    previewTextFile: preview,
+    reportFileOpened: async () => undefined,
+    listExplorerFiles: listFiles,
+    filterSpaceFiles: async () => space.entries,
+    searchSpacePaths: paths,
+    onWorkspaceShortcutCommand: (
+      listener: (command: EidosLiteShortcutCommand) => void
+    ) => {
+      shortcuts.add(listener)
+      return () => shortcuts.delete(listener)
+    },
+    listPlugins: async () => ({
+      plugins: [
+        {
+          enabled: true,
+          hash: "tags-v1",
+          manifest: {
+            apiVersion: 1,
+            id: "demo.tags",
+            name: "Tags Explorer",
+            version: "0.1.0",
+            views: [
+              { id: "tags", title: "Tags", kind: "page", entry: "./main.ts" },
+            ],
+            placements: [{ location: "sidebar/explorer", view: "tags" }],
+          },
+        },
+      ],
+      space: { explorer: selected },
+    }),
+    setPluginExplorer: chooseExplorer,
+    openPluginExplorer: openExplorer,
+  })
+  try {
+    await act(async () => root!.render(<App />))
+    await vi.waitFor(() =>
+      expect(host.querySelector('[aria-label="Tags"]')).not.toBeNull()
+    )
+    const click = async (label: string) => {
+      const button = host.querySelector<HTMLButtonElement>(
+        `button[aria-label="${label}"]`
+      )
+      expect(button).not.toBeNull()
+      await act(async () => button!.click())
+    }
+    await click("Recent files")
+    await vi.waitFor(() => expect(listFiles).toHaveBeenCalledTimes(1))
+    expect(
+      host
+        .querySelector('[data-layout="modified"]')
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
+    await click("Tags")
+    await vi.waitFor(() =>
+      expect(openExplorer).toHaveBeenCalledWith("demo.tags/tags", {
+        activePath: oldPath,
+        rootDirectory: null,
+        sort: { by: "name", direction: "ascending" },
+      })
+    )
+    expect(chooseExplorer).toHaveBeenCalledWith("demo.tags/tags")
+    expect(host.textContent).toContain(
+      "Plugin explorer unavailable. Showing built-in explorer."
+    )
+    await click("Folders")
+    await vi.waitFor(() =>
+      expect(chooseExplorer).toHaveBeenLastCalledWith(null)
+    )
+    await click("Filter tree by name")
+    const filter = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Filter tree by name"]'
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(filter, "old")
+      filter.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(host.querySelector('[data-test-name-query="old"]')).not.toBeNull()
+    expect(host.querySelector('[data-test-tree-visible="true"]')).not.toBeNull()
+    expect(
+      host.querySelector('[data-layout="tree"]')?.getAttribute("aria-pressed")
+    ).toBe("true")
+    expect(listFiles).toHaveBeenCalledTimes(1)
+    const editor = host.querySelector("[data-test-markdown]")
+    const reads = preview.mock.calls.length
+    const invoke = async (command: EidosLiteShortcutCommand) => {
+      await act(async () => {
+        for (const listener of [...shortcuts]) listener(command)
+      })
+    }
+    await invoke("search-space-text")
+    const dialog = host.querySelector("dialog")!
+    expect(
+      dialog.querySelector('[aria-label="Search saved text"]')
+    ).not.toBeNull()
+    await invoke("quick-open")
+    expect(host.querySelector("dialog")).toBe(dialog)
+    expect(
+      dialog.querySelector('[aria-label="Search files by name"]')
+    ).not.toBeNull()
+    await invoke("search-space-text")
+    expect(
+      dialog.querySelector('[aria-label="Search saved text"]')
+    ).not.toBeNull()
+    await act(async () =>
+      dialog
+        .querySelector<HTMLButtonElement>('[aria-label="Close search"]')!
+        .click()
+    )
+    expect(filter.value).toBe("old")
+    expect(host.querySelector("[data-test-markdown]")).toBe(editor)
+    expect(preview).toHaveBeenCalledTimes(reads)
+    await click("Recent files")
+    expect(
+      host.querySelector('input[aria-label="Filter tree by name"]')
+    ).toBeNull()
+    expect(host.querySelector('[data-test-name-query=""]')).not.toBeNull()
+    expect(listFiles).toHaveBeenCalledTimes(1)
+    await click("Tags")
+    await invoke("quick-open")
+    const input = host.querySelector<HTMLInputElement>("dialog input")!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, "business")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await vi.waitFor(() =>
+      expect(paths).toHaveBeenCalledWith("business", 50, true)
+    )
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    expect(host.querySelector("dialog")).toBeNull()
+    expect(
+      host.querySelector('[data-layout="tree"]')?.getAttribute("aria-pressed")
+    ).toBe("true")
+    expect(chooseExplorer).toHaveBeenLastCalledWith(null)
+    expect(
+      host.querySelector('[aria-label="Folder path"]')?.textContent
+    ).toContain("business")
+    expect(preview).toHaveBeenCalledTimes(reads)
+  } finally {
+    await act(async () => root!.unmount())
+    root = undefined
+    if (showModal)
+      Object.defineProperty(HTMLDialogElement.prototype, "showModal", showModal)
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal")
+    if (closeDialog)
+      Object.defineProperty(HTMLDialogElement.prototype, "close", closeDialog)
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, "close")
+  }
+})
 
 it("keeps typing during an automatic local apply and delayed preview refresh with its old revision", async () => {
   let changed!: (snapshot: SpaceSnapshot) => void

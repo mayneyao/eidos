@@ -1,10 +1,92 @@
-# Eidos Plugins — API 3.7
+# Eidos Plugins — API 3.12
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.7.0
+Plugin API: 3.12.0
 
 Canonical language: English
+
+## Local native sidecars
+
+Lite API 3.8 accepts `sidecar: { command, args? }`. `command` is an executable
+basename (ASCII letters, digits, dot, underscore and hyphen), not a path or shell
+expression. Up to 64 arguments are fixed by the package. Source and archives
+contain no native executable; Lite discovers an already installed program in
+absolute PATH entries and standard user/system binary locations. The current
+Space MUST NOT participate in executable discovery. CLI Serve and mobile do not
+advertise this feature. A declaring package MUST require plugin API 3.8.0 or later.
+
+Page and file Views use `ctx.capabilities.sidecar.status/start/stop/send/onEvent`.
+Embedded resources and extensions cannot use this capability. Status and event
+subscription MUST NOT start, install or download anything. Start requires native
+host approval showing the resolved executable, fixed arguments, working folder
+and OS-level access. Approval MAY be included in an explicit installation or
+enablement review when the program can be resolved. Otherwise the first use
+MUST request it. The host MUST persist consent per Space and exact package hash,
+bound to the executable path, resolved target, file content, argv and canonical
+Space root. Unchanged grants MUST be reusable after host restart. Missing or
+changed program identity requires renewed approval; unresolved programs MUST NOT
+be granted by installation. Disabling or uninstalling revokes consent.
+The native process is trusted code outside the JavaScript
+capability sandbox; filesystem and network declarations do not constrain it.
+The host supplies the canonical Space root as cwd and never invokes a shell.
+
+Each owner-window/Space/plugin/package revision owns one process. Closing a View
+only unsubscribes; another View can attach to the same run. Stop, revocation,
+package changes, owner closure and host shutdown cancel pending startup and stop
+the owned process group/tree. Approval is bounded to five minutes and late
+approval MUST NOT launch a process after cancellation. A new run MUST verify a
+matching grant or request approval. Installation and enablement review do not
+themselves launch a native process. Stopping a run does not revoke consent.
+No automatic startup or crash restart is implied. Native side effects are not
+undone by stopping. Native programs MUST use canonical Runtime operations when
+modifying Eidos data; native execution itself cannot enforce this convention.
+
+API 3.9 adds `sidecar.configurable?: boolean`. A package declaring this field MUST
+require API 3.9.0 or later. Only a package opting in with `true` may call
+`start({ command, args })` to replace its default executable and argument vector.
+The override command MUST be an executable basename or absolute path, never a
+shell expression or a relative path. Absolute executables inside the Space are
+also prohibited. Overrides accept up to 64 arguments of at most 8192 UTF-16 code
+units each, with no NUL. The host MUST review and persist the effective launch
+identity using the same consent rules as fixed launches; installation approval
+of defaults does not approve arbitrary overrides. Packages without this opt-in
+MUST reject overrides. Cwd and environment are host-owned and cannot be overridden.
+`status().launch` reports the actual running or pending `{ command, args }`.
+Starting with a different launch while a process exists MUST fail without
+changing it. `stop()` MUST await exit or cancelled startup before resolving so
+an explicit configuration apply can start a replacement safely.
+
+`send` writes one JSON record followed by LF to stdin. stdout MUST contain JSON
+records delimited only by LF; Unicode U+2028/U+2029 are ordinary string content.
+`onEvent` receives `message { data }`, `stderr { text }`, `error { message }`, and
+`exit { code, signal }` envelopes. stdin records including LF are limited to 1 MiB,
+and pending stdin including the incoming record to 4 MiB. stdout accepts CRLF;
+its JSON records default to 1 MiB in UTF-8 bytes, excluding CRLF. stderr is dropped
+beyond 1 MiB/s. Owners MUST dispose
+subscriptions and reject stale asynchronous results. The host rechecks the
+current Space, enablement and package revision for every operation. Process
+startup means the OS accepted the executable; protocol readiness is the plugin's
+responsibility. A native agent's tool approvals are separate from startup approval.
+
+API 3.12 adds manifest-only `sidecar.maxOutputFrameBytes?: number`. A declaring
+package MUST require API 3.12.0 or later; Lite advertises the feature
+`sidecar.outputFrameLimit`, while CLI Serve and mobile MUST NOT advertise it.
+The value MUST be a safe integer from 1 to 16777216 inclusive. It replaces only
+the stdout record limit; omission preserves 1048576 bytes. Runtime launch
+overrides MUST NOT supply or change it. The stdout aggregate byte budget in each
+one-second window MUST be `max(16777216, 2 * outputRecordLimit)`, including
+delimiters: default 16 MiB, maximum 32 MiB. stdin, pending stdin and stderr budgets
+are unchanged. This permits an exact 16 MiB JSON record with CRLF while retaining
+a separate bounded aggregate output budget.
+
+Malformed JSON, records over the declared/default limit and aggregate stdout
+budget violations MUST emit an `error` and terminate the owned process. After a
+fatal error, the host MUST discard pending output and MUST NOT parse further
+records or replace the first error with an incomplete-record error. Consumers
+MUST retain the original transport failure when the subsequent `exit` arrives,
+reject pending requests and allow explicit reconnection. No history truncation,
+unbounded buffering or automatic crash restart is implied.
 
 ## Localization
 
@@ -67,7 +149,11 @@ API 3.6 accepts optional `background.autoStart: true`. Lite MUST attempt startup
 when an enabled plugin's Space opens and when that plugin is enabled. Startup uses
 the same singleton and permissions as explicit startup. Approval MUST disclose
 automatic startup and be stored per Space and exact package hash. Disabling revokes
-approval; a changed package requires renewed approval. Manual stop or failure MUST
+approval; a changed package requires renewed review. Explicit installation or
+enablement review MAY cover background startup and MUST disclose its network,
+file-history and private-storage authority. On-demand backgrounds MUST persist
+the same per-Space, per-revision consent, without requiring autoStart. Cancellation
+MUST NOT create a grant. Manual stop or failure MUST
 NOT trigger automatic retries within the Space session. Closing the Space ends
 the run. Automatic startup does not restore memory or grant Bluetooth devices.
 
@@ -90,7 +176,7 @@ With `storage.maxBytes`, background `storage` exposes the existing plugin-privat
 binary object API and quota. Hosts MUST enforce the current plugin grant, serialize
 storage operations with View/action operations, atomically replace written objects,
 and reject writes after revocation. Storage is device-local, plugin-scoped and shared
-across Spaces; read-modify-write is not a transaction. Plugins must partition keys
+across Spaces; ordinary read followed by unconditional write is not a transaction. Plugins must partition keys
 as needed. Timers provide no persistence guarantee: unflushed state can be lost on
 termination. `background.isRunning()` MUST NOT start a worker or request permission.
 Private host-service frames MUST NOT reach application message observers.
@@ -451,6 +537,13 @@ Code rollback does not undo data writes or external side effects.
 
 ## 6. Views, placements and routing
 
+In Lite, `ui.navigate(viewId)` without a route MUST reuse an already open main
+page View of the same contribution. It brings that page forward without changing
+its binding or disposing the iframe. Stateful pages can update their contents
+through their existing subscriptions. Supplying an explicit route requests a new
+page binding and retains the remount behavior. Opening a different contribution
+still mounts its page normally.
+
 Navigation and plugin/settings placements target pages. file/open targets file
 views other than table-bound views; table/view targets a file view requiring
 `eidos/table`. File/open views declaring `eidos/schema` or `eidos/config` use only
@@ -494,6 +587,34 @@ must use the working-copy capability.
 Private storage provides list/read/write/delete, declared quota, atomic serialized
 writes, 4 MiB per object, and a maximum of 25000 objects. Anonymous network reads
 remain bounded HTTPS requests to declared origins, without exposing credentials.
+
+### Atomic private storage
+
+Lite API 3.11 adds `storage.atomic: true`, requiring `requires.pluginApi` 3.11.0
+or later and the `storage.atomic` compatibility feature. It uses the existing
+private-storage grant and limits, without adding native execution authority.
+Other hosts MUST reject the declaration unless they advertise the feature.
+
+`readVersioned(key)` returns `{ data: Uint8Array | null, version: string | null }`
+from one consistent object snapshot. `null` means absent; a zero-byte object has
+non-null data and a non-null token. Tokens are opaque identities of the current
+bytes, stable across host restarts, not monotonic counters. Plugins MUST NOT
+interpret token contents or treat tokens as authority.
+
+`compareAndWrite(key, expectedVersion, data)` compares the current token and,
+only if equal, validates quota and atomically replaces the bytes. It returns
+`{ applied: true, version }` on success or `{ applied: false, version }` with the
+current token on conflict. A conflict MUST NOT write. Read, comparison, quota
+validation and replacement MUST share one canonical-directory critical section
+across all host storage instances and owner windows. Ordinary writes and deletes
+MUST use that same section, including cross-key quota accounting. Failed,
+revoked or malformed requests MUST release the section without replacing data.
+The scope is the single owning host process; out-of-process filesystem writers
+are not covered. Written objects continue to use atomic temporary-file rename.
+
+Plugins may resolve a conflict by reading the new snapshot and replaying only
+the specific user intent. They MUST NOT overwrite newer state with a stale full
+snapshot. This capability does not change background or sidecar ownership.
 
 ## 8. Text documents and editing
 

@@ -105,6 +105,23 @@ extension?: string;
 ```
 
 
+### PluginManifest.sidecar
+
+Supported hosts: <Badge text="Lite" variant="note" />
+
+Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows `start({ command, args })` with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.
+
+
+```ts
+sidecar?: {
+    command: string;
+    args?: string[];
+    configurable?: boolean;
+    maxOutputFrameBytes?: number;
+};
+```
+
+
 ### PluginManifest.background
 
 A separate Worker-style entry. network: true permits public HTTPS/WSS after approval; up to eight exact networkOrigins optionally restrict it. bluetooth: true grants the selected device, optionally narrowed by a service whitelist. Device IDs are chosen by the host. API 3.6 adds autoStart: true for approved startup on Space opening, and fileHistory: true for file-open metadata in the owner window and Space; fileHistory does not grant file contents.
@@ -200,6 +217,7 @@ browser?: {
 ```ts
 storage?: {
     maxBytes: number;
+    atomic?: true;
 };
 ```
 
@@ -245,7 +263,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition),
 
 ## ThemeDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L72)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L80)
 
 ### ThemeDeclaration.stylesheet
 
@@ -257,7 +275,7 @@ stylesheet: string;
 
 ## FileTemplateDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L76)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L84)
 
 ### FileTemplateDeclaration.id
 
@@ -301,7 +319,7 @@ content: string;
 
 ## ViewDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L116)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L124)
 
 ### ViewDeclaration.id
 
@@ -371,7 +389,7 @@ Related types: [ViewCapability](/plugins/api/types/#viewcapability), [ViewConfig
 
 ## ViewConfiguration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L129)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L137)
 
 ### ViewConfiguration.type
 
@@ -395,7 +413,7 @@ Related types: [SettingDeclaration](/plugins/api/manifest/#settingdeclaration).
 
 ## ActionDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L133)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L141)
 
 ### ActionDeclaration.id
 
@@ -449,7 +467,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition).
 
 ## FormatterDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L142)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L150)
 
 ### FormatterDeclaration.id
 
@@ -477,7 +495,7 @@ extensions: string[];
 
 ## FileHookDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L149)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L157)
 
 ### FileHookDeclaration.id
 
@@ -523,7 +541,7 @@ Related types: [FileHookEventType](/plugins/api/types/#filehookeventtype).
 
 ## Placement
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L187)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L195)
 
 
 ```ts
@@ -568,7 +586,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L244)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L282)
 
 ### BluetoothServicePermission.uuid
 
@@ -604,7 +622,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L641)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L696)
 
 
 ```ts

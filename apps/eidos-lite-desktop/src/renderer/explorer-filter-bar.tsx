@@ -25,6 +25,8 @@ export function ExplorerFilterBar({
   triggerRef,
   theme = "light",
   timeZone,
+  respectGitignore = true,
+  onRespectGitignoreChange,
 }: {
   filter: ExplorerFileFilter
   onChange(filter: ExplorerFileFilter): void
@@ -34,6 +36,8 @@ export function ExplorerFilterBar({
   triggerRef: RefObject<HTMLButtonElement>
   theme?: "light" | "dark"
   timeZone?: string
+  respectGitignore?: boolean
+  onRespectGitignoreChange?(value: boolean): void
 }) {
   const { t, locale } = useEidosLiteI18n()
   const [fields, setFields] = useState<EidosFileFieldInfo[]>([])
@@ -121,6 +125,19 @@ export function ExplorerFilterBar({
               onChange(next)
             }}
           />
+          {onRespectGitignoreChange && (
+            <label className="mt-1 flex cursor-pointer items-center gap-2 border-t px-2 py-2 text-xs">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 accent-primary"
+                checked={respectGitignore}
+                onChange={(event) =>
+                  onRespectGitignoreChange(event.target.checked)
+                }
+              />
+              {t("Hide files matched by .gitignore")}
+            </label>
+          )}
           {error && (
             <div className="mt-2 text-xs text-destructive" role="alert">
               {t(error)}{" "}

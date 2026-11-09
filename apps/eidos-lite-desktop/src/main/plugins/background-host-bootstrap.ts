@@ -6,7 +6,8 @@ function install(
   spaceId: string,
   instanceId: string,
   history: boolean,
-  storage: boolean
+  storage: boolean,
+  atomic: boolean
 ) {
   const send = globalThis.postMessage
   const listeners = new Set<(event: MessageEvent) => void>()
@@ -150,6 +151,38 @@ function install(
                 const result = await call("storage.read", { key })
                 return result === null ? null : decode(result as string)
               },
+              ...(atomic
+                ? {
+                    async readVersioned(key: string) {
+                      const result = (await call("storage.readVersioned", {
+                        key,
+                      })) as { data: string | null; version: string | null }
+                      return {
+                        ...result,
+                        data:
+                          result.data === null
+                            ? null
+                            : await decode(result.data),
+                      }
+                    },
+                    async compareAndWrite(
+                      key: string,
+                      expectedVersion: string | null,
+                      bytes: Uint8Array
+                    ) {
+                      if (
+                        !(bytes instanceof Uint8Array) ||
+                        bytes.byteLength > 4 * 1024 * 1024
+                      )
+                        throw new TypeError("Expected at most 4 MiB")
+                      return (await call("storage.compareAndWrite", {
+                        key,
+                        expectedVersion,
+                        data: await encode(bytes),
+                      })) as { applied: boolean; version: string | null }
+                    },
+                  }
+                : {}),
               async write(key: string, bytes: Uint8Array) {
                 if (
                   !(bytes instanceof Uint8Array) ||
@@ -218,7 +251,8 @@ export function backgroundHostBootstrap(
   spaceId: string,
   instanceId: string,
   history: boolean,
-  storage: boolean
+  storage: boolean,
+  atomic = false
 ): string {
-  return `;(${install.toString()})(${[token, spaceId, instanceId, history, storage].map((value) => JSON.stringify(value)).join(",")});\n`
+  return `;(${install.toString()})(${[token, spaceId, instanceId, history, storage, atomic].map((value) => JSON.stringify(value)).join(",")});\n`
 }

@@ -69,6 +69,51 @@ export function validateSourceManifest(source) {
   )
     throw new Error("Capture build identity is required")
 }
+export function resolveMediaCopy(source, copy) {
+  if (copy !== undefined) {
+    for (const key of [
+      "releaseTag",
+      "scenarioId",
+      "capturedAppVersion",
+      "buildKind",
+    ]) {
+      const expected =
+        key === "releaseTag" ? source.introducedInRelease : source[key]
+      if (copy?.[key] !== expected)
+        throw new Error("Media copy does not match capture " + key)
+    }
+    const result = {}
+    for (const field of ["feature", "alt", "caption"]) {
+      result[field] = {}
+      for (const locale of ["en", "zh", "ja", "ko"]) {
+        const value = copy[field]?.[locale]
+        if (typeof value !== "string" || !value.trim())
+          throw new Error(`Media copy requires ${field}.${locale}`)
+        result[field][locale] = value
+      }
+    }
+    return result
+  }
+  if (
+    source.scenarioId !== "table-search-escape" ||
+    source.introducedInRelease !== "lite-v0.31.0"
+  )
+    throw new Error("Provide --copy-file for this release scenario")
+  return {
+    feature: {
+      en: "Keep working after table search",
+      zh: "搜索后继续使用网格",
+    },
+    alt: {
+      en: "Find a project, press Escape to return to the grid, and search again with the keyboard",
+      zh: "搜索项目，按 Esc 返回网格，再用键盘再次搜索",
+    },
+    caption: {
+      en: `Recorded in Eidos Lite ${source.capturedAppVersion} on macOS using synthetic data. Demonstrates the search focus improvement introduced in 0.31.0.`,
+      zh: `演示录制于 macOS 上的 Eidos Lite ${source.capturedAppVersion}，使用合成数据，展示 0.31.0 引入的搜索焦点改进。`,
+    },
+  }
+}
 export async function publish(directory, options = {}) {
   const config = JSON.parse(
     await readFile(root + "/scripts/release-media/config.json", "utf8")
@@ -77,6 +122,12 @@ export async function publish(directory, options = {}) {
     await readFile(resolve(directory, "source.manifest.json"), "utf8")
   )
   validateSourceManifest(source)
+  const copy = resolveMediaCopy(
+    source,
+    options.copyFile
+      ? JSON.parse(await readFile(options.copyFile, "utf8"))
+      : undefined
+  )
   const video = await readFile(resolve(directory, "demo.mp4"))
   const poster = await readFile(resolve(directory, "poster.webp"))
   if (
@@ -151,18 +202,7 @@ export async function publish(directory, options = {}) {
     width: stream.width,
     height: stream.height,
     duration: Number(probe.format.duration),
-    feature: {
-      en: "Keep working after table search",
-      zh: "搜索后继续使用网格",
-    },
-    alt: {
-      en: "Find a project, press Escape to return to the grid, and search again with the keyboard",
-      zh: "搜索项目，按 Esc 返回网格，再用键盘再次搜索",
-    },
-    caption: {
-      en: `Recorded in Eidos Lite ${source.capturedAppVersion} on macOS using synthetic data. Demonstrates the search focus improvement introduced in 0.31.0.`,
-      zh: `演示录制于 macOS 上的 Eidos Lite ${source.capturedAppVersion}，使用合成数据，展示 0.31.0 引入的搜索焦点改进。`,
-    },
+    ...copy,
   }
   const result = {
     schemaVersion: 1,
@@ -302,11 +342,12 @@ if (
   const directory = value("--dir")
   if (!directory)
     throw new Error(
-      "Usage: node scripts/release-media/upload.mjs --dir <reviewed-capture> [--upload] [--credentials-file <ignored-env-file>]"
+      "Usage: node scripts/release-media/upload.mjs --dir <reviewed-capture> [--copy-file <localized-copy.json>] [--upload] [--credentials-file <ignored-env-file>]"
     )
   await publish(resolve(directory), {
     upload: args.includes("--upload"),
     credentialsFile: value("--credentials-file"),
+    copyFile: value("--copy-file"),
     wrangler: value("--wrangler"),
   })
 }

@@ -1,4 +1,11 @@
 declare module "marked" {
+  export interface MarkedToken {
+    type: string
+    raw: string
+    depth?: number
+    text?: string
+    tokens?: MarkedToken[]
+  }
   export interface MarkedOptions {
     gfm?: boolean
     headerIds?: boolean
@@ -14,5 +21,6 @@ declare module "marked" {
 
   export const marked: {
     parse(markdown: string, options?: MarkedOptions): string
+    lexer(markdown: string, options?: MarkedOptions): MarkedToken[]
   }
 }

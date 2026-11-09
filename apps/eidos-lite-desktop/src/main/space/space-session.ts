@@ -12,6 +12,11 @@ import { customSyncOrigin } from "../../shared/sync-encryption"
 import { searchSpaceText } from "./text-search"
 import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
 import {
+  selectExplorerFilesPage,
+  type ExplorerFilesPage,
+  type ExplorerFilesQuery,
+} from "../../shared/explorer-file-list"
+import {
   filterExplorerEntries,
   hasExplorerPropertyFilter,
   type ExplorerFileFilter,
@@ -152,6 +157,8 @@ import {
 import { SpaceSyncConnectionStore } from "./sync-connection"
 import { SyncSwitchJournal } from "./sync-switch"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
+import type { ExplorerSummaryRequest } from "../../shared/explorer-summary"
+import { readExplorerEidosSummary } from "./explorer-eidos-summary"
 import {
   decodeText,
   readTextFilePreview,
@@ -166,6 +173,8 @@ import type {
 } from "@eidos.space/plugin-sdk"
 import type { MediaFilePreviewResult } from "../plugins/document-host"
 import type { FileThumbnailProvider } from "./file-thumbnails"
+import type { ExplorerThumbnailRequest } from "../../shared/explorer-media"
+import { readExplorerFileThumbnail } from "./explorer-file-thumbnail"
 import {
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
@@ -415,6 +424,10 @@ export class SpaceSession {
     string,
     Promise<SpaceTreeEntry[]>
   >()
+  private readonly explorerListReads = new Map<
+    string,
+    Promise<SpaceTreeEntry[]>
+  >()
   private readonly repository: SpaceRepositoryCoordinator
   private readonly syncState: SpaceSyncStateStore
   private readonly syncConnection: SpaceSyncConnectionStore
@@ -656,28 +669,70 @@ export class SpaceSession {
 
   async searchPaths(
     query: string,
-    limit?: number
+    limit?: number,
+    includeDirectories = false
   ): Promise<SpacePathSearchHit[]> {
     if (this.closed) throw new Error("Space is closed")
     await this.pathIndex.ensureScanned()
-    return this.pathIndex.search(query, limit)
+    return this.pathIndex.search(query, limit, includeDirectories)
   }
 
   async filterFiles(
     filter: ExplorerFileFilter,
-    directory: string | null
+    directory: string | null,
+    respectGitignore = false
   ): Promise<SpaceTreeEntry[]> {
     if (this.closed) throw new Error("Space is closed")
-    const key = directory ?? ""
-    let read = this.filteredTreeReads.get(key)
+    const key = JSON.stringify([directory, respectGitignore])
+    let read =
+      this.explorerListReads.get(key) ?? this.filteredTreeReads.get(key)
     if (!read) {
-      read = readSpaceFilterTree(this.canonical.root, directory).finally(() => {
+      read = readSpaceFilterTree(
+        this.canonical.root,
+        directory,
+        respectGitignore
+      ).finally(() => {
         if (this.filteredTreeReads.get(key) === read)
           this.filteredTreeReads.delete(key)
       })
       this.filteredTreeReads.set(key, read)
     }
-    const entries = await read
+    return this.filterFileEntries(await read, filter)
+  }
+
+  async listExplorerFiles(
+    query: ExplorerFilesQuery
+  ): Promise<ExplorerFilesPage> {
+    if (this.closed) throw new Error("Space is closed")
+    const respectGitignore = query.respectGitignore !== false
+    const key = JSON.stringify([query.directory, respectGitignore])
+    let read = this.explorerListReads.get(key)
+    if (!read) {
+      read = (
+        this.filteredTreeReads.get(key) ??
+        readSpaceFilterTree(
+          this.canonical.root,
+          query.directory,
+          respectGitignore
+        )
+      ).catch((error: unknown) => {
+        if (this.explorerListReads.get(key) === read)
+          this.explorerListReads.delete(key)
+        throw error
+      })
+      if (this.explorerListReads.size >= 4) this.explorerListReads.clear()
+      this.explorerListReads.set(key, read)
+    }
+    return selectExplorerFilesPage(
+      await this.filterFileEntries(await read, query.filter),
+      query
+    )
+  }
+
+  private async filterFileEntries(
+    entries: SpaceTreeEntry[],
+    filter: ExplorerFileFilter
+  ): Promise<SpaceTreeEntry[]> {
     if (!hasExplorerPropertyFilter(filter))
       return filterExplorerEntries(entries, filter)
     const opened = await this.openExistingFileMetadata()
@@ -762,6 +817,7 @@ export class SpaceSession {
 
   async refreshExplorer(): Promise<SpaceSnapshot> {
     this.prioritizeLocalWork()
+    this.explorerListReads.clear()
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.directoryEntriesCache.clear()
     await this.reloadDirectoryEntries(loadedDirectories, false)
@@ -896,6 +952,25 @@ export class SpaceSession {
     } finally {
       this.scheduleGraftStatusRefresh()
     }
+  }
+
+  async getExplorerFileThumbnail(
+    request: ExplorerThumbnailRequest,
+    provider?: FileThumbnailProvider
+  ): Promise<string | null> {
+    if (request.spaceId !== this.canonical.id)
+      throw Error("Thumbnail belongs to a different Space")
+    await assertSpaceRootIdentity(this.canonical)
+    return readExplorerFileThumbnail(this.canonical.root, request, provider)
+  }
+
+  async getExplorerEidosSummary(request: ExplorerSummaryRequest) {
+    if (request.spaceId !== this.canonical.id)
+      throw Error("Summary belongs to a different Space")
+    await assertSpaceRootIdentity(this.canonical)
+    return readExplorerEidosSummary(this.canonical.root, request, (filePath) =>
+      this.runtimePool.explorerSummary(filePath)
+    )
   }
 
   private companionCandidates(safe: string, identifier: string): string[] {
@@ -5797,6 +5872,7 @@ export class SpaceSession {
   }
 
   private invalidateSnapshotCaches(): void {
+    this.explorerListReads.clear()
     this.invalidateGraftStatusCache()
     this.directoryEntriesCache.clear()
     this.ignoreInspectionCache.clear()
@@ -5805,6 +5881,7 @@ export class SpaceSession {
   private invalidateDirectoryCaches(
     relativePaths: readonly string[]
   ): string[] {
+    this.explorerListReads.clear()
     if (relativePaths.length === 0) {
       const loaded = [...this.directoryEntriesCache.keys()]
       this.directoryEntriesCache.clear()

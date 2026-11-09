@@ -12,6 +12,9 @@ import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
+import { normalizeExplorerFilesQuery } from "../shared/explorer-file-list"
+import { normalizeExplorerThumbnailRequest } from "../shared/explorer-media"
+import { normalizeExplorerSummaryRequest } from "../shared/explorer-summary"
 import { SparkService } from "./account/spark-service"
 import { hasSparkFeature, type SparkStatus } from "../shared/spark"
 import { accountStorageKey } from "../shared/service-environment"
@@ -1772,28 +1775,56 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.searchPaths,
-    (event, query: unknown, limit: unknown) => {
+    (event, query: unknown, limit: unknown, includeDirectories: unknown) => {
       if (typeof query !== "string") throw new Error("Invalid search query")
+      if (
+        includeDirectories !== undefined &&
+        typeof includeDirectories !== "boolean"
+      )
+        throw new Error("Invalid path search options")
       const normalizedLimit =
         typeof limit === "number" && Number.isFinite(limit) ? limit : undefined
       return controller
         .requireSession(event.sender)
-        .searchPaths(query, normalizedLimit)
+        .searchPaths(query, normalizedLimit, includeDirectories === true)
     }
   )
   ipcMain.handle(
     IPC_CHANNELS.filterFiles,
-    (event, filter: unknown, directory: unknown) => {
+    (event, filter: unknown, directory: unknown, respectGitignore: unknown) => {
       const normalized = normalizeExplorerFileFilter(filter)
       if (directory !== null && typeof directory !== "string")
         throw new Error("Invalid file filter")
+      if (
+        respectGitignore !== undefined &&
+        typeof respectGitignore !== "boolean"
+      )
+        throw new Error("Invalid ignore filter")
       return controller
         .requireSession(event.sender)
-        .filterFiles(normalized, directory)
+        .filterFiles(normalized, directory, respectGitignore === true)
     }
   )
   ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>
     controller.requireSession(event.sender).getExplorerFilterFields()
+  )
+  ipcMain.handle(IPC_CHANNELS.listExplorerFiles, (event, query: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .listExplorerFiles(normalizeExplorerFilesQuery(query))
+  )
+  ipcMain.handle(IPC_CHANNELS.explorerFileThumbnail, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .getExplorerFileThumbnail(
+        normalizeExplorerThumbnailRequest(value),
+        systemFileThumbnail
+      )
+  )
+  ipcMain.handle(IPC_CHANNELS.explorerFileSummary, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .getExplorerEidosSummary(normalizeExplorerSummaryRequest(value))
   )
   ipcMain.handle(
     IPC_CHANNELS.searchText,

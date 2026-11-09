@@ -105,6 +105,23 @@ extension?: string;
 ```
 
 
+### PluginManifest.sidecar
+
+支持宿主: <Badge text="Lite" variant="note" />
+
+固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 `start({ command, args })` 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。
+
+
+```ts
+sidecar?: {
+    command: string;
+    args?: string[];
+    configurable?: boolean;
+    maxOutputFrameBytes?: number;
+};
+```
+
+
 ### PluginManifest.background
 
 独立的 Worker 风格入口。network: true 经授权允许公网 HTTPS/WSS，可用最多八个精确 networkOrigins 收窄。bluetooth: true 授权选中设备，可用服务白名单限制。设备 ID 由宿主选择。API 3.6 支持 autoStart: true，经授权随 Space 打开自动启动；fileHistory: true 监听所属窗口和 Space 的文件打开元数据，不授予文件内容。
@@ -200,6 +217,7 @@ browser?: {
 ```ts
 storage?: {
     maxBytes: number;
+    atomic?: true;
 };
 ```
 
@@ -245,7 +263,7 @@ theme?: ThemeDeclaration;
 
 ## ThemeDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L72)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L80)
 
 ### ThemeDeclaration.stylesheet
 
@@ -257,7 +275,7 @@ stylesheet: string;
 
 ## FileTemplateDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L76)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L84)
 
 ### FileTemplateDeclaration.id
 
@@ -301,7 +319,7 @@ content: string;
 
 ## ViewDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L116)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L124)
 
 ### ViewDeclaration.id
 
@@ -371,7 +389,7 @@ icon?: PluginIconDefinition;
 
 ## ViewConfiguration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L129)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L137)
 
 ### ViewConfiguration.type
 
@@ -395,7 +413,7 @@ properties: Record<string, SettingDeclaration & {
 
 ## ActionDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L133)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L141)
 
 ### ActionDeclaration.id
 
@@ -449,7 +467,7 @@ icon?: PluginIconDefinition;
 
 ## FormatterDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L142)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L150)
 
 ### FormatterDeclaration.id
 
@@ -477,7 +495,7 @@ extensions: string[];
 
 ## FileHookDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L149)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L157)
 
 ### FileHookDeclaration.id
 
@@ -523,7 +541,7 @@ access?: "read" | "write";
 
 ## Placement
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L187)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L195)
 
 
 ```ts
@@ -568,7 +586,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L244)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L282)
 
 ### BluetoothServicePermission.uuid
 
@@ -604,7 +622,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L641)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L696)
 
 
 ```ts

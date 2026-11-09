@@ -45,8 +45,9 @@ Try single-row, selected rows, and all filtered records in Lite.
 
 `npm run check -- --target lite` fails if the bundled compatibility profile
 does not support the plugin. Use `--target cli` for CLI Serve. CLI Serve supports
-Table Views, not every Lite capability. Eidos Views and Table Actions require
-Plugin API 1.1 (Lite 0.17+). Check output reflects the installed tool's profiles;
+Table Views, not every Lite capability. Executable starters declare Plugin API
+3.0.0 or the minimum required by their features; themes keep their separate
+stylesheet contract. Check output reflects the installed tool's profiles;
 `eidos plugin doctor <package>` checks against your installed CLI.
 
 Use `npm run check -- --json` for structured diagnostics. Type-only SDK imports

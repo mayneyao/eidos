@@ -3,6 +3,8 @@ import { act, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, expect, it, vi } from "vitest"
 import { ExplorerFilterBar } from "./explorer-filter-bar"
+import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
+import type { ExplorerLayout } from "./explorer-layout"
 import { explorerBuiltinFields } from "./explorer-filter-adapter"
 import {
   countExplorerFilterRules,
@@ -50,12 +52,16 @@ async function setup(initial: ExplorerFileFilter = []) {
   document.body.append(host)
   const root = createRoot(host)
   let current = initial
+  let ignored = true
   function Harness() {
     const [filter, setFilter] = useState(initial)
     const [open, setOpen] = useState(false)
+    const [respectGitignore, setRespectGitignore] = useState(true)
+    const [layout, setLayout] = useState<ExplorerLayout>("tree")
     const trigger = useRef<HTMLButtonElement>(null)
     return (
       <>
+        <ExplorerLayoutSwitch value={layout} onChange={setLayout} />
         <button ref={trigger} onClick={() => setOpen(!open)}>
           Filter files
         </button>
@@ -68,6 +74,11 @@ async function setup(initial: ExplorerFileFilter = []) {
             setFilter(next)
           }}
           onClose={() => setOpen(false)}
+          respectGitignore={respectGitignore}
+          onRespectGitignoreChange={(next) => {
+            ignored = next
+            setRespectGitignore(next)
+          }}
         />
       </>
     )
@@ -111,6 +122,7 @@ async function setup(initial: ExplorerFileFilter = []) {
     type,
     escape,
     current: () => current,
+    ignored: () => ignored,
     dispose: async () => {
       await act(async () => {
         root.unmount()
@@ -122,6 +134,33 @@ async function setup(initial: ExplorerFileFilter = []) {
     },
   }
 }
+
+it("shares the ignore checkbox across layouts and keeps it separate from conditions", async () => {
+  const ui = await setup([".md"])
+  try {
+    await ui.click("Filter files")
+    const checkbox = () =>
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    expect(checkbox().checked).toBe(true)
+    await act(async () => checkbox().click())
+    expect(ui.ignored()).toBe(false)
+    expect(ui.current()).toEqual([".md"])
+    await ui.escape()
+    await ui.click("Recent files")
+    await ui.click("Filter files")
+    expect(checkbox().checked).toBe(false)
+    await ui.click("Clear")
+    expect(ui.ignored()).toBe(false)
+    expect(ui.current()).toEqual([])
+    await act(async () => checkbox().click())
+    await ui.escape()
+    await ui.click("Folders")
+    await ui.click("Filter files")
+    expect(checkbox().checked).toBe(true)
+  } finally {
+    await ui.dispose()
+  }
+})
 
 it("uses the shared searchable field picker and keeps conditions entirely in the popover", async () => {
   const ui = await setup()

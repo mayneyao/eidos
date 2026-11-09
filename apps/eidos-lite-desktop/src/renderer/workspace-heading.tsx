@@ -7,7 +7,6 @@ import {
 } from "react"
 import { X, Plus, Search, Database, Filter } from "lucide-react"
 import { useEidosLiteI18n } from "./i18n"
-import type { TextSearchOptions } from "../shared/text-search"
 import type { ExplorerSort } from "./explorer-sort"
 import { ExplorerSortMenu } from "./explorer-sort-menu"
 import {
@@ -32,8 +31,6 @@ export function WorkspaceHeading({
   query,
   onQueryChange,
   focusToken,
-  options = {},
-  onOptionsChange,
   actions,
   directory = null,
   onNavigateDirectory,
@@ -71,8 +68,6 @@ export function WorkspaceHeading({
   query: string
   onQueryChange(query: string): void
   focusToken: number
-  options?: TextSearchOptions
-  onOptionsChange?: (options: TextSearchOptions) => void
   actions: {
     label: string
     icon: ReactNode
@@ -137,33 +132,10 @@ export function WorkspaceHeading({
               type="text"
               value={query}
               maxLength={512}
-              aria-label={t("Search saved text")}
-              placeholder={t("Search saved text")}
+              aria-label={t("Filter tree by name")}
+              placeholder={t("Filter tree by name")}
               onChange={(event) => onQueryChange(event.target.value)}
             />
-            <div className="workspace-search-modes">
-              {(
-                [
-                  ["caseSensitive", "Aa", "Match case"],
-                  ["wholeWord", "ab", "Match whole word"],
-                  ["regex", ".*", "Use regular expression"],
-                ] as const
-              ).map(([key, label, title]) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-label={t(title)}
-                  title={t(title)}
-                  aria-pressed={!!options[key]}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() =>
-                    onOptionsChange?.({ ...options, [key]: !options[key] })
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
           <button
             type="button"
@@ -226,12 +198,12 @@ export function WorkspaceHeading({
             type="button"
             className="icon-button"
             onClick={onSearch}
-            aria-label={t("Search Space text")}
+            aria-label={t("Filter tree by name")}
             aria-keyshortcuts={ariaShortcut}
             title={
               shortcut
-                ? `${t("Search Space text")} (${shortcut})`
-                : t("Search Space text")
+                ? `${t("Filter tree by name")} (${shortcut})`
+                : t("Filter tree by name")
             }
           >
             <Search size={14} />

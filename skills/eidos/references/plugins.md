@@ -7,7 +7,7 @@ not Codex plugins or retired Eidos extension packages.
 
 ## 1. Choose the host and extension point
 
-This checkout implements Lite API 3.5.0 (CLI Serve remains 3.0.0): page/file views, metadata-only `ctx.binding`,
+Hosts expose separate API profiles with page/file views, metadata-only `ctx.binding`,
 and operations under `ctx.capabilities`. For existing plugins read the
 [migration guide](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.md)
 ([中文](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.zh.md)); in a checkout read
@@ -22,7 +22,7 @@ project. Ask only when the choice changes the implementation. For a new project,
 use the user's destination or a separate plugin directory; do not add ordinary
 user plugins to the Eidos product source tree.
 
-Source-tree contracts (SDK/tools 0.5.0; verify release availability):
+Source-tree starter contracts (verify matching SDK/tools and release availability):
 
 | User interaction                                      | Starter         | Host and contract               |
 | ----------------------------------------------------- | --------------- | ------------------------------- |
@@ -49,6 +49,11 @@ require separate manifests/packages. Do not lower an API requirement merely to
 silence a compatibility error.
 
 ## 2. Establish the toolchain and scaffold
+
+For `sidebar/explorer`, read [Sidebar design](sidebar-design.md) before choosing
+layout metrics or building a standalone preview. The host owns its chrome and
+resize boundary; the plugin owns its content and scroll region. A full-page Web
+preview alone does not establish sidebar alignment or native scrolling behavior.
 
 Check Node.js (`node --version`); authoring tools require Node >=22.12.
 Reuse the project's package manager, lockfile, and installed tool version.
@@ -168,6 +173,60 @@ are under `ctx.capabilities`; getItems receives eidos.table, read-only eidos.con
 - Update using each returned `readToken`, honor cancellation between writes,
   and report progress. Let Lite own task undo/redo. On conflicts, surface the
   failure instead of rereading and silently overwriting newer data.
+
+### Shared plugin storage
+
+For metadata or drafts edited by multiple Views, backgrounds or windows, an
+ordinary storage read followed by an unconditional write can overwrite another
+writer. On Lite API `3.11.0`, declare `storage: { maxBytes, atomic: true }` and
+`requires.pluginApi: "3.11.0"`. Feature-detect the optional `readVersioned` and
+`compareAndWrite` methods. Read bytes and their opaque version together, derive
+the intended edit, then call `compareAndWrite(key, version, nextBytes)`.
+If `applied` is false, reread and replay only that edit on the latest state;
+never retry an old complete snapshot. Preserve drafts and report persistent
+conflicts or write failures. Versions identify current bytes, not increasing
+revision numbers; absent keys use null, while stored empty bytes have a token.
+Use SDK and authoring tools supporting API 3.11, run `check --target lite`, and
+verify the actual Lite host supports `storage.atomic`. Use matching checkout
+builds while published tools or hosts lag; lowering the requirement is not a
+fallback. See the [storage API](https://docs.eidos.space/plugins/api/storage/)
+and [service guide](https://docs.eidos.space/plugins/services/).
+
+### Local native programs
+
+Lite API 3.8 supports `sidecar: { command, args? }`: an installed executable
+basename and fixed arguments, launched without a shell after native host approval.
+Standalone page/file Views feature-detect `ctx.capabilities.sidecar` and use
+`status`, `start`, `stop`, `send`, and `onEvent`. Register the returned observer
+with subscriptions. LF-delimited JSON is the transport; reattach by reading the
+program's state because events are not replayed. View disposal detaches only;
+stop, revocation, package changes, Space/window close and host shutdown end the
+owned process. The host remembers consent per Space, package revision and exact
+program identity (path, resolved target, bytes, argv and Space root). Installation
+or enablement may include this review; unresolved programs require first-use
+review. Unchanged launches reuse consent after restart. Changed identities need
+review again. Stop retains consent; disabling or uninstalling revokes it.
+Native OS permissions are outside
+the JavaScript filesystem/network sandbox. Do not bundle or automatically install
+the program, infer write access from read-only tools, or claim CLI/mobile support.
+Windows `.cmd`/`.bat` shims are unsupported; validate each native OS explicitly.
+
+API 3.9 additionally supports `sidecar.configurable: true` and
+`start({ command, args })`. Defaults remain in the package; an override may use
+an executable name or absolute path with a separate argv array. The effective
+launch receives exact-identity consent. Cwd/environment stay host-owned, and
+different settings never silently replace a running process. Use the awaited
+`stop()` before explicitly applying a replacement; preserve drafts and wait for
+active agent work to finish. Check the generated command and actual native
+behavior, not just whether a configuration form saves.
+
+For large single-response histories, API 3.12 adds the manifest-only
+`sidecar.maxOutputFrameBytes` integer (1 to 16777216 UTF-8 bytes excluding CRLF;
+default 1048576). Declare `requires.pluginApi: "3.12.0"` and verify the Lite
+feature `sidecar.outputFrameLimit` with matching tools. stdin stays at 1 MiB per
+frame and 4 MiB queued; stdout per-second bytes are bounded by the greater of
+16 MiB and twice the declared record limit. Preserve the first transport error
+through the following exit event, and never truncate stored history to reconnect.
 
 ### Themes
 

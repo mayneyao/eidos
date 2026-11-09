@@ -37,7 +37,6 @@ import { PluginDropZone } from "./plugin-drop-zone"
 import { isMarkdownTextFile } from "./text-editor-options"
 import { localizePluginManifest } from "@eidos.space/plugin-runtime/i18n"
 import { localizeMarketplacePlugin } from "./plugin-localization"
-import { ExplorerPicker, explorerChoices } from "./plugin-explorer"
 import { usePluginInstallTasks } from "./use-plugin-install-tasks"
 
 type PluginTab = "enabled" | "installed" | "marketplace"
@@ -81,6 +80,10 @@ export function PluginManager({
   )
   const [listing, setListing] = useState<PluginListing | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [packageError, setPackageError] = useState<{
+    token: string
+    message: string
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [internalSelected, setInternalSelected] = useState<string | null>(null)
   const selected =
@@ -109,21 +112,11 @@ export function PluginManager({
     } catch {}
   }
   const surface = useRef<HTMLDivElement>(null)
-  const previousSelection = useRef<string | null>(null)
-  useEffect(() => {
-    if (selected) {
-      surface.current?.querySelector<HTMLElement>("h1")?.focus()
-    } else if (previousSelection.current) {
-      Array.from(
-        surface.current?.querySelectorAll<HTMLButtonElement>(
-          "[data-plugin-id]"
-        ) ?? []
-      )
-        .find((button) => button.dataset.pluginId === previousSelection.current)
-        ?.focus()
-    }
-    previousSelection.current = selected
-  }, [selected])
+  const previousSelection = useRef<{
+    id: string
+    token?: string
+    local: boolean
+  } | null>(null)
   const refresh = useCallback(async () => {
     if (window.eidosLite.listPlugins)
       setListing(await window.eidosLite.listPlugins())
@@ -185,7 +178,8 @@ export function PluginManager({
   const installTasks = usePluginInstallTasks()
   const [packagePreviews, setPackagePreviews] = useState<
     PluginPackagePreview[]
-  >(() => (installRequest?.package ? [installRequest.package] : []))
+  >([])
+  const previewRevision = useRef(0)
   const [packageSelection, setPackageSelection] = useState<{
     sequence?: number
     token?: string
@@ -199,16 +193,12 @@ export function PluginManager({
       : installRequest?.package?.token
   useEffect(() => {
     let active = true
-    const preview = installRequest?.package
-    if (preview)
-      setPackagePreviews((previous) => [
-        ...previous.filter((item) => item.token !== preview.token),
-        preview,
-      ])
+    const revision = previewRevision.current
     void window.eidosLite
       .getPluginPackagePreviews?.()
       .then((previews) => {
-        if (active) setPackagePreviews(previews)
+        if (active && revision === previewRevision.current)
+          setPackagePreviews(previews)
       })
       .catch(() => {})
     return () => {
@@ -261,10 +251,6 @@ export function PluginManager({
       ),
     [listing, locale]
   )
-  const explorers = explorerChoices(listing)
-  const selectedExplorer =
-    explorers.find((choice) => choice.key === listing?.space?.explorer)?.key ??
-    null
   const filteredPlugins = plugins.filter((item) => {
     const matched = marketplace?.plugins.find((p) => p.id === item.manifest.id)
     const desc =
@@ -291,10 +277,6 @@ export function PluginManager({
   const builtin = builtins.find((item) => item.id === selected)
   const plugin = plugins.find((item) => item.manifest.id === selected)
   const packagePreview =
-    (installRequest?.package?.token === packageToken &&
-    installRequest?.id === selected
-      ? installRequest.package
-      : undefined) ??
     packagePreviews.find(
       (preview) =>
         preview.token === packageToken && preview.manifest.id === selected
@@ -302,9 +284,74 @@ export function PluginManager({
     (!plugin
       ? packagePreviews.find((preview) => preview.manifest.id === selected)
       : undefined)
+  const currentPackageToken = useRef<string | undefined>(undefined)
+  currentPackageToken.current = packagePreview?.token
+  useEffect(() => {
+    const previous = previousSelection.current
+    if (selected) {
+      if (selected !== previous?.id)
+        surface.current?.querySelector<HTMLElement>("h1")?.focus()
+    } else if (previous) {
+      const buttons = Array.from(
+        surface.current?.querySelectorAll<HTMLButtonElement>(
+          "[data-plugin-id]"
+        ) ?? []
+      )
+      const packageButton = previous.token
+        ? buttons.find(
+            (button) => button.dataset.pluginPackageToken === previous.token
+          )
+        : undefined
+      const target =
+        packageButton ??
+        buttons.find((button) => button.dataset.pluginId === previous.id)
+      if (
+        !target &&
+        previous.local &&
+        tab !== "installed" &&
+        filteredPlugins.some((item) => item.manifest.id === previous.id)
+      ) {
+        setTab("installed")
+        return
+      }
+      ;(
+        target ??
+        surface.current?.querySelector<HTMLInputElement>('input[type="search"]')
+      )?.focus()
+    }
+    previousSelection.current = selected
+      ? {
+          id: selected,
+          token: packagePreview?.token,
+          local:
+            Boolean(packagePreview) ||
+            Boolean(previous?.id === selected && previous.local),
+        }
+      : null
+  }, [selected, packagePreview?.token, tab, filteredPlugins])
+  const restoreDetailFocus = useRef(false)
+  useEffect(() => {
+    if (restoreDetailFocus.current) {
+      surface.current?.querySelector<HTMLElement>("h1")?.focus()
+      restoreDetailFocus.current = false
+    }
+  }, [selected, packagePreview?.token])
   const pendingPackages = packagePreviews.filter(
-    (preview) => !plugins.some((installed) => installed.hash === preview.hash)
+    (preview) =>
+      !plugins.some(
+        (installed) =>
+          installed.manifest.id === preview.manifest.id &&
+          installed.hash === preview.hash
+      )
   )
+  const selectedTask = selected ? installTasks[selected] : undefined
+  const matchingTask = packagePreview
+    ? selectedTask?.packageToken === packagePreview.token
+      ? selectedTask
+      : undefined
+    : selectedTask?.packageToken
+      ? undefined
+      : selectedTask
 
   const updatablePlugins = useMemo(() => {
     if (!listing?.plugins || !marketplace?.plugins) return []
@@ -384,35 +431,6 @@ export function PluginManager({
         })
       }
     >
-      {pendingPackages.length > 1 && (
-        <label className="plugin-manager-toolbar-actions">
-          {t("Local packages awaiting review")}
-          <select
-            className="plugin-setting-input"
-            aria-label={t("Local packages awaiting review")}
-            value={packagePreview?.token ?? ""}
-            onChange={(event) => {
-              const next = packagePreviews.find(
-                (preview) => preview.token === event.currentTarget.value
-              )
-              if (next) {
-                setPackageSelection({
-                  sequence: installRequest?.sequence,
-                  token: next.token,
-                })
-                setSelected(next.manifest.id)
-              }
-            }}
-          >
-            <option value="">{t("Choose a package…")}</option>
-            {pendingPackages.map((preview) => (
-              <option key={preview.token} value={preview.token}>
-                {preview.filename} · {preview.manifest.version}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {content}
     </PluginDropZone>
   )
@@ -439,26 +457,82 @@ export function PluginManager({
             marketplacePlugin={matchedMarketplacePlugin}
             spaceAvailable={spaceAvailable}
             installSpaceName={spaceName}
-            busy={busy}
-            installTask={
-              isPluginInstallActive(installTasks[selected])
-                ? installTasks[selected]
-                : undefined
+            busy={
+              busy ||
+              Boolean(
+                packagePreview &&
+                isPluginInstallActive(selectedTask) &&
+                !matchingTask
+              )
             }
-            installDisabled={!packagePreview && Boolean(marketplace?.cached)}
-            error={installTasks[selected]?.error ?? error}
+            installTask={
+              isPluginInstallActive(matchingTask) ? matchingTask : undefined
+            }
+            installDisabled={
+              !packagePreview &&
+              Boolean(
+                marketplace?.cached ||
+                (isPluginInstallActive(selectedTask) && !matchingTask)
+              )
+            }
+            error={
+              matchingTask?.error ??
+              (packagePreview && packageError?.token === packagePreview.token
+                ? packageError.message
+                : error)
+            }
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
             onInstall={() => {
               if (packagePreview) {
                 setError(null)
+                setPackageError(null)
                 void window.eidosLite
                   .installPreparedPlugin(packagePreview.token)
-                  .catch((cause: unknown) =>
-                    setError(
-                      cause instanceof Error ? cause.message : String(cause)
+                  .then(async (installed) => {
+                    if (!installed) return
+                    const previews =
+                      await window.eidosLite.getPluginPackagePreviews()
+                    if (
+                      previews.some(
+                        (item) => item.token === packagePreview.token
+                      )
                     )
+                      return
+                    await refresh().catch((cause: unknown) =>
+                      setError(
+                        cause instanceof Error ? cause.message : String(cause)
+                      )
+                    )
+                    previewRevision.current++
+                    const remaining = new Set(
+                      previews.map((item) => item.token)
+                    )
+                    restoreDetailFocus.current =
+                      currentPackageToken.current === packagePreview.token &&
+                      Boolean(surface.current?.contains(document.activeElement))
+                    setPackagePreviews((previous) =>
+                      previous.filter(
+                        (item) =>
+                          item.manifest.id !== packagePreview.manifest.id ||
+                          item.hash !== packagePreview.hash ||
+                          remaining.has(item.token)
+                      )
+                    )
+                    setPackageSelection((previous) =>
+                      previous.sequence === installRequest?.sequence &&
+                      previous.token === packagePreview.token
+                        ? { sequence: previous.sequence }
+                        : previous
+                    )
+                  })
+                  .catch((cause: unknown) =>
+                    setPackageError({
+                      token: packagePreview.token,
+                      message:
+                        cause instanceof Error ? cause.message : String(cause),
+                    })
                   )
                 return
               }
@@ -556,6 +630,78 @@ export function PluginManager({
           </button>
         </div>
       </header>
+      {pendingPackages.length > 0 && (
+        <div
+          className={`plugin-manager-list${variant === "settings" ? " settings-group" : ""}`}
+          role="group"
+          aria-label={t("Local packages awaiting review")}
+        >
+          {pendingPackages.map((preview) => {
+            const manifest = preview.localization
+              ? localizePluginManifest(
+                  preview.manifest,
+                  preview.localization,
+                  locale === "zh" ? "zh-CN" : locale
+                )
+              : preview.manifest
+            if (!matchesSearch(manifest.id, manifest.name, preview.filename))
+              return null
+            return (
+              <button
+                key={preview.token}
+                type="button"
+                className={`${variant === "settings" ? "settings-row" : "plugin-manager-row"} plugin-list-entry`}
+                data-plugin-id={manifest.id}
+                data-plugin-package-token={preview.token}
+                aria-label={`${manifest.name} v${manifest.version} · ${preview.filename}`}
+                onClick={() => {
+                  setPackageSelection({
+                    sequence: installRequest?.sequence,
+                    token: preview.token,
+                  })
+                  setSelected(manifest.id, manifest.name)
+                }}
+              >
+                <div
+                  className="plugin-row-icon-box"
+                  style={getPluginIconBadgeStyle(
+                    manifest.id,
+                    manifest.name,
+                    manifest.icon
+                  )}
+                >
+                  <PluginIcon
+                    icon={manifest.icon}
+                    name={manifest.name}
+                    id={manifest.id}
+                    className="plugin-manager-icon"
+                  />
+                </div>
+                <div
+                  className={`${variant === "settings" ? "settings-row-copy " : ""}plugin-manager-copy`}
+                >
+                  <div className="plugin-row-title-line">
+                    <strong>{manifest.name}</strong>
+                  </div>
+                  <div className="plugin-row-meta-line">
+                    <span className="plugin-pill-version">
+                      v{manifest.version}
+                    </span>
+                    <span className="plugin-pill-status">
+                      {t("Local package")}
+                    </span>
+                    <span className="plugin-row-desc">{preview.filename}</span>
+                  </div>
+                </div>
+                <ChevronRight
+                  className="plugin-row-chevron"
+                  aria-hidden="true"
+                />
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div className="plugin-manager-toolbar-row">
         <div
           className="plugin-manager-tabs"
@@ -602,16 +748,6 @@ export function PluginManager({
         </div>
 
         <div className="plugin-manager-toolbar-actions">
-          {spaceAvailable && (
-            <ExplorerPicker
-              choices={explorers}
-              selected={selectedExplorer}
-              disabled={busy}
-              onSelect={(key) =>
-                void run(() => window.eidosLite.setPluginExplorer(key))
-              }
-            />
-          )}
           <div className="plugin-search-box">
             <Search
               size={13}

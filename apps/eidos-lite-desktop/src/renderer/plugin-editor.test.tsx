@@ -10,6 +10,69 @@ afterEach(() => {
   document.body.replaceChildren()
   textDraftLifecycle.release()
 })
+it("forwards same-page reuse without replacing the mounted iframe", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  Object.assign(window, {
+    eidosLite: {
+      onPluginEvent: () => () => {},
+      closePluginEditor: vi.fn(async () => {}),
+      pluginRequest: vi.fn(async (_ticket: string, request: PluginRequest) => ({
+        response: {
+          protocol: "eidos-plugin",
+          apiVersion: 1,
+          id: request.id,
+          result: null,
+        },
+        navigation: { key: "test.plugin/chat", route: "", reuse: true },
+      })),
+    },
+  })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const onNavigate = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginEditor
+        instance={{
+          ticket: "same-page",
+          url: "eidos-plugin://same-page/index.html",
+          editor: {
+            key: "test.plugin/chat",
+            label: "Chat",
+            pluginName: "Test",
+          },
+        }}
+        onDraft={() => {}}
+        onFallback={() => {}}
+        onRetry={() => {}}
+        onNavigate={onNavigate}
+      />
+    )
+  )
+  try {
+    const frame = container.querySelector("iframe")!
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: frame.contentWindow,
+          data: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            id: "navigate",
+            method: "ui.navigate",
+            params: { viewId: "chat" },
+          },
+        })
+      )
+    })
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith("test.plugin/chat", true)
+    expect(container.querySelector("iframe")).toBe(frame)
+    expect(window.eidosLite.closePluginEditor).not.toHaveBeenCalled()
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
 it("routes Save only to the focused File View when two surfaces are mounted", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   Object.assign(window, {

@@ -21,8 +21,15 @@ import {
 import type { SpaceTreeEntry } from "../shared/contracts"
 import type { TreeExpansionActions } from "./tree-expansion-menu"
 import { EIDOS_FILE_TREE_ICONS } from "./file-tree-icons"
+import {
+  EXPLORER_ROW_HEIGHT,
+  EXPLORER_TREE_CSS,
+  SPACE_FILE_TREE_STYLES,
+} from "./explorer-presentation"
+export { SPACE_FILE_TREE_STYLES } from "./explorer-presentation"
 import { hasSpacePathDragData, setSpacePathDragData } from "./space-path-drag"
 import { useEidosLiteI18n } from "./i18n"
+import { filterExplorerNames } from "./explorer-name-filter"
 import {
   compareExplorerEntries,
   DEFAULT_EXPLORER_SORT,
@@ -43,12 +50,15 @@ interface SpaceFileTreeProps {
   rootDirectory?: string | null
   sort?: ExplorerSort
   fileFilter?: ExplorerFileFilter
+  nameQuery?: string
   filtering?: boolean
   filterError?: string
   onRetryFilter?(): void
   activePath: string | null
   revealToken?: number
   disabled?: boolean
+  opening?: boolean
+  visible?: boolean
   renameRequest: SpaceTreeRenameRequest | null
   onSelect(entry: SpaceTreeEntry | null): void
   onOpen(entry: SpaceTreeEntry): void
@@ -213,7 +223,9 @@ function droppedTreePath(
   return isFolder ? `${destination}/` : destination
 }
 
-function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
+export function eventTreePath(
+  event: SyntheticEvent<HTMLElement>
+): string | null {
   for (const target of event.nativeEvent.composedPath()) {
     if (!(target instanceof HTMLElement)) continue
     const path = target.dataset.itemPath
@@ -222,7 +234,9 @@ function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
   return null
 }
 
-function eventTargetsRenameInput(event: SyntheticEvent<HTMLElement>): boolean {
+export function eventTargetsRenameInput(
+  event: SyntheticEvent<HTMLElement>
+): boolean {
   return event.nativeEvent
     .composedPath()
     .some(
@@ -236,7 +250,8 @@ export function buildSpaceFileTreeModel(
   entries: SpaceTreeEntry[],
   rootDirectory?: string | null,
   sort: ExplorerSort = DEFAULT_EXPLORER_SORT,
-  fileFilter: ExplorerFileFilter = ALL_EXPLORER_FILES
+  fileFilter: ExplorerFileFilter = ALL_EXPLORER_FILES,
+  nameQuery = ""
 ): SpaceFileTreeModel {
   // Property predicates are evaluated by the host Runtime. These entries are
   // already filtered; the renderer has no property values to evaluate again.
@@ -264,85 +279,27 @@ export function buildSpaceFileTreeModel(
       .forEach((child) => visit(child, depth + 1))
   }
 
-  filterExplorerEntries(entries, localFilter)
+  filterExplorerNames(filterExplorerEntries(entries, localFilter), nameQuery)
     .slice()
     .sort((a, b) => compareExplorerEntries(a, b, sort))
     .forEach((entry) => visit(entry, 0))
   return { paths, initialExpandedPaths, entryByTreePath }
 }
 
-const TREE_CSS = `
-  :host {
-    display: block;
-    min-height: 0;
-    box-sizing: border-box;
-    /* Pierre clamps scrollTop to row height × count minus viewport height.
-       Keep vertical spacing outside its scrollport so the native scrollbar
-       and the virtualizer agree on the bottom boundary. */
-    padding-block: 3px 8px;
-  }
-
-  button[data-type="item"] {
-    border-radius: 3px;
-  }
-
-  button[data-type="item"]:focus-visible {
-    outline-offset: -1px;
-  }
-
-  button[data-type="item"][data-item-dragging] {
-    opacity: 0.45;
-  }
-
-  button[data-type="item"][data-item-drag-target] {
-    background: var(--surface-selected);
-    box-shadow: inset 0 0 0 1px var(--focus);
-  }
-
-  button[data-type="item"][data-external-drop-target] {
-    background: var(--surface-selected);
-    box-shadow: inset 0 0 0 1px var(--focus);
-  }
-`
-
-export const SPACE_FILE_TREE_STYLES = {
-  height: "100%",
-  minHeight: 0,
-  width: "100%",
-  colorScheme: "inherit",
-  "--trees-bg-override": "transparent",
-  "--trees-bg-muted-override": "var(--surface-hover)",
-  "--trees-border-color-override": "var(--line)",
-  "--trees-fg-override": "var(--ink)",
-  "--trees-fg-muted-override": "var(--ink-muted)",
-  "--trees-font-family-override": "inherit",
-  "--trees-font-size-override": "12px",
-  "--trees-focus-ring-color-override": "var(--focus)",
-  "--trees-focus-ring-offset-override": "-1px",
-  "--trees-focus-ring-width-override": "1px",
-  "--trees-action-lane-width-override": "22px",
-  "--trees-icon-width-override": "15px",
-  "--trees-item-margin-x-override": "4px",
-  "--trees-item-row-gap-override": "5px",
-  "--trees-item-padding-x-override": "5px",
-  "--trees-level-gap-override": "7px",
-  "--trees-padding-inline-override": "5px",
-  "--trees-selected-bg-override":
-    "color-mix(in srgb, var(--surface-selected) 50%, transparent)",
-  "--trees-selected-fg-override": "var(--ink)",
-} as CSSProperties
-
 export function SpaceFileTree({
   entries,
   rootDirectory = null,
   sort = DEFAULT_EXPLORER_SORT,
   fileFilter = ALL_EXPLORER_FILES,
+  nameQuery = "",
   filtering = false,
   filterError,
   onRetryFilter,
   activePath,
   revealToken = 0,
-  disabled,
+  disabled: disabledProp,
+  opening = false,
+  visible = true,
   renameRequest,
   onSelect,
   onOpen,
@@ -355,6 +312,7 @@ export function SpaceFileTree({
   onContextMenu,
   onExpansionActionsChange,
 }: SpaceFileTreeProps) {
+  const disabled = disabledProp || opening
   const { t } = useEidosLiteI18n()
   const [treeResetVersion, setTreeResetVersion] = useState(0)
   const [externalDropActive, setExternalDropActive] = useState(false)
@@ -399,8 +357,15 @@ export function SpaceFileTree({
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(
-    () => buildSpaceFileTreeModel(entries, rootDirectory, sort, fileFilter),
-    [entries, rootDirectory, sort, fileFilter]
+    () =>
+      buildSpaceFileTreeModel(
+        entries,
+        rootDirectory,
+        sort,
+        fileFilter,
+        nameQuery
+      ),
+    [entries, rootDirectory, sort, fileFilter, nameQuery]
   )
   const spaceDirectory = (path: string | null): string | null =>
     rootDirectory ? (path ? `${rootDirectory}/${path}` : rootDirectory) : path
@@ -425,6 +390,12 @@ export function SpaceFileTree({
   const treeInitializedRef = useRef(false)
   const renderedPathsRef = useRef<string[]>([])
   const folderExpansionRef = useRef(new Map<string, boolean>())
+  const nameFilterSnapshotRef = useRef<{
+    selected: readonly string[]
+    expanded: Map<string, boolean>
+    scrollTop: number
+  } | null>(null)
+  const appliedNameQueryRef = useRef("")
   const bulkExpansionRef = useRef<string[] | null>(null)
   const [expansionVersion, setExpansionVersion] = useState(0)
   useEffect(() => {
@@ -492,12 +463,12 @@ export function SpaceFileTree({
         sortRef.current
       ),
     density: 1,
-    itemHeight: 28,
+    itemHeight: EXPLORER_ROW_HEIGHT,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
     icons: EIDOS_FILE_TREE_ICONS,
     stickyFolders: true,
-    unsafeCSS: TREE_CSS,
+    unsafeCSS: EXPLORER_TREE_CSS,
     dragAndDrop: {
       canDrag: (paths) =>
         disabledRef.current !== true &&
@@ -603,30 +574,54 @@ export function SpaceFileTree({
     if (
       appliedPathsSignatureRef.current === signature &&
       appliedSortSignatureRef.current === sortSignature &&
-      appliedOrderRef.current === treeSignature
+      appliedOrderRef.current === treeSignature &&
+      appliedNameQueryRef.current === nameQuery
     )
       return
-    for (const path of renderedPathsRef.current) {
-      const item = model.getItem(path)
-      if (item && "isExpanded" in item)
-        folderExpansionRef.current.set(path, item.isExpanded())
+    const filteringNames = !!nameQuery.trim()
+    const restoringNames =
+      !filteringNames && nameFilterSnapshotRef.current !== null
+    const scrollElement = model
+      .getFileTreeContainer()
+      ?.shadowRoot?.querySelector<HTMLElement>(
+        "[data-file-tree-virtualized-scroll]"
+      )
+    if (!nameFilterSnapshotRef.current) {
+      for (const path of renderedPathsRef.current) {
+        const item = model.getItem(path)
+        if (item && "isExpanded" in item)
+          folderExpansionRef.current.set(path, item.isExpanded())
+      }
+      if (filteringNames)
+        nameFilterSnapshotRef.current = {
+          selected: selectedPaths,
+          expanded: new Map(folderExpansionRef.current),
+          scrollTop: scrollElement?.scrollTop ?? 0,
+        }
+    }
+    if (restoringNames) {
+      restoreSelectionRef.current = nameFilterSnapshotRef.current!.selected
+      folderExpansionRef.current = nameFilterSnapshotRef.current!.expanded
     }
     const expanded = (path: string) => {
       const item = model.getItem(path)
-      return item && "isExpanded" in item
+      return !restoringNames && item && "isExpanded" in item
         ? item.isExpanded()
         : folderExpansionRef.current.get(path)
     }
-    const expandedPaths = treeInitializedRef.current
-      ? tree.paths.filter(
-          (path) => path.endsWith("/") && expanded(path) === true
-        )
-      : tree.initialExpandedPaths
-    const collapsedPaths = treeInitializedRef.current
-      ? tree.paths.filter((path) => {
-          return path.endsWith("/") && expanded(path) === false
-        })
-      : []
+    const expandedPaths = filteringNames
+      ? tree.paths.filter((path) => path.endsWith("/"))
+      : treeInitializedRef.current
+        ? tree.paths.filter(
+            (path) => path.endsWith("/") && expanded(path) === true
+          )
+        : tree.initialExpandedPaths
+    const collapsedPaths =
+      !filteringNames && treeInitializedRef.current
+        ? tree.paths.filter((path) => {
+            return path.endsWith("/") && expanded(path) === false
+          })
+        : []
     model.resetPaths(tree.paths, {
       initialExpandedPaths: expandedPaths,
     })
@@ -644,6 +639,12 @@ export function SpaceFileTree({
       if (item && "collapse" in item) item.collapse()
     }
     if (restoreSelectionRef.current) {
+      if (restoringNames) {
+        for (const path of model.getSelectedPaths()) {
+          if (!restoreSelectionRef.current.includes(path))
+            model.getItem(path)?.deselect()
+        }
+      }
       for (const path of restoreSelectionRef.current)
         model.getItem(path)?.select()
       restoreSelectionRef.current = null
@@ -653,7 +654,19 @@ export function SpaceFileTree({
     appliedPathsSignatureRef.current = signature
     appliedSortSignatureRef.current = sortSignature
     appliedOrderRef.current = treeSignature
-  }, [model, treeResetVersion, treeSignature, sortSignature])
+    appliedNameQueryRef.current = nameQuery
+    if (restoringNames) {
+      const scrollTop = nameFilterSnapshotRef.current!.scrollTop
+      nameFilterSnapshotRef.current = null
+      const frame = window.requestAnimationFrame(() => {
+        if (scrollElement?.isConnected && !appliedNameQueryRef.current.trim()) {
+          scrollElement.scrollTop = scrollTop
+          scrollElement.dispatchEvent(new Event("scroll"))
+        }
+      })
+      return () => window.cancelAnimationFrame(frame)
+    }
+  }, [model, treeResetVersion, treeSignature, sortSignature, nameQuery])
 
   useEffect(() => {
     if (!renameRequest) return
@@ -666,6 +679,7 @@ export function SpaceFileTree({
   }, [model, renameRequest, rootDirectory])
 
   useEffect(() => {
+    if (!visible) return
     if (
       activeRevealRef.current.model !== model ||
       activeRevealRef.current.path !== activePath ||
@@ -708,7 +722,14 @@ export function SpaceFileTree({
     if (!item.isSelected()) item.select()
     model.scrollToPath(activeTreePath, { offset: "nearest", focus: false })
     activeRevealRef.current.revealed = true
-  }, [activePath, model, treeSignature, revealToken, fileFilterSignature])
+  }, [
+    visible,
+    activePath,
+    model,
+    treeSignature,
+    revealToken,
+    fileFilterSignature,
+  ])
 
   const requestDirectoryLoad = useCallback(
     (treePath: string, relativePath: string) => {
@@ -743,7 +764,8 @@ export function SpaceFileTree({
   )
 
   useEffect(() => {
-    if (disabled) return
+    // The recursive filter read owns hydration while names are filtered.
+    if (!visible || disabled || nameQuery.trim()) return
     const roots = bulkExpansionRef.current
     if (roots) {
       for (const path of tree.paths) {
@@ -788,10 +810,12 @@ export function SpaceFileTree({
   }, [
     directoryLoads,
     disabled,
+    visible,
     model,
     requestDirectoryLoad,
     tree,
     expansionVersion,
+    nameQuery,
   ])
 
   const openTreePath = (treePath: string | null) => {
@@ -881,8 +905,10 @@ export function SpaceFileTree({
   }
 
   return (
-    <div className="space-file-tree-shell">
-      {countExplorerFilterRules(fileFilter) > 0 &&
+    <div className="space-file-tree-shell" aria-busy={filtering}>
+      {(filterError ||
+        countExplorerFilterRules(fileFilter) > 0 ||
+        !!nameQuery.trim()) &&
         (filterError || tree.paths.length === 0) && (
           <p
             className="explorer-filter-empty"
@@ -907,7 +933,7 @@ export function SpaceFileTree({
       <FileTree
         model={model}
         aria-label="Space files"
-        aria-disabled={disabled === true}
+        aria-disabled={disabledProp === true}
         className="space-file-tree"
         data-space-file-tree="true"
         data-active-path={activePath ?? undefined}

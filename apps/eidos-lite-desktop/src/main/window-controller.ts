@@ -779,7 +779,8 @@ export class WindowController {
   async showPluginInstall(
     id: string,
     preview?: PluginPackagePreview,
-    preferred?: BrowserWindow
+    preferred?: BrowserWindow,
+    onReady?: (window: BrowserWindow) => void
   ): Promise<BrowserWindow> {
     const eligible = (window: BrowserWindow | null | undefined) =>
       window &&
@@ -826,6 +827,7 @@ export class WindowController {
       })
       window = await this.pluginInstallWindowOpening
     }
+    onReady?.(window)
     this.pluginInstallIntents.set(window.webContents.id, {
       id,
       sequence: ++this.pluginInstallSequence,

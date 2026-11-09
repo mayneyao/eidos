@@ -200,6 +200,23 @@ mod tests {
         assert_eq!(result["missingFeatures"], json!(["theme.lite"]));
     }
     #[test]
+    fn native_sidecars_remain_unsupported_on_cli() {
+        let manifest = json!({
+            "apiVersion": 1,
+            "requires": {"pluginApi": "3.8.0"},
+            "sidecar": {"command": "pi", "args": ["--mode", "rpc"]},
+            "views": [{"kind": "page"}]
+        });
+        let result = check(&manifest);
+        assert_eq!(host_info()["pluginApiVersion"], "3.7.0");
+        assert_eq!(result["compatible"], false);
+        assert!(result["missingFeatures"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("sidecar")));
+        assert!(ensure(&manifest).is_err());
+    }
+    #[test]
     fn rejects_generic_file_views_on_table_only_host() {
         let manifest =
             json!({"apiVersion":1,"requires":{"pluginApi":"3.0.0"},"views":[{"kind":"file"}]});

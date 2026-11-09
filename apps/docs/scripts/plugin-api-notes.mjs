@@ -1,5 +1,33 @@
 // Human-written behavior, shared by the English and Chinese reference renderer.
 export const notes = {
+  "PluginManifest.sidecar": [
+    "Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows `start({ command, args })` with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.",
+    "固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 `start({ command, args })` 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。",
+  ],
+  "CommonCapabilities.sidecar": [
+    "Available only to standalone page and file Views declaring manifest.sidecar. Not provided to extensions, actions, embedded resources, JavaScript backgrounds, CLI Serve or mobile.",
+    "仅提供给声明 manifest.sidecar 的独立页面和文件 View；extension、命令、嵌入资源、JavaScript 后台、CLI Serve 和移动端均不提供。",
+  ],
+  "PluginSidecar.status": [
+    "Discovery only: available means an executable was found; running means an owned native process exists. Neither implies protocol readiness or a compatible program version. Does not execute, install or prompt.",
+    "仅查询：available 表示找到了程序，running 表示存在所属原生进程；均不保证协议就绪或程序版本兼容。不会执行、安装或弹出授权。",
+  ],
+  "PluginSidecar.start": [
+    "Checks persisted approval per Space, package revision and exact program identity including argv; requests review when missing or changed. Installation/enablement may include the concrete default launch. Overrides require configurable: true. An existing different launch must be stopped first. Pending startup expires after five minutes and is cancelled with its initiating View. Closing a started View only detaches it. Success means OS spawn, not protocol readiness.",
+    "核对按 Space、包修订及含参数的精确程序身份保存的授权，缺失或变化时请求审阅。安装或启用可审阅具体默认启动；覆盖须声明 configurable: true。不同的已有进程须先停止。待启动确认最多五分钟，随发起 View 取消；已启动后关闭 View 仅断开连接。成功仅表示系统启动程序，不代表协议就绪。",
+  ],
+  "PluginSidecar.stop": [
+    "Stops the shared owned process tree and awaits exit, affecting every attached View. Stop retains consent; disabling or uninstalling revokes it. Updating the plugin, leaving the Space, closing its owner window or quitting Lite also stops it. Native side effects are not undone.",
+    "停止共享的所属进程树并等待退出，影响所有已连接 View。Stop 保留授权，禁用或卸载撤销授权。更新插件、离开 Space、关闭所属窗口或退出 Lite 也会停止进程；不会撤销已产生的原生修改。",
+  ],
+  "PluginSidecar.send": [
+    "Writes one JSON value followed by LF. Each frame including LF is limited to 1 MiB; queued stdin including the incoming frame is limited to 4 MiB. Completion means stream write completion, not a native protocol response.",
+    "写入一个 JSON 值并追加 LF。包含 LF 的单帧最多 1 MiB；含本次新帧的待写 stdin 最多 4 MiB。完成表示流写入完成，不表示收到原生协议回复。",
+  ],
+  "PluginSidecar.onEvent": [
+    "Subscribes without starting a process. Returns a disposable observer; closing the View unsubscribes. stdout is LF-delimited JSON (CRLF accepted). Records default to 1 MiB excluding CRLF; API 3.12 permits manifest.sidecar.maxOutputFrameBytes, an integer from 1 to 16777216. The per-second stdout byte limit is max(16 MiB, twice the record limit); stderr over 1 MiB/s is dropped. Malformed or oversized output emits an error and stops the process; preserve that error when exit follows. Unicode line separators are ordinary string content. Reconcile native state after reattaching because events are not replayed.",
+    "订阅不会启动进程，返回可释放监听器，关闭 View 时取消订阅。stdout 以 LF 分隔 JSON（接受 CRLF），单条记录默认最多 1 MiB，不含 CRLF；API 3.12 可声明 manifest.sidecar.maxOutputFrameBytes，整数范围 1 至 16777216。stdout 每秒字节上限为 max(16 MiB, 单条记录上限的两倍)；stderr 每秒超出 1 MiB 的部分丢弃。非法或超限输出会先发出 error 再停止进程，exit 到达时应保留最初错误。Unicode 行分隔符仍是字符串内容。事件不重放，重新连接后应查询原生状态。",
+  ],
   "PluginEvents.on": [
     "The event name determines the listener parameter type. Returns a Disposable; dispose() is idempotent. Unknown event names, non-function listeners and undeclared event permissions throw synchronously.",
     "事件名决定监听器参数类型。返回 Disposable，dispose() 可重复调用。未知事件名、非函数监听器和未声明的事件权限会同步抛错。",
@@ -8,9 +36,18 @@ export const notes = {
     "Successful file-open metadata. See FileOpenedEvent.",
     "成功打开文件的元数据，字段见 FileOpenedEvent。",
   ],
-  "FileOpenedEvent.id": ["Host-generated event identity, usable for deduplication.", "宿主生成的事件标识，可用于去重。"],
-  "FileOpenedEvent.path": ["File path relative to the current Space.", "相对当前 Space 的文件路径。"],
-  "FileOpenedEvent.timestamp": ["Time of the successful open, in Unix milliseconds.", "成功打开的时间，单位为 Unix 毫秒。"],
+  "FileOpenedEvent.id": [
+    "Host-generated event identity, usable for deduplication.",
+    "宿主生成的事件标识，可用于去重。",
+  ],
+  "FileOpenedEvent.path": [
+    "File path relative to the current Space.",
+    "相对当前 Space 的文件路径。",
+  ],
+  "FileOpenedEvent.timestamp": [
+    "Time of the successful open, in Unix milliseconds.",
+    "成功打开的时间，单位为 Unix 毫秒。",
+  ],
   "PluginManifest.background": [
     "A separate Worker-style entry. network: true permits public HTTPS/WSS after approval; up to eight exact networkOrigins optionally restrict it. bluetooth: true grants the selected device, optionally narrowed by a service whitelist. Device IDs are chosen by the host. API 3.6 adds autoStart: true for approved startup on Space opening, and fileHistory: true for file-open metadata in the owner window and Space; fileHistory does not grant file contents.",
     "独立的 Worker 风格入口。network: true 经授权允许公网 HTTPS/WSS，可用最多八个精确 networkOrigins 收窄。bluetooth: true 授权选中设备，可用服务白名单限制。设备 ID 由宿主选择。API 3.6 支持 autoStart: true，经授权随 Space 打开自动启动；fileHistory: true 监听所属窗口和 Space 的文件打开元数据，不授予文件内容。",
@@ -28,12 +65,12 @@ export const notes = {
     "唯一标识本次运行，停止并重启后改变，关闭 View 不改变。",
   ],
   "BackgroundHost.events": [
-    "Requires background.fileHistory: true and host approval. events.on(\"file.opened\", listener) returns a disposable listener for successful file opens, with no initial snapshot or replay. Events contain metadata only and stop on revocation. See the background guide for counting rules.",
-    "需声明 background.fileHistory: true 并经宿主授权。events.on(\"file.opened\", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。",
+    'Requires background.fileHistory: true and host approval. events.on("file.opened", listener) returns a disposable listener for successful file opens, with no initial snapshot or replay. Events contain metadata only and stop on revocation. See the background guide for counting rules.',
+    '需声明 background.fileHistory: true 并经宿主授权。events.on("file.opened", listener) 返回可取消的成功打开监听，不提供初始快照或历史回放。事件仅含元数据，撤销后停止发送。统计口径见后台指南。',
   ],
   "BackgroundHost.storage": [
-    "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. Concurrent read-modify-write operations are not transactions.",
-    "需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。并发读改写不是事务。",
+    "Requires storage.maxBytes. Uses the same plugin-private device-local binary store and quota as Views/actions. Shared across Spaces; use spaceId in keys when separation is needed. An ordinary read followed by an unconditional write is not a transaction. Lite API 3.11 adds opt-in storage.atomic: true for versioned reads and conditional writes; retry conflicts by rereading and replaying only the intended edit.",
+    "需声明 storage.maxBytes。与 View/action 共用插件私有、本机二进制存储和配额。跨 Space 共享，需要区分时在键中包含 spaceId。普通读取后无条件写入不是事务。Lite API 3.11 可声明 storage.atomic: true，进行版本化读取和条件写入；冲突后应重新读取，并仅重放本次编辑。",
   ],
   "PluginManifest.fileTemplates": [
     "Static UTF-8 templates, up to 256 KiB each. The referenced document View must have a matching file/open placement.",
@@ -147,6 +184,14 @@ export const notes = {
     "Delete a private stored object.",
     "删除私有存储对象。",
   ],
+  "PluginStorage.readVersioned": [
+    "Lite API 3.11; requires storage.atomic: true. Read bytes and their opaque current-bytes token together. Both are null for an absent key; an empty stored object has a non-null token. Tokens are stable for identical bytes, not monotonic revision numbers.",
+    "Lite API 3.11，需声明 storage.atomic: true。同时读取字节和代表当前字节的不透明令牌。键不存在时两者均为 null；已存储的空对象有非 null 令牌。相同字节的令牌稳定，不是单调递增的版本号。",
+  ],
+  "PluginStorage.compareAndWrite": [
+    "Lite API 3.11; requires storage.atomic: true. Compare expectedVersion with the current token and replace bytes in one host operation. A conflict returns applied: false and the current token without writing. Reread and replay the specific edit before retrying. The 4 MiB object limit and declared plugin quota still apply.",
+    "Lite API 3.11，需声明 storage.atomic: true。在一次宿主操作中比较 expectedVersion 与当前令牌并替换字节。冲突返回 applied: false 和当前令牌，不写入；重试前应重读并重放本次编辑。仍受 4 MiB 单对象上限和插件声明配额限制。",
+  ],
   "PluginFileMeta.read": [
     "Read the complete namespace object; a missing namespace returns an empty object.",
     "读取完整命名空间对象，缺失时返回空对象。",
@@ -174,8 +219,8 @@ export const notes = {
     "在宿主中打开已有的 Space 相对路径文件。",
   ],
   "HostUI.navigate": [
-    "Navigate to a plugin page View, optionally supplying its route.",
-    "跳转到插件的页面 View，可传入页面路由。",
+    "Navigate to this plugin's declared page View. In Lite, omitting route reuses the same contribution's already open main page without disposing its iframe or changing its binding. Supplying any explicit route, including an empty string, creates a new binding and remounts. A different page contribution mounts normally. Stateful pages can update through existing subscriptions.",
+    "跳转到本插件声明的页面 View。在 Lite 中，省略 route 会复用主区域已打开的同一贡献页面，不销毁 iframe 或改变绑定。显式传入任意 route（包括空字符串）会创建新绑定并重新挂载；不同页面贡献仍正常挂载。有状态页面可通过已有订阅更新内容。",
   ],
   "HostResources.listViews": [
     "List available file previews or saved Eidos views for a relative path.",

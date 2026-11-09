@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.7.
+// Public type-only SDK for Eidos Plugin API 3.12.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
@@ -32,6 +32,14 @@ export interface PluginManifest {
    */
   icon?: PluginIconDefinition
   extension?: string
+  /** Lite-only local executable, launched after native host approval. Requires API 3.8. */
+  sidecar?: {
+    command: string
+    args?: string[]
+    configurable?: boolean
+    /** API 3.12: stdout JSONL record limit in UTF-8 bytes, excluding CRLF. Default 1 MiB; maximum 16 MiB. */
+    maxOutputFrameBytes?: number
+  }
   /** A bundled Worker-style module. Started explicitly by a View or action. */
   background?: {
     entry: string
@@ -55,7 +63,7 @@ export interface PluginManifest {
   placements?: Placement[]
   settings?: Record<string, SettingDeclaration>
   browser?: { workers?: boolean; network?: true; networkOrigins?: string[] }
-  storage?: { maxBytes: number }
+  storage?: { maxBytes: number; atomic?: true }
   /** Explicit permission to access files in the current Space. */
   workspace?: {
     files?: boolean | { read?: boolean; write?: boolean }
@@ -211,6 +219,7 @@ export interface Lifetime {
   readonly subscriptions: { add<T extends Disposable>(value: T): T }
 }
 export interface CommonCapabilities {
+  readonly sidecar?: PluginSidecar
   readonly background?: PluginBackground
   readonly fs?: PluginFileSystem
   readonly filemeta?: PluginFileMeta
@@ -229,6 +238,35 @@ export type BackgroundMessage =
   | string
   | BackgroundMessage[]
   | { [key: string]: BackgroundMessage }
+export type SidecarEvent =
+  | { type: "message"; data: BackgroundMessage }
+  | { type: "stderr"; text: string }
+  | { type: "exit"; code: number | null; signal: string | null }
+  | { type: "error"; message: string }
+export interface SidecarStatus {
+  available: boolean
+  running: boolean
+  command: string
+  /** Actual running or pending launch, if any. */
+  launch?: SidecarLaunch
+}
+export interface SidecarLaunch {
+  /** Executable name or absolute path; never a shell expression. */
+  command: string
+  args: string[]
+}
+export interface PluginSidecar {
+  /** Discovery only: never executes or installs a program. */
+  status(): Promise<SidecarStatus>
+  /** Overrides require sidecar.configurable and renewed exact-launch approval. */
+  start(launch?: SidecarLaunch): Promise<void>
+  /** Resolves after the owned process exits, so a new launch can follow safely. */
+  stop(): Promise<void>
+  /** One JSON record on stdin. stdout is strict LF-delimited JSON. */
+  send(data: BackgroundMessage): Promise<void>
+  /** Subscribing never starts a process. View disposal only unsubscribes. */
+  onEvent(listener: (event: SidecarEvent) => void): Promise<Disposable>
+}
 export interface PluginBackground {
   /** Checks the current run without starting it or requesting permission. */
   isRunning(): Promise<boolean>
@@ -388,6 +426,23 @@ export interface PluginStorage {
   read(key: string): Promise<Uint8Array | null>
   write(key: string, value: Uint8Array): Promise<void>
   delete(key: string): Promise<void>
+  /** API 3.11, storage.atomic: true. Snapshot and opaque current-bytes token. */
+  readVersioned?(key: string): Promise<StorageSnapshot>
+  /** Atomically compare the current token and replace bytes. Conflicts do not write. */
+  compareAndWrite?(
+    key: string,
+    expectedVersion: string | null,
+    data: Uint8Array
+  ): Promise<StorageWriteResult>
+}
+export interface StorageSnapshot {
+  data: Uint8Array | null
+  /** Null means absent; an empty object has a non-null token. Tokens survive restarts. */
+  version: string | null
+}
+export interface StorageWriteResult {
+  applied: boolean
+  version: string | null
 }
 
 /** Display identity only. IDs and paths are never authority for operations. */

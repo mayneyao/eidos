@@ -17,6 +17,7 @@ import type {
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
 import { resolveSpacePath } from "../space/space-paths"
+import type { ExplorerEidosSummary } from "../../shared/explorer-summary"
 import {
   classifyEidosFileIssue,
   createEidosFileIssue,
@@ -126,6 +127,7 @@ export class RuntimePool {
   private residencyTail: Promise<void> = Promise.resolve()
   private readonly pendingChangeWaiters = new Set<() => void>()
   private propertyEntry: RuntimeEntry | null = null
+  private summaryEntry: RuntimeEntry | null = null
 
   constructor(
     private readonly spaceRoot: string,
@@ -339,8 +341,37 @@ export class RuntimePool {
       [
         ...this.entriesBySession.values(),
         ...(this.propertyEntry ? [this.propertyEntry] : []),
+        ...(this.summaryEntry ? [this.summaryEntry] : []),
       ].map((entry) => this.closeEntry(entry))
     )
+  }
+
+  async explorerSummary(filePath: string): Promise<ExplorerEidosSummary> {
+    const entry = (this.summaryEntry ??= {
+      sessionId: randomUUID(),
+      relativePath: "",
+      filePath: "Explorer summaries",
+      canonicalPath: "",
+      fileIdentity: null,
+      child: null,
+      pending: new Map(),
+      nextRequestId: 1,
+      crashed: false,
+      lastAccess: 0,
+    })
+    if (!entry.child) this.spawnChild(entry)
+    const child = entry.child!
+    // Bound slow inspection without interrupting editor runtimes or property writes.
+    const timer = setTimeout(() => child.kill(), 2500)
+    try {
+      return (await this.request(entry, {
+        type: "explorerSummary",
+        requestId: entry.nextRequestId++,
+        filePath,
+      })) as ExplorerEidosSummary
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   async filemeta(

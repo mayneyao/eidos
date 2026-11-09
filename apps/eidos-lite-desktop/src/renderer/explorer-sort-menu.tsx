@@ -64,6 +64,7 @@ export function ExplorerSortMenu({
           role="group"
           aria-label={t("Sort files")}
         >
+          <span className="explorer-sort-section-label">{t("Sort by")}</span>
           {(
             [
               ["name", "Name"],
@@ -84,7 +85,7 @@ export function ExplorerSortMenu({
               {t(label)}
             </button>
           ))}
-          <hr className="explorer-sort-divider" />
+          <span className="explorer-sort-section-label">{t("Order")}</span>
           {(
             [
               ["ascending", "Ascending"],

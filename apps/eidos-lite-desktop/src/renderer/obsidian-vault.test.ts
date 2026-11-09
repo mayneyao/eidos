@@ -51,6 +51,15 @@ function hit(
 }
 
 describe("resolveObsidianSpaceEntry", () => {
+  it("does not resolve a folder as a linked document when path search includes directories", async () => {
+    await expect(
+      resolveObsidianSpaceEntry(
+        "index.md",
+        { path: "Notes", syntax: "wikilink" },
+        vi.fn().mockResolvedValue([hit("Notes", "directory"), hit("Notes.md")])
+      )
+    ).resolves.toMatchObject({ relativePath: "Notes.md", kind: "file" })
+  })
   it.each(["wikilink", "markdown"] as const)(
     "resolves .eidos file links using %s syntax",
     async (syntax) => {

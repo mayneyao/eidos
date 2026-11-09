@@ -161,7 +161,7 @@ describe("SpacePathIndex", () => {
   it("scans a space and finds files by fuzzy query", async () => {
     const index = new SpacePathIndex(root)
     await index.ensureScanned()
-    expect(index.size).toBe(4)
+    expect(index.size).toBe(6)
 
     const hits = index.search("readme")
     expect(hits.map((hit) => hit.relativePath)).toContain("notes/readme.md")
@@ -174,6 +174,40 @@ describe("SpacePathIndex", () => {
     const eidos = index.search("crm")
     expect(eidos[0]?.kind).toBe("eidos")
     expect(index.search("head")).toEqual([])
+  })
+
+  it("indexes folder names, including empty folders, and tracks directory renames", async () => {
+    await fs.mkdir(path.join(root, "empty"))
+    const index = new SpacePathIndex(root)
+    await index.ensureScanned()
+    expect(index.search("empty")).toEqual([])
+    expect(index.search("empty", 50, true)[0]).toMatchObject({
+      relativePath: "empty",
+      kind: "directory",
+    })
+    expect(
+      index
+        .search("notes", 50, true)
+        .find((hit) => hit.relativePath === "notes")?.kind
+    ).toBe("directory")
+    await fs.rename(path.join(root, "notes"), path.join(root, "renamed"))
+    await index.applyChanges(["notes", "renamed"])
+    expect(
+      index
+        .search("notes", 50, true)
+        .some((hit) => hit.relativePath === "notes")
+    ).toBe(false)
+    expect(
+      index
+        .search("renamed", 50, true)
+        .find((hit) => hit.relativePath === "renamed")?.kind
+    ).toBe("directory")
+    await fs.mkdir(path.join(root, "new", "deep"), { recursive: true })
+    await index.applyChanges(["new"])
+    expect(index.search("deep", 50, true)[0]).toMatchObject({
+      relativePath: "new/deep",
+      kind: "directory",
+    })
   })
 
   it("applies additions and removals incrementally", async () => {

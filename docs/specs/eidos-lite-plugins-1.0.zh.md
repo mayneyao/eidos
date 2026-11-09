@@ -1,10 +1,87 @@
-# Eidos Plugins — API 3.7
+# Eidos Plugins — API 3.12
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.7.0
+Plugin API：3.12.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## 原子私有存储
+
+Lite API 3.11 新增 `storage.atomic: true`，须声明最低 API 3.11.0，且宿主提供
+`storage.atomic` 兼容特征。它沿用私有存储授权、配额、单对象 4 MiB 和最多 25000
+对象限制，不增加原生执行权限。不提供该特征的宿主须拒绝此声明。
+
+`readVersioned(key)` 一致地读取 `{ data: Uint8Array | null, version: string | null }`。
+`null` 表示对象不存在；零字节对象的数据与 token 均非 null。token 是当前字节的
+不透明身份，跨宿主重启稳定，不能当作递增计数或权限证明，也不应解析其内容。
+
+`compareAndWrite(key, expectedVersion, data)` 在同一原子操作中比较 token、检查配额并
+以临时文件重命名替换数据。成功返回 `{ applied: true, version }`；冲突返回
+`{ applied: false, version }`，不得写入。规范化后的同一存储目录必须由所有存储实例、
+窗口及 View/action/background 共用临界区；普通 write/delete 和跨 key 配额检查也须
+进入同一区域，不能插入比较与重命名之间。失败、撤权和无效请求须释放临界区且不替换
+数据。范围限于同一拥有者宿主进程，不覆盖其它进程直接修改文件。
+
+插件遇到冲突应重读最新快照，仅重放本次用户意图，不能拿旧的完整状态覆盖新数据。
+此能力不改变后台或 sidecar 的所有权与生命周期。
+
+## 本机原生 sidecar
+
+Lite API 3.8 支持 `sidecar: { command, args? }`。`command` 是可执行文件名，
+只能包含 ASCII 字母、数字、点、下划线和连字符，不能是路径或 shell 表达式。
+最多 64 个参数固定在插件包内。源码和插件包不携带原生程序；Lite 只在绝对 PATH
+目录及标准用户、系统程序目录发现已安装的程序，当前 Space 不参与程序查找。
+声明此能力的插件必须要求 API 3.8.0 或以上。CLI Serve 和移动端不提供该能力。
+
+页面和文件 View 使用 `ctx.capabilities.sidecar.status/start/stop/send/onEvent`。
+嵌入资源及 extension 不可使用。查询状态和订阅事件不启动、下载或安装程序。
+启动必须由原生宿主确认，展示解析后的程序路径、固定参数、工作目录和系统权限。
+程序已能解析时，可将授权纳入明确的安装或启用确认；否则首次使用时请求授权。
+授权必须按 Space 和精确插件包哈希持久保存，并绑定程序路径、解析目标、文件内容、
+参数及规范 Space 根目录。宿主重启后可复用未变化的授权；程序身份缺失或变化时重新
+确认。安装时无法解析的程序不能预先授权。禁用或卸载撤销授权。
+原生程序属于 JavaScript 能力沙箱之外的可信代码，原有文件和网络声明不能限制它。
+宿主提供规范化的 Space 根目录作为 cwd，并且不通过 shell 启动。
+
+每个窗口、Space、插件及包版本拥有一个进程。关闭 View 只取消订阅，重新打开可
+连接同一进程。停止、撤权、更新插件、关闭窗口或 Space、退出宿主会取消待启动请求
+并清理所拥有的进程组或进程树。启动确认最多等待五分钟；取消后的迟到确认不能启动
+程序。新运行必须核对已有授权或重新请求确认；安装和启用确认本身不会启动原生程序。
+停止运行不撤销授权，不隐含自动启动或崩溃重试，停止不会撤销已发生的修改。
+原生程序修改 Eidos 数据必须使用规范 Runtime 操作；原生执行本身不能强制该约定。
+
+`send` 向 stdin 写入单条 JSON 和 LF；stdout 仅以 LF 分隔 JSON，U+2028/U+2029
+仍是字符串内容。事件包括 `message { data }`、`stderr { text }`、
+`error { message }` 和 `exit { code, signal }`。stdin 单条记录包含 LF 最多 1 MiB，
+待写 stdin 包含本次新记录最多 4 MiB。stdout 接受 CRLF；JSON 记录默认最多 1 MiB，
+按不含 CRLF 的 UTF-8 字节计算。stderr 每秒超过 1 MiB 的部分丢弃。
+调用方负责取消订阅和丢弃过期异步结果。每次操作重查 Space、启用状态和包版本。
+启动成功仅表示系统接受程序，协议就绪由插件判断。Agent 工具审批与启动确认独立。
+
+API 3.12 新增仅在 manifest 声明的 `sidecar.maxOutputFrameBytes?: number`。
+声明该字段必须要求最低 API 3.12.0；Lite 提供 `sidecar.outputFrameLimit` 能力，
+CLI Serve 和移动端不得宣称支持。值必须是 1 至 16777216（含端点）的安全整数，
+仅替换 stdout 单条记录上限，缺省仍为 1048576 字节。运行时启动覆盖不得传入或修改
+该值。stdout 每个一秒窗口的总字节预算包含分隔符，必须为
+`max(16777216, 2 * outputRecordLimit)`，默认 16 MiB、最大 32 MiB。stdin、
+待写 stdin 和 stderr 预算不变。因此精确 16 MiB 的 JSON 记录加 CRLF 仍可传输，
+总输出另受明确的有限预算约束。
+
+非法 JSON、超过声明或默认上限的记录、超过 stdout 总预算的输出，必须发出 `error`
+并终止所属进程。致命错误后宿主必须丢弃待解析输出，不得继续解析后续记录，也不得用
+不完整记录错误覆盖最初原因。消费者必须在后续 `exit` 到达时保留原始传输错误，
+拒绝待处理请求，并允许用户显式重新连接。此能力不表示截断历史、无界缓冲或自动重启。
+
+API 3.9 新增 `sidecar.configurable?: boolean`，声明该字段须要求 API 3.9.0
+或以上。仅显式设为 `true` 的插件可通过 `start({ command, args })` 替换默认启动
+配置。覆盖命令须为可执行文件名或绝对路径，不得为 shell 表达式或相对路径，也不能
+指向 Space 内的程序。参数最多 64 个，每个不超过 8192 个 UTF-16 码元且不含 NUL。
+宿主须按实际程序与参数重新审阅并持久保存精确授权；安装时同意默认配置不等于同意
+任意覆盖。未声明该能力的插件须拒绝覆盖，工作目录与环境变量仍由宿主管理。
+`status().launch` 返回正在运行或等待启动的实际 `{ command, args }`。已有进程时
+用不同配置启动须报错并保留原进程。`stop()` 须等待进程退出或启动取消后才完成，
+确保用户应用配置时能够安全启动替代进程。
 
 ## 多语言
 
@@ -46,7 +123,9 @@ URL、默认值和枚举值不翻译。默认词典必须包含所有被声明�
 
 API 3.6 接受可选的 `background.autoStart: true`。Lite 在打开 Space 或启用插件时
 尝试启动已启用的插件，复用显式启动的单例和权限。授权必须说明自动启动，并绑定
-Space 和精确插件包哈希。禁用撤销授权，更新后需重新授权。手动停止或失败不得导致
+Space 和精确插件包哈希。禁用撤销授权，更新后需重新审阅。明确的安装或启用确认可
+覆盖后台授权，并必须说明网络、文件历史和私有存储权限。按需启动的后台也必须保存
+相同的 Space 与包版本授权，不要求声明 autoStart；取消确认不得留下授权。手动停止或失败不得导致
 本次 Space 会话内自动重试。关闭 Space 结束运行，不恢复内存或自动授权蓝牙设备。
 
 `ctx.events` 是后台的宿主事件入口，第一版仅支持 `file.opened`。事件名决定回调参数类型。未知事件、非法监听器或未声明的权限会同步抛错；订阅不会启动后台。每次订阅独立取消，一个监听器抛错不影响其他监听器。事件仅实时交付，不持久化或重放；后台停止时全部监听随之销毁。View 和 action 暂不提供此接口，通过现有 background 消息 API 获取后台状态。
@@ -261,6 +340,8 @@ TextFileViewContext 和 TableFileViewContext 是类型组合，不增加 View �
 View 仅暴露 settings.get；Lite Action 还支持 settings.set/reset。
 HostUI 提供 notify，
 openFile/navigate 为宿主可选操作；openFile 的相对路径仍由宿主校验和授权。
+
+在 Lite 中，不传 route 的 `ui.navigate(viewId)` 必须复用主区域已打开的同一贡献 page View，仅将页面带到前台，不改变绑定或销毁 iframe。有状态页面可通过已有订阅更新内容。显式传入 route 则请求新的页面绑定，保留重新挂载行为。打开不同贡献仍正常挂载其页面。
 
 View 宿主可以提供 `capabilities.ui.exportFile({ name, mimeType, data })`，用于导出生成文件。
 name 必须是不含路径的可移植文件名，mimeType 必须是不含参数的媒体类型，data 必须是

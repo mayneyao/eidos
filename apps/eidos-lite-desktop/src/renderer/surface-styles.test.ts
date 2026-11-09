@@ -392,7 +392,7 @@ describe("Eidos Lite surface hierarchy", () => {
 
   it("aligns the sidebar Settings entry and toggle with the file tree inset", () => {
     const tree = readFileSync(
-      new URL("./space-file-tree.tsx", import.meta.url),
+      new URL("./explorer-presentation.tsx", import.meta.url),
       "utf8"
     )
     const footer = rule(".sidebar-footer")

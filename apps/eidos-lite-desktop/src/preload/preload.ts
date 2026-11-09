@@ -306,12 +306,28 @@ const api: EidosLiteApi = {
   refreshExplorer: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExplorer),
   loadSpaceDirectory: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
-  searchSpacePaths: (query, limit) =>
-    ipcRenderer.invoke(IPC_CHANNELS.searchPaths, query, limit),
-  filterSpaceFiles: (filter, directory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.filterFiles, filter, directory),
+  searchSpacePaths: (query, limit, includeDirectories) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.searchPaths,
+      query,
+      limit,
+      includeDirectories
+    ),
+  filterSpaceFiles: (filter, directory, respectGitignore) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.filterFiles,
+      filter,
+      directory,
+      respectGitignore
+    ),
   getExplorerFilterFields: () =>
     ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields),
+  listExplorerFiles: (query) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listExplorerFiles, query),
+  getExplorerFileThumbnail: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.explorerFileThumbnail, request),
+  getExplorerEidosSummary: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.explorerFileSummary, request),
   searchSpaceText: (requestId, query, options) =>
     ipcRenderer.invoke(IPC_CHANNELS.searchText, requestId, query, options),
   cancelTextSearch: (requestId) =>

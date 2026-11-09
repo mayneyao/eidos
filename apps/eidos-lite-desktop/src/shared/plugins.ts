@@ -32,7 +32,14 @@ export interface PluginBinding {
   enabled: boolean
 }
 export interface PluginSpaceConfig {
-  plugins: Record<string, { enabled: boolean; backgroundApproval?: string }>
+  plugins: Record<
+    string,
+    {
+      enabled: boolean
+      backgroundApproval?: string
+      sidecarApproval?: { hash: string; identity: string }
+    }
+  >
   associations: Record<string, string>
   formatters?: Record<string, string>
   explorer?: string
@@ -93,7 +100,7 @@ export interface PluginRpcResult {
   /** Trusted workbench payload; never forwarded to a plugin guest. */
   resource?: PluginResourceChange
   draftPath?: string
-  navigation?: { key: string; route: string }
+  navigation?: { key: string; route: string; reuse?: boolean }
   notification?: string
   openFile?: string
   response: PluginResponse
@@ -156,6 +163,7 @@ export type PluginInstallStatus =
 export interface PluginInstallTask {
   id: string
   spaceId?: string
+  packageToken?: string
   status: PluginInstallStatus
   percent: number
   error?: string

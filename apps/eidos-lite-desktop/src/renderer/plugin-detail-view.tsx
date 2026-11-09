@@ -327,9 +327,11 @@ export function PluginDetailView({
     manifest?.browser?.network && manifest.browser.networkOrigins === undefined
   const execution = isTheme
     ? "No executable code"
-    : background
-      ? "Isolated iframe sandbox and QuickJS background sandbox"
-      : "Isolated iframe sandbox (null origin)"
+    : manifest?.sidecar
+      ? "Sandboxed View with a trusted native process (OS permissions)"
+      : background
+        ? "Isolated iframe sandbox and QuickJS background sandbox"
+        : "Isolated iframe sandbox (null origin)"
   const totalContributions =
     views.length +
     actions.length +
@@ -565,6 +567,12 @@ export function PluginDetailView({
                 <dd>1</dd>
               </div>
             )}
+            {manifest?.sidecar && (
+              <div className="plugin-prop-item">
+                <dt>{t("Native process")}</dt>
+                <dd>{manifest.sidecar.command}</dd>
+              </div>
+            )}
           </dl>
         </div>
       )}
@@ -737,6 +745,11 @@ export function PluginDetailView({
                   ? t("Unknown version")
                   : `v${pluginVersion}`}
             </span>
+            {previewPending && plugin && (
+              <span className="plugin-detail-version">
+                · {t("Installed")}: v{plugin.manifest.version}
+              </span>
+            )}
             <span className="plugin-detail-dot">·</span>
             {hasUpdate && marketplacePlugin && (
               <>
@@ -755,7 +768,15 @@ export function PluginDetailView({
                 <span className="plugin-detail-dot">·</span>
               </>
             )}
-            {plugin && !previewPending ? (
+            {previewPending && plugin && (
+              <>
+                <span className="plugin-status-pill is-update">
+                  {t("Update")}
+                </span>
+                <span className="plugin-detail-dot">·</span>
+              </>
+            )}
+            {plugin ? (
               <span
                 className={`plugin-status-pill ${
                   plugin.enabled ? "is-enabled" : "is-disabled"
@@ -939,7 +960,7 @@ export function PluginDetailView({
               })}
             </p>
           )}
-          {(previewPending || marketplaceOnly) && (
+          {((previewPending && !plugin) || marketplaceOnly) && (
             <p className="plugin-manager-caption">
               {installSpaceName
                 ? t("Install for Space: {space}", { space: installSpaceName })

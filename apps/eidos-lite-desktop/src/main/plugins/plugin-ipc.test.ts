@@ -141,7 +141,11 @@ beforeEach(async () => {
     [1, 2].map((id) => [
       id,
       {
-        canonical: { id: `space-${id}`, name: `Space ${id}` },
+        canonical: {
+          id: `space-${id}`,
+          name: `Space ${id}`,
+          root: mock.directory,
+        },
         previewTextFile: (file: string) =>
           readTextFilePreview(mock.directory, file),
         saveTextFile: (request: Parameters<typeof saveTextFile>[1]) =>
@@ -155,9 +159,11 @@ beforeEach(async () => {
   }
   mock.showPluginInstall
     .mockReset()
-    .mockImplementation(
-      (_id, _preview, preferred) => preferred ?? mock.windows[0]
-    )
+    .mockImplementation((_id, _preview, preferred, onReady) => {
+      const owner = preferred ?? mock.windows[0]
+      onReady?.(owner)
+      return owner
+    })
   registered = registerPluginIpc({
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
@@ -417,19 +423,21 @@ it("previews shell-opened packages in the main window and installs only after co
   await packageVersion("2.0.0")
   mock.response = 0
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
+  expect(await call("packagePreviews", 1)).toEqual([preview])
   expect(mock.messageOptions.at(-1)).toMatchObject({
     message: expect.stringContaining("Space: Space 1"),
   })
   expect((await listing(3)).plugins).toHaveLength(0)
   mock.response = 1
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual([])
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: true,
     manifest: { version: "1.0.0" },
   })
-  const reviews = mock.messageOptions.length
-  expect(await call("installPrepared", 1, preview.token)).toBe(true)
-  expect(mock.messageOptions).toHaveLength(reviews)
+  await expect(call("installPrepared", 1, preview.token)).rejects.toThrow(
+    /preview/
+  )
   await call("enable", 1, id, false)
   await call("enable", 2, id, true)
   await registered.openPackage(file)
@@ -487,6 +495,89 @@ it("opens file-picker and dropped package previews without reviewing or installi
   ).rejects.toThrow(/Invalid plugin/)
 })
 
+it("removes only successfully installed copies of a preview", async () => {
+  await call("previewPackage", 1, mock.selected)
+  const first = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("previewPackage", 1, mock.selected)
+  const duplicate = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await packageVersion("2.0.0")
+  await call("previewPackage", 1, mock.selected)
+  const update = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  await call("previewPackage", 2, mock.selected)
+  const otherOwner = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  expect(await call("installPrepared", 1, first.token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual([update])
+  expect(await call("packagePreviews", 2)).toEqual([otherOwner])
+  await expect(call("installPrepared", 1, duplicate.token)).rejects.toThrow(
+    /preview/
+  )
+})
+
+it("rejects an excess package without evicting accepted previews and frees capacity after success", async () => {
+  for (let index = 0; index < 8; index++) {
+    await packageVersion(`${index + 1}.0.0`)
+    await call("previewPackage", index < 4 ? 1 : 2, mock.selected)
+  }
+  const first = (await call("packagePreviews", 1)) as PluginPackagePreview[]
+  const second = (await call("packagePreviews", 2)) as PluginPackagePreview[]
+  await expect(registered.openPackage(mock.selected)).rejects.toThrow(
+    /Finish reviewing an open package/
+  )
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  expect(await call("packagePreviews", 2)).toEqual(second)
+  mock.response = 0
+  expect(await call("installPrepared", 1, first[0].token)).toBe(false)
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  await expect(call("previewPackage", 1, mock.selected)).rejects.toThrow(
+    /Finish reviewing an open package/
+  )
+  const failed = call("installPrepared", 1, first[0].token)
+  switchTestSpace(1, "changed-space")
+  await expect(failed).rejects.toThrow("Space changed before installation")
+  switchTestSpace(1, "space-1")
+  expect(await call("packagePreviews", 1)).toEqual(first)
+  mock.response = 1
+  expect(await call("installPrepared", 1, first[0].token)).toBe(true)
+  expect(await call("packagePreviews", 1)).toEqual(first.slice(1))
+  expect(await call("previewPackage", 1, mock.selected)).toBe(true)
+  expect(await call("packagePreviews", 1)).toHaveLength(4)
+  expect(await call("packagePreviews", 2)).toEqual(second)
+})
+
+it("keeps a failed queued preview available for retry", async () => {
+  const bytes = await fs.readFile(mock.selected)
+  let finish!: (bytes: Uint8Array) => void
+  vi.spyOn(PluginRegistry.prototype, "download").mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  await call("previewPackage", 2, mock.selected)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  const first = call("installMarketplace", 1, id)
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  const second = call("installPrepared", 2, preview.token)
+  const results = Promise.allSettled([first, second])
+  switchTestSpace(2, "space-three")
+  finish(bytes)
+  expect((await results)[1]).toMatchObject({ status: "rejected" })
+  expect(await call("packagePreviews", 2)).toEqual([preview])
+  switchTestSpace(2, "space-2")
+  expect(await call("installPrepared", 2, preview.token)).toBe(true)
+  expect(await call("packagePreviews", 2)).toEqual([])
+})
+
 it("rejects a queued installation if its target Space changes before review", async () => {
   const bytes = await fs.readFile(mock.selected)
   let finish!: (bytes: Uint8Array) => void
@@ -542,6 +633,114 @@ it("activates automatic backgrounds through the target Space lifecycle after ins
   await call("installPrepared", 1, preview.token)
   expect(start).toHaveBeenCalledWith(1, "space-1", id)
   expect(start).toHaveBeenCalledTimes(1)
+  const installed = await listing(1)
+  expect(installed.space?.plugins[id].backgroundApproval).toBe(
+    installed.plugins[0].hash
+  )
+  expect(mock.messageOptions).toHaveLength(1)
+  expect(mock.messageOptions[0]).toMatchObject({
+    detail: expect.stringContaining("automatically when this Space opens"),
+  })
+})
+
+it("reviews background permission when enabling in another Space and preserves cancellation", async () => {
+  const start = vi
+    .spyOn(PluginService.prototype, "autoStartBackgrounds")
+    .mockResolvedValue()
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        requires: { pluginApi: "3.8.0" },
+        id,
+        name: "Background",
+        version: "1.0.0",
+        background: { entry: "./background.js" },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  mock.response = 0
+  expect(await call("enable", 2, id, true)).toBe(false)
+  expect((await listing(2)).plugins[0].enabled).toBe(false)
+  mock.response = 1
+  expect(await call("enable", 2, id, true)).toBe(true)
+  const second = await listing(2)
+  expect(second.space?.plugins[id].backgroundApproval).toBe(
+    second.plugins[0].hash
+  )
+  const count = mock.messageOptions.length
+  await call("enable", 2, id, true)
+  expect(mock.messageOptions).toHaveLength(count)
+  expect(start).toHaveBeenCalled()
+})
+
+it("one installation review grants both background and the resolved native program without starting it", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id,
+        name: "Agent",
+        version: "1.0.0",
+        requires: { pluginApi: "3.8.0" },
+        background: { entry: "./background.js" },
+        sidecar: { command: "node", args: ["--version"] },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  const installed = await listing(1),
+    scope = installed.space!.plugins[id]
+  expect(scope.backgroundApproval).toBe(installed.plugins[0].hash)
+  expect(scope.sidecarApproval?.hash).toBe(installed.plugins[0].hash)
+  expect(scope.sidecarApproval?.identity).toMatch(/^[a-f0-9]{64}$/)
+  expect(mock.messageOptions).toHaveLength(1)
+  expect(mock.messageOptions[0]).toMatchObject({
+    detail: expect.stringContaining("operating system permissions"),
+  })
+})
+
+it("reinstalling the same revision reviews missing legacy grants once and cancellation preserves the old state", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id,
+        name: "Agent",
+        version: "1.0.0",
+        requires: { pluginApi: "3.8.0" },
+        background: { entry: "./background.js" },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  const configFile = path.join(mock.directory, "plugins/config.json")
+  const config = JSON.parse(await fs.readFile(configFile, "utf8"))
+  delete config.spaces["space-1"].plugins[id].backgroundApproval
+  await fs.writeFile(configFile, JSON.stringify(config))
+  await registered.openPackage(mock.selected)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  mock.response = 0
+  expect(await call("installPrepared", 1, preview.token)).toBe(false)
+  expect(
+    (await listing(1)).space?.plugins[id].backgroundApproval
+  ).toBeUndefined()
+  mock.response = 1
+  expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  const installed = await listing(1)
+  expect(installed.space?.plugins[id].backgroundApproval).toBe(
+    installed.plugins[0].hash
+  )
+  expect(mock.messageOptions).toHaveLength(3)
 })
 
 it("dropped packages install and update by manifest ID while preserving Space enablement", async () => {

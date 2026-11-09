@@ -1,6 +1,28 @@
 # Eidos Plugin SDK
 
-Type-only API for the [Plugin API 3.7 source contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+Type-only API for the [Plugin API 3.12 contract](../../docs/specs/eidos-lite-plugins-1.0.md).
+
+Private storage can opt into `storage: { maxBytes, atomic: true }` with
+`requires.pluginApi: "3.11.0"`. `storage.readVersioned(key)` returns bytes and an
+opaque version token. Pass that token to `storage.compareAndWrite(key, version,
+bytes)` and retry from a fresh read when `applied` is false. This preserves
+concurrent updates from multiple Views or windows. Ordinary storage remains
+available without the opt-in; atomic storage is Lite-only.
+
+Native integrations can declare `sidecar.maxOutputFrameBytes` with
+`requires.pluginApi: "3.12.0"`. This limits each stdout JSONL record in UTF-8
+bytes, excluding CRLF: the default is 1 MiB and the maximum is 16 MiB. Oversized
+or invalid output stops the process with an explicit error; the host never
+silently truncates a record. It does not change stdin or grant additional access.
+
+Lite API 3.8 adds `manifest.sidecar: { command, args? }` and optional
+`ctx.capabilities.sidecar` for standalone page and file Views. Lite discovers
+an installed local program and requests native startup approval. The program
+retains OS permissions outside the JavaScript file/network capability sandbox.
+Closing a View detaches it; stopping, revoking, updating, leaving its Space or
+quitting Lite stops the owned process. CLI Serve and mobile do not expose this
+capability. See [local native programs](../../apps/docs/src/content/docs/plugins/native-processes.mdx)
+and the [API reference](../../apps/docs/src/content/docs/plugins/api/sidecar.mdx).
 
 Plugins can declare `i18n.defaultLocale`, `i18n.messages` JSON paths and optional
 `i18n.readme` Markdown paths. Use `%message.key%` in manifest display fields and

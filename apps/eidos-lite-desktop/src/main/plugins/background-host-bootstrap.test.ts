@@ -3,6 +3,62 @@ import { expect, it, vi } from "vitest"
 import { backgroundHostBootstrap } from "./background-host-bootstrap"
 import type { BackgroundHost } from "@eidos.space/plugin-sdk"
 
+it("awaits versioned binary decoding and preserves opaque CAS versions", async () => {
+  const sent: Record<string, unknown>[] = []
+  const context = {
+    postMessage: (value: Record<string, unknown>) => sent.push(value),
+    setTimeout,
+    clearTimeout,
+    Uint8Array,
+    console,
+    ctx: undefined as BackgroundHost | undefined,
+    onmessage: undefined as ((event: { data: unknown }) => void) | undefined,
+  }
+  runInNewContext(
+    backgroundHostBootstrap("token", "space", "run", false, true, true),
+    context
+  )
+  for (const data of [null, "", "AP8B"]) {
+    const reading = context.ctx!.storage!.readVersioned!("index")
+    context.onmessage!({
+      data: {
+        __eidosHost: "token",
+        id: sent.at(-1)!.id,
+        value: { data, version: data === null ? null : "opaque-token" },
+      },
+    })
+    const result = await reading
+    expect(result.version).toBe(data === null ? null : "opaque-token")
+    if (data === null) expect(result.data).toBeNull()
+    else {
+      expect(result.data).toBeInstanceOf(Uint8Array)
+      expect(result.data).toEqual(Uint8Array.from(Buffer.from(data, "base64")))
+    }
+  }
+  const writing = context.ctx!.storage!.compareAndWrite!(
+    "index",
+    "opaque-token",
+    new Uint8Array([0, 255, 1])
+  )
+  await vi.waitFor(() =>
+    expect(sent.at(-1)!.method).toBe("storage.compareAndWrite")
+  )
+  const request = sent.at(-1)!
+  expect(JSON.parse(request.chunk as string)).toEqual({
+    key: "index",
+    expectedVersion: "opaque-token",
+    data: "AP8B",
+  })
+  context.onmessage!({
+    data: {
+      __eidosHost: "token",
+      id: request.id,
+      value: { applied: false, version: "new-token" },
+    },
+  })
+  expect(await writing).toEqual({ applied: false, version: "new-token" })
+})
+
 it("routes private frames separately, disposes observers and roundtrips binary storage", async () => {
   const sent: Record<string, unknown>[] = []
   const context = {

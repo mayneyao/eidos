@@ -1,9 +1,71 @@
 # Local release media
 
+Follow the complete [release-media recording standard](../../.codex/skills/eidos-release/references/release-media.md).
+`capture-profile.mjs` supplies the shared 2528×1768, 30fps, CRF 18 profile and
+single-line functional shortcut policy. New recordings must retain the direct
+native per-key timeline described there; do not reconstruct key timings later.
+
+New takes also require a measured first-image-frame clock. The recorder installs
+both stream and recording outputs before capture, then retains the first valid
+screen sample's `displayTime`, native timebase and presentation timestamp along
+with the recording-start callback. Both capture scripts apply that measured
+callback-to-media offset and reset source PTS before frame-based labels; they
+reject a missing/inconsistent first-frame clock. This is source wiring only:
+the coordinated native pilot and full playback must still verify alignment.
+See Apple's [frame display time](https://developer.apple.com/documentation/screencapturekit/scstreamframeinfo/displaytime)
+and [recording output registration](<https://developer.apple.com/documentation/screencapturekit/scstream/addrecordingoutput(_:)>).
+
+## Recent files, unified search and Tags scenes
+
+`prepare-iteration.mjs --out /absolute/private/fresh-case` creates five synthetic
+Markdown notes plus a root `.gitignore`, real relative modification times, an isolated profile and
+Eidos home, and a private fixture manifest. It refuses to replace an existing
+case. Keep generated files outside Git. Use the printed isolation variables
+when launching `pnpm dev:eidos-lite` from the candidate root.
+
+`capture-iteration.mjs --validate-only` checks scene definitions without opening
+an app. After native setup of the synthetic Space, record with `--repo`,
+`--expected-sha`, `--fixture`, `--scenario`, `--pid`, and a new `--out` directory.
+Scene IDs are `recent-files`, `files-and-text-search` and `explorer-tags`.
+For the 0.33.0 release, record only the first two: Recent demonstrates the shared
+`.gitignore` hiding switch across Recent/folders; search shows filename-only
+sidebar filtering and a native Files/Text mode switch in one Cmd+P dialog.
+Do not append the ignored note to an already-prepared case; use a fresh output
+directory so the fixture manifest binds every file and its timestamp.
+The Tags scene requires `--plugin-receipt`: the exact archive path/hash, plugin
+identity and packaging host commit. That commit and both feature commits must
+be ancestors of the clean capture commit. Install and enable the actual archive
+in the isolated Eidos home before capture; development source is not a substitute.
+
+Update scene selectors and feature source references for the intended candidate
+before committing the tools. Recording refuses external draft scripts, dirty
+source, a different HEAD, a different Space, or changed fixture content/mtimes.
+Native input includes command+shift shortcuts; CDP only reads UI state, focus,
+geometry, navigation and real highlight ranges. It does not inject app results.
+
+The private manifest distinguishes the feature candidate and exact capture
+commit, reads the actual package version, and labels the build an unreleased
+candidate. Export checks include full decoding, H.264, 30fps, no audio,
+faststart, dimensions/duration and hashes. Successful export leaves review
+pending. Complete playback and poster/privacy review are still required before
+the existing hash-bound review step below. No upload or release is implied.
+Export ends at the declared scenario duration, after all actions have completed;
+only a stationary recorder-finalization tail is removed. The private manifest
+retains source duration/hash, action completion time, exact helper binary hashes
+and recorder arguments. A short source or an over-budget scene still fails.
+
+This multi-scene adapter uses `capture-profile.mjs`, logs each native key/modifier
+post, and burns only the scene's explicit `shortcutLabel` keys into the MP4.
+Generic select-all and typing remain in the private audit log without a label.
+The manifest binds the raw/derived timeline hashes and rendered intervals.
+Real native recording, clock/frame alignment and full playback remain pending
+until the coordinated recording slot; scene validation alone proves none of them.
+
 Prepare, record, review and upload a short Eidos Lite demonstration on macOS.
-The first scenario demonstrates the table-search Escape/focus improvement from
-Lite 0.31.0, captured with the unchanged shared UI in 0.31.1. This is a real
-development app using the canonical Runtime and a synthetic project fixture.
+The default scenario demonstrates table-search Escape/focus recovery in the
+actual candidate. Its package version and source commit are saved in the
+manifest. This is a real development app using the canonical Runtime and a
+synthetic project fixture.
 It is not proof of the signed release package or of mobile capture.
 
 Requirements: macOS 15+, Xcode command-line tools, Node 22+ with WebSocket and
@@ -53,6 +115,12 @@ Escape focus recovery, verifies fixture bytes remain unchanged, then writes:
 
 - `demo.mp4`: H.264, 30fps, no audio, faststart, original padding retained.
 - `poster.webp`: a successful search result frame.
+- `key-events-<capture-id>.jsonl`: private recording clock plus each native
+  key/modifier press and release, including unlabeled generic keys. Typed
+  characters are indexed without storing their text.
+- `input-timeline-<capture-id>.json`: private derived relative timestamps and
+  the selected non-overlapping functional shortcut intervals. Its hash and
+  the raw event-log hash are bound into the source manifest.
 - `source.manifest.json`: private provenance, exact capture version, scenario,
   seed checksum, dimensions, tooling changes and assertion evidence.
 - `source-<timestamp>.mp4`: private raw recording; never uploaded by this tool.
@@ -63,6 +131,15 @@ The foreground guard runs before each native input action; it is not continuous
 window or notification monitoring. Stop the capture with Ctrl-C and discard the
 take if foreground focus, the target window position or the scene changes, or
 an unexpected window or notification appears.
+
+The recorder emits a native monotonic start clock; the input helper records
+actual post-call times using that same clock. Labels are derived from these
+events, with 1.5-second minimum display and immediate replacement by a new
+relevant key. Generic keys remain in the audit log without affecting the HUD.
+The final frame stays 2528×1768; no subtitle footer is added. The timeline
+observes this helper's keyboard posts, not manual keys or another input tool.
+Adapt new scenes to this contract before recording. Full playback must still
+verify synchronization and readability against the actual captured frames.
 
 The exclusion list is a snapshot of on-screen windows at capture start. Windows
 owned by the target PID and the desktop applications (Dock, Wallpaper and Window
@@ -112,6 +189,13 @@ node scripts/release-media/upload.mjs --dir "$PWD/.artifacts/release-media" \
   --upload --credentials-file /absolute/path/to/ignored-credentials-file
 ```
 
+For a new scene, pass `--copy-file /absolute/path/to/copy.json` to both commands.
+The JSON must match the manifest's `releaseTag` (its `introducedInRelease`),
+`scenarioId`, `capturedAppVersion` and `buildKind`, and supply nonempty `en`,
+`zh`, `ja` and `ko` strings for each of `feature`, `alt` and `caption`.
+Review the copy against the actual take. Only the historical
+`lite-v0.31.0` / `table-search-escape` scene retains its original default copy.
+
 Keys include release, scenario and a hash of the complete video/poster bundle.
 Existing identical objects are reused. Differing content at an immutable URL
 fails. After upload, the script reads back exact public bytes, MIME/cache headers
@@ -139,6 +223,7 @@ Checks:
 
 ```bash
 node --test scripts/release-media/upload.test.mjs
+node --test scripts/release-media/capture-profile.test.mjs
 pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 ```
 

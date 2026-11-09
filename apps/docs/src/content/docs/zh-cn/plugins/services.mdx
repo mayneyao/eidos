@@ -47,6 +47,15 @@ const selection = bytes ? new TextDecoder().decode(bytes) : null
 
 存储值是 `Uint8Array`；文本或 JSON 需要自行编码。第一次读取不存在的键会得到 null。`maxBytes` 是总配额，写入可能因超限失败。
 
+多个窗口更新同一份数据时，可声明
+`"storage": { "maxBytes": 1048576, "atomic": true }` 并要求 Plugin API `3.11.0`。
+`readVersioned(key)` 一致地返回字节与不透明版本；
+`compareAndWrite(key, version, nextBytes)` 只在版本仍匹配时写入。
+不存在的对象版本为 `null`，已存储的零字节对象则不是。
+`applied` 为 false 时应重读最新数据，仅重放本次编辑。普通 `write` 仍表示无条件替换，
+分开的 `read` 和 `write` 不会保护并发更新。总配额与单对象 4 MiB 上限仍适用，
+此能力不改变 agent 进程的所有权。
+
 区分三种用途：用户可调整的偏好用 settings；插件本地缓存用 storage；需要随 Eidos 文件携带的展示配置用 [eidos/config](/zh-cn/plugins/tables/)。
 
 ## 3. 给用户反馈或打开页面

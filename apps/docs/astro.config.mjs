@@ -210,6 +210,10 @@ export default defineConfig({
                       slug: "plugins/background",
                       badge: { text: "Lite", variant: "note" },
                     },
+                    {
+                      slug: "plugins/native-processes",
+                      badge: { text: "Lite", variant: "note" },
+                    },
                   ],
                 },
                 {
@@ -250,6 +254,7 @@ export default defineConfig({
                         "plugins/api/explorer",
                         "plugins/api/actions",
                         "plugins/api/background",
+                        "plugins/api/sidecar",
                         {
                           slug: "plugins/api/events",
                           badge: { text: "Lite", variant: "note" },

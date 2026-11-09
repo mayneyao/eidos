@@ -43,6 +43,21 @@ the built-in SDK types; third-party dependencies require a matching lockfile and
 
 ## Lite development
 
+The compiler and bundled SDK contract support Lite API 3.12, including
+`storage.atomic` (requires 3.11) and `sidecar.maxOutputFrameBytes` (requires 3.12).
+The stdout JSONL record limit defaults to 1 MiB and can be declared up to 16 MiB,
+counted in UTF-8 bytes without CRLF. Atomic storage and native processes are
+Lite-only. Existing plugins retain their declared minimum API; these optional
+declarations are checked against their own required versions.
+
+Native integrations support `sidecar` declarations.
+Check these plugins with `--target lite`; CLI remains API 3.7 and rejects native
+sidecars. A declaration names an already installed program and fixed arguments;
+packaging does not install it. API 3.9 adds an explicit `configurable` opt-in for
+reviewed executable/argument overrides from plugin configuration pages. Publish matching SDK/tools and a compatible Lite
+before distributing plugins that require these capabilities. Validate native startup and cleanup
+separately on each claimed OS; Windows shell shims are unsupported.
+
 Complete background examples live in
 [`lite-background`](../plugin-sandbox/examples/lite-background/README.md) and
 [`lite-bluetooth`](../plugin-sandbox/examples/lite-bluetooth/README.md).

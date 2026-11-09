@@ -25,7 +25,7 @@ export interface MediaFilePreviewResult {
 
 export interface PluginDocumentSession {
   openEidosFile?(path: string): Promise<OpenEidosFileResult>
-  canonical: { id: string }
+  canonical: { id: string; root?: string }
   previewTextFile(path: string): Promise<TextFilePreviewResult>
   previewMediaFile?(
     path: string,

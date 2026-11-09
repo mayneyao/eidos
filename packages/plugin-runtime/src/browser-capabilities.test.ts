@@ -17,6 +17,30 @@ const manifest = {
   ],
 }
 describe("browser capabilities", () => {
+  it("requires an explicit API 3.11 atomic storage declaration", () => {
+    expect(
+      parseManifest({
+        ...manifest,
+        requires: { pluginApi: "3.11.0" },
+        storage: { maxBytes: 100, atomic: true },
+      }).storage?.atomic
+    ).toBe(true)
+    for (const api of ["3.0.0", "3.9.0", "3.10.0"])
+      expect(() =>
+        parseManifest({
+          ...manifest,
+          requires: { pluginApi: api },
+          storage: { maxBytes: 100, atomic: true },
+        })
+      ).toThrow("3.11")
+    expect(() =>
+      parseManifest({
+        ...manifest,
+        requires: { pluginApi: "3.11.0" },
+        storage: { maxBytes: 100, atomic: false },
+      })
+    ).toThrow("must be true")
+  })
   it("validates device storage quotas and settings page placements", () => {
     expect(
       parseManifest({ ...manifest, storage: { maxBytes: 536870912 } }).storage

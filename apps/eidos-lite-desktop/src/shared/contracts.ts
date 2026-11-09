@@ -27,6 +27,15 @@ import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type { PluginApi } from "./plugins"
 import type { ExplorerFileFilter } from "./explorer-file-filter"
 import type {
+  ExplorerFilesPage,
+  ExplorerFilesQuery,
+} from "./explorer-file-list"
+import type { ExplorerThumbnailRequest } from "./explorer-media"
+import type {
+  ExplorerEidosSummary,
+  ExplorerSummaryRequest,
+} from "./explorer-summary"
+import type {
   EidosLiteKeyboardShortcuts,
   EidosLiteShortcutCommand,
 } from "./keyboard-shortcuts"
@@ -116,6 +125,9 @@ export const IPC_CHANNELS = {
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   searchPaths: "eidos-lite:space-paths-search",
   filterFiles: "eidos-lite:space-files-filter",
+  listExplorerFiles: "eidos-lite:space-files-list",
+  explorerFileThumbnail: "eidos-lite:space-file-thumbnail",
+  explorerFileSummary: "eidos-lite:space-file-summary",
   explorerFilterFields: "eidos-lite:space-filter-fields",
   searchText: "eidos-lite:space-text-search",
   searchTextProgress: "eidos-lite:space-text-search-progress",
@@ -427,7 +439,7 @@ export interface SpacePathSearchHit {
   matchedAlias?: string
   relativePath: string
   name: string
-  kind: Exclude<SpaceEntryKind, "directory">
+  kind: SpaceEntryKind
   score: number
 }
 
@@ -1796,6 +1808,11 @@ export function isEidosLiteSchemaImpactRequiredResult(
 
 export type RuntimeWorkerRequest =
   | {
+      type: "explorerSummary"
+      requestId: number
+      filePath: string
+    }
+  | {
       type: "filemeta"
       requestId: number
       root: string
@@ -1945,12 +1962,24 @@ export interface EidosLiteApi extends PluginApi {
   refreshSpace(): Promise<SpaceSnapshot | null>
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
-  searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
+  searchSpacePaths(
+    query: string,
+    limit?: number,
+    includeDirectories?: boolean
+  ): Promise<SpacePathSearchHit[]>
   filterSpaceFiles(
     filter: ExplorerFileFilter,
-    directory: string | null
+    directory: string | null,
+    respectGitignore?: boolean
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
+  listExplorerFiles(query: ExplorerFilesQuery): Promise<ExplorerFilesPage>
+  getExplorerFileThumbnail(
+    request: ExplorerThumbnailRequest
+  ): Promise<string | null>
+  getExplorerEidosSummary(
+    request: ExplorerSummaryRequest
+  ): Promise<ExplorerEidosSummary | null>
   searchSpaceText(
     requestId: string,
     query: string,
