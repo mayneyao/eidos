@@ -14,7 +14,7 @@ The sidebar's former full-text search has moved into this Files/Text search wind
 
 ### More capabilities for plugins
 
-Plugins can integrate with locally installed command-line programs after you approve native access. Supported plugins can offer executable and argument settings, contribute sidebar Explorers, and use atomic private storage to avoid overwriting concurrent updates. These capabilities are available to plugin developers; no agent plugin is bundled with this release.
+Plugins can integrate with locally installed command-line programs after you approve native access. Supported plugins can offer executable and argument settings, and use atomic private storage to avoid overwriting concurrent updates. These capabilities are available to plugin developers; no agent plugin is bundled with this release.
 
 ## Improvements
 
