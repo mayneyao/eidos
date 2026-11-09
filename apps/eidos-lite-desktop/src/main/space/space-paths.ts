@@ -384,7 +384,9 @@ export async function listSpaceTree(
           kind,
           size: stats.size,
           modifiedAtMs: stats.mtimeMs,
-          ...(kind === "directory" ? { children: [] } : {}),
+          ...(kind === "directory"
+            ? { children: [], childrenLoaded: true }
+            : {}),
         }
         candidate.parent.push(treeEntry)
         if (kind === "directory") {

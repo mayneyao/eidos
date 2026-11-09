@@ -2,15 +2,149 @@
 import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, expect, it, vi } from "vitest"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { SpaceFileTree } from "./space-file-tree"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import { FileTree } from "@pierre/trees"
+import { readSpaceFilterTree } from "../main/space/filter-files"
+import { listSpaceDirectory } from "../main/space/space-paths"
+import { filterExplorerEntries } from "./explorer-file-filter"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
+
+it.each([
+  { source: "complete", folder: "docs" },
+  { source: "complete", folder: "empty" },
+  { source: "lazy", folder: "docs" },
+  { source: "lazy", folder: "empty" },
+])(
+  "loads only unscanned directories when opening $folder from a $source snapshot",
+  async ({ source, folder }) => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "explorer-loaded-")
+    )
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const resets = vi.spyOn(FileTree.prototype, "resetPaths")
+    let finish!: () => void
+    const load = vi.fn(
+      (_relativePath: string) =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    try {
+      await fs.mkdir(path.join(directory, "docs"))
+      await fs.mkdir(path.join(directory, "empty"))
+      await fs.mkdir(path.join(directory, "generated"))
+      await fs.writeFile(path.join(directory, "docs/note.md"), "fixture")
+      await fs.writeFile(path.join(directory, ".gitignore"), "generated/\n")
+      // The ignore-only path deliberately has no ordinary file conditions.
+      const complete = filterExplorerEntries(
+        await readSpaceFilterTree(directory, null, true),
+        []
+      )
+      const entries =
+        source === "complete"
+          ? complete
+          : await listSpaceDirectory(directory, null)
+      function Harness() {
+        const [current, setCurrent] = useState(entries)
+        return (
+          <SpaceFileTree
+            entries={current}
+            fileFilter={[]}
+            activePath={null}
+            renameRequest={null}
+            onOpen={vi.fn()}
+            onSelect={vi.fn()}
+            onMove={vi.fn()}
+            onMoveError={vi.fn()}
+            onRename={vi.fn()}
+            onRenameError={vi.fn()}
+            onContextMenu={vi.fn()}
+            onLoadDirectory={async (relativePath) => {
+              await load(relativePath)
+              setCurrent((previous) =>
+                previous.map((entry) =>
+                  entry.relativePath === relativePath
+                    ? complete.find(
+                        (item) => item.relativePath === relativePath
+                      )!
+                    : entry
+                )
+              )
+            }}
+          />
+        )
+      }
+      await act(async () => root.render(<Harness />))
+      const model = resets.mock.contexts[0]!
+      if (!(model instanceof FileTree)) throw new Error("Missing tree model")
+      const item = model.getItem(folder + "/")!
+      if (!("collapse" in item)) throw new Error("Missing folder")
+      await act(async () => item.collapse())
+      const tree = host.querySelector("[data-space-file-tree]")!.shadowRoot!
+      await act(async () =>
+        tree.querySelector(`[data-item-path="${folder}/"]`)!.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            composed: true,
+            detail: 1,
+          })
+        )
+      )
+      const announcement = () =>
+        host.querySelector(".space-file-tree-announcement")!.textContent
+      if (source === "complete") {
+        expect(load).not.toHaveBeenCalled()
+        expect(announcement()).not.toContain("Loading")
+      } else {
+        expect(
+          entries.find((entry) => entry.name === folder)?.childrenLoaded
+        ).toBe(false)
+        expect(load).toHaveBeenCalledExactlyOnceWith(folder)
+        expect(announcement()).toContain("Loading")
+        await act(async () => finish())
+        expect(announcement()).not.toContain("Loading")
+      }
+      expect(
+        complete.find((entry) => entry.name === folder)?.childrenLoaded
+      ).toBe(true)
+      if (folder === "empty")
+        expect(
+          complete.find((entry) => entry.name === folder)?.children
+        ).toEqual([])
+    } finally {
+      await act(async () => root.unmount())
+      host.remove()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  }
+)
 
 it("retains collapsed folders and the open document when a type filter hides its file", async () => {
   vi.stubGlobal(
