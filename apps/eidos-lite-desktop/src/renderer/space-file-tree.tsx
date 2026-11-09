@@ -905,8 +905,10 @@ export function SpaceFileTree({
   }
 
   return (
-    <div className="space-file-tree-shell">
-      {(countExplorerFilterRules(fileFilter) > 0 || !!nameQuery.trim()) &&
+    <div className="space-file-tree-shell" aria-busy={filtering}>
+      {(filterError ||
+        countExplorerFilterRules(fileFilter) > 0 ||
+        !!nameQuery.trim()) &&
         (filterError || tree.paths.length === 0) && (
           <p
             className="explorer-filter-empty"

@@ -91,6 +91,25 @@ it("retains collapsed folders and the open document when a type filter hides its
     const restored = model.getItem("notes/")!
     expect("isExpanded" in restored && restored.isExpanded()).toBe(true)
     expect(onOpen).not.toHaveBeenCalled()
+    await act(async () => root.render(<SpaceFileTree {...props} filtering />))
+    expect(
+      host.querySelector(".space-file-tree-shell")?.getAttribute("aria-busy")
+    ).toBe("true")
+    const retry = vi.fn()
+    await act(async () =>
+      root.render(
+        <SpaceFileTree
+          {...props}
+          filterError="Ignore rules could not be read"
+          onRetryFilter={retry}
+        />
+      )
+    )
+    expect(host.querySelector('[role="alert"]')).toBeTruthy()
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[role="alert"] button')!.click()
+    )
+    expect(retry).toHaveBeenCalledOnce()
   } finally {
     await act(async () => root.unmount())
     host.remove()
