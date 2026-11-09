@@ -21,6 +21,23 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("requires API 3.9 to opt into configurable native launch", () => {
+    const value = {
+      ...manifest(),
+      requires: { pluginApi: "3.9.0" },
+      sidecar: { command: "pi", configurable: true },
+    }
+    expect(parseManifest(value).sidecar?.configurable).toBe(true)
+    expect(() =>
+      parseManifest({ ...value, requires: { pluginApi: "3.8.0" } })
+    ).toThrow("3.9")
+    expect(() =>
+      parseManifest({
+        ...value,
+        sidecar: { command: "pi", configurable: "true" },
+      })
+    ).toThrow()
+  })
   it("requires API 3.8 and a fixed executable name for native sidecars", () => {
     const value = {
       ...manifest(),

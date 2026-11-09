@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type { SidecarEvent } from "@eidos.space/plugin-sdk"
 import {
   findSidecarCommand,
+  configuredSidecar,
   PluginSidecarHost,
   type SidecarBinding,
 } from "./plugin-sidecar"
@@ -42,6 +43,42 @@ const binding = (code: string, owner = 1): SidecarBinding => ({
   authorize: async () => {},
 })
 const echo = String.raw`process.stdout.write(JSON.stringify({boot:true,cwd:process.cwd()})+'\n');let text='';process.stdin.on('data',chunk=>{text+=chunk;let n;while((n=text.indexOf('\n'))>=0){process.stdout.write(text.slice(0,n+1));text=text.slice(n+1)}});`
+
+it("reviews configured argv, rejects undeclared overrides, and awaits exit before restarting", async () => {
+  const native = binding(echo)
+  const launch = {
+    command: (await findSidecarCommand("node"))!,
+    args: ["-e", echo],
+  }
+  expect(() => configuredSidecar(native, launch)).toThrow("does not declare")
+  native.manifest.sidecar!.configurable = true
+  const approve = vi.fn(async (_binding: SidecarBinding) => true),
+    host = hostWith(approve)
+  await host.start(native, undefined, launch)
+  expect(approve.mock.calls[0]![0].manifest.sidecar).toMatchObject(launch)
+  expect((await host.status(native)).launch).toEqual(launch)
+  const changed = { ...launch, args: ["-e", echo + "\n// changed"] }
+  await expect(host.start(native, undefined, changed)).rejects.toThrow(
+    "stop the current"
+  )
+  await host.stop(native)
+  await host.start(native, undefined, changed)
+  expect(approve).toHaveBeenCalledTimes(2)
+  await host.stop(native)
+  for (const invalid of [
+    { command: "pi;echo x", args: [] },
+    { command: "pi", args: ["\0"] },
+    { ...launch, cwd: "/" },
+  ])
+    expect(() => configuredSidecar(native, invalid)).toThrow()
+  expect(
+    await findSidecarCommand(
+      path.join(directory, "inside"),
+      process.env,
+      directory
+    )
+  ).toBeNull()
+})
 
 it("status and observers do not execute; closing a View does not stop the owned run", async () => {
   const approve = vi.fn(async () => true)

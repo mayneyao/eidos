@@ -193,6 +193,15 @@ the JavaScript filesystem/network sandbox. Do not bundle or automatically instal
 the program, infer write access from read-only tools, or claim CLI/mobile support.
 Windows `.cmd`/`.bat` shims are unsupported; validate each native OS explicitly.
 
+API 3.9 additionally supports `sidecar.configurable: true` and
+`start({ command, args })`. Defaults remain in the package; an override may use
+an executable name or absolute path with a separate argv array. The effective
+launch receives exact-identity consent. Cwd/environment stay host-owned, and
+different settings never silently replace a running process. Use the awaited
+`stop()` before explicitly applying a replacement; preserve drafts and wait for
+active agent work to finish. Check the generated command and actual native
+behavior, not just whether a configuration form saves.
+
 ### Themes
 
 Use `kind: "theme"` with a stylesheet and no executable contributions. Define

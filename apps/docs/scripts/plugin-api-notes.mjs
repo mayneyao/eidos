@@ -1,8 +1,8 @@
 // Human-written behavior, shared by the English and Chinese reference renderer.
 export const notes = {
   "PluginManifest.sidecar": [
-    "Requires Lite API 3.8. command is an executable basename, not a path or shell expression; args contains at most 64 fixed strings. Lite discovers an already installed program, excluding relative PATH directories and paths resolving inside the current Space. No install, download, environment or dynamic-argument API is granted.",
-    "要求 Lite API 3.8。command 是可执行文件名，不是路径或 shell 表达式；args 最多 64 个固定字符串。Lite 查找已安装程序，排除相对 PATH 目录及解析到当前 Space 内的路径。不授予安装、下载、环境变量或动态参数接口。",
+    "Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows start({ command, args }) with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.",
+    "固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 start({ command, args }) 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。",
   ],
   "CommonCapabilities.sidecar": [
     "Available only to standalone page and file Views declaring manifest.sidecar. Not provided to extensions, actions, embedded resources, JavaScript backgrounds, CLI Serve or mobile.",
@@ -13,12 +13,12 @@ export const notes = {
     "仅查询：available 表示找到了程序，running 表示存在所属原生进程；均不保证协议就绪或程序版本兼容。不会执行、安装或弹出授权。",
   ],
   "PluginSidecar.start": [
-    "Requests native approval showing the executable, fixed argv, canonical Space cwd and OS access. Reuses the same owner/Space/plugin/revision run. Pending startup expires after five minutes and is cancelled with its initiating View; after startup, closing a View only detaches it. A new process requires new approval. Success means OS spawn, not protocol readiness.",
-    "请求原生确认，展示程序、固定参数、规范 Space 工作目录和系统权限。复用同一窗口、Space、插件和包版本的进程。待启动确认最多五分钟，随发起 View 取消；启动后关闭 View 仅断开连接。新进程须重新确认。成功仅表示系统启动程序，不代表协议就绪。",
+    "Checks persisted approval per Space, package revision and exact program identity including argv; requests review when missing or changed. Installation/enablement may include the concrete default launch. Overrides require configurable: true. An existing different launch must be stopped first. Pending startup expires after five minutes and is cancelled with its initiating View. Closing a started View only detaches it. Success means OS spawn, not protocol readiness.",
+    "核对按 Space、包修订及含参数的精确程序身份保存的授权，缺失或变化时请求审阅。安装或启用可审阅具体默认启动；覆盖须声明 configurable: true。不同的已有进程须先停止。待启动确认最多五分钟，随发起 View 取消；已启动后关闭 View 仅断开连接。成功仅表示系统启动程序，不代表协议就绪。",
   ],
   "PluginSidecar.stop": [
-    "Stops the shared owned process tree, affecting every attached View. Disabling/updating the plugin, leaving the Space, closing its owner window or quitting Lite also stops it. Native side effects are not undone.",
-    "停止共享的所属进程树，影响所有已连接 View。禁用或更新插件、离开 Space、关闭所属窗口或退出 Lite 也会停止进程；不会撤销原生程序已产生的修改。",
+    "Stops the shared owned process tree and awaits exit, affecting every attached View. Stop retains consent; disabling or uninstalling revokes it. Updating the plugin, leaving the Space, closing its owner window or quitting Lite also stops it. Native side effects are not undone.",
+    "停止共享的所属进程树并等待退出，影响所有已连接 View。Stop 保留授权，禁用或卸载撤销授权。更新插件、离开 Space、关闭所属窗口或退出 Lite 也会停止进程；不会撤销已产生的原生修改。",
   ],
   "PluginSidecar.send": [
     "Writes one JSON value followed by LF. Each frame including LF is limited to 1 MiB; queued stdin including the incoming frame is limited to 4 MiB. Completion means stream write completion, not a native protocol response.",

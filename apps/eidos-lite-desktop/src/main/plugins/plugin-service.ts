@@ -1378,10 +1378,14 @@ export class PluginService {
             result = await this.sidecars.status(native)
             break
           case "sidecar.start":
-            await this.sidecars.start(native, capabilityScope.signal)
+            await this.sidecars.start(
+              native,
+              capabilityScope.signal,
+              params.launch
+            )
             break
           case "sidecar.stop":
-            this.sidecars.stop(native)
+            await this.sidecars.stop(native)
             break
           case "sidecar.send":
             await this.sidecars.send(native, (params.data ?? null) as JsonValue)

@@ -33,7 +33,7 @@ export interface PluginManifest {
   icon?: PluginIconDefinition
   extension?: string
   /** Lite-only local executable, launched after native host approval. Requires API 3.8. */
-  sidecar?: { command: string; args?: string[] }
+  sidecar?: { command: string; args?: string[]; configurable?: boolean }
   /** A bundled Worker-style module. Started explicitly by a View or action. */
   background?: {
     entry: string
@@ -241,11 +241,20 @@ export interface SidecarStatus {
   available: boolean
   running: boolean
   command: string
+  /** Actual running or pending launch, if any. */
+  launch?: SidecarLaunch
+}
+export interface SidecarLaunch {
+  /** Executable name or absolute path; never a shell expression. */
+  command: string
+  args: string[]
 }
 export interface PluginSidecar {
   /** Discovery only: never executes or installs a program. */
   status(): Promise<SidecarStatus>
-  start(): Promise<void>
+  /** Overrides require sidecar.configurable and renewed exact-launch approval. */
+  start(launch?: SidecarLaunch): Promise<void>
+  /** Resolves after the owned process exits, so a new launch can follow safely. */
   stop(): Promise<void>
   /** One JSON record on stdin. stdout is strict LF-delimited JSON. */
   send(data: BackgroundMessage): Promise<void>

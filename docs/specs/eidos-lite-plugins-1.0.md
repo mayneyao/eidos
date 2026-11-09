@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.8
+# Eidos Plugins — API 3.9
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.8.0
+Plugin API: 3.9.0
 
 Canonical language: English
 
@@ -41,6 +41,21 @@ themselves launch a native process. Stopping a run does not revoke consent.
 No automatic startup or crash restart is implied. Native side effects are not
 undone by stopping. Native programs MUST use canonical Runtime operations when
 modifying Eidos data; native execution itself cannot enforce this convention.
+
+API 3.9 adds `sidecar.configurable?: boolean`. A package declaring this field MUST
+require API 3.9.0 or later. Only a package opting in with `true` may call
+`start({ command, args })` to replace its default executable and argument vector.
+The override command MUST be an executable basename or absolute path, never a
+shell expression or a relative path. Absolute executables inside the Space are
+also prohibited. Overrides accept up to 64 arguments of at most 8192 UTF-16 code
+units each, with no NUL. The host MUST review and persist the effective launch
+identity using the same consent rules as fixed launches; installation approval
+of defaults does not approve arbitrary overrides. Packages without this opt-in
+MUST reject overrides. Cwd and environment are host-owned and cannot be overridden.
+`status().launch` reports the actual running or pending `{ command, args }`.
+Starting with a different launch while a process exists MUST fail without
+changing it. `stop()` MUST await exit or cancelled startup before resolving so
+an explicit configuration apply can start a replacement safely.
 
 `send` writes one JSON record followed by LF to stdin. stdout MUST contain JSON
 records delimited only by LF; Unicode U+2028/U+2029 are ordinary string content.

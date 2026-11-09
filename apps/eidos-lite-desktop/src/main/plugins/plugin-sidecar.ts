@@ -8,8 +8,10 @@ import type {
   BackgroundMessage,
   PluginManifest,
   SidecarEvent,
+  SidecarLaunch,
   SidecarStatus,
 } from "@eidos.space/plugin-sdk"
+import { PluginError } from "@eidos.space/plugin-runtime/rpc"
 
 const FRAME_LIMIT = 1024 * 1024
 function untilAborted<T>(
@@ -38,7 +40,58 @@ interface Run {
   controller: AbortController
   ready: Promise<ChildProcessWithoutNullStreams>
   child?: ChildProcessWithoutNullStreams
+  finished: Promise<void>
+  finish(): void
 }
+
+/** Only an explicitly configurable package may supply a reviewed argv vector. */
+export function configuredSidecar(binding: SidecarBinding, value: unknown) {
+  if (value === undefined) return binding
+  if (!binding.manifest.sidecar?.configurable)
+    throw new PluginError(
+      "PERMISSION_DENIED",
+      "This plugin does not declare configurable native startup"
+    )
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new PluginError(
+      "INVALID_REQUEST",
+      "Invalid native launch configuration"
+    )
+  const launch = value as Record<string, unknown>
+  if (
+    Object.keys(launch).sort().join() !== "args,command" ||
+    typeof launch.command !== "string" ||
+    launch.command.length > 4096 ||
+    launch.command.includes("\0") ||
+    (!path.isAbsolute(launch.command) &&
+      !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(launch.command)) ||
+    !Array.isArray(launch.args) ||
+    launch.args.length > 64 ||
+    launch.args.some(
+      (arg) =>
+        typeof arg !== "string" || arg.length > 8192 || arg.includes("\0")
+    )
+  )
+    throw new PluginError(
+      "INVALID_REQUEST",
+      "Use an executable name or absolute path and up to 64 arguments"
+    )
+  return {
+    ...binding,
+    manifest: {
+      ...binding.manifest,
+      sidecar: {
+        ...binding.manifest.sidecar,
+        command: launch.command,
+        args: [...launch.args] as string[],
+      },
+    },
+  }
+}
+const launchOf = (binding: SidecarBinding): SidecarLaunch => ({
+  command: binding.manifest.sidecar!.command,
+  args: binding.manifest.sidecar!.args ?? [],
+})
 
 function inside(root: string, target: string): boolean {
   const relative = path.relative(root, target)
@@ -83,6 +136,19 @@ export async function findSidecarCommand(
   environment = process.env,
   spaceRoot?: string
 ): Promise<string | null> {
+  if (path.isAbsolute(command)) {
+    try {
+      await fs.access(command, constants.X_OK)
+      if (
+        spaceRoot &&
+        inside(await fs.realpath(spaceRoot), await fs.realpath(command))
+      )
+        return null
+      return (await fs.stat(command)).isFile() ? command : null
+    } catch {
+      return null
+    }
+  }
   const directories = await searchDirectories(environment, spaceRoot)
   // Shell shims (.cmd/.bat) are deliberately unsupported; no shell interprets argv.
   const names =
@@ -139,9 +205,13 @@ export class PluginSidecarHost {
   }
   async status(binding: SidecarBinding): Promise<SidecarStatus> {
     await binding.authorize()
-    const command = binding.manifest.sidecar!.command
+    const run = this.runs.get(this.key(binding))
+    const command =
+      run?.binding.manifest.sidecar!.command ??
+      binding.manifest.sidecar!.command
     return {
       command,
+      ...(run ? { launch: launchOf(run.binding) } : {}),
       available: !!(await findSidecarCommand(
         command,
         process.env,
@@ -165,13 +235,26 @@ export class PluginSidecarHost {
       if (!listeners.size) this.listeners.delete(key)
     }
   }
-  async start(binding: SidecarBinding, signal?: AbortSignal): Promise<void> {
+  async start(
+    binding: SidecarBinding,
+    signal?: AbortSignal,
+    launch?: unknown
+  ): Promise<void> {
     await binding.authorize()
+    binding = configuredSidecar(binding, launch)
     signal?.throwIfAborted()
     if (this.closed) throw new Error("Sidecar host is closed")
     const key = this.key(binding)
     const existing = this.runs.get(key)
     if (existing) {
+      if (
+        JSON.stringify(launchOf(existing.binding)) !==
+        JSON.stringify(launchOf(binding))
+      )
+        throw new PluginError(
+          "BUSY",
+          "Native launch settings changed; stop the current process before applying them"
+        )
       if (existing.controller.signal.aborted)
         throw new Error("Native process is stopping; reconnect after it exits")
       await existing.ready
@@ -182,16 +265,23 @@ export class PluginSidecarHost {
     const controller = new AbortController()
     const abort = () => controller.abort()
     signal?.addEventListener("abort", abort, { once: true })
+    let finish!: () => void
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve
+    })
     const run: Run = {
       binding,
       controller,
       ready: Promise.resolve().then(() => this.launch(run)),
+      finished,
+      finish,
     }
     this.runs.set(key, run)
     try {
       await run.ready
     } catch (error) {
       if (this.runs.get(key) === run) this.runs.delete(key)
+      if (!run.child) run.finish()
       throw error
     } finally {
       signal?.removeEventListener("abort", abort)
@@ -307,6 +397,7 @@ export class PluginSidecarHost {
       if (this.runs.get(this.key(binding)) === run)
         this.runs.delete(this.key(binding))
       this.emit(binding, { type: "exit", code, signal })
+      run.finish()
     })
     child.on("error", (error) => fail(error.message))
     child.stdin.on("error", () => {})
@@ -334,8 +425,12 @@ export class PluginSidecarHost {
       child.stdin.write(frame, (error) => (error ? reject(error) : resolve()))
     )
   }
-  stop(binding: SidecarBinding): void {
-    this.runs.get(this.key(binding))?.controller.abort()
+  async stop(binding: SidecarBinding): Promise<void> {
+    const run = this.runs.get(this.key(binding))
+    if (!run) return
+    run.controller.abort()
+    await run.ready.catch(() => {})
+    await run.finished
   }
   private kill(child: ChildProcessWithoutNullStreams, force = false): void {
     const signal = (name: NodeJS.Signals) => {

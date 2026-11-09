@@ -303,10 +303,16 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.sidecar !== undefined) {
     const sidecar = record(m.sidecar)
-    fields(sidecar, ["command"], ["args"])
+    fields(sidecar, ["command"], ["args", "configurable"])
     const required = String(record(m.requires).pluginApi).split(".").map(Number)
     if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 8)))
       invalid("sidecar requires plugin API 3.8.0 or newer")
+    if (sidecar.configurable !== undefined) {
+      if (typeof sidecar.configurable !== "boolean")
+        invalid("sidecar.configurable must be boolean")
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 9)))
+        invalid("Configurable sidecars require plugin API 3.9.0 or newer")
+    }
     if (
       typeof sidecar.command !== "string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(sidecar.command)

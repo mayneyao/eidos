@@ -386,7 +386,7 @@ export function bootstrap(
       sidecar: binding.sidecar
         ? {
             status: () => call("sidecar.status"),
-            start: () => call("sidecar.start"),
+            start: (launch) => call("sidecar.start", launch ? { launch } : {}),
             stop: () => call("sidecar.stop"),
             send: (data) => call("sidecar.send", { data }),
             async onEvent(listener) {

@@ -109,13 +109,14 @@ extension?: string;
 
 支持宿主: <Badge text="Lite" variant="note" />
 
-要求 Lite API 3.8。command 是可执行文件名，不是路径或 shell 表达式；args 最多 64 个固定字符串。Lite 查找已安装程序，排除相对 PATH 目录及解析到当前 Space 内的路径。不授予安装、下载、环境变量或动态参数接口。
+固定启动要求 Lite API 3.8，configurable 要求 3.9。默认 command 为可执行文件名，args 最多 64 个字符串。configurable: true 允许 start({ command, args }) 使用经审阅的文件名或绝对路径。Space 内不能提供程序；不授予 shell、安装、环境变量或工作目录覆盖能力。
 
 
 ```ts
 sidecar?: {
     command: string;
     args?: string[];
+    configurable?: boolean;
 };
 ```
 
@@ -583,7 +584,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L267)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
 
 ### BluetoothServicePermission.uuid
 
@@ -619,7 +620,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L664)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L673)
 
 
 ```ts

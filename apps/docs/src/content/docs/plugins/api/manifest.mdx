@@ -109,13 +109,14 @@ extension?: string;
 
 Supported hosts: <Badge text="Lite" variant="note" />
 
-Requires Lite API 3.8. command is an executable basename, not a path or shell expression; args contains at most 64 fixed strings. Lite discovers an already installed program, excluding relative PATH directories and paths resolving inside the current Space. No install, download, environment or dynamic-argument API is granted.
+Requires Lite API 3.8 for fixed launches or 3.9 for configurable. Default command is an executable basename; args contains at most 64 strings. configurable: true allows start({ command, args }) with a reviewed executable basename or absolute path. The Space cannot supply executables. No shell, installation, environment or cwd override is granted.
 
 
 ```ts
 sidecar?: {
     command: string;
     args?: string[];
+    configurable?: boolean;
 };
 ```
 
@@ -583,7 +584,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L267)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
 
 ### BluetoothServicePermission.uuid
 
@@ -619,7 +620,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L664)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L673)
 
 
 ```ts

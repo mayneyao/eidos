@@ -231,7 +231,7 @@ export type BackgroundMessage = null | boolean | number | string | BackgroundMes
 
 ## FileStat
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L308)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L317)
 
 ### FileStat.path
 
@@ -283,7 +283,7 @@ readonly modifiedAtMs?: number;
 
 ## FileListOptions
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L317)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L326)
 
 ### FileListOptions.extensions
 
@@ -311,7 +311,7 @@ includeDirectories?: boolean;
 
 ## FileMetaValue
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L365)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L374)
 
 
 ```ts
@@ -323,7 +323,7 @@ export type FileMetaValue = null | string | number | boolean | FileMetaValue[] |
 
 ## FileMetaValues
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L372)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L381)
 
 
 ```ts
@@ -335,7 +335,7 @@ export type FileMetaValues = Record<string, FileMetaValue>;
 
 ## FileMetaPatch
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L373)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L382)
 
 ### FileMetaPatch.set
 
@@ -357,7 +357,7 @@ remove?: string[];
 
 ## ExplorerState
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L377)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L386)
 
 ### ExplorerState.rootDirectory
 
@@ -388,7 +388,7 @@ sort: {
 
 ## FileMetadata
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L391)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L400)
 
 ### FileMetadata.path
 
@@ -440,7 +440,7 @@ readonly size: number;
 
 ## FileRef
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L417)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L426)
 
 
 ```ts
@@ -460,7 +460,7 @@ readonly id: string;
 
 ## ViewBinding
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L420)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L429)
 
 
 ```ts
@@ -483,7 +483,7 @@ export type ViewBinding = {
 
 ## ActionBinding
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L450)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L459)
 
 
 ```ts
@@ -500,7 +500,7 @@ export type ActionBinding = {
 
 ## TableActionItem
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L481)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L490)
 
 ### TableActionItem.id
 
@@ -538,7 +538,7 @@ targets: Array<"row" | "selection" | "view">;
 
 ## TableActionRecord
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L488)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L497)
 
 ### TableActionRecord.id
 
@@ -566,7 +566,7 @@ readToken: string;
 
 ## PluginPackage
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L545)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L554)
 
 ### PluginPackage.format
 
@@ -604,7 +604,7 @@ resources?: Record<string, string>;
 
 ## TextSnapshot
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L552)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L561)
 
 ### TextSnapshot.text
 
@@ -656,7 +656,7 @@ conflicted: boolean;
 
 ## EidosConfigSnapshot
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L602)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L611)
 
 ### EidosConfigSnapshot.value
 
@@ -676,7 +676,7 @@ version: string;
 
 ## EidosTableSnapshot
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L606)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L615)
 
 ### EidosTableSnapshot.fields
 
@@ -696,7 +696,7 @@ view: EidosFileViewInfo;
 
 ## TableAggregateMetric
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L636)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L645)
 
 
 ```ts
@@ -706,7 +706,7 @@ export type TableAggregateMetric = "count" | "sum" | "average" | "min" | "max";
 
 ## TableAggregateDateInterval
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L638)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L647)
 
 
 ```ts
@@ -716,7 +716,7 @@ export type TableAggregateDateInterval = "exact" | "day" | "month" | "year";
 
 ## TableAggregateOptions
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L640)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L649)
 
 ### TableAggregateOptions.groupBy
 
@@ -752,7 +752,7 @@ sort?: "label" | "value-desc" | "value-asc";
 
 ## TableAggregateItem
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L652)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L661)
 
 ### TableAggregateItem.key
 
@@ -780,7 +780,7 @@ value: number;
 
 ## TableAggregateResult
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L658)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L667)
 
 ### TableAggregateResult.items
 
@@ -802,7 +802,7 @@ totalRecords: number;
 
 ## SettingValue
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L663)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L672)
 
 
 ```ts
@@ -812,7 +812,7 @@ export type SettingValue = boolean | string | number;
 
 ## FileExportRequest
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L674)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L683)
 
 ### FileExportRequest.name
 
@@ -840,7 +840,7 @@ data: Uint8Array;
 
 ## FileExportResult
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L681)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L690)
 
 
 ```ts
@@ -852,7 +852,7 @@ export type FileExportResult = {
 
 ## ObserverErrorHandler
 
-[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L696)
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L705)
 
 
 ```ts

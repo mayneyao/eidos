@@ -85,6 +85,10 @@ export async function executionReview(
   }
   let native: ExecutionReview["native"]
   if (manifest.sidecar) {
+    if (manifest.sidecar.configurable)
+      details.push(
+        "This plugin can configure the native executable and arguments. Each changed launch is reviewed separately before execution."
+      )
     const executable = cwd
       ? await findSidecarCommand(manifest.sidecar.command, process.env, cwd)
       : null

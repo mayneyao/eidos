@@ -4,6 +4,7 @@
 export const apiHosts = {
   PluginSidecar: ["Lite"],
   SidecarStatus: ["Lite"],
+  SidecarLaunch: ["Lite"],
   SidecarEvent: ["Lite"],
   "PluginManifest.sidecar": ["Lite"],
   "CommonCapabilities.sidecar": ["Lite"],
