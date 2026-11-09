@@ -174,6 +174,13 @@ node scripts/release-media/upload.mjs --dir "$PWD/.artifacts/release-media" \
   --upload --credentials-file /absolute/path/to/ignored-credentials-file
 ```
 
+For a new scene, pass `--copy-file /absolute/path/to/copy.json` to both commands.
+The JSON must match the manifest's `releaseTag` (its `introducedInRelease`),
+`scenarioId`, `capturedAppVersion` and `buildKind`, and supply nonempty `en`,
+`zh`, `ja` and `ko` strings for each of `feature`, `alt` and `caption`.
+Review the copy against the actual take. Only the historical
+`lite-v0.31.0` / `table-search-escape` scene retains its original default copy.
+
 Keys include release, scenario and a hash of the complete video/poster bundle.
 Existing identical objects are reused. Differing content at an immutable URL
 fails. After upload, the script reads back exact public bytes, MIME/cache headers
