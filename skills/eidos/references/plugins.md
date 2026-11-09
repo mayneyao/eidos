@@ -7,7 +7,7 @@ not Codex plugins or retired Eidos extension packages.
 
 ## 1. Choose the host and extension point
 
-This checkout implements Lite API 3.5.0 (CLI Serve remains 3.0.0): page/file views, metadata-only `ctx.binding`,
+Hosts expose separate API profiles with page/file views, metadata-only `ctx.binding`,
 and operations under `ctx.capabilities`. For existing plugins read the
 [migration guide](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.md)
 ([中文](https://github.com/mayneyao/eidos/blob/main/docs/migrations/eidos-plugins.zh.md)); in a checkout read
@@ -22,7 +22,7 @@ project. Ask only when the choice changes the implementation. For a new project,
 use the user's destination or a separate plugin directory; do not add ordinary
 user plugins to the Eidos product source tree.
 
-Source-tree contracts (SDK/tools 0.5.0; verify release availability):
+Source-tree starter contracts (verify matching SDK/tools and release availability):
 
 | User interaction                                      | Starter         | Host and contract               |
 | ----------------------------------------------------- | --------------- | ------------------------------- |
@@ -173,6 +173,24 @@ are under `ctx.capabilities`; getItems receives eidos.table, read-only eidos.con
 - Update using each returned `readToken`, honor cancellation between writes,
   and report progress. Let Lite own task undo/redo. On conflicts, surface the
   failure instead of rereading and silently overwriting newer data.
+
+### Shared plugin storage
+
+For metadata or drafts edited by multiple Views, backgrounds or windows, an
+ordinary storage read followed by an unconditional write can overwrite another
+writer. On Lite API `3.11.0`, declare `storage: { maxBytes, atomic: true }` and
+`requires.pluginApi: "3.11.0"`. Feature-detect the optional `readVersioned` and
+`compareAndWrite` methods. Read bytes and their opaque version together, derive
+the intended edit, then call `compareAndWrite(key, version, nextBytes)`.
+If `applied` is false, reread and replay only that edit on the latest state;
+never retry an old complete snapshot. Preserve drafts and report persistent
+conflicts or write failures. Versions identify current bytes, not increasing
+revision numbers; absent keys use null, while stored empty bytes have a token.
+Use SDK and authoring tools supporting API 3.11, run `check --target lite`, and
+verify the actual Lite host supports `storage.atomic`. Use matching checkout
+builds while published tools or hosts lag; lowering the requirement is not a
+fallback. See the [storage API](https://docs.eidos.space/plugins/api/storage/)
+and [service guide](https://docs.eidos.space/plugins/services/).
 
 ### Local native programs
 
