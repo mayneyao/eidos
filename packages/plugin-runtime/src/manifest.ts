@@ -303,7 +303,11 @@ export function parseManifest(input: unknown): PluginManifest {
   }
   if (m.sidecar !== undefined) {
     const sidecar = record(m.sidecar)
-    fields(sidecar, ["command"], ["args", "configurable"])
+    fields(
+      sidecar,
+      ["command"],
+      ["args", "configurable", "maxOutputFrameBytes"]
+    )
     const required = String(record(m.requires).pluginApi).split(".").map(Number)
     if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 8)))
       invalid("sidecar requires plugin API 3.8.0 or newer")
@@ -312,6 +316,20 @@ export function parseManifest(input: unknown): PluginManifest {
         invalid("sidecar.configurable must be boolean")
       if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 9)))
         invalid("Configurable sidecars require plugin API 3.9.0 or newer")
+    }
+    if (sidecar.maxOutputFrameBytes !== undefined) {
+      if (!(required[0]! > 3 || (required[0] === 3 && required[1]! >= 12)))
+        invalid(
+          "Sidecar output frame limits require plugin API 3.12.0 or newer"
+        )
+      if (
+        !Number.isSafeInteger(sidecar.maxOutputFrameBytes) ||
+        Number(sidecar.maxOutputFrameBytes) < 1 ||
+        Number(sidecar.maxOutputFrameBytes) > 16 * 1024 * 1024
+      )
+        invalid(
+          "sidecar.maxOutputFrameBytes must be an integer from 1 to 16777216"
+        )
     }
     if (
       typeof sidecar.command !== "string" ||

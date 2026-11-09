@@ -69,6 +69,7 @@ it("reviews configured argv, rejects undeclared overrides, and awaits exit befor
     { command: "pi;echo x", args: [] },
     { command: "pi", args: ["\0"] },
     { ...launch, cwd: "/" },
+    { ...launch, maxOutputFrameBytes: 16777216 },
   ])
     expect(() => configuredSidecar(native, invalid)).toThrow()
   expect(
@@ -132,6 +133,105 @@ it("assembles split UTF-8 frames and accepts CRLF without splitting Unicode sepa
       data: { text: "中\u2028文" },
     })
   )
+})
+
+it("accepts an explicitly declared large history response and remains connected", async () => {
+  const host = hostWith(),
+    native = binding(
+      String.raw`process.stdout.write(JSON.stringify({type:'response',data:{messages:[{role:'toolResult',content:'中'.repeat(450000)}]}})+'\n');process.stdin.on('data',()=>process.stdout.write('{"alive":true}\n'))`
+    )
+  Object.assign(native.manifest.sidecar!, {
+    maxOutputFrameBytes: 2 * 1024 * 1024,
+  })
+  const events: SidecarEvent[] = []
+  host.observe(native, (event) => events.push(event))
+  await host.start(native)
+  await vi.waitFor(() =>
+    expect(events.some((event) => event.type === "message")).toBe(true)
+  )
+  expect(events.some((event) => event.type === "error")).toBe(false)
+  expect((await host.status(native)).running).toBe(true)
+  await host.send(native, { type: "get_state" })
+  await vi.waitFor(() =>
+    expect(events).toContainEqual({ type: "message", data: { alive: true } })
+  )
+})
+
+it.each([undefined, 2 * 1024 * 1024, 16 * 1024 * 1024])(
+  "accepts the exact output byte boundary including split CRLF: %s",
+  async (declared) => {
+    const limit = declared ?? 1024 * 1024
+    const native = binding(
+      `process.stdout.write('"'+'x'.repeat(${limit}-2)+'"\\r');setTimeout(()=>process.stdout.write('\\n'),30);process.stdin.resume()`
+    )
+    if (declared !== undefined)
+      Object.assign(native.manifest.sidecar!, { maxOutputFrameBytes: declared })
+    const host = hostWith(),
+      events: SidecarEvent[] = []
+    host.observe(native, (event) => events.push(event))
+    await host.start(native)
+    await vi.waitFor(() =>
+      expect(
+        events.some(
+          (event) =>
+            event.type === "message" &&
+            typeof event.data === "string" &&
+            event.data.length === limit - 2
+        )
+      ).toBe(true)
+    )
+    expect(events.some((event) => event.type === "error")).toBe(false)
+  }
+)
+
+it.each([
+  { declared: undefined, bytes: 1024 * 1024 + 1 },
+  { declared: 2 * 1024 * 1024, bytes: 2 * 1024 * 1024 + 1 },
+])(
+  "rejects a record over its declared limit and reports only the first error: %s",
+  async ({ declared, bytes }) => {
+    const native = binding(
+      `process.stdout.write('"'+'x'.repeat(${bytes}-2)+'"\\n{"after":true}\\n');process.stdin.resume()`
+    )
+    if (declared !== undefined)
+      Object.assign(native.manifest.sidecar!, { maxOutputFrameBytes: declared })
+    const host = hostWith(),
+      events: SidecarEvent[] = []
+    host.observe(native, (event) => events.push(event))
+    await host.start(native)
+    await vi.waitFor(() =>
+      expect(events.some((event) => event.type === "exit")).toBe(true)
+    )
+    expect(events.filter((event) => event.type === "error")).toEqual([
+      {
+        type: "error",
+        message: `Native process frame exceeded ${declared ?? 1024 * 1024} bytes`,
+      },
+    ])
+    expect(events.some((event) => event.type === "message")).toBe(false)
+  }
+)
+
+it("keeps malformed JSON and aggregate output rate bounded with large frames enabled", async () => {
+  for (const code of [
+    String.raw`process.stdout.write('invalid\n{"after":true}\n');process.stdin.resume()`,
+    String.raw`const frame='"'+'x'.repeat(1024*1024-2)+'"\n';process.stdout.write(frame.repeat(34));process.stdin.resume()`,
+  ]) {
+    const host = hostWith(),
+      native = binding(code),
+      events: SidecarEvent[] = []
+    Object.assign(native.manifest.sidecar!, {
+      maxOutputFrameBytes: 16 * 1024 * 1024,
+    })
+    host.observe(native, (event) => events.push(event))
+    await host.start(native)
+    await vi.waitFor(() =>
+      expect(events.some((event) => event.type === "exit")).toBe(true)
+    )
+    const errors = events.filter((event) => event.type === "error")
+    expect(errors).toHaveLength(1)
+    expect(errors[0]!.message).toMatch(/JSON records|output rate exceeded/)
+  }
 })
 
 it("cancels startup promptly and a late approval cannot launch a process", async () => {

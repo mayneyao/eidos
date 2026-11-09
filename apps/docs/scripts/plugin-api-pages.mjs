@@ -77,8 +77,8 @@ export const pages = [
     "sidecar",
     ["PluginSidecar", "SidecarStatus", "SidecarLaunch", "SidecarEvent"],
     "native-processes",
-    "Lite API 3.9. Declare a local program and default arguments in manifest.sidecar. Set configurable: true to support reviewed startup configuration. Only standalone page and file Views receive this capability. Native programs retain OS permissions outside the JavaScript sandbox. CLI Serve and mobile do not expose native sidecars.",
-    "Lite API 3.9。在 manifest.sidecar 声明本机程序与默认参数，configurable: true 可启用需审阅的启动配置。仅独立页面和文件 View 可获得此能力；原生程序保有 JavaScript 沙箱之外的系统权限。CLI Serve 和移动端不提供原生 sidecar。",
+    "Declare a local program and default arguments in manifest.sidecar. API 3.9 supports configurable: true for reviewed startup configuration; API 3.12 supports maxOutputFrameBytes for bounded large responses. Only standalone page and file Views receive this capability. Native programs retain OS permissions outside the JavaScript sandbox. CLI Serve and mobile do not expose native sidecars.",
+    "在 manifest.sidecar 声明本机程序与默认参数。API 3.9 的 configurable: true 可启用需审阅的启动配置；API 3.12 的 maxOutputFrameBytes 可接收有明确大小上限的大响应。仅独立页面和文件 View 可获得此能力；原生程序保有 JavaScript 沙箱之外的系统权限。CLI Serve 和移动端不提供原生 sidecar。",
   ],
   [
     "background",

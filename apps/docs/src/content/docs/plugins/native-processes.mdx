@@ -86,6 +86,17 @@ Unicode U+2028/U+2029 remain ordinary string content. Events are `message`,
 `stderr`, `error` and `exit`. Malformed or oversized output stops the process.
 See the [API reference](/plugins/api/sidecar/) for rate limits and signatures.
 
+Programs that return large histories in one response can opt into
+`sidecar.maxOutputFrameBytes` with `requires.pluginApi: "3.12.0"`. Set an integer
+from 1 to 16777216 bytes; the default remains 1048576 bytes. This counts the UTF-8
+JSON record excluding CRLF and does not change the stdin limits. The stdout rate
+limit is the greater of 16 MiB/s and twice the declared record limit per second.
+For example, `"maxOutputFrameBytes": 16777216` accepts records up to 16 MiB and
+permits 32 MiB/s. The feature is `sidecar.outputFrameLimit`, available only in
+Lite. Use matching SDK/tools and check the installed host before packaging.
+Keep the first `error` visible when `exit` follows; do not replace it with a
+generic disconnection message or silently discard history to fit the transport.
+
 Each owner window, Space, plugin and package revision shares one process.
 Closing a View only detaches its observers. Events are not replayed: returning
 to the page should query native state and message history. A session sidebar can

@@ -33,7 +33,13 @@ export interface PluginManifest {
   icon?: PluginIconDefinition
   extension?: string
   /** Lite-only local executable, launched after native host approval. Requires API 3.8. */
-  sidecar?: { command: string; args?: string[]; configurable?: boolean }
+  sidecar?: {
+    command: string
+    args?: string[]
+    configurable?: boolean
+    /** API 3.12: stdout JSONL record limit in UTF-8 bytes, excluding CRLF. Default 1 MiB; maximum 16 MiB. */
+    maxOutputFrameBytes?: number
+  }
   /** A bundled Worker-style module. Started explicitly by a View or action. */
   background?: {
     entry: string

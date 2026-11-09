@@ -220,6 +220,14 @@ different settings never silently replace a running process. Use the awaited
 active agent work to finish. Check the generated command and actual native
 behavior, not just whether a configuration form saves.
 
+For large single-response histories, API 3.12 adds the manifest-only
+`sidecar.maxOutputFrameBytes` integer (1 to 16777216 UTF-8 bytes excluding CRLF;
+default 1048576). Declare `requires.pluginApi: "3.12.0"` and verify the Lite
+feature `sidecar.outputFrameLimit` with matching tools. stdin stays at 1 MiB per
+frame and 4 MiB queued; stdout per-second bytes are bounded by the greater of
+16 MiB and twice the declared record limit. Preserve the first transport error
+through the following exit event, and never truncate stored history to reconnect.
+
 ### Themes
 
 Use `kind: "theme"` with a stylesheet and no executable contributions. Define

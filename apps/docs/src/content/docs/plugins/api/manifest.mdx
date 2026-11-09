@@ -117,6 +117,7 @@ sidecar?: {
     command: string;
     args?: string[];
     configurable?: boolean;
+    maxOutputFrameBytes?: number;
 };
 ```
 
@@ -262,7 +263,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition),
 
 ## ThemeDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L74)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L80)
 
 ### ThemeDeclaration.stylesheet
 
@@ -274,7 +275,7 @@ stylesheet: string;
 
 ## FileTemplateDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L78)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L84)
 
 ### FileTemplateDeclaration.id
 
@@ -318,7 +319,7 @@ content: string;
 
 ## ViewDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L118)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L124)
 
 ### ViewDeclaration.id
 
@@ -388,7 +389,7 @@ Related types: [ViewCapability](/plugins/api/types/#viewcapability), [ViewConfig
 
 ## ViewConfiguration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L131)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L137)
 
 ### ViewConfiguration.type
 
@@ -412,7 +413,7 @@ Related types: [SettingDeclaration](/plugins/api/manifest/#settingdeclaration).
 
 ## ActionDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L135)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L141)
 
 ### ActionDeclaration.id
 
@@ -466,7 +467,7 @@ Related types: [PluginIconDefinition](/plugins/api/types/#pluginicondefinition).
 
 ## FormatterDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L144)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L150)
 
 ### FormatterDeclaration.id
 
@@ -494,7 +495,7 @@ extensions: string[];
 
 ## FileHookDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L151)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L157)
 
 ### FileHookDeclaration.id
 
@@ -540,7 +541,7 @@ Related types: [FileHookEventType](/plugins/api/types/#filehookeventtype).
 
 ## Placement
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L189)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L195)
 
 
 ```ts
@@ -585,7 +586,7 @@ export type Placement = {
 
 ## BluetoothServicePermission
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L276)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L282)
 
 ### BluetoothServicePermission.uuid
 
@@ -621,7 +622,7 @@ notify?: boolean;
 
 ## SettingDeclaration
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L690)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L696)
 
 
 ```ts

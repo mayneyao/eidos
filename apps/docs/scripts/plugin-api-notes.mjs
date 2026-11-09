@@ -25,8 +25,8 @@ export const notes = {
     "写入一个 JSON 值并追加 LF。包含 LF 的单帧最多 1 MiB；含本次新帧的待写 stdin 最多 4 MiB。完成表示流写入完成，不表示收到原生协议回复。",
   ],
   "PluginSidecar.onEvent": [
-    "Subscribes without starting a process. Returns a disposable observer; closing the View unsubscribes. stdout is LF-delimited JSON (CRLF accepted), with a 1 MiB frame and 16 MiB/s rate limit; stderr over 1 MiB/s is dropped. Malformed output stops the process. Unicode line separators are ordinary string content. Reconcile native state after reattaching because events are not replayed.",
-    "订阅不会启动进程，返回可释放监听器，关闭 View 时取消订阅。stdout 以 LF 分隔 JSON（接受 CRLF），单帧最多 1 MiB、每秒最多 16 MiB；stderr 每秒超出 1 MiB 的部分丢弃。非法输出会终止进程。Unicode 行分隔符仍是字符串内容。事件不重放，重新连接后应查询原生状态。",
+    "Subscribes without starting a process. Returns a disposable observer; closing the View unsubscribes. stdout is LF-delimited JSON (CRLF accepted). Records default to 1 MiB excluding CRLF; API 3.12 permits manifest.sidecar.maxOutputFrameBytes, an integer from 1 to 16777216. The per-second stdout byte limit is max(16 MiB, twice the record limit); stderr over 1 MiB/s is dropped. Malformed or oversized output emits an error and stops the process; preserve that error when exit follows. Unicode line separators are ordinary string content. Reconcile native state after reattaching because events are not replayed.",
+    "订阅不会启动进程，返回可释放监听器，关闭 View 时取消订阅。stdout 以 LF 分隔 JSON（接受 CRLF），单条记录默认最多 1 MiB，不含 CRLF；API 3.12 可声明 manifest.sidecar.maxOutputFrameBytes，整数范围 1 至 16777216。stdout 每秒字节上限为 max(16 MiB, 单条记录上限的两倍)；stderr 每秒超出 1 MiB 的部分丢弃。非法或超限输出会先发出 error 再停止进程，exit 到达时应保留最初错误。Unicode 行分隔符仍是字符串内容。事件不重放，重新连接后应查询原生状态。",
   ],
   "PluginEvents.on": [
     "The event name determines the listener parameter type. Returns a Disposable; dispose() is idempotent. Unknown event names, non-function listeners and undeclared event permissions throw synchronously.",

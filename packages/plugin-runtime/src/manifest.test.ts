@@ -21,6 +21,38 @@ const manifest = () => ({
   placements: [{ location: "file/open", view: "csv", extensions: [".csv"] }],
 })
 describe("manifest and offline envelope", () => {
+  it("requires API 3.12 and bounds native output frame declarations", () => {
+    const value = {
+      ...manifest(),
+      requires: { pluginApi: "3.12.0" },
+      sidecar: { command: "pi", maxOutputFrameBytes: 16 * 1024 * 1024 },
+    }
+    expect(parseManifest(value).sidecar).toEqual(value.sidecar)
+    expect(() =>
+      parseManifest({ ...value, requires: { pluginApi: "3.11.0" } })
+    ).toThrow("3.12")
+    for (const maxOutputFrameBytes of [0, -1, 1.5, 16777217, "2097152", null])
+      expect(() =>
+        parseManifest({
+          ...value,
+          sidecar: { command: "pi", maxOutputFrameBytes },
+        })
+      ).toThrow("integer")
+    for (const maxOutputFrameBytes of [1, 1048576, 16777216])
+      expect(
+        parseManifest({
+          ...value,
+          sidecar: { command: "pi", maxOutputFrameBytes },
+        }).sidecar?.maxOutputFrameBytes
+      ).toBe(maxOutputFrameBytes)
+    expect(
+      decodePackage(
+        encodePackage(parseManifest(value), {
+          "./main.ts": "export default () => {}",
+        })
+      ).manifest.sidecar
+    ).toEqual(value.sidecar)
+  })
   it("requires API 3.9 to opt into configurable native launch", () => {
     const value = {
       ...manifest(),

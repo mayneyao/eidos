@@ -31,7 +31,7 @@ export type PluginIconDefinition = string | {
 
 ## ResourceSource
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L85)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L91)
 
 
 ```ts
@@ -50,7 +50,7 @@ export type ResourceSource = {
 
 ## ResourceViewInfo
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L88)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L94)
 
 
 ```ts
@@ -72,7 +72,7 @@ export type ResourceViewInfo = {
 
 ## ViewCapability
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L112)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L118)
 
 
 ```ts
@@ -82,7 +82,7 @@ export type ViewCapability = "document" | "eidos/schema" | "eidos/table" | "eido
 
 ## FileHookEventType
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L150)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L156)
 
 
 ```ts
@@ -92,7 +92,7 @@ export type FileHookEventType = "document.saved" | "file.renamed";
 
 ## FileHookEvent
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L158)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L164)
 
 ### FileHookEvent.type
 
@@ -157,7 +157,7 @@ Related types: [FileHookEventType](/plugins/api/types/#filehookeventtype).
 
 ## FileHookPlan
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L167)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L173)
 
 ### FileHookPlan.text
 
@@ -177,7 +177,7 @@ name?: string;
 
 ## FormatterInput
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L181)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L187)
 
 ### FormatterInput.text
 
@@ -205,7 +205,7 @@ signal: AbortSignal;
 
 ## Disposable
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L208)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L214)
 
 ### Disposable.dispose
 
@@ -219,7 +219,7 @@ Returns: `void`.
 
 ## BackgroundMessage
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L228)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L234)
 
 
 ```ts
@@ -231,7 +231,7 @@ export type BackgroundMessage = null | boolean | number | string | BackgroundMes
 
 ## FileStat
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L317)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L323)
 
 ### FileStat.path
 
@@ -283,7 +283,7 @@ readonly modifiedAtMs?: number;
 
 ## FileListOptions
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L326)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L332)
 
 ### FileListOptions.extensions
 
@@ -311,7 +311,7 @@ includeDirectories?: boolean;
 
 ## FileMetaValue
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L374)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L380)
 
 
 ```ts
@@ -323,7 +323,7 @@ export type FileMetaValue = null | string | number | boolean | FileMetaValue[] |
 
 ## FileMetaValues
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L381)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L387)
 
 
 ```ts
@@ -335,7 +335,7 @@ Related types: [FileMetaValue](/plugins/api/types/#filemetavalue).
 
 ## FileMetaPatch
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L382)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L388)
 
 ### FileMetaPatch.set
 
@@ -357,7 +357,7 @@ Related types: [FileMetaValues](/plugins/api/types/#filemetavalues).
 
 ## ExplorerState
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L386)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L392)
 
 ### ExplorerState.rootDirectory
 
@@ -388,7 +388,7 @@ sort: {
 
 ## FileMetadata
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L400)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L406)
 
 ### FileMetadata.path
 
@@ -440,7 +440,7 @@ readonly size: number;
 
 ## FileRef
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L443)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L449)
 
 
 ```ts
@@ -460,7 +460,7 @@ Related types: [FileMetadata](/plugins/api/types/#filemetadata).
 
 ## ViewBinding
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L446)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L452)
 
 
 ```ts
@@ -483,7 +483,7 @@ Related types: [FileRef](/plugins/api/types/#fileref).
 
 ## ActionBinding
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L476)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L482)
 
 
 ```ts
@@ -500,7 +500,7 @@ Related types: [FileRef](/plugins/api/types/#fileref).
 
 ## TableActionItem
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L507)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L513)
 
 ### TableActionItem.id
 
@@ -538,7 +538,7 @@ targets: Array<"row" | "selection" | "view">;
 
 ## TableActionRecord
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L514)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L520)
 
 ### TableActionRecord.id
 
@@ -566,7 +566,7 @@ readToken: string;
 
 ## PluginPackage
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L571)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L577)
 
 ### PluginPackage.format
 
@@ -604,7 +604,7 @@ Related types: [PluginManifest](/plugins/api/manifest/#pluginmanifest).
 
 ## TextSnapshot
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L578)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L584)
 
 ### TextSnapshot.text
 
@@ -656,7 +656,7 @@ conflicted: boolean;
 
 ## EidosConfigSnapshot
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L628)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L634)
 
 ### EidosConfigSnapshot.value
 
@@ -676,7 +676,7 @@ version: string;
 
 ## EidosTableSnapshot
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L632)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L638)
 
 ### EidosTableSnapshot.fields
 
@@ -696,7 +696,7 @@ view: EidosFileViewInfo;
 
 ## TableAggregateMetric
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L662)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L668)
 
 
 ```ts
@@ -706,7 +706,7 @@ export type TableAggregateMetric = "count" | "sum" | "average" | "min" | "max";
 
 ## TableAggregateDateInterval
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L664)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L670)
 
 
 ```ts
@@ -716,7 +716,7 @@ export type TableAggregateDateInterval = "exact" | "day" | "month" | "year";
 
 ## TableAggregateOptions
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L666)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L672)
 
 ### TableAggregateOptions.groupBy
 
@@ -752,7 +752,7 @@ Related types: [TableAggregateDateInterval](/plugins/api/types/#tableaggregateda
 
 ## TableAggregateItem
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L678)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L684)
 
 ### TableAggregateItem.key
 
@@ -780,7 +780,7 @@ value: number;
 
 ## TableAggregateResult
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L684)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L690)
 
 ### TableAggregateResult.items
 
@@ -802,7 +802,7 @@ Related types: [TableAggregateItem](/plugins/api/types/#tableaggregateitem).
 
 ## SettingValue
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L689)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L695)
 
 
 ```ts
@@ -812,7 +812,7 @@ export type SettingValue = boolean | string | number;
 
 ## FileExportRequest
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L700)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L706)
 
 ### FileExportRequest.name
 
@@ -840,7 +840,7 @@ data: Uint8Array;
 
 ## FileExportResult
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L707)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L713)
 
 
 ```ts
@@ -852,7 +852,7 @@ export type FileExportResult = {
 
 ## ObserverErrorHandler
 
-[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L722)
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L728)
 
 
 ```ts

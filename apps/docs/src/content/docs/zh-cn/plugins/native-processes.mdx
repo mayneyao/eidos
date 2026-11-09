@@ -74,6 +74,15 @@ await native.send({ type: "get_state", id: "state-1" })
 U+2028/U+2029 仍是字符串内容。事件包括 `message`、`stderr`、`error` 和 `exit`。
 输出非法或超限会终止进程。速率限制与签名见 [API 参考](/zh-cn/plugins/api/sidecar/)。
 
+如果程序通过单条响应返回较长历史，可声明 `sidecar.maxOutputFrameBytes`，并设置
+`requires.pluginApi: "3.12.0"`。值为 1 至 16777216 的整数，默认仍为 1048576 字节。
+上限按不含 CRLF 的 UTF-8 JSON 记录字节数计算，不改变 stdin 限制。stdout 每秒速率上限
+为 16 MiB 和单条记录上限两倍中的较大值。例如 `"maxOutputFrameBytes": 16777216`
+允许最多 16 MiB 的单条记录和每秒 32 MiB 输出。此能力对应 `sidecar.outputFrameLimit`，
+仅 Lite 提供；打包前须使用匹配的 SDK/tools，并确认实际宿主支持。
+`exit` 紧随 `error` 到达时，应保留最初的具体错误，不应替换成泛化的断连提示，也不应
+静默丢弃历史来适应传输限制。
+
 每个所属窗口、Space、插件及包版本共享一个进程。关闭 View 只取消监听，不停止进程。
 事件不会重放，返回页面时应查询原生状态与消息历史。会话侧栏可以使用现有
 [Explorer 贡献点](/zh-cn/plugins/explorer/)，通过 `ui.navigate("chat", route)`

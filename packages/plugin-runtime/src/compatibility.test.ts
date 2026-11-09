@@ -34,6 +34,20 @@ it("keeps native sidecars Lite-only", () => {
     checkPluginCompatibility(plugin, "eidos-cli").missingFeatures
   ).toContain("sidecar")
 })
+it("advertises configurable native output bounds only in Lite API 3.12", () => {
+  const plugin = {
+    ...manifest,
+    requires: { pluginApi: "3.12.0" },
+    sidecar: { command: "pi", maxOutputFrameBytes: 16777216 },
+  }
+  expect(checkPluginCompatibility(plugin, "eidos-lite").compatible).toBe(true)
+  expect(pluginHostInfo("eidos-lite").features).toContain(
+    "sidecar.outputFrameLimit"
+  )
+  expect(
+    checkPluginCompatibility(plugin, "eidos-cli").missingFeatures
+  ).toContain("sidecar.outputFrameLimit")
+})
 it("opts into Worker fetch in API 3.5 without changing older browser consumers", () => {
   expect(usesWorkerFetch(manifest)).toBe(false)
   expect(
@@ -81,7 +95,7 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.11.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.12.0")
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],

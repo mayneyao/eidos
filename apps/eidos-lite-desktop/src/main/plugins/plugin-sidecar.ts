@@ -336,22 +336,30 @@ export class PluginSidecarHost {
     controller.signal.addEventListener("abort", stop, { once: true })
     if (controller.signal.aborted) stop()
     let pending = ""
+    let failed = false
     let bytes = 0
     let stderrBytes = 0
     const decoder = new StringDecoder("utf8")
     const stderrDecoder = new StringDecoder("utf8")
+    const outputFrameLimit =
+      binding.manifest.sidecar!.maxOutputFrameBytes ?? FRAME_LIMIT
+    const outputRateLimit = Math.max(16 * FRAME_LIMIT, 2 * outputFrameLimit)
     const rate = setInterval(() => {
       bytes = 0
       stderrBytes = 0
     }, 1000)
     rate.unref()
     const fail = (message: string) => {
+      if (failed) return
+      failed = true
+      pending = ""
       this.emit(binding, { type: "error", message })
       controller.abort()
     }
     child.stdout.on("data", (chunk: Buffer) => {
+      if (failed) return
       bytes += chunk.length
-      if (bytes > 16 * FRAME_LIMIT) {
+      if (bytes > outputRateLimit) {
         fail("Native process output rate exceeded")
         return
       }
@@ -360,8 +368,8 @@ export class PluginSidecarHost {
       while ((newline = pending.indexOf("\n")) !== -1) {
         const line = pending.slice(0, newline).replace(/\r$/, "")
         pending = pending.slice(newline + 1)
-        if (Buffer.byteLength(line) > FRAME_LIMIT) {
-          fail("Native process frame exceeded 1 MiB")
+        if (Buffer.byteLength(line) > outputFrameLimit) {
+          fail(`Native process frame exceeded ${outputFrameLimit} bytes`)
           return
         }
         if (!line.trim()) continue
@@ -377,8 +385,10 @@ export class PluginSidecarHost {
           return
         }
       }
-      if (Buffer.byteLength(pending) > FRAME_LIMIT)
-        fail("Native process frame exceeded 1 MiB")
+      // A trailing CR may belong to CRLF and is not part of the JSON record.
+      const unfinished = pending.endsWith("\r") ? pending.slice(0, -1) : pending
+      if (Buffer.byteLength(unfinished) > outputFrameLimit)
+        fail(`Native process frame exceeded ${outputFrameLimit} bytes`)
     })
     child.stderr.on("data", (chunk: Buffer) => {
       stderrBytes += chunk.length
@@ -389,7 +399,7 @@ export class PluginSidecarHost {
     child.once("close", (code, signal) => {
       clearInterval(rate)
       controller.signal.removeEventListener("abort", stop)
-      if (pending.trim())
+      if (!failed && pending.trim())
         this.emit(binding, {
           type: "error",
           message: "Native process exited with an incomplete JSON frame",
