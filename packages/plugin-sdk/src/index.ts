@@ -4,7 +4,7 @@ export type PluginIconDefinition =
   | { src: string }
   | { file: string }
 
-// Public type-only SDK for Eidos Plugin API 3.8.
+// Public type-only SDK for Eidos Plugin API 3.12.
 export interface PluginManifest {
   apiVersion: 1
   /** Omitted for ordinary executable plugins. */
