@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.11
+# Eidos Plugins — API 3.12
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.11.0
+Plugin API：3.12.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
 
@@ -53,10 +53,25 @@ Lite API 3.8 支持 `sidecar: { command, args? }`。`command` 是可执行文件
 
 `send` 向 stdin 写入单条 JSON 和 LF；stdout 仅以 LF 分隔 JSON，U+2028/U+2029
 仍是字符串内容。事件包括 `message { data }`、`stderr { text }`、
-`error { message }` 和 `exit { code, signal }`。单帧最多 1 MiB，stdout 每秒
-最多 16 MiB，待写 stdin 最多 4 MiB，stderr 每秒超过 1 MiB 的部分丢弃。
+`error { message }` 和 `exit { code, signal }`。stdin 单条记录包含 LF 最多 1 MiB，
+待写 stdin 包含本次新记录最多 4 MiB。stdout 接受 CRLF；JSON 记录默认最多 1 MiB，
+按不含 CRLF 的 UTF-8 字节计算。stderr 每秒超过 1 MiB 的部分丢弃。
 调用方负责取消订阅和丢弃过期异步结果。每次操作重查 Space、启用状态和包版本。
 启动成功仅表示系统接受程序，协议就绪由插件判断。Agent 工具审批与启动确认独立。
+
+API 3.12 新增仅在 manifest 声明的 `sidecar.maxOutputFrameBytes?: number`。
+声明该字段必须要求最低 API 3.12.0；Lite 提供 `sidecar.outputFrameLimit` 能力，
+CLI Serve 和移动端不得宣称支持。值必须是 1 至 16777216（含端点）的安全整数，
+仅替换 stdout 单条记录上限，缺省仍为 1048576 字节。运行时启动覆盖不得传入或修改
+该值。stdout 每个一秒窗口的总字节预算包含分隔符，必须为
+`max(16777216, 2 * outputRecordLimit)`，默认 16 MiB、最大 32 MiB。stdin、
+待写 stdin 和 stderr 预算不变。因此精确 16 MiB 的 JSON 记录加 CRLF 仍可传输，
+总输出另受明确的有限预算约束。
+
+非法 JSON、超过声明或默认上限的记录、超过 stdout 总预算的输出，必须发出 `error`
+并终止所属进程。致命错误后宿主必须丢弃待解析输出，不得继续解析后续记录，也不得用
+不完整记录错误覆盖最初原因。消费者必须在后续 `exit` 到达时保留原始传输错误，
+拒绝待处理请求，并允许用户显式重新连接。此能力不表示截断历史、无界缓冲或自动重启。
 
 API 3.9 新增 `sidecar.configurable?: boolean`，声明该字段须要求 API 3.9.0
 或以上。仅显式设为 `true` 的插件可通过 `start({ command, args })` 替换默认启动

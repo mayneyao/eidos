@@ -1,8 +1,8 @@
-# Eidos Plugins — API 3.11
+# Eidos Plugins — API 3.12
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.11.0
+Plugin API: 3.12.0
 
 Canonical language: English
 
@@ -60,12 +60,33 @@ an explicit configuration apply can start a replacement safely.
 `send` writes one JSON record followed by LF to stdin. stdout MUST contain JSON
 records delimited only by LF; Unicode U+2028/U+2029 are ordinary string content.
 `onEvent` receives `message { data }`, `stderr { text }`, `error { message }`, and
-`exit { code, signal }` envelopes. Frames are limited to 1 MiB, stdout to 16 MiB/s,
-and pending stdin to 4 MiB. stderr is dropped beyond 1 MiB/s. Owners MUST dispose
+`exit { code, signal }` envelopes. stdin records including LF are limited to 1 MiB,
+and pending stdin including the incoming record to 4 MiB. stdout accepts CRLF;
+its JSON records default to 1 MiB in UTF-8 bytes, excluding CRLF. stderr is dropped
+beyond 1 MiB/s. Owners MUST dispose
 subscriptions and reject stale asynchronous results. The host rechecks the
 current Space, enablement and package revision for every operation. Process
 startup means the OS accepted the executable; protocol readiness is the plugin's
 responsibility. A native agent's tool approvals are separate from startup approval.
+
+API 3.12 adds manifest-only `sidecar.maxOutputFrameBytes?: number`. A declaring
+package MUST require API 3.12.0 or later; Lite advertises the feature
+`sidecar.outputFrameLimit`, while CLI Serve and mobile MUST NOT advertise it.
+The value MUST be a safe integer from 1 to 16777216 inclusive. It replaces only
+the stdout record limit; omission preserves 1048576 bytes. Runtime launch
+overrides MUST NOT supply or change it. The stdout aggregate byte budget in each
+one-second window MUST be `max(16777216, 2 * outputRecordLimit)`, including
+delimiters: default 16 MiB, maximum 32 MiB. stdin, pending stdin and stderr budgets
+are unchanged. This permits an exact 16 MiB JSON record with CRLF while retaining
+a separate bounded aggregate output budget.
+
+Malformed JSON, records over the declared/default limit and aggregate stdout
+budget violations MUST emit an `error` and terminate the owned process. After a
+fatal error, the host MUST discard pending output and MUST NOT parse further
+records or replace the first error with an incomplete-record error. Consumers
+MUST retain the original transport failure when the subsequent `exit` arrives,
+reject pending requests and allow explicit reconnection. No history truncation,
+unbounded buffering or automatic crash restart is implied.
 
 ## Localization
 
