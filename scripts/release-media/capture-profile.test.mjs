@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
+import { fileURLToPath } from "node:url"
 import {
   CAPTURE_PROFILE as profile,
   parseInputTimeline,
@@ -165,6 +166,45 @@ test("new capture profile rejects changed geometry, frame rate, pixel format or 
       streams: [...valid.streams, { codec_type: "audio" }],
     })
   )
+})
+
+test("iteration scenes validate shortcut labels without accessing native capture", async () => {
+  const script = fileURLToPath(
+    new URL("./capture-iteration.mjs", import.meta.url)
+  )
+  const result = JSON.parse(
+    execFileSync(process.execPath, [script, "--validate-only"], {
+      encoding: "utf8",
+    })
+  )
+  assert.equal(result.runtimeVerified, false)
+  assert.deepEqual(
+    result.scenes.map((s) => s.shortcutLabels),
+    [0, 4, 0]
+  )
+  const directory = await mkdtemp(join(tmpdir(), "eidos-media-scenes-"))
+  try {
+    const catalog = JSON.parse(
+      await readFile(
+        new URL("./iteration-scenes.json", import.meta.url),
+        "utf8"
+      )
+    )
+    catalog.scenes[1].steps[1].shortcutLabel = "first line\nsecond line"
+    const path = join(directory, "invalid-scenes.json")
+    await writeFile(path, JSON.stringify(catalog))
+    assert.throws(
+      () =>
+        execFileSync(
+          process.execPath,
+          [script, "--validate-only", "--scenes", path],
+          { stdio: "pipe" }
+        ),
+      /Shortcut labels/
+    )
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test(

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scenarioRevision": 1,
+  "scenarioRevision": 2,
   "featureCandidateCommit": "f5124ab39e2d42fdedb54ffd9d2023f0e17eb71b",
   "featureSourceCommits": {
     "task2": "154b551011735db2e06abb6b04a18c152b39d3b9",
@@ -202,7 +202,8 @@
         {
           "op": "key",
           "code": 35,
-          "modifiers": "command"
+          "modifiers": "command",
+          "shortcutLabel": "⌘ P · Search files"
         },
         {
           "op": "expect",
@@ -296,7 +297,8 @@
         {
           "op": "key",
           "code": 3,
-          "modifiers": "command+shift"
+          "modifiers": "command+shift",
+          "shortcutLabel": "⌘ ⇧ F · Search text"
         },
         {
           "op": "expect",
@@ -396,7 +398,8 @@
         {
           "op": "key",
           "code": 3,
-          "modifiers": "command+shift"
+          "modifiers": "command+shift",
+          "shortcutLabel": "⌘ ⇧ F · Search text"
         },
         {
           "op": "expect",
@@ -442,7 +445,8 @@
         },
         {
           "op": "key",
-          "code": 53
+          "code": 53,
+          "shortcutLabel": "Esc · Close search"
         },
         {
           "op": "dwell",

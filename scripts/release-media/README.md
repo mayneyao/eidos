@@ -39,11 +39,12 @@ only a stationary recorder-finalization tail is removed. The private manifest
 retains source duration/hash, action completion time, exact helper binary hashes
 and recorder arguments. A short source or an over-budget scene still fails.
 
-This multi-scene adapter has not yet adopted `capture-profile.mjs`, the native
-per-key timeline sidecars or burned-in shortcut labels. Its existing exports
-are not final release media under the standard above. Adapt the adapter before
-recording a new release take; scene validation alone does not verify native
-timing, encoding compliance or the final annotated video.
+This multi-scene adapter uses `capture-profile.mjs`, logs each native key/modifier
+post, and burns only the scene's explicit `shortcutLabel` keys into the MP4.
+Generic select-all and typing remain in the private audit log without a label.
+The manifest binds the raw/derived timeline hashes and rendered intervals.
+Real native recording, clock/frame alignment and full playback remain pending
+until the coordinated recording slot; scene validation alone proves none of them.
 
 Prepare, record, review and upload a short Eidos Lite demonstration on macOS.
 The default scenario demonstrates table-search Escape/focus recovery in the

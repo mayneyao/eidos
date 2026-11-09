@@ -1,7 +1,15 @@
 import { spawn, execFileSync } from "node:child_process"
+import { writeFileSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  CAPTURE_PROFILE as profile,
+  parseInputTimeline,
+  buildShortcutIntervals,
+  shortcutVideoFilter,
+  validateVideoProfile,
+} from "./capture-profile.mjs"
 import {
   options,
   readJson,
@@ -60,6 +68,14 @@ function validateScene(scene) {
     )
       throw Error("Invalid native key")
     if (
+      step.shortcutLabel !== undefined &&
+      (step.op !== "key" ||
+        typeof step.shortcutLabel !== "string" ||
+        !step.shortcutLabel.trim() ||
+        /[\r\n]/.test(step.shortcutLabel))
+    )
+      throw Error("Shortcut labels must belong to a key and fit one line")
+    if (
       step.op === "dwell" &&
       (!Number.isInteger(step.ms) || step.ms < 0 || step.ms > 5000)
     )
@@ -81,6 +97,7 @@ if (args["--help"]) {
           id: s.id,
           steps: s.steps.length,
           durationSeconds: s.durationSeconds,
+          shortcutLabels: s.steps.filter((step) => step.shortcutLabel).length,
         })),
         runtimeVerified: false,
       })
@@ -114,14 +131,30 @@ async function capture(catalog) {
     throw Error(
       "Recording is allowed only after these tools are committed inside the handed-off candidate"
     )
-  const run = (file, argv) =>
-    execFileSync(file, argv.map(String), {
+  let recordingClock = null
+  const run = (file, argv, shortcutLabel) => {
+    const env = { ...process.env, EIDOS_MEDIA_TARGET_PID: String(pid) }
+    delete env.EIDOS_MEDIA_INPUT_TIMELINE
+    delete env.EIDOS_MEDIA_RECORDING_START_NS
+    delete env.EIDOS_MEDIA_KEY_LABEL
+    if (
+      recordingClock &&
+      file === native &&
+      ["key", "type"].includes(argv[0])
+    ) {
+      env.EIDOS_MEDIA_INPUT_TIMELINE = rawTimelinePath
+      env.EIDOS_MEDIA_RECORDING_START_NS = recordingClock.monotonicNs
+      if (argv[0] === "key" && shortcutLabel)
+        env.EIDOS_MEDIA_KEY_LABEL = shortcutLabel
+    }
+    return execFileSync(file, argv.map(String), {
       cwd: root,
       encoding: "utf8",
       maxBuffer: 8 * 1024 * 1024,
-      env: { ...process.env, EIDOS_MEDIA_TARGET_PID: String(pid) },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     }).trim()
+  }
   const git = (...argv) => run("git", argv)
   const checkSource = () => {
     if (
@@ -228,6 +261,8 @@ async function capture(catalog) {
   const recorderPath = here + "/record-desktop.swift"
   const native = out + "/native-input"
   const recorder = out + "/record-desktop"
+  const rawTimelinePath = out + "/key-events.jsonl"
+  const timelinePath = out + "/input-timeline.json"
   run("swiftc", [nativePath, "-o", native])
   run("swiftc", ["-parse-as-library", recorderPath, "-o", recorder])
   const info = JSON.parse(run(native, ["info", pid]))
@@ -486,11 +521,11 @@ async function capture(catalog) {
         throw Error("Measurement target is not unique")
       measures[step.name] = state.nodes[0].rect
     } else if (step.op === "key") {
-      run(native, [
-        "key",
-        step.code,
-        ...(step.modifiers ? [step.modifiers] : []),
-      ])
+      run(
+        native,
+        ["key", step.code, ...(step.modifiers ? [step.modifiers] : [])],
+        step.shortcutLabel
+      )
     } else if (step.op === "type") {
       if (step.target) {
         await action({ op: "click", target: step.target })
@@ -539,13 +574,26 @@ async function capture(catalog) {
     if (!paths.includes(fixture.space))
       throw Error("The opened Space is not the exact synthetic fixture")
     const title = "Release Demo — Eidos Lite"
-    run(native, ["bounds", pid, 350, 130, 1200, 820, title])
+    run(native, [
+      "bounds",
+      pid,
+      350,
+      130,
+      profile.windowWidth,
+      profile.windowHeight,
+      title,
+    ])
     const windows = JSON.parse(run(native, ["info", pid])).windows.filter(
       (w) => w.title === title
     )
     if (windows.length !== 1)
       throw Error("Synthetic native window is not unique")
     nativeWindow = windows[0].bounds
+    if (
+      nativeWindow.Width !== profile.windowWidth ||
+      nativeWindow.Height !== profile.windowHeight
+    )
+      throw Error("Could not obtain the standard 1200×820-point window")
     viewport = await evaluate(() => ({
       width: innerWidth,
       height: innerHeight,
@@ -556,11 +604,13 @@ async function capture(catalog) {
       Math.abs(viewport.height - nativeWindow.Height) > 1
     )
       throw Error("Unexpected native/content coordinate mapping")
+    if (viewport.scale !== profile.scale)
+      throw Error("Standard release capture requires a 2× display scale")
     rect = {
-      x: nativeWindow.X - 32,
-      y: nativeWindow.Y - 32,
-      width: nativeWindow.Width + 64,
-      height: nativeWindow.Height + 64,
+      x: nativeWindow.X - profile.desktopPadding,
+      y: nativeWindow.Y - profile.desktopPadding,
+      width: nativeWindow.Width + profile.desktopPadding * 2,
+      height: nativeWindow.Height + profile.desktopPadding * 2,
     }
     run(native, ["activate", pid])
     for (const step of scene.initial ?? []) await action(step)
@@ -598,10 +648,29 @@ async function capture(catalog) {
         () => reject(Error("Recorder did not start")),
         10000
       )
+      let stdout = ""
       recording.stdout.on("data", (data) => {
-        if (data.toString().includes("RECORDING_STARTED")) {
+        stdout += data.toString()
+        const lines = stdout.split("\n")
+        stdout = lines.pop()
+        try {
+          for (const line of lines) {
+            if (line.startsWith("RECORDING_CLOCK "))
+              recordingClock = JSON.parse(line.slice("RECORDING_CLOCK ".length))
+            if (line === "RECORDING_STARTED") {
+              parseInputTimeline(JSON.stringify(recordingClock))
+              writeFileSync(
+                rawTimelinePath,
+                JSON.stringify(recordingClock) + "\n",
+                { flag: "wx" }
+              )
+              clearTimeout(timer)
+              done()
+            }
+          }
+        } catch (error) {
           clearTimeout(timer)
-          done()
+          reject(error)
         }
       })
       recording.once("exit", () => {
@@ -619,7 +688,7 @@ async function capture(catalog) {
     // Park the real native cursor after the final viewing dwell so the source
     // retains a visible frame after every scenario assertion, without adding
     // synthetic video frames or changing the application state.
-    await sleep(1000)
+    await sleep(profile.minimumTipSeconds * 1000 + 200)
     run(native, [
       "move",
       nativeWindow.X + viewport.width - 24,
@@ -647,6 +716,35 @@ async function capture(catalog) {
       sourceDuration < actionsFinishedSeconds + 0.5
     )
       throw Error("Source recording did not retain the completed scenario")
+    const timeline = parseInputTimeline(await readFile(rawTimelinePath, "utf8"))
+    const intervals = buildShortcutIntervals(
+      timeline,
+      Math.floor(Math.min(scene.durationSeconds, sourceDuration) * profile.fps)
+    )
+    const textFiles = await Promise.all(
+      intervals.map(async (interval, index) => {
+        const path = out + `/shortcut-${index}.txt`
+        await writeFile(path, interval.label, { flag: "wx" })
+        return path
+      })
+    )
+    const filterPath = out + "/shortcut-filter.txt"
+    await writeFile(
+      filterPath,
+      [`fps=${profile.fps}`, shortcutVideoFilter(intervals, textFiles)]
+        .filter(Boolean)
+        .join(","),
+      { flag: "wx" }
+    )
+    await writeFile(
+      timelinePath,
+      JSON.stringify(
+        { ...timeline, intervals, profileId: profile.id },
+        null,
+        2
+      ) + "\n",
+      { flag: "wx" }
+    )
     run("ffmpeg", [
       "-nostdin",
       "-hide_banner",
@@ -655,19 +753,21 @@ async function capture(catalog) {
       "-y",
       "-i",
       source,
+      "-filter_script:v",
+      filterPath,
       "-an",
       "-t",
       scene.durationSeconds,
       "-c:v",
       "libx264",
       "-crf",
-      21,
+      profile.crf,
       "-preset",
-      "medium",
+      profile.preset,
       "-pix_fmt",
       "yuv420p",
       "-r",
-      30,
+      profile.fps,
       "-movflags",
       "+faststart",
       out + "/demo.mp4",
@@ -687,7 +787,7 @@ async function capture(catalog) {
       "-c:v",
       "libwebp",
       "-quality",
-      88,
+      profile.posterQuality,
       out + "/poster.webp",
     ])
     const probe = JSON.parse(
@@ -702,6 +802,8 @@ async function capture(catalog) {
       ])
     )
     const video = probe.streams.find((s) => s.codec_type === "video")
+    validateVideoProfile(probe)
+    buildShortcutIntervals(timeline, Number(video.nb_frames))
     if (
       !video ||
       video.codec_name !== "h264" ||
@@ -749,6 +851,7 @@ async function capture(catalog) {
     )
     const toolFiles = [
       "capture-iteration.mjs",
+      "capture-profile.mjs",
       "iteration-utils.mjs",
       "iteration-scenes.json",
       "iteration-fixture.json",
@@ -794,13 +897,34 @@ async function capture(catalog) {
       locale: "en",
       theme: "light",
       nativeWindow,
+      captureProfile: profile,
+      inputTimeline: {
+        path: timelinePath,
+        sha256: await hashFile(timelinePath),
+        rawPath: rawTimelinePath,
+        rawSha256: await hashFile(rawTimelinePath),
+        clock: recordingClock,
+        directNativeEvents: true,
+        eventCount: timeline.events.length,
+        scope:
+          "Keyboard posts from this native helper; manual or external input is not observed",
+      },
+      shortcutAnnotations: {
+        burnedIntoMp4: true,
+        events: intervals.length,
+        maximumConcurrentLabels: 1,
+        minimumSeconds: profile.minimumTipSeconds,
+        newRelevantKeyReplacesImmediately: true,
+        addedCanvasPixels: 0,
+        intervals,
+      },
       toolHashes,
       sceneFileSha256: await hashFile(scenesPath),
       capture: {
         ...rect,
-        padding: 32,
+        padding: profile.desktopPadding,
         scale: viewport.scale,
-        fps: 30,
+        fps: profile.fps,
         audio: false,
         speed: 1,
         recorder: "ScreenCaptureKit",

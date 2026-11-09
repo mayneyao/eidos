@@ -136,12 +136,13 @@ reconstruct new timelines later from scene dwell durations or assertions.
 Keep generic keys in the private audit log but exclude them from the public
 shortcut HUD. Do not retain the typed text itself in the event log.
 
-The separate `capture-iteration.mjs` scene engine still needs this adapter
-integration before a new release recording. Preserve its scene and provenance
-checks when adapting it; `--validate-only` does not verify native timing or
-the final video.
+The separate `capture-iteration.mjs` scene engine uses the same profile, native
+clock, timeline and label renderer, retaining its scene/provenance guards.
+Its scene keys opt into the HUD with `shortcutLabel`; generic keys and typing
+stay unlabeled. `--validate-only` does not verify native timing or the final
+video. Complete a real take and playback review before claiming acceptance.
 
-The current native helpers and `capture.mjs` implement this contract:
+The current native helpers and both capture scripts implement this contract:
 
 - `record-desktop.swift` emits `RECORDING_CLOCK` with
   `DispatchTime.uptimeNanoseconds` at its recording-start callback, followed by
