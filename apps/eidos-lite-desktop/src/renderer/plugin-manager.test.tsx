@@ -877,6 +877,7 @@ it("keeps multiple local package previews available for individual confirmation"
   await act(async () =>
     root.render(
       <PluginManager
+        variant="settings"
         installRequest={{
           id: second.manifest.id,
           sequence: 2,
@@ -885,14 +886,12 @@ it("keeps multiple local package previews available for individual confirmation"
       />
     )
   )
-  const select = container.querySelector<HTMLSelectElement>(
-    '[aria-label="Local packages awaiting review"]'
-  )!
-  expect(select).not.toBeNull()
-  await act(async () => {
-    select.value = first.token
-    select.dispatchEvent(new Event("change", { bubbles: true }))
-  })
+  expect(container.querySelector("select")).toBeNull()
+  expect(container.textContent).not.toContain("Local packages awaiting review")
+  await click("Plugins")
+  await click(
+    `${first.manifest.name} v${first.manifest.version} · ${first.filename}`
+  )
   expect(container.querySelector("h1")?.textContent).toBe(first.manifest.name)
   expect(prepared).not.toHaveBeenCalled()
   await click("Install…")
@@ -929,6 +928,7 @@ it("leaves a cancelled or failed local update available and removes it after suc
     root.render(
       <PluginManager
         spaceAvailable
+        variant="settings"
         installRequest={{
           id: preview.manifest.id,
           sequence: 1,
@@ -943,7 +943,12 @@ it("leaves a cancelled or failed local update available and removes it after suc
   expect(container.textContent).not.toContain("Not installed")
   await click("Update")
   expect(container.textContent).toContain("csv-2.eidos-plugin")
+  await click("Plugins")
+  await click(`CSV v2.0.0 · ${preview.filename}`)
   await click("Update")
+  expect(container.textContent).toContain("Failed to install")
+  await click("Plugins")
+  await click(`CSV v2.0.0 · ${preview.filename}`)
   expect(container.textContent).toContain("Failed to install")
   ;[...container.querySelectorAll("button")]
     .find((button) => button.textContent === "Update")
@@ -953,6 +958,9 @@ it("leaves a cancelled or failed local update available and removes it after suc
   expect(container.textContent).not.toContain("Update available: v2.0.0")
   expect(container.textContent).toContain("Enable in this Space")
   expect(document.activeElement).toBe(container.querySelector("h1"))
+  await click("Plugins")
+  expect(container.textContent).not.toContain(preview.filename)
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("CSV")
   await act(async () => root.unmount())
   root = createRoot(container)
   await act(async () =>
@@ -971,7 +979,7 @@ it("leaves a cancelled or failed local update available and removes it after suc
   expect(container.textContent).toContain("Enable in this Space")
 })
 
-it("keeps a single pending package discoverable from another installed detail", async () => {
+it("keeps a pending package on the plugin list and out of another plugin's detail", async () => {
   const preview = {
     token: "pending",
     hash: "new",
@@ -987,14 +995,19 @@ it("keeps a single pending package discoverable from another installed detail", 
   Object.assign(window.eidosLite, {
     getPluginPackagePreviews: async () => [preview],
   })
-  await act(async () =>
-    root.render(<PluginManager selectedPluginId="example.csv" />)
+  await act(async () => root.render(<PluginManager variant="settings" />))
+  await click("CSV")
+  expect(container.querySelector("select")).toBeNull()
+  expect(container.textContent).not.toContain(preview.filename)
+  await click("Plugins")
+  await click(
+    `${preview.manifest.name} v${preview.manifest.version} · ${preview.filename}`
   )
-  const select = container.querySelector<HTMLSelectElement>(
-    '[aria-label="Local packages awaiting review"]'
-  )!
-  expect(select).not.toBeNull()
-  expect(select.options).toHaveLength(2)
+  expect(container.querySelector("h1")?.textContent).toBe("Other")
+  await click("Plugins")
+  expect(document.activeElement?.getAttribute("aria-label")).toContain(
+    preview.filename
+  )
 })
 
 it("switches between multiple versions of the same local plugin", async () => {
@@ -1039,18 +1052,17 @@ it("switches between multiple versions of the same local plugin", async () => {
   await act(async () =>
     root.render(
       <PluginManager
+        variant="settings"
         installRequest={{ id: first.manifest.id, sequence: 1, package: first }}
       />
     )
   )
-  const select = container.querySelector<HTMLSelectElement>(
-    '[aria-label="Local packages awaiting review"]'
-  )!
   expect(container.textContent).toContain("First package failed")
-  await act(async () => {
-    select.value = second.token
-    select.dispatchEvent(new Event("change", { bubbles: true }))
-  })
+  expect(container.querySelector("select")).toBeNull()
+  await click("Plugins")
+  await click(
+    `${second.manifest.name} v${second.manifest.version} · ${second.filename}`
+  )
   expect(container.textContent).toContain("csv-3.eidos-plugin")
   expect(container.textContent).not.toContain("First package failed")
   await act(async () =>
@@ -1071,6 +1083,10 @@ it("switches between multiple versions of the same local plugin", async () => {
   expect(container.textContent).not.toContain("Installing…")
   expect(container.textContent).toContain("Installed: v1.0.0")
   expect(container.textContent).toContain("v3.0.0")
+  await click("Plugins")
+  expect(document.activeElement?.getAttribute("aria-label")).toContain(
+    second.filename
+  )
 })
 
 it("preserves restored navigation instead of replaying an earlier external request", async () => {

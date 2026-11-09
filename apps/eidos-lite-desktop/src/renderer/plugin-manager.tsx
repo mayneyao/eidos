@@ -112,21 +112,11 @@ export function PluginManager({
     } catch {}
   }
   const surface = useRef<HTMLDivElement>(null)
-  const previousSelection = useRef<string | null>(null)
-  useEffect(() => {
-    if (selected) {
-      surface.current?.querySelector<HTMLElement>("h1")?.focus()
-    } else if (previousSelection.current) {
-      Array.from(
-        surface.current?.querySelectorAll<HTMLButtonElement>(
-          "[data-plugin-id]"
-        ) ?? []
-      )
-        .find((button) => button.dataset.pluginId === previousSelection.current)
-        ?.focus()
-    }
-    previousSelection.current = selected
-  }, [selected])
+  const previousSelection = useRef<{
+    id: string
+    token?: string
+    local: boolean
+  } | null>(null)
   const refresh = useCallback(async () => {
     if (window.eidosLite.listPlugins)
       setListing(await window.eidosLite.listPlugins())
@@ -296,6 +286,49 @@ export function PluginManager({
       : undefined)
   const currentPackageToken = useRef<string | undefined>(undefined)
   currentPackageToken.current = packagePreview?.token
+  useEffect(() => {
+    const previous = previousSelection.current
+    if (selected) {
+      if (selected !== previous?.id)
+        surface.current?.querySelector<HTMLElement>("h1")?.focus()
+    } else if (previous) {
+      const buttons = Array.from(
+        surface.current?.querySelectorAll<HTMLButtonElement>(
+          "[data-plugin-id]"
+        ) ?? []
+      )
+      const packageButton = previous.token
+        ? buttons.find(
+            (button) => button.dataset.pluginPackageToken === previous.token
+          )
+        : undefined
+      const target =
+        packageButton ??
+        buttons.find((button) => button.dataset.pluginId === previous.id)
+      if (
+        !target &&
+        previous.local &&
+        tab !== "installed" &&
+        filteredPlugins.some((item) => item.manifest.id === previous.id)
+      ) {
+        setTab("installed")
+        return
+      }
+      ;(
+        target ??
+        surface.current?.querySelector<HTMLInputElement>('input[type="search"]')
+      )?.focus()
+    }
+    previousSelection.current = selected
+      ? {
+          id: selected,
+          token: packagePreview?.token,
+          local:
+            Boolean(packagePreview) ||
+            Boolean(previous?.id === selected && previous.local),
+        }
+      : null
+  }, [selected, packagePreview?.token, tab, filteredPlugins])
   const restoreDetailFocus = useRef(false)
   useEffect(() => {
     if (restoreDetailFocus.current) {
@@ -398,41 +431,6 @@ export function PluginManager({
         })
       }
     >
-      {pendingPackages.length >
-        (packagePreview &&
-        pendingPackages.some(
-          (preview) => preview.token === packagePreview.token
-        )
-          ? 1
-          : 0) && (
-        <label className="plugin-package-selector">
-          {t("Local packages awaiting review")}
-          <select
-            className="plugin-setting-input"
-            aria-label={t("Local packages awaiting review")}
-            value={packagePreview?.token ?? ""}
-            onChange={(event) => {
-              const next = pendingPackages.find(
-                (preview) => preview.token === event.currentTarget.value
-              )
-              if (next) {
-                setPackageSelection({
-                  sequence: installRequest?.sequence,
-                  token: next.token,
-                })
-                setSelected(next.manifest.id)
-              }
-            }}
-          >
-            <option value="">{t("Choose a package…")}</option>
-            {pendingPackages.map((preview) => (
-              <option key={preview.token} value={preview.token}>
-                {preview.filename} · {preview.manifest.version}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {content}
     </PluginDropZone>
   )
@@ -632,6 +630,78 @@ export function PluginManager({
           </button>
         </div>
       </header>
+      {pendingPackages.length > 0 && (
+        <div
+          className={`plugin-manager-list${variant === "settings" ? " settings-group" : ""}`}
+          role="group"
+          aria-label={t("Local packages awaiting review")}
+        >
+          {pendingPackages.map((preview) => {
+            const manifest = preview.localization
+              ? localizePluginManifest(
+                  preview.manifest,
+                  preview.localization,
+                  locale === "zh" ? "zh-CN" : locale
+                )
+              : preview.manifest
+            if (!matchesSearch(manifest.id, manifest.name, preview.filename))
+              return null
+            return (
+              <button
+                key={preview.token}
+                type="button"
+                className={`${variant === "settings" ? "settings-row" : "plugin-manager-row"} plugin-list-entry`}
+                data-plugin-id={manifest.id}
+                data-plugin-package-token={preview.token}
+                aria-label={`${manifest.name} v${manifest.version} · ${preview.filename}`}
+                onClick={() => {
+                  setPackageSelection({
+                    sequence: installRequest?.sequence,
+                    token: preview.token,
+                  })
+                  setSelected(manifest.id, manifest.name)
+                }}
+              >
+                <div
+                  className="plugin-row-icon-box"
+                  style={getPluginIconBadgeStyle(
+                    manifest.id,
+                    manifest.name,
+                    manifest.icon
+                  )}
+                >
+                  <PluginIcon
+                    icon={manifest.icon}
+                    name={manifest.name}
+                    id={manifest.id}
+                    className="plugin-manager-icon"
+                  />
+                </div>
+                <div
+                  className={`${variant === "settings" ? "settings-row-copy " : ""}plugin-manager-copy`}
+                >
+                  <div className="plugin-row-title-line">
+                    <strong>{manifest.name}</strong>
+                  </div>
+                  <div className="plugin-row-meta-line">
+                    <span className="plugin-pill-version">
+                      v{manifest.version}
+                    </span>
+                    <span className="plugin-pill-status">
+                      {t("Local package")}
+                    </span>
+                    <span className="plugin-row-desc">{preview.filename}</span>
+                  </div>
+                </div>
+                <ChevronRight
+                  className="plugin-row-chevron"
+                  aria-hidden="true"
+                />
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div className="plugin-manager-toolbar-row">
         <div
           className="plugin-manager-tabs"
