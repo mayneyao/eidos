@@ -1961,6 +1961,11 @@ body {
   opacity: 0.32;
 }
 
+.titlebar-navigation .icon-button svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
 .icon-button svg {
   width: 0.875rem;
   height: 0.875rem;
