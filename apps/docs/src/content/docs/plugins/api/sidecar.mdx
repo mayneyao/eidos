@@ -96,7 +96,7 @@ Returns: `Promise<SidecarStatus>`.
 
 Supported hosts: <Badge text="Lite" variant="note" />
 
-Requests native approval showing the executable, fixed argv, canonical Space cwd and OS access. Reuses the same owner/Space/plugin/revision run. Pending startup expires after five minutes and is cancelled with its initiating View; after startup, closing a View only detaches it. A new process requires new approval. Success means OS spawn, not protocol readiness.
+Checks a remembered approval for the Space, exact plugin revision, executable path/target/content, fixed argv and canonical Space cwd. Installation or enablement review can grant this; otherwise first use requests native approval showing these details and OS access. Unchanged consent survives host restart. Disabling/uninstalling revokes it; Stop does not. Reuses the same owner/Space/plugin/revision run. Pending startup expires after five minutes and is cancelled with its initiating View; after startup, closing a View only detaches it. Changed or missing identity requires renewed approval. Success means OS spawn, not protocol readiness.
 
 
 ```ts

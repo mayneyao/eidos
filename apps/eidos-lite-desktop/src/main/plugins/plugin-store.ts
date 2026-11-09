@@ -55,6 +55,17 @@ function parseScope(value: unknown): PluginSpaceConfig {
     plugins[id] = { enabled: binding.enabled }
     if (validHash(binding.backgroundApproval))
       plugins[id].backgroundApproval = binding.backgroundApproval
+    if (
+      binding.sidecarApproval &&
+      typeof binding.sidecarApproval === "object"
+    ) {
+      const approval = object(binding.sidecarApproval)
+      if (validHash(approval.hash) && validHash(approval.identity))
+        plugins[id].sidecarApproval = {
+          hash: approval.hash,
+          identity: approval.identity,
+        }
+    }
   }
   const associations: Record<string, string> = {}
   for (const [ext, editor] of Object.entries(object(scope.associations))) {
@@ -436,7 +447,12 @@ export class PluginStore {
     this.remember(hash, pkg)
     return hash
   }
-  async enable(id: string, enabled: boolean, spaceId: string) {
+  async enable(
+    id: string,
+    enabled: boolean,
+    spaceId: string,
+    expectedHash?: string
+  ) {
     if (!spaceId || typeof enabled !== "boolean")
       throw new PluginError(
         "INVALID_REQUEST",
@@ -456,20 +472,70 @@ export class PluginStore {
     await this.update((config) => {
       if (!config.installed[id])
         throw new PluginError("INVALID_REQUEST", "Plugin is not installed")
+      if (
+        expectedHash &&
+        (this.trials.get(id) ?? config.installed[id].hash) !== expectedHash
+      )
+        throw new PluginError(
+          "STALE_REVISION",
+          "Plugin changed during approval"
+        )
       const space = (config.spaces[spaceId] ??= emptyScope())
-      space.plugins[id] = { enabled }
+      if (!enabled || !space.plugins[id]?.enabled)
+        space.plugins[id] = { enabled }
     })
   }
   async backgroundApproved(id: string, spaceId: string, hash: string) {
     const config = await this.config()
-    return config.spaces[spaceId]?.plugins[id]?.backgroundApproval === hash
+    const binding = config.spaces[spaceId]?.plugins[id]
+    return (
+      binding?.enabled === true &&
+      (this.trials.get(id) ?? config.installed[id]?.hash) === hash &&
+      binding.backgroundApproval === hash
+    )
   }
   async approveBackground(id: string, spaceId: string, hash: string) {
     await this.update((config) => {
       const binding = config.spaces[spaceId]?.plugins[id]
-      if (!binding?.enabled || config.installed[id]?.hash !== hash)
+      if (
+        !binding?.enabled ||
+        (this.trials.get(id) ?? config.installed[id]?.hash) !== hash
+      )
         throw new PluginError("STALE_REVISION", "Background grant changed")
       binding.backgroundApproval = hash
+    })
+  }
+  async sidecarApproved(
+    id: string,
+    spaceId: string,
+    hash: string,
+    identity: string
+  ) {
+    const config = await this.config()
+    const binding = config.spaces[spaceId]?.plugins[id]
+    return (
+      binding?.enabled === true &&
+      (this.trials.get(id) ?? config.installed[id]?.hash) === hash &&
+      binding.sidecarApproval?.hash === hash &&
+      binding.sidecarApproval.identity === identity
+    )
+  }
+  async approveSidecar(
+    id: string,
+    spaceId: string,
+    hash: string,
+    identity: string
+  ) {
+    if (!validHash(identity))
+      throw new PluginError("INVALID_REQUEST", "Invalid native approval")
+    await this.update((config) => {
+      const binding = config.spaces[spaceId]?.plugins[id]
+      if (
+        !binding?.enabled ||
+        (this.trials.get(id) ?? config.installed[id]?.hash) !== hash
+      )
+        throw new PluginError("STALE_REVISION", "Native grant changed")
+      binding.sidecarApproval = { hash, identity }
     })
   }
   async uninstall(id: string) {

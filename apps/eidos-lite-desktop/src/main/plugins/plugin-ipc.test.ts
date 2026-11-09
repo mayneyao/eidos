@@ -141,7 +141,11 @@ beforeEach(async () => {
     [1, 2].map((id) => [
       id,
       {
-        canonical: { id: `space-${id}`, name: `Space ${id}` },
+        canonical: {
+          id: `space-${id}`,
+          name: `Space ${id}`,
+          root: mock.directory,
+        },
         previewTextFile: (file: string) =>
           readTextFilePreview(mock.directory, file),
         saveTextFile: (request: Parameters<typeof saveTextFile>[1]) =>
@@ -629,6 +633,114 @@ it("activates automatic backgrounds through the target Space lifecycle after ins
   await call("installPrepared", 1, preview.token)
   expect(start).toHaveBeenCalledWith(1, "space-1", id)
   expect(start).toHaveBeenCalledTimes(1)
+  const installed = await listing(1)
+  expect(installed.space?.plugins[id].backgroundApproval).toBe(
+    installed.plugins[0].hash
+  )
+  expect(mock.messageOptions).toHaveLength(1)
+  expect(mock.messageOptions[0]).toMatchObject({
+    detail: expect.stringContaining("automatically when this Space opens"),
+  })
+})
+
+it("reviews background permission when enabling in another Space and preserves cancellation", async () => {
+  const start = vi
+    .spyOn(PluginService.prototype, "autoStartBackgrounds")
+    .mockResolvedValue()
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        requires: { pluginApi: "3.8.0" },
+        id,
+        name: "Background",
+        version: "1.0.0",
+        background: { entry: "./background.js" },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  mock.response = 0
+  expect(await call("enable", 2, id, true)).toBe(false)
+  expect((await listing(2)).plugins[0].enabled).toBe(false)
+  mock.response = 1
+  expect(await call("enable", 2, id, true)).toBe(true)
+  const second = await listing(2)
+  expect(second.space?.plugins[id].backgroundApproval).toBe(
+    second.plugins[0].hash
+  )
+  const count = mock.messageOptions.length
+  await call("enable", 2, id, true)
+  expect(mock.messageOptions).toHaveLength(count)
+  expect(start).toHaveBeenCalled()
+})
+
+it("one installation review grants both background and the resolved native program without starting it", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id,
+        name: "Agent",
+        version: "1.0.0",
+        requires: { pluginApi: "3.8.0" },
+        background: { entry: "./background.js" },
+        sidecar: { command: "node", args: ["--version"] },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  const installed = await listing(1),
+    scope = installed.space!.plugins[id]
+  expect(scope.backgroundApproval).toBe(installed.plugins[0].hash)
+  expect(scope.sidecarApproval?.hash).toBe(installed.plugins[0].hash)
+  expect(scope.sidecarApproval?.identity).toMatch(/^[a-f0-9]{64}$/)
+  expect(mock.messageOptions).toHaveLength(1)
+  expect(mock.messageOptions[0]).toMatchObject({
+    detail: expect.stringContaining("operating system permissions"),
+  })
+})
+
+it("reinstalling the same revision reviews missing legacy grants once and cancellation preserves the old state", async () => {
+  await fs.writeFile(
+    mock.selected,
+    encodePackage(
+      {
+        apiVersion: 1,
+        id,
+        name: "Agent",
+        version: "1.0.0",
+        requires: { pluginApi: "3.8.0" },
+        background: { entry: "./background.js" },
+      },
+      { "./background.js": "globalThis.onmessage = () => {}" }
+    )
+  )
+  await call("install", 1, false, undefined, mock.selected)
+  const configFile = path.join(mock.directory, "plugins/config.json")
+  const config = JSON.parse(await fs.readFile(configFile, "utf8"))
+  delete config.spaces["space-1"].plugins[id].backgroundApproval
+  await fs.writeFile(configFile, JSON.stringify(config))
+  await registered.openPackage(mock.selected)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  mock.response = 0
+  expect(await call("installPrepared", 1, preview.token)).toBe(false)
+  expect(
+    (await listing(1)).space?.plugins[id].backgroundApproval
+  ).toBeUndefined()
+  mock.response = 1
+  expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  const installed = await listing(1)
+  expect(installed.space?.plugins[id].backgroundApproval).toBe(
+    installed.plugins[0].hash
+  )
+  expect(mock.messageOptions).toHaveLength(3)
 })
 
 it("dropped packages install and update by manifest ID while preserving Space enablement", async () => {

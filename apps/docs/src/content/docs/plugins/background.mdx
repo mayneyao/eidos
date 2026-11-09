@@ -32,7 +32,6 @@ let the background maintain its connection and battery state, and display the
 result in a page. The page handles interaction; the background maintains device
 state. Each has its own lifetime. A plugin can also provide commands without a page.
 
-
 ## Share one instance per plugin
 
 Within **one window and one Space**, a plugin has at most one running background.
@@ -60,7 +59,11 @@ while the background collects opens after the page closes and saves changes ever
 ```json
 {
   "requires": { "pluginApi": "3.6.0" },
-"background": { "entry": "./background.ts", "fileHistory": true, "autoStart": true },
+  "background": {
+    "entry": "./background.ts",
+    "fileHistory": true,
+    "autoStart": true
+  },
   "storage": { "maxBytes": 16777216 }
 }
 ```
@@ -82,7 +85,6 @@ const subscription = ctx.events.on("file.opened", (event) => {
 // Dispose when no longer needed; stopping the background also releases it.
 // subscription.dispose()
 ```
-
 
 See the [Host events API](/plugins/api/events/) for event fields, permissions, delivery and cleanup rules.
 
@@ -129,9 +131,11 @@ the instance through `ctx.capabilities.background`.
 ## Start and stop the instance
 
 With plugin API 3.6, declare `background.autoStart: true` to start when the plugin
-is enabled or its Space opens. Lite asks for approval and remembers it for this
-Space and exact package revision. Updates require renewed approval; disabling
-revokes approval. Installation alone does not start a disabled plugin.
+is enabled or its Space opens. Installation or enablement reviews the background's
+declared authority and remembers approval for this Space and exact package
+revision. First use asks if no reviewed grant exists. Updates require renewed
+review; disabling or uninstalling revokes approval. Installation alone does not
+start a disabled plugin.
 
 Startup runs once per Space opening. Stopping or crashing does not trigger a
 retry loop; use a command to resume, or reopen the Space. Lite does not run
@@ -139,8 +143,9 @@ backgrounds while closed or restore memory. Bluetooth still requires device sele
 
 By default, installing or enabling a plugin does not start its instance. The first call to
 `start()`, `request()`, `postMessage()`, or `onMessage()` from a View or command
-requests host approval and starts it on demand. If it is already running, these
-calls reuse it. `requestDevice()` uses a separate device approval flow and replaces
+checks the same remembered approval and starts it on demand. An on-demand
+background does not need `autoStart` to remember approval across host restarts.
+If it is already running, these calls reuse it. `requestDevice()` uses a separate device approval flow and replaces
 the previous run.
 
 To let users decide when to connect to a device or service, make startup calls
@@ -211,8 +216,8 @@ In a Lite build supporting API 3.4.0:
 4. Click **Increment**, then close the page.
 5. Run **Increment background counter** from Cmd+K.
 6. Reopen the page. The count includes the command's increment.
-7. Run **Stop background counter**. The next start asks for permission again
-   and begins with fresh in-memory state.
+7. Run **Stop background counter**. The next start reuses the remembered approval
+   and begins with fresh in-memory state. Disable the plugin to revoke approval.
 
 To run the example from the Eidos repository, start Lite with
 `pnpm dev:eidos-lite` at the repository root. This prepares the native

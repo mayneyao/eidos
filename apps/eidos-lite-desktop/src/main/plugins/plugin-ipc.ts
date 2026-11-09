@@ -14,6 +14,7 @@ import {
   protocol,
   safeStorage,
   type IpcMainInvokeEvent,
+  type MessageBoxOptions,
 } from "electron"
 import {
   decodePackage,
@@ -31,6 +32,12 @@ import type { WindowController } from "../window-controller"
 import { PluginStore } from "./plugin-store"
 import { PluginBackgroundHost } from "./plugin-background"
 import { PluginSidecarHost } from "./plugin-sidecar"
+import {
+  approveBackgroundExecution,
+  approveNativeExecution,
+  executionReview,
+  grantReviewedExecution,
+} from "./plugin-execution-consent"
 import { PluginBluetoothPicker } from "./plugin-bluetooth"
 import { PluginFileHooks } from "./plugin-file-hooks"
 import { PluginService } from "./plugin-service"
@@ -134,55 +141,35 @@ export function registerPluginIpc(controller: WindowController): {
   })
   const backgrounds = new PluginBackgroundHost(
     sandboxBinary,
-    async (binding, signal) => {
-      if (
-        binding.manifest.background?.autoStart &&
-        (await store.backgroundApproved(
-          binding.manifest.id,
-          binding.space,
-          binding.hash
-        ))
-      ) {
-        await binding.authorize()
-        signal.throwIfAborted()
-        return true
-      }
-      const window = BrowserWindow.getAllWindows().find(
-        (w) => w.webContents.id === binding.owner
-      )
-      if (!window || window.isDestroyed()) return false
-      const result = await dialog.showMessageBox(window, {
-        signal,
-        type: "question",
-        title: binding.manifest.background?.autoStart
-          ? "Allow automatic background startup"
-          : "Start plugin background",
-        message: `Allow ${binding.manifest.name} to run in the background?${binding.manifest.background?.fileHistory ? "\nIt can observe file paths and opening times in this window and Space." : ""}${binding.manifest.storage ? "\nIt can read and write its device-local private storage." : ""}`,
-        detail: `${binding.manifest.background?.autoStart ? "Approval also allows automatic startup whenever this Space opens, until disabled or the plugin package changes.\n\n" : ""}It continues running after its View closes, until stopped, disabled, updated, or this Space closes.\n\nNetwork origins: ${binding.manifest.background?.networkOrigins?.join(", ") || (binding.manifest.background?.network && binding.manifest.background.networkOrigins === undefined ? "All public HTTPS/WSS services" : "None")}\n${loopbackOrigin && binding.manifest.background?.networkOrigins?.includes(loopbackOrigin) ? `Development host grants local WebSocket access to ${loopbackOrigin}.` : "Private networks are not granted."} Bluetooth is not granted.\n\nPlugin: ${binding.manifest.id}`,
-        buttons: ["Cancel", "Start"],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-      })
-      if (result.response !== 1) return false
-      await binding.authorize()
-      signal.throwIfAborted()
-      if (binding.manifest.background?.autoStart)
-        await store.approveBackground(
-          binding.manifest.id,
-          binding.space,
-          binding.hash
+    async (binding, signal) =>
+      approveBackgroundExecution(store, binding, signal, async () => {
+        const window = BrowserWindow.getAllWindows().find(
+          (w) => w.webContents.id === binding.owner
         )
-      return true
-    },
+        if (!window || window.isDestroyed()) return false
+        const result = await dialog.showMessageBox(window, {
+          signal,
+          type: "question",
+          title: binding.manifest.background?.autoStart
+            ? "Allow automatic background startup"
+            : "Start plugin background",
+          message: `Allow ${binding.manifest.name} to run in the background?${binding.manifest.background?.fileHistory ? "\nIt can observe file paths and opening times in this window and Space." : ""}${binding.manifest.storage ? "\nIt can read and write its device-local private storage." : ""}`,
+          detail: `${binding.manifest.background?.autoStart ? "Approval also allows automatic startup whenever this Space opens.\n\n" : ""}Approval is remembered for this Space and plugin revision until disabled or uninstalled. It continues running after its View closes, until stopped, disabled, updated, or this Space closes.\n\nNetwork origins: ${binding.manifest.background?.networkOrigins?.join(", ") || (binding.manifest.background?.network && binding.manifest.background.networkOrigins === undefined ? "All public HTTPS/WSS services" : "None")}\n${loopbackOrigin && binding.manifest.background?.networkOrigins?.includes(loopbackOrigin) ? `Development host grants local WebSocket access to ${loopbackOrigin}.` : "Private networks are not granted."} Bluetooth is not granted.\n\nPlugin: ${binding.manifest.id}`,
+          buttons: ["Cancel", "Allow"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        })
+        return result.response === 1
+      }),
     {
       loopbackOrigin,
       chooseDevice: (binding, signal) =>
         bluetoothPicker.choose(binding, signal, sandboxBinary),
     }
   )
-  const sidecars = new PluginSidecarHost(
-    async (binding, executable, signal) => {
+  const sidecars = new PluginSidecarHost(async (binding, executable, signal) =>
+    approveNativeExecution(store, binding, executable, signal, async () => {
       const window = BrowserWindow.getAllWindows().find(
         (candidate) => candidate.webContents.id === binding.owner
       )
@@ -192,14 +179,14 @@ export function registerPluginIpc(controller: WindowController): {
         type: "question",
         title: "Start native plugin process",
         message: `Allow ${binding.manifest.name} to start ${binding.manifest.sidecar!.command}?`,
-        detail: `This is a native program with your operating system permissions. The plugin's JavaScript sandbox and file/network declarations do not restrict it.\n\nExecutable: ${executable}\nArguments: ${JSON.stringify(binding.manifest.sidecar!.args ?? [])}\nWorking folder: ${binding.cwd}\n\nIt stays running when its View closes. Stopping it, disabling or updating this plugin, or closing the Space ends the process. No program is installed or downloaded.`,
-        buttons: ["Cancel", "Start"],
+        detail: `This is a native program with your operating system permissions. The plugin's JavaScript sandbox and file/network declarations do not restrict it.\n\nExecutable: ${executable}\nArguments: ${JSON.stringify(binding.manifest.sidecar!.args ?? [])}\nWorking folder: ${binding.cwd}\n\nApproval is remembered for this Space, plugin revision and program identity. Disabling or uninstalling revokes it; a changed program requires renewed approval. It stays running when its View closes. Stopping it, disabling or updating this plugin, or closing the Space ends the process. No program is installed or downloaded.`,
+        buttons: ["Cancel", "Allow"],
         defaultId: 0,
         cancelId: 0,
         noLink: true,
       })
       return result.response === 1
-    }
+    })
   )
   const service = new PluginService(
     store,
@@ -947,13 +934,40 @@ export function registerPluginIpc(controller: WindowController): {
     const scope = targetSpaceId
       ? (await store.config()).spaces[targetSpaceId]?.plugins[pkg.manifest.id]
       : undefined
+    const reviewRoot = spaceId
+      ? controller.requireSession(event.sender).canonical.root
+      : undefined
+    const execution = await executionReview(
+      pkg.manifest,
+      packageHash(bytes),
+      reviewRoot
+    )
+    const executionApproved =
+      !!spaceId &&
+      (!execution.background ||
+        (await store.backgroundApproved(
+          pkg.manifest.id,
+          spaceId,
+          packageHash(bytes)
+        ))) &&
+      (!pkg.manifest.sidecar ||
+        (!!execution.native &&
+          (await store.sidecarApproved(
+            pkg.manifest.id,
+            spaceId,
+            packageHash(bytes),
+            execution.native.identity
+          ))))
     if (
       targetSpaceId &&
       !development &&
-      existing?.hash === packageHash(bytes)
+      existing?.hash === packageHash(bytes) &&
+      (!scope?.enabled ||
+        executionApproved ||
+        (!pkg.manifest.background && !pkg.manifest.sidecar))
     ) {
-      if (!pkg.manifest.theme)
-        await store.enable(pkg.manifest.id, true, targetSpaceId)
+      if (!pkg.manifest.theme && !scope?.enabled)
+        return changePluginEnabled(event, pkg.manifest.id, true)
       catalogChanged()
       if (
         pkg.manifest.background?.autoStart &&
@@ -1000,7 +1014,7 @@ export function registerPluginIpc(controller: WindowController): {
         )} files. ${pkg.manifest.hooks.some((hook) => hook.access === "write") ? "They can change the affected document's text and filename within its existing folder." : "They can read the affected document's text and filename, without changing them."}`
       : ""
 
-    const review = await dialog.showMessageBox(owner, {
+    const reviewOptions: MessageBoxOptions = {
       type: "question",
       title: isUpdate ? "Update plugin" : "Install plugin",
       message: `${display.name} ${versionLabel}${targetSpaceId ? `\nSpace: ${controller.requireSession(event.sender).canonical.name}` : ""}${
@@ -1023,7 +1037,9 @@ export function registerPluginIpc(controller: WindowController): {
       defaultId: 0,
       cancelId: 0,
       noLink: true,
-    })
+    }
+    if (execution.detail) reviewOptions.detail += `\n\n${execution.detail}`
+    const review = await dialog.showMessageBox(owner, reviewOptions)
     if (review.response !== 1) return false
     if (
       owner.isDestroyed() ||
@@ -1041,6 +1057,15 @@ export function registerPluginIpc(controller: WindowController): {
     const hash = await store.install(bytes, spaceId)
     if (targetSpaceId && !scope && !pkg.manifest.theme)
       await store.enable(pkg.manifest.id, true, targetSpaceId)
+    if (spaceId)
+      await grantReviewedExecution(
+        store,
+        pkg.manifest,
+        hash,
+        spaceId,
+        execution,
+        reviewRoot
+      )
     reloadPlugin(pkg.manifest.id)
     catalogChanged()
     if (
@@ -1410,18 +1435,72 @@ export function registerPluginIpc(controller: WindowController): {
     catalogChanged()
     return true
   })
+  async function changePluginEnabled(
+    event: Pick<IpcMainInvokeEvent, "sender">,
+    id: string,
+    enabled: boolean
+  ) {
+    const session = controller.requireSession(event.sender),
+      spaceId = session.canonical.id
+    const scope = (await store.config()).spaces[spaceId]?.plugins[id]
+    if (scope?.enabled === enabled) return true
+    const binding = await store.installed(id)
+    if (!binding)
+      throw new PluginError("INVALID_REQUEST", "Plugin is not installed")
+    const manifest = enabled
+      ? (await store.read(binding.hash)).manifest
+      : undefined
+    const execution = manifest
+      ? await executionReview(manifest, binding.hash, session.canonical.root)
+      : undefined
+    if (execution?.detail) {
+      const owner = BrowserWindow.fromWebContents(event.sender)
+      if (!owner || owner.isDestroyed())
+        throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
+      const review = await dialog.showMessageBox(owner, {
+        type: "question",
+        title: "Enable plugin",
+        message: `Enable ${manifest!.name} in ${session.canonical.name}?`,
+        detail: execution.detail,
+        buttons: ["Cancel", "Enable"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (review.response !== 1) return false
+      if (
+        owner.isDestroyed() ||
+        event.sender.isDestroyed() ||
+        currentSpace(event) !== spaceId
+      )
+        throw new PluginError(
+          "INSTANCE_CLOSED",
+          "Space changed during approval"
+        )
+    }
+    await store.enable(id, enabled, spaceId, binding.hash)
+    if (manifest && execution)
+      await grantReviewedExecution(
+        store,
+        manifest,
+        binding.hash,
+        spaceId,
+        execution,
+        session.canonical.root
+      )
+    service.revoke(id, spaceId)
+    catalogChanged()
+    if (enabled)
+      await service.autoStartBackgrounds(event.sender.id, spaceId, id)
+    return true
+  }
   ipcMain.handle(
     PLUGIN_CHANNELS.enable,
     async (event, id: unknown, enabled: unknown) => {
       caller(event)
-      const spaceId = controller.requireSession(event.sender).canonical.id
       if (typeof id !== "string" || typeof enabled !== "boolean")
         throw new PluginError("INVALID_REQUEST", "Invalid plugin binding")
-      await store.enable(id, enabled, spaceId)
-      service.revoke(id, spaceId)
-      catalogChanged()
-      if (enabled)
-        await service.autoStartBackgrounds(event.sender.id, spaceId, id)
+      return changePluginEnabled(event, id, enabled)
     }
   )
   ipcMain.handle(PLUGIN_CHANNELS.selectTheme, async (event, id: unknown) => {

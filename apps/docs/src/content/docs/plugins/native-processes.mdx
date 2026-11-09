@@ -48,12 +48,16 @@ verify executable discovery and cleanup on every OS you intend to support.
 
 Feature-detect `ctx.capabilities.sidecar`. `status()` only discovers the program:
 it never executes it or prompts. `available` does not verify the program version.
-Call `start()` when the user creates a task or sends a message. Lite asks for
-native approval showing the executable, fixed arguments, working folder and OS
-access. A cancelled or expired approval must leave the user able to retry.
+Call `start()` when the user creates a task or sends a message. Lite checks
+consent for the current Space, plugin revision and actual program. Installation
+or enablement can review the executable, fixed arguments, working folder and OS
+access together. If the program could not be resolved then, first use asks for
+that review. A cancelled or expired approval leaves the user able to retry.
 
-`start()` reuses an existing owned run. For a new process, approval is always
-required, with a five-minute deadline. Startup success means the OS accepted the
+`start()` reuses an existing owned run. Consent survives host restart. A changed
+package, program path/content, arguments or Space root needs a matching new
+review; disabling or uninstalling revokes consent. Stop only ends the process.
+New approval requests have a five-minute deadline. Startup success means the OS accepted the
 executable; negotiate protocol readiness and program compatibility yourself.
 
 ## Exchange messages and reattach

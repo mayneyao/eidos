@@ -32,7 +32,14 @@ export interface PluginBinding {
   enabled: boolean
 }
 export interface PluginSpaceConfig {
-  plugins: Record<string, { enabled: boolean; backgroundApproval?: string }>
+  plugins: Record<
+    string,
+    {
+      enabled: boolean
+      backgroundApproval?: string
+      sidecarApproval?: { hash: string; identity: string }
+    }
+  >
   associations: Record<string, string>
   formatters?: Record<string, string>
   explorer?: string

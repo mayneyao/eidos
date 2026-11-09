@@ -20,7 +20,14 @@ Page and file Views use `ctx.capabilities.sidecar.status/start/stop/send/onEvent
 Embedded resources and extensions cannot use this capability. Status and event
 subscription MUST NOT start, install or download anything. Start requires native
 host approval showing the resolved executable, fixed arguments, working folder
-and OS-level access. The native process is trusted code outside the JavaScript
+and OS-level access. Approval MAY be included in an explicit installation or
+enablement review when the program can be resolved. Otherwise the first use
+MUST request it. The host MUST persist consent per Space and exact package hash,
+bound to the executable path, resolved target, file content, argv and canonical
+Space root. Unchanged grants MUST be reusable after host restart. Missing or
+changed program identity requires renewed approval; unresolved programs MUST NOT
+be granted by installation. Disabling or uninstalling revokes consent.
+The native process is trusted code outside the JavaScript
 capability sandbox; filesystem and network declarations do not constrain it.
 The host supplies the canonical Space root as cwd and never invokes a shell.
 
@@ -28,7 +35,9 @@ Each owner-window/Space/plugin/package revision owns one process. Closing a View
 only unsubscribes; another View can attach to the same run. Stop, revocation,
 package changes, owner closure and host shutdown cancel pending startup and stop
 the owned process group/tree. Approval is bounded to five minutes and late
-approval MUST NOT launch a process after cancellation. A new run needs approval.
+approval MUST NOT launch a process after cancellation. A new run MUST verify a
+matching grant or request approval. Installation and enablement review do not
+themselves launch a native process. Stopping a run does not revoke consent.
 No automatic startup or crash restart is implied. Native side effects are not
 undone by stopping. Native programs MUST use canonical Runtime operations when
 modifying Eidos data; native execution itself cannot enforce this convention.
@@ -104,7 +113,11 @@ API 3.6 accepts optional `background.autoStart: true`. Lite MUST attempt startup
 when an enabled plugin's Space opens and when that plugin is enabled. Startup uses
 the same singleton and permissions as explicit startup. Approval MUST disclose
 automatic startup and be stored per Space and exact package hash. Disabling revokes
-approval; a changed package requires renewed approval. Manual stop or failure MUST
+approval; a changed package requires renewed review. Explicit installation or
+enablement review MAY cover background startup and MUST disclose its network,
+file-history and private-storage authority. On-demand backgrounds MUST persist
+the same per-Space, per-revision consent, without requiring autoStart. Cancellation
+MUST NOT create a grant. Manual stop or failure MUST
 NOT trigger automatic retries within the Space session. Closing the Space ends
 the run. Automatic startup does not restore memory or grant Bluetooth devices.
 
