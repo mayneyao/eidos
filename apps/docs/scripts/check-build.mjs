@@ -212,6 +212,20 @@ const cliMarkdown = await readFile(
   path.join(outputRoot, "getting-started/cli.md"),
   "utf8"
 )
+const standardViews = await readFile(
+  path.join(outputRoot, "specifications/standard-views-1-0.md"),
+  "utf8"
+)
+if (!standardViews.includes("compact\\|standard\\|comfortable")) {
+  failures.push(
+    "Standard Views Markdown must preserve all enum values in one table cell"
+  )
+}
+for (const route of ["concepts.md", "user-guide/views-and-querying.md"]) {
+  const markdown = await readFile(path.join(outputRoot, route), "utf8")
+  if (markdown.includes("No matching records"))
+    failures.push(`Hidden ViewLab empty state leaked: ${route}`)
+}
 if (
   !cliMarkdown.includes(
     "curl -fsSL https://download.eidos.space/cli/install.sh | sh"

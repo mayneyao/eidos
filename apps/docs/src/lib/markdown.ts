@@ -14,6 +14,15 @@ export function pageMarkdown(html: string, source: string) {
       .querySelector('meta[name="description"]')
       ?.getAttribute("content") || ""
   const language = document.querySelector("html")?.getAttribute("lang") || "en"
+  for (const fallback of main.querySelectorAll("noscript")) {
+    fallback.replaceWith(fallback.innerHTML)
+  }
+  // Keep alternate content panels, but omit inactive controls and empty/error states.
+  for (const node of main.querySelectorAll(
+    '[hidden]:not([role="tabpanel"]):not([data-cli-panel]):not([data-publish-pane]):not([data-publish-result]):not([data-billing-period])'
+  )) {
+    node.remove()
+  }
 
   for (const node of main.querySelectorAll(
     'script, style, svg, template, input, select, textarea, [role="dialog"], [aria-hidden="true"], [data-markdown-exclude], .sl-anchor-link, starlight-toc, footer'
@@ -56,11 +65,30 @@ export function pageMarkdown(html: string, source: string) {
     2,
     ...[...main.textContent.matchAll(/`+/g)].map(([run]) => run.length)
   )
-  const body = NodeHtmlMarkdown.translate(main.innerHTML, {
+  const converter = new NodeHtmlMarkdown({
     bulletMarker: "-",
     codeBlockStyle: "fenced",
     codeFence: "`".repeat(longestFence + 1),
   })
+  // The default cell translator escapes only the first pipe in each cell.
+  for (const collection of [
+    converter.tableTranslators,
+    converter.tableRowTranslators,
+  ]) {
+    collection.set("th,td", ({ visitor }) => ({
+      surroundingNewlines: false,
+      childTranslators: visitor.instance.tableCellTranslators,
+      prefix: " ",
+      postfix: " |",
+      postprocess: ({ content }) =>
+        content
+          .trim()
+          .replaceAll("|", "\\|")
+          .replace(/(?:\r?\n)+/g, " ")
+          .trim(),
+    }))
+  }
+  const body = converter.translate(main.innerHTML)
   return {
     title,
     description,

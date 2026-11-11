@@ -7,6 +7,26 @@ import {
   pagePathForMarkdown,
 } from "../src/lib/markdown.ts"
 
+test("Markdown preserves multi-pipe cells and fallback content without hidden error states", () => {
+  const { markdown } = pageMarkdown(
+    `<main><h1>Reference</h1>
+    <table><tr><th>Values</th><th>Default</th><th>Meaning</th></tr><tr><td><code>compact|standard|comfortable</code></td><td>standard</td><td>Density</td></tr></table>
+    <noscript><a href="/intel.dmg">Intel macOS</a><a href="/arm.AppImage">ARM64 AppImage</a></noscript>
+    <div role="tabpanel" hidden>Windows command</div><div data-billing-period="monthly" hidden>$5 monthly</div>
+    <p hidden>No matching records</p><a hidden href="/login">Session expired</a>
+  </main>`,
+    "https://eidos.space/reference"
+  )
+  assert.ok(markdown.includes("compact\\|standard\\|comfortable"))
+  const row = markdown.split("\n").find((line) => line.includes("comfortable"))
+  assert.equal(row.split(/(?<!\\)\|/).length, 5)
+  assert.match(markdown, /Intel macOS.*https:\/\/eidos.space\/intel.dmg/)
+  assert.match(markdown, /ARM64 AppImage.*https:\/\/eidos.space\/arm.AppImage/)
+  assert.match(markdown, /Windows command/)
+  assert.match(markdown, /\$5 monthly/)
+  assert.doesNotMatch(markdown, /No matching records|Session expired/)
+})
+
 test("documentation routes round-trip, including both language homepages", () => {
   for (const [id, page, markdown] of [
     ["index", "/", "/index.md"],
