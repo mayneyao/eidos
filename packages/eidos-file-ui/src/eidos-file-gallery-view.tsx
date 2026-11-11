@@ -24,6 +24,7 @@ import { LoaderCircle } from "lucide-react"
 import { Button } from "./ui/primitives"
 
 import { useEidosFileUI } from "./context"
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import { EidosFileRecordCard } from "./eidos-file-record-card"
 import { EidosFileGalleryPreview } from "./eidos-file-gallery-preview"
@@ -222,6 +223,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   disabled = false,
   reloadToken = 0,
   searchResultIndex = null,
+  recordFocus,
   loadPage,
   loadRow,
   onCellEdit,
@@ -231,6 +233,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onDeleteRow,
   onOpenRecordInTab,
   onOpenRecord,
+  onPreviewRecord,
   onRowCountChange,
   onError,
   sidePanel,
@@ -240,6 +243,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   disabled?: boolean
   reloadToken?: number
   searchResultIndex?: number | null
+  recordFocus?: EidosFileRecordFocus
   loadPage: (
     offset: number,
     limit: number,
@@ -264,6 +268,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onOpenRecord?: (row: EidosFileRow) => void
+  /** Host-owned file preview replaces the Gallery lightbox for this record. */
+  onPreviewRecord?: (row: EidosFileRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -326,13 +332,17 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   const { rows, total } = rowWindow
   const previewFile = useCallback(
     (row: EidosFileRow, entry: FileEntry) => {
+      if (onPreviewRecord) {
+        onPreviewRecord(row)
+        return
+      }
       const index = rowWindow.rows.findIndex(
         (candidate) => String(candidate._id) === String(row._id)
       )
       if (index >= 0)
         setPreview({ entry, index: rowWindow.startOffset + index })
     },
-    [rowWindow]
+    [onPreviewRecord, rowWindow]
   )
   const inspectorNeighbors = useMemo(
     () => eidosFileRecordNeighbors(rows, inspectedRow),
@@ -616,15 +626,22 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     searchResultIndex !== null
       ? rowFromWindow(rowWindow, searchResultIndex)
       : undefined
-  const focusedRowId = focusedRow === undefined ? null : String(focusedRow._id)
+  const focusedRowId = recordFocus
+    ? String(recordFocus.row._id)
+    : focusedRow === undefined
+      ? null
+      : String(focusedRow._id)
+  const revealIndex = recordFocus
+    ? (recordFocus.index ?? null)
+    : searchResultIndex
 
   useEffect(() => {
-    if (searchResultIndex === null || searchResultIndex < 0) return
-    if (searchResultIndex >= total) return
+    if (revealIndex === null || revealIndex < 0) return
+    if (revealIndex >= total) return
     let active = true
     queueMicrotask(() => {
       if (!active) return
-      scrollToVirtualRowIndex(Math.floor(searchResultIndex / columnCount), {
+      scrollToVirtualRowIndex(Math.floor(revealIndex / columnCount), {
         align: "auto",
       })
     })
@@ -633,9 +650,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     }
   }, [
     columnCount,
-    loading,
-    loadingMore,
-    searchResultIndex,
+    recordFocus ? undefined : loading,
+    recordFocus ? undefined : loadingMore,
+    revealIndex,
+    recordFocus?.token,
     scrollToVirtualRowIndex,
     total,
   ])

@@ -89,6 +89,13 @@ Save separate views for conditions you use regularly. See [Find records with vie
 
 Use the open action in a `file` cell to open the file in its system default application.
 Choose **Open in sidebar** from a row menu to keep the table visible while previewing on the right. Previews use your configured opening method, including custom File Views.
+
+While the file preview sidebar is visible, opening another file record from Grid, Gallery, Kanban, Calendar, or Feed switches that preview and keeps the current view in the main area. Grid cells keep their selection and editing behavior; use **Open record** to open a row. Closing the preview restores the usual record details behavior. Records without a mapped file continue to open their record details.
+
+With focus in the record view, use the arrow keys to preview the previous (↑ or ←) or next (↓ or →) record in the current filtered and sorted order. Arrow keys inside an editor, input, menu, or dialog keep their usual behavior.
+
+The current preview record is highlighted in the view and brought into view when needed. Grid keeps cell and checkbox selections intact; Kanban reveals the record's column, and Calendar reveals its date. This does not open a record details panel or change the saved filters and sorts.
+
 Opening a local large file in a system application does not require loading all its content into the editor first.
 
 The table refreshes when additions, renames, deletions, or attribute changes are detected on the filesystem.

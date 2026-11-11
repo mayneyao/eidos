@@ -32,7 +32,17 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const React = await import("react")
   const actual = await import("../../../../packages/eidos-file-ui/src/index.ts")
   const Empty = () => null
-  function SearchResultReporter({ view }: { view?: { id: string } }) {
+  function SearchResultReporter({
+    view,
+    onOpenRecord,
+    onInspectedRowChange,
+    recordFocus,
+  }: {
+    view?: { id: string }
+    onOpenRecord?: (rowId: string) => void
+    onInspectedRowChange?: (rowId: string | null) => void
+    recordFocus?: { row: { _id?: unknown }; index?: number | null }
+  }) {
     const navigation = actual.useEidosFileSearchNavigation()
     const {
       activateUrl,
@@ -45,6 +55,18 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
       React.Fragment,
       null,
       React.createElement("span", { "data-testid": "selected-view" }, view?.id),
+      React.createElement("span", {
+        "data-record-focus": recordFocus ? String(recordFocus.row._id) : "",
+        "data-record-index": recordFocus?.index ?? "",
+      }),
+      React.createElement(
+        "button",
+        {
+          "data-open-current-record": "",
+          onClick: () => (onOpenRecord ?? onInspectedRowChange)?.("record-a"),
+        },
+        "Open current record"
+      ),
       React.createElement(
         "button",
         {
@@ -243,6 +265,103 @@ describe("Eidos Lite Eidos File search navigation", () => {
     act(() => root.unmount())
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
+  })
+
+  it("reuses the file sidebar without navigating the main view, then restores record inspection on close", async () => {
+    const firstTable = snapshot.tables[0]!
+    const metadata: EidosFileSnapshot = {
+      ...snapshot,
+      tables: [
+        {
+          ...firstTable,
+          table: {
+            ...firstTable.table,
+            settings: { vtabModule: "fs_meta", vtabConfig: { root: "." } },
+          },
+          fields: [
+            {
+              ...firstTable.fields[0]!,
+              name: "path",
+              tableColumnName: "path",
+              settings: { isSystem: true },
+            },
+          ],
+        },
+      ],
+    }
+    const source = new IpcEidosFileDataSource("files-runtime", metadata)
+    const getRow = vi
+      .spyOn(source, "getRow")
+      .mockResolvedValue({ _id: "record-a", path: "note.md" })
+    const getRowIndex = vi.spyOn(source, "getRowIndex").mockResolvedValue(12)
+    const preview = vi.fn()
+    const inspect = vi.fn()
+    const props = {
+      relativePath: "files.eidos",
+      snapshot: metadata,
+      source,
+      activeTableId: "tasks",
+      disabled: false,
+      theme: "light" as const,
+      fileSidebarOpen: true,
+      onOpenFileInSidebar: preview,
+      onInspectedRowChange: inspect,
+      onTableSelect: vi.fn(),
+      onSnapshot: vi.fn(),
+      onError: vi.fn(),
+    }
+    await act(async () => root.render(createElement(EidosFileWorkbench, props)))
+    const content = host.querySelector(".eidos-file-content")
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("[data-open-current-record]")!
+        .click()
+    )
+    expect(preview).toHaveBeenCalledExactlyOnceWith("note.md")
+    expect(inspect).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(content)
+    expect(
+      host
+        .querySelector('[data-record-focus="record-a"]')
+        ?.getAttribute("data-record-index")
+    ).toBe("12")
+    expect(getRowIndex).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {})
+    let finishOldIndex!: (index: number | null) => void
+    getRowIndex.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOldIndex = resolve
+      })
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("[data-open-current-record]")!
+        .click()
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("[data-open-current-record]")!
+        .click()
+    )
+    await act(async () => finishOldIndex(99))
+    expect(
+      host
+        .querySelector('[data-record-focus="record-a"]')
+        ?.getAttribute("data-record-index")
+    ).toBe("12")
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, { ...props, fileSidebarOpen: false })
+      )
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("[data-open-current-record]")!
+        .click()
+    )
+    expect(inspect).toHaveBeenCalledExactlyOnceWith("record-a")
+    expect(host.querySelector('[data-record-focus="record-a"]')).toBeNull()
+    expect(getRow).toHaveBeenCalledTimes(3)
+    expect(host.querySelector(".eidos-file-content")).toBe(content)
   })
 
   it("keeps the asset session across preview navigation and revalidates it on file refresh", async () => {

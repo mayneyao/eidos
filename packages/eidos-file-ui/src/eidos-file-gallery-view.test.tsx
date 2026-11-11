@@ -5,6 +5,7 @@ import { flushSync } from "react-dom"
 import { createRoot, type Root } from "react-dom/client"
 import {
   encodeEidosFileAttachmentPaths,
+  type HostServices,
   type EidosFileRowPage,
   type EidosFileTableSnapshot,
   type EidosFileViewInfo,
@@ -12,12 +13,18 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileGalleryView } from "./eidos-file-gallery-view"
+import { EidosFileEditorView } from "./eidos-file-editor-view"
+import type { EidosFileEditorDataSource } from "./data-source"
+import type { EidosFileUIHost } from "./context"
+import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import {
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE,
 } from "./eidos-file-virtual-scroll"
 
 const contextMocks = vi.hoisted(() => ({
+  assetSession: undefined as EidosFileUIHost["assetSession"],
+  assetPresenter: undefined as EidosFileUIHost["assetPresenter"],
   translate: (message: string, values: Record<string, string | number> = {}) =>
     Object.entries(values).reduce(
       (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
@@ -29,6 +36,8 @@ vi.mock("./context", () => ({
   useEidosFileUI: () => ({
     themeName: "light",
     translate: contextMocks.translate,
+    assetSession: contextMocks.assetSession,
+    assetPresenter: contextMocks.assetPresenter,
   }),
 }))
 
@@ -161,6 +170,8 @@ describe("EidosFileGalleryView", () => {
   const scrollTo = vi.fn()
 
   beforeEach(() => {
+    contextMocks.assetSession = undefined
+    contextMocks.assetPresenter = undefined
     scrollIntoView.mockReset()
     scrollTo.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -289,6 +300,138 @@ describe("EidosFileGalleryView", () => {
 
     expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(container.textContent).toContain("Review UX")
+  })
+
+  it("routes cover clicks to the host while its record route is active and restores image previews afterwards", async () => {
+    contextMocks.assetSession = {
+      services: {
+        resolveAsset: async (
+          request: Parameters<HostServices["resolveAsset"]>[0]
+        ) => ({
+          leaseId: `lease-${request.entryId}-${request.purpose}`,
+          entryId: request.entryId,
+          purpose: request.purpose,
+          mediaType: "image/png",
+          name: "photo.png",
+          size: "1",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          resourceToken: "blob:cover",
+        }),
+        releaseAsset: async () => undefined,
+      } as unknown as HostServices,
+      serviceCapabilities: {
+        canOpenSource: true,
+        canCreateSource: false,
+        canRequestPermission: false,
+        canSaveCopy: false,
+        canReconcileCommit: false,
+        canResolveConflict: false,
+        canRecover: false,
+        canUseAssets: true,
+      },
+      state: {
+        sessionId: "cover-session",
+        phase: "ready-clean",
+        capabilities: {
+          canWriteCurrent: false,
+          canSaveCopy: false,
+          canRequestPermission: false,
+          hasRecovery: false,
+          assetReadSchemes: ["relative"],
+          assetWriteSchemes: [],
+          casGuarantee: "none",
+          atomicReplace: false,
+          durability: "best-effort",
+        },
+        limits: {
+          sourceBytesMax: "16777216",
+          candidateBytesMax: "16777216",
+          recoveryBytesMax: "0",
+          recoveryEntriesMax: 0,
+          recoveryRetentionSecondsMax: 0,
+          assetBytesMax: "16777216",
+          assetPreviewBytesMax: "1048576",
+          concurrentAssetLeasesMax: 8,
+          concurrentSessionsMax: 1,
+        },
+      },
+    }
+    contextMocks.assetPresenter = {
+      renderImage: ({ altText }) => <img alt={altText} />,
+      activate: async () => undefined,
+    }
+    const coverField = {
+      ...table.fields[0]!,
+      id: "cover",
+      name: "Cover",
+      type: "file",
+      tableColumnName: "cover",
+      isRecordLabel: false,
+      storageCodec: "json_array",
+    } as const
+    const coverTable = {
+      ...table,
+      fields: [...table.fields, coverField],
+      rowCount: 1,
+    }
+    const coverView = {
+      ...view,
+      properties: { cardDisplay: "cover-only", coverField: "cover" },
+    }
+    const row = {
+      _id: "photo",
+      title: "Photo",
+      cover: encodeEidosFileAttachmentPaths(["photo.png"]),
+    }
+    const source = {
+      getPage: vi.fn(async (_tableId, offset, limit) => ({
+        tableId: table.table.id,
+        offset,
+        limit,
+        total: 1,
+        rows: [row],
+      })),
+    } as unknown as EidosFileEditorDataSource
+    const open = vi.fn()
+    const inspect = vi.fn()
+    const render = async (sidebarOpen: boolean) => {
+      await act(async () => {
+        root.render(
+          <EidosFileEditorView
+            source={source}
+            table={coverTable}
+            view={coverView}
+            plugins={[eidosFileGalleryPlugin]}
+            onOpenRecord={sidebarOpen ? open : undefined}
+            onInspectedRowChange={inspect}
+          />
+        )
+        for (let index = 0; index < 10; index++) await Promise.resolve()
+      })
+    }
+    await render(true)
+    const button = container.querySelector<HTMLButtonElement>(
+      "[data-eidos-file-entry-cover]"
+    )!
+    expect(button).not.toBeNull()
+    expect(button.disabled).toBe(false)
+    await act(async () => button.click())
+    expect(open).toHaveBeenCalledExactlyOnceWith("photo")
+    expect(inspect).not.toHaveBeenCalled()
+    expect(
+      document.querySelector("[data-eidos-file-attachment-preview]")
+    ).toBeNull()
+    await render(false)
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>("[data-eidos-file-entry-cover]")!
+        .click()
+    )
+    expect(
+      document.querySelector("[data-eidos-file-attachment-preview]")
+    ).not.toBeNull()
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(inspect).not.toHaveBeenCalled()
   })
 
   it("stretches cards to the tallest card in each Gallery row", async () => {
@@ -423,47 +566,59 @@ describe("EidosFileGalleryView", () => {
     await act(async () => Promise.resolve())
   })
 
-  it("loads and reveals a paged search result", async () => {
-    const loadPage = vi.fn(
-      async (offset: number, limit: number, _totalHint?: number) => ({
-        tableId: "tasks",
-        offset,
-        limit,
-        total: 3,
-        rows:
-          offset === 0
-            ? [
-                { _id: "row_1", title: "Write RFC", status: "todo" },
-                { _id: "row_2", title: "Ship Eidos File", status: null },
-              ]
-            : [{ _id: "row_3", title: "Review UX", status: "todo" }],
-      })
-    )
-    const onRowCountChange = vi.fn()
-
-    await act(async () => {
-      root.render(
-        <EidosFileGalleryView
-          table={table}
-          view={view}
-          searchResultIndex={2}
-          loadPage={loadPage}
-          onRowCountChange={onRowCountChange}
-        />
+  it.each(["search", "record"])(
+    "loads and reveals a paged %s target",
+    async (mode) => {
+      const loadPage = vi.fn(
+        async (offset: number, limit: number, _totalHint?: number) => ({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 3,
+          rows:
+            offset === 0
+              ? [
+                  { _id: "row_1", title: "Write RFC", status: "todo" },
+                  { _id: "row_2", title: "Ship Eidos File", status: null },
+                ]
+              : [{ _id: "row_3", title: "Review UX", status: "todo" }],
+        })
       )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+      const onRowCountChange = vi.fn()
 
-    expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
-    expect(onRowCountChange).toHaveBeenLastCalledWith(3)
-    expect(
-      container
-        .querySelector('[data-eidos-file-row-id="row_3"]')
-        ?.getAttribute("aria-current")
-    ).toBe("true")
-  })
+      await act(async () => {
+        root.render(
+          <EidosFileGalleryView
+            table={table}
+            view={view}
+            searchResultIndex={mode === "search" ? 2 : null}
+            recordFocus={
+              mode === "record"
+                ? {
+                    row: { _id: "row_3", title: "Review UX" },
+                    index: 2,
+                    token: 1,
+                  }
+                : undefined
+            }
+            loadPage={loadPage}
+            onRowCountChange={onRowCountChange}
+          />
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
+      expect(onRowCountChange).toHaveBeenLastCalledWith(3)
+      expect(
+        container
+          .querySelector('[data-eidos-file-row-id="row_3"]')
+          ?.getAttribute("aria-current")
+      ).toBe("true")
+    }
+  )
 
   it("keeps repeated relative covers inert without a Host lease", async () => {
     const coverTable: EidosFileTableSnapshot = {

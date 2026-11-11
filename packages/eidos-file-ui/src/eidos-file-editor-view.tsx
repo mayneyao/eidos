@@ -15,6 +15,7 @@ import type {
 import { Puzzle } from "lucide-react"
 
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileUI } from "./context"
@@ -39,6 +40,7 @@ export interface EidosFileViewRendererProps {
   onInspectedRowChange?: (rowId: string | null) => void
   /** Host-owned navigation replaces the embedded record inspector. */
   onOpenRecord?: (rowId: string) => void
+  recordFocus?: EidosFileRecordFocus
   /** Runtime presentation for a record opened from this view. */
   recordPresentation?: "panel" | "page"
   onRecordPresentationToggle?: () => void
@@ -155,6 +157,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       view={props.view}
       search={props.search}
       searchResultIndex={props.searchResultIndex}
+      recordFocus={props.recordFocus}
       showRowMarkers={props.showRowMarkers}
       allowFrozenColumns={props.allowFrozenColumns}
       inspectedRowId={props.inspectedRowId}

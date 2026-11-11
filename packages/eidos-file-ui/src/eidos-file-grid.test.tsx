@@ -4394,33 +4394,46 @@ describe("EidosFileGrid", () => {
     })
   })
 
-  it("scrolls to and highlights a filtered search result", async () => {
-    const loadPage = createLoadPage()
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          searchResultIndex={180}
-          loadPage={loadPage}
-          onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
-        />
-      )
-      await Promise.resolve()
-    })
+  it.each(["search", "record"])(
+    "scrolls to and highlights a filtered %s target",
+    async (mode) => {
+      const loadPage = createLoadPage()
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            searchResultIndex={mode === "search" ? 180 : null}
+            recordFocus={
+              mode === "record"
+                ? { row: rowAt(180), index: 180, token: 1 }
+                : undefined
+            }
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+          />
+        )
+        await Promise.resolve()
+      })
 
-    expect(mocks.scrollTo).toHaveBeenCalledWith(0, 180, "vertical", 0, 24, {
-      vAlign: "center",
-    })
-    expect(loadPage).toHaveBeenCalledWith(100, 100)
-    expect(loadPage).toHaveBeenCalledWith(200, 100)
-    expect(mocks.props?.highlightRegions).toMatchObject([
-      {
-        color: "rgba(43, 81, 128, 0.14)",
-        range: { x: 0, y: 180, width: 2, height: 1 },
-      },
-    ])
-  })
+      if (mode === "search")
+        expect(mocks.scrollTo).toHaveBeenCalledWith(0, 180, "vertical", 0, 24, {
+          vAlign: "center",
+        })
+      else {
+        expect(mocks.scrollTo).toHaveBeenCalledWith(0, 180, "vertical", 0, 24)
+        expect(mocks.props?.gridSelection?.rows.length ?? 0).toBe(0)
+      }
+      expect(loadPage).toHaveBeenCalledWith(100, 100)
+      expect(loadPage).toHaveBeenCalledWith(200, 100)
+      expect(mocks.props?.highlightRegions).toMatchObject([
+        {
+          color: "rgba(43, 81, 128, 0.14)",
+          range: { x: 0, y: 180, width: 2, height: 1 },
+        },
+      ])
+    }
+  )
 
   it("reports compact cross-page row ranges without loading every row", async () => {
     const loadPage = createLoadPage()

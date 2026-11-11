@@ -38,6 +38,26 @@ function fixture() {
   return { props, source }
 }
 describe("table view bridge", () => {
+  it("routes plugin record opens through the host and retains the original inspector fallback", async () => {
+    const { props, source } = fixture()
+    const open = vi.fn()
+    await tableViewRequest(
+      { ...props, onOpenRecord: open },
+      request("table.openRecord", { rowId: "row" })
+    )
+    expect(open).toHaveBeenCalledExactlyOnceWith("row")
+    expect(props.onInspectedRowChange).not.toHaveBeenCalled()
+    await tableViewRequest(props, request("table.openRecord", { rowId: "row" }))
+    expect(props.onInspectedRowChange).toHaveBeenCalledExactlyOnceWith("row")
+    source.getRow.mockResolvedValueOnce(null as never)
+    await expect(
+      tableViewRequest(
+        { ...props, onOpenRecord: open },
+        request("table.openRecord", { rowId: "missing" })
+      )
+    ).rejects.toThrow("Record is unavailable")
+    expect(open).toHaveBeenCalledTimes(1)
+  })
   it("reads file schema from a table view without changing the table binding", async () => {
     const { props, source } = fixture()
     source.getSnapshot.mockResolvedValue({

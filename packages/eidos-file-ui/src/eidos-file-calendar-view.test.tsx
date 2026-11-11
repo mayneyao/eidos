@@ -217,6 +217,49 @@ describe("EidosFileCalendarView", () => {
     vi.useRealTimers()
   })
 
+  it("reveals and highlights a sidebar record in its month and pages through its day without opening the inspector", async () => {
+    const rows = Array.from({ length: 14 }, (_, index) => ({
+      _id: `focus-${index}`,
+      title: `Record ${index}`,
+      due: "2026-09-14",
+    }))
+    const loadRows = calendarLoader(rows)
+    const reveal = vi.fn()
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: reveal,
+    })
+    try {
+      await act(async () => {
+        root.render(
+          <EidosFileCalendarView
+            table={table}
+            view={view}
+            loadRows={loadRows}
+            recordFocus={{ row: rows[13]!, token: 1 }}
+          />
+        )
+        await settleCalendarLoad()
+        await settleCalendarLoad()
+      })
+      expect(
+        container
+          .querySelector('[data-eidos-file-calendar-record="focus-13"]')
+          ?.getAttribute("aria-current")
+      ).toBe("true")
+      expect(reveal).toHaveBeenCalledWith({
+        block: "nearest",
+        inline: "nearest",
+      })
+      expect(
+        container.querySelector('[data-testid="record-inspector"]')
+      ).toBeNull()
+      expect(container.textContent).toContain("September")
+    } finally {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView")
+    }
+  })
+
   it("loads visible days in one batch and refreshes without per-day reads", async () => {
     const loadRows = vi.fn()
     const onRowCountChange = vi.fn()

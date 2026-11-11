@@ -1,3 +1,4 @@
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import {
   memo,
   useCallback,
@@ -605,6 +606,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
   onMove,
   focusedRowId,
   focusedRowIndex,
+  focusedRowToken,
   collapsed,
   onCollapsedChange,
 }: {
@@ -629,6 +631,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
   onMove: (rowId: string, targetGroupKey: string) => void
   focusedRowId?: string
   focusedRowIndex?: number
+  focusedRowToken?: number
   collapsed: boolean
   onCollapsedChange: (groupKey: string, collapsed: boolean) => void
 }) {
@@ -691,7 +694,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
     return () => {
       active = false
     }
-  }, [focusedRowIndex, group.total, scrollToVirtualCardIndex])
+  }, [focusedRowIndex, focusedRowToken, group.total, scrollToVirtualCardIndex])
 
   const layoutSignature = `${table.fields.map((field) => field.id).join("")}${JSON.stringify(view.properties ?? null)}`
 
@@ -896,6 +899,8 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   disabled = false,
   reloadToken = 0,
   searchResultIndex = null,
+  recordFocus,
+  locateRow,
   loadGroupCounts,
   loadGroupPage,
   loadRow,
@@ -916,6 +921,12 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   disabled?: boolean
   reloadToken?: number
   searchResultIndex?: number | null
+  recordFocus?: EidosFileRecordFocus
+  locateRow?: (
+    field: EidosFileFieldInfo,
+    value: string | null,
+    rowId: string
+  ) => Promise<number | null>
   loadGroupCounts: (
     field: EidosFileFieldInfo
   ) => Promise<EidosFileRowGroupCount[]>
@@ -1456,9 +1467,62 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     [loadGroupWindow]
   )
 
+  const recordGroup =
+    recordFocus && groupField
+      ? boardGroups.find(
+          (group) =>
+            group.value ===
+            (typeof recordFocus.row[groupField.tableColumnName] === "string"
+              ? recordFocus.row[groupField.tableColumnName]
+              : null)
+        )
+      : undefined
+  const [recordPosition, setRecordPosition] = useState<{
+    token: number
+    group: string
+    index: number | null
+  } | null>(null)
+  useEffect(() => {
+    if (!recordFocus || !recordGroup || !groupField) return
+    let current = true
+    const rowId = String(recordFocus.row._id)
+    const cached = recordGroup.rows.findIndex(
+      (row) => String(row._id) === rowId
+    )
+    if (cached >= 0)
+      setRecordPosition({
+        token: recordFocus.token,
+        group: recordGroup.key,
+        index: recordGroup.startOffset + cached,
+      })
+    else if (locateRow) {
+      void locateRow(groupField, recordGroup.value, rowId)
+        .then((index) => {
+          if (current)
+            setRecordPosition({
+              token: recordFocus.token,
+              group: recordGroup.key,
+              index,
+            })
+        })
+        .catch((error: unknown) => {
+          if (current) onError?.(error)
+        })
+    }
+    return () => {
+      current = false
+    }
+  }, [recordFocus?.token, recordGroup?.key, groupField, locateRow])
   let focusedGroup: EidosFileKanbanGroup | undefined
   let focusedGroupIndex = -1
-  if (searchResultIndex !== null && searchResultIndex >= 0) {
+  if (recordFocus) {
+    focusedGroup = recordGroup
+    if (
+      recordPosition?.token === recordFocus.token &&
+      recordPosition.group === recordGroup?.key
+    )
+      focusedGroupIndex = recordPosition.index ?? -1
+  } else if (searchResultIndex !== null && searchResultIndex >= 0) {
     let remaining = searchResultIndex
     for (const group of boardGroups) {
       if (remaining < group.total) {
@@ -1496,7 +1560,13 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     return () => {
       active = false
     }
-  }, [columnVirtualizer, focusedGroup, focusedGroupPosition, setGroupCollapsed])
+  }, [
+    columnVirtualizer,
+    focusedGroup?.key,
+    focusedGroupPosition,
+    recordFocus?.token,
+    setGroupCollapsed,
+  ])
 
   const moveRecord = useCallback(
     (rowId: string, targetKey: string) => {
@@ -1893,8 +1963,9 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                         moveOptions={moveOptions}
                         onMove={moveRecord}
                         focusedRowId={
-                          focusedGroup?.key === group.key && focusedRow
-                            ? String(focusedRow._id)
+                          focusedGroup?.key === group.key &&
+                          (recordFocus || focusedRow)
+                            ? String((recordFocus?.row ?? focusedRow)!._id)
                             : undefined
                         }
                         focusedRowIndex={
@@ -1903,6 +1974,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                             ? focusedGroupIndex
                             : undefined
                         }
+                        focusedRowToken={recordFocus?.token}
                         collapsed={collapsedGroupKeys.has(group.key)}
                         onCollapsedChange={setGroupCollapsed}
                         onRequestRange={requestGroupRange}

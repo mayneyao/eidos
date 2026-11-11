@@ -1,3 +1,4 @@
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import {
   useCallback,
   useEffect,
@@ -307,6 +308,7 @@ export function EidosFileCalendarView({
   loadRow,
   onCellEdit,
   onOpenRecord,
+  recordFocus,
   onAddRow,
   onDeleteRow,
   onImportFiles,
@@ -337,6 +339,7 @@ export function EidosFileCalendarView({
   ) => Promise<EidosFileCalendarPage[] | null>
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>
   onOpenRecord?: (row: EidosFileRow) => void
+  recordFocus?: EidosFileRecordFocus
   onCellEdit?: (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -683,6 +686,43 @@ export function EidosFileCalendarView({
     }
   }
 
+  const focusDateKey =
+    recordFocus && dateField
+      ? eidosFileCalendarRowDateKey(recordFocus.row, dateField, timeZone)
+      : null
+  const revealedRecordToken = useRef<number | null>(null)
+  useEffect(() => {
+    if (!recordFocus || !focusDateKey) return
+    const [year, month, day] = focusDateKey.split("-").map(Number)
+    const date = new Date(year!, month! - 1, day!)
+    setSelectedDate(date)
+    if (date < range.start || date >= range.end) setAnchorDate(date)
+    setExpandedDays((current) => new Set([...current, focusDateKey]))
+  }, [recordFocus?.token, focusDateKey])
+  useEffect(() => {
+    if (!recordFocus || !focusDateKey || loading) return
+    const page = dayPages.get(focusDateKey)
+    if (!page || page.loadingMore || page.loadMoreError) return
+    const rowId = String(recordFocus.row._id)
+    if (!page.rows.some((row) => String(row._id) === rowId)) {
+      if (page.nextCursor) {
+        const day = days.find((day) => localDateKey(day) === focusDateKey)
+        if (day) void loadMoreDay(day, focusDateKey)
+      }
+      return
+    }
+    if (revealedRecordToken.current === recordFocus.token) return
+    const node = Array.from(
+      scrollRef.current?.querySelectorAll<HTMLElement>(
+        "[data-eidos-file-calendar-record]"
+      ) ?? []
+    ).find((node) => node.dataset.eidosFileCalendarRecord === rowId)
+    if (node) {
+      node.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+      revealedRecordToken.current = recordFocus.token
+    }
+  }, [recordFocus?.token, focusDateKey, dayPages, loading])
+
   const editRecord = async (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -896,7 +936,16 @@ export function EidosFileCalendarView({
       : null
     if (mobile)
       return (
-        <div key={String(row._id)} className="eidos-mobile-calendar-record">
+        <div
+          key={String(row._id)}
+          data-eidos-file-calendar-record={String(row._id)}
+          aria-current={
+            recordFocus && String(recordFocus.row._id) === String(row._id)
+              ? "true"
+              : undefined
+          }
+          className="eidos-mobile-calendar-record"
+        >
           <button type="button" onClick={() => openInspectorRow(row)}>
             {timeLabel && (
               <time dateTime={String(row[dateField.tableColumnName])}>
@@ -975,8 +1024,17 @@ export function EidosFileCalendarView({
       >
         <button
           type="button"
+          data-eidos-file-calendar-record={String(row._id)}
+          aria-current={
+            recordFocus && String(recordFocus.row._id) === String(row._id)
+              ? "true"
+              : undefined
+          }
           className={cn(
             "flex min-w-0 items-baseline gap-1.5 rounded-[3px] border border-primary/15 bg-primary/10 px-1.5 py-1 text-left text-[11px] leading-4 text-foreground outline-hidden hover:bg-primary/15 focus-visible:ring-1 focus-visible:ring-ring",
+            recordFocus &&
+              String(recordFocus.row._id) === String(row._id) &&
+              "ring-2 ring-ring/45",
             className
           )}
           title={timeLabel ? `${timeLabel} ${title}` : title}

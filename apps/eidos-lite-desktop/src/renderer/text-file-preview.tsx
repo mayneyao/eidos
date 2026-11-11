@@ -519,6 +519,7 @@ function DocumentFilePreview({
   theme,
   markdownFileEditingMode,
   htmlFileOpenMode,
+  allowAutoFocus,
   markdownCompatibilityProfile,
   navigationTarget,
   onOpenInternalLink,
@@ -535,6 +536,7 @@ function DocumentFilePreview({
   theme: ResolvedAppearance
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
   htmlFileOpenMode: "preview" | "source"
+  allowAutoFocus: boolean
   markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -620,7 +622,7 @@ function DocumentFilePreview({
             draft={draft}
             theme={theme}
             editingMode="source"
-            autoFocus
+            autoFocus={allowAutoFocus}
             focusRequestToken={focusRequestToken}
             focusShortcutLabel={focusShortcutLabel}
             onEditingModeChange={onEditingModeChange}
@@ -640,6 +642,7 @@ export function TextFilePreview({
   theme,
   markdownFileEditingMode = "source",
   htmlFileOpenMode = "preview",
+  allowAutoFocus = true,
   markdownCompatibilityProfile = "eidos",
   navigationTarget,
   onOpenInternalLink,
@@ -657,6 +660,8 @@ export function TextFilePreview({
   theme: ResolvedAppearance
   markdownFileEditingMode?: EidosLiteMarkdownEditingMode
   htmlFileOpenMode?: "preview" | "source"
+  /** Background previews keep keyboard focus in their owning record view. */
+  allowAutoFocus?: boolean
   markdownCompatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -719,6 +724,7 @@ export function TextFilePreview({
           theme={theme}
           markdownFileEditingMode={markdownFileEditingMode}
           htmlFileOpenMode={htmlFileOpenMode}
+          allowAutoFocus={allowAutoFocus}
           markdownCompatibilityProfile={markdownCompatibilityProfile}
           navigationTarget={navigationTarget}
           onOpenInternalLink={onOpenInternalLink}

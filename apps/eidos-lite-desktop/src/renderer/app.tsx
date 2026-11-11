@@ -5215,6 +5215,9 @@ function WorkspaceApp({
                     <EidosFileWorkbench
                       onPendingEditChange={updateEidosPendingEdit}
                       onOpenFileInSidebar={openFileInSidebar}
+                      fileSidebarOpen={
+                        workbenchSurfaces.right === "file-preview"
+                      }
                       onOpenSpaceFile={async (path) => {
                         const entry = findSpaceEntry(space.entries, path) ?? {
                           name: path.split("/").at(-1)!,

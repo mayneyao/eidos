@@ -1,5 +1,6 @@
 /// <reference path="./glide-data-grid-css.d.ts" />
 
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import {
   memo,
   useCallback,
@@ -286,6 +287,7 @@ export interface EidosFileGridProps {
   onSelectedRowsChange?: (ranges: EidosFileRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
   searchResultIndex?: number | null
+  recordFocus?: EidosFileRecordFocus
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -539,6 +541,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onRowCountChange,
   focusRequestToken = 0,
   searchResultIndex = null,
+  recordFocus,
   onImportFiles,
   onImportDroppedFiles,
   onOpenRecordInTab,
@@ -1610,8 +1613,32 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [attachmentThumbnails, requestVisiblePages, urlImageThumbnails]
   )
 
+  const recordFocusIndex = recordFocus?.index
   useEffect(() => {
     if (
+      recordFocusIndex == null ||
+      recordFocusIndex < 0 ||
+      recordFocusIndex >= rowCount
+    )
+      return
+    requestVisiblePages({
+      x: 0,
+      y: recordFocusIndex,
+      width: Math.max(1, columns.length),
+      height: 1,
+    })
+    gridRef.current?.scrollTo(0, recordFocusIndex, "vertical", 0, 24)
+  }, [
+    columns.length,
+    recordFocusIndex,
+    recordFocus?.token,
+    requestVisiblePages,
+    rowCount,
+  ])
+
+  useEffect(() => {
+    if (
+      recordFocus ||
       searchResultIndex === null ||
       searchResultIndex < 0 ||
       searchResultIndex >= rowCount
@@ -1627,7 +1654,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     gridRef.current?.scrollTo(0, searchResultIndex, "vertical", 0, 24, {
       vAlign: "center",
     })
-  }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
+  }, [
+    columns.length,
+    requestVisiblePages,
+    rowCount,
+    searchResultIndex,
+    Boolean(recordFocus),
+  ])
 
   const canonicalRowId = useCallback((value: unknown): string | undefined => {
     return canonicalEidosFileRowId(value, rowIdAliasesRef.current)
@@ -2409,26 +2442,29 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     left: number
     top: number
   } | null>(null)
+  const highlightedRowIndex = recordFocus
+    ? (recordFocusIndex ?? null)
+    : searchResultIndex
   const searchHighlightRegions = useMemo<
     NonNullable<DataEditorProps["highlightRegions"]>
   >(
     () =>
-      searchResultIndex !== null &&
-      searchResultIndex >= 0 &&
-      searchResultIndex < rowCount
+      highlightedRowIndex !== null &&
+      highlightedRowIndex >= 0 &&
+      highlightedRowIndex < rowCount
         ? [
             {
               color: searchHighlightColor,
               range: {
                 x: 0,
-                y: searchResultIndex,
+                y: highlightedRowIndex,
                 width: Math.max(1, columns.length),
                 height: 1,
               },
             },
           ]
         : [],
-    [columns.length, rowCount, searchHighlightColor, searchResultIndex]
+    [columns.length, rowCount, searchHighlightColor, highlightedRowIndex]
   )
   const draftMoveHighlightRegions: NonNullable<
     DataEditorProps["highlightRegions"]

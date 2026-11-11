@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
-import { LoaderCircle, RefreshCw, X } from "lucide-react"
+import { RefreshCw, X } from "lucide-react"
 import type {
   OpenEidosFileResult,
   TextFilePreviewResult,
@@ -94,6 +94,7 @@ export function FileSidebar(props: {
     let accepted = false
     let opened: OpenEidosFileResult | undefined
     let plugin: PluginOpenResult | undefined
+    let preparedImage: HTMLImageElement | undefined
     setLoading(true)
     setError(null)
     const path = props.relativePath
@@ -115,11 +116,19 @@ export function FileSidebar(props: {
             : undefined
         )
         if (!active) return
-        if (!plugin.instance && preview)
+        if (!plugin.instance && preview) {
+          if (preview.type === "media" && preview.mediaKind === "image") {
+            // Prepare pixels before committing the new model, so the image,
+            // title and metadata change together without an empty image frame.
+            preparedImage = new window.Image()
+            preparedImage.src = preview.previewUrl
+            await preparedImage.decode()
+          }
           await prepareTextFilePreview(
             preview,
             latest.current.markdownFileEditingMode
           )
+        }
         if (!active) return
         if (opened) {
           const sessionId = opened.sessionId
@@ -167,6 +176,7 @@ export function FileSidebar(props: {
     void load()
     return () => {
       active = false
+      preparedImage?.removeAttribute("src")
     }
   }, [props.relativePath, reload, builtinPath])
 
@@ -225,10 +235,17 @@ export function FileSidebar(props: {
           type="button"
           className="icon-button"
           aria-label={t("Refresh")}
+          aria-description={
+            loading
+              ? t("Opening {name}…", {
+                  name: props.relativePath.split("/").at(-1)!,
+                })
+              : undefined
+          }
           disabled={loading || props.disabled}
           onClick={() => setReload((value) => value + 1)}
         >
-          <RefreshCw />
+          <RefreshCw className={loading ? "spin" : undefined} />
         </button>
         <button
           type="button"
@@ -239,14 +256,6 @@ export function FileSidebar(props: {
           <X />
         </button>
       </header>
-      {loading && (
-        <div className="file-sidebar-status" role="status">
-          <LoaderCircle className="spin" size={14} />
-          {t("Opening {name}…", {
-            name: props.relativePath.split("/").at(-1)!,
-          })}
-        </div>
-      )}
       {(error || model?.plugin.warning) && (
         <div className="file-sidebar-error" role="alert">
           {error ?? model?.plugin.warning}
@@ -344,6 +353,7 @@ export function FileSidebar(props: {
             <MediaFilePreview preview={model.preview} />
           ) : (
             <TextFilePreview
+              allowAutoFocus={false}
               preview={model.preview}
               draft={props.drafts[model.path]}
               theme={props.theme}

@@ -53,10 +53,14 @@ function EidosFileFeedRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       searchResultIndex={props.searchResultIndex}
+      recordFocus={props.recordFocus}
       loadPage={loadPage}
       onOpenRecord={
-        props.onInspectedRowChange
-          ? (row) => props.onInspectedRowChange?.(String(row._id))
+        props.onOpenRecord || props.onInspectedRowChange
+          ? (row) =>
+              (props.onOpenRecord ?? props.onInspectedRowChange)?.(
+                String(row._id)
+              )
           : undefined
       }
       onRowCountChange={props.onSearchResultCountChange}

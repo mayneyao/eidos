@@ -23,6 +23,7 @@ import {
   type EidosFileGridUndoCommand,
 } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { MobileFields } from "./mobile-fields"
 import { useEidosFileUI } from "./context"
@@ -47,6 +48,7 @@ export interface EidosFileDataGridProps {
   view?: EidosFileViewInfo
   search?: string
   searchResultIndex?: number | null
+  recordFocus?: EidosFileRecordFocus
   showRowMarkers?: boolean
   allowFrozenColumns?: boolean
   inspectedRowId?: string | null
@@ -174,6 +176,7 @@ export function EidosFileDataGrid({
   view,
   search = "",
   searchResultIndex = null,
+  recordFocus,
   showRowMarkers = true,
   allowFrozenColumns = true,
   inspectedRowId,
@@ -434,6 +437,7 @@ export function EidosFileDataGrid({
         focusRequestToken={focusRequestToken}
         historyScopeKey={JSON.stringify(query)}
         searchResultIndex={searchResultIndex}
+        recordFocus={recordFocus}
         showRowMarkers={showRowMarkers}
         allowFrozenColumns={allowFrozenColumns}
         loadPage={loadPage}
