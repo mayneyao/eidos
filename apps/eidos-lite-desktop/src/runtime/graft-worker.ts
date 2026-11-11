@@ -21,6 +21,7 @@ import type {
 
 import type {
   GraftAbortMergeOptions,
+  GraftExportMergeSqliteVersionOptions,
   GraftApplyMergeOptions,
   GraftContinueMergeOptions,
   GraftDiffMergeSqliteOptions,
@@ -450,6 +451,23 @@ async function runCommand(
           "read merge version options"
         ) as unknown as GraftReadMergeVersionOptions),
         signal,
+      })
+    case "exportMergeSqliteVersion":
+      if (!repository.exportMergeSqliteVersion)
+        throw new Error(
+          "This Graft SDK does not support immutable table previews"
+        )
+      return repository.exportMergeSqliteVersion({
+        ...(objectValue(
+          args[0],
+          "merge preview options"
+        ) as unknown as GraftExportMergeSqliteVersionOptions),
+        signal,
+      })
+    case "normalizeMergeSqliteInputs":
+      if (!repository.normalizeMergeSqliteInputs) throw new Error("This Graft SDK does not support schema-first merging")
+      return repository.normalizeMergeSqliteInputs({
+        ...(objectValue(args[0], "normalized merge inputs") as unknown as import("../shared/graft-merge-contracts").GraftNormalizeMergeSqliteInputsOptions), signal,
       })
     case "diffMergeSqlite":
       requireMergeMethod(repository, command)

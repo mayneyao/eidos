@@ -784,10 +784,14 @@ describe("VersionPanel table diff", () => {
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
+    let finishChanges: (value: SpaceVersionDiff) => void = () => undefined
+    const pendingChanges = new Promise<SpaceVersionDiff>((resolve) => {
+      finishChanges = resolve
+    })
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
-        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        getVersionChanges: vi.fn().mockReturnValue(pendingChanges),
         cancelVersionReads: vi.fn().mockResolvedValue(undefined),
       } as unknown as EidosLiteApi,
     })
@@ -822,6 +826,19 @@ describe("VersionPanel table diff", () => {
       host.querySelector('[aria-label="Refreshing local changes"]')
     ).not.toBeNull()
     expect(host.textContent).toContain("Changes")
+    expect(host.querySelectorAll(".version-panel > header .spin")).toHaveLength(
+      1
+    )
+    expect(
+      host
+        .querySelector(".version-panel > header [data-refresh-versions]")
+        ?.hasAttribute("disabled")
+    ).toBe(true)
+
+    await act(async () => {
+      finishChanges(versionDiff)
+      await pendingChanges
+    })
 
     await act(async () => root.unmount())
     host.remove()

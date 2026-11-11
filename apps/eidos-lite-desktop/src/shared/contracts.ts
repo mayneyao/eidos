@@ -16,6 +16,8 @@ import type {
   EidosFileFieldInfo,
   EidosSystemMergeResult,
   EidosSystemMergeDomainConflict,
+  EidosSchemaMergePlan,
+  EidosSchemaMergeChoice,
   FileEntry,
   SchemaPreflightResult,
   UrlImageLease,
@@ -240,7 +242,11 @@ export const IPC_CHANNELS = {
   syncMergeConflicts: "eidos-lite:sync-merge-conflicts",
   syncMergeVersion: "eidos-lite:sync-merge-version",
   syncMergeSqliteDiff: "eidos-lite:sync-merge-sqlite-diff",
+  syncMergeSqlitePreview: "eidos-lite:sync-merge-sqlite-preview",
+  syncMergeSchemaPlan: "eidos-lite:sync-merge-schema-plan",
+  syncMergeResolveSchema: "eidos-lite:sync-merge-resolve-schema",
   syncMergeResolvePath: "eidos-lite:sync-merge-resolve-path",
+  syncMergeCombinePath: "eidos-lite:sync-merge-combine-path",
   syncMergeResolveRow: "eidos-lite:sync-merge-resolve-row",
   syncMergeResolveCell: "eidos-lite:sync-merge-resolve-cell",
   syncMergeResolveTable: "eidos-lite:sync-merge-resolve-table",
@@ -1446,6 +1452,30 @@ export interface EidosSyncMergeSqliteDiff {
   diff: SpaceVersionDiff
 }
 
+export interface EidosSyncMergeTablePreview {
+  id: string
+  name: string
+  fields: Array<{ id: string; name: string; type: string }>
+  rows: Array<{ id: string; cells: string[] }>
+  hasMoreRows: boolean
+  hasMoreFields: boolean
+}
+
+export interface EidosSyncMergeSqlitePreview {
+  stateToken: string
+  path: string
+  version: EidosSyncMergeSqliteVersion
+  present: boolean
+  tables: EidosSyncMergeTablePreview[]
+}
+
+export interface EidosSyncMergeSqlitePreviewRequest {
+  stateToken: string
+  path: string
+  version: EidosSyncMergeSqliteVersion
+  tables: string[]
+}
+
 export type EidosSyncMergeChoice = "ours" | "theirs"
 export type EidosSyncMergeFailureCode =
   | "stale"
@@ -1807,6 +1837,7 @@ export function isEidosLiteSchemaImpactRequiredResult(
 }
 
 export type RuntimeWorkerRequest =
+  | { type: "mergeSchema"; requestId: number; options: RuntimeSystemMetadataMergeOptions; choices: EidosSchemaMergeChoice[] | null }
   | {
       type: "explorerSummary"
       requestId: number
@@ -1825,6 +1856,12 @@ export type RuntimeWorkerRequest =
       requestId: number
       filePaths: string[]
       includeColumns?: boolean
+    }
+  | {
+      type: "mergeTablePreview"
+      requestId: number
+      filePath: string
+      tables: string[]
     }
   | {
       type: "create"
@@ -1891,6 +1928,12 @@ export interface RuntimeSystemMetadataMergeOptions {
 }
 
 export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
+
+export type EidosSyncMergeSchemaPlan = EidosSchemaMergePlan
+export type EidosSyncMergeSchemaChoice = EidosSchemaMergeChoice
+export interface EidosSyncMergeSchemaRequest extends EidosSyncMergeUnresolvePathRequest {
+  choices: EidosSyncMergeSchemaChoice[]
+}
 
 export interface PeerTransferDetail {
   id: string
@@ -2264,8 +2307,16 @@ export interface EidosLiteApi extends PluginApi {
   diffSyncMergeSqlite(
     request: EidosSyncMergeSqliteDiffRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqliteDiff>>
+  readSyncMergeSqlitePreview(
+    request: EidosSyncMergeSqlitePreviewRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqlitePreview>>
+  readSyncMergeSchemaPlan(request: EidosSyncMergeUnresolvePathRequest): Promise<EidosSyncMergeResponse<EidosSyncMergeSchemaPlan>>
+  resolveSyncMergeSchema(request: EidosSyncMergeSchemaRequest): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   resolveSyncMergePath(
     request: EidosSyncMergeResolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  combineSyncMergePath(
+    request: EidosSyncMergeUnresolvePathRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   resolveSyncMergeRow(
     request: EidosSyncMergeResolveRowRequest

@@ -52,6 +52,10 @@ import type {
   EidosSyncMergePathPage,
   EidosSyncMergePlan,
   EidosSyncMergeSqliteDiff,
+  EidosSyncMergeSqlitePreview,
+  EidosSyncMergeSchemaPlan,
+  EidosSyncMergeSchemaChoice,
+  RuntimeSystemMetadataMergeOptions,
   EidosSyncMergeSqliteVersion,
   EidosSyncMergeStatus,
   EidosSyncOutcome,
@@ -3680,16 +3684,18 @@ export class SpaceSession {
                 (table) => table === conflict.table
               )
           )
-          const workspace = hasUnmanagedConflict
-            ? null
-            : await this.graft.prepareSemanticMerge(
-                this.canonical.root,
-                normalized,
-                EIDOS_SYSTEM_MERGE_PROVIDER,
-                EIDOS_FILE_METADATA_TABLES,
-                stateToken,
-                { signal }
-              )
+          const workspace =
+            hasUnmanagedConflict ||
+            !page.items.some((conflict) => conflict.status === "unresolved")
+              ? null
+              : await this.graft.prepareSemanticMerge(
+                  this.canonical.root,
+                  normalized,
+                  EIDOS_SYSTEM_MERGE_PROVIDER,
+                  EIDOS_FILE_METADATA_TABLES,
+                  stateToken,
+                  { signal }
+                )
           if (workspace?.record.state === "conflict") {
             const domainConflicts = workspace.record.conflicts
               .map(semanticDomainConflict)
@@ -3799,6 +3805,135 @@ export class SpaceSession {
           { ...options, signal }
         ),
       { preemptible: true }
+    )
+  }
+
+  readSyncMergeSqlitePreview(
+    stateToken: string,
+    relativePath: string,
+    version: EidosSyncMergeSqliteVersion,
+    tables: string[]
+  ): Promise<EidosSyncMergeSqlitePreview> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos"))
+      throw new Error("Table previews require an Eidos File")
+    return this.gate.withRepositoryOperation(
+      `Reading ${version} table preview`,
+      async (signal) => {
+        const previewRoot = path.join(this.stateDirectory, "merge-previews")
+        await fs.mkdir(previewRoot, { recursive: true })
+        const directory = await fs.mkdtemp(path.join(previewRoot, "input-"))
+        const output = path.join(directory, "version.eidos")
+        try {
+          const exported = await this.graft.exportMergeSqliteVersion(
+            this.canonical.root,
+            normalized,
+            version,
+            output,
+            stateToken,
+            { signal }
+          )
+          const preview = exported.filePath
+            ? await this.runtimePool.readMergeTablePreview(
+                exported.filePath,
+                tables,
+                signal
+              )
+            : []
+          return {
+            stateToken: exported.stateToken,
+            path: normalized,
+            version,
+            present: exported.filePath !== null,
+            tables: preview,
+          }
+        } finally {
+          await fs.chmod(output, 0o600).catch(() => undefined)
+          await fs.rm(directory, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          })
+        }
+      },
+      { preemptible: true }
+    )
+  }
+
+  private async withMergeSchemaInputs<T>(
+    stateToken: string,
+    relativePath: string,
+    signal: AbortSignal,
+    writable: boolean,
+    operation: (options: RuntimeSystemMetadataMergeOptions) => Promise<T>
+  ): Promise<T> {
+    if (!relativePath.toLowerCase().endsWith(".eidos")) throw new Error("Schema merging requires an Eidos File")
+    const merge = await this.graft.getMergeStatus(this.canonical.root,{signal})
+    if (merge.state!=="merging" || merge.stateToken!==stateToken) throw Object.assign(new Error("The merge changed; reload it first"),{code:"GRAFT_SDK_REPOSITORY_STALE"})
+    const root = path.join(this.stateDirectory,"merge-previews")
+    await fs.mkdir(root,{recursive:true})
+    const directory = await fs.mkdtemp(path.join(root,"schema-"))
+    try {
+      const files = {base:path.join(directory,"base.eidos"),ours:path.join(directory,"ours.eidos"),theirs:path.join(directory,"theirs.eidos")}
+      for (const version of ["base","ours","theirs"] as const) {
+        const exported = await this.graft.exportMergeSqliteVersion(this.canonical.root,relativePath,version,files[version],stateToken,{signal})
+        if (!exported.filePath) throw new Error("Schema merging requires all three Eidos File versions")
+        if (writable) await fs.chmod(files[version],0o600)
+      }
+      const resultPath = path.join(directory,"result.eidos")
+      if (writable) await fs.copyFile(files.ours,resultPath)
+      return await operation({basePath:files.base,oursPath:files.ours,theirsPath:files.theirs,resultPath,oursKey:merge.localHead,theirsKey:merge.hostedHead,operationInstant:new Date().toISOString()})
+    } finally {
+      await Promise.all((await fs.readdir(directory)).map(name=>fs.chmod(path.join(directory,name),0o600).catch(()=>undefined)))
+      await fs.rm(directory,{recursive:true,force:true,maxRetries:3,retryDelay:50})
+    }
+  }
+
+  readSyncMergeSchemaPlan(stateToken:string,relativePath:string):Promise<EidosSyncMergeSchemaPlan> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.gate.withRepositoryOperation("Reading structure decisions",signal=>this.withMergeSchemaInputs(stateToken,normalized,signal,false,async options=>{
+      const result = await this.runtimePool.mergeSchema(options,null,signal)
+      if (!("supported" in result)) throw new Error("Invalid schema merge plan")
+      return result
+    }),{preemptible:true})
+  }
+
+  resolveSyncMergeSchema(stateToken:string,relativePath:string,choices:EidosSyncMergeSchemaChoice[]):Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation("normalizeMergeSqliteInputs","resolve-merge-schema",`Applying structure decisions for ${normalized}`,stateToken,
+      (signal,onWorktreePaths)=>this.withMergeSchemaInputs(stateToken,normalized,signal,true,async options=>{
+        const result = await this.runtimePool.mergeSchema(options,choices,signal)
+        if (!("outcome" in result) || result.outcome!=="merged") throw new Error("The Runtime could not safely reconcile the selected structure and its metadata. Review a complete file instead.")
+        return this.graft.normalizeMergeSqliteInputs(this.canonical.root,normalized,{base:options.basePath,ours:options.oursPath,theirs:options.theirsPath},stateToken,{signal,onWorktreePaths})
+      }),[normalized])
+  }
+
+  combineSyncMergePath(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos")) {
+      throw new Error("Automatic metadata merging requires an Eidos File")
+    }
+    return this.materializeMergeOperation(
+      "acceptSemanticMergeResult",
+      "combine-merge-path",
+      `Combining and validating ${normalized}`,
+      stateToken,
+      async (signal, onWorktreePaths) => {
+        const merge = await this.graft.getMergeStatus(this.canonical.root, {
+          signal,
+        })
+        if (merge.state !== "merging") throw new Error("No active merge")
+        return this.resolveEidosSystemMetadataMerges(
+          merge,
+          signal,
+          onWorktreePaths,
+          normalized
+        )
+      }
     )
   }
 
@@ -6071,7 +6206,8 @@ export class SpaceSession {
   private async resolveEidosSystemMetadataMerges(
     initial: EidosSyncMergeStatus & { state: "merging" },
     signal: AbortSignal,
-    onWorktreePaths: (paths: string[] | null) => void
+    onWorktreePaths: (paths: string[] | null) => void,
+    onlyPath?: string
   ): Promise<EidosSyncMergeStatus> {
     let merge: EidosSyncMergeStatus = initial
     const eidosPaths: string[] = []
@@ -6092,12 +6228,19 @@ export class SpaceSession {
           .filter(
             (item) =>
               item.kind === "sqlite_database" &&
-              item.path.toLowerCase().endsWith(".eidos")
+              item.path.toLowerCase().endsWith(".eidos") &&
+              (!onlyPath || item.path === onlyPath)
           )
           .map((item) => item.path)
       )
       after = page.nextCursor ?? undefined
     } while (after)
+
+    if (onlyPath && eidosPaths.length === 0) {
+      throw new Error(
+        "This Eidos File is no longer unresolved; reload the merge"
+      )
+    }
 
     for (const relativePath of eidosPaths) {
       if (merge.state !== "merging") break
@@ -6144,6 +6287,11 @@ export class SpaceSession {
           continue
         }
         if (outcome.outcome !== "merged") {
+          if (onlyPath) {
+            throw new Error(
+              "The Eidos Runtime could not validate a combined result. Review the versions before choosing a complete file."
+            )
+          }
           console.warn(
             `Could not automatically merge Eidos system metadata for ${relativePath}`,
             outcome
@@ -6168,6 +6316,7 @@ export class SpaceSession {
           { signal, onWorktreePaths }
         )
       } catch (error) {
+        if (onlyPath) throw error
         console.warn(
           `Eidos system metadata merge is not available for ${relativePath}`,
           error
@@ -6184,6 +6333,7 @@ export class SpaceSession {
       | "resolveMergeRow"
       | "resolveMergeCell"
       | "resolveMergeTable"
+      | "normalizeMergeSqliteInputs"
       | "unresolveMergePath"
       | "writeAndStageTextResult"
       | "continueMerge"

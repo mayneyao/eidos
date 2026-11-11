@@ -20,7 +20,6 @@ import {
   CloudDownload,
   CloudUpload,
   Database,
-  FileClock,
   FileText,
   GitBranch,
   GitCommitHorizontal,
@@ -2227,7 +2226,6 @@ export function VersionPanel({
       >
         <header>
           <div>
-            <FileClock aria-hidden="true" />
             <strong>Versions</strong>
           </div>
           <button
@@ -2255,7 +2253,6 @@ export function VersionPanel({
       >
         <header>
           <div>
-            <FileClock aria-hidden="true" />
             <strong>Versions</strong>
           </div>
           <button
@@ -2401,18 +2398,7 @@ export function VersionPanel({
     >
       <header>
         <div>
-          <FileClock aria-hidden="true" />
           <strong>Versions</strong>
-          {space.graft.checking ? (
-            <span
-              className="version-header-refresh"
-              role="status"
-              aria-label="Refreshing local changes"
-              title="Refreshing local changes"
-            >
-              <LoaderCircle className="spin" aria-hidden="true" />
-            </span>
-          ) : null}
         </div>
         <div className="version-header-actions">
           <button
@@ -2421,10 +2407,18 @@ export function VersionPanel({
             onClick={refreshVersionData}
             aria-label="Refresh versions"
             title="Refresh versions"
-            disabled={modeLoading}
+            disabled={modeLoading || space.graft.checking}
             data-refresh-versions
           >
-            {modeLoading ? <LoaderCircle className="spin" /> : <RefreshCw />}
+            {modeLoading || space.graft.checking ? (
+              <LoaderCircle
+                className="spin"
+                role="status"
+                aria-label="Refreshing local changes"
+              />
+            ) : (
+              <RefreshCw />
+            )}
           </button>
           <button
             type="button"

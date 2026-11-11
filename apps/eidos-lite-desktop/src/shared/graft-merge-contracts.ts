@@ -407,6 +407,21 @@ export interface GraftSemanticMergeInput {
   size: number | null
 }
 
+export interface GraftExportMergeSqliteVersionOptions extends GraftOperationOptions {
+  path: string
+  version: GraftMergeSqliteVersion
+  output: string
+  expectedStateToken: string
+}
+
+export interface GraftNormalizeMergeSqliteInputsOptions extends GraftOperationOptions {
+  path: string
+  base: string
+  ours: string
+  theirs: string
+  expectedStateToken: string
+}
+
 export interface GraftSemanticMergeWorkspace {
   provider_token: string
   provider: string
@@ -494,9 +509,15 @@ export interface GraftMergeRepositorySession {
   readMergeVersion(
     options: GraftReadMergeVersionOptions
   ): Promise<GraftMergeContent>
+  exportMergeSqliteVersion?(
+    options: GraftExportMergeSqliteVersionOptions
+  ): Promise<GraftSemanticMergeInput & { path: string; state_token: string }>
   diffMergeSqlite(
     options: GraftDiffMergeSqliteOptions
   ): Promise<GraftMergeSqliteDiffResult>
+  normalizeMergeSqliteInputs?(
+    options: GraftNormalizeMergeSqliteInputsOptions
+  ): Promise<GraftMergeOperationResult>
   setMergePathResult(
     options: GraftSetMergePathResultOptions
   ): Promise<GraftMergeOperationResult>

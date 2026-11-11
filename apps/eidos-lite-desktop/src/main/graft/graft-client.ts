@@ -2320,6 +2320,47 @@ export class GraftClient {
     )
   }
 
+  async exportMergeSqliteVersion(
+    root: string,
+    relativePath: string,
+    version: EidosSyncMergeSqliteVersion,
+    output: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<{
+    filePath: string | null
+    revision: string | null
+    stateToken: string
+  }> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "exportMergeSqliteVersion",
+        [{ path: relativePath, version, output, expectedStateToken }],
+        options
+      )
+    )
+    return {
+      filePath: stringValue(value.file_path) ?? null,
+      revision: stringValue(value.revision) ?? null,
+      stateToken: requiredString(
+        value.state_token,
+        "merge preview state token"
+      ),
+    }
+  }
+
+  async normalizeMergeSqliteInputs(
+    root: string,
+    relativePath: string,
+    inputs: {base: string; ours: string; theirs: string},
+    expectedStateToken: string,
+    options: GraftMergeMutationOptions = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(await this.runSdk(root, "normalizeMergeSqliteInputs", [{path: relativePath, ...inputs, expectedStateToken}], options))
+    return this.finishMergeMutation(value, options)
+  }
+
   async setMergePathResult(
     root: string,
     relativePath: string,

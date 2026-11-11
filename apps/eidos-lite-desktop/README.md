@@ -342,6 +342,28 @@ pnpm build:eidos-lite
 pnpm dev:eidos-lite
 ```
 
+### Repeatable merge UI demo
+
+Run `pnpm demo:eidos-lite:merge` from the repository root. The command creates
+five offline merge scenarios, validates the conflicts, and starts
+`pnpm dev:eidos-lite` with a separate user profile. The scenarios cover text
+edits, deletion of a parent directory, conflicting row cells, a field rename,
+and compatible View changes that the Runtime can merge automatically.
+
+Quit the development app before starting another round. Each invocation creates
+a new run and preserves earlier results, including completed or aborted merges.
+The output folder contains macOS and Windows launchers for starting another
+round, plus `CURRENT.txt` and `latest.json` pointing to the latest Demo Space.
+After opening, expect four unresolved files and one automatically resolved file.
+
+The default output is `~/eidos-lite-demos/merge-conflicts`. Use `--output <folder>`
+or `EIDOS_LITE_MERGE_DEMO_ROOT` in `.env.development.local` to choose another
+location outside existing Graft repositories. The local `fs://` remote currently
+requires an output path without whitespace. `--create-only` prepares a run
+without launching the UI. The demo reads the same development SDK override as
+Vite; unpublished SDK testing uses the documented `EIDOS_LITE_GRAFT_SDK_PATH`
+setting. No cloud account is needed.
+
 Lite follows the system language by default and currently includes English and
 Simplified Chinese. The preference in **Settings > Appearance > Language** also
 drives the shared Eidos File editor and the native application menu/dialogs.

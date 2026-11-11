@@ -35,7 +35,6 @@ import {
 import { useEidosLiteI18n } from "./i18n"
 import { SyncMergeWorkspace } from "./sync-merge-workspace"
 import { SyncTransportTabs } from "./sync-transport-tabs"
-import appLogo from "../../assets/logo.svg"
 
 export interface SyncInspectorState {
   history?: SpaceSyncHistoryStatus
@@ -399,7 +398,6 @@ export function SyncInspector({
       >
         <header>
           <div className="sync-inspector-heading">
-            <img className="sync-dialog-mark" src={appLogo} alt="" />
             <strong>{t("Sync")}</strong>
           </div>
           {merging ? null : account ? (
@@ -432,7 +430,27 @@ export function SyncInspector({
           reviewRequired={merging || settings}
           reviewLabel={merging ? t("Resolve merge conflicts") : undefined}
         >
-          {compactLocked ? (
+          {merge.state === "merging" ? (
+            <div className="sync-merge-overview" aria-live="polite">
+              <strong>
+                {t(
+                  merge.unmergedCount === 0
+                    ? "All conflicts resolved"
+                    : merge.unmergedCount === 1
+                      ? "1 conflict remaining"
+                      : "{count} conflicts remaining",
+                  { count: merge.unmergedCount }
+                )}
+              </strong>
+              <p>
+                {t(
+                  merge.unmergedCount === 0
+                    ? "Ready to complete the merge"
+                    : "Select a file to compare and resolve"
+                )}
+              </p>
+            </div>
+          ) : compactLocked ? (
             <div className="sync-minimal-status" aria-live="polite">
               <div>
                 <span>{t("Status")}</span>
@@ -552,10 +570,7 @@ export function SyncInspector({
                   )}
                 </p>
               ) : null}
-              {merge.state !== "merging" &&
-              !active &&
-              history &&
-              (history.ahead || history.behind) ? (
+              {!active && history && (history.ahead || history.behind) ? (
                 <p className="sync-version-counts" data-sync-version-counts>
                   <span>
                     {t("Local to upload")}:{" "}
@@ -572,11 +587,7 @@ export function SyncInspector({
               ) : merging ? (
                 <p className="sync-status-description">
                   {t(
-                    merge.state === "merging"
-                      ? merge.unmergedCount > 0
-                        ? "Review conflicting files and tables in Changes. Nothing was overwritten."
-                        : "Review the merge before completing."
-                      : "Compatible changes merge automatically. Only conflicts need your attention."
+                    "Compatible changes merge automatically. Only conflicts need your attention."
                   )}
                 </p>
               ) : null}
@@ -665,19 +676,6 @@ export function SyncInspector({
                     {t("Open Versions")}
                   </button>
                 ) : null}
-                {!active && merge.state === "merging" && onReviewMerge ? (
-                  <button
-                    className="primary-action"
-                    onClick={() => onReviewMerge()}
-                  >
-                    {t("Review in Changes")}
-                  </button>
-                ) : null}
-                {!active && merge.state === "merging" && onReview ? (
-                  <button className="sync-inspector-link" onClick={onReview}>
-                    {t("Open Versions")}
-                  </button>
-                ) : null}
                 {state.failure && !active && onLocalRecovery ? (
                   <button
                     className="sync-inspector-link"
@@ -703,13 +701,6 @@ export function SyncInspector({
               {state.failure && !active ? (
                 <small className="sync-status-checked">
                   {t("Local files safe")}
-                </small>
-              ) : null}
-              {!active &&
-              merge.state === "merging" &&
-              merge.unmergedCount > 0 ? (
-                <small className="sync-status-checked">
-                  {t("Merging waits until every conflict is resolved.")}
                 </small>
               ) : null}
               {history?.checkedAtMs ? (
@@ -796,7 +787,7 @@ export function SyncInspector({
                 ) : null}
               </>
             )}
-            {settings ? (
+            {settings && !merging ? (
               <section
                 ref={settingsRef}
                 className="sync-inspector-settings"
@@ -843,14 +834,14 @@ export function SyncInspector({
                   <>
                     <button
                       className="sync-inspector-link"
-                      disabled={merge.state === "merging" || active}
+                      disabled={active}
                       onClick={onLocalRecovery}
                     >
                       {t("Keep a local copy")}
                     </button>
                     <button
                       className="sync-inspector-link"
-                      disabled={merge.state === "merging" || active}
+                      disabled={active}
                       onClick={onRemoteRecovery}
                     >
                       {t("Open a cloud copy")}
@@ -870,13 +861,17 @@ export function SyncInspector({
               </section>
             ) : null}
             {!setupContent &&
+            !merging &&
             !state.encryptionLocked &&
             !compactStatus &&
             !compactFailure
               ? connectionDetails
               : null}
           </div>
-          {connectionActions && !setupContent && !connectionDetails ? (
+          {connectionActions &&
+          !setupContent &&
+          !connectionDetails &&
+          !merging ? (
             <footer className="sync-inspector-connection-actions">
               {connectionActions}
             </footer>

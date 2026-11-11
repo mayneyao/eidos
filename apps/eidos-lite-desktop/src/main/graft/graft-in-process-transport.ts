@@ -26,6 +26,7 @@ import type {
 
 import type {
   GraftAbortMergeOptions,
+  GraftExportMergeSqliteVersionOptions,
   GraftApplyMergeOptions,
   GraftAcceptSemanticMergeResultOptions,
   GraftContinueMergeOptions,
@@ -370,6 +371,22 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         return session.readMergeVersion({
           ...(this.object(args[0]) as unknown as GraftReadMergeVersionOptions),
           signal,
+        })
+      case "exportMergeSqliteVersion":
+        if (!session.exportMergeSqliteVersion)
+          throw new Error(
+            "This Graft SDK does not support immutable table previews"
+          )
+        return session.exportMergeSqliteVersion({
+          ...(this.object(
+            args[0]
+          ) as unknown as GraftExportMergeSqliteVersionOptions),
+          signal,
+        })
+      case "normalizeMergeSqliteInputs":
+        if (!session.normalizeMergeSqliteInputs) throw new Error("This Graft SDK does not support schema-first merging")
+        return session.normalizeMergeSqliteInputs({
+          ...(this.object(args[0]) as unknown as import("../../shared/graft-merge-contracts").GraftNormalizeMergeSqliteInputsOptions), signal,
         })
       case "diffMergeSqlite":
         this.requireMergeMethod(session, command)
