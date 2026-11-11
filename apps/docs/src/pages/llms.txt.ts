@@ -32,7 +32,8 @@ export const GET: APIRoute = async ({ site }) => {
     }
     lines.push("")
   }
-  return new Response(lines.join("\n"), {
+  // End the last locale section with a blank line, as with the other sections.
+  return new Response(lines.join("\n") + "\n", {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   })
 }
