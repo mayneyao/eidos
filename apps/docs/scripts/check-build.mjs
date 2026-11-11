@@ -31,6 +31,7 @@ const htmlFiles = (await filesUnder(outputRoot)).filter((file) =>
 )
 const failures = []
 const checkedFragments = new Set()
+let markdownPages = 0
 
 try {
   const headers = await readFile(path.join(outputRoot, "_headers"), "utf8")
@@ -74,6 +75,27 @@ for (const route of [
 
 for (const sourceFile of htmlFiles) {
   const source = await readFile(sourceFile, "utf8")
+  const markdownLink = source.match(
+    /<link\b[^>]*type="text\/markdown"[^>]*href="([^"]+)"/u
+  )?.[1]
+  if (markdownLink) {
+    const pathname = new URL(markdownLink).pathname
+    try {
+      const markdown = await readFile(
+        path.join(outputRoot, pathname.slice(1)),
+        "utf8"
+      )
+      if (
+        !markdown.startsWith("---\ntitle: ") ||
+        !markdown.includes("\nsource: ")
+      ) {
+        failures.push(`Missing Markdown source metadata: ${pathname}`)
+      }
+      markdownPages++
+    } catch {
+      failures.push(`Missing Markdown alternate: ${pathname}`)
+    }
+  }
   // Topic indices are internal plugin labels, never public navigation titles.
   for (const [, summary] of source.matchAll(
     /<summary\b[^>]*>([\s\S]*?)<\/summary>/gu
@@ -170,11 +192,42 @@ for (const route of [
   }
 }
 
+const llms = await readFile(path.join(outputRoot, "llms.txt"), "utf8")
+const indexedPages = [
+  ...llms.matchAll(/\]\((https:\/\/docs\.eidos\.space\/[^)]+\.md)\)/gu),
+]
+for (const [, href] of indexedPages) {
+  try {
+    await access(path.join(outputRoot, new URL(href).pathname.slice(1)))
+  } catch {
+    failures.push(`llms.txt links to missing Markdown: ${href}`)
+  }
+}
+if (indexedPages.length !== markdownPages || markdownPages === 0) {
+  failures.push(
+    `Markdown discovery mismatch: ${indexedPages.length} llms.txt links, ${markdownPages} HTML alternates`
+  )
+}
+const cliMarkdown = await readFile(
+  path.join(outputRoot, "getting-started/cli.md"),
+  "utf8"
+)
+if (
+  !cliMarkdown.includes(
+    "curl -fsSL https://download.eidos.space/cli/install.sh | sh"
+  ) ||
+  !cliMarkdown.includes("```bash\n")
+) {
+  failures.push(
+    "CLI Markdown must preserve the rendered install command and code language"
+  )
+}
+
 if (failures.length > 0) {
   console.error(`Documentation build check failed:\n- ${failures.join("\n- ")}`)
   process.exitCode = 1
 } else {
   console.log(
-    `Documentation build check passed (${htmlFiles.length} HTML files, ${checkedFragments.size} fragments).`
+    `Documentation build check passed (${htmlFiles.length} HTML files, ${markdownPages} Markdown pages, ${checkedFragments.size} fragments).`
   )
 }

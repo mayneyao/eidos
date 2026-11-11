@@ -37,6 +37,23 @@ English and Simplified Chinese foundation pages are maintained as pairs.
 - Internal release runbooks and operational credentials stay in the repository;
   they are not public documentation content.
 
+## Markdown and agent discovery
+
+Every published guide and specification has a Markdown URL, for example
+`/getting-started/cli.md` or `/zh-cn/getting-started/cli.md`. Homepages use
+`/index.md` and `/zh-cn/index.md`. HTML pages advertise their Markdown alternate.
+`/llms.txt` indexes both languages using the existing content collection's
+titles, descriptions, and routes.
+
+`integrations/markdown.mjs` converts the rendered HTML during the build, so MDX
+components, imported SDK examples, tables, and all code tabs are included.
+Development requests use the same converter through middleware. Edit the
+original guide, component, or specification source; do not maintain a separate
+Markdown export. Generated Markdown lives only in the ignored `dist` directory.
+
+`pnpm --filter docs test:markdown` checks conversion and route mapping. The build
+also verifies every Markdown alternate and llms.txt target, plus CLI code output.
+
 ## Commands
 
 ### Plugin API reference

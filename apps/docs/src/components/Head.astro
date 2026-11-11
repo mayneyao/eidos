@@ -1,0 +1,9 @@
+---
+import DefaultHead from "@astrojs/starlight/components/Head.astro"
+import { markdownPathForPage } from "../lib/markdown"
+const { entry } = Astro.locals.starlightRoute
+const available = !entry.data.draft && !/(?:^|\/)404$/.test(entry.id)
+---
+
+<DefaultHead />
+{available && <link rel="alternate" type="text/markdown" href={new URL(markdownPathForPage(Astro.url.pathname), Astro.site)} />}
