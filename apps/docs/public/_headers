@@ -4,3 +4,7 @@
 /*.md
   Content-Type: text/markdown; charset=utf-8
   X-Content-Type-Options: nosniff
+
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  X-Content-Type-Options: nosniff

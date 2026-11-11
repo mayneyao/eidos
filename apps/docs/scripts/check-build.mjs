@@ -36,6 +36,11 @@ let markdownPages = 0
 try {
   const headers = await readFile(path.join(outputRoot, "_headers"), "utf8")
   if (
+    !headers.includes("/llms.txt\n  Content-Type: text/plain; charset=utf-8")
+  ) {
+    failures.push("Static llms.txt must declare UTF-8 for browser navigation")
+  }
+  if (
     !headers.includes("/_astro/*") ||
     !headers.includes("Cache-Control: public, max-age=31536000, immutable")
   ) {
