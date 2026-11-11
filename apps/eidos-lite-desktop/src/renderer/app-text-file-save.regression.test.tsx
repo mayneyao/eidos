@@ -36,37 +36,52 @@ vi.mock("./markdown-editor-surface", () => ({
     return <div data-test-markdown={props.documentKey}>{props.content}</div>
   },
 }))
+const treeSurface = vi.hoisted(() =>
+  vi.fn<
+    (props: {
+      entries: SpaceTreeEntry[]
+      onMove(paths: string[], directory: string | null): Promise<void>
+    }) => void
+  >()
+)
 vi.mock("./space-file-tree", () => ({
   SpaceFileTree: ({
     onContextMenu,
     nameQuery,
     visible,
+    entries,
+    onMove,
   }: {
     onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
     nameQuery?: string
     visible?: boolean
-  }) => (
-    <button
-      data-test-folder-menu
-      data-test-name-query={nameQuery}
-      data-test-tree-visible={visible}
-      onClick={() =>
-        onContextMenu(
-          {
-            kind: "directory",
-            name: "business",
-            relativePath: "business",
-            size: 0,
-            modifiedAtMs: 0,
-          },
-          20,
-          30
-        )
-      }
-    >
-      Folder menu
-    </button>
-  ),
+    entries: SpaceTreeEntry[]
+    onMove(paths: string[], directory: string | null): Promise<void>
+  }) => {
+    treeSurface({ entries, onMove })
+    return (
+      <button
+        data-test-folder-menu
+        data-test-name-query={nameQuery}
+        data-test-tree-visible={visible}
+        onClick={() =>
+          onContextMenu(
+            {
+              kind: "directory",
+              name: "business",
+              relativePath: "business",
+              size: 0,
+              modifiedAtMs: 0,
+            },
+            20,
+            30
+          )
+        }
+      >
+        Folder menu
+      </button>
+    )
+  },
 }))
 vi.mock("./eidos-file-workbench", () => ({
   EidosFileWorkbench: ({
@@ -135,6 +150,7 @@ beforeEach(() => {
     navigationHash("s", { type: "file", path: oldPath, openWith: "wysiwyg" })
   )
   surface.mockClear()
+  treeSurface.mockClear()
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
@@ -207,6 +223,53 @@ it("shows recovery instead of the selector when initial restoration fails", asyn
   )
   expect(host.textContent).toContain("Could not open your Space")
   expect(host.textContent).toContain("Choose another Space")
+})
+
+it("uses one batch move request and refuses a late pre-move snapshot", async () => {
+  window.history.replaceState(null, "", navigationHash("s", null))
+  let changed!: (snapshot: SpaceSnapshot) => void
+  const moved = {
+    ...staleSpace,
+    sequence: 3,
+    entries: staleSpace.entries.map((entry) => ({
+      ...entry,
+      relativePath: `archive/${entry.relativePath}`,
+    })),
+  }
+  let currentEntries = staleSpace.entries
+  const movePaths = vi.fn(async () => {
+    currentEntries = moved.entries
+    return {
+      snapshot: moved,
+      moves: staleSpace.entries.map((entry) => ({
+        source: entry.relativePath,
+        relativePath: `archive/${entry.relativePath}`,
+      })),
+      invalidatedSessionIds: [],
+      unattemptedPaths: [],
+    }
+  })
+  installHost({
+    getSpace: async () => ({ ...staleSpace, sequence: 1 }),
+    movePaths,
+    filterSpaceFiles: async () => currentEntries,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() => expect(treeSurface).toHaveBeenCalled())
+  await act(async () =>
+    treeSurface.mock.lastCall![0].onMove([oldPath, "other.md"], "archive")
+  )
+  expect(movePaths).toHaveBeenCalledExactlyOnceWith(
+    [oldPath, "other.md"],
+    "archive"
+  )
+  expect(treeSurface.mock.lastCall![0].entries).toEqual(moved.entries)
+  await act(async () => changed({ ...staleSpace, sequence: 2 }))
+  expect(treeSurface.mock.lastCall![0].entries).toEqual(moved.entries)
 })
 
 function installHost(overrides: Record<string, unknown>) {

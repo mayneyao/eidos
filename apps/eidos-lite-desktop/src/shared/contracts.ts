@@ -166,6 +166,7 @@ export const IPC_CHANNELS = {
   createFolder: "eidos-lite:path-create-folder",
   renamePath: "eidos-lite:path-rename",
   movePath: "eidos-lite:path-move",
+  movePaths: "eidos-lite:paths-move",
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
@@ -745,6 +746,8 @@ export interface SpaceIgnoreRules {
 
 export interface SpaceSnapshot {
   id: string
+  /** Process-local ordering across events and request responses. */
+  sequence?: number
   /** Local connection or enrollment exists, even if the cloud is unavailable. */
   cloudSyncConnection?: boolean
   name: string
@@ -815,6 +818,13 @@ export interface SpacePathMutationResult {
   snapshot: SpaceSnapshot
   relativePath?: string
   invalidatedSessionIds: string[]
+}
+
+export interface SpacePathsMutationResult extends SpacePathMutationResult {
+  moves: { source: string; relativePath: string }[]
+  failure?: { relativePath: string; message: string }
+  refreshError?: string
+  unattemptedPaths: string[]
 }
 
 export interface EidosLiteAppInfo {
@@ -2109,6 +2119,10 @@ export interface EidosLiteApi extends PluginApi {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult>
+  movePaths(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult>
   copyPath(
     relativePath: string,
     targetDirectory: string | null

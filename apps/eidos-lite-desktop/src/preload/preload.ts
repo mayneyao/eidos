@@ -458,6 +458,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.renamePath, relativePath, name),
   movePath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.movePath, relativePath, targetDirectory),
+  movePaths: (relativePaths, targetDirectory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.movePaths, relativePaths, targetDirectory),
   copyPath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.copyPath, relativePath, targetDirectory),
   deletePath: (relativePath) =>

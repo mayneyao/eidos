@@ -70,6 +70,7 @@ import type {
   RuntimeMethod,
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
+  SpacePathsMutationResult,
   SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
@@ -213,6 +214,8 @@ function isEidosDatabaseSidecar(value: string): boolean {
     normalized.endsWith(`.eidos${suffix}`)
   )
 }
+
+let snapshotSequence = 0
 
 async function renameWithRetry(
   sourcePath: string,
@@ -455,6 +458,13 @@ export class SpaceSession {
   >()
   private readonly backgroundIgnoreKeys = new Set<string>()
   private readonly directoryEntriesCache = new Map<string, SpaceTreeEntry[]>()
+  private directoryEpoch = 0
+  private readonly directoryReads = new Map<
+    string,
+    { epoch: number; promise: Promise<void> }
+  >()
+  private pathMoveInFlight: Promise<SpacePathsMutationResult> | null = null
+  private readonly moveWatcherPaths = new Set<string>()
   private readonly pendingEidosFileAssets = new Map<
     string,
     Map<string, FileEntry>
@@ -568,6 +578,10 @@ export class SpaceSession {
     this.watcher = new SpaceWatcher(
       canonical.root,
       (relativePaths) => {
+        if (this.pathMoveInFlight) {
+          this.collectMoveWatcherPaths(relativePaths)
+          return
+        }
         if (this.closed || this.gate.hasActiveMutations()) return
         this.watcherRefreshTail = this.watcherRefreshTail
           .then(() => this.handleStableWatcherChange(relativePaths))
@@ -575,6 +589,7 @@ export class SpaceSession {
       },
       150,
       async (relativePaths) => {
+        if (this.pathMoveInFlight) return new Set()
         if (this.gate.hasActiveMutations()) return new Set(relativePaths)
         const ignored = await this.inspectIgnores(relativePaths, "background")
         return new Set(
@@ -664,6 +679,8 @@ export class SpaceSession {
 
   snapshot(): Promise<SpaceSnapshot> {
     if (this.closed) return Promise.reject(new Error("Space is closed"))
+    if (this.pathMoveInFlight)
+      return this.pathMoveInFlight.then((result) => result.snapshot)
     if (this.refreshInFlight) return this.refreshInFlight
     this.refreshInFlight = this.readSnapshot(true).finally(() => {
       this.refreshInFlight = null
@@ -820,9 +837,11 @@ export class SpaceSession {
   }
 
   async refreshExplorer(): Promise<SpaceSnapshot> {
+    await this.pathMoveInFlight
     this.prioritizeLocalWork()
     this.explorerListReads.clear()
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
+    this.directoryEpoch += 1
     this.directoryEntriesCache.clear()
     await this.reloadDirectoryEntries(loadedDirectories, false)
     const snapshot = await this.readSnapshot(true)
@@ -831,11 +850,14 @@ export class SpaceSession {
   }
 
   async loadDirectory(relativePath: string): Promise<SpaceSnapshot> {
+    await this.pathMoveInFlight
     this.prioritizeLocalWork()
     const normalized = normalizeMutableRelativePath(relativePath)
     // Explorer navigation is a local filesystem operation. Ignore filtering is
     // version metadata and must never put Graft on the navigation critical path.
     await this.loadDirectoryEntries(normalized, false)
+    // A move may have started while the directory read was waiting on IO.
+    await this.pathMoveInFlight
     const snapshot = this.buildSnapshot(
       this.buildCachedTree(),
       this.graftStatusCache ?? this.pendingGraftStatus()
@@ -1942,44 +1964,185 @@ export class SpaceSession {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult> {
+    const result = await this.movePaths([relativePath], targetDirectory)
+    if (result.failure) throw new Error(result.failure.message)
+    return { ...result, relativePath: result.moves[0]?.relativePath }
+  }
+
+  movePaths(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult> {
+    if (this.pathMoveInFlight)
+      return Promise.reject(new Error("A file move is already in progress"))
+    const operation = this.performPathMoves(relativePaths, targetDirectory)
+    this.pathMoveInFlight = operation
+    void operation
+      .finally(() => {
+        this.pathMoveInFlight = null
+        if (this.moveWatcherPaths.size) {
+          const paths = [...this.moveWatcherPaths]
+          this.moveWatcherPaths.clear()
+          this.watcherRefreshTail = this.watcherRefreshTail
+            .then(() => this.handleStableWatcherChange(paths))
+            .catch(() => undefined)
+        }
+      })
+      .catch(() => undefined)
+    return operation
+  }
+
+  private collectMoveWatcherPaths(paths: readonly string[]): void {
+    for (const value of paths.length ? paths : [""])
+      this.moveWatcherPaths.add(value)
+  }
+
+  private async performPathMoves(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult> {
     this.prioritizeLocalWork()
-    const source = normalizeMutableRelativePath(relativePath)
-    await fs.lstat(this.resolveUserPath(source))
-    await resolveSpaceDirectory(this.canonical.root, targetDirectory)
-    const target = joinSpaceRelativePath(
-      targetDirectory,
-      path.posix.basename(source)
+    // Install the batch fence before the first async work. Do not wait for a
+    // watcher read that may itself be waiting for this batch's final snapshot.
+    await Promise.resolve()
+    const initiallyLoaded = [...this.directoryEntriesCache.keys()]
+    const moves: SpacePathsMutationResult["moves"] = []
+    const invalidatedSessionIds = new Set<string>()
+    const updatedPaths = new Set<string>()
+    const skippedPaths = new Set<string>()
+    let failure: SpacePathsMutationResult["failure"]
+    let attempted = 0
+    await this.gate.withMutation(async () => {
+      for (const relativePath of relativePaths) {
+        attempted += 1
+        try {
+          const source = normalizeMutableRelativePath(relativePath)
+          await fs.lstat(this.resolveUserPath(source))
+          await resolveSpaceDirectory(this.canonical.root, targetDirectory)
+          const target = joinSpaceRelativePath(
+            targetDirectory,
+            path.posix.basename(source)
+          )
+          if (target === source) {
+            moves.push({ source, relativePath: target })
+            continue
+          }
+          if (target.startsWith(`${source}/`))
+            throw new Error("A folder cannot be moved inside itself")
+          await this.requireMissingPath(target)
+          const linkPlan = await this.prepareMarkdownLinkMove(source, target)
+          for (const id of await this.closeAndEvictRuntimeSessions(source))
+            invalidatedSessionIds.add(id)
+          await renameWithRetry(
+            this.resolveUserPath(source),
+            this.resolveUserPath(target)
+          )
+          moves.push({ source, relativePath: target })
+          this.noteLocalChange()
+          this.recordPathMoveInBackground(source, target)
+          const links = await applyMarkdownLinkMove(
+            this.canonical.root,
+            linkPlan
+          )
+          for (const value of links.updatedPaths) updatedPaths.add(value)
+          for (const value of links.skippedPaths) skippedPaths.add(value)
+          this.collectMoveWatcherPaths([source, target, ...links.updatedPaths])
+        } catch (cause) {
+          failure = {
+            relativePath,
+            message: cause instanceof Error ? cause.message : String(cause),
+          }
+          break
+        }
+      }
+    })
+    // One authoritative reconciliation, including external changes received while
+    // the serial filesystem operations ran. No transaction/rollback is implied.
+    const loaded = [
+      ...new Set([...initiallyLoaded, ...this.directoryEntriesCache.keys()]),
+    ]
+    const remapped = loaded.map((key) =>
+      moves.reduce(
+        (value, move) =>
+          value === move.source || value.startsWith(`${move.source}/`)
+            ? move.relativePath + value.slice(move.source.length)
+            : value,
+        key
+      )
     )
-    if (target === source) {
-      return {
-        snapshot: await this.snapshot(),
-        relativePath: source,
-        invalidatedSessionIds: [],
+    const remap = (value: string) =>
+      moves.reduce(
+        (current, move) =>
+          current === move.source || current.startsWith(`${move.source}/`)
+            ? move.relativePath + current.slice(move.source.length)
+            : current,
+        value
+      )
+    // If a final directory read fails, retain a coherent tree reflecting actual
+    // successful renames and report the read error separately from IO outcomes.
+    const fallback = new Map(
+      remapped.map((key) => [key, [] as SpaceTreeEntry[]])
+    )
+    for (const entries of this.directoryEntriesCache.values()) {
+      for (const entry of entries) {
+        const relativePath = remap(entry.relativePath)
+        const parent = path.posix.dirname(relativePath)
+        fallback.get(parent === "." ? "" : parent)?.push({
+          ...entry,
+          relativePath,
+          name: path.posix.basename(relativePath),
+        })
       }
     }
-    if (target.startsWith(`${source}/`)) {
-      throw new Error("A folder cannot be moved inside itself")
+    const changed = new Set<string>()
+    let snapshot: SpaceSnapshot
+    let refreshError: string | undefined
+    do {
+      const paths = [...this.moveWatcherPaths]
+      this.moveWatcherPaths.clear()
+      for (const value of paths) changed.add(value)
+      const directories = this.invalidateDirectoryCaches(paths)
+      try {
+        await this.reloadDirectoryEntries([...directories, ...remapped], false)
+        snapshot = await this.readSnapshot(true, undefined, true)
+      } catch (cause) {
+        for (const [key, entries] of fallback) {
+          if (!this.directoryEntriesCache.has(key))
+            this.directoryEntriesCache.set(key, entries)
+        }
+        refreshError = cause instanceof Error ? cause.message : String(cause)
+        snapshot = this.buildSnapshot(
+          this.buildCachedTree(),
+          this.graftStatusCache ?? this.pendingGraftStatus()
+        )
+        break
+      }
+    } while (this.moveWatcherPaths.size > 0)
+    const externalChangePaths = changed.has("") ? [] : [...changed]
+    this.notifyMarkdownWatchers(externalChangePaths)
+    const finalSnapshot = {
+      ...snapshot,
+      externalChangePaths,
+      invalidatedSessionIds: [
+        ...new Set([
+          ...snapshot.invalidatedSessionIds,
+          ...invalidatedSessionIds,
+        ]),
+      ],
     }
-    await this.requireMissingPath(target)
-    let invalidatedSessionIds: string[] = []
-    let markdownLinks: SpacePathMutationResult["markdownLinks"]
-    await this.gate.withMutation(async () => {
-      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
-      await renameWithRetry(
-        this.resolveUserPath(source),
-        this.resolveUserPath(target)
-      )
-      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
-    })
-    this.noteLocalChange()
-    this.recordPathMoveInBackground(source, target)
-    this.notifyMarkdownWatchers([source, target])
+    for (const listener of this.changeListeners) listener(finalSnapshot)
+    void this.pathIndex.applyChanges(externalChangePaths).catch(() => undefined)
     return {
-      snapshot: await this.freshSnapshotAndEmit(),
-      relativePath: target,
-      invalidatedSessionIds,
-      markdownLinks,
+      snapshot: finalSnapshot,
+      moves,
+      failure,
+      refreshError,
+      unattemptedPaths: relativePaths.slice(attempted),
+      invalidatedSessionIds: [...invalidatedSessionIds],
+      markdownLinks: {
+        updatedPaths: [...updatedPaths],
+        skippedPaths: [...skippedPaths],
+      },
     }
   }
 
@@ -5363,8 +5526,10 @@ export class SpaceSession {
 
   private async readSnapshot(
     scheduleGraftStatus: boolean,
-    authoritativeGraftStatus?: GraftSpaceStatus
+    authoritativeGraftStatus?: GraftSpaceStatus,
+    completingMove = false
   ): Promise<SpaceSnapshot> {
+    if (!completingMove) await this.pathMoveInFlight
     const reconciledFileIssues = await this.runtimePool.reconcilePaths(() =>
       ["ready", "syncing"].includes(this.gate.current().phase)
     )
@@ -5374,6 +5539,7 @@ export class SpaceSession {
     // A Space snapshot is the local browsing boundary. Version state is filled in
     // progressively and must not delay the first usable tree.
     await this.loadDirectoryEntries("", false)
+    if (!completingMove) await this.pathMoveInFlight
     const entries = this.buildCachedTree()
     const graft =
       authoritativeGraftStatus ??
@@ -5537,6 +5703,24 @@ export class SpaceSession {
   ): Promise<void> {
     const key = relativePath === "." ? "" : relativePath
     if (this.directoryEntriesCache.has(key)) return
+    const epoch = this.directoryEpoch
+    const pending = this.directoryReads.get(key)
+    if (pending?.epoch === epoch) return pending.promise
+    const promise = this.readDirectoryEntries(key, respectIgnores, epoch)
+    this.directoryReads.set(key, { epoch, promise })
+    try {
+      await promise
+    } finally {
+      if (this.directoryReads.get(key)?.promise === promise)
+        this.directoryReads.delete(key)
+    }
+  }
+
+  private async readDirectoryEntries(
+    key: string,
+    respectIgnores: boolean,
+    epoch: number
+  ): Promise<void> {
     const entries = (
       await listSpaceDirectory(
         this.canonical.root,
@@ -5558,6 +5742,10 @@ export class SpaceSession {
           : {}
       )
     ).filter((entry) => !isEidosDatabaseSidecar(entry.relativePath))
+    if (epoch !== this.directoryEpoch) {
+      await this.loadDirectoryEntries(key, respectIgnores)
+      return
+    }
     this.directoryEntriesCache.set(key, entries)
     if (!respectIgnores)
       this.reconcileDirectoryIgnoresInBackground(key, entries)
@@ -5689,6 +5877,7 @@ export class SpaceSession {
       : undefined
     return {
       id: this.canonical.id,
+      sequence: ++snapshotSequence,
       cloudSyncConnection:
         this.cloudSyncConnection || Boolean(this.syncHistoryState),
       name: this.canonical.name,
@@ -5851,6 +6040,10 @@ export class SpaceSession {
     relativePaths: readonly string[]
   ): Promise<void> {
     if (this.closed) return Promise.resolve()
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(relativePaths)
+      return Promise.resolve()
+    }
     this.notifyMarkdownWatchers(relativePaths)
     return this.gate.withRuntimeRead(() =>
       this.handleStableWatcherChangeWithRuntime(relativePaths)
@@ -5873,6 +6066,10 @@ export class SpaceSession {
     ]
     const explorerPaths =
       await this.explorerPathsForWatcherChange(normalizedPaths)
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(relativePaths)
+      return
+    }
     if (normalizedPaths.length === 0 || explorerPaths.length > 0) {
       void this.pathIndex.applyChanges(explorerPaths).catch(() => undefined)
     }
@@ -6043,6 +6240,10 @@ export class SpaceSession {
     externalChangePaths?: readonly string[]
   ): Promise<void> {
     if (this.closed) return
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(externalChangePaths ?? directoriesToRefresh)
+      return
+    }
     try {
       await Promise.all(
         directoriesToRefresh.map((relativePath) =>
@@ -6087,7 +6288,12 @@ export class SpaceSession {
   }
 
   private emitCachedOperationSnapshot(): void {
-    if (this.closed || !this.directoryEntriesCache.has("")) return
+    if (
+      this.closed ||
+      this.pathMoveInFlight ||
+      !this.directoryEntriesCache.has("")
+    )
+      return
     const snapshot = this.buildSnapshot(
       this.buildCachedTree(),
       this.graftStatusCache ?? this.pendingGraftStatus()
@@ -6096,6 +6302,7 @@ export class SpaceSession {
   }
 
   private invalidateSnapshotCaches(): void {
+    this.directoryEpoch += 1
     this.explorerListReads.clear()
     this.invalidateGraftStatusCache()
     this.directoryEntriesCache.clear()
@@ -6105,6 +6312,7 @@ export class SpaceSession {
   private invalidateDirectoryCaches(
     relativePaths: readonly string[]
   ): string[] {
+    this.directoryEpoch += 1
     this.explorerListReads.clear()
     if (relativePaths.length === 0) {
       const loaded = [...this.directoryEntriesCache.keys()]

@@ -6,6 +6,7 @@ import { FileTree } from "@pierre/trees"
 import { SpaceFileTree } from "./space-file-tree"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import type { TreeExpansionActions } from "./tree-expansion-menu"
+import { EIDOS_LITE_SPACE_PATH_DRAG_TYPE } from "./space-path-drag"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 afterEach(() => {
@@ -105,6 +106,95 @@ async function setup(
   }
   return { props, model, expanded, expand, actions, render, dispose, host }
 }
+
+it("preserves selection, focus, scroll and folder expansion while a bulk move reconciles external changes and partial failure", async () => {
+  const file = (name: string): SpaceTreeEntry => ({
+    name,
+    relativePath: `docs/${name}`,
+    kind: "file",
+    size: 1,
+    modifiedAtMs: 0,
+  })
+  const a = file("a.txt")
+  const b = file("b.txt")
+  const tree = await setup([
+    folder("docs", [folder("docs/nested", []), a, b]),
+    folder("other", []),
+    ...Array.from({ length: 80 }, (_, index) => folder(`extra-${index}`, [])),
+  ])
+  let reject!: (error: Error) => void
+  tree.props.onMove.mockImplementation(
+    () =>
+      new Promise<void>((_, fail) => {
+        reject = fail
+      })
+  )
+  try {
+    const scroll = tree.host
+      .querySelector("[data-space-file-tree]")!
+      .shadowRoot!.querySelector<HTMLElement>(
+        "[data-file-tree-virtualized-scroll]"
+      )!
+    await act(async () => {
+      tree.model.getItem("docs/a.txt")!.select()
+      tree.model.getItem("docs/b.txt")!.select()
+      tree.model.getItem("docs/b.txt")!.focus()
+    })
+    const element = tree.host.querySelector("[data-space-file-tree]")!
+    const transfer = {
+      types: [EIDOS_LITE_SPACE_PATH_DRAG_TYPE],
+      setData: vi.fn(),
+    }
+    const dispatch = async (type: string, target: Element) => {
+      const event = new Event(type, {
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      })
+      Object.defineProperty(event, "dataTransfer", { value: transfer })
+      await act(async () => {
+        target.dispatchEvent(event)
+      })
+    }
+    await dispatch(
+      "dragstart",
+      element.shadowRoot!.querySelector('[data-item-path="docs/b.txt"]')!
+    )
+    await dispatch("drop", element)
+    scroll.scrollTop = 60
+    const focused = tree.model.getFocusedPath()
+    tree.props.entries = [
+      folder("docs", [folder("docs/nested", []), a, b, file("external.txt")]),
+      ...tree.props.entries.slice(1),
+    ]
+    await tree.render()
+    expect(tree.model.getItem("docs/a.txt")).toBeNull()
+    expect(tree.model.getItem("docs/b.txt")).toBeNull()
+    expect([...tree.model.getSelectedPaths()].sort()).toEqual([
+      "a.txt",
+      "b.txt",
+    ])
+    expect(tree.model.getFocusedPath()).toBe(focused)
+    expect(tree.expanded("docs/")).toBe(true)
+    expect(scroll.scrollTop).toBe(60)
+    tree.props.entries = [
+      { ...a, relativePath: "a.txt" },
+      folder("docs", [folder("docs/nested", []), b, file("external.txt")]),
+      ...tree.props.entries.slice(1),
+    ]
+    await tree.render()
+    await act(async () => reject(new Error("Second item failed")))
+    expect(tree.model.getItem("docs/a.txt")).toBeNull()
+    expect(tree.model.getItem("a.txt")).not.toBeNull()
+    expect(tree.model.getItem("docs/b.txt")).not.toBeNull()
+    expect(tree.model.getItem("b.txt")).toBeNull()
+    expect(tree.model.getSelectedPaths()).toContain("docs/b.txt")
+    expect(tree.expanded("docs/")).toBe(true)
+    expect(scroll.scrollTop).toBe(60)
+  } finally {
+    await tree.dispose()
+  }
+})
 
 it("temporarily expands matches and restores browsing expansion, selection and scroll after clearing a name filter", async () => {
   const item: SpaceTreeEntry = {

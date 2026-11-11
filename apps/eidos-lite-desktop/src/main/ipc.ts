@@ -2087,6 +2087,28 @@ export function registerIpc(
     }
   )
   ipcMain.handle(
+    IPC_CHANNELS.movePaths,
+    async (event, relativePaths: unknown, targetDirectory: unknown) => {
+      const session = controller.requireSession(event.sender)
+      if (!Array.isArray(relativePaths) || relativePaths.length === 0)
+        throw new Error("Expected Space paths")
+      const result = await session.movePaths(
+        relativePaths.map((value: unknown) =>
+          requiredString(value, "Space path")
+        ),
+        optionalRelativePath(targetDirectory)
+      )
+      for (const move of result.moves) {
+        try {
+          publishEngine.remapBindings(session, move.source, move.relativePath)
+        } catch (error) {
+          console.warn("Could not remap Publication bindings after move", error)
+        }
+      }
+      return result
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.copyPath,
     (event, relativePath: unknown, targetDirectory: unknown) =>
       controller
