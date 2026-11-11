@@ -5,6 +5,7 @@ import starlight from "@astrojs/starlight"
 import { defineConfig } from "astro/config"
 import starlightSidebarTopics from "starlight-sidebar-topics"
 import starlightThemeFlexoki from "starlight-theme-flexoki"
+import markdownPages from "./integrations/markdown.mjs"
 
 export default defineConfig({
   site: "https://docs.eidos.space",
@@ -35,6 +36,7 @@ export default defineConfig({
   },
   integrations: [
     starlight({
+      components: { Head: "./src/components/Head.astro" },
       title: "Eidos Docs",
       description:
         "Guides to the Eidos File format and tools, and Eidos Lite for local folders, history, and optional Sync.",
@@ -317,5 +319,6 @@ export default defineConfig({
       ],
     }),
     sitemap(),
+    markdownPages(),
   ],
 })
