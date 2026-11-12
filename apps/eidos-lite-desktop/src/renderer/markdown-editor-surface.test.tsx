@@ -110,6 +110,48 @@ describe("MarkdownEditorSurface", () => {
     expect(wysiwygEditor).not.toHaveBeenCalled()
   })
 
+  it("clears a previous image import error when retrying through the host", async () => {
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="README.md"
+          relativePath="README.md"
+          assetDocumentPath="README.md"
+          content="![]()"
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    await act(async () =>
+      wysiwygEditor.mock.lastCall![0].onError(new Error("Invalid image"))
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Invalid image"
+    )
+    vi.mocked(window.eidosLite.importMarkdownImage).mockResolvedValue({
+      markdownUrl: "assets/cover.png",
+      relativePath: "assets/cover.png",
+      mediaType: "image/png",
+    })
+    const file = new File(["fixture"], "cover.png", { type: "image/png" })
+    await act(async () => {
+      await wysiwygEditor.mock.lastCall![0].onPasteImage({
+        documentKey: "README.md",
+        file,
+        signal: new AbortController().signal,
+        index: 0,
+        total: 1,
+      })
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(window.eidosLite.importMarkdownImage).toHaveBeenCalledWith(
+      "README.md",
+      file
+    )
+  })
+
   it("keeps search fallback in the current session across parent rerenders", async () => {
     const modeChanged = vi.fn()
     const target = {

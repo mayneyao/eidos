@@ -323,6 +323,8 @@ function MarkdownEditorImplementation({
       markdown={markdown}
       onError={handleError}
       resolveImageUrl={resolveImageUrl}
+      onImportFiles={onImportFiles}
+      onPasteImage={onPasteImage}
       onOpenInternalLink={onOpenInternalLink}
       baseUri={baseUri}
       codeHighlightTokenizer={codeHighlightTokenizer}
@@ -330,6 +332,8 @@ function MarkdownEditorImplementation({
       syntaxFeatures={registry.features}
       transformers={registry.transformers}
       saveBlockLabel={resolvedLabels.saveBlock}
+      cancelBlockEditLabel={resolvedLabels.cancelBlockEdit}
+      toolbarMode={toolbarMode}
       emptyMathBlockLabel={resolvedLabels.emptyMathBlock}
       emptyImageBlockLabel={resolvedLabels.emptyImageBlock}
       obsidianWikilinks={registry.features.has(

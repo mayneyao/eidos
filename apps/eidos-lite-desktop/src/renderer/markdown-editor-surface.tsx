@@ -16,6 +16,7 @@ import type {
   MarkdownEditorInternalLinkHandler,
   MarkdownNoteSearchHandler,
   MarkdownEditorInternalLinkRequest,
+  MarkdownEditorPasteImageHandler,
 } from "@eidos.space/markdown"
 import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
 import {
@@ -122,6 +123,13 @@ export function MarkdownEditorSurface({
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const previousDocumentKeyRef = useRef(documentKey)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
+  const importImage = useCallback<MarkdownEditorPasteImageHandler>(
+    async (request) => {
+      setAttachmentError(null)
+      return imageAttachments?.onPasteImage(request) ?? null
+    },
+    [imageAttachments]
+  )
   const { t } = useEidosLiteI18n()
   const emptyDocumentPrompt =
     layout === "document" ? t("Start writing…") : undefined
@@ -307,7 +315,7 @@ export function MarkdownEditorSurface({
             focusRequestToken={focusRequestToken}
             placeholder={emptyDocumentPrompt}
             placeholderHint={focusHint}
-            onPasteImage={imageAttachments?.onPasteImage}
+            onPasteImage={imageAttachments ? importImage : undefined}
             onPasteImageError={(error) =>
               setAttachmentError(`Image paste failed: ${error.message}`)
             }
@@ -359,7 +367,7 @@ export function MarkdownEditorSurface({
             focusRequestToken={focusRequestToken}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
-            onPasteImage={imageAttachments?.onPasteImage}
+            onPasteImage={imageAttachments ? importImage : undefined}
             resolveImageUrl={imageAttachments?.resolveImageUrl}
             onError={(error) =>
               setAttachmentError(`Markdown editor error: ${error.message}`)

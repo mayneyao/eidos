@@ -33,6 +33,8 @@ interface EfmSourceBlockContextValue {
   session: DocumentSession
   codec: MarkdownProfileCodec
   saveBlockLabel: string
+  cancelBlockEditLabel?: string
+  toolbarMode?: MarkdownEditorProps["toolbarMode"]
   emptyMathBlockLabel: string
   emptyImageBlockLabel: string
   obsidianWikilinks: boolean
@@ -41,6 +43,8 @@ interface EfmSourceBlockContextValue {
   documentPath?: string
   onError(error: Error): void
   resolveImageUrl?: MarkdownEditorImageUrlResolver
+  onImportFiles?: MarkdownEditorProps["onImportFiles"]
+  onPasteImage?: MarkdownEditorProps["onPasteImage"]
   onOpenInternalLink?: MarkdownEditorInternalLinkHandler
   baseUri?: string
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
@@ -95,6 +99,8 @@ export function EfmSourceBlockProvider({
   codec,
   children,
   saveBlockLabel,
+  cancelBlockEditLabel = "Cancel",
+  toolbarMode,
   emptyMathBlockLabel,
   emptyImageBlockLabel,
   obsidianWikilinks,
@@ -104,6 +110,8 @@ export function EfmSourceBlockProvider({
   markdown,
   onError,
   resolveImageUrl,
+  onImportFiles,
+  onPasteImage,
   onOpenInternalLink,
   baseUri,
   codeHighlightTokenizer,
@@ -128,6 +136,8 @@ export function EfmSourceBlockProvider({
       session,
       codec,
       saveBlockLabel,
+      cancelBlockEditLabel,
+      toolbarMode,
       emptyMathBlockLabel,
       emptyImageBlockLabel,
       obsidianWikilinks,
@@ -136,6 +146,8 @@ export function EfmSourceBlockProvider({
       documentPath,
       onError,
       resolveImageUrl,
+      onImportFiles,
+      onPasteImage,
       onOpenInternalLink,
       baseUri,
       codeHighlightTokenizer,
@@ -153,6 +165,8 @@ export function EfmSourceBlockProvider({
       session,
       codec,
       saveBlockLabel,
+      cancelBlockEditLabel,
+      toolbarMode,
       emptyMathBlockLabel,
       emptyImageBlockLabel,
       obsidianWikilinks,
@@ -161,6 +175,8 @@ export function EfmSourceBlockProvider({
       documentPath,
       onError,
       resolveImageUrl,
+      onImportFiles,
+      onPasteImage,
       onOpenInternalLink,
       baseUri,
       codeHighlightTokenizer,

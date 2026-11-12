@@ -1,5 +1,6 @@
 import { InlineMathView, MathPreview } from "../features/math/view"
 import { ResizableImage } from "./resizable-image"
+import { ImagePlaceholder } from "./image-placeholder"
 import { ACTIVE_HTML } from "../core/html-safety"
 import {
   createElement,
@@ -676,9 +677,11 @@ function referenceDefinitionPreview(source: string): {
 export function EfmBlockView({
   data,
   onResizeImage,
+  onImportImages,
 }: {
   data: EfmBlockData
   onResizeImage?: (width: number) => void
+  onImportImages?: (images: EfmBlockData[]) => void
 }) {
   const { emptyImageBlockLabel, emptyMathBlockLabel } =
     useEfmSourceBlockContext()
@@ -720,9 +723,9 @@ export function EfmBlockView({
           contentEditable={false}
         >
           {empty ? (
-            <div className="eme-efm-image-placeholder">
+            <ImagePlaceholder onImport={onImportImages}>
               <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
-            </div>
+            </ImagePlaceholder>
           ) : imageUrl ? (
             <ResizableImage
               data={data}

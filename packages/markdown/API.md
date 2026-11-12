@@ -46,6 +46,22 @@ are inserted as image blocks; files become Markdown links at the saved selection
 The editor reports import errors through `onError` and aborts pending insertion
 when its session is disposed. Hosts own file selection, storage and URL resolution.
 
+The empty image block created by `/image` also uses `onImportFiles` with
+`kind: "image"`. The first returned image fills that block; additional selected
+images follow it. Cancellation or failure leaves the empty block and surrounding
+text intact. When only `onPasteImage` is supplied, activating the placeholder
+opens a native file input and sends the selected image through the same host
+persistence callback. Hosts without either callback show a static placeholder.
+Read-only editors cannot activate imports.
+
+On mobile, tap or hold an existing image to edit its URL, alt text and title.
+Save applies the draft; Close or native Back cancels it. Dragging or scrolling
+over an image does not open its settings. Desktop block selection and source
+editing shortcuts remain available.
+Mobile source ranges also expose Done and Cancel buttons. Native Back cancels
+the active source draft before leaving the document; hosts can use the same
+document-level Escape dismissal as for their other web dialogs.
+
 The component requires React 18 or 19 and a browser DOM. It is currently a
 workspace-private prerelease, not a published stable package.
 

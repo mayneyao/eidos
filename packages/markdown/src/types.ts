@@ -224,7 +224,7 @@ export interface MarkdownEditorProps {
   onTextSearchUnavailable?: () => void
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */
   onPasteImage?: MarkdownEditorPasteImageHandler
-  /** Mobile insertion: the host picks and persists files before returning portable destinations. */
+  /** Image placeholders and mobile insertion: the host picks and persists files before returning portable destinations. */
   onImportFiles?: (request: {
     kind: "image" | "file"
     signal: AbortSignal
