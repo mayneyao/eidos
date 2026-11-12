@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -88,6 +89,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
     MaterialTheme(colorScheme = colors) {
         var createSheet by rememberSaveable { mutableStateOf(false) }
         var renameTarget by remember { mutableStateOf<SpaceFile?>(null) }
+        var moveTarget by remember(state.spaceId) { mutableStateOf<SpaceFile?>(null) }
         var searchSheet by rememberSaveable(state.spaceId) { mutableStateOf(false) }
         var sortSheet by rememberSaveable { mutableStateOf(false) }
         val sortedFiles =
@@ -192,7 +194,8 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                 state.webFile != null ->
                     key(state.spaceId, state.editorGeneration) {
                         EmbeddedEditorScreen(state.webFile!!, model, editorPool,
-                            export = exportEntry, rename = { renameTarget = it }, trash = model::trash)
+                            export = exportEntry, rename = { renameTarget = it },
+                            move = { moveTarget = it }, trash = model::trash)
                     }
                 else ->
                     Scaffold(
@@ -438,6 +441,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                         openPlugin = model::openWithPlugin,
                                                         showPath = true,
                                                         rename = { renameTarget = it },
+                                                        move = { moveTarget = it },
                                                         trash = model::trash,
                                                         displayName =
                                                             if (favorite.tableId != null)
@@ -462,6 +466,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                         pluginRegistry = model.pluginOpenWith,
                                                         openPlugin = model::openWithPlugin,
                                                         rename = { renameTarget = it },
+                                                        move = { moveTarget = it },
                                                         trash = model::trash,
                                                     )
                                                 }
@@ -499,6 +504,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                     pluginRegistry = model.pluginOpenWith,
                                                     openPlugin = model::openWithPlugin,
                                                     rename = { renameTarget = it },
+                                                    move = { moveTarget = it },
                                                     trash = model::trash,
                                                 )
                                             }
@@ -720,6 +726,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                     },
                                     showPath = true,
                                     trash = { searchSheet = false; model.trash(it) },
+                                    move = { searchSheet = false; moveTarget = it },
                                     rename = {
                                         searchSheet = false
                                         renameTarget = it
@@ -733,6 +740,11 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                     }
                 }
             }
+        moveTarget?.let { file ->
+            key(state.spaceId, file.path) {
+                MoveFileSheet(file, model, state.busy || state.peerBusy) { moveTarget = null }
+            }
+        }
         renameTarget?.let { file ->
             var name by remember(file.path) { mutableStateOf(file.name) }
             AlertDialog(
@@ -829,6 +841,7 @@ internal fun FileRow(
     showPath: Boolean = false,
     displayName: String = file.name,
     rename: (SpaceFile) -> Unit,
+    move: ((SpaceFile) -> Unit)? = null,
     menuOnly: Boolean = false,
     trash: ((SpaceFile) -> Unit)? = null,
 ) {
@@ -950,6 +963,14 @@ internal fun FileRow(
                                 menu = false
                                 rename(file)
                             },
+                    )
+                    if (move != null) ListItem(
+                        headlineContent = { Text(tr("移动到…")) },
+                        leadingContent = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null) },
+                        modifier = Modifier.clickable(enabled = enabled) {
+                            menu = false
+                            move(file)
+                        },
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 24.dp))
                     ListItem(

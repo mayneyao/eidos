@@ -244,6 +244,7 @@ internal fun EmbeddedEditorScreen(
     shareMode: Boolean = false,
     export: (SpaceFile) -> Unit = {},
     rename: (SpaceFile) -> Unit = {},
+    move: (SpaceFile) -> Unit = {},
     trash: (SpaceFile) -> Unit = {},
 ) {
     // The parent changes editorGeneration for navigation. Hook renames preserve this editor.
@@ -339,7 +340,8 @@ internal fun EmbeddedEditorScreen(
                             toggleFavorite = { model.toggleFavorite(Favorite(it.path, it.name)) },
                             publish = {}, pluginRegistry = model.pluginOpenWith,
                             openPlugin = { _, id -> afterSave { model.openWithPlugin(file, id) } },
-                            rename = { afterSave { rename(file) } }, menuOnly = true,
+                            rename = { afterSave { rename(file) } },
+                            move = { afterSave { move(file) } }, menuOnly = true,
                             trash = { afterSave { trash(file) } },
                         )
                     },

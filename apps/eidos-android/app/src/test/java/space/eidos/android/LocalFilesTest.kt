@@ -11,6 +11,55 @@ class LocalFilesTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test
+    fun movesBytesAndNestedFoldersWithoutOverwriting() {
+        val root = temporary.newFolder("moves")
+        val files = LocalFiles(root)
+        File(root, "A/assets").mkdirs()
+        File(root, "B").mkdir()
+        val bytes = byteArrayOf(0, 1, 0xFF.toByte(), 2)
+        File(root, "A/data.bin").writeBytes(bytes)
+        assertEquals(File(root, "B/data.bin").canonicalFile, files.move("A/data.bin", "B"))
+        assertFalse(File(root, "A/data.bin").exists())
+        assertArrayEquals(bytes, File(root, "B/data.bin").readBytes())
+        files.move("B/data.bin", "B") // Same-folder no-op.
+        File(root, "A/data.bin").writeText("collision")
+        assertThrows(IllegalStateException::class.java) { files.move("B/data.bin", "A") }
+        assertArrayEquals(bytes, File(root, "B/data.bin").readBytes())
+        assertEquals("collision", File(root, "A/data.bin").readText())
+        files.move("B/data.bin", "")
+        File(root, "A/assets/image.png").writeBytes(bytes)
+        File(root, "A/note.md").writeText("![image](assets/image.png)")
+        files.move("A", "B")
+        assertArrayEquals(bytes, File(root, "B/A/assets/image.png").readBytes())
+        assertEquals("![image](assets/image.png)", File(root, "B/A/note.md").readText())
+    }
+
+    @Test
+    fun moveRejectsCyclesRootTraversalAndSymlinks() {
+        val root = temporary.newFolder("unsafe-moves")
+        val files = LocalFiles(root)
+        File(root, "A/child").mkdirs()
+        File(root, "A/note.md").writeText("safe")
+        File(root, "target").mkdir()
+        File(root, ".internal").mkdir()
+        listOf("A", "A/child").forEach { folder ->
+            assertThrows(IllegalArgumentException::class.java) { files.move("A", folder) }
+        }
+        assertThrows(IllegalArgumentException::class.java) { files.move("", "target") }
+        listOf("../escape", "/tmp", "A/../target", ".internal", "A/./child", "A\\child").forEach { folder ->
+            assertThrows(IllegalArgumentException::class.java) { files.move("A/note.md", folder) }
+        }
+        Files.createSymbolicLink(File(root, "link").toPath(), File(root, "A").toPath())
+        assertThrows(IllegalArgumentException::class.java) { files.move("link/note.md", "target") }
+        assertThrows(IllegalArgumentException::class.java) { files.move("A/note.md", "link/child") }
+        Files.createSymbolicLink(File(root, "target/note.md").toPath(), File(root, "missing").toPath())
+        assertThrows(IllegalArgumentException::class.java) { files.move("A/note.md", "target") }
+        Files.createSymbolicLink(File(root, "A/child/loop").toPath(), File(root, "A").toPath())
+        assertThrows(IllegalArgumentException::class.java) { files.move("A", "target") }
+        assertEquals("safe", File(root, "A/note.md").readText())
+    }
+
+    @Test
     fun trashMovesOnlyTheSelectedFileAndPreservesItsBytes() {
         val root = temporary.newFolder("space")
         val trash = temporary.newFolder("trash")

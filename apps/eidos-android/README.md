@@ -13,6 +13,17 @@ applies it without reopening the Space.
 
 This README uses English interface labels.
 
+Open a file or folder's **…** menu (or long-press its row), then choose
+**Move to…**. Browse existing folders in the current Space and tap **Move here**;
+**Space root** returns to the root destination. Cancel leaves the item in place.
+An existing name blocks the move; files are never overwritten. Moving an open
+editor first saves its pending changes. Unresolved recovery drafts block moves.
+Files and nested folders retain their contents, favorites and recent-file paths.
+Moves appear in subsequent local checkpoints and sync; they work offline without
+an account. Relative links and attachment paths stored inside documents remain
+unchanged. Move the containing folder together with its `assets` folder to keep
+those relationships, or adjust references after moving an individual document.
+
 Open a file's action menu and choose **Delete** to remove it from the Space.
 The editor saves pending changes before asking the host to remove an open file;
 unresolved drafts block removal. Deletions are included in subsequent version

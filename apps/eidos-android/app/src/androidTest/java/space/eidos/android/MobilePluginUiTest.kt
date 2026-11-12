@@ -78,7 +78,7 @@ class MobilePluginUiTest {
             var originalWeb: WebView? = null
             compose.runOnUiThread { originalWeb = find(compose.activity.window.decorView) }
             assertTrue(originalWeb != null)
-            compose.onNodeWithContentDescription("资料").performClick()
+            compose.onNodeWithContentDescription("资料", useUnmergedTree = true).performClick()
             compose.onNodeWithText("Journals").performClick()
             compose.runOnUiThread {
                 assertTrue(originalWeb === find(compose.activity.window.decorView))

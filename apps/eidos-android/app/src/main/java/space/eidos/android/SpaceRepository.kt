@@ -1250,16 +1250,21 @@ class SpaceRepository(
 
     suspend fun rename(path: String, name: String): String = io { renameLocked(path, name, true) }
 
-    private suspend fun renameLocked(path: String, name: String, emitHooks: Boolean): String {
+    suspend fun move(path: String, folder: String): String = io {
+        val target = local.moveTarget(path, folder)
+        renameLocked(path, target.name, false, folder)
+    }
+
+    private suspend fun renameLocked(path: String, name: String, emitHooks: Boolean, destination: String? = null): String {
         require(path.isNotBlank()) { tr("不能重命名 Space 根目录") }
         val source = local.resolve(path)
         check(source.exists() && visible(source)) { tr("文件暂时不可用") }
-        val cleanName = local.validName(name)
-        if (source.name == cleanName) return path
+        val cleanName = if (destination == null) local.validName(name) else source.name
+        val target = if (destination == null) File(source.parentFile, cleanName) else local.moveTarget(path, destination)
+        if (source == target) return path
         if (source.isFile && source.extension.lowercase() in listOf("eidos", "md", "markdown")) {
             require(File(cleanName).extension.equals(source.extension, true)) { tr("重命名时请保留原扩展名") }
         }
-        val target = File(source.parentFile, cleanName)
         check(!target.exists()) { tr("名称已存在") }
         val children =
             if (source.isDirectory) source.walkTopDown().filter { it.isFile }.toList()
@@ -1276,11 +1281,13 @@ class SpaceRepository(
             check(
                 File(context.filesDir, "record-drafts").listFiles().orEmpty().none { it.isFile }
             ) {
-                tr("请先保存未完成的记录草稿，再重命名")
+                tr("请先保存未完成的记录草稿，再重命名或移动")
             }
             NativeRuntime.close()
         }
         val nextPath = entry(target).path
+        val previousSettings = listOf("personal.favorites", "recent", "share.folder", "share.table")
+            .associateWith { preferences.getString(it, null) }
         fun relocated(value: String) =
             if (value == path) nextPath
             else if (value.startsWith("$path/")) nextPath + value.removePrefix(path) else value
@@ -1306,7 +1313,8 @@ class SpaceRepository(
                     .also { table -> table.put("path", relocated(table.getString("path"))) }
                     .toString()
             }
-        Files.move(source.toPath(), target.toPath())
+        if (destination == null) Files.move(source.toPath(), target.toPath())
+        else local.move(path, destination)
         if (
             !preferences
                 .edit()
@@ -1320,9 +1328,14 @@ class SpaceRepository(
                 .commit()
         ) {
             Files.move(target.toPath(), source.toPath())
-            error(tr("无法保存新名称，请重试"))
+            // A failed commit still updates SharedPreferences' in-memory map.
+            // Restore it as well as the filesystem; disk may remain unwritable.
+            val restored = preferences.edit()
+            previousSettings.forEach { (key, value) -> restored.putString(key, value) }
+            restored.commit()
+            error(tr("无法保存文件位置，请重试"))
         }
-        if (target.isFile && target.extension.lowercase() in listOf("md", "markdown")) {
+        if (destination == null && target.isFile && target.extension.lowercase() in listOf("md", "markdown")) {
             try {
                 val changes = NativeRuntime.call(root.path, "prepareMarkdownRenameLinks", JSONObject().put("source", path).put("target", nextPath)).getJSONArray("changes")
                 for (index in 0 until changes.length()) {
