@@ -1548,6 +1548,32 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         done()
     }
 
+    fun move(file: SpaceFile, folder: String, owner: SpaceRepository, done: () -> Unit) = launchAction {
+        check(repository === owner) { tr("Space 已切换，请重新选择目标目录") }
+        val path = owner.move(file.path, folder)
+        fun relocated(value: String) = when {
+            value == file.path -> path
+            value.startsWith(file.path + "/") -> path + value.removePrefix(file.path)
+            else -> value
+        }
+        documentHistory.replaceAll(::relocated)
+        navigationVersion++
+        val current = mutable.value
+        val editor = current.webFile?.let {
+            val next = relocated(it.path)
+            if (next == it.path) it else owner.file(next)
+        }
+        mutable.update {
+            it.copy(
+                folder = relocated(it.folder),
+                webFile = editor,
+                editorGeneration = it.editorGeneration + if (editor?.path != it.webFile?.path) 1 else 0,
+            )
+        }
+        done()
+        refreshFiles(includeGraft = false)
+    }
+
     fun create(name: String, kind: String, done: () -> Unit) = launchAction {
         val path =
             if (name.isEmpty()) repository.createUntitled(mutable.value.folder, kind)

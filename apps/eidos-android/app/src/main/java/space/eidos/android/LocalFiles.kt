@@ -40,6 +40,41 @@ class LocalFiles(
         return hash.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /** Validate before closing sessions or changing preferences. Never follow a symlink. */
+    fun moveTarget(relative: String, folder: String): File {
+        require(relative.isNotBlank()) { tr("不能移动 Space 根目录") }
+        fun checked(path: String): File {
+            require(!path.contains('\\') && path.split('/').none { it == "." || it == ".." }) {
+                tr("需要 Space 内的相对路径")
+            }
+            var candidate = root
+            path.split('/').filter { it.isNotEmpty() }.forEach {
+                candidate = File(candidate, it)
+                require(!Files.isSymbolicLink(candidate.toPath())) { tr("不能移动符号链接") }
+            }
+            return resolve(path)
+        }
+        val source = checked(relative)
+        require(source != root.canonicalFile && (source.isFile || source.isDirectory)) { tr("文件暂时不可用") }
+        val directory = checked(folder)
+        require(directory.isDirectory) { tr("目录不存在") }
+        require(!directory.toPath().startsWith(source.toPath())) { tr("不能将文件夹移入自身或子文件夹") }
+        val target = checked(if (folder.isEmpty()) source.name else "$folder/${source.name}")
+        check(target == source || !target.exists()) { tr("名称已存在") }
+        if (source.isDirectory && source != target) Files.walk(source.toPath()).use { paths ->
+            require(paths.noneMatch { Files.isSymbolicLink(it) }) { tr("不能移动符号链接") }
+        }
+        return target
+    }
+
+    fun move(relative: String, folder: String): File {
+        val target = moveTarget(relative, folder)
+        val source = resolve(relative)
+        // No REPLACE_EXISTING/ATOMIC_MOVE: neither may silently replace a destination.
+        if (source != target) Files.move(source.toPath(), target.toPath())
+        return target
+    }
+
     /** Keep removed files outside the synchronized Space so deletion is recoverable. */
     fun trash(relative: String, trashRoot: File) {
         require(relative.isNotBlank()) { tr("不能删除 Space 根目录") }

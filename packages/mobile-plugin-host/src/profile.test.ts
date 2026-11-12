@@ -54,3 +54,20 @@ it("rejects native sidecars on both shared mobile hosts", () => {
     })
   ).toThrow("移动端尚未支持")
 })
+
+it("rejects atomic storage and bounded native output on mobile", () => {
+  expect(() =>
+    validateMobileManifest({
+      ...manifest,
+      requires: { pluginApi: "3.11.0" },
+      storage: { maxBytes: 1024, atomic: true },
+    })
+  ).toThrow("移动端尚未支持")
+  expect(() =>
+    validateMobileManifest({
+      ...manifest,
+      requires: { pluginApi: "3.12.0" },
+      sidecar: { command: "pi", maxOutputFrameBytes: 1024 },
+    })
+  ).toThrow("移动端尚未支持")
+})
