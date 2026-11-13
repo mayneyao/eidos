@@ -3080,7 +3080,7 @@ export class SpaceSession {
       repositoryOptions
     )
 
-    let activeMerge = await this.gate.withRepositoryOperation(
+    const activeMerge = await this.gate.withRepositoryOperation(
       "Checking for an interrupted merge",
       (signal) =>
         typeof this.graft.getMergeStatusIfAvailable === "function"
@@ -3090,9 +3090,6 @@ export class SpaceSession {
           : Promise.resolve({ state: "none" as const }),
       repositoryOptions
     )
-    if (action === "pull") {
-      activeMerge = await this.completeResolvedMerge(activeMerge)
-    }
     if (activeMerge.state === "merging" && action !== "fetch") {
       const relation = await readStatus()
       return finish(
@@ -3534,7 +3531,9 @@ export class SpaceSession {
         this.systemMergeRecovery = null
       }
     }
-    return this.completeResolvedMerge(merge)
+    // A fully reviewed merge remains undoable until the user completes it.
+    // Status refreshes must not finalize manual resolutions as a side effect.
+    return merge
   }
 
   async planHostedMerge(
@@ -3868,45 +3867,135 @@ export class SpaceSession {
     writable: boolean,
     operation: (options: RuntimeSystemMetadataMergeOptions) => Promise<T>
   ): Promise<T> {
-    if (!relativePath.toLowerCase().endsWith(".eidos")) throw new Error("Schema merging requires an Eidos File")
-    const merge = await this.graft.getMergeStatus(this.canonical.root,{signal})
-    if (merge.state!=="merging" || merge.stateToken!==stateToken) throw Object.assign(new Error("The merge changed; reload it first"),{code:"GRAFT_SDK_REPOSITORY_STALE"})
-    const root = path.join(this.stateDirectory,"merge-previews")
-    await fs.mkdir(root,{recursive:true})
-    const directory = await fs.mkdtemp(path.join(root,"schema-"))
+    if (!relativePath.toLowerCase().endsWith(".eidos"))
+      throw new Error("Schema merging requires an Eidos File")
+    const merge = await this.graft.getMergeStatus(this.canonical.root, {
+      signal,
+    })
+    if (merge.state !== "merging" || merge.stateToken !== stateToken)
+      throw Object.assign(new Error("The merge changed; reload it first"), {
+        code: "GRAFT_SDK_REPOSITORY_STALE",
+      })
+    const root = path.join(this.stateDirectory, "merge-previews")
+    await fs.mkdir(root, { recursive: true })
+    const directory = await fs.mkdtemp(path.join(root, "schema-"))
     try {
-      const files = {base:path.join(directory,"base.eidos"),ours:path.join(directory,"ours.eidos"),theirs:path.join(directory,"theirs.eidos")}
-      for (const version of ["base","ours","theirs"] as const) {
-        const exported = await this.graft.exportMergeSqliteVersion(this.canonical.root,relativePath,version,files[version],stateToken,{signal})
-        if (!exported.filePath) throw new Error("Schema merging requires all three Eidos File versions")
-        if (writable) await fs.chmod(files[version],0o600)
+      const files = {
+        base: path.join(directory, "base.eidos"),
+        ours: path.join(directory, "ours.eidos"),
+        theirs: path.join(directory, "theirs.eidos"),
       }
-      const resultPath = path.join(directory,"result.eidos")
-      if (writable) await fs.copyFile(files.ours,resultPath)
-      return await operation({basePath:files.base,oursPath:files.ours,theirsPath:files.theirs,resultPath,oursKey:merge.localHead,theirsKey:merge.hostedHead,operationInstant:new Date().toISOString()})
+      for (const version of ["base", "ours", "theirs"] as const) {
+        const exported = await this.graft.exportMergeSqliteVersion(
+          this.canonical.root,
+          relativePath,
+          version,
+          files[version],
+          stateToken,
+          { signal }
+        )
+        if (!exported.filePath)
+          throw new Error(
+            "Schema merging requires all three Eidos File versions"
+          )
+        if (writable) await fs.chmod(files[version], 0o600)
+      }
+      const resultPath = path.join(directory, "result.eidos")
+      if (writable) await fs.copyFile(files.ours, resultPath)
+      return await operation({
+        basePath: files.base,
+        oursPath: files.ours,
+        theirsPath: files.theirs,
+        resultPath,
+        oursKey: merge.localHead,
+        theirsKey: merge.hostedHead,
+        operationInstant: new Date().toISOString(),
+      })
     } finally {
-      await Promise.all((await fs.readdir(directory)).map(name=>fs.chmod(path.join(directory,name),0o600).catch(()=>undefined)))
-      await fs.rm(directory,{recursive:true,force:true,maxRetries:3,retryDelay:50})
+      await Promise.all(
+        (await fs.readdir(directory)).map((name) =>
+          fs.chmod(path.join(directory, name), 0o600).catch(() => undefined)
+        )
+      )
+      await fs.rm(directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      })
     }
   }
 
-  readSyncMergeSchemaPlan(stateToken:string,relativePath:string):Promise<EidosSyncMergeSchemaPlan> {
+  readSyncMergeSchemaPlan(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeSchemaPlan> {
     const normalized = normalizeMutableRelativePath(relativePath)
-    return this.gate.withRepositoryOperation("Reading structure decisions",signal=>this.withMergeSchemaInputs(stateToken,normalized,signal,false,async options=>{
-      const result = await this.runtimePool.mergeSchema(options,null,signal)
-      if (!("supported" in result)) throw new Error("Invalid schema merge plan")
-      return result
-    }),{preemptible:true})
+    return this.gate.withRepositoryOperation(
+      "Reading structure decisions",
+      (signal) =>
+        this.withMergeSchemaInputs(
+          stateToken,
+          normalized,
+          signal,
+          false,
+          async (options) => {
+            const result = await this.runtimePool.mergeSchema(
+              options,
+              null,
+              signal
+            )
+            if (!("supported" in result))
+              throw new Error("Invalid schema merge plan")
+            return result
+          }
+        ),
+      { preemptible: true }
+    )
   }
 
-  resolveSyncMergeSchema(stateToken:string,relativePath:string,choices:EidosSyncMergeSchemaChoice[]):Promise<EidosSyncMergeStatus> {
+  resolveSyncMergeSchema(
+    stateToken: string,
+    relativePath: string,
+    choices: EidosSyncMergeSchemaChoice[]
+  ): Promise<EidosSyncMergeStatus> {
     const normalized = normalizeMutableRelativePath(relativePath)
-    return this.materializeMergeOperation("normalizeMergeSqliteInputs","resolve-merge-schema",`Applying structure decisions for ${normalized}`,stateToken,
-      (signal,onWorktreePaths)=>this.withMergeSchemaInputs(stateToken,normalized,signal,true,async options=>{
-        const result = await this.runtimePool.mergeSchema(options,choices,signal)
-        if (!("outcome" in result) || result.outcome!=="merged") throw new Error("The Runtime could not safely reconcile the selected structure and its metadata. Review a complete file instead.")
-        return this.graft.normalizeMergeSqliteInputs(this.canonical.root,normalized,{base:options.basePath,ours:options.oursPath,theirs:options.theirsPath},stateToken,{signal,onWorktreePaths})
-      }),[normalized])
+    return this.materializeMergeOperation(
+      "normalizeMergeSqliteInputs",
+      "resolve-merge-schema",
+      `Applying structure decisions for ${normalized}`,
+      stateToken,
+      (signal, onWorktreePaths) =>
+        this.withMergeSchemaInputs(
+          stateToken,
+          normalized,
+          signal,
+          true,
+          async (options) => {
+            const result = await this.runtimePool.mergeSchema(
+              options,
+              choices,
+              signal
+            )
+            if (!("outcome" in result) || result.outcome !== "merged")
+              throw new Error(
+                "The Runtime could not safely reconcile the selected structure and its metadata. Review a complete file instead."
+              )
+            return this.graft.normalizeMergeSqliteInputs(
+              this.canonical.root,
+              normalized,
+              {
+                base: options.basePath,
+                ours: options.oursPath,
+                theirs: options.theirsPath,
+              },
+              stateToken,
+              { signal, onWorktreePaths }
+            )
+          }
+        ),
+      [normalized]
+    )
   }
 
   combineSyncMergePath(

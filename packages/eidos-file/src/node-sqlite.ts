@@ -1274,24 +1274,60 @@ export interface MergeEidosSystemMetadataFilesOptions {
   operationInstant: string
 }
 
-export type { EidosSchemaMergePlan, EidosSchemaMergeChoice, EidosSchemaMergeField } from "./system-metadata-merge"
+export type {
+  EidosSchemaMergePlan,
+  EidosSchemaMergeChoice,
+  EidosSchemaMergeField,
+} from "./system-metadata-merge"
 
 export function planEidosSchemaMergeFiles(
-  options: Pick<MergeEidosSystemMetadataFilesOptions, "basePath" | "oursPath" | "theirsPath">
+  options: Pick<
+    MergeEidosSystemMetadataFilesOptions,
+    "basePath" | "oursPath" | "theirsPath"
+  >
 ): EidosSchemaMergePlan {
-  const connections = [options.basePath, options.oursPath, options.theirsPath].map(file => new NodeSqliteEidosFileConnection(openDatabase(file, { readOnly: true })))
-  try { return planEidosSchemaMerge({base:connections[0]!,ours:connections[1]!,theirs:connections[2]!}) }
-  finally { connections.forEach(connection => connection.close()) }
+  const connections = [
+    options.basePath,
+    options.oursPath,
+    options.theirsPath,
+  ].map(
+    (file) =>
+      new NodeSqliteEidosFileConnection(openDatabase(file, { readOnly: true }))
+  )
+  try {
+    return planEidosSchemaMerge({
+      base: connections[0]!,
+      ours: connections[1]!,
+      theirs: connections[2]!,
+    })
+  } finally {
+    connections.forEach((connection) => connection.close())
+  }
 }
 
 /** Mutates private copies only; immutable originals remain owned by Graft. */
 export function normalizeEidosSchemaMergeFiles(
-  options: MergeEidosSystemMetadataFilesOptions & { choices: readonly EidosSchemaMergeChoice[] }
+  options: MergeEidosSystemMetadataFilesOptions & {
+    choices: readonly EidosSchemaMergeChoice[]
+  }
 ): EidosSystemMergeResult {
-  const connections = [options.basePath,options.oursPath,options.theirsPath,options.resultPath].map(file => new NodeSqliteEidosFileConnection(openDatabase(file)))
+  const connections = [
+    options.basePath,
+    options.oursPath,
+    options.theirsPath,
+    options.resultPath,
+  ].map((file) => new NodeSqliteEidosFileConnection(openDatabase(file)))
   try {
-    return normalizeEidosSchemaMerge({...options,base:connections[0]!,ours:connections[1]!,theirs:connections[2]!,result:connections[3]!})
-  } finally { connections.forEach(connection => connection.close()) }
+    return normalizeEidosSchemaMerge({
+      ...options,
+      base: connections[0]!,
+      ours: connections[1]!,
+      theirs: connections[2]!,
+      result: connections[3]!,
+    })
+  } finally {
+    connections.forEach((connection) => connection.close())
+  }
 }
 
 /** Node/Electron file adapter for the Runtime-owned system metadata merge profile. */

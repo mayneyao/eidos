@@ -1,5 +1,4 @@
 import path from "node:path"
-import { createHash } from "node:crypto"
 import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import type { EidosSyncMergeTablePreview } from "../shared/contracts"
 
@@ -53,16 +52,10 @@ export function readMergeTablePreview(
           id: table.id,
           name: table.name,
           fields: fields.map(({ id, name, type }) => ({ id, name, type })),
-          rows: page.rows
-            .slice(0, 6)
-            .map((row) => ({
-              id: row.id,
-              cells: fields.map((field) => previewCell(row.fields[field.id])),
-              cellKeys: fields.map(field => {
-                const value = row.fields[field.id]
-                return createHash("sha256").update(`${typeof value}:${JSON.stringify(value,(_key,item:unknown)=>typeof item==="bigint"?item.toString():item)}`).digest("hex")
-              }),
-            })),
+          rows: page.rows.slice(0, 6).map((row) => ({
+            id: row.id,
+            cells: fields.map((field) => previewCell(row.fields[field.id])),
+          })),
           hasMoreRows: page.rows.length > 6,
           hasMoreFields: allFields.length > fields.length,
         }

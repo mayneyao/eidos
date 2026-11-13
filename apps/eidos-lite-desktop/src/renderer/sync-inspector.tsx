@@ -34,6 +34,7 @@ import {
 } from "./sync-connect-shared"
 import { useEidosLiteI18n } from "./i18n"
 import { SyncMergeWorkspace } from "./sync-merge-workspace"
+import { MergeDisplayOptions } from "./sync-merge-display"
 import { SyncTransportTabs } from "./sync-transport-tabs"
 
 export interface SyncInspectorState {
@@ -432,23 +433,26 @@ export function SyncInspector({
         >
           {merge.state === "merging" ? (
             <div className="sync-merge-overview" aria-live="polite">
-              <strong>
-                {t(
-                  merge.unmergedCount === 0
-                    ? "All conflicts resolved"
-                    : merge.unmergedCount === 1
-                      ? "1 conflict remaining"
-                      : "{count} conflicts remaining",
-                  { count: merge.unmergedCount }
-                )}
-              </strong>
-              <p>
-                {t(
-                  merge.unmergedCount === 0
-                    ? "Ready to complete the merge"
-                    : "Select a file to compare and resolve"
-                )}
-              </p>
+              <div>
+                <strong>
+                  {t(
+                    merge.unmergedCount === 0
+                      ? "All conflicts resolved"
+                      : merge.unmergedCount === 1
+                        ? "1 conflict remaining"
+                        : "{count} conflicts remaining",
+                    { count: merge.unmergedCount }
+                  )}
+                </strong>
+                <p>
+                  {t(
+                    merge.unmergedCount === 0
+                      ? "Ready to complete the merge"
+                      : "Select a file to compare and resolve"
+                  )}
+                </p>
+              </div>
+              <MergeDisplayOptions />
             </div>
           ) : compactLocked ? (
             <div className="sync-minimal-status" aria-live="polite">

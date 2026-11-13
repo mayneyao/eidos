@@ -22,6 +22,7 @@ import type {
 import type {
   GraftAbortMergeOptions,
   GraftExportMergeSqliteVersionOptions,
+  GraftNormalizeMergeSqliteInputsOptions,
   GraftApplyMergeOptions,
   GraftContinueMergeOptions,
   GraftDiffMergeSqliteOptions,
@@ -465,9 +466,14 @@ async function runCommand(
         signal,
       })
     case "normalizeMergeSqliteInputs":
-      if (!repository.normalizeMergeSqliteInputs) throw new Error("This Graft SDK does not support schema-first merging")
+      if (!repository.normalizeMergeSqliteInputs)
+        throw new Error("This Graft SDK does not support schema-first merging")
       return repository.normalizeMergeSqliteInputs({
-        ...(objectValue(args[0], "normalized merge inputs") as unknown as import("../shared/graft-merge-contracts").GraftNormalizeMergeSqliteInputsOptions), signal,
+        ...(objectValue(
+          args[0],
+          "normalized merge inputs"
+        ) as unknown as GraftNormalizeMergeSqliteInputsOptions),
+        signal,
       })
     case "diffMergeSqlite":
       requireMergeMethod(repository, command)

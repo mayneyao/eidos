@@ -544,6 +544,9 @@ describe("Sync inspector B", () => {
         host.querySelector(".sync-merge-overview strong")?.textContent
       ).toBe("1 conflict remaining")
       expect(host.textContent).toContain("Select a file to compare and resolve")
+      expect(
+        host.querySelectorAll(".sync-merge-overview [aria-label='Show Base']")
+      ).toHaveLength(1)
       expect(host.textContent).not.toContain("Connection details")
       expect(host.textContent).not.toContain("Cloud connection action")
       expect(host.textContent).not.toContain("Cloud updates changed")

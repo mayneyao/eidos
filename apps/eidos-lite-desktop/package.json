@@ -8,6 +8,7 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
+    "verify:merge-demo": "node ../../scripts/run-electron-node.mjs --import tsx scripts/verify-merge-demo.ts",
     "dev": "pnpm run prepare:terminal && pnpm run prepare:vtab && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite",
     "build": "pnpm run prepare:terminal && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite build && node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs",
     "build:production": "pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
@@ -39,7 +40,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
-    "@eidos.space/graft": "0.3.39",
+    "@eidos.space/graft": "0.3.40",
     "@eidos.space/graft-remote": "0.2.6",
     "@eidos.space/markdown": "workspace:*",
     "@eidos.space/plugin-runtime": "workspace:*",
@@ -70,11 +71,11 @@
     "yaml": "2.9.0"
   },
   "optionalDependencies": {
-    "@eidos.space/graft-darwin-arm64": "0.3.39",
-    "@eidos.space/graft-darwin-x64": "0.3.39",
-    "@eidos.space/graft-linux-arm64-gnu": "0.3.39",
-    "@eidos.space/graft-linux-x64-gnu": "0.3.39",
-    "@eidos.space/graft-win32-x64-msvc": "0.3.39",
+    "@eidos.space/graft-darwin-arm64": "0.3.40",
+    "@eidos.space/graft-darwin-x64": "0.3.40",
+    "@eidos.space/graft-linux-arm64-gnu": "0.3.40",
+    "@eidos.space/graft-linux-x64-gnu": "0.3.40",
+    "@eidos.space/graft-win32-x64-msvc": "0.3.40",
     "@esbuild/darwin-arm64": "0.28.1",
     "@esbuild/darwin-x64": "0.28.1",
     "@esbuild/linux-arm64": "0.28.1",

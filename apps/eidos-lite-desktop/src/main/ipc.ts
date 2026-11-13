@@ -63,6 +63,7 @@ import {
   type EidosSyncMergeContinueRequest,
   type EidosSyncMergePathsRequest,
   type EidosSyncMergeResolvePathRequest,
+  type EidosSyncMergeSchemaChoice,
   type EidosSyncMergeResolveCellRequest,
   type EidosSyncMergeResolveRowRequest,
   type EidosSyncMergeResolveTableRequest,
@@ -3900,16 +3901,40 @@ export function registerIpc(
         )
     })
   )
-  ipcMain.handle(IPC_CHANNELS.syncMergeSchemaPlan, (event,value:unknown)=>mergeResponse(()=>{
-    const request = mergeUnresolvePathRequest(value)
-    return controller.requireSession(event.sender).readSyncMergeSchemaPlan(request.stateToken,request.path)
-  }))
-  ipcMain.handle(IPC_CHANNELS.syncMergeResolveSchema, (event,value:unknown)=>mergeResponse(()=>{
-    const request = mergeUnresolvePathRequest(value)
-    const choices = (value as Record<string,unknown>).choices
-    if (!Array.isArray(choices) || choices.length>256 || choices.some(choice => typeof choice!=="object" || choice===null || typeof choice.fieldId!=="string" || choice.fieldId.length>256 || !["ours","theirs"].includes(choice.result))) throw new Error("Invalid schema choices")
-    return controller.requireSession(event.sender).resolveSyncMergeSchema(request.stateToken,request.path,choices as import("../shared/contracts").EidosSyncMergeSchemaChoice[])
-  }))
+  ipcMain.handle(IPC_CHANNELS.syncMergeSchemaPlan, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .readSyncMergeSchemaPlan(request.stateToken, request.path)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolveSchema, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      const choices = (value as Record<string, unknown>).choices
+      if (
+        !Array.isArray(choices) ||
+        choices.length > 256 ||
+        choices.some(
+          (choice) =>
+            typeof choice !== "object" ||
+            choice === null ||
+            typeof choice.fieldId !== "string" ||
+            choice.fieldId.length > 256 ||
+            !["ours", "theirs"].includes(choice.result)
+        )
+      )
+        throw new Error("Invalid schema choices")
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergeSchema(
+          request.stateToken,
+          request.path,
+          choices as EidosSyncMergeSchemaChoice[]
+        )
+    })
+  )
   ipcMain.handle(IPC_CHANNELS.syncMergeCombinePath, (event, value: unknown) =>
     mergeResponse(() => {
       const request = mergeUnresolvePathRequest(value)

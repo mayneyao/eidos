@@ -4292,21 +4292,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
       calls.length = 0
       signals.length = 0
 
-      await expect(session.getSyncMergeStatus()).resolves.toEqual({
-        state: "none",
+      vi.mocked(graft.continueMerge).mockClear()
+      await expect(session.getSyncMergeStatus()).resolves.toMatchObject({
+        state: "merging",
+        unmergedCount: 0,
       })
-      expect(calls.slice(0, 8)).toEqual([
-        "status",
-        "contract",
-        "status",
-        "close",
-        "validate:archive.eidos,records.eidos",
-        "continue",
-        "validate:records.eidos",
-        "reopen",
-      ])
-      expect(signals).toHaveLength(4)
-      expect(new Set(signals).size).toBe(2)
+      expect(calls).toEqual(["status"])
+      expect(graft.continueMerge).not.toHaveBeenCalled()
+      expect(signals).toHaveLength(1)
       expect(session.gate.current().phase).toBe("ready")
     } finally {
       await session?.close().catch(() => undefined)

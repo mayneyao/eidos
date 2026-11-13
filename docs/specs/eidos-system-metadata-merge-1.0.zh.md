@@ -81,6 +81,20 @@ schema 下解决它。本 profile 不定义该 projection 的 merge policy；只
 
 ## 2. 术语与输入契约
 
+### 记录合并之前的结构决议
+
+Runtime 可以为 stored Field 改名提供 schema-only plan。必须通过稳定 Field ID
+匹配，返回双方待选列名与兼容改名的 canonical `mergedName`；不支持的 Table、
+Field 类型、增删及依赖迁移必须明确拒绝。Host 不得从列位置或显示名称推断决议。
+
+规范化时，每个冲突 Field 必须有一个 `ours` 或 `theirs` 选择；缺失、重复、外来
+或非法选择必须在任何修改前失败。Host 提供 Base、Ours、Theirs 的私有可写副本，
+以及初始内容与 Ours 完全相同的 Result；immutable 原件必须保留。Runtime 通过
+普通 schema mutation 边界处理物理列、Views、依赖、时钟与 revision，再合并
+并验证 canonical metadata。三个输入副本的 metadata 最终相同，但每个副本必须
+保留其各自的用户记录。Host 随后可将规范化输入交给版本管理器重算记录冲突；
+结构阶段不选择用户记录，也不允许在记录合并与完整 File 校验前发布结果。
+
 - **Base**、**Ours** 与 **Theirs**：三个 immutable Eidos File snapshot。
 - **side key**：Ours 或 Theirs 的稳定 version-manager identity，例如 commit object
   ID。Side key 为 1..128 个匹配 `[a-z0-9._~-]+` 的小写 ASCII 字符。

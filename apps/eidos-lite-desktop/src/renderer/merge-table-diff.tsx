@@ -256,6 +256,36 @@ function cellConflictFor(conflict: EidosSyncMergeConflict, column: string) {
   return conflict.cells?.find((cell) => cell.column === column)
 }
 
+function cellRowSpan(
+  conflict: EidosSyncMergeConflict,
+  column: string,
+  versions: readonly MergeRowVersion[],
+  versionIndex: number
+): number {
+  const version = versions[versionIndex]!
+  const value = valueAt(conflict, version, column)
+  // Keep missing rows and independently selectable conflict values distinct.
+  if (
+    !rowFor(conflict, version) ||
+    value === undefined ||
+    cellConflictFor(conflict, column)
+  ) {
+    return 1
+  }
+  const matches = (other: MergeRowVersion) =>
+    Boolean(rowFor(conflict, other)) &&
+    valuesEqual(value, valueAt(conflict, other, column))
+  if (versionIndex > 0 && matches(versions[versionIndex - 1]!)) return 0
+  let span = 1
+  while (
+    versionIndex + span < versions.length &&
+    matches(versions[versionIndex + span]!)
+  ) {
+    span += 1
+  }
+  return span
+}
+
 function isSystemColumn(column: string): boolean {
   return column.startsWith("_")
 }
@@ -726,6 +756,13 @@ export function MergeTableDiff({
                                   </th>
                                 ) : null}
                                 {visibleColumns.map((column) => {
+                                  const rowSpan = cellRowSpan(
+                                    conflict,
+                                    column,
+                                    versions,
+                                    versionIndex
+                                  )
+                                  if (rowSpan === 0) return null
                                   const cellConflict = cellConflictFor(
                                     conflict,
                                     column
@@ -767,12 +804,15 @@ export function MergeTableDiff({
                                     pendingCellResolution.result === cellResult
                                   return (
                                     <td
+                                      rowSpan={rowSpan}
                                       data-cell-change={
-                                        version === "base"
-                                          ? "base"
-                                          : changedFromBase
-                                            ? version
-                                            : "unchanged"
+                                        rowSpan > 1
+                                          ? "shared"
+                                          : version === "base"
+                                            ? "base"
+                                            : changedFromBase
+                                              ? version
+                                              : "unchanged"
                                       }
                                       data-cell-conflict={
                                         version !== "base" &&

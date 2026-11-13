@@ -12,6 +12,7 @@ import type {
   EidosSyncMergeStatus,
 } from "../shared/contracts"
 import { buildMergeChangeTreeModel } from "./merge-change-tree"
+import { MergeDisplayOptions } from "./sync-merge-display"
 import { SyncMergeWorkbench, SyncMergeWorkspace } from "./sync-merge-workspace"
 
 vi.mock("./version-text-diff", () => ({
@@ -296,6 +297,7 @@ describe("SyncMergeWorkbench", () => {
   let host: HTMLDivElement
 
   beforeEach(() => {
+    localStorage.removeItem("eidos-lite:merge-show-base")
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     host = document.createElement("div")
     document.body.append(host)
@@ -305,6 +307,78 @@ describe("SyncMergeWorkbench", () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     host.remove()
+  })
+
+  it("shares the persisted Base preference across text and table conflict views", async () => {
+    const readSyncMergeVersion = vi.fn(async (request) => ({
+      ok: true as const,
+      value: textVersion(request.version, `${request.version} reference`),
+    }))
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listSyncMergePaths: vi.fn(async () => ({
+          ok: true,
+          value: {
+            items: [
+              mergePath("notes.txt", "unmerged", "text_file"),
+              mergePath("records.eidos", "unmerged"),
+            ],
+            nextCursor: null,
+          },
+        })),
+        listSyncMergeConflicts: vi.fn(async () => ({
+          ok: true,
+          value: { items: [rowConflict("Tasks", "task-1")], nextCursor: null },
+        })),
+        readSyncMergeVersion,
+      },
+    })
+    const render = (path: string) =>
+      act(async () =>
+        root.render(
+          createElement(
+            "div",
+            null,
+            createElement(MergeDisplayOptions),
+            createElement(SyncMergeWorkbench, {
+              key: path,
+              mainOnly: true,
+              initialPath: path,
+              initialStatus: merging(),
+              theme: "light",
+              onClose: vi.fn(),
+              onStatusChange: vi.fn(),
+              onFilesMaterialized: vi.fn(),
+            })
+          )
+        )
+      )
+    await render("notes.txt")
+    await flush()
+    expect(host.querySelector(".sync-merge-base-reference")).toBeNull()
+    expect(
+      host.querySelector(".sync-merge-editor-toolbar [aria-label='Show Base']")
+    ).toBeNull()
+    await act(async () => button(host, "Show Base").click())
+    expect(
+      host.querySelector(".sync-merge-base-reference")?.textContent
+    ).toContain("base reference")
+    expect(readSyncMergeVersion).toHaveBeenCalledTimes(4)
+    expect(localStorage.getItem("eidos-lite:merge-show-base")).toBe("true")
+
+    await render("records.eidos")
+    await flush()
+    expect(host.querySelector("[data-merge-row-version='base']")).not.toBeNull()
+    expect(button(host, "Show Base").getAttribute("aria-pressed")).toBe("true")
+    await act(async () => button(host, "Show Base").click())
+    expect(host.querySelector("[data-merge-row-version='base']")).toBeNull()
+
+    await render("notes.txt")
+    await flush()
+    expect(host.querySelector(".sync-merge-base-reference")).toBeNull()
+    expect(button(host, "Show Base").getAttribute("aria-pressed")).toBe("false")
+    expect(readSyncMergeVersion).toHaveBeenCalledTimes(8)
   })
 
   it("uses supplied status and keeps loaded files visible during refresh", async () => {
@@ -385,6 +459,188 @@ describe("SyncMergeWorkbench", () => {
           "button[data-item-path='Merge Conflicts/records.eidos/']"
         )
     ).toBeNull()
+  })
+
+  it("resolves structure before records and can undo the complete two-phase choice", async () => {
+    let phase: "schema" | "rows" | "resolved" = "schema"
+    const schema: EidosSyncMergeConflict = {
+      id: "schema:Projects",
+      path: "records.eidos",
+      pathKind: "sqlite_database",
+      storage: "sqlite_snapshot",
+      kind: "schema",
+      reason: "schema_modify_conflict",
+      status: "unresolved",
+      table: "Projects",
+      entryType: "table",
+      name: "Projects",
+    }
+    const marker: EidosSyncMergeConflict = {
+      ...schema,
+      id: "schema:normalized",
+      reason: "schema_normalized",
+      status: "resolved",
+    }
+    const record: EidosSyncMergeConflict = {
+      ...rowConflict("Projects", "project-1"),
+      rowColumns: ["_id", "Project", "Project lead"],
+      baseRow: ["project-1", "Sync", "Alex"],
+      oursRow: ["project-1", "Sync", "Blair"],
+      theirsRow: ["project-1", "Sync", "Avery"],
+    }
+    const resolveSyncMergeSchema = vi.fn(async () => {
+      phase = "rows"
+      return { ok: true, value: merging(secondToken) }
+    })
+    const resolveSyncMergeRow = vi.fn(async () => {
+      phase = "resolved"
+      return { ok: true, value: merging("f".repeat(64), 0) }
+    })
+    const unresolveSyncMergePath = vi.fn(async () => {
+      phase = "schema"
+      return { ok: true, value: merging("1".repeat(64)) }
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listSyncMergePaths: vi.fn(async () => ({
+          ok: true,
+          value: {
+            items: [
+              mergePath(
+                "records.eidos",
+                phase === "resolved" ? "resolved" : "unmerged"
+              ),
+            ],
+            nextCursor: null,
+          },
+        })),
+        listSyncMergeConflicts: vi.fn(async () => ({
+          ok: true,
+          value: {
+            items:
+              phase === "schema"
+                ? [schema]
+                : [
+                    marker,
+                    {
+                      ...record,
+                      status: phase === "resolved" ? "resolved" : "unresolved",
+                      resolution: phase === "resolved" ? "theirs" : undefined,
+                    },
+                  ],
+            nextCursor: null,
+          },
+        })),
+        readSyncMergeSchemaPlan: vi.fn(async () => ({
+          ok: true,
+          value: {
+            supported: true,
+            blockers: [],
+            fields: [
+              {
+                tableId: "projects",
+                tableName: "Projects",
+                fieldId: "owner",
+                baseName: "Owner",
+                oursName: "Project lead",
+                theirsName: "Assignee",
+                type: "text",
+                conflicted: true,
+              },
+            ],
+          },
+        })),
+        readSyncMergeSqlitePreview: vi.fn(async (request) => ({
+          ok: true,
+          value: {
+            stateToken: request.stateToken,
+            path: request.path,
+            version: request.version,
+            present: true,
+            tables: [
+              {
+                id: "projects",
+                name: "Projects",
+                fields: [
+                  { id: "project", name: "Project", type: "text" },
+                  {
+                    id: "owner",
+                    name:
+                      request.version === "base"
+                        ? "Owner"
+                        : request.version === "ours"
+                          ? "Project lead"
+                          : "Assignee",
+                    type: "text",
+                  },
+                ],
+                rows: [{ id: "project-1", cells: ["Sync", "Blair"] }],
+                hasMoreRows: false,
+                hasMoreFields: false,
+              },
+            ],
+          },
+        })),
+        resolveSyncMergeSchema,
+        resolveSyncMergeRow,
+        unresolveSyncMergePath,
+        getSpace: vi.fn(async () => null),
+      },
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          initialStatus: merging(),
+          theme: "light",
+          onClose: vi.fn(),
+          onStatusChange: vi.fn(),
+          onFilesMaterialized: vi.fn(),
+        })
+      )
+    )
+    await flush()
+    await flush()
+    const apply = button(host, "Apply structure and compare records")
+    expect(apply.disabled).toBe(true)
+    expect(
+      host.querySelectorAll("[data-merge-schema-review] table")
+    ).toHaveLength(1)
+    expect(host.querySelector("[data-merge-table-conflicts]")).toBeNull()
+    await act(async () => button(host, "Use Local Project lead").click())
+    await act(async () => apply.click())
+    await flush()
+    expect(resolveSyncMergeSchema).toHaveBeenCalledWith({
+      stateToken: firstToken,
+      path: "records.eidos",
+      choices: [{ fieldId: "owner", result: "ours" }],
+    })
+    expect(host.querySelector("[data-merge-schema-review]")).toBeNull()
+    expect(host.querySelector("[data-merge-table='Projects']")).not.toBeNull()
+    expect(button(host, "Use Hosted row for Sync").disabled).toBe(false)
+    expect(button(host, "Undo resolution").disabled).toBe(false)
+    await act(async () => button(host, "Use Hosted row for Sync").click())
+    await flush()
+    expect(resolveSyncMergeRow).toHaveBeenCalledWith({
+      stateToken: secondToken,
+      path: "records.eidos",
+      table: "Projects",
+      identity: { id: "project-1" },
+      result: "theirs",
+    })
+    expect(host.textContent).toContain("All conflicts resolved")
+    await act(async () => button(host, "Undo resolution").click())
+    await flush()
+    await flush()
+    expect(unresolveSyncMergePath).toHaveBeenCalledWith({
+      stateToken: "f".repeat(64),
+      path: "records.eidos",
+    })
+    expect(host.querySelector("[data-merge-schema-review]")).not.toBeNull()
+    expect(button(host, "Apply structure and compare records").disabled).toBe(
+      true
+    )
+    expect(host.querySelector("[data-merge-table-conflicts]")).toBeNull()
   })
 
   it("loads paginated table conflicts from the Sync tree and navigates to a table", async () => {
@@ -653,6 +909,65 @@ describe("SyncMergeWorkbench", () => {
     expect(onSpaceChange).toHaveBeenCalledWith(snapshot)
   })
 
+  it("reloads text versions when undo restores a deleted path's text classification", async () => {
+    let resolved = true
+    const readSyncMergeVersion = vi.fn(async (request) => ({
+      ok: true as const,
+      value: textVersion(
+        request.version,
+        `${request.version} restored content`
+      ),
+    }))
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSpace: vi.fn(async () => null),
+        listSyncMergePaths: vi.fn(async () => ({
+          ok: true as const,
+          value: {
+            stateToken: resolved ? firstToken : secondToken,
+            items: [
+              mergePath(
+                "notes.txt",
+                resolved ? "resolved" : "unmerged",
+                resolved ? "binary_file" : "text_file"
+              ),
+            ],
+            nextCursor: null,
+          },
+        })),
+        unresolveSyncMergePath: vi.fn(async () => {
+          resolved = false
+          return { ok: true as const, value: merging(secondToken) }
+        }),
+        readSyncMergeVersion,
+      } satisfies Partial<EidosLiteApi>,
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          initialStatus: merging(firstToken, 0),
+          initialPath: "notes.txt",
+          theme: "light",
+          onStatusChange: vi.fn(),
+          onClose: vi.fn(),
+          onFilesMaterialized: vi.fn(),
+        })
+      )
+    )
+    await flush()
+    expect(readSyncMergeVersion).not.toHaveBeenCalled()
+    await act(async () => button(host, "Undo resolution").click())
+    await flush()
+    expect(readSyncMergeVersion).toHaveBeenCalledWith({
+      path: "notes.txt",
+      version: "theirs",
+      stateToken: secondToken,
+    })
+    expect(host.querySelectorAll("[data-inline-text-diff]")).toHaveLength(2)
+    expect(host.textContent).not.toContain("This version deletes the file")
+  })
+
   it.each([
     ["ours", "utf8", "utf8"],
     ["theirs", "utf8", "utf8"],
@@ -903,13 +1218,13 @@ describe("SyncMergeWorkbench", () => {
     await flush()
     await flush()
 
-    expect(host.textContent).toContain("Base")
+    expect(host.querySelector(".sync-merge-base-reference")).toBeNull()
     expect(host.textContent).toContain("Local")
     expect(host.textContent).toContain("Incoming changes")
     expect(
       host.querySelector(".sync-merge-editor-toolbar")?.textContent
     ).not.toContain("Version details")
-    expect(host.querySelector(".sync-merge-base-menu")).not.toBeNull()
+    expect(host.querySelector(".sync-merge-base-menu")).toBeNull()
     expect(
       host.querySelector(".sync-merge-editor > .sync-merge-identities")
     ).toBeNull()
@@ -931,9 +1246,6 @@ describe("SyncMergeWorkbench", () => {
       ".sync-merge-result-disclosure"
     )!
     expect(resultDisclosure.open).toBe(false)
-    expect(
-      host.querySelector<HTMLDetailsElement>(".sync-merge-base-menu")?.open
-    ).toBe(false)
     await act(async () => {
       resultDisclosure.open = true
       resultDisclosure.dispatchEvent(new Event("toggle"))
@@ -2005,4 +2317,114 @@ describe("SyncMergeWorkbench", () => {
     ).not.toBeNull()
     expect(host.textContent).toContain("Merge state changed")
   })
+})
+
+it("retains an edited draft when saving against a recovered parent status returns stale", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const writeSyncMergeText = vi.fn(async () => ({
+    ok: false,
+    failure: {
+      code: "stale",
+      title: "Merge changed",
+      message: "reload",
+      localSafe: true,
+      retryable: true,
+    },
+  }))
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: {
+      listSyncMergePaths: vi.fn(async (request) => ({
+        ok: true,
+        value: {
+          stateToken: request.stateToken,
+          items: [mergePath("notes.txt", "unmerged", "text_file")],
+          nextCursor: null,
+        },
+      })),
+      readSyncMergeVersion: vi.fn(async (request) => ({
+        ok: true,
+        value: textVersion(request.version, "server result"),
+      })),
+      getSyncMergeStatus: vi.fn(async () => ({
+        ok: true,
+        value: merging(secondToken),
+      })),
+      writeSyncMergeText,
+    },
+  })
+  const props = {
+    theme: "light" as const,
+    onClose: vi.fn(),
+    onStatusChange: vi.fn(),
+    onFilesMaterialized: vi.fn(),
+  }
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          ...props,
+          initialStatus: merging(),
+        })
+      )
+    )
+    await flush()
+    const disclosure = host.querySelector<HTMLDetailsElement>(
+      ".sync-merge-result-disclosure"
+    )!
+    await act(async () => {
+      disclosure.open = true
+      disclosure.dispatchEvent(new Event("toggle"))
+    })
+    await flush()
+    const editor = host.querySelector<HTMLTextAreaElement>(
+      "[aria-label='Merge result']"
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )!.set!.call(editor, "precious unsaved draft")
+      editor.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          ...props,
+          initialStatus: merging(secondToken),
+        })
+      )
+    )
+    await flush()
+    expect(
+      host.querySelector<HTMLTextAreaElement>("[aria-label='Merge result']")!
+        .value
+    ).toBe("precious unsaved draft")
+    expect(host.textContent).toContain("Your draft is preserved")
+    await act(async () => button(host, "Save resolution").click())
+    await flush()
+    expect(writeSyncMergeText).toHaveBeenCalledWith({
+      stateToken: firstToken,
+      path: "notes.txt",
+      content: "precious unsaved draft",
+    })
+    const refreshedDisclosure = host.querySelector<HTMLDetailsElement>(
+      ".sync-merge-result-disclosure"
+    )!
+    await act(async () => {
+      refreshedDisclosure.open = true
+      refreshedDisclosure.dispatchEvent(new Event("toggle"))
+    })
+    await flush()
+    expect(
+      host.querySelector<HTMLTextAreaElement>("[aria-label='Merge result']")!
+        .value
+    ).toBe("precious unsaved draft")
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
 })

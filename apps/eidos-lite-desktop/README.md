@@ -356,6 +356,18 @@ The output folder contains macOS and Windows launchers for starting another
 round, plus `CURRENT.txt` and `latest.json` pointing to the latest Demo Space.
 After opening, expect four unresolved files and one automatically resolved file.
 
+To exercise the engine workflow against private copies of a generated run:
+
+```sh
+pnpm verify:eidos-lite:merge-demo /absolute/path/to/runs/<run>
+```
+
+The verifier leaves the interactive Demo unchanged. It checks automatic merge
+after Undo/reopen, schema decisions followed by record choices, preservation of
+both sides' inserted records, deleted directories, independent cell choices,
+manual text, stale-token rejection, Complete Merge, Abort, and canonical File
+validation. Results are saved under that run's `verification-*/report.json`.
+
 The default output is `~/eidos-lite-demos/merge-conflicts`. Use `--output <folder>`
 or `EIDOS_LITE_MERGE_DEMO_ROOT` in `.env.development.local` to choose another
 location outside existing Graft repositories. The local `fs://` remote currently

@@ -1837,7 +1837,12 @@ export function isEidosLiteSchemaImpactRequiredResult(
 }
 
 export type RuntimeWorkerRequest =
-  | { type: "mergeSchema"; requestId: number; options: RuntimeSystemMetadataMergeOptions; choices: EidosSchemaMergeChoice[] | null }
+  | {
+      type: "mergeSchema"
+      requestId: number
+      options: RuntimeSystemMetadataMergeOptions
+      choices: EidosSchemaMergeChoice[] | null
+    }
   | {
       type: "explorerSummary"
       requestId: number
@@ -2310,8 +2315,12 @@ export interface EidosLiteApi extends PluginApi {
   readSyncMergeSqlitePreview(
     request: EidosSyncMergeSqlitePreviewRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqlitePreview>>
-  readSyncMergeSchemaPlan(request: EidosSyncMergeUnresolvePathRequest): Promise<EidosSyncMergeResponse<EidosSyncMergeSchemaPlan>>
-  resolveSyncMergeSchema(request: EidosSyncMergeSchemaRequest): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  readSyncMergeSchemaPlan(
+    request: EidosSyncMergeUnresolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeSchemaPlan>>
+  resolveSyncMergeSchema(
+    request: EidosSyncMergeSchemaRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   resolveSyncMergePath(
     request: EidosSyncMergeResolvePathRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>

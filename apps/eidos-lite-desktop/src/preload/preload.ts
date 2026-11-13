@@ -722,8 +722,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeSqlitePreview, request),
   resolveSyncMergePath: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolvePath, request),
-  readSyncMergeSchemaPlan: (request) => ipcRenderer.invoke(IPC_CHANNELS.syncMergeSchemaPlan, request),
-  resolveSyncMergeSchema: (request) => ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveSchema, request),
+  readSyncMergeSchemaPlan: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeSchemaPlan, request),
+  resolveSyncMergeSchema: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveSchema, request),
   combineSyncMergePath: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeCombinePath, request),
   resolveSyncMergeRow: (request) =>

@@ -5,8 +5,11 @@ import type {
   EidosSyncMergeSqlitePreview,
   EidosSyncMergeSqliteVersion,
   EidosSyncMergeTablePreview,
+  EidosSyncMergeSchemaPlan,
+  EidosSyncMergeSchemaChoice,
 } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
+import { MergeSchemaReview } from "./merge-schema-review"
 
 type PreviewState = Partial<
   Record<
@@ -151,6 +154,7 @@ export function MergeStructureReview({
   showBase,
   disabled,
   onResolvePath,
+  onResolveSchema,
 }: {
   path: EidosSyncMergePath
   stateToken: string
@@ -158,10 +162,17 @@ export function MergeStructureReview({
   showBase: boolean
   disabled: boolean
   onResolvePath(side: "ours" | "theirs"): void
+  onResolveSchema?(choices: EidosSyncMergeSchemaChoice[]): void
 }) {
   const { t } = useEidosLiteI18n()
   const [previews, setPreviews] = useState<PreviewState>({})
   const [retry, setRetry] = useState(0)
+  const [schemaPlan, setSchemaPlan] = useState<EidosSyncMergeSchemaPlan | null>(
+    null
+  )
+  const [planning, setPlanning] = useState(
+    Boolean(window.eidosLite.readSyncMergeSchemaPlan)
+  )
   const structure = conflicts.filter((conflict) => conflict.kind !== "row")
   const tableNames = JSON.stringify(
     [
@@ -223,15 +234,43 @@ export function MergeStructureReview({
       }
     }
     void (async () => {
-      const base = await read("base", tables)
+      let plannedTables = tables
+      if (
+        onResolveSchema &&
+        path.state !== "resolved" &&
+        window.eidosLite.readSyncMergeSchemaPlan
+      ) {
+        setPlanning(true)
+        try {
+          const response = await window.eidosLite.readSyncMergeSchemaPlan({
+            path: path.path,
+            stateToken,
+          })
+          if (!active) return
+          const tableIds = response.ok
+            ? [...new Set(response.value.fields.map((field) => field.tableId))]
+            : []
+          const supported = response.ok && tableIds.length <= 16
+          setSchemaPlan(supported ? response.value : null)
+          if (supported && response.value.supported) plannedTables = tableIds
+        } catch {
+          if (active) setSchemaPlan(null)
+        } finally {
+          if (active) setPlanning(false)
+        }
+      } else {
+        setSchemaPlan(null)
+        setPlanning(false)
+      }
+      const base = await read("base", plannedTables)
       if (!active) return
       // Stable canonical table IDs still select a table after either side renames it.
       const selectedTables =
-        tables.length > 0
+        plannedTables.length > 0
           ? [
               ...new Set([
                 ...(base?.tables.map((table) => table.id) ?? []),
-                ...tables,
+                ...plannedTables,
               ]),
             ].slice(0, 16)
           : []
@@ -245,6 +284,31 @@ export function MergeStructureReview({
     }
   }, [path.path, stateToken, tableNames, retry])
   const resolved = path.state === "resolved"
+  if (planning)
+    return (
+      <p className="merge-structure-preview-status" role="status">
+        {t("Reviewing table structure…")}
+      </p>
+    )
+  if (!resolved && schemaPlan?.supported && onResolveSchema) {
+    return (
+      <MergeSchemaReview
+        key={stateToken}
+        plan={schemaPlan}
+        preview={previews.ours?.value}
+        ready={Boolean(
+          previews.ours?.value &&
+          previews.theirs?.value &&
+          !previews.ours?.error &&
+          !previews.theirs?.error
+        )}
+        showBase={showBase}
+        disabled={disabled}
+        onResolve={onResolveSchema}
+        onResolvePath={onResolvePath}
+      />
+    )
+  }
   const recommendation = structure[0]?.recommendedResult
   const recommendedSide =
     (recommendation === "ours" || recommendation === "theirs") &&

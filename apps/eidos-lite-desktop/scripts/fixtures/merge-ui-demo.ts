@@ -34,7 +34,7 @@ const paths = {
   structure: "04-field-rename.eidos",
   compatible: "05-compatible-views.eidos",
 }
-const guide = `# Merge UI Demo\n\n这是独立的本机演示 Space，不会访问或上传云端。\n\n| 文件 | 本地 | Incoming | 验证点 |\n| --- | --- | --- | --- |\n| 01-text-conflict.md | 下周三上线 | 下周五上线 | 双栏、Base、手动编辑、撤销 |\n| 02-deleted-folder/README.md | 删除整个目录 | 修改 README | 选本地保持删除；选 Incoming 重建目录 |\n| 03-row-conflict.eidos | Status=In progress，Notes=Local review | Status=Ready，Notes=Incoming approval | 行／单元格选择 |\n| 04-field-rename.eidos | Owner → Project lead | Owner → Assignee | 具体结构变化、完整文件选择 |\n| 05-compatible-views.eidos | 调整原 View 的字段顺序 | 新建 Incoming overview View | 自动合并、Resolved、撤销后再次自动合并 |\n\n打开右侧 Sync 面板，再选择冲突文件。05 应自动进入 Resolved；其他四项等待你手动选择。\n所有冲突解决后可点击 Complete Merge。也可 Abort Merge，回到合并前的本地版本。\n\n每轮都有独立目录。退出开发版后，重新运行 pnpm demo:eidos-lite:merge，即可开始新一轮；已有结果不会被覆盖。合并前的完整副本保存在 Demo Space 同级的 initial-state 目录。\n`
+const guide = `# Merge UI Demo\n\n这是独立的本机演示 Space，不会访问或上传云端。\n\n| 文件 | 本地 | Incoming | 验证点 |\n| --- | --- | --- | --- |\n| 01-text-conflict.md | 下周三上线 | 下周五上线 | 双栏、Base、手动编辑、撤销 |\n| 02-deleted-folder/README.md | 删除整个目录 | 修改 README | 选本地保持删除；选 Incoming 重建目录 |\n| 03-row-conflict.eidos | Status=In progress，Notes=Local review | Status=Ready，Notes=Incoming approval | 行／单元格选择 |\n| 04-field-rename.eidos | Owner → Project lead | Owner → Assignee | 先选列名，再解决记录冲突；保留两边新增记录 |\n| 05-compatible-views.eidos | 调整原 View 的字段顺序 | 新建 Incoming overview View | 自动合并、Resolved、撤销后再次自动合并 |\n\n打开右侧 Sync 面板，再选择冲突文件。05 应自动进入 Resolved；其他四项等待你手动选择。\n所有冲突解决后可点击 Complete Merge。也可 Abort Merge，回到合并前的本地版本。\n\n每轮都有独立目录。退出开发版后，重新运行 pnpm demo:eidos-lite:merge，即可开始新一轮；已有结果不会被覆盖。合并前的完整副本保存在 Demo Space 同级的 initial-state 目录。\n`
 await fs.writeFile(path.join(source, "START-HERE.md"), guide)
 await fs.writeFile(
   path.join(source, paths.text),
@@ -81,7 +81,7 @@ const projectTable = schemaFile.createTable({
     { name: "Owner", type: "text" },
   ],
 })
-schemaFile.insertRow(projectTable.id, {
+const project = schemaFile.insertRow(projectTable.id, {
   Project: "Sync interface",
   Owner: "Alex",
 })
@@ -164,6 +164,13 @@ try {
   incomingRows.close()
   const incomingSchema = openEidosFile(path.join(source, paths.structure))
   incomingSchema.updateField(projectTable.id, "Owner", { name: "Assignee" })
+  incomingSchema.updateRow(projectTable.id, String(project._id), {
+    Assignee: "Avery",
+  })
+  incomingSchema.insertRow(projectTable.id, {
+    Project: "Incoming only",
+    Assignee: "Taylor",
+  })
   incomingSchema.close()
   const incomingViews = openEidosFile(path.join(source, paths.compatible))
   const addedView = incomingViews.createView(ideaTable.id, {
@@ -194,6 +201,13 @@ try {
   localRows.close()
   const localSchema = openEidosFile(path.join(local, paths.structure))
   localSchema.updateField(projectTable.id, "Owner", { name: "Project lead" })
+  localSchema.updateRow(projectTable.id, String(project._id), {
+    "Project lead": "Blair",
+  })
+  localSchema.insertRow(projectTable.id, {
+    Project: "Local only",
+    "Project lead": "Sam",
+  })
   localSchema.close()
   const localViews = openEidosFile(path.join(local, paths.compatible))
   localViews.updateView(baseView.id, {

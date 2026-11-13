@@ -119,16 +119,19 @@ await fs.writeFile(
 await fs.writeFile(path.join(outputRoot, "CURRENT.txt"), `${local}\n`)
 
 const shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`
+const sdkEnvironment = sdkPath
+  ? `EIDOS_LITE_GRAFT_SDK_PATH=${shellQuote(sdkPath)} `
+  : ""
 const macLauncher = path.join(outputRoot, "重新开始冲突演示.command")
 await fs.writeFile(
   macLauncher,
-  `#!/bin/zsh\ncd ${shellQuote(repositoryRoot)} || exit 1\nEIDOS_LITE_MERGE_DEMO_ROOT=${shellQuote(outputRoot)} pnpm demo:eidos-lite:merge\nif [ $? -ne 0 ]; then\n  read '?按回车关闭窗口…'\nfi\n`,
+  `#!/bin/zsh\ncd ${shellQuote(repositoryRoot)} || exit 1\n${sdkEnvironment}EIDOS_LITE_MERGE_DEMO_ROOT=${shellQuote(outputRoot)} pnpm demo:eidos-lite:merge\nif [ $? -ne 0 ]; then\n  read '?按回车关闭窗口…'\nfi\n`,
   { mode: 0o755 }
 )
 const windowsPath = (value) => value.replaceAll("%", "%%")
 await fs.writeFile(
   path.join(outputRoot, "Restart merge demo.cmd"),
-  `@echo off\r\ncd /d "${windowsPath(repositoryRoot)}"\r\nset "EIDOS_LITE_MERGE_DEMO_ROOT=${windowsPath(outputRoot)}"\r\ncall pnpm demo:eidos-lite:merge\r\nif errorlevel 1 pause\r\n`
+  `@echo off\r\ncd /d "${windowsPath(repositoryRoot)}"\r\nset "EIDOS_LITE_MERGE_DEMO_ROOT=${windowsPath(outputRoot)}"\r\n${sdkPath ? `set "EIDOS_LITE_GRAFT_SDK_PATH=${windowsPath(sdkPath)}"\r\n` : ""}call pnpm demo:eidos-lite:merge\r\nif errorlevel 1 pause\r\n`
 )
 await fs.writeFile(
   path.join(outputRoot, "README.md"),

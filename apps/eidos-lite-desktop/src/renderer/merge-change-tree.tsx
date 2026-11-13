@@ -38,11 +38,22 @@ export type MergeConflictsByPath = ReadonlyMap<
 >
 
 /** Presentation scope: structural blockers offer a single complete-file choice. */
+export function isNormalizedSchemaConflict(
+  conflict: EidosSyncMergeConflict
+): boolean {
+  return (
+    conflict.kind === "schema" &&
+    conflict.reason === "schema_normalized" &&
+    conflict.status === "resolved"
+  )
+}
+
 export function requiresWholeFileChoice(
   conflicts: readonly EidosSyncMergeConflict[]
 ): boolean {
   return conflicts.some(
     (conflict) =>
+      !isNormalizedSchemaConflict(conflict) &&
       conflict.kind !== "row" &&
       !(conflict.autoResolvable && conflict.recommendedResult === "merged")
   )
@@ -131,7 +142,9 @@ export function buildMergeChangeTreeModel(
 
   for (const path of mergePaths) {
     const root = path.state === "unmerged" ? UNRESOLVED_ROOT : RESOLVED_ROOT
-    const conflicts = conflictsByPath.get(path.path) ?? []
+    const conflicts = (conflictsByPath.get(path.path) ?? []).filter(
+      (conflict) => !isNormalizedSchemaConflict(conflict)
+    )
     const wholeFileChoice = requiresWholeFileChoice(conflicts)
     const fileStructureConflicts = conflicts.filter(
       (conflict) =>

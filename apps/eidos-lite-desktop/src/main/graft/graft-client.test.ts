@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import litePackage from "../../../package.json" with { type: "json" }
 
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
 import {
@@ -64,7 +65,9 @@ describe("GraftClient", () => {
     "accepts the pinned SDK version and rejects older builds (override=%s)",
     async (sdkPath) => {
       vi.stubEnv("EIDOS_LITE_GRAFT_SDK_PATH", sdkPath)
-      const expectedVersion = "0.3.39"
+      const expectedVersion = sdkPath
+        ? GRAFT_LOCAL_MERGE_SDK_VERSION
+        : litePackage.dependencies["@eidos.space/graft"]
       const command = vi
         .fn()
         .mockResolvedValueOnce("0.3.34")

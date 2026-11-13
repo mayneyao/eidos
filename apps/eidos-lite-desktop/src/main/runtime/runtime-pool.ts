@@ -599,26 +599,48 @@ export class RuntimePool {
     signal: AbortSignal
   ): Promise<EidosSyncMergeSchemaPlan | RuntimeSystemMetadataMergeResult> {
     signal.throwIfAborted()
-    const child = utilityProcess.fork(this.workerPath, [], {serviceName:"Eidos File · Schema merge",stdio:"pipe"})
-    return new Promise((resolve,reject) => {
+    const child = utilityProcess.fork(this.workerPath, [], {
+      serviceName: "Eidos File · Schema merge",
+      stdio: "pipe",
+    })
+    return new Promise((resolve, reject) => {
       let settled = false
-      const finish = (operation:()=>void) => {
+      const finish = (operation: () => void) => {
         if (settled) return
         settled = true
-        signal.removeEventListener("abort",abort)
+        signal.removeEventListener("abort", abort)
         operation()
         child.kill()
       }
-      const abort = () => finish(()=>reject(signal.reason))
-      signal.addEventListener("abort",abort,{once:true})
-      child.on("message",message => {
-        if (!isWorkerResponse(message) || message.requestId!==1) return
-        if (message.ok) finish(()=>resolve(message.result as EidosSyncMergeSchemaPlan | RuntimeSystemMetadataMergeResult))
-        else finish(()=>reject(new Error(message.error.message)))
+      const abort = () => finish(() => reject(signal.reason))
+      signal.addEventListener("abort", abort, { once: true })
+      child.on("message", (message) => {
+        if (!isWorkerResponse(message) || message.requestId !== 1) return
+        if (message.ok)
+          finish(() =>
+            resolve(
+              message.result as
+                | EidosSyncMergeSchemaPlan
+                | RuntimeSystemMetadataMergeResult
+            )
+          )
+        else finish(() => reject(new Error(message.error.message)))
       })
-      child.once("exit",code=>finish(()=>reject(new Error(`Schema merge worker exited with code ${code}`))))
-      if (signal.aborted) { abort(); return }
-      child.postMessage({type:"mergeSchema",requestId:1,options,choices} satisfies RuntimeWorkerRequest)
+      child.once("exit", (code) =>
+        finish(() =>
+          reject(new Error(`Schema merge worker exited with code ${code}`))
+        )
+      )
+      if (signal.aborted) {
+        abort()
+        return
+      }
+      child.postMessage({
+        type: "mergeSchema",
+        requestId: 1,
+        options,
+        choices,
+      } satisfies RuntimeWorkerRequest)
     })
   }
 

@@ -2807,6 +2807,46 @@ export class EidosRuntimeService implements RuntimeClient {
 }
 
 // @public (undocumented)
+export interface EidosSchemaMergeChoice {
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    result: "ours" | "theirs";
+}
+
+// @public (undocumented)
+export interface EidosSchemaMergeField {
+    // (undocumented)
+    baseName: string;
+    // (undocumented)
+    conflicted: boolean;
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    mergedName: string | null;
+    // (undocumented)
+    oursName: string;
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    tableName: string;
+    // (undocumented)
+    theirsName: string;
+    // (undocumented)
+    type: string;
+}
+
+// @public (undocumented)
+export interface EidosSchemaMergePlan {
+    // (undocumented)
+    blockers: string[];
+    // (undocumented)
+    fields: EidosSchemaMergeField[];
+    // (undocumented)
+    supported: boolean;
+}
+
+// @public (undocumented)
 export interface EidosSystemMergeAutomaticResolution {
     // (undocumented)
     group: string;
@@ -3679,6 +3719,11 @@ export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery;
 export function normalizeEidosFileSorts(value: unknown): EidosFileSort[];
 
 // @public
+export function normalizeEidosSchemaMerge(input: EidosSystemMergeInput & {
+    choices: readonly EidosSchemaMergeChoice[];
+}): EidosSystemMergeResult;
+
+// @public
 export type OwnedBytes = Uint8Array;
 
 // @public (undocumented)
@@ -3712,6 +3757,9 @@ export function planEidosFileCsvImport(file: {
 
 // @public (undocumented)
 export function planEidosFileFieldConversion(field: EidosFileFieldInfo, rows: EidosFileFieldValueRow[], targetType: MutableEidosFileFieldType): EidosFileFieldConversionPlan;
+
+// @public
+export function planEidosSchemaMerge(input: Pick<EidosSystemMergeInput, "base" | "ours" | "theirs">): EidosSchemaMergePlan;
 
 // @public (undocumented)
 export function prepareEidosFileCsvImport(file: {

@@ -1,5 +1,8 @@
 import path from "node:path"
-import { normalizeEidosSchemaMergeFiles, planEidosSchemaMergeFiles } from "@eidos.space/eidos-file/node-sqlite"
+import {
+  normalizeEidosSchemaMergeFiles,
+  planEidosSchemaMergeFiles,
+} from "@eidos.space/eidos-file/node-sqlite"
 import { randomUUID } from "node:crypto"
 import type {
   EidosFileCsvImportOptions,
@@ -394,10 +397,21 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
     case "call":
       return runtimeCall(request.method, request.args)
     case "mergeSchema": {
-      if (openedRuntime) throw new Error("Schema merge requires a private Runtime worker")
-      const {options,choices} = request
-      if (![options.basePath,options.oursPath,options.theirsPath,options.resultPath].every(filePath=>path.isAbsolute(filePath))) throw new Error("Schema merge paths must be absolute")
-      return choices === null ? planEidosSchemaMergeFiles(options) : normalizeEidosSchemaMergeFiles({...options,choices})
+      if (openedRuntime)
+        throw new Error("Schema merge requires a private Runtime worker")
+      const { options, choices } = request
+      if (
+        ![
+          options.basePath,
+          options.oursPath,
+          options.theirsPath,
+          options.resultPath,
+        ].every((filePath) => path.isAbsolute(filePath))
+      )
+        throw new Error("Schema merge paths must be absolute")
+      return choices === null
+        ? planEidosSchemaMergeFiles(options)
+        : normalizeEidosSchemaMergeFiles({ ...options, choices })
     }
     case "mergeSystemMetadata": {
       for (const filePath of [

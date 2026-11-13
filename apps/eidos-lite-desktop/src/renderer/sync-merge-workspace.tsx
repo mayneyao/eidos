@@ -31,6 +31,7 @@ import type {
   EidosSyncMergePath,
   EidosSyncMergeResponse,
   EidosSyncMergeStatus,
+  EidosSyncMergeSchemaChoice,
   SpaceSnapshot,
 } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
@@ -38,10 +39,12 @@ import {
   MergeChangeTree,
   mergeConflictTableName,
   requiresWholeFileChoice,
+  isNormalizedSchemaConflict,
   type MergeChangeTreeTarget,
 } from "./merge-change-tree"
 import { MergeTableDiff } from "./merge-table-diff"
 import { MergeStructureReview } from "./merge-structure-review"
+import { MergeDisplayOptions, useSyncMergeShowBase } from "./sync-merge-display"
 import { InlineTextDiff } from "./version-text-diff"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -488,10 +491,11 @@ export function SyncMergeWorkbench({
   conflictPagesRef.current = conflictPages
   const [versions, setVersions] = useState<EidosSyncMergeContent[]>([])
   const [textResult, setTextResult] = useState("")
+  const textDraftsRef = useRef(new Map<string, string>())
   const [textResultSource, setTextResultSource] =
     useState<TextResultSource>(null)
   const [message, setMessage] = useState("Merge incoming changes")
-  const [showBase, setShowBase] = useState(false)
+  const showBase = useSyncMergeShowBase()
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
   const [busy, setBusy] = useState<MergeBusy>("status")
 
@@ -650,12 +654,13 @@ export function SyncMergeWorkbench({
   ])
 
   useEffect(() => {
-    setTextResultSource(null)
     if (!selectedPath) {
+      setTextResultSource(null)
       setVersions([])
       return
     }
     if (selectedPath.kind !== "text_file") {
+      setTextResultSource(null)
       setVersions([])
       setBusy(null)
       return
@@ -684,9 +689,15 @@ export function SyncMergeWorkbench({
       }
       setVersions(loaded)
       const result = loaded.find((item) => item.version === "result")
+      const draft =
+        selectedPath.state === "resolved"
+          ? undefined
+          : textDraftsRef.current.get(selectedPath.path)
       setTextResult(
-        result?.content.state === "utf8" ? result.content.content : ""
+        draft ??
+          (result?.content.state === "utf8" ? result.content.content : "")
       )
+      setTextResultSource(draft === undefined ? null : "edited")
       if (active) setBusy(null)
     }
     void load()
@@ -696,7 +707,12 @@ export function SyncMergeWorkbench({
     // The token changes after every materializing choice and must reload the
     // selected path from the newest durable merge state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPath?.path, status.stateToken])
+  }, [
+    selectedPath?.path,
+    selectedPath?.kind,
+    selectedPath?.state,
+    status.stateToken,
+  ])
 
   const updateAfterMutation = async (
     response: EidosSyncMergeResponse<EidosSyncMergeStatus>,
@@ -725,12 +741,14 @@ export function SyncMergeWorkbench({
     if (!selectedPath) return
     setBusy("resolve")
     try {
+      const response = await window.eidosLite.resolveSyncMergePath({
+        stateToken: status.stateToken,
+        path: selectedPath.path,
+        result,
+      })
+      if (response.ok) textDraftsRef.current.delete(selectedPath.path)
       await updateAfterMutation(
-        await window.eidosLite.resolveSyncMergePath({
-          stateToken: status.stateToken,
-          path: selectedPath.path,
-          result,
-        }),
+        response,
         [selectedPath.path],
         selectedPath.path
       )
@@ -748,6 +766,29 @@ export function SyncMergeWorkbench({
           stateToken: status.stateToken,
           path: selectedPath.path,
         }),
+        [selectedPath.path],
+        selectedPath.path
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const resolveSchema = async (choices: EidosSyncMergeSchemaChoice[]) => {
+    if (!selectedPath) return
+    setBusy("resolve")
+    try {
+      const response = await window.eidosLite.resolveSyncMergeSchema({
+        stateToken: status.stateToken,
+        path: selectedPath.path,
+        choices,
+      })
+      if (response.ok) {
+        setSelectedScope("file")
+        setSelectedTable(null)
+      }
+      await updateAfterMutation(
+        response,
         [selectedPath.path],
         selectedPath.path
       )
@@ -854,12 +895,14 @@ export function SyncMergeWorkbench({
     if (!selectedPath) return
     setBusy("resolve")
     try {
+      const response = await window.eidosLite.writeSyncMergeText({
+        stateToken: status.stateToken,
+        path: selectedPath.path,
+        content: textResult,
+      })
+      if (response.ok) textDraftsRef.current.delete(selectedPath.path)
       await updateAfterMutation(
-        await window.eidosLite.writeSyncMergeText({
-          stateToken: status.stateToken,
-          path: selectedPath.path,
-          content: textResult,
-        }),
+        response,
         [selectedPath.path],
         selectedPath.path
       )
@@ -941,10 +984,14 @@ export function SyncMergeWorkbench({
   const selectedConflictPage = selectedPath
     ? conflictPages.get(selectedPath.path)
     : undefined
-  const conflicts =
+  const allConflicts =
     selectedConflictPage?.stateToken === status.stateToken
       ? selectedConflictPage.items
       : []
+  const schemaNormalized = allConflicts.some(isNormalizedSchemaConflict)
+  const conflicts = allConflicts.filter(
+    (conflict) => !isNormalizedSchemaConflict(conflict)
+  )
   const conflictsByPath = useMemo(
     () =>
       new Map(
@@ -1042,37 +1089,16 @@ export function SyncMergeWorkbench({
             >
               <ChevronRight />
             </button>
-            <div className="sync-merge-base-slot">
-              {selectedPath?.kind === "text_file" ? (
-                <details
-                  key={selectedPath.path}
-                  className="merge-secondary-details sync-merge-base-menu"
-                >
-                  <summary>Base</summary>
-                  <MergeBaseReference
-                    value={mergeVersionPreview(
-                      versions.find((item) => item.version === "base")?.content
-                    )}
-                  />
-                </details>
-              ) : selectedPath?.kind === "sqlite_database" ? (
-                <button
-                  type="button"
-                  className="secondary-action sync-merge-base-toggle"
-                  aria-pressed={showBase}
-                  onClick={() => setShowBase((current) => !current)}
-                >
-                  {showBase ? "Hide Base" : "Show Base"}
-                </button>
-              ) : null}
-            </div>
             <button
               type="button"
               className="icon-button sync-merge-unresolve"
               data-sync-merge-unresolve
               aria-label="Undo resolution"
               title="Undo resolution"
-              disabled={loading || selectedPath?.state !== "resolved"}
+              disabled={
+                loading ||
+                (selectedPath?.state !== "resolved" && !schemaNormalized)
+              }
               onClick={() => void unresolvePath()}
             >
               <RotateCcw />
@@ -1098,11 +1124,13 @@ export function SyncMergeWorkbench({
               versions={versions}
               result={textResult}
               resultSource={textResultSource}
+              showBase={showBase}
               disabled={loading}
               saving={busy === "resolve"}
               theme={theme}
               onUseVersion={(source) => void resolvePath(source)}
               onEditResult={(value) => {
+                textDraftsRef.current.set(selectedPath.path, value)
                 setTextResult(value)
                 setTextResultSource("edited")
               }}
@@ -1113,6 +1141,7 @@ export function SyncMergeWorkbench({
               path={selectedPath}
               stateToken={status.stateToken}
               conflicts={conflicts}
+              schemaResolved={schemaNormalized}
               selectedTable={selectedTable}
               selectedScope={selectedScope}
               pendingResolution={pendingRowResolution}
@@ -1127,6 +1156,7 @@ export function SyncMergeWorkbench({
                 void resolveCell(conflict, column, result)
               }
               onResolvePath={(result) => void resolvePath(result)}
+              onResolveSchema={(choices) => void resolveSchema(choices)}
               onCombinePath={() => void combinePath()}
               onResolveTable={(table, result) =>
                 void resolveTable(table, result)
@@ -1191,6 +1221,7 @@ export function SyncMergeWorkbench({
                 ? "All conflicts resolved"
                 : `${status.unmergedCount} unresolved`}
             </strong>
+            <MergeDisplayOptions />
           </div>
 
           <div className="version-panel-body sync-merge-changes-body">
@@ -1390,9 +1421,7 @@ function MergeTextVersionPane({
   onUseVersion(source: "ours" | "theirs"): void
 }) {
   const { t } = useEidosLiteI18n()
-  const content = versions.find((item) => item.version === source)?.content ?? {
-    state: "absent",
-  }
+  const content = versions.find((item) => item.version === source)?.content
   const title = t(source === "ours" ? "Local changes" : "Incoming changes")
   const action = resolved ? undefined : (
     <button
@@ -1409,7 +1438,14 @@ function MergeTextVersionPane({
       className="sync-merge-diff-pane"
       data-merge-version={source === "ours" ? "local" : "hosted"}
     >
-      {content.state === "absent" ? (
+      {!content ? (
+        <div className="version-text-diff">
+          <header className="version-inspector-diff-bar version-text-diff-toolbar">
+            <strong>{title}</strong>
+          </header>
+          <p className="sync-merge-loading">Loading versions…</p>
+        </div>
+      ) : content.state === "absent" ? (
         <div className="version-text-diff">
           <header className="version-inspector-diff-bar version-text-diff-toolbar">
             <div>
@@ -1450,6 +1486,7 @@ function TextMergeResolution({
   resultSource,
   disabled,
   saving,
+  showBase,
   theme,
   onUseVersion,
   onEditResult,
@@ -1461,14 +1498,18 @@ function TextMergeResolution({
   resultSource: TextResultSource
   disabled: boolean
   saving: boolean
+  showBase: boolean
   theme: ResolvedAppearance
   onUseVersion(source: "ours" | "theirs"): void
   onEditResult(value: string): void
   onSave(): void
 }) {
   const { t } = useEidosLiteI18n()
-  const [editingResult, setEditingResult] = useState(false)
-  useEffect(() => setEditingResult(false), [path.path])
+  const [editingResult, setEditingResult] = useState(resultSource === "edited")
+  useEffect(
+    () => setEditingResult(resultSource === "edited"),
+    [path.path, resultSource]
+  )
   const resolved = path.state === "resolved"
   const resultContent = versions.find(
     (item) => item.version === "result"
@@ -1485,6 +1526,13 @@ function TextMergeResolution({
       data-sync-merge-path-state={path.state}
     >
       {resolved ? <ResolvedPathNotice title="Document resolved" /> : null}
+      {showBase ? (
+        <MergeBaseReference
+          value={mergeVersionPreview(
+            versions.find((item) => item.version === "base")?.content
+          )}
+        />
+      ) : null}
       <div className="sync-merge-input-grid">
         {(["ours", "theirs"] as const).map((source) => (
           <MergeTextVersionPane
@@ -1611,6 +1659,7 @@ function SqliteMergeResolution({
   path,
   stateToken,
   conflicts,
+  schemaResolved,
   selectedTable,
   selectedScope,
   pendingResolution,
@@ -1621,6 +1670,7 @@ function SqliteMergeResolution({
   onResolveRow,
   onResolveCell,
   onResolvePath,
+  onResolveSchema,
   onCombinePath,
   onResolveTable,
   hasMore,
@@ -1629,6 +1679,7 @@ function SqliteMergeResolution({
   path: EidosSyncMergePath
   stateToken: string
   conflicts: EidosSyncMergeConflict[]
+  schemaResolved: boolean
   selectedTable: string | null
   selectedScope: MergeChangeTreeTarget["scope"]
   pendingResolution: {
@@ -1656,6 +1707,7 @@ function SqliteMergeResolution({
     result: "ours" | "theirs"
   ): void
   onResolvePath(result: "ours" | "theirs"): void
+  onResolveSchema(choices: EidosSyncMergeSchemaChoice[]): void
   onCombinePath(): void
   onResolveTable(table: string, result: "ours" | "theirs"): void
   hasMore: boolean
@@ -1679,6 +1731,7 @@ function SqliteMergeResolution({
           showBase={showBase}
           disabled={disabled}
           onResolvePath={onResolvePath}
+          onResolveSchema={onResolveSchema}
         />
         {hasMore ? (
           <button type="button" disabled={disabled} onClick={onLoadMore}>
@@ -1723,6 +1776,9 @@ function SqliteMergeResolution({
     >
       {path.state === "resolved" && rows.length === 0 ? (
         <ResolvedPathNotice title="Eidos File resolved" />
+      ) : null}
+      {schemaResolved && path.state !== "resolved" ? (
+        <ResolvedPathNotice title="Table structure resolved" />
       ) : null}
       {path.state === "unmerged" && canCombine ? (
         <div className="sync-merge-file-resolution-actions">
