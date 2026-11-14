@@ -225,8 +225,13 @@ export function MarkdownEditorSurface({
           title: hit.matchedAlias ?? hit.name.replace(/\.md$/iu, ""),
           displayText: hit.matchedAlias,
           path: hit.relativePath.includes("/")
-            ? hit.relativePath
-            : `/${hit.relativePath}`,
+            ? hit.relativePath.split("/").map(encodeURIComponent).join("/")
+            : `/${encodeURIComponent(hit.relativePath)}`,
+          ...(/\.(?:png|jpe?g|gif|webp|avif|bmp|ico|svg)$/iu.test(hit.name)
+            ? {
+                imageUrl: `/${hit.relativePath.split("/").map(encodeURIComponent).join("/")}`,
+              }
+            : {}),
         }))
       const missing = missingMarkdownNotePath(relativePath, {
         path: query,
@@ -361,6 +366,8 @@ export function MarkdownEditorSurface({
               closeFind: t("Close find"),
               copyBlockLink: t("Copy block link"),
               linkToFile: t("Link to a file"),
+              insertFileLink: t("Insert link"),
+              insertFileImage: t("Insert image"),
               attachFile: t("Attach file"),
               searchFiles: t("Search files…"),
               searchingFiles: t("Searching files…"),

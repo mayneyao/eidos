@@ -50,10 +50,14 @@ import {
   MarkdownShortcutProvider,
   useMarkdownShortcuts,
 } from "../shortcuts/shortcut-context"
-import type { MarkdownEditorLabels, MarkdownEditorProps } from "../types"
+import type {
+  MarkdownEditorLabels,
+  MarkdownEditorProps,
+  MarkdownFileCompletionLabels,
+} from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
 
-const DEFAULT_LABELS: MarkdownEditorLabels = {
+const DEFAULT_LABELS: MarkdownEditorLabels & MarkdownFileCompletionLabels = {
   imageSettings: "Image settings",
   closeImageSettings: "Close image settings",
   imageUrl: "Image URL",
@@ -95,6 +99,8 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   dragBlock: "Drag block",
   copyBlockLink: "Copy block link",
   linkToFile: "Link to a file",
+  insertFileLink: "Insert link",
+  insertFileImage: "Insert image",
   searchFiles: "Search files…",
   searchingFiles: "Searching files…",
   noMatchingFiles: "No matching files",

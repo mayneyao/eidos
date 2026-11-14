@@ -13,6 +13,7 @@ import type { CodeHighlightTokenizer } from "../highlighting/code-highlight-toke
 import type {
   EfmInputProfile,
   MarkdownEditorLabels,
+  MarkdownFileCompletionLabels,
   MarkdownNoteSearchHandler,
 } from "../types"
 import type { MarkdownShortcutDefinition } from "../shortcuts/shortcut-registry"
@@ -34,7 +35,7 @@ export interface MarkdownPluginBehaviorProps {
   codeHighlightTokenizer?: CodeHighlightTokenizer | false
   documentKey: string
   inputProfile: EfmInputProfile
-  labels: MarkdownEditorLabels
+  labels: MarkdownEditorLabels & MarkdownFileCompletionLabels
   onError(error: Error): void
   readOnly: boolean
   syntaxFeatures: ReadonlySet<string>

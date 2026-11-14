@@ -258,6 +258,18 @@ raw filesystem path or handle. The import runs through the Space mutation gate
 and participates in whole-Space history and Sync. Content fields intentionally
 remain outside this filesystem attachment policy.
 
+Drop ordinary files from the system file manager onto a Space Explorer folder
+or its blank root area to copy them into that location. Sources remain intact;
+existing destinations and duplicate names within a batch are rejected. Imported
+files are available to file search as soon as import completes. In Rich text,
+type `[[` to find an existing file. An image offers **Insert link** (a clickable
+reference) and **Insert image** (an image block using the same file). Use the
+arrow keys and Enter/Tab or click either option. The image action writes standard
+Markdown with a `/` URL rooted in this Space, never an OS absolute path. It
+resolves that exact file, including when other folders contain the same name;
+a missing target stays unavailable. Source mode supports editing the Markdown
+directly but does not show this completion menu. `![[...]]` remains literal text.
+
 Packaged staging acceptance has exercised this exact UI path with the resident
 SDK: whole-Space push, cold clone into a second ordinary folder, and pull while
 an Eidos File editor handle was open all completed with full validation and

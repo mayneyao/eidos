@@ -147,6 +147,66 @@ describe("Markdown document images", () => {
     ).resolves.toBeNull()
   })
 
+  it("resolves an explicit Space-root image exactly without changing relative-path safety", async () => {
+    const root = await fixture()
+    await fs.mkdir(path.join(root, "images"))
+    await fs.mkdir(path.join(root, "notes", "images"))
+    const name = "同名 #[]%.png"
+    await fs.writeFile(path.join(root, "images", name), PNG)
+    await fs.writeFile(path.join(root, "notes", "images", name), PNG)
+    const encoded = `images/${encodeURIComponent(name)}`
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", `/${encoded}`)
+    ).resolves.toMatchObject({ relativePath: `images/${name}` })
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", encoded)
+    ).resolves.toMatchObject({ relativePath: `notes/images/${name}` })
+    for (const unsafe of [
+      "/../secret.png",
+      "/%2e%2e/secret.png",
+      "/images%2fsecret.png",
+      "/images%5csecret.png",
+      "//host/image.png",
+      "/.graft/secret.png",
+      "/.eidos/secret.png",
+      "/.git/secret.png",
+      "/C:/secret.png",
+      "/%43%3A/secret.png",
+      "C:\\secret.png",
+    ]) {
+      await expect(
+        resolveMarkdownDocumentImage(root, "notes/readme.md", unsafe)
+      ).rejects.toThrow()
+    }
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", "/missing.png")
+    ).resolves.toBeNull()
+    // An explicit root target never falls back to a matching short name elsewhere.
+    await fs.writeFile(path.join(root, "notes", "missing.png"), PNG)
+    await expect(
+      resolveMarkdownDocumentImage(root, "notes/readme.md", "/missing.png")
+    ).resolves.toBeNull()
+    await fs.symlink(
+      path.join(root, "images", name),
+      path.join(root, "images", "linked.png")
+    )
+    await expect(
+      resolveMarkdownDocumentImage(
+        root,
+        "notes/readme.md",
+        "/images/linked.png"
+      )
+    ).resolves.toBeNull()
+    await fs.writeFile(path.join(root, "images", "active.svg"), ACTIVE_SVG)
+    await expect(
+      resolveMarkdownDocumentImage(
+        root,
+        "notes/readme.md",
+        "/images/active.svg"
+      )
+    ).resolves.toBeNull()
+  })
+
   it("resolves and imports images for an Eidos File Content field", async () => {
     const root = await fixture()
     await fs.mkdir(path.join(root, "assets"))

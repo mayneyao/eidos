@@ -51,6 +51,14 @@ attachment access, and persistence; the renderer receives no raw filesystem hand
 
 ## Alias discovery in Lite
 
+In Rich text, type `[[` and search for an existing file. Images offer **Insert
+link** and **Insert image**. The first keeps a clickable file reference; the
+second displays the existing image without copying it. Both options work with
+arrow keys and Enter/Tab or a click. Source mode accepts the corresponding
+Markdown directly and has no completion menu. Lite's inserted image URLs begin
+with `/` to identify an exact path from the current Space root. They never refer
+to an absolute operating-system path or search another folder for a missing file.
+
 Note completion searches YAML aliases as well as file names. Selecting an alias
 inserts `[[actual/path.md|Alias]]`, never `[[Alias]]`; duplicate aliases remain
 separate candidates with visible file paths. Ordinary path search does not read

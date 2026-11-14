@@ -267,7 +267,7 @@ function localMarkdownImageSegments(markdownUrl: string): string[] | null {
   if (
     value.includes("\0") ||
     value.includes("\\") ||
-    value.startsWith("/") ||
+    /^\/?[A-Za-z]:/u.test(value) ||
     value.startsWith("//") ||
     value.includes("?") ||
     value.includes("#") ||
@@ -291,7 +291,8 @@ function localMarkdownImageSegments(markdownUrl: string): string[] | null {
       decoded.includes("/") ||
       decoded.includes("\\") ||
       decoded.includes("\0") ||
-      decoded.toLocaleLowerCase("en-US") === ".graft"
+      /^[A-Za-z]:/u.test(decoded) ||
+      [".graft", ".eidos", ".git"].includes(decoded.toLocaleLowerCase("en-US"))
     ) {
       throw new Error("The Markdown image URL escapes its document folder")
     }
@@ -379,13 +380,17 @@ export async function resolveMarkdownDocumentImage(
   const segments = localMarkdownImageSegments(markdownUrl)
   if (!segments) return null
   const { documentRoot } = await requireImageDocument(spaceRoot, relativePath)
+  // A single leading slash is a Space-root URL, never an OS filesystem path.
   const documentRelative = path.resolve(documentRoot, ...segments)
   const vaultRelative = path.resolve(spaceRoot, ...segments)
-  for (const candidate of new Set([documentRelative, vaultRelative])) {
+  const candidates = markdownUrl.trim().startsWith("/")
+    ? [vaultRelative]
+    : [documentRelative, vaultRelative]
+  for (const candidate of new Set(candidates)) {
     const resolution = await resolvedMarkdownImage(spaceRoot, candidate)
     if (resolution) return resolution
   }
-  if (segments.length === 1) {
+  if (segments.length === 1 && !markdownUrl.trim().startsWith("/")) {
     const candidate = await findVaultImageByName(spaceRoot, segments[0])
     if (candidate) return resolvedMarkdownImage(spaceRoot, candidate)
   }

@@ -1136,9 +1136,12 @@ export function SpaceFileTree({
               return
             const files = Array.from(event.dataTransfer.files)
             if (!files.length) return
-            const targetDirectory = spaceDirectory(
-              externalDropTargetDirectory(treePath)
-            )
+            const directory = externalDropTargetDirectory(treePath)
+            if (directory) {
+              const folder = model.getItem(`${directory}/`)
+              if (folder && "expand" in folder) folder.expand()
+            }
+            const targetDirectory = spaceDirectory(directory)
             mutationInFlightRef.current = true
             void onImportFiles(files, targetDirectory)
               .catch(onMoveError)

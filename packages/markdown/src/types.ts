@@ -15,6 +15,9 @@ export type EfmInputProfile = MarkdownInputMode
 export type BuiltInMarkdownProfileId = "eidos" | "obsidian" | "gfm"
 
 export interface MarkdownNoteCandidate {
+  /** Optional canonical image destination. Enables an explicit image action;
+   * selecting the ordinary candidate still inserts a wiki link. */
+  imageUrl?: string
   /** Optional alias label; the destination remains the canonical file path. */
   displayText?: string
   /** An unambiguous wiki-link target supplied by the host. */
@@ -192,6 +195,11 @@ export interface MarkdownEditorLabels {
   unfoldAllSections: string
 }
 
+export interface MarkdownFileCompletionLabels {
+  insertFileLink?: string
+  insertFileImage?: string
+}
+
 export interface MarkdownEditorInteractions {
   /** Floating text formatting toolbar. Does not disable formatting shortcuts. */
   toolbar?: boolean
@@ -240,7 +248,7 @@ export interface MarkdownEditorProps {
   onError?(error: Error): void
   onEfmDiagnostics?(diagnostics: readonly EfmDiagnostic[]): void
   onUnsupportedMarkdown?(features: readonly MarkdownUnsupportedFeature[]): void
-  labels?: Partial<MarkdownEditorLabels>
+  labels?: Partial<MarkdownEditorLabels> & MarkdownFileCompletionLabels
   placeholder?: ReactNode
   ariaLabel?: string
   className?: string

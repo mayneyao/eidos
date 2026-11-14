@@ -3,7 +3,7 @@ export function markdownImageSource(
   alt: string,
   title?: string
 ): string {
-  const escapedAlt = alt.replace(/\\/gu, "\\\\").replace(/\]/gu, "\\]")
+  const escapedAlt = alt.replace(/\\/gu, "\\\\").replace(/[\[\]]/gu, "\\$&")
   const titleSource = title
     ? ` "${title.replace(/\\/gu, "\\\\").replace(/"/gu, '\\"')}"`
     : ""

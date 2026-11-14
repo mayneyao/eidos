@@ -1192,6 +1192,15 @@ not headings, block anchors, or embeds. Despite its compatibility name,
 `searchNotes` accepts any file candidate, not only Markdown. Lite searches ordinary
 files and `.eidos` files in the open Space and shows paths to distinguish namesakes.
 
+An image candidate may additionally provide `imageUrl`, a canonical destination
+authorized by the host's existing image resolver. With image support enabled,
+the candidate exposes **Insert link** (the default) and **Insert image** as
+separate options. Arrow keys and Enter/Tab or a pointer select either option.
+Image insertion emits a standard Markdown image block and reuses that URL;
+it does not call the import/paste handler. Optional `insertFileLink` and
+`insertFileImage` labels customize these actions. Hosts that omit `imageUrl`
+keep the existing link-only picker. `![[...]]` remains unsupported literal text.
+
 # Document reference completion
 
 Note candidates may include `displayText` for a discovered alias. Completion

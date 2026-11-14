@@ -517,6 +517,14 @@ function useOpenObsidianLink(data: EfmInlineData): () => void {
 
 function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
   const openInternalLink = useOpenObsidianLink(data)
+  let label = data.label || data.target
+  if (!data.label && data.target) {
+    try {
+      label = decodeURIComponent(data.target)
+    } catch {
+      // Keep malformed source readable without interpreting it as a URL.
+    }
+  }
 
   if (data.kind === "obsidian-link") {
     return (
@@ -526,7 +534,7 @@ function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
         data-obsidian-target={data.target}
         onClick={openInternalLink}
       >
-        {data.label || data.target}
+        {label}
       </button>
     )
   }

@@ -3,13 +3,34 @@ import {
   LexicalTypeaheadMenuPlugin,
   MenuOption,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
-import { $getSelection, $isRangeSelection, $isTextNode } from "lexical"
+import {
+  $getSelection,
+  $insertNodes,
+  $isRangeSelection,
+  $isTextNode,
+} from "lexical"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { MarkdownPluginBehaviorProps } from "../../plugin-system/plugin-api"
 import type { MarkdownNoteCandidate } from "../../types"
 import { parseObsidianWikilink } from "../../markdown/obsidian-internal-link"
-import { $createEfmInlineNode } from "../../nodes/efm-semantic-node"
+import {
+  $createEfmBlockNode,
+  $createEfmInlineNode,
+} from "../../nodes/efm-semantic-node"
+import {
+  isDeniedEfmUri,
+  normalizeEfmUri,
+  resolveEfmResourceUri,
+} from "../../markdown/efm-uri"
+import { markdownImageSource } from "../../markdown/image-source"
+import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
+
+function safeImageUrl(value: string | undefined): value is string {
+  if (!value || /[\r\n<>]/u.test(value)) return false
+  const normalized = normalizeEfmUri(value)
+  return Boolean(normalized && !isDeniedEfmUri(normalized))
+}
 
 export function matchWikiQuery(text: string) {
   const bracketStart = text.lastIndexOf("[[")
@@ -28,8 +49,11 @@ export function matchWikiQuery(text: string) {
 }
 
 class NoteOption extends MenuOption {
-  constructor(public note: MarkdownNoteCandidate) {
-    super(note.path)
+  constructor(
+    public note: MarkdownNoteCandidate,
+    public action: "link" | "image" = "link"
+  ) {
+    super(`${action}:${note.path}`)
   }
 }
 
@@ -43,6 +67,8 @@ function NoteCompletion({
   searchNotes,
   documentKey,
   labels,
+  baseUri,
+  syntaxFeatures,
 }: MarkdownPluginBehaviorProps) {
   const [editor] = useLexicalComposerContext()
   const [query, setQuery] = useState<string | null>(null)
@@ -111,7 +137,13 @@ function NoteCompletion({
                 return true
               })
               .slice(0, 30)
-              .map((note) => new NoteOption(note))
+              .flatMap((note) => [
+                new NoteOption(note),
+                ...(syntaxFeatures.has(MARKDOWN_FEATURES.image) &&
+                safeImageUrl(note.imageUrl)
+                  ? [new NoteOption(note, "image")]
+                  : []),
+              ])
           )
           setStatus("noMatchingFiles")
         })
@@ -124,7 +156,7 @@ function NoteCompletion({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [query, searchNotes, documentKey, composing])
+  }, [query, searchNotes, documentKey, composing, syntaxFeatures])
 
   if (composing) return null
   return (
@@ -160,6 +192,25 @@ function NoteCompletion({
         const next = textNode.getNextSibling()
         if ($isTextNode(next) && next.getTextContent().startsWith("]]"))
           next.spliceText(0, 2, "")
+        if (option.action === "image" && safeImageUrl(option.note.imageUrl)) {
+          const url = option.note.imageUrl
+          const alt = option.note.title
+          textNode.select(0, textNode.getTextContentSize())
+          $insertNodes([
+            $createEfmBlockNode({
+              kind: "image",
+              source: markdownImageSource(url, alt),
+              url,
+              alt,
+              resolvedUrl:
+                resolveEfmResourceUri(url, baseUri, { image: true }) ??
+                undefined,
+            }),
+          ])
+          close()
+          changeQuery(null)
+          return
+        }
         const link = $createEfmInlineNode({
           kind: "obsidian-link",
           source: `[[${path}${alias ? `|${alias.replace(/\|/gu, "\\|")}` : ""}]]`,
@@ -222,7 +273,12 @@ function NoteCompletion({
                         }}
                         onClick={() => selectOptionAndCleanUp(option)}
                       >
-                        <span>{option.note.title}</span>
+                        <span>
+                          {option.note.title}
+                          {safeImageUrl(option.note.imageUrl)
+                            ? ` · ${option.action === "image" ? (labels.insertFileImage ?? "Insert image") : (labels.insertFileLink ?? "Insert link")}`
+                            : ""}
+                        </span>
                         <small>{option.note.path}</small>
                       </button>
                     ))

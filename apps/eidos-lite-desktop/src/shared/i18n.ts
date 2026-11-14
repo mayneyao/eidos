@@ -1896,6 +1896,8 @@ const zh: Record<string, string> = {
   "The referenced heading or block no longer exists.":
     "被引用的标题或块已不存在。",
   "Link to a file": "链接到文件",
+  "Insert link": "插入链接",
+  "Insert image": "插入图片",
   "Search files…": "搜索文件…",
   "Searching files…": "正在搜索文件…",
   "No matching files": "没有匹配的文件",

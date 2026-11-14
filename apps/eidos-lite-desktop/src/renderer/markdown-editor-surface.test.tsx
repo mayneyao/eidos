@@ -491,7 +491,7 @@ describe("MarkdownEditorSurface", () => {
       props.searchNotes({ documentKey: "index.md", query: "", signal })
     ).resolves.toEqual([
       { title: "Note", path: "Notes/Note.md" },
-      { title: "image.png", path: "/image.png" },
+      { title: "image.png", path: "/image.png", imageUrl: "/image.png" },
       { title: "customers.eidos", path: "business/customers.eidos" },
     ])
     expect(window.eidosLite.searchSpacePaths).toHaveBeenCalledWith(".", 200)

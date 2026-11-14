@@ -2,6 +2,7 @@ import type { EfmInlineData } from "../../nodes/efm-semantic-data"
 import type { MarkdownSyntaxRange } from "../../core/block-syntax"
 import { MARKDOWN_FEATURES } from "../../plugin-system/feature-ids"
 import { isEscaped } from "../../markdown/source-escapes"
+import { parseObsidianWikilink } from "../../markdown/obsidian-internal-link"
 
 export interface VaultMatch extends MarkdownSyntaxRange {
   data: EfmInlineData
@@ -27,38 +28,17 @@ export function scanVaultInline(
   return accepted
 }
 
-function firstUnescaped(value: string, character: string): number {
-  for (let index = 0; index < value.length; index += 1) {
-    if (value[index] === character && !isEscaped(value, index)) return index
-  }
-  return -1
-}
-
-function obsidianLinkData(source: string, body: string): EfmInlineData | null {
-  const aliasOffset = firstUnescaped(body, "|")
-  const target = (aliasOffset < 0 ? body : body.slice(0, aliasOffset)).trim()
-  if (!target) return null
-  const displayText =
-    aliasOffset < 0
-      ? undefined
-      : body
-          .slice(aliasOffset + 1)
-          .replace(/\\\|/gu, "|")
-          .trim()
-  const hashOffset = firstUnescaped(target, "#")
-  const path = (hashOffset < 0 ? target : target.slice(0, hashOffset)).trim()
-  const fragment = hashOffset < 0 ? "" : target.slice(hashOffset + 1).trim()
+function obsidianLinkData(source: string): EfmInlineData | null {
+  const parsed = parseObsidianWikilink(source)
+  if (!parsed) return null
   return {
     kind: "obsidian-link",
     source,
-    target,
-    path,
-    ...(displayText ? { label: displayText } : {}),
-    ...(fragment.startsWith("^")
-      ? { blockId: fragment.slice(1) }
-      : fragment
-        ? { heading: fragment }
-        : {}),
+    target: parsed.target,
+    path: parsed.path,
+    ...(parsed.displayText ? { label: parsed.displayText } : {}),
+    ...(parsed.heading ? { heading: parsed.heading } : {}),
+    ...(parsed.blockId ? { blockId: parsed.blockId } : {}),
   }
 }
 
@@ -83,7 +63,7 @@ export function vaultInlineMatches(
       if (!available(start, end)) {
         continue
       }
-      const data = obsidianLinkData(match[0], match[2])
+      const data = obsidianLinkData(match[0])
       if (data) replacements.push({ start, end, data })
     }
   }

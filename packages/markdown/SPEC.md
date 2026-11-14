@@ -65,7 +65,15 @@ PDFs. `[[path|label]]` navigates; `![[path]]` is unsupported literal text. The h
 search, path resolution and opening. Markdown links resolve relative to the
 current document; explicit wiki paths resolve from the Space root. Symlinks and
 paths escaping the Space are not authoring candidates. The picker MUST show the
-file path to distinguish identical names. Selecting a file MUST NOT embed it.
+file path to distinguish identical names. The default file action MUST insert a
+link. A host MAY provide an optional `imageUrl` for an image candidate; when the
+image feature is enabled the picker MUST then offer separate **Insert link** and
+**Insert image** actions, both reachable with the keyboard and pointer. The image
+action MUST insert the existing semantic image block using standard Markdown
+image syntax at the query's selection, without importing or copying the file.
+Hosts own image URL authorization. Lite treats one leading `/` in an image URL
+as the current Space root, never an OS absolute path. Such a URL MUST resolve
+only that exact Space path, without document-relative or basename fallback.
 
 GFM MUST cover CommonMark and the five specified extension families: tables,
 task lists, strikethrough, extended autolinks and disallowed raw HTML. It MUST

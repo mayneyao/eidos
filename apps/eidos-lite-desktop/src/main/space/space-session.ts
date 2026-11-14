@@ -2259,6 +2259,15 @@ export class SpaceSession {
         }
       })
     )
+    const destinationKeys = new Set<string>()
+    for (const source of sources) {
+      const key = source.relativePath
+        .normalize("NFC")
+        .toLocaleLowerCase("en-US")
+      if (destinationKeys.has(key))
+        throw new Error("Files with the same name cannot be imported together")
+      destinationKeys.add(key)
+    }
     await this.gate.withMutation(async () => {
       const copied: string[] = []
       const published: string[] = []
@@ -2275,11 +2284,13 @@ export class SpaceSession {
           }
         }
         for (const source of sources) {
-          await renameWithRetry(
+          // Exclusive publication also protects a destination created after preflight.
+          await fs.link(
             this.resolveUserPath(source.temporaryPath),
             this.resolveUserPath(source.relativePath)
           )
           published.push(source.relativePath)
+          await fs.unlink(this.resolveUserPath(source.temporaryPath))
         }
       } catch (error) {
         await Promise.all([
@@ -2293,6 +2304,9 @@ export class SpaceSession {
         throw error
       }
     })
+    await this.pathIndex.applyChanges(
+      sources.map((source) => source.relativePath)
+    )
     this.noteLocalChange()
     this.notifyMarkdownWatchers(sources.map((source) => source.relativePath))
     return {
