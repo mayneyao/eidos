@@ -1635,6 +1635,21 @@ an empty list is not represented as null. The editor MUST preserve these
 meanings when loading and saving a View even if its internal compatibility
 model uses different operator names.
 
+Checkbox conditions use a single state selector instead of requiring a separate
+operator and Boolean operand. Its ordinary choices are Checked and Unchecked,
+which emit `eq true` and `eq false`. Empty-related choices are offered only when
+the Field has an actual SQL NULL value anywhere in the Table, independent of the
+current View filter, search, or page. Merely being nullable or coming from an
+older file is not evidence of an empty value. An already saved empty-related
+condition remains visible and editable even when no current row matches it.
+The editor checks on opening the selector and rejects stale asynchronous results
+after the Field or source changes. Empty and Not empty emit `is-null` and
+`is-not-null`. Unchecked or
+empty emits `ne true`, and Checked or empty emits `ne false`. These labels retain
+the exact Runtime null distinction and MUST round-trip existing View filters
+without changing their membership. A Host-supplied custom filter editor MAY
+retain its specialized controls.
+
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
 after**, **is on or before**, **is on or after**, **is between**, **is relative
 to today**, **is empty**, and **is not empty**. **Is between** accepts an

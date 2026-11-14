@@ -153,6 +153,55 @@ describe("shared EidosFileQueryToolbar", () => {
     expect(onSearchChange).toHaveBeenCalledWith("roadmap")
   })
 
+  it("edits a Checkbox condition directly in the common Filter popover", async () => {
+    const checkbox: EidosFileFieldInfo = {
+      ...fields[0],
+      type: "checkbox",
+      nullable: true,
+    }
+    act(() =>
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[checkbox]}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    )
+    await act(async () => button("Filter")?.click())
+    await act(async () =>
+      document.querySelector<HTMLElement>("[cmdk-item]")?.click()
+    )
+    expect(
+      document.body.querySelector('[aria-label="Filter operator"]')
+    ).toBeNull()
+    const condition = document.body.querySelector<HTMLElement>(
+      '[aria-label="Checkbox condition"]'
+    )
+    await act(async () => condition?.click())
+    expect(
+      Array.from(document.querySelectorAll('[role="option"]')).map((option) =>
+        option.textContent?.trim()
+      )
+    ).toEqual(["Checked", "Unchecked"])
+    const unchecked = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Unchecked")!
+    await act(async () => unchecked.click())
+    await act(async () => button("Apply")?.click())
+    expect(onFilterChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        { type: "rule", field: checkbox.id, operator: "equals", value: false },
+      ],
+    })
+  })
+
   it("keeps search available while persisted query mutations are disabled", () => {
     act(() => {
       root.render(
@@ -959,14 +1008,17 @@ describe("EidosFileFieldFilterEditor", () => {
 
   const renderEditor = (
     value: EidosFileFilterGroup | null = null,
-    disabled = false
+    disabled = false,
+    field: EidosFileFieldInfo = extension,
+    source?: EidosFileEditorDataSource
   ) => {
     act(() => {
       root.render(
         <React.StrictMode>
           <EidosFileFieldFilterEditor
-            field={extension}
+            field={field}
             value={value}
+            source={source}
             disabled={disabled}
             onChange={onChange}
             onClose={onClose}
@@ -1036,6 +1088,204 @@ describe("EidosFileFieldFilterEditor", () => {
     expect(onClose).toHaveBeenCalledOnce()
     expect(onPendingChange.mock.calls).toEqual([[true], [false]])
   })
+
+  it.each([
+    ["Checked", "equals", true],
+    ["Unchecked", "equals", false],
+    ["is empty", "is-empty", undefined],
+    ["is not empty", "is-not-empty", undefined],
+    ["Unchecked or empty", "not-equals", true],
+    ["Checked or empty", "not-equals", false],
+  ] as const)(
+    "saves %s with its exact Boolean/null meaning through one control",
+    async (label, operator, value) => {
+      const checkbox: EidosFileFieldInfo = {
+        ...fields[0],
+        type: "checkbox",
+        nullable: true,
+      }
+      renderEditor(null, false, checkbox, {
+        hasNullValues: vi.fn().mockResolvedValue(true),
+      } as unknown as EidosFileEditorDataSource)
+      const controls = container.querySelectorAll<HTMLButtonElement>(
+        'button[role="combobox"]'
+      )
+      expect(controls).toHaveLength(1)
+      expect(controls[0]!.getAttribute("aria-label")).toBe("Checkbox condition")
+      expect(document.activeElement).toBe(controls[0])
+      await selectOption(label)
+      expect(onChange).not.toHaveBeenCalled()
+      await act(async () => button("Apply")?.click())
+      expect(onChange).toHaveBeenCalledWith({
+        type: "group",
+        conjunction: "and",
+        children: [{ type: "rule", field: checkbox.id, operator, value }],
+      })
+    }
+  )
+
+  it("offers only Boolean choices when the full column has no nulls, and checks again on reopening", async () => {
+    const checkbox: EidosFileFieldInfo = {
+      ...fields[0],
+      type: "checkbox",
+      nullable: true,
+    }
+    const hasNullValues = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    renderEditor(null, false, checkbox, {
+      hasNullValues,
+    } as unknown as EidosFileEditorDataSource)
+    expect(hasNullValues).not.toHaveBeenCalled()
+    const open = async () => {
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[aria-label="Checkbox condition"]'
+          )!
+          .click()
+      )
+    }
+    const labels = () =>
+      Array.from(document.querySelectorAll('[role="option"]')).map((option) =>
+        option.textContent?.trim()
+      )
+    await open()
+    expect(labels()).toEqual(["Checked", "Unchecked"])
+    expect(hasNullValues).toHaveBeenCalledWith(checkbox.tableId, checkbox.id)
+    await act(async () =>
+      Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+        .find((option) => option.textContent?.trim() === "Unchecked")!
+        .click()
+    )
+    await open()
+    expect(labels()).toEqual([
+      "Checked",
+      "Unchecked",
+      "is empty",
+      "is not empty",
+      "Unchecked or empty",
+      "Checked or empty",
+    ])
+    expect(hasNullValues).toHaveBeenCalledTimes(2)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("uses unfiltered column statistics for sources without a null-presence probe", async () => {
+    const checkbox: EidosFileFieldInfo = {
+      ...fields[0],
+      type: "checkbox",
+      nullable: true,
+    }
+    const calculateColumnStats = vi
+      .fn()
+      .mockResolvedValue([
+        { fieldId: checkbox.id, type: "count-empty", value: 1 },
+      ])
+    renderEditor(null, false, checkbox, {
+      calculateColumnStats,
+    } as unknown as EidosFileEditorDataSource)
+    await selectOption("is empty")
+    expect(calculateColumnStats).toHaveBeenCalledWith(
+      checkbox.tableId,
+      [{ fieldId: checkbox.id, type: "count-empty" }],
+      {}
+    )
+  })
+
+  it("ignores a stale null-presence result after the source changes", async () => {
+    const checkbox: EidosFileFieldInfo = {
+      ...fields[0],
+      type: "checkbox",
+      nullable: true,
+    }
+    let resolveOld!: (hasNull: boolean) => void
+    renderEditor(null, false, checkbox, {
+      hasNullValues: () =>
+        new Promise<boolean>((resolve) => {
+          resolveOld = resolve
+        }),
+    } as unknown as EidosFileEditorDataSource)
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Checkbox condition"]')!
+        .click()
+    )
+    renderEditor(null, false, checkbox, {
+      hasNullValues: vi.fn().mockResolvedValue(false),
+    } as unknown as EidosFileEditorDataSource)
+    await act(async () => resolveOld(true))
+    expect(
+      Array.from(document.querySelectorAll('[role="option"]')).map((option) =>
+        option.textContent?.trim()
+      )
+    ).toEqual(["Checked", "Unchecked"])
+  })
+
+  it("does not probe non-nullable Checkbox columns", async () => {
+    const hasNullValues = vi.fn().mockResolvedValue(true)
+    renderEditor(
+      null,
+      false,
+      { ...fields[0], type: "checkbox", nullable: false },
+      {
+        hasNullValues,
+      } as unknown as EidosFileEditorDataSource
+    )
+    await selectOption("Unchecked")
+    expect(hasNullValues).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])(
+    "preserves a saved negative Checkbox filter (value=%s)",
+    async (value) => {
+      const checkbox: EidosFileFieldInfo = {
+        ...fields[0],
+        type: "checkbox",
+        nullable: true,
+      }
+      const saved: EidosFileFilterGroup = {
+        type: "group",
+        conjunction: "and",
+        children: [
+          { type: "rule", field: checkbox.id!, operator: "not-equals", value },
+        ],
+      }
+      renderEditor(saved, false, checkbox)
+      expect(
+        container.querySelector('[aria-label="Checkbox condition"]')!
+          .textContent
+      ).toBe(value ? "Unchecked or empty" : "Checked or empty")
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[aria-label="Checkbox condition"]'
+          )!
+          .click()
+      )
+      expect(
+        Array.from(document.querySelectorAll('[role="option"]')).map((option) =>
+          option.textContent?.trim()
+        )
+      ).toEqual([
+        "Checked",
+        "Unchecked",
+        value ? "Unchecked or empty" : "Checked or empty",
+      ])
+      await act(async () =>
+        Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+          .find(
+            (option) =>
+              option.textContent?.trim() ===
+              (value ? "Unchecked or empty" : "Checked or empty")
+          )!
+          .click()
+      )
+      await act(async () => button("Apply")?.click())
+      expect(onChange).toHaveBeenCalledWith(saved)
+    }
+  )
 
   it("preserves an existing OR tree under an AND wrapper", async () => {
     const value: EidosFileFilterGroup = {

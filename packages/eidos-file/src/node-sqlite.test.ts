@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it, vi } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
@@ -52,6 +53,20 @@ const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
 })
+
+it.runIf(supportsElectron43NodeSqlite).each([false, true])(
+  "keeps Checkbox defaults and explicit null distinct in Node SQLite (legacy=%s)",
+  async (legacy) => {
+    const connection = new NodeSqliteConnectionPort(
+      new DatabaseSync(":memory:")
+    )
+    try {
+      await expectCheckboxDefaultConformance(connection, legacy)
+    } finally {
+      connection.close()
+    }
+  }
+)
 
 it.runIf(supportsElectron43NodeSqlite)(
   "keeps bulk-import schema reads bounded while validating every row ID",

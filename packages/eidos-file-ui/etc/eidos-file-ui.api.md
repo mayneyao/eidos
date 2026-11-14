@@ -799,6 +799,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   getRowIndex(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
   getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
   getGroupCounts(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
+  hasNullValues(tableId: string, fieldId: string): Promise<boolean>;
   calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
   aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
   previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;

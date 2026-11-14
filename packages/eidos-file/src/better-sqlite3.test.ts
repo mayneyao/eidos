@@ -9,6 +9,7 @@ import {
   BetterSqlite3EidosFileConnection,
 } from "./better-sqlite3"
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import { Runtime } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -33,6 +34,18 @@ const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
 })
+
+it.each([false, true])(
+  "keeps Checkbox defaults and explicit null distinct in Better SQLite (legacy=%s)",
+  async (legacy) => {
+    const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+    try {
+      await expectCheckboxDefaultConformance(connection, legacy)
+    } finally {
+      connection.close()
+    }
+  }
+)
 
 describe("BetterSqlite3EidosFileConnection statement cache", () => {
   it("reuses prepared statements and evicts the least recently used SQL", () => {

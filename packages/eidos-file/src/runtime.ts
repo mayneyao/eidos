@@ -376,7 +376,7 @@ function fieldColumnSql(field: PreparedField): string | null {
     case "rating":
       return `${column} INTEGER`
     case "checkbox":
-      return `${column} INTEGER${field.nullable ? "" : " NOT NULL"} CHECK(${column} IS NULL OR ${column} IN (0, 1))`
+      return `${column} INTEGER${field.nullable ? "" : " NOT NULL"} DEFAULT 0 CHECK(${column} IS NULL OR ${column} IN (0, 1))`
     case "file":
     case "multi-select":
     case "relation":
@@ -2448,7 +2448,9 @@ export class EidosFileRuntime {
     if (
       prepared.physicalName &&
       !prepared.nullable &&
-      !["file", "multi-select", "relation"].includes(prepared.type) &&
+      !["checkbox", "file", "multi-select", "relation"].includes(
+        prepared.type
+      ) &&
       this.countRows(tableId) > 0
     ) {
       throw new EidosFileError(
@@ -5377,7 +5379,7 @@ export class EidosFileRuntime {
     tableId: string,
     row: EidosFileRow,
     allowUnresolvedRelations: boolean,
-    applyCreateDefaults = false
+    createMode?: "ordinary" | "import"
   ): Array<{ field: EidosFileFieldInfo; value: EidosFileSqlPrimitive }> {
     const changes: Array<{
       field: EidosFileFieldInfo
@@ -5407,24 +5409,32 @@ export class EidosFileRuntime {
         ),
       })
     }
-    if (applyCreateDefaults) {
+    if (createMode) {
       const suppliedFieldIds = new Set(changes.map((change) => change.field.id))
       for (const field of this.listFields(tableId)) {
         if (
-          field.type !== "select" ||
+          (field.type !== "checkbox" &&
+            (createMode !== "ordinary" || field.type !== "select")) ||
           !field.id ||
           !field.physicalName ||
+          field.valueKind === "system" ||
+          field.settings?.writable === false ||
+          field.settings?.readOnly === true ||
+          field.settings?.isSystem === true ||
           suppliedFieldIds.has(field.id)
         ) {
           continue
         }
-        const defaultOption = parseEidosFileSelectDefaultOption(field.settings)
-        if (defaultOption === null) continue
+        const defaultValue =
+          field.type === "checkbox"
+            ? false
+            : parseEidosFileSelectDefaultOption(field.settings)
+        if (defaultValue === null) continue
         changes.push({
           field,
           value: this.normalizeStoredValue(
             field,
-            defaultOption,
+            defaultValue,
             allowUnresolvedRelations
           ),
         })
@@ -5457,7 +5467,7 @@ export class EidosFileRuntime {
       tableId,
       row,
       allowUnresolvedRelations,
-      applyCreateDefaults
+      applyCreateDefaults ? "ordinary" : "import"
     )
     const columns = [
       "_id",
@@ -5511,6 +5521,7 @@ export class EidosFileRuntime {
       {
         keys: string[]
         fields: EidosFileFieldInfo[]
+        defaultCheckboxCount: number
         sql: string
         parameterSets: EidosFileSqlPrimitive[][]
       }
@@ -5553,15 +5564,28 @@ export class EidosFileRuntime {
           }
           return field
         })
+        const suppliedFieldIds = new Set(plannedFields.map((field) => field.id))
+        const defaultCheckboxFields = fields.filter(
+          (field) =>
+            field.type === "checkbox" &&
+            field.physicalName &&
+            field.valueKind !== "system" &&
+            field.settings?.writable !== false &&
+            field.settings?.readOnly !== true &&
+            field.settings?.isSystem !== true &&
+            !suppliedFieldIds.has(field.id)
+        )
         const columns = [
           "_id",
           "_created_at",
           "_updated_at",
           ...plannedFields.map((field) => field.physicalName!),
+          ...defaultCheckboxFields.map((field) => field.physicalName!),
         ]
         plan = {
           keys,
           fields: plannedFields,
+          defaultCheckboxCount: defaultCheckboxFields.length,
           sql: `INSERT INTO ${quoteIdentifier(tableName)}
             (${columns.map(quoteIdentifier).join(", ")})
            VALUES (${columns.map(() => "?").join(", ")})`,
@@ -5576,6 +5600,7 @@ export class EidosFileRuntime {
         ...plan.keys.map((key, index) =>
           this.normalizeStoredValue(plan.fields[index]!, row[key], true)
         ),
+        ...Array<number>(plan.defaultCheckboxCount).fill(0),
       ]
       plan.parameterSets.push(values)
       return rowId

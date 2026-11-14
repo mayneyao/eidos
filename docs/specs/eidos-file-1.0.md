@@ -714,7 +714,7 @@ text, select, url,
 date, datetime             -> TEXT
 number                     -> REAL
 integer                    -> INTEGER
-checkbox                   -> INTEGER CHECK(value IS NULL OR value IN (0, 1))
+checkbox                   -> INTEGER DEFAULT 0 CHECK(value IS NULL OR value IN (0, 1))
 file, multi-select,
 forward relation           -> TEXT NOT NULL DEFAULT '[]' with JSON-array CHECK
 ```
@@ -728,6 +728,15 @@ Relation Fields also have `nullable=0` because their derived list may be empty
 but is not NULL. Formula and Lookup Fields have `nullable=1` in core 1.0 because
 EF cannot prove non-NULL derived evaluation. All three system roles have
 `nullable=0` as required by Section 7.
+
+New or rebuilt stored Checkbox columns MUST declare `DEFAULT 0`. The default
+applies only when an insert omits the column; an explicit SQL NULL remains NULL
+when `nullable=1`. Readers MUST also accept existing Checkbox columns that omit
+the default. A declared Checkbox default other than the integer literal `0` is
+invalid. Adding a Checkbox column initializes that new cell to false for every
+existing row; this does not rewrite NULL cells in other, already existing
+Checkbox columns. Runtime defines the same omission behavior for legacy columns
+without a physical default.
 
 The registry is intentionally small. `rating` is not a Field type; it is an
 Integer display setting, for example:
@@ -1614,6 +1623,9 @@ At minimum, shared fixtures and executable SQL MUST cover:
   relative and `https:` references, canonical inline images, Base64 alphabet/
   padding/size/media-type mismatch negatives, traversal after percent-decoding,
   and the 1 MiB inline-image boundary;
+- Checkbox `DEFAULT 0`, legacy columns without a default, rejection of another
+  default, omitted-column false versus explicit NULL, and default preservation
+  across stored-column creation/rebuild;
 - Select without Option IDs, unconfigured raw values, and ordered unique
   Multi-select strings;
 - forward Relation shape/cardinality, distinct INSERT/UPDATE validator names,

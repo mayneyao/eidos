@@ -82,6 +82,7 @@ import {
 } from "@eidos.space/eidos-file"
 
 import type { EidosFileEditorDataSource } from "./data-source"
+import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import { EidosFileSchemaImpactRequiredError } from "./schema-impact-confirmation"
 
 interface RowDeletionUndoRuntimeClient extends RuntimeClient {
@@ -180,7 +181,7 @@ function runtimeKeysetBeforeFilter(
 }
 
 function conversionErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = eidosFileErrorMessage(error, "Field type conversion failed")
   if (
     /List is not canonical JSON|List must contain only strings/.test(message)
   ) {
@@ -194,7 +195,7 @@ function conversionErrorMessage(error: unknown): string {
     return "Existing values cannot be turned into attachments. Create a File field and add the files there instead."
   }
   if (/Text is not the exact inverse binary64 spelling/.test(message)) {
-    return "Some values are not consistently formatted numbers. Remove spaces and leading zeroes, then try again."
+    return "Some values are not valid number text. Use plain numbers such as 0 or 1, without spaces or leading zeroes. Text “true” and “false” cannot be converted to Number."
   }
   if (/Text is not lowercase true or false/.test(message)) {
     return "Some values are not “true” or “false”. Update them before converting to Checkbox."
@@ -535,6 +536,21 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       cursor = page.nextCursor ?? undefined
     } while (cursor)
     return results
+  }
+
+  async hasNullValues(tableId: string, fieldId: string): Promise<boolean> {
+    this.assertField(fieldId, tableId)
+    const page = await this.runtime.queryRows(
+      {
+        tableId,
+        query: { filter: { op: "is-null", fieldId } },
+        projection: { fields: [fieldId], resolveRelations: [] },
+        limit: 1,
+        direction: "forward",
+      },
+      this.context("field-null-values")
+    )
+    return page.rows.length > 0
   }
 
   async calculateColumnStats(

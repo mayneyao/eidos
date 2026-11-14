@@ -1520,6 +1520,10 @@ export class EidosRuntimeService implements RuntimeClient {
       for (const field of tableFields) {
         const fieldId = field.id!
         if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.type === "checkbox") {
+          normalized[fieldId] = false
+          continue
+        }
         if (field.type === "select") {
           const defaultOption = parseEidosFileSelectDefaultOption(
             field.settings
@@ -3390,6 +3394,7 @@ export class EidosRuntimeService implements RuntimeClient {
             leaf.field.kind !== "formula" &&
             leaf.field.kind !== "lookup" &&
             leaf.field.kind !== "relation" &&
+            leaf.field.kind !== "checkbox" &&
             leaf.field.nullable === false &&
             this.core.countRows(leaf.tableId) > 0
           ) {
@@ -3399,7 +3404,7 @@ export class EidosRuntimeService implements RuntimeClient {
               { tableId: leaf.tableId }
             )
           }
-          // ADD COLUMN with the canonical list default changes the physical
+          // ADD COLUMN with a canonical Checkbox/list default changes the physical
           // schema but does not rewrite any existing logical row value. The
           // schema plan classification is therefore metadata-only.
           break
@@ -3723,6 +3728,51 @@ export class EidosRuntimeService implements RuntimeClient {
             }))
           )
           break
+        }
+      }
+    }
+    const changedQueryFields = fields.filter((field) => {
+      const proposed = proposedFields.get(field.id!)
+      return (
+        proposed &&
+        canonicalizeEidosFileJson(fieldValueType(field)) !==
+          canonicalizeEidosFileJson(fieldValueType(proposed))
+      )
+    })
+    if (changedQueryFields.length > 0) {
+      for (const view of this.allViews()) {
+        if (view.queryStatus === "unsupported") continue
+        const dependency = changedQueryFields.find(
+          (field) =>
+            field.tableId === view.tableId &&
+            (view.sorts.some((sort) => sort.field === field.id) ||
+              compatibilityFilterReferencesField(view.filter, field.id!))
+        )
+        if (!dependency) continue
+        dependencies.set("view:" + view.id, { object: "view", id: view.id })
+        try {
+          // Decode the saved predicate using the original Field shapes. Using
+          // destination shapes could reinterpret a list operand as scalar/null.
+          assertRuntimeRowQuery(proposedByTable.get(view.tableId) ?? [], {
+            ...(view.filter
+              ? { filter: compatibilityFilterToRuntime(view.filter, fields) }
+              : {}),
+            sort: view.sorts.map((sort) => ({
+              fieldId: sort.field,
+              direction: sort.direction,
+              ...(sort.nulls ? { nulls: sort.nulls } : {}),
+            })),
+          })
+        } catch {
+          forbid(
+            "dependency-blocked",
+            `Saved View “${view.name}” has a filter or sort that is incompatible with the new field type. Update or remove it before changing the field type.`,
+            {
+              tableId: view.tableId,
+              fieldId: dependency.id,
+              viewId: view.id,
+            }
+          )
         }
       }
     }

@@ -642,7 +642,7 @@ text, select, url,
 date, datetime             -> TEXT
 number                     -> REAL
 integer                    -> INTEGER
-checkbox                   -> INTEGER CHECK(value IS NULL OR value IN (0, 1))
+checkbox                   -> INTEGER DEFAULT 0 CHECK(value IS NULL OR value IN (0, 1))
 file, multi-select,
 forward relation           -> TEXT NOT NULL DEFAULT '[]' with JSON-array CHECK
 ```
@@ -651,6 +651,13 @@ stored scalar Field 的 `nullable=0` 必须对应 physical `NOT NULL`，`nullabl
 必须对应省略 `NOT NULL`，不能用额外 constraint 静默缩小 raw domain。File、
 Multi-select、forward/inverse Relation 固定 `nullable=0`；Formula/Lookup 在 core 1.0
 固定 `nullable=1`，因为 EF 不能证明 derived result non-NULL；三个 system roles 固定为 0。
+
+新建或 rebuild 的 stored Checkbox column 必须声明 `DEFAULT 0`。只有 insert
+省略该 column 时才应用默认值；`nullable=1` 时显式 SQL NULL 仍为 NULL。Reader
+也必须接受没有 default 的既有 Checkbox column；声明其他 default（非整数 literal
+`0`）无效。新增 Checkbox column 会把每条旧 row 的这个新 cell 初始化为 false，
+不会改写其他既有 Checkbox column 中的 NULL。对于没有 physical default 的旧
+column，Runtime 定义相同的遗漏值行为。
 
 checkbox 只允许 `0/1/NULL`；number 不允许 NaN/Infinity，写入前把 negative zero
 normalize 为 positive zero；integer 使用完整 signed
@@ -1370,6 +1377,8 @@ shared fixtures/executable SQL 至少覆盖：
   vectors 必须覆盖 valid/unresolved relative 与 `https:` reference、canonical inline
   image、Base64 alphabet/padding/size/media-type mismatch negative、percent-decode 后
   traversal，以及 1 MiB inline-image boundary；
+- Checkbox `DEFAULT 0`、没有 default 的旧 column、拒绝其他 default、遗漏 column
+  的 false 与显式 NULL 的区别，以及 stored-column 创建/rebuild 的 default 保留；
 - Select 无 Option ID、unconfigured value、Multi-select ordered unique strings；
 - Relation shape/cardinality、distinct INSERT/UPDATE validator names、inverse lifecycle、
   immutable Row ID 与 self/cycle/multi-row set-based restrict/detach/preserve；

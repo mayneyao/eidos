@@ -2458,12 +2458,17 @@ Relation keys. It validates the complete logical value before opening a write
 transaction. Missing Select Fields with a valid File Format
 `settings.defaultOption` use that exact option name. This rule runs only for
 create and only when the Field ID is absent from `values`; an explicit null on
-a nullable Select suppresses the default. Other missing nullable Fields become
-null. Missing Multi-select, File, and forward Relation Fields use `[]`. Every
-other missing non-null user Field is `invalid-value`; there is no implicit type
-default. Runtime fills Row ID and created/updated timestamps. CSV
-import/replay preserves its explicit input contract and MUST NOT infer this
-create-time default unless it invokes the ordinary row-create operation.
+a nullable Select suppresses the default. A missing stored Checkbox Field uses
+false, including a non-nullable Checkbox or a legacy column without a physical
+`DEFAULT 0`. An explicit null remains null when that Field is nullable. Other
+missing nullable Fields become null. Missing Multi-select, File, and forward
+Relation Fields use `[]`. Every other missing non-null user Field is
+`invalid-value`; no other implicit scalar type default exists. Update omission
+never applies create defaults or changes an existing value. Runtime fills Row ID
+and created/updated timestamps. CSV import/replay preserves explicit null and
+false values; an omitted Checkbox Field uses false, while an omitted Select
+does not infer its create-time default unless the importer invokes the ordinary
+row-create operation.
 
 Select values absent from the display catalog remain valid. Multi-select and
 Relation values must already be ordered/unique; Runtime does not silently
@@ -2808,9 +2813,11 @@ destination uses required `toNullable`; list/forward-Relation destinations are
 fixed non-null.
 
 Creating a stored Field on a populated Table has exact fill behavior. A
-nullable scalar Field fills every existing row with SQL NULL. A
-non-nullable scalar Field is permitted only when the Table has zero rows;
-there is no general default/initial-value member in Runtime 1.0. A Select
+Checkbox Field fills every new cell with false using its canonical `DEFAULT 0`,
+whether nullable or non-nullable. Other nullable scalar Fields fill every
+existing row with SQL NULL. A non-nullable scalar Field other than Checkbox is
+permitted only when the Table has zero rows; there is no general
+default/initial-value member in Runtime 1.0. A Select
 `settings.defaultOption` affects only later row creates and never backfills
 existing rows. Multi-select, File, and forward Relation Fields fill every
 existing row with canonical `[]`.
@@ -3738,6 +3745,10 @@ ER-Writer additionally covers:
 2. create/update/delete success, Table-scoped missing and duplicate-change failures,
    equal-value no-op, one operation timestamp, one revision increment, overflow
    refusal, full rollback, and unknown-commit reconciliation;
+   omitted Checkbox false on ordinary create/import and legacy columns,
+   explicit nullable null/false preservation, sparse updates that retain an
+   existing Checkbox value, and nullable/non-nullable Checkbox creation on
+   populated Tables;
 3. Relation restrict/detach/preserve for single, multi-row, and self-Relation
    delete sets, survivor order, timestamp, and rollback;
 4. View create/update/delete, saved-search exclusion, unknown layout

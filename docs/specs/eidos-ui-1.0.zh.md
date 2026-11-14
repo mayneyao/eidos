@@ -1450,6 +1450,16 @@ Filter label 必须保留 Runtime 第 7.1 节的 total-Boolean semantics。具�
 scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 或其他会
 泄漏 SQL UNKNOWN 的 expression 实现它们。
 
+Checkbox condition 使用单个状态选择器，无需分别选择 operator 和 Boolean operand。
+常规选项只有已勾选/未勾选，发送 `eq true`/`eq false`。只有该 Field 在整张 Table
+中实际存在 SQL NULL 时才提供空值相关选项，不受当前 View filter、search 或分页影响。
+仅 nullable 或来自旧文件不能证明存在空值。已经保存的空值相关 condition 即使当前
+没有匹配行，也继续可见、可编辑。Editor 在打开选择器时检查，并忽略 Field/source
+改变后的过期异步结果。为空/不为空发送 `is-null`/`is-not-null`；
+未勾选或为空发送 `ne true`，已勾选或为空发送 `ne false`。这些 label 保留 Runtime
+精确的 null 区别，必须在既有 View filter 往返时保持成员集合不变。Host 提供的
+custom filter editor 可以保留专用控件。
+
 **为空**与**不为空**是 shape-aware label。对 scalar 分别发送 `is-null` 与
 `is-not-null`；对 Multi-select、File、Relation 或其他 list result 分别发送 `eq []`
 与 `ne []`。Runtime list value 是 non-null，empty list 不用 null 表示。即使 editor

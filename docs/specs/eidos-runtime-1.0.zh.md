@@ -2336,11 +2336,14 @@ physical name、unknown Field、system Field、Formula、Lookup 与 inverse Rela
 key。它在打开 write transaction 前验证完整 logical value。具有有效 File Format
 `settings.defaultOption` 的 missing Select Field 使用该 exact option name。此规则
 只用于 create，且只在 `values` 中没有该 Field ID 时运行；nullable Select 的显式
-null 会抑制 default。其他 missing nullable Field 成为 null。missing Multi-select、
-File 与 forward Relation Field 使用 `[]`。其他所有 missing non-null user Field
-都是 `invalid-value`；不存在 implicit type default。Runtime 填充 Row ID 与
-created/updated timestamp。CSV import/replay 保持其 explicit input contract；除非
-它调用 ordinary row-create operation，否则不得推断此 create-time default。
+null 会抑制 default。missing stored Checkbox Field 使用 false，包括 non-nullable
+Checkbox 和没有 physical `DEFAULT 0` 的旧 column。nullable Checkbox 的显式 null
+仍为 null。其他 missing nullable Field 成为 null。missing Multi-select、File 与
+forward Relation Field 使用 `[]`。其他所有 missing non-null user Field 都是
+`invalid-value`；不存在其他 implicit scalar type default。Update 省略字段时不会
+应用 create default 或改变既有值。Runtime 填充 Row ID 与 created/updated
+timestamp。CSV import/replay 保留显式 null/false；省略 Checkbox Field 时使用 false，
+省略 Select 时不推断 create-time default，除非调用 ordinary row-create operation。
 
 display catalog 中不存在的 Select value 仍然有效。Multi-select 与 Relation value
 必须已 ordered/unique；Runtime 不会默默 deduplicate。JSON Field input 是 JCS
@@ -2663,10 +2666,11 @@ true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Form
 forbidden；不会 invent implicit default。转换为 scalar destination 时使用
 required `toNullable`；list/forward-Relation destination 固定 non-null。
 
-在 populated Table 上创建 stored Field 有精确的 fill behavior。nullable scalar
-Field 以 SQL NULL 填充每个 existing row。只有 Table 为零行时才允许创建
-non-nullable scalar Field；Runtime 1.0 中没有 general default/initial-value
-member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
+在 populated Table 上创建 stored Field 有精确的 fill behavior。Checkbox Field
+无论 nullable 还是 non-nullable，都通过 canonical `DEFAULT 0` 把每个新 cell
+初始化为 false。其他 nullable scalar Field 以 SQL NULL 填充每个 existing row。
+Checkbox 之外的 non-nullable scalar Field 仍只允许在零行 Table 上创建；Runtime
+1.0 中没有 general default/initial-value member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
 existing row。Multi-select、File 与 forward Relation Field 以 canonical `[]`
 填充每个 existing row。Formula、Lookup 与 inverse Relation Field 不添加
 user-table column。
@@ -3520,6 +3524,9 @@ ER-Writer 还覆盖：
 2. create/update/delete success、Table-scoped missing 与 duplicate-change failure、
    equal-value no-op、一个 operation timestamp、一次 revision increment、overflow
    refusal、full rollback 与 unknown-commit reconciliation；
+   ordinary create/import 和旧 column 中遗漏 Checkbox 时使用 false，保留显式
+   nullable null/false，sparse update 保留既有 Checkbox 值，以及 populated Table
+   上的 nullable/non-nullable Checkbox 创建；
 3. 对 single、multi-row 与 self-Relation delete set 的 Relation
    restrict/detach/preserve，以及 survivor order、timestamp 与 rollback；
 4. View create/update/delete、saved-search exclusion、unknown layout preservation

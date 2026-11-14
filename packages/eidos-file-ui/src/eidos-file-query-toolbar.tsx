@@ -152,6 +152,121 @@ const relativeUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
   year: "year",
 }
 
+const checkboxConditions: Array<{
+  key: string
+  label: string
+  operator: EidosFileFilterOperator
+  value?: boolean
+}> = [
+  { key: "checked", label: "Checked", operator: "equals", value: true },
+  { key: "unchecked", label: "Unchecked", operator: "equals", value: false },
+  { key: "empty", label: "is empty", operator: "is-empty" },
+  { key: "not-empty", label: "is not empty", operator: "is-not-empty" },
+  {
+    key: "unchecked-or-empty",
+    label: "Unchecked or empty",
+    operator: "not-equals",
+    value: true,
+  },
+  {
+    key: "checked-or-empty",
+    label: "Checked or empty",
+    operator: "not-equals",
+    value: false,
+  },
+]
+
+function CheckboxConditionSelect({
+  field,
+  condition,
+  conditions,
+  source,
+  onChange,
+}: {
+  field: EidosFileFieldInfo
+  condition: (typeof checkboxConditions)[number]
+  conditions: typeof checkboxConditions
+  source?: EidosFileEditorDataSource
+  onChange: (condition: (typeof checkboxConditions)[number]) => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  const [open, setOpen] = useState(false)
+  const [nullCheck, setNullCheck] = useState<{
+    field: EidosFileFieldInfo
+    source: EidosFileEditorDataSource
+    hasNull: boolean
+  } | null>(null)
+  useEffect(() => {
+    if (!open || !source || !field.tableId || field.nullable === false) return
+    let active = true
+    void (async () => {
+      const fieldId = eidosFileFieldKey(field)
+      const hasNull = source.hasNullValues
+        ? await source.hasNullValues(field.tableId!, fieldId)
+        : (
+            await source.calculateColumnStats(
+              field.tableId!,
+              [{ fieldId, type: "count-empty" }],
+              {}
+            )
+          ).some(
+            (stat) =>
+              stat.fieldId === fieldId &&
+              stat.type === "count-empty" &&
+              Number(stat.value) > 0
+          )
+      if (active) setNullCheck({ field, source, hasNull })
+    })().catch(() => {
+      // Ordinary Boolean choices and the saved condition remain usable when
+      // the optional null-presence check is unavailable.
+    })
+    return () => {
+      active = false
+    }
+  }, [open, source, field])
+  const hasNull =
+    field.nullable !== false &&
+    nullCheck?.field === field &&
+    nullCheck.source === source &&
+    nullCheck.hasNull
+  const visibleConditions = conditions.filter(
+    (candidate) =>
+      candidate.operator === "equals" ||
+      hasNull ||
+      candidate.key === condition.key
+  )
+  return (
+    <Select
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setNullCheck(null)
+        setOpen(next)
+      }}
+      value={condition.key}
+      onValueChange={(key) => {
+        const next = visibleConditions.find(
+          (candidate) => candidate.key === key
+        )
+        if (next) onChange(next)
+      }}
+    >
+      <SelectTrigger
+        className="h-7 min-w-0 text-xs"
+        aria-label={t("Checkbox condition")}
+      >
+        <SelectValue>{t(condition.label)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {visibleConditions.map((candidate) => (
+          <SelectItem key={candidate.key} value={candidate.key}>
+            {t(candidate.label)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 function queryCandidateFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
     (field) =>
@@ -698,13 +813,31 @@ function EidosFileFilterRuleEditor({
         )}
       </div>
     )
+  const customValue = renderValue?.(field, rule, (value) =>
+    onChange({ ...rule, value })
+  )
+  const availableOperators = getOperators(field)
+  const conditions = checkboxConditions.filter((condition) =>
+    availableOperators.includes(condition.operator)
+  )
+  const checkboxCondition =
+    fieldDisplayType(field) === "checkbox" && customValue == null
+      ? conditions.find(
+          (condition) =>
+            condition.operator === rule.operator &&
+            (emptyOperators.has(rule.operator) ||
+              condition.value === rule.value)
+        )
+      : undefined
   return (
     <div
       className={cn(
         "grid items-start gap-1.5",
         fixedField
           ? "grid-cols-1"
-          : "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_28px]"
+          : checkboxCondition
+            ? "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(180px,2.5fr)_28px]"
+            : "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_28px]"
       )}
     >
       {!fixedField && (
@@ -749,74 +882,97 @@ function EidosFileFilterRuleEditor({
           </SelectContent>
         </Select>
       )}
-      <Select
-        value={rule.operator}
-        onValueChange={(operator: EidosFileFilterOperator) => {
-          const relative = operator === "is-relative-to-today"
-          const between = operator === "is-between"
-          const membership = eidosFileFieldQueryCapabilities(field).membership
-          const multiple = membership && multipleValueOperators.has(operator)
-          const currentIsStructured =
-            rule.value !== null &&
-            typeof rule.value === "object" &&
-            !Array.isArray(rule.value)
-          const nextValue: EidosFileFilterRuleValue | undefined =
-            emptyOperators.has(operator)
-              ? undefined
-              : relative
-                ? { direction: "this", unit: "week" }
-                : between
-                  ? ["", ""]
-                  : multiple
-                    ? Array.isArray(rule.value)
-                      ? rule.value
-                      : typeof rule.value === "string" && rule.value
-                        ? [rule.value]
-                        : []
-                    : membership && Array.isArray(rule.value)
-                      ? (rule.value[0] ?? "")
-                      : rule.value === undefined || currentIsStructured
-                        ? fieldDisplayType(field) === "checkbox"
-                          ? true
-                          : ""
-                        : rule.value
-          onChange({
-            ...rule,
-            operator,
-            value: nextValue,
-          })
-        }}
-      >
-        <SelectTrigger
-          className="h-7 min-w-0 text-xs"
-          aria-label={t("Filter operator")}
+      {checkboxCondition ? (
+        <div
+          className="min-w-0"
+          data-eidos-file-filter-value={fixedField ? "" : undefined}
         >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {getOperators(field).map((operator) => (
-            <SelectItem key={operator} value={operator}>
-              {t(operatorLabel(field, operator))}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <div
-        className={fixedField ? "min-w-0" : "eidos-filter-value"}
-        data-eidos-file-filter-value={fixedField ? "" : undefined}
-      >
-        {renderValue?.(field, rule, (value) =>
-          onChange({ ...rule, value })
-        ) ?? (
-          <FilterValueEditor
+          <CheckboxConditionSelect
             field={field}
-            rule={rule}
             source={source}
-            compact
-            onChange={(value) => onChange({ ...rule, value })}
+            condition={checkboxCondition}
+            conditions={conditions}
+            onChange={(condition) =>
+              onChange({
+                ...rule,
+                operator: condition.operator,
+                value: condition.value,
+              })
+            }
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <Select
+            value={rule.operator}
+            onValueChange={(operator: EidosFileFilterOperator) => {
+              const relative = operator === "is-relative-to-today"
+              const between = operator === "is-between"
+              const membership =
+                eidosFileFieldQueryCapabilities(field).membership
+              const multiple =
+                membership && multipleValueOperators.has(operator)
+              const currentIsStructured =
+                rule.value !== null &&
+                typeof rule.value === "object" &&
+                !Array.isArray(rule.value)
+              const nextValue: EidosFileFilterRuleValue | undefined =
+                emptyOperators.has(operator)
+                  ? undefined
+                  : relative
+                    ? { direction: "this", unit: "week" }
+                    : between
+                      ? ["", ""]
+                      : multiple
+                        ? Array.isArray(rule.value)
+                          ? rule.value
+                          : typeof rule.value === "string" && rule.value
+                            ? [rule.value]
+                            : []
+                        : membership && Array.isArray(rule.value)
+                          ? (rule.value[0] ?? "")
+                          : rule.value === undefined || currentIsStructured
+                            ? fieldDisplayType(field) === "checkbox"
+                              ? true
+                              : ""
+                            : rule.value
+              onChange({
+                ...rule,
+                operator,
+                value: nextValue,
+              })
+            }}
+          >
+            <SelectTrigger
+              className="h-7 min-w-0 text-xs"
+              aria-label={t("Filter operator")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableOperators.map((operator) => (
+                <SelectItem key={operator} value={operator}>
+                  {t(operatorLabel(field, operator))}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div
+            className={fixedField ? "min-w-0" : "eidos-filter-value"}
+            data-eidos-file-filter-value={fixedField ? "" : undefined}
+          >
+            {customValue ?? (
+              <FilterValueEditor
+                field={field}
+                rule={rule}
+                source={source}
+                compact
+                onChange={(value) => onChange({ ...rule, value })}
+              />
+            )}
+          </div>
+        </>
+      )}
       {onRemove && (
         <Button
           type="button"
