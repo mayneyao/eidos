@@ -227,6 +227,40 @@ export async function importMarkdownDocumentImage(
   }
 }
 
+/** Ordinary attachments use the same safe, non-overwriting assets boundary. */
+export async function importMarkdownDocumentFile(
+  spaceRoot: string,
+  request: EidosLiteMarkdownImageImportRequest
+): Promise<EidosLiteMarkdownImageAsset> {
+  if (
+    !request.name.trim() ||
+    request.name.length > 1_024 ||
+    request.data.byteLength === 0 ||
+    request.data.byteLength > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX
+  ) {
+    throw new Error("Markdown attachments must be between 1 byte and 64 MiB")
+  }
+  const { documentRoot } = await requireImageDocument(
+    spaceRoot,
+    request.relativePath
+  )
+  const assetRoot = await requireAssetDirectory(documentRoot)
+  const imported = await writeUniqueImage(
+    assetRoot,
+    portableEidosFileAssetName(request.name),
+    request.data
+  )
+  return {
+    // encodeURIComponent leaves parentheses unescaped; encode them for Markdown destinations.
+    markdownUrl: `assets/${encodeURIComponent(imported.name).replaceAll("(", "%28").replaceAll(")", "%29")}`,
+    relativePath: path
+      .relative(spaceRoot, imported.targetPath)
+      .split(path.sep)
+      .join("/"),
+    mediaType: "application/octet-stream",
+  }
+}
+
 function localMarkdownImageSegments(markdownUrl: string): string[] | null {
   const value = markdownUrl.trim()
   if (!value || value.startsWith("#") || /^https?:/iu.test(value)) return null

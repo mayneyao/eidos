@@ -1909,6 +1909,11 @@ export function registerIpc(
       .requireSession(event.sender)
       .importMarkdownImage(markdownImageImportRequest(value))
   )
+  ipcMain.handle(IPC_CHANNELS.importMarkdownFile, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .importMarkdownFile(markdownImageImportRequest(value))
+  )
   ipcMain.handle(
     IPC_CHANNELS.resolveMarkdownImage,
     (event, relativePath: unknown, markdownUrl: unknown) => {

@@ -156,6 +156,7 @@ export const IPC_CHANNELS = {
   htmlPreviewClose: "eidos-lite:html-preview-close",
   saveTextFile: "eidos-lite:text-file-save",
   importMarkdownImage: "eidos-lite:markdown-image-import",
+  importMarkdownFile: "eidos-lite:markdown-file-import",
   resolveMarkdownImage: "eidos-lite:markdown-image-resolve",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
@@ -2088,6 +2089,10 @@ export interface EidosLiteApi extends PluginApi {
   closeHtmlPreview(previewId: string): Promise<void>
   saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>
   importMarkdownImage(
+    relativePath: string,
+    file: File
+  ): Promise<EidosLiteMarkdownImageAsset>
+  importMarkdownFile(
     relativePath: string,
     file: File
   ): Promise<EidosLiteMarkdownImageAsset>

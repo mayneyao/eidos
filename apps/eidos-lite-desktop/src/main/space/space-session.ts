@@ -181,6 +181,7 @@ import type { FileThumbnailProvider } from "./file-thumbnails"
 import type { ExplorerThumbnailRequest } from "../../shared/explorer-media"
 import { readExplorerFileThumbnail } from "./explorer-file-thumbnail"
 import {
+  importMarkdownDocumentFile,
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
 } from "./markdown-document-assets"
@@ -1588,6 +1589,18 @@ export class SpaceSession {
     this.prioritizeLocalWork()
     const result = await this.gate.withMutation(() =>
       importMarkdownDocumentImage(this.canonical.root, request)
+    )
+    this.noteLocalChange()
+    await this.freshSnapshotAndEmit()
+    return result
+  }
+
+  async importMarkdownFile(
+    request: EidosLiteMarkdownImageImportRequest
+  ): Promise<EidosLiteMarkdownImageAsset> {
+    this.prioritizeLocalWork()
+    const result = await this.gate.withMutation(() =>
+      importMarkdownDocumentFile(this.canonical.root, request)
     )
     this.noteLocalChange()
     await this.freshSnapshotAndEmit()

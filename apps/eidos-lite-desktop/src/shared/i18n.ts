@@ -1961,6 +1961,23 @@ const zh: Record<string, string> = {
   Editable: "可编辑",
   "Read-only": "只读",
   Saved: "已保存",
+  "Saved to disk": "已保存到磁盘",
+  "Save {path} ({shortcut})": "保存 {path}（{shortcut}）",
+  "Attach file": "附加文件",
+  "Check write access to this file's folder and try again. Your draft is kept.":
+    "请检查文件所在文件夹的写入权限，然后重试。草稿已保留。",
+  "The disk is full. Free some space and try again. Your draft is kept.":
+    "磁盘已满。请释放一些空间，然后重试。草稿已保留。",
+  "The file could not be saved. Your draft is kept. Try again or save a copy.":
+    "无法保存文件。草稿已保留，请重试或另存副本。",
+  "Edited text exceeds the 2 MB file limit":
+    "编辑后的文本超过了 2 MB 文件大小限制",
+  "Could not attach file. Check write access to this note's folder and try again.":
+    "无法附加文件。请检查笔记所在文件夹的写入权限，然后重试。",
+  "Choose an attachment between 1 byte and 64 MiB, then try again.":
+    "请选择 1 字节至 64 MiB 的附件，然后重试。",
+  "Could not attach file. Choose the file again to retry.":
+    "无法附加文件。请重新选择文件以重试。",
   "Saving…": "正在保存…",
   "Unsaved changes": "有未保存的更改",
   "Changed on disk": "磁盘文件已更改",

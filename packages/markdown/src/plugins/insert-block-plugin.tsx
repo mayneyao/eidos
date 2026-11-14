@@ -8,7 +8,7 @@ import {
   resolveBlockBoundary,
   type MarkdownBlockBoundary,
 } from "../core/block-boundary"
-import { $isLinkNode } from "@lexical/link"
+import { $createLinkNode, $isLinkNode } from "@lexical/link"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { createDOMRange } from "@lexical/selection"
 import { micromark } from "micromark"
@@ -16,6 +16,7 @@ import { gfm } from "micromark-extension-gfm"
 import {
   $createNodeSelection,
   $createParagraphNode,
+  $createTextNode,
   $createRangeSelection,
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
@@ -80,6 +81,7 @@ import {
   EXTERNAL_MARKDOWN_CONFLICT_MESSAGE,
   useEfmSourceBlockContext,
 } from "../ui/efm-source-block-context"
+import { isRelativeMarkdownDestination } from "../features/commonmark/relative-link-behavior"
 
 type ComposerKind = "footnote" | "frontmatter" | "html" | "plugin"
 type PlaceholderKind = "image"
@@ -485,8 +487,18 @@ export function InsertBlockPlugin({
   )
   const { ariaKeys, matches } = useMarkdownShortcuts()
   const { isFoldable, isFolded, toggleFold } = useCollapsibleHeadings()
-  const { externalMarkdownConflict, registerDraft, syntaxFeatures } =
-    useEfmSourceBlockContext()
+  const {
+    externalMarkdownConflict,
+    registerDraft,
+    syntaxFeatures,
+    onImportFiles,
+    readOnly,
+  } = useEfmSourceBlockContext()
+  const pendingImport = useRef<AbortController | null>(null)
+  useEffect(() => () => pendingImport.current?.abort(), [])
+  useEffect(() => {
+    if (readOnly || externalMarkdownConflict) pendingImport.current?.abort()
+  }, [readOnly, externalMarkdownConflict])
   const [blockActions, setBlockActions] = useState<{
     key: NodeKey
     left: number
@@ -597,8 +609,8 @@ export function InsertBlockPlugin({
   }, [composer, registerDraft])
 
   const items = useMemo<InsertMenuItem[]>(
-    () =>
-      insertions.flatMap((insertion) => {
+    () => [
+      ...insertions.flatMap((insertion) => {
         if (insertion.id === "frontmatter" && inputProfile !== "document") {
           return []
         }
@@ -616,7 +628,28 @@ export function InsertBlockPlugin({
           },
         ]
       }),
-    [hasFrontmatter, inputProfile, insertions, labels]
+      ...(onImportFiles && syntaxFeatures.has("markdown.link")
+        ? [
+            {
+              id: "attach-file",
+              pluginId: "host.attachments",
+              contexts: ["block", "inline"] as const,
+              section: "basic" as const,
+              glyph: "↗",
+              label: labels.attachFile,
+              keywords: ["file", "attachment", "pdf", "附件", "文件"],
+            },
+          ]
+        : []),
+    ],
+    [
+      hasFrontmatter,
+      inputProfile,
+      insertions,
+      labels,
+      onImportFiles,
+      syntaxFeatures,
+    ]
   )
 
   const availableItems = useMemo(
@@ -1279,7 +1312,73 @@ export function InsertBlockPlugin({
   const chooseItem = useCallback(
     (item: InsertMenuItem) => {
       if (item.unavailable) return
-      if (item.execute) {
+      if (item.id === "attach-file") {
+        if (
+          !onImportFiles ||
+          pendingImport.current ||
+          !editor.isEditable() ||
+          externalMarkdownConflict
+        )
+          return
+        const controller = new AbortController()
+        pendingImport.current = controller
+        const anchor = anchorKeyRef.current
+        const inline = inlineAnchorRef.current
+        const placement = placementRef.current
+        closeMenu()
+        void onImportFiles({ kind: "file", signal: controller.signal })
+          .then((files) => {
+            if (
+              controller.signal.aborted ||
+              !editor.isEditable() ||
+              !files.length
+            )
+              return
+            for (const file of files) {
+              if (
+                !isRelativeMarkdownDestination(file.markdownUrl) ||
+                file.markdownUrl.startsWith("/") ||
+                /[\r\n<>]/u.test(file.markdownUrl)
+              )
+                throw new Error("Invalid attachment destination")
+            }
+            editor.update(
+              () => {
+                if (controller.signal.aborted || !editor.isEditable()) return
+                const target = anchor ? $getNodeByKey(anchor) : null
+                // Never append to a different place after the original target was removed.
+                if (!target?.isAttached()) return
+                const links = files.map((file) =>
+                  $createLinkNode(file.markdownUrl).append(
+                    $createTextNode(file.name)
+                  )
+                )
+                if (inline) {
+                  if (!restoreInlineAnchor(inline)) return
+                  $insertNodes(links)
+                } else {
+                  let previous: LexicalNode | null = null
+                  for (const link of links) {
+                    const paragraph = $createParagraphNode().append(link)
+                    if (previous) previous.insertAfter(paragraph)
+                    else insertAtomicBlock(paragraph, anchor, placement)
+                    previous = paragraph
+                  }
+                }
+              },
+              { tag: HISTORY_PUSH_TAG }
+            )
+            focusEditor()
+          })
+          .catch((cause: unknown) => {
+            if (!controller.signal.aborted)
+              onError(cause instanceof Error ? cause : new Error(String(cause)))
+          })
+          .finally(() => {
+            if (pendingImport.current === controller)
+              pendingImport.current = null
+          })
+      } else if (item.execute) {
         try {
           item.execute({
             labels,
@@ -1355,6 +1454,8 @@ export function InsertBlockPlugin({
       labels,
       onError,
       openComposer,
+      onImportFiles,
+      externalMarkdownConflict,
     ]
   )
 

@@ -6,6 +6,42 @@ const createObjectURL = vi.fn()
 const revokeObjectURL = vi.fn()
 
 describe("Markdown image attachment host", () => {
+  it("uses the real chooser input, cancels without importing, and drops a disposed import result", async () => {
+    const importFile = vi.fn(async () => ({
+      markdownUrl: "assets/report.pdf",
+      relativePath: "notes/assets/report.pdf",
+      mediaType: "application/octet-stream",
+    }))
+    Object.assign(window.eidosLite, { importMarkdownFile: importFile })
+    const host = createMarkdownImageAttachmentHost("notes/readme.md")
+    const controller = new AbortController()
+    const canceled = host.onImportFiles({
+      kind: "file",
+      signal: controller.signal,
+    })
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    expect(input.accept).toBe("")
+    input.dispatchEvent(new Event("cancel"))
+    await expect(canceled).resolves.toEqual([])
+    expect(importFile).not.toHaveBeenCalled()
+    const pending = host.onImportFiles({
+      kind: "file",
+      signal: controller.signal,
+    })
+    const selected =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["%PDF"], "report.pdf")
+    Object.defineProperty(selected, "files", { value: [file] })
+    selected.dispatchEvent(new Event("change"))
+    await Promise.resolve()
+    // Persistence may already have completed, but an unmounted document cannot receive it.
+    host.dispose()
+    await expect(pending).resolves.toEqual([])
+    expect(importFile).toHaveBeenCalledWith("notes/readme.md", file)
+    expect(document.querySelector('input[type="file"]')).toBeNull()
+  })
+
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn())
     createObjectURL

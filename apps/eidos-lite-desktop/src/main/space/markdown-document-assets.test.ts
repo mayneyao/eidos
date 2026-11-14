@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import {
+  importMarkdownDocumentFile,
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
 } from "./markdown-document-assets"
@@ -37,6 +38,51 @@ afterEach(async () => {
 })
 
 describe("Markdown document images", () => {
+  it("imports ordinary attachment bytes with portable relative URLs, preserves collisions and rejects symlink targets", async () => {
+    const root = await fixture()
+    const data = new TextEncoder().encode("%PDF-1.4 attachment")
+    const request = {
+      relativePath: "notes/readme.md",
+      name: "中文 [预算] (1) #%.pdf",
+      data,
+    }
+    const first = await importMarkdownDocumentFile(root, request)
+    const second = await importMarkdownDocumentFile(root, request)
+    expect(first.markdownUrl).toMatch(/^assets\//)
+    expect(decodeURIComponent(first.markdownUrl)).toBe(
+      `assets/${path.basename(first.relativePath)}`
+    )
+    expect(first.markdownUrl).not.toMatch(/[ ()#\[\]]/)
+    expect(second.relativePath).not.toBe(first.relativePath)
+    await expect(
+      fs.readFile(path.join(root, first.relativePath))
+    ).resolves.toEqual(Buffer.from(data))
+    await expect(
+      fs.readFile(path.join(root, second.relativePath))
+    ).resolves.toEqual(Buffer.from(data))
+    await fs.mkdir(path.join(root, "linked"))
+    await fs.writeFile(path.join(root, "linked", "note.md"), "note")
+    await fs.symlink(
+      path.join(root, "notes", "assets"),
+      path.join(root, "linked", "assets")
+    )
+    await expect(
+      importMarkdownDocumentFile(root, {
+        ...request,
+        relativePath: "linked/note.md",
+      })
+    ).rejects.toThrow("ordinary folder")
+    await expect(
+      importMarkdownDocumentFile(root, {
+        ...request,
+        relativePath: "../outside.md",
+      })
+    ).rejects.toThrow()
+    await expect(
+      importMarkdownDocumentFile(root, { ...request, data: new Uint8Array() })
+    ).rejects.toThrow("64 MiB")
+  })
+
   it("stores pasted images beside their document without overwriting names", async () => {
     const root = await fixture()
     const first = await importMarkdownDocumentImage(root, {

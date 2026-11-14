@@ -4,6 +4,7 @@ import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { MarkdownEditorProps } from "@eidos.space/markdown"
 
 const sourceEditor = vi.hoisted(() => vi.fn())
 const wysiwygEditor = vi.hoisted(() => vi.fn())
@@ -84,6 +85,66 @@ describe("MarkdownEditorSurface", () => {
     container.remove()
     Reflect.deleteProperty(URL, "createObjectURL")
     Reflect.deleteProperty(URL, "revokeObjectURL")
+  })
+
+  it("reports actionable import errors without internal paths and clears them on retry", async () => {
+    Object.assign(window.eidosLite, {
+      importMarkdownFile: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "EACCES: permission denied /private/assets/.eidos-image-secret.tmp"
+          )
+        ),
+    })
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="note.md"
+          relativePath="note.md"
+          assetDocumentPath="note.md"
+          content="draft"
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    const importFiles = wysiwygEditor.mock.lastCall![0]
+      .onImportFiles as NonNullable<MarkdownEditorProps["onImportFiles"]>
+    let pending!: ReturnType<typeof importFiles>
+    act(() => {
+      pending = importFiles({
+        kind: "file",
+        signal: new AbortController().signal,
+      })
+    })
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    Object.defineProperty(input, "files", {
+      value: [new File(["pdf"], "report.pdf")],
+    })
+    await act(async () => {
+      input.dispatchEvent(new Event("change"))
+      await pending
+    })
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Check write access to this note's folder and try again."
+    )
+    expect(container.textContent).not.toContain(".tmp")
+    act(() => {
+      pending = importFiles({
+        kind: "file",
+        signal: new AbortController().signal,
+      })
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    await act(async () => {
+      document
+        .querySelector('input[type="file"]')!
+        .dispatchEvent(new Event("cancel"))
+      await pending
+    })
   })
 
   it("routes source mode to Pierre", async () => {

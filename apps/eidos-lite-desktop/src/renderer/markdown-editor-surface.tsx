@@ -17,6 +17,7 @@ import type {
   MarkdownNoteSearchHandler,
   MarkdownEditorInternalLinkRequest,
   MarkdownEditorPasteImageHandler,
+  MarkdownEditorProps,
 } from "@eidos.space/markdown"
 import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
 import {
@@ -131,6 +132,30 @@ export function MarkdownEditorSurface({
     [imageAttachments]
   )
   const { t } = useEidosLiteI18n()
+  const importFiles = useCallback<
+    NonNullable<MarkdownEditorProps["onImportFiles"]>
+  >(
+    async (request) => {
+      setAttachmentError(null)
+      try {
+        return (await imageAttachments?.onImportFiles(request)) ?? []
+      } catch (cause) {
+        if (request.signal.aborted) return []
+        const message = cause instanceof Error ? cause.message : String(cause)
+        setAttachmentError(
+          t(
+            /EACCES|EPERM|EROFS|permission denied|read-only/iu.test(message)
+              ? "Could not attach file. Check write access to this note's folder and try again."
+              : /between 1 byte and 64 MiB/u.test(message)
+                ? "Choose an attachment between 1 byte and 64 MiB, then try again."
+                : "Could not attach file. Choose the file again to retry."
+          )
+        )
+        return []
+      }
+    },
+    [imageAttachments, t]
+  )
   const emptyDocumentPrompt =
     layout === "document" ? t("Start writing…") : undefined
   const focusHint = focusShortcutLabel
@@ -336,6 +361,7 @@ export function MarkdownEditorSurface({
               closeFind: t("Close find"),
               copyBlockLink: t("Copy block link"),
               linkToFile: t("Link to a file"),
+              attachFile: t("Attach file"),
               searchFiles: t("Search files…"),
               searchingFiles: t("Searching files…"),
               noMatchingFiles: t("No matching files"),
@@ -368,6 +394,7 @@ export function MarkdownEditorSurface({
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
             onPasteImage={imageAttachments ? importImage : undefined}
+            onImportFiles={imageAttachments ? importFiles : undefined}
             resolveImageUrl={imageAttachments?.resolveImageUrl}
             onError={(error) =>
               setAttachmentError(`Markdown editor error: ${error.message}`)

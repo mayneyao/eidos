@@ -430,6 +430,16 @@ const api: EidosLiteApi = {
       data: new Uint8Array(await file.arrayBuffer()),
     })
   },
+  importMarkdownFile: async (relativePath, file) => {
+    if (file.size === 0 || file.size > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX) {
+      throw new Error("Markdown attachments must be between 1 byte and 64 MiB")
+    }
+    return ipcRenderer.invoke(IPC_CHANNELS.importMarkdownFile, {
+      relativePath,
+      name: file.name,
+      data: new Uint8Array(await file.arrayBuffer()),
+    })
+  },
   resolveMarkdownImage: (relativePath, markdownUrl) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.resolveMarkdownImage,

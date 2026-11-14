@@ -10252,7 +10252,28 @@ body {
 
 .text-file-editor {
   position: relative;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.text-editor-save-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 1rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.text-editor-save-bar button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.text-editor-save-bar kbd {
+  margin-left: 0.4rem;
+  font: inherit;
 }
 
 .markdown-editor-surface {

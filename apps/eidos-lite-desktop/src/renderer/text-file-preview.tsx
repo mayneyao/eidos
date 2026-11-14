@@ -35,6 +35,10 @@ import {
 } from "./markdown-editor-surface"
 import { renderSafeMarkdown } from "./markdown-preview"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
+import {
+  acceptsTextFileSave,
+  registerTextFileSaveTarget,
+} from "./text-file-save-shortcut"
 
 const useRendererLayoutEffect =
   typeof document === "undefined" ? useEffect : useLayoutEffect
@@ -42,6 +46,25 @@ const useRendererLayoutEffect =
 type TextPreview = Extract<TextFilePreviewResult, { type: "text" }>
 type TextSurfacePreview = Exclude<TextFilePreviewResult, { type: "media" }>
 type SaveState = "saved" | "dirty" | "saving" | "conflict" | "error"
+
+function saveFailureMessage(
+  cause: unknown,
+  t: (message: string) => string
+): string {
+  const message = cause instanceof Error ? cause.message : String(cause)
+  if (/EACCES|EPERM|EROFS|permission denied|read-only/iu.test(message))
+    return t(
+      "Check write access to this file's folder and try again. Your draft is kept."
+    )
+  if (/ENOSPC|disk.*full/iu.test(message))
+    return t(
+      "The disk is full. Free some space and try again. Your draft is kept."
+    )
+  if (/2 MB/u.test(message)) return t("Edited text exceeds the 2 MB file limit")
+  return t(
+    "The file could not be saved. Your draft is kept. Try again or save a copy."
+  )
+}
 
 export interface TextFileDraft {
   content: string
@@ -91,6 +114,7 @@ function unavailableMessage(
 
 function EditableTextFile({
   preview,
+  platform,
   draft,
   theme,
   autoFocus = false,
@@ -107,6 +131,7 @@ function EditableTextFile({
   onDraftChange,
 }: {
   preview: TextPreview
+  platform: string
   draft?: TextFileDraft
   theme: ResolvedAppearance
   autoFocus?: boolean
@@ -149,6 +174,17 @@ function EditableTextFile({
   )
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const mountedRef = useRef(true)
+  const sectionRef = useRef<HTMLElement>(null)
+  const saveRef = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    const root = sectionRef.current
+    if (root)
+      return registerTextFileSaveTarget({
+        root,
+        platform,
+        save: () => saveRef.current(),
+      })
+  }, [platform])
 
   useRendererLayoutEffect(() => {
     if (preview.revision !== revisionRef.current) {
@@ -240,15 +276,17 @@ function EditableTextFile({
             }
           }
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause)
           if (mountedRef.current) {
-            setError(message)
+            setError(saveFailureMessage(cause, t))
             setState("error")
           }
         }
       })
     return textDraftLifecycle.track(queueRef.current)
-  }, [onDraftChange, onSaved, preview.relativePath])
+  }, [onDraftChange, onSaved, preview.relativePath, t])
+  saveRef.current = () => {
+    void requestSave()
+  }
 
   const [copySaved, setCopySaved] = useState(false)
 
@@ -307,6 +345,7 @@ function EditableTextFile({
 
   return (
     <section
+      ref={sectionRef}
       className="text-file-preview text-file-editor"
       aria-label={t("Text editor for {path}", {
         path: preview.relativePath,
@@ -315,11 +354,10 @@ function EditableTextFile({
       data-text-file-preview-state="text"
       data-text-file-preview-truncated="false"
       data-text-file-editor={preview.relativePath}
+      data-text-file-save-state={state}
       onKeyDownCapture={(event) => {
         if (
-          (event.metaKey || event.ctrlKey) &&
-          !event.altKey &&
-          event.key.toLowerCase() === "s"
+          acceptsTextFileSave(event.nativeEvent, event.currentTarget, platform)
         ) {
           event.preventDefault()
           void requestSave()
@@ -350,11 +388,7 @@ function EditableTextFile({
                 .then((saved) => {
                   if (saved) setCopySaved(true)
                 })
-                .catch((cause) =>
-                  setError(
-                    cause instanceof Error ? cause.message : String(cause)
-                  )
-                )
+                .catch((cause) => setError(saveFailureMessage(cause, t)))
             }}
           >
             {t("Save a copy")}
@@ -387,6 +421,35 @@ function EditableTextFile({
         onEditingModeChange={onEditingModeChange}
         onChange={handleChange}
       />
+      <footer className="text-editor-save-bar">
+        <span role="status" aria-live="polite">
+          {t(
+            state === "saving"
+              ? "Saving…"
+              : state === "saved"
+                ? "Saved to disk"
+                : state === "error"
+                  ? "Save failed"
+                  : state === "conflict"
+                    ? "Changed on disk"
+                    : "Unsaved changes"
+          )}
+        </span>
+        <button
+          type="button"
+          className="text-editor-save-issue-action"
+          disabled={
+            state === "saved" || state === "saving" || state === "conflict"
+          }
+          title={t("Save {path} ({shortcut})", {
+            path: preview.relativePath,
+            shortcut: platform === "darwin" ? "Cmd+S" : "Ctrl+S",
+          })}
+          onClick={() => void requestSave()}
+        >
+          {t("Save")} <kbd>{platform === "darwin" ? "⌘S" : "Ctrl+S"}</kbd>
+        </button>
+      </footer>
     </section>
   )
 }
@@ -515,6 +578,7 @@ function MarkdownPreview({
 
 function DocumentFilePreview({
   preview,
+  platform,
   draft,
   theme,
   markdownFileEditingMode,
@@ -576,6 +640,7 @@ function DocumentFilePreview({
       <EditableTextFile
         key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
+        platform={platform}
         draft={draft}
         theme={theme}
         editingMode={markdownFileEditingMode}
@@ -619,6 +684,7 @@ function DocumentFilePreview({
           <EditableTextFile
             key={preview.editorIdentity ?? preview.relativePath}
             preview={preview}
+            platform={platform}
             draft={draft}
             theme={theme}
             editingMode="source"
@@ -744,6 +810,7 @@ export function TextFilePreview({
       <EditableTextFile
         key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
+        platform={platform}
         draft={draft}
         theme={theme}
         navigationTarget={navigationTarget}

@@ -2,9 +2,41 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import type {
   MarkdownEditorImageUrlResolver,
   MarkdownEditorPasteImageHandler,
+  MarkdownEditorProps,
 } from "@eidos.space/markdown"
 
+/** A browser file input opens the native chooser without exposing source paths. */
+export function chooseMarkdownFiles(
+  kind: "image" | "file",
+  signal: AbortSignal
+): Promise<File[]> {
+  if (signal.aborted) return Promise.resolve([])
+  return new Promise((resolve) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.multiple = true
+    input.hidden = true
+    if (kind === "image") input.accept = "image/*"
+    const finish = (files: File[]) => {
+      signal.removeEventListener("abort", cancel)
+      input.remove()
+      resolve(files)
+    }
+    const cancel = () => finish([])
+    input.addEventListener(
+      "change",
+      () => finish(Array.from(input.files ?? [])),
+      { once: true }
+    )
+    input.addEventListener("cancel", cancel, { once: true })
+    signal.addEventListener("abort", cancel, { once: true })
+    document.body.append(input)
+    input.click()
+  })
+}
+
 interface MarkdownImageAttachmentHost {
+  onImportFiles: NonNullable<MarkdownEditorProps["onImportFiles"]>
   onPasteImage: MarkdownEditorPasteImageHandler
   resolveImageUrl: MarkdownEditorImageUrlResolver
   dispose(): void
@@ -29,6 +61,20 @@ export function createMarkdownImageAttachmentHost(
   }
 
   return {
+    async onImportFiles({ kind, signal }) {
+      if (disposed || signal.aborted) return []
+      const files = await chooseMarkdownFiles(kind, signal)
+      const imported = []
+      for (const file of files) {
+        if (disposed || signal.aborted) return []
+        const asset = await (kind === "image"
+          ? window.eidosLite.importMarkdownImage(relativePath, file)
+          : window.eidosLite.importMarkdownFile(relativePath, file))
+        if (disposed || signal.aborted) return []
+        imported.push({ ...asset, name: file.name })
+      }
+      return imported
+    },
     async onPasteImage({ file, signal }) {
       if (disposed || signal.aborted) return null
       const asset = await window.eidosLite.importMarkdownImage(
@@ -116,8 +162,21 @@ export function useMarkdownImageAttachments(relativePath?: string) {
     [relativePath]
   )
 
+  const onImportFiles = useCallback<
+    NonNullable<MarkdownEditorProps["onImportFiles"]>
+  >(
+    (request) => {
+      const entry = hostRef.current
+      return entry && entry.relativePath === relativePath
+        ? entry.host.onImportFiles(request)
+        : Promise.resolve([])
+    },
+    [relativePath]
+  )
+
   return useMemo(
-    () => (relativePath ? { onPasteImage, resolveImageUrl } : null),
-    [onPasteImage, relativePath, resolveImageUrl]
+    () =>
+      relativePath ? { onPasteImage, onImportFiles, resolveImageUrl } : null,
+    [onPasteImage, onImportFiles, relativePath, resolveImageUrl]
   )
 }
