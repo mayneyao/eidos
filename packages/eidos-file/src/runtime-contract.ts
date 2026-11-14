@@ -742,6 +742,7 @@ export type ConversionPolicy =
   | "utc-date"
   | "first"
   | "null-to-empty-list"
+  | "null-to-false"
 
 export type ScalarStoredFieldType =
   | "text"
@@ -817,6 +818,7 @@ export type SchemaValueChangeCode =
   | "numeric-to-checkbox"
   | "datetime-to-date"
   | "null-to-empty-list"
+  | "null-to-false"
   | "list-empty-to-null"
   | "list-tail-dropped"
   | "relation-detached"

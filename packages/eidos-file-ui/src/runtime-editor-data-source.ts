@@ -1263,8 +1263,13 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves },
           changes.confirmLossy === true,
           (changes.optionValueChanges?.length ?? 0) > 0
+            ? true
+            : changes.type === "checkbox"
+              ? "lossy"
+              : false
         )
       } catch (error) {
+        if (error instanceof EidosFileSchemaImpactRequiredError) throw error
         if (changes.type === undefined) throw error
         const convertedError = new Error(
           conversionErrorMessage(error)
@@ -2022,7 +2027,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private async commitSchema(
     change: SchemaChange,
     confirmLossy = false,
-    requireImpactConfirmation = false,
+    requireImpactConfirmation: boolean | "lossy" = false,
     expectedRevision = this.revision()
   ) {
     const changeKey = canonicalizeEidosFileJson(change)
@@ -2049,7 +2054,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           .join("; ") || "Schema change is forbidden"
       )
     }
-    if (requireImpactConfirmation && !confirmedImpactPlan) {
+    const needsImpactReview =
+      requireImpactConfirmation === true ||
+      (requireImpactConfirmation === "lossy" &&
+        (plan.classification === "explicit-lossy" ||
+          (confirmLossy &&
+            pendingSchemaImpact !== undefined &&
+            !confirmedImpactPlan)))
+    if (needsImpactReview && !confirmedImpactPlan) {
       pendingSchemaImpacts.set(this, { changeKey, plan })
       throw new EidosFileSchemaImpactRequiredError(plan)
     }

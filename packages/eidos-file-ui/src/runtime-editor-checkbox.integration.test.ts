@@ -7,6 +7,102 @@ import {
 import { createTestWasmConnection } from "../../eidos-file/src/sqlite-wasm-test-helper"
 import { EidosRuntimeEditorDataSource } from "./runtime-editor-data-source"
 
+it("reviews actual NULL counts and rejects stale Checkbox conversion confirmation", async () => {
+  const port = await createTestWasmConnection()
+  const { service } = await Runtime.create(
+    port,
+    {
+      clock: {
+        nowInstant: () => "2026-11-15T00:00:00.000Z",
+        nowMilliseconds: () => performance.now(),
+      },
+      entropy: {
+        randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+      },
+    },
+    { title: "Conversion source" },
+    {
+      cancellation: { cancelled: () => false, onCancel: () => () => undefined },
+    }
+  )
+  const source = new EidosRuntimeEditorDataSource(service, "conversion.eidos"),
+    sql = new ConnectionPortEidosFileConnection(port)
+  try {
+    await source.initialize()
+    let snapshot = await source.createTable({
+      name: "Convert",
+      fields: [
+        { name: "Title", type: "text" },
+        { name: "Flag", type: "text" },
+      ],
+    })
+    const table = snapshot.tables[0]!,
+      flag = table.fields.find((field) => field.name === "Flag")!
+    for (const value of [null, "true", "false"])
+      await source.insertRow(table.table.id, { [flag.id]: value })
+    const before = sql.query('SELECT * FROM "Convert"')
+    await expect(
+      source.updateField(table.table.id, flag.id, { type: "checkbox" })
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: {
+        classification: "explicit-lossy",
+        valueChanges: expect.arrayContaining([
+          expect.objectContaining({ code: "null-to-false", rows: "1" }),
+        ]),
+      },
+    })
+    expect(sql.query('SELECT * FROM "Convert"')).toEqual(before)
+    await source.insertRow(table.table.id, {})
+    await expect(
+      source.updateField(table.table.id, flag.id, {
+        type: "checkbox",
+        confirmLossy: true,
+      })
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: {
+        valueChanges: expect.arrayContaining([
+          expect.objectContaining({ code: "null-to-false", rows: "2" }),
+        ]),
+      },
+    })
+    expect(sql.query('PRAGMA table_xinfo("Convert")')).toContainEqual(
+      expect.objectContaining({ name: "Flag", type: "TEXT", notnull: 0 })
+    )
+    snapshot = await source.updateField(table.table.id, flag.id, {
+      type: "checkbox",
+      confirmLossy: true,
+    })
+    expect(
+      snapshot.tables[0]!.fields.find((field) => field.id === flag.id)
+    ).toMatchObject({ type: "checkbox", nullable: false })
+    expect(
+      sql
+        .query<{ Flag: number }>('SELECT "Flag" FROM "Convert"')
+        .map((row) => row.Flag)
+    ).toEqual([0, 1, 0, 0])
+    expect(sql.query('PRAGMA table_xinfo("Convert")')).toContainEqual(
+      expect.objectContaining({ name: "Flag", notnull: 1, dflt_value: "0" })
+    )
+    const created = await source.createTable({
+      name: "NoNull",
+      fields: [{ name: "Flag", type: "text" }],
+    })
+    const nonnull = created.tables.find(
+        (table) => table.table.name === "NoNull"
+      )!,
+      nonnullFlag = nonnull.fields.find((field) => field.name === "Flag")!
+    await source.insertRow(nonnull.table.id, { [nonnullFlag.id]: "true" })
+    await expect(
+      source.updateField(nonnull.table.id, nonnullFlag.id, { type: "checkbox" })
+    ).resolves.toBeDefined()
+  } finally {
+    await service.close({ requestId: "close" })
+    port.close()
+  }
+})
+
 it("keeps new Checkbox fields binary through the real shared source and CSV Runtime path", async () => {
   const port = await createTestWasmConnection()
   const { service } = await Runtime.create(

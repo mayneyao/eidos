@@ -2604,6 +2604,7 @@ type ConversionPolicy =
   | "utc-date"
   | "first"
   | "null-to-empty-list"
+  | "null-to-false"
 
 type ScalarStoredFieldType =
   | "text"
@@ -2657,8 +2658,8 @@ revision 上仅含 stable-ID 的 definition 创建任意 kind。除 `create-tabl
 
 `nullable` 对 stored Checkbox Field 默认为 false，对其他 stored scalar Field
 默认为 true。因此新建 Checkbox 的 physical column 是 `NOT NULL DEFAULT 0`，
-只接受 false/true。仍支持显式 `nullable:true` 的可空 Checkbox；打开、clone 或
-转换既有 Field 不会自动改变其声明，也不会把 SQL NULL 替换为 false。
+只接受 false/true。仍支持显式 `nullable:true` 的可空 Checkbox；打开或 clone
+既有 Field 不会自动改变其声明，也不会把 SQL NULL 替换为 false。
 `nullable` 对 File、Multi-select、
 forward/inverse Relation 固定为 false；对 core 1.0 的 Formula 与 Lookup 固定为
 true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Format matrix
@@ -2697,7 +2698,7 @@ Field 是其 forward Field 的 unique inverse；conflicting pair 是 forbidden�
 存在 `policies` 时，其中元素唯一且必须遵循以下 canonical order：
 `round-binary64`、`truncate-toward-zero`、
 `round-ties-even`、`zero-false-nonzero-true`、`utc-date`、`first`、
-`null-to-empty-list`。`truncate-toward-zero` 与 `round-ties-even` mutually
+`null-to-empty-list`、`null-to-false`。`truncate-toward-zero` 与 `round-ties-even` mutually
 exclusive。Runtime 拒绝与 selected source/destination 无关的 policy。只有针对
 一次 cell conversion 中互不重叠的 stage，才允许多个 policy。
 
@@ -2756,6 +2757,7 @@ type SchemaValueChangeCode =
   | "numeric-to-checkbox"
   | "datetime-to-date"
   | "null-to-empty-list"
+  | "null-to-false"
   | "list-empty-to-null"
   | "list-tail-dropped"
   | "relation-detached"
@@ -2814,23 +2816,23 @@ classification、total affected-row count 或 dependency count。
 Preflight 只使用以下 core diagnostic code（extension 使用第 15 节的 namespace
 rule）：
 
-| Code                          | Severity | Exact trigger                                                 |
-| ----------------------------- | -------- | ------------------------------------------------------------- |
-| `fraction-loss`               | warning  | non-integral Number 被 truncate 或 round 为 Integer           |
-| `precision-loss`              | warning  | Integer 被 round 为 binary64                                  |
-| `truthiness-loss`             | warning  | exact 0/1 之外的 numeric value 映射为 Checkbox                |
-| `time-loss`                   | warning  | non-midnight datetime 映射为 date                             |
-| `null-distinction-loss`       | warning  | 两种实际 source category 通过 null/list policy 合并           |
-| `list-tail-loss`              | warning  | `first` 丢弃一个或多个 list element                           |
-| `option-merge-loss`           | warning  | option value/list occurrence 合并                             |
-| `object-delete-loss`          | warning  | Table 或 Field 被删除                                         |
-| `dependent-source-rewritten`  | info     | Formula source 或 saved-View operand 被 mechanically rewrite  |
-| `dependency-blocked`          | error    | 未处理的 dependent 阻止该 leaf                                |
-| `conversion-domain-invalid`   | error    | 至少一个 source value 没有 selected destination algorithm     |
-| `non-nullability-blocked`     | error    | SQL NULL 会在没有 allowed mapping 时抵达 non-null destination |
-| `relation-definition-invalid` | error    | target/direction/inverse ownership 或 target ID 无效          |
-| `cardinality-blocked`         | error    | value 超过 requested Relation cardinality                     |
-| `record-label-blocked`        | error    | delete/change 会导致没有 valid Record Label                   |
+| Code                          | Severity | Exact trigger                                                               |
+| ----------------------------- | -------- | --------------------------------------------------------------------------- |
+| `fraction-loss`               | warning  | non-integral Number 被 truncate 或 round 为 Integer                         |
+| `precision-loss`              | warning  | Integer 被 round 为 binary64                                                |
+| `truthiness-loss`             | warning  | exact 0/1 之外的 numeric value 映射为 Checkbox                              |
+| `time-loss`                   | warning  | non-midnight datetime 映射为 date                                           |
+| `null-distinction-loss`       | warning  | 任意 NULL 转为 false，或两种实际 source category 通过 null/list policy 合并 |
+| `list-tail-loss`              | warning  | `first` 丢弃一个或多个 list element                                         |
+| `option-merge-loss`           | warning  | option value/list occurrence 合并                                           |
+| `object-delete-loss`          | warning  | Table 或 Field 被删除                                                       |
+| `dependent-source-rewritten`  | info     | Formula source 或 saved-View operand 被 mechanically rewrite                |
+| `dependency-blocked`          | error    | 未处理的 dependent 阻止该 leaf                                              |
+| `conversion-domain-invalid`   | error    | 至少一个 source value 没有 selected destination algorithm                   |
+| `non-nullability-blocked`     | error    | SQL NULL 会在没有 allowed mapping 时抵达 non-null destination               |
+| `relation-definition-invalid` | error    | target/direction/inverse ownership 或 target ID 无效                        |
+| `cardinality-blocked`         | error    | value 超过 requested Relation cardinality                                   |
+| `record-label-blocked`        | error    | delete/change 会导致没有 valid Record Label                                 |
 
 `forbidden` preflight plan 至少包含一个来自该表的 error；`explicit-lossy` plan 至少
 包含一个对应 warning。只要 owning `tableId`/`fieldId`/`viewId` object 存在，
@@ -3012,7 +3014,15 @@ metadata-only。其他 cell 只使用以下 algorithm：
    `M?`；否则 forbidden。`convert-field` 从不改变 direction；same-direction
    `set-relation` rule 与 direction-flip prohibition 见第 12.1 节。
 
-除上述显式选择的 `null-to-empty-list` policy 外，每种 conversion 中 null 都保持
+`null-to-false` policy 只适用于 `toNullable=false` 的 stored Checkbox 目标。
+它把 source SQL NULL 转为 false，以 `null-to-false` 记录精确行数，并发出
+`null-distinction-loss`。只要实际发生 NULL→false，就必须是 `explicit-lossy`
+并要求确认，即使 source 没有 false 值。没有 NULL 时，该 policy 不增加值变化
+或有损分类；非法 non-null 值仍被拒绝。普通 editor 转为 stored Checkbox 时，
+使用此非空目标和推荐 policy，显示实际 NULL 数量，只在绑定 revision 上应用已
+确认的 retained plan。打开文件或无关编辑不会回填 NULL。
+
+除上述显式选择的 `null-to-empty-list` 和 `null-to-false` policy 外，每种 conversion 中 null 都保持
 SQL NULL。对于 scalar destination，`toNullable=true` 保留 source SQL NULL；
 如果任一 conversion stage 产生 SQL NULL，则 `toNullable=false` 为 forbidden。
 对于 non-null list destination，如果不使用 `null-to-empty-list`，source SQL NULL

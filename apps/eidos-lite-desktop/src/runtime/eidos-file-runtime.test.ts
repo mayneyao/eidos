@@ -35,6 +35,32 @@ it("keeps new Checkbox fields binary through Lite source, streaming CSV and reop
     await expect(
       opened.source.updateRow(tableId, String(row.row._id), { [flag.id]: null })
     ).rejects.toMatchObject({ code: "constraint" })
+    const conversionSnapshot = await opened.source.addField(tableId, {
+      name: "Converted Flag",
+      type: "text",
+    })
+    const convertedFlag = conversionSnapshot.tables[0]!.fields.find(
+      (field) => field.name === "Converted Flag"
+    )!
+    await expect(
+      opened.source.updateField(tableId, convertedFlag.id, { type: "checkbox" })
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: {
+        valueChanges: expect.arrayContaining([
+          expect.objectContaining({ code: "null-to-false", rows: "1" }),
+        ]),
+      },
+    })
+    await opened.source.updateField(tableId, convertedFlag.id, {
+      type: "checkbox",
+      confirmLossy: true,
+    })
+    expect(
+      (await opened.source.getRow(tableId, String(row.row._id)))![
+        convertedFlag.id
+      ]
+    ).toBe(false)
     const content =
       'Name,Flag,Note\nchecked,true,"comma, and ""quote"""\nblank,,\nunchecked,false,"two\nlines"\n'
     const csvPath = path.join(root, "Imported.csv")
@@ -60,6 +86,11 @@ it("keeps new Checkbox fields binary through Lite source, streaming CSV and reop
     const importedTable = opened.initialSnapshot.tables.find(
       (table) => table.table.name === "Imported"
     )!
+    expect(
+      opened.initialSnapshot.tables
+        .find((table) => table.table.id === tableId)!
+        .fields.find((field) => field.id === convertedFlag.id)
+    ).toMatchObject({ type: "checkbox", nullable: false })
     const importedFlag = importedTable.fields.find(
       (field) => field.name === "Flag"
     )!

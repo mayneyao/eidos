@@ -93,6 +93,9 @@ export function EidosFileFieldPropertyPanel({
   const [pendingType, setPendingType] =
     useState<MutableEidosFileFieldType | null>(null)
   const [applyingType, setApplyingType] = useState(false)
+  const [typeImpact, setTypeImpact] = useState<EidosFileSchemaImpact | null>(
+    null
+  )
   const [pendingUpdate, setPendingUpdate] = useState(false)
   const [pendingOptionRename, setPendingOptionRename] =
     useState<PendingOptionRename | null>(null)
@@ -169,6 +172,7 @@ export function EidosFileFieldPropertyPanel({
   )
   useEffect(() => {
     setPendingType(null)
+    setTypeImpact(null)
     setError(null)
   }, [field.tableColumnName, field.tableName, field.type])
 
@@ -298,10 +302,16 @@ export function EidosFileFieldPropertyPanel({
     try {
       await update({
         type: pendingType,
-        ...(conversionMayChangeValues ? { confirmLossy: true } : {}),
+        ...(typeImpact ||
+        (pendingType !== "checkbox" && conversionMayChangeValues)
+          ? { confirmLossy: true }
+          : {}),
       })
       setPendingType(null)
-    } catch {
+      setTypeImpact(null)
+    } catch (error) {
+      if (error instanceof EidosFileSchemaImpactRequiredError)
+        setTypeImpact(error.impact)
       // The pending type and local error remain available for an in-place retry.
     } finally {
       setApplyingType(false)
@@ -379,6 +389,7 @@ export function EidosFileFieldPropertyPanel({
                 disabled={busy || applyingType}
                 onValueChange={(type) => {
                   setError(null)
+                  setTypeImpact(null)
                   setPendingType(type as MutableEidosFileFieldType)
                 }}
               >
@@ -411,6 +422,20 @@ export function EidosFileFieldPropertyPanel({
           </label>
           {pendingType && pendingType !== field.type ? (
             <div className="grid gap-2 rounded-md border bg-muted/30 p-2.5">
+              {typeImpact?.valueChanges.find(
+                (change) => change.code === "null-to-false"
+              ) ? (
+                <p className="text-xs font-medium" role="status">
+                  {t(
+                    "{count} empty cells in this column will become unchecked.",
+                    {
+                      count: typeImpact.valueChanges.find(
+                        (change) => change.code === "null-to-false"
+                      )!.rows,
+                    }
+                  )}
+                </p>
+              ) : null}
               <p className="text-[11px] leading-4 text-muted-foreground">
                 {conversionMayChangeValues
                   ? t(
@@ -429,6 +454,7 @@ export function EidosFileFieldPropertyPanel({
                   disabled={busy || applyingType}
                   onClick={() => {
                     setPendingType(null)
+                    setTypeImpact(null)
                     setError(null)
                   }}
                 >
@@ -443,7 +469,9 @@ export function EidosFileFieldPropertyPanel({
                 >
                   {applyingType
                     ? t("Converting…")
-                    : conversionMayChangeValues
+                    : typeImpact?.classification === "explicit-lossy" ||
+                        (pendingType !== "checkbox" &&
+                          conversionMayChangeValues)
                       ? t("Convert anyway")
                       : t("Apply type")}
                 </Button>

@@ -1453,6 +1453,11 @@ Filter label 必须保留 Runtime 第 7.1 节的 total-Boolean semantics。具�
 scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 或其他会
 泄漏 SQL UNKNOWN 的 expression 实现它们。
 
+普通 stored Field 转为 Checkbox 使用非空目标。存在 NULL 时，editor
+必须显示将变为未勾选的空值精确数量，并要求确认该 Runtime plan。取消、未确认
+请求或过期确认不得改变数据和 schema；刷新后的影响需要重新确认。打开或无关
+编辑不会重写既有 nullable Field。
+
 新建 Checkbox Field 使用 Runtime 的非空默认。清空、删除或空白粘贴必须提交
 false，多格编辑亦同；显式 typed NULL 在 Runtime boundary 仍无效。既有 nullable
 Checkbox 保留 NULL 状态和清空为 NULL 的行为。CSV 新建表导入使用 canonical

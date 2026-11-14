@@ -11,6 +11,7 @@ import {
 import { expectConnectionPortConformance } from "./connection-port.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
+import { expectCheckboxConversionConformance } from "./checkbox-conversion.conformance"
 import { Runtime } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -34,6 +35,15 @@ const runtimeFactoryContext = {
 const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
+})
+
+it("converts Checkbox NULL only after an atomic confirmed plan in Better SQLite", async () => {
+  const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+  try {
+    await expectCheckboxConversionConformance(connection)
+  } finally {
+    connection.close()
+  }
 })
 
 it("creates binary Checkbox fields by default in Better SQLite", async () => {

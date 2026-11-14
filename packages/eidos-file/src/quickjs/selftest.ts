@@ -643,6 +643,110 @@ export async function runSelfTest(): Promise<string> {
     await snapshot.release()
     checks.push("snapshot")
 
+    const checkboxTablePlan = await runtime.preflightSchema(
+      {
+        expectedRevision: (
+          await runtime.getSnapshot({}, context("checkbox-snapshot"))
+        ).revision,
+        change: {
+          kind: "create-table",
+          clientKey: "binary-conversion",
+          name: "Binary conversion",
+          position: "20",
+          labelFieldClientKey: "flag",
+          fields: [
+            { clientKey: "flag", name: "Flag", kind: "text", position: "0" },
+          ],
+        },
+      },
+      context("checkbox-table-plan")
+    )
+    const checkboxCreated = await runtime.mutateSchema(
+      {
+        expectedRevision: checkboxTablePlan.baseRevision,
+        planToken: checkboxTablePlan.planToken,
+        actionsHash: checkboxTablePlan.actionsHash,
+      },
+      context("checkbox-table-create")
+    )
+    const checkboxTableId = checkboxCreated.createdObjects.find(
+      (object) => object.object === "table"
+    )!.id
+    const checkboxFieldId = checkboxCreated.createdObjects.find(
+      (object) => "clientKey" in object && object.clientKey === "flag"
+    )!.id
+    const checkboxRows = await runtime.mutateRows(
+      {
+        tableId: checkboxTableId,
+        expectedRevision: checkboxCreated.revision,
+        changes: [
+          {
+            kind: "create",
+            clientKey: "empty",
+            values: { [checkboxFieldId]: null },
+          },
+          {
+            kind: "create",
+            clientKey: "checked",
+            values: { [checkboxFieldId]: "true" },
+          },
+        ],
+      },
+      context("checkbox-rows")
+    )
+    const checkboxPlan = await runtime.preflightSchema(
+      JSON.parse(
+        JSON.stringify({
+          expectedRevision: checkboxRows.revision,
+          change: {
+            kind: "convert-field",
+            fieldId: checkboxFieldId,
+            to: "checkbox",
+            toNullable: false,
+            policies: ["null-to-false"],
+          },
+        })
+      ),
+      context("checkbox-plan")
+    )
+    expect(checkboxPlan.classification).toBe("explicit-lossy")
+    expect(
+      checkboxPlan.valueChanges
+        .filter((change) => change.code === "null-to-false")
+        .map((change) => change.rows)
+    ).toEqual(["1"])
+    await expect(
+      runtime.mutateSchema(
+        {
+          expectedRevision: checkboxPlan.baseRevision,
+          planToken: checkboxPlan.planToken,
+          actionsHash: checkboxPlan.actionsHash,
+        },
+        context("checkbox-unconfirmed")
+      )
+    ).rejects.toMatchObject({ code: "lossy-confirmation-required" })
+    await runtime.mutateSchema(
+      {
+        expectedRevision: checkboxPlan.baseRevision,
+        planToken: checkboxPlan.planToken,
+        actionsHash: checkboxPlan.actionsHash,
+        confirmLossy: true,
+      },
+      context("checkbox-confirmed")
+    )
+    const checkboxResult = await runtime.getRowsById(
+      {
+        tableId: checkboxTableId,
+        rowIds: checkboxRows.created.map((row) => row.rowId),
+        projection: { fields: [checkboxFieldId], resolveRelations: [] },
+      },
+      context("checkbox-read")
+    )
+    expect(checkboxResult.rows.map((row) => row.values)).toEqual([
+      [false],
+      [true],
+    ])
+    checks.push("checkbox-null-to-false")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

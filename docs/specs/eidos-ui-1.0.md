@@ -1639,6 +1639,13 @@ an empty list is not represented as null. The editor MUST preserve these
 meanings when loading and saving a View even if its internal compatibility
 model uses different operator names.
 
+Ordinary stored-field conversion to Checkbox uses a
+non-null target. When NULL exists, the editor MUST show the exact number of
+empty cells becoming unchecked and require explicit confirmation of that
+Runtime plan. Canceling, an unconfirmed request, or stale confirmation MUST
+leave data and schema unchanged; a refreshed impact requires another decision.
+Existing nullable fields are not rewritten by opening or unrelated edits.
+
 Newly created Checkbox Fields use Runtime's
 non-null default. Clearing/deleting their cells or pasting a blank MUST submit
 false, including multi-cell edits; an explicit typed NULL remains invalid at

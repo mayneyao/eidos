@@ -3727,6 +3727,17 @@ export class EidosRuntimeService implements RuntimeClient {
               fieldId: leaf.fieldId,
             }))
           )
+          const nullToFalse = conversion.valueChanges.find(
+            (change) => change.code === "null-to-false"
+          )
+          if (nullToFalse)
+            warnings.push({
+              code: "null-distinction-loss",
+              severity: "warning",
+              tableId: field.tableId,
+              fieldId: leaf.fieldId,
+              message: `${nullToFalse.rows} empty cells in this column will become unchecked.`,
+            })
           break
         }
       }

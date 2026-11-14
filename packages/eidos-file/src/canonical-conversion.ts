@@ -81,6 +81,7 @@ export function recommendedEidosFileConversionPolicies(
   if (!LIST_TYPES.has(from) && LIST_TYPES.has(to)) {
     policies.push("null-to-empty-list")
   }
+  if (to === "checkbox") policies.push("null-to-false")
   return policies
 }
 
@@ -90,6 +91,7 @@ export function eidosFileConversionTargetNullable(
   to: StoredFieldType,
   sourceNullable: boolean
 ): boolean {
+  if (to === "checkbox") return false
   // List and forward-Relation destinations are structurally non-null and
   // encode empty as [] rather than SQL NULL.
   if (LIST_TYPES.has(to)) return false
@@ -162,6 +164,18 @@ export function planCanonicalFieldConversion(
   input: CanonicalConversionInput
 ): CanonicalConversionPlan {
   const policies = new Set(input.policies ?? [])
+  if (
+    policies.has("null-to-false") &&
+    (input.to !== "checkbox" || input.toNullable)
+  ) {
+    return {
+      classification: "forbidden",
+      rows: [],
+      affectedRows: "0",
+      valueChanges: [],
+      error: "null-to-false requires a non-null Checkbox destination",
+    }
+  }
   const sourceHasEmptyList = input.rows.some((row) => {
     if (row.value === null || typeof row.value !== "string") return false
     return row.value === "[]"
@@ -239,6 +253,13 @@ function convertNull(
   policies: ReadonlySet<ConversionPolicy>,
   sourceHasEmptyList: boolean
 ): Converted {
+  if (
+    input.to === "checkbox" &&
+    !input.toNullable &&
+    policies.has("null-to-false")
+  ) {
+    return { value: 0n, class: 2, code: "null-to-false" }
+  }
   if (LIST_TYPES.has(input.to)) {
     if (!policies.has("null-to-empty-list")) {
       throw new Error(

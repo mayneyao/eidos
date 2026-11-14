@@ -2746,6 +2746,7 @@ type ConversionPolicy =
   | "utc-date"
   | "first"
   | "null-to-empty-list"
+  | "null-to-false"
 
 type ScalarStoredFieldType =
   | "text"
@@ -2802,7 +2803,7 @@ references other than `labelFieldClientKey` within `create-table`.
 `nullable` defaults to false for a stored Checkbox Field and to true for other
 stored scalar Fields. A newly created Checkbox therefore has physical
 `NOT NULL DEFAULT 0` and accepts only false/true. Explicit `nullable:true`
-remains supported for nullable Checkbox storage; opening, cloning, or converting
+remains supported for nullable Checkbox storage; opening or cloning
 an existing Field does not change its declaration or replace SQL NULL with false.
 `nullable` is fixed false for
 File, Multi-select, forward/inverse Relation, and is fixed true for Formula and
@@ -2849,7 +2850,7 @@ Format; a conflicting pair is forbidden.
 `policies`, when present, is unique and must occur in this canonical order:
 `round-binary64`, `truncate-toward-zero`,
 `round-ties-even`, `zero-false-nonzero-true`, `utc-date`, `first`,
-`null-to-empty-list`. `truncate-toward-zero` and `round-ties-even` are mutually
+`null-to-empty-list`, `null-to-false`. `truncate-toward-zero` and `round-ties-even` are mutually
 exclusive. Runtime rejects a policy irrelevant to the selected source and
 destination. Multiple policies are allowed only for disjoint stages of one
 cell conversion.
@@ -2909,6 +2910,7 @@ type SchemaValueChangeCode =
   | "numeric-to-checkbox"
   | "datetime-to-date"
   | "null-to-empty-list"
+  | "null-to-false"
   | "list-empty-to-null"
   | "list-tail-dropped"
   | "relation-detached"
@@ -2970,23 +2972,23 @@ hides classification, total affected-row count, or dependency count.
 Preflight uses only these core diagnostic codes (extensions use the namespace
 rule in Section 15):
 
-| Code                          | Severity | Exact trigger                                                          |
-| ----------------------------- | -------- | ---------------------------------------------------------------------- |
-| `fraction-loss`               | warning  | a non-integral Number is truncated or rounded to Integer               |
-| `precision-loss`              | warning  | an Integer is rounded to binary64                                      |
-| `truthiness-loss`             | warning  | a numeric value outside exact 0/1 maps to Checkbox                     |
-| `time-loss`                   | warning  | a non-midnight datetime maps to date                                   |
-| `null-distinction-loss`       | warning  | two actual source categories coalesce through a null/list policy       |
-| `list-tail-loss`              | warning  | `first` discards one or more list elements                             |
-| `option-merge-loss`           | warning  | option values/list occurrences coalesce                                |
-| `object-delete-loss`          | warning  | a Table or Field is deleted                                            |
-| `dependent-source-rewritten`  | info     | a Formula source or saved-View operand is mechanically rewritten       |
-| `dependency-blocked`          | error    | an unhandled dependent prevents the leaf                               |
-| `conversion-domain-invalid`   | error    | at least one source value has no selected destination algorithm        |
-| `non-nullability-blocked`     | error    | SQL NULL would reach a non-null destination without an allowed mapping |
-| `relation-definition-invalid` | error    | target/direction/inverse ownership or target IDs are invalid           |
-| `cardinality-blocked`         | error    | a value exceeds requested Relation cardinality                         |
-| `record-label-blocked`        | error    | a delete/change would leave no valid Record Label                      |
+| Code                          | Severity | Exact trigger                                                                        |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `fraction-loss`               | warning  | a non-integral Number is truncated or rounded to Integer                             |
+| `precision-loss`              | warning  | an Integer is rounded to binary64                                                    |
+| `truthiness-loss`             | warning  | a numeric value outside exact 0/1 maps to Checkbox                                   |
+| `time-loss`                   | warning  | a non-midnight datetime maps to date                                                 |
+| `null-distinction-loss`       | warning  | any NULL maps to false, or two actual categories coalesce through a null/list policy |
+| `list-tail-loss`              | warning  | `first` discards one or more list elements                                           |
+| `option-merge-loss`           | warning  | option values/list occurrences coalesce                                              |
+| `object-delete-loss`          | warning  | a Table or Field is deleted                                                          |
+| `dependent-source-rewritten`  | info     | a Formula source or saved-View operand is mechanically rewritten                     |
+| `dependency-blocked`          | error    | an unhandled dependent prevents the leaf                                             |
+| `conversion-domain-invalid`   | error    | at least one source value has no selected destination algorithm                      |
+| `non-nullability-blocked`     | error    | SQL NULL would reach a non-null destination without an allowed mapping               |
+| `relation-definition-invalid` | error    | target/direction/inverse ownership or target IDs are invalid                         |
+| `cardinality-blocked`         | error    | a value exceeds requested Relation cardinality                                       |
+| `record-label-blocked`        | error    | a delete/change would leave no valid Record Label                                    |
 
 A preflight `forbidden` plan contains at least one error from this table; an
 `explicit-lossy` plan contains at least one corresponding warning. The
@@ -3188,8 +3190,18 @@ nullability guard succeeds. The other cells use only these algorithms:
    the same-direction `set-relation` rules and the direction-flip prohibition
    are in Section 12.1.
 
+The `null-to-false` policy is valid only for a stored Checkbox destination with
+`toNullable=false`. It maps each source SQL NULL to false, records its exact
+row count under `null-to-false`, and emits `null-distinction-loss`. Any actual
+NULL-to-false mapping is `explicit-lossy` and requires confirmation, even if
+the source contains no false value. Without NULL this policy adds no value
+change or lossy classification. Invalid non-null values remain forbidden.
+Editor conversions to stored Checkbox use this non-null target and recommended
+policy, disclose the actual NULL count, and apply only the confirmed retained
+plan at its bound revision. Opening a file or unrelated edits never backfill NULL.
+
 Null remains SQL NULL in every conversion except the explicitly selected
-`null-to-empty-list` policy above. For a scalar destination,
+`null-to-empty-list` and `null-to-false` policies. For a scalar destination,
 `toNullable=true` preserves source SQL NULL; `toNullable=false` is forbidden
 if any conversion stage produces SQL NULL. For a non-null list destination,
 source SQL NULL is forbidden without `null-to-empty-list`. A named policy does
