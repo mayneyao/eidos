@@ -34,6 +34,7 @@
     "package:release": "pnpm run build:release && pnpm run prepare:publish-engine && pnpm run prepare:vtab && electron-builder --publish never --config electron-builder.json",
     "package:release:linux": "pnpm run build:release && pnpm run prepare:publish-engine && pnpm run prepare:vtab && electron-builder --publish never --config electron-builder.linux.json",
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
+    "verify:packaged-file-runtime": "node ../../scripts/run-electron-node.mjs scripts/verify-packaged-file-runtime.mjs",
     "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs",
     "smoke:markdown-image": "node scripts/packaged-markdown-image-smoke.mjs"
   },

@@ -191,6 +191,18 @@ try {
   if (sparkKeyCheck.error) throw sparkKeyCheck.error
   if (sparkKeyCheck.status !== 0)
     throw new Error("Packaged Spark public key validation failed")
+  const fileRuntimeCheck = spawnSync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "scripts/run-electron-node.mjs"),
+      path.join(appRoot, "scripts/verify-packaged-file-runtime.mjs"),
+      path.join(packagedResources, "app.asar"),
+    ],
+    { stdio: "inherit", timeout: 30_000 }
+  )
+  if (fileRuntimeCheck.error) throw fileRuntimeCheck.error
+  if (fileRuntimeCheck.status !== 0)
+    throw new Error("Packaged File Runtime dependency validation failed")
   const pluginCompiler = spawnSync(
     process.execPath,
     [
