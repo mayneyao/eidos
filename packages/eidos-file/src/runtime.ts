@@ -1880,9 +1880,11 @@ export class EidosFileRuntime {
                 field.type === "multi-select" ||
                 field.type === "relation"
               ? false
-              : "nullable" in field
-                ? field.nullable !== false
-                : true,
+              : field.type === "checkbox"
+                ? field.nullable === true
+                : "nullable" in field
+                  ? field.nullable !== false
+                  : true,
       } satisfies PreparedField
     })
     const names = new Set<string>(
@@ -2441,9 +2443,11 @@ export class EidosFileRuntime {
               input.type === "multi-select" ||
               input.type === "relation"
             ? false
-            : "nullable" in input
-              ? input.nullable !== false
-              : true,
+            : input.type === "checkbox"
+              ? input.nullable === true
+              : "nullable" in input
+                ? input.nullable !== false
+                : true,
     }
     if (
       prepared.physicalName &&

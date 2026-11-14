@@ -5450,7 +5450,9 @@ function simulatedNewField(
         ? true
         : list || field.kind === "relation"
           ? false
-          : field.nullable !== false,
+          : field.kind === "checkbox"
+            ? field.nullable === true
+            : field.nullable !== false,
     isRecordLabel: false,
     position: Number(field.position),
     settings: field.settings ?? {},

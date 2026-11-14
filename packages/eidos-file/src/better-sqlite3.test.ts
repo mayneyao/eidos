@@ -10,6 +10,7 @@ import {
 } from "./better-sqlite3"
 import { expectConnectionPortConformance } from "./connection-port.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
+import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
 import { Runtime } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -33,6 +34,15 @@ const runtimeFactoryContext = {
 const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
+})
+
+it("creates binary Checkbox fields by default in Better SQLite", async () => {
+  const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+  try {
+    await expectCheckboxBinaryConformance(connection)
+  } finally {
+    connection.close()
+  }
 })
 
 it.each([false, true])(

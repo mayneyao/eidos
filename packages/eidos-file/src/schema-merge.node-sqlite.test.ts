@@ -34,7 +34,7 @@ function fixture(checkbox = false) {
     ],
   })
   if (checkbox) {
-    base.addField(table.id, { name: "Flag", type: "checkbox" })
+    base.addField(table.id, { name: "Flag", type: "checkbox", nullable: true })
     base.insertRow(table.id, { Title: "Existing NULL", Flag: null })
     base.insertRow(table.id, { Title: "Checked", Flag: true })
     const flag = base.listFields(table.id).find((item) => item.name === "Flag")!

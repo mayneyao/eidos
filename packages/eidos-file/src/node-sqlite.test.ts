@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
+import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
@@ -53,6 +54,20 @@ const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
 })
+
+it.runIf(supportsElectron43NodeSqlite)(
+  "creates binary Checkbox fields by default in Node SQLite",
+  async () => {
+    const connection = new NodeSqliteConnectionPort(
+      new DatabaseSync(":memory:")
+    )
+    try {
+      await expectCheckboxBinaryConformance(connection)
+    } finally {
+      connection.close()
+    }
+  }
+)
 
 it.runIf(supportsElectron43NodeSqlite).each([false, true])(
   "keeps Checkbox defaults and explicit null distinct in Node SQLite (legacy=%s)",

@@ -1,6 +1,16 @@
 import { it } from "vitest"
+import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import { createTestWasmConnection } from "./sqlite-wasm-test-helper"
+
+it("creates binary Checkbox fields by default in WASM", async () => {
+  const connection = await createTestWasmConnection()
+  try {
+    await expectCheckboxBinaryConformance(connection)
+  } finally {
+    connection.close()
+  }
+})
 
 it.each([false, true])(
   "keeps Checkbox defaults and explicit null distinct in WASM (legacy=%s)",

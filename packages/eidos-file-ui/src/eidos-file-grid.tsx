@@ -2708,7 +2708,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           if (
             !field ||
             field.type !== "checkbox" ||
-            field.nullable === false ||
             !isEidosFileFieldWritable(field)
           ) {
             return true
@@ -2720,7 +2719,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             }
             edits.push({
               location: [column, row],
-              value: { ...cell, data: null },
+              value: { ...cell, data: field.nullable === false ? false : null },
             })
           }
         }

@@ -2655,7 +2655,11 @@ stable ID 存在后，通过后续 schema operation 添加它们。允许 Formul
 revision 上仅含 stable-ID 的 definition 创建任意 kind。除 `create-table` 内的
 `labelFieldClientKey` 外，不存在 implicit client-key object reference。
 
-`nullable` 对 stored scalar Field 默认为 true；对 File、Multi-select、
+`nullable` 对 stored Checkbox Field 默认为 false，对其他 stored scalar Field
+默认为 true。因此新建 Checkbox 的 physical column 是 `NOT NULL DEFAULT 0`，
+只接受 false/true。仍支持显式 `nullable:true` 的可空 Checkbox；打开、clone 或
+转换既有 Field 不会自动改变其声明，也不会把 SQL NULL 替换为 false。
+`nullable` 对 File、Multi-select、
 forward/inverse Relation 固定为 false；对 core 1.0 的 Formula 与 Lookup 固定为
 true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Format matrix
 精确一致。
@@ -3120,6 +3124,11 @@ catalog group，而不是 Runtime query group。因此 UI `showEmptyGroups` opti
 data。
 
 ### 13.2 CSV extension
+
+此 extension 向既有 Table 导入，保留目标的 NULL 与约束语义。高层 CSV 新建表
+计划是独立的类型转换：空白 Checkbox cell 转成新非空 Checkbox Field 的 false。
+该计划必须在预览中显示转换，并提交显式 Boolean CSV 值或等价 typed row 值，
+不修改源文件，也不改变本 extension 的空白单元格行为。
 
 当 `csvExport=true` 和/或 `csvImport=true` 时，Runtime 暴露对应的精确 optional
 operation：

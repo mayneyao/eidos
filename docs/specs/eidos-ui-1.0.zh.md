@@ -1332,6 +1332,9 @@ conversion 不得自动 reapply。
 
 ### 11.3 Undo/redo
 
+单次 undo 或 redo action 必须只应用选中的 history entry 一次，即使应用时同步
+渲染了新的 callback。后续 action 仍各自独立，包括 cell 与 value 相同的 entry。
+
 Undo 是新的 Runtime mutation，不是 byte rollback。每个 committed action 记录
 returned revision、affected stable ID 与 Runtime 提供的 undo token。Undo request 使用
 current revision 调 `revertMutation`；成功会消费该 token，redo 使用 result 返回的
@@ -1449,6 +1452,13 @@ Filter label 必须保留 Runtime 第 7.1 节的 total-Boolean semantics。具�
 发送 `not(in(...))`，对 list 发送 `not(has-any(...))`。这些 negative label 会包含
 scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 或其他会
 泄漏 SQL UNKNOWN 的 expression 实现它们。
+
+新建 Checkbox Field 使用 Runtime 的非空默认。清空、删除或空白粘贴必须提交
+false，多格编辑亦同；显式 typed NULL 在 Runtime boundary 仍无效。既有 nullable
+Checkbox 保留 NULL 状态和清空为 NULL 的行为。CSV 新建表导入使用 canonical
+新建表转换计划：空白 Checkbox cell 转成未勾选（false），预览显示 false 并说明
+转换，原 CSV 字节不变。这是转换到新的二值 Field，不是 nullable Checkbox 值
+的无损往返。直接向既有 Table 调用 Runtime CSV import 仍保留 NULL 与约束行为。
 
 Checkbox condition 使用单个状态选择器，无需分别选择 operator 和 Boolean operand。
 常规选项只有已勾选/未勾选，发送 `eq true`/`eq false`。只有该 Field 在整张 Table

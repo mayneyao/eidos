@@ -11,6 +11,7 @@ import {
   createEidosFileCsvRowEncoder,
   importEidosFileCsv,
   parseEidosFileCsvRows,
+  prepareEidosFileCsvImport,
   planEidosFileCsvImport,
 } from "./csv"
 
@@ -65,6 +66,43 @@ describe("Eidos File CSV import", () => {
         count: 2,
       }),
     ])
+  })
+
+  it("plans blank Checkbox conversion only for new tables and encodes the exact Runtime import", () => {
+    const file = {
+      name: "checks.csv",
+      content:
+        'Name,Flag,Note\n"comma, quote ""x""",TRUE,"two\nlines"\nblank,," "\nfalse,false,\n',
+    }
+    const original = file.content
+    const prepared = prepareEidosFileCsvImport(file)
+    expect(prepared.plan.sampleRows.map((row) => row[1])).toEqual([
+      "TRUE",
+      "false",
+      "false",
+    ])
+    expect(prepared.rows.map((row) => row.Flag)).toEqual([1, 0, 0])
+    expect(
+      parseEidosFileCsvRows(file, prepared.plan).map((row) => row.Flag)
+    ).toEqual([1, null, 0])
+    expect(
+      parseEidosFileCsvRows(
+        { name: file.name, content: prepared.csv },
+        prepared.plan
+      )
+    ).toEqual(prepared.rows)
+    expect(file.content).toBe(original)
+    const forced = prepareEidosFileCsvImport(
+      { name: "blank.csv", content: "Name,Flag\na, \nb,\n" },
+      { columns: [{ sourceIndex: 1, type: "checkbox" }] }
+    )
+    expect(forced.rows.map((row) => row.Flag)).toEqual([0, 0])
+    expect(() =>
+      prepareEidosFileCsvImport(
+        { name: "bad.csv", content: "Name,Flag\na,null\n" },
+        { columns: [{ sourceIndex: 1, type: "checkbox" }] }
+      )
+    ).toThrow(/not true or false/)
   })
 
   it("keeps dates as text and normalizes datetime offsets to UTC", () => {

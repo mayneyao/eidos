@@ -235,6 +235,7 @@ export function useUndoRedo(
   const [state, dispatch] = useReducer(reducer, initialState)
 
   const currentBatch = useRef<EditBatch | null>(null)
+  const appliedCellOperation = useRef<EditBatch | undefined>(undefined)
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isApplyingUndoRef = useRef(false)
@@ -346,6 +347,7 @@ export function useUndoRedo(
     if (timeout.current) clearTimeout(timeout.current)
     timeout.current = null
     currentBatch.current = null
+    appliedCellOperation.current = undefined
     dispatch({ type: "reset" })
   }, [dispatch])
 
@@ -405,11 +407,17 @@ export function useUndoRedo(
 
   // Apply a batch of cell edits to the grid.
   useEffect(() => {
+    if (state.operation === undefined) appliedCellOperation.current = undefined
     if (
       state.operation?.kind === "edits" &&
       gridSelectionRef.current &&
       gridRef.current
     ) {
+      // A direct Runtime binding can settle a write and synchronously render
+      // new callbacks before operationApplied is reduced. Apply this history
+      // entry once even if that render re-enters the effect with the same entry.
+      if (appliedCellOperation.current === state.operation) return
+      appliedCellOperation.current = state.operation
       const cells = [] as { cell: Item }[]
       const previousState: Batch = {
         kind: "edits",

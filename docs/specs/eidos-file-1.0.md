@@ -730,6 +730,10 @@ EF cannot prove non-NULL derived evaluation. All three system roles have
 `nullable=0` as required by Section 7.
 
 New or rebuilt stored Checkbox columns MUST declare `DEFAULT 0`. The default
+does not itself make a Field binary: only `nullable=0` together with physical
+`NOT NULL` excludes NULL. Runtime defaults newly created Checkbox Fields to
+that non-null declaration; explicit nullable and existing columns retain their
+declared domain. The default
 applies only when an insert omits the column; an explicit SQL NULL remains NULL
 when `nullable=1`. Readers MUST also accept existing Checkbox columns that omit
 the default. A declared Checkbox default other than the integer literal `0` is

@@ -1488,6 +1488,10 @@ be automatically reapplied.
 
 ### 11.3 Undo and redo
 
+A single undo or redo action MUST apply its selected history entry once, even
+when applying it synchronously renders updated callbacks. Later actions remain
+independent, including entries with the same cells and values.
+
 Undo is a new Runtime mutation, never a byte rollback. The UI records, per
 committed action, the returned revision, affected stable IDs, and
 Runtime-provided undo token. The undo request uses the current revision and
@@ -1634,6 +1638,17 @@ list result they emit `eq []` and `ne []`; Runtime list values are non-null, so
 an empty list is not represented as null. The editor MUST preserve these
 meanings when loading and saving a View even if its internal compatibility
 model uses different operator names.
+
+Newly created Checkbox Fields use Runtime's
+non-null default. Clearing/deleting their cells or pasting a blank MUST submit
+false, including multi-cell edits; an explicit typed NULL remains invalid at
+the Runtime boundary. Existing nullable Checkbox Fields retain their NULL
+state and clear-to-NULL behavior. CSV new-table import uses the canonical
+new-table conversion plan: blank Checkbox cells become unchecked (false),
+the preview displays false and explains the conversion, and the source CSV
+bytes remain unchanged. This is a conversion into a new binary Field, not a
+lossless round trip of nullable Checkbox values. Direct Runtime CSV import
+into an existing Table retains its NULL and constraint behavior.
 
 Checkbox conditions use a single state selector instead of requiring a separate
 operator and Boolean operand. Its ordinary choices are Checked and Unchecked,

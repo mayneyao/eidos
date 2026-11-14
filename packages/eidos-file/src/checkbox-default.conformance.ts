@@ -81,7 +81,13 @@ export async function expectCheckboxDefaultConformance(
         labelFieldClientKey: "title",
         fields: [
           { clientKey: "title", name: "Title", kind: "text", position: "0" },
-          { clientKey: "flag", name: "Flag", kind: "checkbox", position: "1" },
+          {
+            clientKey: "flag",
+            name: "Flag",
+            kind: "checkbox",
+            nullable: true,
+            position: "1",
+          },
           {
             clientKey: "required",
             name: "Required",

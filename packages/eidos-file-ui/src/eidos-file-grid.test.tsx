@@ -796,48 +796,55 @@ describe("EidosFileGrid", () => {
     expect(onCellEdit).not.toHaveBeenCalled()
   })
 
-  it("clears a nullable Checkbox selection back to NULL", async () => {
-    const nullableTable: EidosFileTableSnapshot = {
-      ...table,
-      fields: [
-        table.fields[0]!,
-        { ...table.fields[1]!, nullable: true, writable: true },
-      ],
-      rowCount: 1,
-    }
-    const onCellEdit = createCellEdit(nullableTable)
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={nullableTable}
-          loadPage={createLoadPage(nullableTable)}
-          onAddRow={vi.fn()}
-          onCellEdit={onCellEdit}
-        />
-      )
-      await Promise.resolve()
-    })
-
-    let handled: boolean | GridSelection | undefined
-    await act(async () => {
-      handled = mocks.props?.onDelete?.({
-        current: {
-          cell: [1, 0],
-          range: { x: 1, y: 0, width: 1, height: 1 },
-          rangeStack: [],
-        },
-        columns: CompactSelection.empty(),
-        rows: CompactSelection.empty(),
+  it.each([true, false])(
+    "clears a Checkbox selection according to its nullable=%s constraint",
+    async (nullable) => {
+      const nullableTable: EidosFileTableSnapshot = {
+        ...table,
+        fields: [
+          table.fields[0]!,
+          { ...table.fields[1]!, nullable, writable: true },
+        ],
+        rowCount: 1,
+      }
+      const onCellEdit = createCellEdit(nullableTable)
+      const loadPage = async (offset: number, limit: number) => {
+        const page = await createLoadPage(nullableTable)(offset, limit)
+        return { ...page, rows: page.rows.map((row) => ({ ...row, done: 1 })) }
+      }
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={nullableTable}
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={onCellEdit}
+          />
+        )
+        await Promise.resolve()
       })
-      await Promise.resolve()
-    })
-    expect(handled).toBe(false)
-    expect(onCellEdit).toHaveBeenCalledWith(
-      rowAt(0),
-      nullableTable.fields[1],
-      null
-    )
-  })
+
+      let handled: boolean | GridSelection | undefined
+      await act(async () => {
+        handled = mocks.props?.onDelete?.({
+          current: {
+            cell: [1, 0],
+            range: { x: 1, y: 0, width: 1, height: 1 },
+            rangeStack: [],
+          },
+          columns: CompactSelection.empty(),
+          rows: CompactSelection.empty(),
+        })
+        await Promise.resolve()
+      })
+      expect(handled).toBe(false)
+      expect(onCellEdit).toHaveBeenCalledWith(
+        { ...rowAt(0), done: 1 },
+        nullableTable.fields[1],
+        nullable ? null : 0
+      )
+    }
+  )
 
   it("activates only the link text while leaving the rest of a URL cell editable", async () => {
     const uri = "https://example.com/artwork?id=42#preview"

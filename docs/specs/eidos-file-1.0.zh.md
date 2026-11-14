@@ -653,7 +653,10 @@ Multi-select、forward/inverse Relation 固定 `nullable=0`；Formula/Lookup 在
 固定 `nullable=1`，因为 EF 不能证明 derived result non-NULL；三个 system roles 固定为 0。
 
 新建或 rebuild 的 stored Checkbox column 必须声明 `DEFAULT 0`。只有 insert
-省略该 column 时才应用默认值；`nullable=1` 时显式 SQL NULL 仍为 NULL。Reader
+省略该 column 时才应用默认值。默认值本身并不保证二值：只有 `nullable=0` 和
+physical `NOT NULL` 才排除 NULL。Runtime 默认把新建 Checkbox 声明为非空，
+显式 nullable 与既有 column 仍保留其声明的 domain。`nullable=1` 时显式 SQL
+NULL 仍为 NULL。Reader
 也必须接受没有 default 的既有 Checkbox column；声明其他 default（非整数 literal
 `0`）无效。新增 Checkbox column 会把每条旧 row 的这个新 cell 初始化为 false，
 不会改写其他既有 Checkbox column 中的 NULL。对于没有 physical default 的旧

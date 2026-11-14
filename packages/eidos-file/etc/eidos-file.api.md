@@ -1293,7 +1293,7 @@ export interface EidosFileCsvImportResult {
     table: EidosFileTableInfo;
 }
 
-// @public (undocumented)
+// @public
 export function eidosFileCsvRowToEidosFileRow(row: string[], rowNumber: number, plan: EidosFileCsvImportPlan): EidosFileRow;
 
 // @public
@@ -3726,7 +3726,7 @@ export function normalizeEidosSchemaMerge(input: EidosSystemMergeInput & {
 // @public
 export type OwnedBytes = Uint8Array;
 
-// @public (undocumented)
+// @public
 export function parseEidosFileCsvRows(file: {
     name: string;
     content: string;
@@ -3761,13 +3761,14 @@ export function planEidosFileFieldConversion(field: EidosFileFieldInfo, rows: Ei
 // @public
 export function planEidosSchemaMerge(input: Pick<EidosSystemMergeInput, "base" | "ours" | "theirs">): EidosSchemaMergePlan;
 
-// @public (undocumented)
+// @public
 export function prepareEidosFileCsvImport(file: {
     name: string;
     content: string;
 }, options?: EidosFileCsvImportOptions): {
     plan: EidosFileCsvImportPlan;
     rows: EidosFileRow[];
+    csv: string;
 };
 
 // @public (undocumented)

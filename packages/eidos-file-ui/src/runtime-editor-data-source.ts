@@ -1970,7 +1970,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
               throw new Error(`CSV destination field not found: ${column.name}`)
             return { csvIndex: column.sourceIndex, fieldId: field.id }
           }),
-          csv: new Uint8Array(bytes.slice(0)),
+          csv: new TextEncoder().encode(prepared.csv),
         },
         this.context("csv-import")
       )

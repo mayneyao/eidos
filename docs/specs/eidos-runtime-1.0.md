@@ -2799,7 +2799,12 @@ allocation. `create-field` may create any kind using only stable-ID
 definitions from the base revision. There are no implicit client-key object
 references other than `labelFieldClientKey` within `create-table`.
 
-`nullable` defaults to true for stored scalar Fields, is fixed false for
+`nullable` defaults to false for a stored Checkbox Field and to true for other
+stored scalar Fields. A newly created Checkbox therefore has physical
+`NOT NULL DEFAULT 0` and accepts only false/true. Explicit `nullable:true`
+remains supported for nullable Checkbox storage; opening, cloning, or converting
+an existing Field does not change its declaration or replace SQL NULL with false.
+`nullable` is fixed false for
 File, Multi-select, forward/inverse Relation, and is fixed true for Formula and
 Lookup in core 1.0. Runtime rejects a contrary request. Physical `NOT NULL`
 must match the File Format matrix exactly.
@@ -3312,6 +3317,13 @@ catalog groups locally without an extra Runtime query and without treating
 them as data.
 
 ### 13.2 CSV extension
+
+This extension imports into an existing Table and retains that Table's NULL
+and constraint semantics. A higher-level new-table CSV plan is a separate type
+conversion: a blank Checkbox cell becomes false in a new non-null Checkbox
+Field. Such a planner MUST show the conversion in its preview and submit explicit
+Boolean CSV values (or the equivalent typed row values), without modifying the
+source file or changing this extension's blank-cell behavior.
 
 When `csvExport=true` and/or `csvImport=true`, Runtime exposes the corresponding
 exact optional operation:

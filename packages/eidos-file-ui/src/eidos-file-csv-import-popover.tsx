@@ -684,6 +684,13 @@ export function EidosFileCsvImportPopover({
                     </tbody>
                   </table>
                 </div>
+                {columns.some((column) => column.type === "checkbox") ? (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {t(
+                      "Blank Checkbox cells are imported as unchecked (false)."
+                    )}
+                  </p>
+                ) : null}
                 {plan.issues.length > 0 ? (
                   <div className="mt-2 space-y-1 text-[11px] text-amber-700 dark:text-amber-400">
                     {plan.issues.map((issue) => (
