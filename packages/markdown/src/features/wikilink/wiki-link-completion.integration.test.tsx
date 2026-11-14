@@ -30,6 +30,10 @@ it.each([
   "image-link",
   "image-unsafe",
   "image-disabled",
+  "readable",
+  "literal-percent",
+  "long-namesakes",
+  "encoded-legacy",
 ])("%s searches notes and replaces only the inline query", async (mode) => {
   const input =
     mode === "obsidian"
@@ -38,7 +42,11 @@ it.each([
         ? "[[Note#Head"
         : "[["
   const target =
-    mode === "heading" ? "Folder/Note.md#Heading" : "Folder/Note.md"
+    mode === "heading"
+      ? "Folder/Note.md#Heading"
+      : mode === "encoded-legacy"
+        ? "Folder/literal%2520.md"
+        : "Folder/Note.md"
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -80,6 +88,16 @@ it.each([
     {
       title: "Note",
       path: target,
+      ...(["readable", "literal-percent", "long-namesakes"].includes(mode)
+        ? {
+            displayPath:
+              mode === "literal-percent"
+                ? "字面 %20 %25 %E4%B8%AD/Note.md"
+                : mode === "long-namesakes"
+                  ? `${"共同目录/".repeat(12)}甲目录/图片/Note.md`
+                  : "中文 目录/Note.md",
+          }
+        : {}),
       ...(mode.startsWith("image")
         ? {
             imageUrl:
@@ -90,6 +108,15 @@ it.each([
         : {}),
       ...(mode === "alias" ? { displayText: "Guide" } : {}),
     },
+    ...(mode === "long-namesakes"
+      ? [
+          {
+            title: "Note",
+            path: "other/Note.md",
+            displayPath: `${"共同目录/".repeat(12)}乙目录/图片/Note.md`,
+          },
+        ]
+      : []),
   ])
   const onMarkdownChange = vi.fn()
   try {
@@ -126,11 +153,7 @@ it.each([
     expect(searchNotes).toHaveBeenCalledWith(
       expect.objectContaining({
         query:
-          mode === "lite-empty" || mode === "alias" || mode.startsWith("image")
-            ? ""
-            : mode === "heading"
-              ? "Note#Head"
-              : "Note",
+          mode === "obsidian" ? "Note" : mode === "heading" ? "Note#Head" : "",
         documentKey: "current",
       })
     )
@@ -139,15 +162,30 @@ it.each([
     )
     expect(option).not.toBeNull()
     expect(host.querySelectorAll(".eme-note-menu button")).toHaveLength(
-      mode.startsWith("image") &&
-        mode !== "image-unsafe" &&
-        mode !== "image-disabled"
+      mode === "long-namesakes" ||
+        (mode.startsWith("image") &&
+          mode !== "image-unsafe" &&
+          mode !== "image-disabled")
         ? 2
         : 1
     )
     expect(host.querySelector(".eme-note-menu-title")?.textContent).toBe(
       "链接到文件"
     )
+    const displayPath =
+      searchNotes.mock.results[0] &&
+      (await searchNotes.mock.results[0].value)[0].displayPath
+    expect(option!.title).toBe(displayPath ?? target)
+    expect(option!.getAttribute("aria-label")).toContain(displayPath ?? target)
+    expect(option!.querySelector("small")?.textContent).toBe(
+      mode === "long-namesakes"
+        ? "…/甲目录/图片/Note.md"
+        : (displayPath ?? target)
+    )
+    if (mode === "long-namesakes")
+      expect(
+        host.querySelectorAll(".eme-note-menu small")[1]?.textContent
+      ).toBe("…/乙目录/图片/Note.md")
     await act(async () => option!.click())
     if (mode === "image") {
       // Reopen the query and select the explicit image action with the keyboard.

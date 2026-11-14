@@ -15,6 +15,9 @@ export type EfmInputProfile = MarkdownInputMode
 export type BuiltInMarkdownProfileId = "eidos" | "obsidian" | "gfm"
 
 export interface MarkdownNoteCandidate {
+  /** Readable host path for the picker only. Preserve literal percent sequences;
+   * this text is never decoded or used as an insertion destination. */
+  displayPath?: string
   /** Optional canonical image destination. Enables an explicit image action;
    * selecting the ordinary candidate still inserts a wiki link. */
   imageUrl?: string

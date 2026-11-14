@@ -1192,6 +1192,14 @@ not headings, block anchors, or embeds. Despite its compatibility name,
 `searchNotes` accepts any file candidate, not only Markdown. Lite searches ordinary
 files and `.eidos` files in the open Space and shows paths to distinguish namesakes.
 
+Supply optional `displayPath` from the original file metadata for a readable
+picker path, for example `{ title: "示例图片.png", displayPath: "素材/示例图片.png",
+path: "%E7%B4%A0%E6%9D%90/%E7%A4%BA%E4%BE%8B%E5%9B%BE%E7%89%87.png" }`. Display text is never
+URI-decoded or used for insertion; literal `%20` in a filename stays `%20`.
+Without `displayPath`, the picker shows `path` as supplied by the existing host.
+Rows stay on two lines; long namesake paths use a distinguishing directory
+suffix. The full readable path remains in the tooltip and accessible name.
+
 An image candidate may additionally provide `imageUrl`, a canonical destination
 authorized by the host's existing image resolver. With image support enabled,
 the candidate exposes **Insert link** (the default) and **Insert image** as

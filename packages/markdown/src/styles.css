@@ -1897,9 +1897,26 @@ button.eme-efm-image-placeholder:not(:disabled) {
 .eme-note-menu-options button.is-selected {
   background: var(--eme-accent);
 }
+.eme-note-option-title {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+.eme-note-option-title > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eme-note-option-action {
+  flex-shrink: 0;
+  white-space: pre;
+}
 .eme-note-menu-options small {
+  max-width: 100%;
   color: var(--eme-muted-foreground);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .eme-note-menu-anchor {
   z-index: 60;

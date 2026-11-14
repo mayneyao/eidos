@@ -15,6 +15,7 @@ import type { EidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import type {
   MarkdownEditorInternalLinkHandler,
   MarkdownNoteSearchHandler,
+  MarkdownNoteCandidate,
   MarkdownEditorInternalLinkRequest,
   MarkdownEditorPasteImageHandler,
   MarkdownEditorProps,
@@ -227,10 +228,11 @@ export function MarkdownEditorSurface({
         ).values(),
       ].sort((a, b) => b.score - a.score)
       if (signal.aborted) return []
-      const candidates = hits
+      const candidates: MarkdownNoteCandidate[] = hits
         .filter((hit) => hit.kind === "file" || hit.kind === "eidos")
         .map((hit) => ({
           title: hit.matchedAlias ?? hit.name.replace(/\.md$/iu, ""),
+          displayPath: hit.relativePath,
           displayText: hit.matchedAlias,
           path: hit.relativePath.includes("/")
             ? hit.relativePath.split("/").map(encodeURIComponent).join("/")

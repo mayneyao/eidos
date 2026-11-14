@@ -51,10 +51,40 @@ export function matchWikiQuery(text: string) {
 class NoteOption extends MenuOption {
   constructor(
     public note: MarkdownNoteCandidate,
-    public action: "link" | "image" = "link"
+    public action: "link" | "image" = "link",
+    public pathLabel = note.displayPath ?? note.path
   ) {
     super(`${action}:${note.path}`)
   }
+}
+
+function candidatePathLabel(
+  note: MarkdownNoteCandidate,
+  candidates: readonly MarkdownNoteCandidate[]
+): string {
+  const path = note.displayPath ?? note.path
+  if (!note.displayPath || path.length < 48) return path
+  const namesakes = candidates.filter(
+    (other) => other.title === note.title && other.path !== note.path
+  )
+  if (!namesakes.length) return path
+  const parts = path.split("/")
+  // Keep enough parent directories to distinguish namesakes after removing
+  // their long common ancestry. The complete host path stays accessible.
+  for (let size = 2; size < parts.length; size++) {
+    const suffix = parts.slice(-size).join("/")
+    if (
+      namesakes.every(
+        (other) =>
+          (other.displayPath ?? other.path)
+            .split("/")
+            .slice(-size)
+            .join("/") !== suffix
+      )
+    )
+      return `…/${suffix}`
+  }
+  return path
 }
 
 export function WikiLinkCompletion(props: MarkdownPluginBehaviorProps) {
@@ -124,26 +154,36 @@ function NoteCompletion({
           if (controller.signal.aborted || current !== generation.current)
             return
           const seen = new Set<string>()
+          const candidates = notes
+            .filter((note) => {
+              if (
+                !note.path ||
+                /[\[\]\n\r|\\]/u.test(note.path) ||
+                seen.has(note.path)
+              )
+                return false
+              seen.add(note.path)
+              return true
+            })
+            .slice(0, 30)
           setOptions(
-            notes
-              .filter((note) => {
-                if (
-                  !note.path ||
-                  /[\[\]\n\r|\\]/u.test(note.path) ||
-                  seen.has(note.path)
-                )
-                  return false
-                seen.add(note.path)
-                return true
-              })
-              .slice(0, 30)
-              .flatMap((note) => [
-                new NoteOption(note),
-                ...(syntaxFeatures.has(MARKDOWN_FEATURES.image) &&
-                safeImageUrl(note.imageUrl)
-                  ? [new NoteOption(note, "image")]
-                  : []),
-              ])
+            candidates.flatMap((note) => [
+              new NoteOption(
+                note,
+                "link",
+                candidatePathLabel(note, candidates)
+              ),
+              ...(syntaxFeatures.has(MARKDOWN_FEATURES.image) &&
+              safeImageUrl(note.imageUrl)
+                ? [
+                    new NoteOption(
+                      note,
+                      "image",
+                      candidatePathLabel(note, candidates)
+                    ),
+                  ]
+                : []),
+            ])
           )
           setStatus("noMatchingFiles")
         })
@@ -256,6 +296,18 @@ function NoteCompletion({
                         }}
                         type="button"
                         role="option"
+                        title={option.note.displayPath ?? option.note.path}
+                        aria-label={[
+                          option.note.title,
+                          safeImageUrl(option.note.imageUrl)
+                            ? option.action === "image"
+                              ? (labels.insertFileImage ?? "Insert image")
+                              : (labels.insertFileLink ?? "Insert link")
+                            : null,
+                          option.note.displayPath ?? option.note.path,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                         aria-selected={index === selectedIndex}
                         className={index === selectedIndex ? "is-selected" : ""}
                         onPointerMove={(event) => {
@@ -273,13 +325,19 @@ function NoteCompletion({
                         }}
                         onClick={() => selectOptionAndCleanUp(option)}
                       >
-                        <span>
-                          {option.note.title}
-                          {safeImageUrl(option.note.imageUrl)
-                            ? ` · ${option.action === "image" ? (labels.insertFileImage ?? "Insert image") : (labels.insertFileLink ?? "Insert link")}`
-                            : ""}
+                        <span className="eme-note-option-title">
+                          <span>{option.note.title}</span>
+                          {safeImageUrl(option.note.imageUrl) ? (
+                            <span className="eme-note-option-action">
+                              {" "}
+                              ·{" "}
+                              {option.action === "image"
+                                ? (labels.insertFileImage ?? "Insert image")
+                                : (labels.insertFileLink ?? "Insert link")}
+                            </span>
+                          ) : null}
                         </span>
-                        <small>{option.note.path}</small>
+                        <small>{option.pathLabel}</small>
                       </button>
                     ))
                   ) : (

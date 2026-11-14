@@ -4,7 +4,10 @@ import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { MarkdownEditorProps } from "@eidos.space/markdown"
+import type {
+  MarkdownEditorProps,
+  MarkdownNoteCandidate,
+} from "@eidos.space/markdown"
 
 const sourceEditor = vi.hoisted(() => vi.fn())
 const wysiwygEditor = vi.hoisted(() => vi.fn())
@@ -371,8 +374,54 @@ describe("MarkdownEditorSurface", () => {
         signal: new AbortController().signal,
       })
     ).toEqual([
-      { title: "Guide", path: "Notes/Actual.md", displayText: "Guide" },
+      {
+        title: "Guide",
+        path: "Notes/Actual.md",
+        displayText: "Guide",
+        displayPath: "Notes/Actual.md",
+      },
     ])
+  })
+
+  it("keeps original display paths separate from encoded file and image destinations", async () => {
+    const paths = [
+      "中文 %20 %25 %E4%B8%AD/图 [片] (#%).png",
+      "中文 空格/图 [片] (#%).png",
+      "资料 %20/附件 [报告] (#%).txt",
+    ]
+    vi.mocked(window.eidosLite.searchSpacePaths).mockResolvedValue(
+      paths.map((relativePath) => ({
+        relativePath,
+        name: relativePath.split("/").at(-1)!,
+        kind: "file",
+        score: 100,
+      }))
+    )
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="Main.md"
+          relativePath="Main.md"
+          content=""
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    const search = wysiwygEditor.mock.calls.at(-1)![0].searchNotes
+    const candidates: readonly MarkdownNoteCandidate[] = await search({
+      documentKey: "Main.md",
+      query: "",
+      signal: new AbortController().signal,
+    })
+    expect(candidates.map((candidate) => candidate.displayPath)).toEqual(paths)
+    for (const [index, candidate] of candidates.entries()) {
+      const encoded = paths[index]!.split("/").map(encodeURIComponent).join("/")
+      expect(candidate.path).toBe(encoded)
+      expect(candidate.imageUrl).toBe(index < 2 ? `/${encoded}` : undefined)
+    }
+    expect(candidates[0]!.path).toContain("%2520%20%2525%20%25E4%25B8%25AD")
   })
 
   it("offers an unresolved note reference without creating a file during search", async () => {
@@ -490,9 +539,18 @@ describe("MarkdownEditorSurface", () => {
     await expect(
       props.searchNotes({ documentKey: "index.md", query: "", signal })
     ).resolves.toEqual([
-      { title: "Note", path: "Notes/Note.md" },
-      { title: "image.png", path: "/image.png", imageUrl: "/image.png" },
-      { title: "customers.eidos", path: "business/customers.eidos" },
+      { title: "Note", path: "Notes/Note.md", displayPath: "Notes/Note.md" },
+      {
+        title: "image.png",
+        path: "/image.png",
+        imageUrl: "/image.png",
+        displayPath: "image.png",
+      },
+      {
+        title: "customers.eidos",
+        path: "business/customers.eidos",
+        displayPath: "business/customers.eidos",
+      },
     ])
     expect(window.eidosLite.searchSpacePaths).toHaveBeenCalledWith(".", 200)
   })

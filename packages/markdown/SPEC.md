@@ -66,7 +66,13 @@ search, path resolution and opening. Markdown links resolve relative to the
 current document; explicit wiki paths resolve from the Space root. Symlinks and
 paths escaping the Space are not authoring candidates. The picker MUST show the
 file path to distinguish identical names. The default file action MUST insert a
-link. A host MAY provide an optional `imageUrl` for an image candidate; when the
+link. An optional host `displayPath` MUST be used only for readable picker text,
+without URI decoding; insertion MUST continue using `path` or `imageUrl`.
+Hosts SHOULD supply this text from original file metadata. Omitted display
+paths MUST fall back to the host's existing `path` unchanged. Compact rows MUST
+retain distinguishing directories for namesakes and expose the complete path
+in a tooltip and accessible name.
+A host MAY provide an optional `imageUrl` for an image candidate; when the
 image feature is enabled the picker MUST then offer separate **Insert link** and
 **Insert image** actions, both reachable with the keyboard and pointer. The image
 action MUST insert the existing semantic image block using standard Markdown
