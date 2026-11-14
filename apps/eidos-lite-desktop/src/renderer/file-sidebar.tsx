@@ -64,6 +64,8 @@ export function FileSidebar(props: {
 }) {
   const { t } = useEidosLiteI18n()
   const [model, setModel] = useState<FileModel | null>(null)
+  const [saveStatusTarget, setSaveStatusTarget] =
+    useState<HTMLSpanElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
@@ -201,36 +203,39 @@ export function FileSidebar(props: {
       aria-busy={loading}
     >
       <header>
-        <button
-          type="button"
-          className="file-sidebar-title"
-          title={titlePath}
-          disabled={loading || props.disabled}
-          onContextMenu={(event) => {
-            event.preventDefault()
-            if (!loading && !props.disabled)
-              props.onTitleContextMenu?.(
-                titlePath,
-                event.clientX,
-                event.clientY
-              )
-          }}
-          onKeyDown={(event) => {
-            if (
-              event.key === "ContextMenu" ||
-              (event.shiftKey && event.key === "F10")
-            ) {
+        <div className="file-sidebar-identity">
+          <button
+            type="button"
+            className="file-sidebar-title"
+            title={titlePath}
+            disabled={loading || props.disabled}
+            onContextMenu={(event) => {
               event.preventDefault()
-              const rect = event.currentTarget.getBoundingClientRect()
-              props.onTitleContextMenu?.(titlePath, rect.left, rect.bottom)
-            }
-          }}
-        >
-          <strong>{titlePath.split("/").at(-1)}</strong>
-          {model?.type === "file" && model.preview.type === "media" ? (
-            <MediaFileMetadata preview={model.preview} />
-          ) : null}
-        </button>
+              if (!loading && !props.disabled)
+                props.onTitleContextMenu?.(
+                  titlePath,
+                  event.clientX,
+                  event.clientY
+                )
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.key === "ContextMenu" ||
+                (event.shiftKey && event.key === "F10")
+              ) {
+                event.preventDefault()
+                const rect = event.currentTarget.getBoundingClientRect()
+                props.onTitleContextMenu?.(titlePath, rect.left, rect.bottom)
+              }
+            }}
+          >
+            <strong>{titlePath.split("/").at(-1)}</strong>
+            {model?.type === "file" && model.preview.type === "media" ? (
+              <MediaFileMetadata preview={model.preview} />
+            ) : null}
+          </button>
+          <span className="text-file-save-slot" ref={setSaveStatusTarget} />
+        </div>
         <button
           type="button"
           className="icon-button"
@@ -356,6 +361,7 @@ export function FileSidebar(props: {
               allowAutoFocus={false}
               preview={model.preview}
               draft={props.drafts[model.path]}
+              saveStatusTarget={saveStatusTarget}
               theme={props.theme}
               platform={props.platform}
               keyboardShortcuts={props.keyboardShortcuts}

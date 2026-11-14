@@ -14,6 +14,7 @@ const textSurface = vi.hoisted(() =>
       preview: TextFilePreviewResult
       allowAutoFocus?: boolean
       draft?: { content: string }
+      saveStatusTarget?: HTMLElement | null
       onReload(preview: TextFilePreviewResult): void
       onSaved(preview: Extract<TextFilePreviewResult, { type: "text" }>): void
     }) => void
@@ -330,6 +331,12 @@ it("does not replace the new file when an earlier editor finishes a save or relo
   await render({ relativePath: "old.txt" })
   const callbacks = textSurface.mock.calls.at(-1)![0]
   expect(callbacks.allowAutoFocus).toBe(false)
+  expect(callbacks.saveStatusTarget).toBe(
+    container.querySelector("header .text-file-save-slot")
+  )
+  expect(callbacks.saveStatusTarget?.previousElementSibling?.className).toBe(
+    "file-sidebar-title"
+  )
   await render({ relativePath: "new.png" })
   await act(async () => {
     callbacks.onReload(old)

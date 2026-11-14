@@ -875,6 +875,8 @@ function WorkspaceApp({
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const [textSaveStatusTarget, setTextSaveStatusTarget] =
+    useState<HTMLSpanElement | null>(null)
   const textPreviewIdentity = useRef("")
   textPreviewIdentity.current = textPreview
     ? `${textPreview.relativePath}:${textPreview.type === "text" ? textPreview.revision : textPreview.modifiedAtMs}`
@@ -4637,6 +4639,17 @@ function WorkspaceApp({
               ) : (
                 <strong>{titlebarPresentation.title}</strong>
               )}
+              <span
+                className="text-file-save-slot"
+                ref={setTextSaveStatusTarget}
+                hidden={
+                  Boolean(pluginPage) ||
+                  pluginsVisible ||
+                  whatsNew.open ||
+                  titlebarPresentation.pending ||
+                  textPreview?.relativePath !== activeDocumentPath
+                }
+              />
               {!pluginPage &&
               !pluginsVisible &&
               !whatsNew.open &&
@@ -5076,6 +5089,7 @@ function WorkspaceApp({
                     key={`${textPreview.type === "text" ? (textPreview.editorIdentity ?? textPreview.relativePath) : textPreview.relativePath}:${textPreviewReloadToken}`}
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
+                    saveStatusTarget={textSaveStatusTarget}
                     theme={theme}
                     markdownFileEditingMode={textPreviewEditingMode}
                     htmlFileOpenMode={textPreviewHtmlMode}

@@ -1105,6 +1105,17 @@ it("follows the saved hook rename without reopening against a stale file list", 
   const identity = surface.mock.lastCall![0].documentKey
   const before = readNavigationHistory("s")
   await act(async () => surface.mock.lastCall![0].onChange("# newtitle"))
+  const titleSave = host.querySelector<HTMLButtonElement>(
+    '.file-titlebar [aria-label="Save old.md (Cmd+S)"]'
+  )!
+  expect(titleSave).not.toBeNull()
+  expect(
+    titleSave.closest(".text-file-save-slot")?.previousElementSibling?.className
+  ).toBe("file-titlebar-document")
+  expect(host.querySelector(".text-file-editor footer")).toBeNull()
+  expect(
+    host.querySelector("[data-text-file-editor] .text-file-title-save")
+  ).toBeNull()
   await act(async () => {
     host
       .querySelector("[data-text-file-editor]")!
@@ -1135,6 +1146,9 @@ it("follows the saved hook rename without reopening against a stale file list", 
   ).toBe(newPath)
   expect(surface.mock.lastCall![0].documentKey).toBe(identity)
   expect(surface.mock.lastCall![0].content).toBe("# newtitle\nStill typing")
+  expect(
+    host.querySelector('.file-titlebar [data-save-path="newtitle.md"]')
+  ).not.toBeNull()
   expect(
     host
       .querySelector('[data-text-file-preview-state="text"]')

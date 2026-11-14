@@ -8,6 +8,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react"
+import { createPortal } from "react-dom"
 import {
   CircleAlert,
   FileText,
@@ -125,6 +126,7 @@ function EditableTextFile({
   onOpenInternalLink,
   focusShortcutLabel,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onSaved,
   onReload,
@@ -145,6 +147,7 @@ function EditableTextFile({
   ): void | Promise<void>
   focusShortcutLabel?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -185,6 +188,17 @@ function EditableTextFile({
         save: () => saveRef.current(),
       })
   }, [platform])
+
+  useEffect(() => {
+    if (!saveStatusTarget) return
+    // The title control belongs to this editor even when the other pane was
+    // used last. Register its actual DOM location as well as the editor body.
+    return registerTextFileSaveTarget({
+      root: saveStatusTarget,
+      platform,
+      save: () => saveRef.current(),
+    })
+  }, [platform, saveStatusTarget])
 
   useRendererLayoutEffect(() => {
     if (preview.revision !== revisionRef.current) {
@@ -421,35 +435,89 @@ function EditableTextFile({
         onEditingModeChange={onEditingModeChange}
         onChange={handleChange}
       />
-      <footer className="text-editor-save-bar">
-        <span role="status" aria-live="polite">
-          {t(
-            state === "saving"
-              ? "Saving…"
-              : state === "saved"
-                ? "Saved to disk"
-                : state === "error"
-                  ? "Save failed"
-                  : state === "conflict"
-                    ? "Changed on disk"
-                    : "Unsaved changes"
-          )}
-        </span>
-        <button
-          type="button"
-          className="text-editor-save-issue-action"
-          disabled={
-            state === "saved" || state === "saving" || state === "conflict"
-          }
-          title={t("Save {path} ({shortcut})", {
-            path: preview.relativePath,
-            shortcut: platform === "darwin" ? "Cmd+S" : "Ctrl+S",
-          })}
-          onClick={() => void requestSave()}
-        >
-          {t("Save")} <kbd>{platform === "darwin" ? "⌘S" : "Ctrl+S"}</kbd>
-        </button>
-      </footer>
+      {saveStatusTarget
+        ? createPortal(
+            <span
+              className="text-file-title-save"
+              data-save-state={state}
+              data-save-path={preview.relativePath}
+            >
+              <span
+                className="text-file-save-announcement"
+                role="status"
+                aria-live="polite"
+              >
+                {t(
+                  state === "saving"
+                    ? "Saving…"
+                    : state === "saved"
+                      ? "Saved to disk"
+                      : state === "error"
+                        ? "Save failed"
+                        : state === "conflict"
+                          ? "Changed on disk"
+                          : "Unsaved changes"
+                )}
+              </span>
+              {state !== "saved" ? (
+                <button
+                  type="button"
+                  className="text-file-title-save-action"
+                  disabled={state === "saving" || state === "conflict"}
+                  aria-label={
+                    state === "conflict"
+                      ? t("Changed on disk")
+                      : state === "saving"
+                        ? t("Saving…")
+                        : t("Save {path} ({shortcut})", {
+                            path: preview.relativePath,
+                            shortcut:
+                              platform === "darwin" ? "Cmd+S" : "Ctrl+S",
+                          })
+                  }
+                  title={
+                    state === "conflict"
+                      ? t("Changed on disk")
+                      : state === "error"
+                        ? `${t("Save failed")}: ${error}`
+                        : t("Save {path} ({shortcut})", {
+                            path: preview.relativePath,
+                            shortcut:
+                              platform === "darwin" ? "Cmd+S" : "Ctrl+S",
+                          })
+                  }
+                  onClick={() => void requestSave()}
+                >
+                  {state === "saving" ? (
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                  ) : state === "error" || state === "conflict" ? (
+                    <CircleAlert aria-hidden="true" />
+                  ) : (
+                    <span
+                      className="text-file-title-save-dot"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>
+                    {t(
+                      state === "saving"
+                        ? "Saving…"
+                        : state === "error"
+                          ? "Retry"
+                          : state === "conflict"
+                            ? "Changed on disk"
+                            : "Save"
+                    )}
+                  </span>
+                  {state === "dirty" || state === "error" ? (
+                    <kbd>{platform === "darwin" ? "⌘S" : "Ctrl+S"}</kbd>
+                  ) : null}
+                </button>
+              ) : null}
+            </span>,
+            saveStatusTarget
+          )
+        : null}
     </section>
   )
 }
@@ -590,6 +658,7 @@ function DocumentFilePreview({
   focusRequestToken,
   focusShortcutLabel,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onSaved,
   onReload,
@@ -612,6 +681,7 @@ function DocumentFilePreview({
   focusShortcutLabel?: string
   onReveal(): void
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -650,6 +720,7 @@ function DocumentFilePreview({
         focusRequestToken={focusRequestToken}
         focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}
+        saveStatusTarget={saveStatusTarget}
         onEditingModeChange={onEditingModeChange}
         onSaved={onSaved}
         onReload={onReload}
@@ -691,6 +762,7 @@ function DocumentFilePreview({
             autoFocus={allowAutoFocus}
             focusRequestToken={focusRequestToken}
             focusShortcutLabel={focusShortcutLabel}
+            saveStatusTarget={saveStatusTarget}
             onEditingModeChange={onEditingModeChange}
             onSaved={onSaved}
             onReload={onReload}
@@ -715,6 +787,7 @@ export function TextFilePreview({
   platform,
   focusRequestToken = 0,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onReveal,
   onSaved,
@@ -737,6 +810,7 @@ export function TextFilePreview({
   platform: string
   focusRequestToken?: number
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -798,6 +872,7 @@ export function TextFilePreview({
           focusRequestToken={focusRequestToken}
           focusShortcutLabel={focusShortcutLabel}
           keyboardShortcuts={keyboardShortcuts}
+          saveStatusTarget={saveStatusTarget}
           onEditingModeChange={onEditingModeChange}
           onReveal={onReveal}
           onSaved={onSaved}
@@ -814,6 +889,7 @@ export function TextFilePreview({
         draft={draft}
         theme={theme}
         navigationTarget={navigationTarget}
+        saveStatusTarget={saveStatusTarget}
         focusRequestToken={focusRequestToken}
         focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}

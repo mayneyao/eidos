@@ -3477,6 +3477,10 @@ body {
   background: var(--warning);
 }
 
+.text-file-save-slot:has(.text-file-title-save) + .file-titlebar-dirty {
+  display: none;
+}
+
 .file-titlebar-actions {
   margin-left: auto;
   justify-content: flex-end;
@@ -10252,28 +10256,110 @@ body {
 
 .text-file-editor {
   position: relative;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
 }
 
-.text-editor-save-bar {
-  display: flex;
-  justify-content: space-between;
+.text-file-save-slot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 12rem;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.35rem 1rem;
-  border-top: 1px solid var(--hairline);
-  color: var(--ink-muted);
-  font-size: 0.7rem;
+  -webkit-app-region: no-drag;
 }
 
-.text-editor-save-bar button:disabled {
-  opacity: 0.55;
+.text-file-save-slot:empty,
+.text-file-save-slot[hidden],
+.text-file-save-slot:has([data-save-state="saved"]) {
+  display: none;
+}
+
+.text-file-title-save {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.text-file-save-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.text-file-title-save-action {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 1.5rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  border: 0;
+  border-radius: 0.25rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.text-file-title-save-action:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.text-file-title-save-action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.text-file-title-save-action:disabled {
   cursor: default;
 }
 
-.text-editor-save-bar kbd {
-  margin-left: 0.4rem;
+.text-file-title-save-action > span:not(.text-file-title-save-dot) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-file-title-save-action > svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+}
+
+.text-file-title-save-action kbd {
+  flex: none;
+  margin-left: 0.1rem;
+  color: var(--ink-faint);
   font: inherit;
+}
+
+.text-file-title-save-dot {
+  width: 0.3rem;
+  height: 0.3rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.text-file-title-save:is(
+  [data-save-state="error"],
+  [data-save-state="conflict"]
+) {
+  color: var(--danger);
+}
+
+.text-file-title-save:is(
+    [data-save-state="error"],
+    [data-save-state="conflict"]
+  )
+  .text-file-title-save-action {
+  color: inherit;
 }
 
 .markdown-editor-surface {
@@ -10382,6 +10468,8 @@ body {
   top: 0.65rem;
   right: 0.75rem;
   display: inline-flex;
+  max-width: calc(100% - 1.5rem);
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
   min-height: 1.75rem;
@@ -10573,6 +10661,63 @@ body {
   overflow: hidden;
   color: var(--ink);
   background: var(--canvas);
+  container: file-preview / inline-size;
+}
+
+.file-sidebar-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.file-sidebar-identity .text-file-save-slot {
+  max-width: 8rem;
+}
+
+.workbench:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  ):has(> .file-sidebar .text-file-title-save) {
+  /* Keep the compact save hit target and a readable title outside the five
+     application/native caption buttons, including at 80% application zoom. */
+  --right-sidebar-min-width: max(
+    18rem,
+    calc(var(--window-caption-width) * 5 + 6rem)
+  );
+}
+
+@container file-preview (max-width: 24rem) {
+  .workbench:is(
+      [data-platform="win32"],
+      [data-platform="linux"],
+      [data-platform="other"]
+    )
+    .file-sidebar-identity
+    .text-file-title-save-action {
+    min-width: 1.5rem;
+    justify-content: center;
+  }
+
+  .workbench:is(
+      [data-platform="win32"],
+      [data-platform="linux"],
+      [data-platform="other"]
+    )
+    .file-sidebar-identity
+    .text-file-title-save-action
+    > span:not(.text-file-title-save-dot),
+  .workbench:is(
+      [data-platform="win32"],
+      [data-platform="linux"],
+      [data-platform="other"]
+    )
+    .file-sidebar-identity
+    .text-file-title-save-action
+    kbd {
+    display: none;
+  }
 }
 
 .file-sidebar > header {
