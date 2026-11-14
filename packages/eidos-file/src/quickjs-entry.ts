@@ -7,11 +7,21 @@ import { installQuickJsPolyfills } from "./quickjs/polyfills"
 installQuickJsPolyfills()
 
 import { Runtime } from "./runtime-service"
+import {
+  initializeCliTable,
+  type InitialCliTable,
+} from "./cli-host-initialization"
+import {
+  eidosFileConversionTargetNullable,
+  recommendedEidosFileConversionPolicies,
+} from "./canonical-conversion"
 import type {
   RequestContext,
   RuntimeEnvironment,
   RuntimeHostBridge,
   RuntimeService,
+  StoredFieldType,
+  ConversionPolicy,
 } from "./runtime-contract"
 import type { CancellationPort } from "./protocol-types"
 import { QuickJsConnectionPort } from "./quickjs/port"
@@ -21,6 +31,8 @@ import { mergeQuickJsSystemMetadata } from "./quickjs/system-merge"
 import { EIDOS_SYSTEM_METADATA_TABLES } from "./system-metadata-merge"
 
 interface EidosQuickJsRuntime {
+  initializeCliTable(requestJson: string): Promise<string>
+  cliConversionDefaults(requestJson: string): Promise<string>
   systemMergeTables(): Promise<string>
   mergeSystemMetadata(requestJson: string): Promise<string>
   selfTest(): Promise<string>
@@ -115,6 +127,44 @@ const errorEnvelope = (error: unknown): string => {
 }
 
 globalThis.__eidos_runtime = {
+  async initializeCliTable(requestJson: string): Promise<string> {
+    try {
+      const { service } = requireSession()
+      const value = await initializeCliTable(
+        service,
+        JSON.parse(requestJson) as InitialCliTable,
+        { requestId: "cli-initialize-table", deadlineMilliseconds: 30_000 }
+      )
+      return JSON.stringify({ ok: true, value })
+    } catch (error) {
+      return errorEnvelope(error)
+    }
+  },
+  async cliConversionDefaults(requestJson: string): Promise<string> {
+    try {
+      const request = JSON.parse(requestJson) as {
+        from: StoredFieldType
+        to: StoredFieldType
+        sourceNullable: boolean
+        policies?: ConversionPolicy[]
+      }
+      return JSON.stringify({
+        ok: true,
+        value: {
+          toNullable: eidosFileConversionTargetNullable(
+            request.from,
+            request.to,
+            request.sourceNullable
+          ),
+          policies:
+            request.policies ??
+            recommendedEidosFileConversionPolicies(request.from, request.to),
+        },
+      })
+    } catch (error) {
+      return errorEnvelope(error)
+    }
+  },
   async systemMergeTables(): Promise<string> {
     return JSON.stringify({ ok: true, value: EIDOS_SYSTEM_METADATA_TABLES })
   },

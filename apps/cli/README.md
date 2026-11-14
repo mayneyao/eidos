@@ -231,11 +231,18 @@ definitions. Conversion uses recommended policies by default and requires
 must use attachment commands instead. Field nullability is intentionally not
 exposed.
 
+New Checkbox Fields are non-null and start unchecked. Omitting a Checkbox
+value when creating a row uses `false`; an explicit `null` is rejected.
+Conversion to Checkbox uses the same default. Empty cells require a preflight
+showing the `null-to-false` count and explicit `--confirm-lossy` before they
+become unchecked. Existing nullable Checkbox Fields and their empty values
+remain unchanged until an explicit schema operation changes them.
+
 Use `table rename/delete` and `field rename/delete` for simple lifecycle
 changes. `schema-apply` remains available for atomic batches and supported
-schema payloads that need lower-level control. Formula and Lookup Fields use
-the embedded TypeScript Runtime for preflight, dependency checks, cycle
-detection, and commit:
+schema payloads that need lower-level control. Table and Field creation,
+stored-type conversion, and Formula/Lookup changes use the embedded TypeScript
+Runtime for preflight, dependency checks, cycle detection, and commit:
 
 ```bash
 target/debug/eidos --json formula preview tracker.eidos \

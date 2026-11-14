@@ -163,6 +163,25 @@ export function eidosFileConversionCanReusePhysicalColumn(
 export function planCanonicalFieldConversion(
   input: CanonicalConversionInput
 ): CanonicalConversionPlan {
+  const allowedPolicies: readonly ConversionPolicy[] = [
+    "round-binary64",
+    "truncate-toward-zero",
+    "round-ties-even",
+    "zero-false-nonzero-true",
+    "utc-date",
+    "first",
+    "null-to-empty-list",
+    "null-to-false",
+  ]
+  if (input.policies?.some((policy) => !allowedPolicies.includes(policy))) {
+    return {
+      classification: "forbidden",
+      rows: [],
+      affectedRows: "0",
+      valueChanges: [],
+      error: "Unknown conversion policy",
+    }
+  }
   const policies = new Set(input.policies ?? [])
   if (
     policies.has("null-to-false") &&

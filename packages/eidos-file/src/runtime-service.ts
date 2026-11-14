@@ -120,6 +120,11 @@ import type {
 import { scanStableRowPages } from "./stable-row-scan"
 import { initializeEidosFileSchema } from "./schema"
 import {
+  registerCliTableInitializer,
+  type InitialCliTable,
+  type InitialCliTableResult,
+} from "./cli-host-initialization"
+import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
 } from "./temporal"
@@ -350,6 +355,9 @@ export class EidosRuntimeService implements RuntimeClient {
     private readonly generator: EidosUuidV7Generator
   ) {
     this.capabilitiesValue = runtimeCapabilities(writable)
+    registerCliTableInitializer(this, (change, context) =>
+      this.initializeCliTable(change, context)
+    )
     if (writable) {
       this.importCsv = (request, context) =>
         this.importCsvRequest(request, context)
@@ -2087,6 +2095,69 @@ export class EidosRuntimeService implements RuntimeClient {
       },
       false,
       request
+    )
+  }
+
+  private initializeCliTable(
+    change: InitialCliTable,
+    context: RequestContext
+  ): Promise<InitialCliTableResult> {
+    return this.invoke(
+      context,
+      () => {
+        this.assertWritable("initializeCliTable")
+        const createdObjects: CreatedSchemaObject[] = []
+        let tableId = ""
+        let viewId = ""
+        // The host publishes this fresh file only after this transaction succeeds.
+        // Ordinary create-table keeps its existing no-default/no-View contract.
+        this.core.applyCanonicalMutation(() => {
+          const before = this.core.info()
+          if (
+            change.kind !== "create-table" ||
+            String(before.revision) !== "0" ||
+            before.defaultTableId != null ||
+            this.core.listTables().length !== 0 ||
+            this.core.connection.query("SELECT id FROM eidos__views").length !==
+              0
+          ) {
+            throw runtimeError(
+              "invalid-request",
+              "Initial Table requires a fresh File at revision 0"
+            )
+          }
+          if (this.analyzeSchemaChange(change).classification === "forbidden") {
+            throw runtimeError("forbidden", "Initial Table schema is forbidden")
+          }
+          this.applySchemaChange(change, createdObjects, new Set(), new Set())
+          tableId = createdObjects.find(
+            (object) => object.object === "table"
+          )!.id
+          this.applySchemaChange(
+            { kind: "set-default-table", tableId },
+            [],
+            new Set(),
+            new Set()
+          )
+          viewId = this.core.createView(tableId, {
+            name: "Grid",
+            type: "grid",
+          }).id
+        }, 0n)
+        return {
+          schema: {
+            revision: String(this.core.info().revision),
+            changed: true,
+            createdObjects: createdObjects.filter(
+              (object) => "clientKey" in object
+            ),
+          },
+          tableId,
+          viewId,
+        }
+      },
+      false,
+      change
     )
   }
 

@@ -14,11 +14,9 @@ use eidos_file_core::query::{
     FilterNode, ReadRowsOptions, RowQuery, SearchSpec, SortTerm, read_rows,
 };
 use eidos_file_core::rows::{
-    RowChange, RowMutation, ensure_revision, mutate_rows, mutate_rows_in_transaction,
+    RowChange, RowMutation, RowMutationResult, ensure_revision, mutate_rows_in_transaction,
 };
-use eidos_file_core::schema_ops::{
-    SchemaLeafChange, apply_initial_table, apply_schema_change, preview_schema_change,
-};
+use eidos_file_core::schema_ops::{SchemaLeafChange, apply_schema_change, preview_schema_change};
 use eidos_file_core::validate::{ValidationLevel, validate};
 use eidos_file_core::view_ops::{
     SavedViewQuery, ViewChange, ViewMutationRequest, ViewPatch, mutate_views, preview_views,
@@ -235,13 +233,14 @@ fn run_data_mutate(args: DataMutateArgs) -> Result<CommandOutput> {
                 },
             )
         } else {
-            rows_add(
+            rows_add_with_options(
                 args.file,
                 RowAddArgs {
                     table,
                     values: insert_str,
                     expected_revision,
                 },
+                args.dry_run,
             )
         }
     } else if let Some(payload_str) = args.payload {
@@ -262,7 +261,8 @@ fn run_data_mutate(args: DataMutateArgs) -> Result<CommandOutput> {
                 args.file,
                 RowMutateArgs {
                     table,
-                    changes: payload_str,
+                    changes: serde_json::to_string(&payload["changes"])
+                        .map_err(|error| AppError::internal(error.to_string()))?,
                     expected_revision,
                     dry_run: args.dry_run,
                 },
@@ -610,9 +610,26 @@ fn file_meta_json(path: &Path, meta: &FileMeta) -> Value {
 
 fn create(args: CreateArgs) -> Result<CommandOutput> {
     ensure_eidos_path(&args.file)?;
-    create_eidos_file(&args.file, args.title.as_deref())?;
-    let result = (|| -> Result<Value> {
-        let mut conn = open_file(&args.file, true)?;
+    if fs::symlink_metadata(&args.file).is_ok() {
+        return Err(EidosError::AlreadyExists(format!(
+            "refusing to overwrite existing file {}",
+            args.file.display()
+        ))
+        .into());
+    }
+    // Prepare privately on the destination filesystem. Only a complete file
+    // is published with an absent-only rename; never remove the destination.
+    let parent = args
+        .file
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let prepared = tempfile::Builder::new()
+        .prefix(".eidos-create-")
+        .tempdir_in(parent)?;
+    let prepared_file = prepared.path().join("new.eidos");
+    create_eidos_file(&prepared_file, args.title.as_deref())?;
+    let value = {
         let mut schema_result = None;
         let mut default_view_id = None;
         if let Some(table) = args.table {
@@ -629,26 +646,36 @@ fn create(args: CreateArgs) -> Result<CommandOutput> {
             if let Some(label_field) = args.label_field {
                 operation["labelField"] = json!(label_field);
             }
-            let change = normalize_schema_change(&conn, operation)?;
-            let initialized = apply_initial_table(&mut conn, &change)?;
-            default_view_id = Some(initialized.view_id);
-            schema_result = Some(initialized.schema);
+            let operation = runtime_schema_operation(&prepared_file, &operation)?
+                .ok_or_else(|| AppError::internal("initial Table has no canonical operation"))?;
+            let initialized = with_runtime_session(&prepared_file, true, |session| {
+                session.host_call("initializeCliTable", &operation)
+            })?;
+            default_view_id = initialized.get("viewId").cloned();
+            schema_result = initialized.get("schema").cloned();
         }
+        let conn = open_file(&prepared_file, false)?;
         let meta = load_file_meta(&conn)?;
-        Ok(json!({
+        json!({
             "created": true,
             "file": file_meta_json(&args.file, &meta),
             "schemaMutation": schema_result,
             "defaultViewId": default_view_id,
-        }))
-    })();
-    match result {
-        Ok(value) => Ok(CommandOutput::success(value)),
-        Err(error) => {
-            let _ = fs::remove_file(&args.file);
-            Err(error)
-        }
-    }
+        })
+    };
+    tempfile::TempPath::try_from_path(prepared_file)?
+        .persist_noclobber(&args.file)
+        .map_err(|error| {
+            if error.error.kind() == io::ErrorKind::AlreadyExists {
+                AppError::from(EidosError::AlreadyExists(format!(
+                    "refusing to overwrite existing file {}",
+                    args.file.display()
+                )))
+            } else {
+                AppError::from(error.error)
+            }
+        })?;
+    Ok(CommandOutput::success(value))
 }
 
 fn inspect(FileArgs { file }: FileArgs) -> Result<CommandOutput> {
@@ -1423,8 +1450,13 @@ fn rows(RowsArgs { file, command }: RowsArgs) -> Result<CommandOutput> {
 }
 
 fn rows_add(file: PathBuf, args: RowAddArgs) -> Result<CommandOutput> {
-    let mut conn = open_file(&file, true)?;
+    rows_add_with_options(file, args, false)
+}
+
+fn rows_add_with_options(file: PathBuf, args: RowAddArgs, dry_run: bool) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
     let table_id = resolve_table_id(&conn, &args.table)?;
+    drop(conn);
     let payload = read_json_source(&args.values)?;
     let objects = match payload {
         Value::Object(object) => vec![object],
@@ -1462,23 +1494,30 @@ fn rows_add(file: PathBuf, args: RowAddArgs) -> Result<CommandOutput> {
             RowChange::Create { client_key, values }
         })
         .collect();
-    let result = mutate_rows(
-        &mut conn,
+    let result = mutate_rows_via_runtime(
+        &file,
         &RowMutation {
             table_id,
             expected_revision: Some(args.expected_revision),
             changes,
         },
+        dry_run,
     )?;
-    Ok(CommandOutput::success(json!(result)))
+    let mut value = json!(result);
+    if dry_run {
+        value["dryRun"] = json!(true);
+        value["createdIdsAreEphemeral"] = json!(true);
+    }
+    Ok(CommandOutput::success(value))
 }
 
 fn rows_update(file: PathBuf, args: RowUpdateArgs) -> Result<CommandOutput> {
-    let mut conn = open_file(&file, true)?;
+    let conn = open_file(&file, false)?;
     let table_id = resolve_table_id(&conn, &args.table)?;
+    drop(conn);
     let values = parse_object(&args.values, "--values")?;
-    let result = mutate_rows(
-        &mut conn,
+    let result = mutate_rows_via_runtime(
+        &file,
         &RowMutation {
             table_id,
             expected_revision: Some(args.expected_revision),
@@ -1487,15 +1526,17 @@ fn rows_update(file: PathBuf, args: RowUpdateArgs) -> Result<CommandOutput> {
                 values,
             }],
         },
+        false,
     )?;
     Ok(CommandOutput::success(json!(result)))
 }
 
 fn rows_delete(file: PathBuf, args: RowDeleteArgs) -> Result<CommandOutput> {
-    let mut conn = open_file(&file, true)?;
+    let conn = open_file(&file, false)?;
     let table_id = resolve_table_id(&conn, &args.table)?;
-    let result = mutate_rows(
-        &mut conn,
+    drop(conn);
+    let result = mutate_rows_via_runtime(
+        &file,
         &RowMutation {
             table_id,
             expected_revision: Some(args.expected_revision),
@@ -1505,6 +1546,7 @@ fn rows_delete(file: PathBuf, args: RowDeleteArgs) -> Result<CommandOutput> {
                 .map(|row_id| RowChange::Delete { row_id })
                 .collect(),
         },
+        false,
     )?;
     Ok(CommandOutput::success(json!(result)))
 }
@@ -1527,25 +1569,18 @@ fn execute_row_intent(
     changes: Vec<RowChange>,
     dry_run: bool,
 ) -> Result<CommandOutput> {
-    let mut conn = open_file(&file, true)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(EidosError::from)?;
-    ensure_revision(&tx, &expected_revision)?;
-    let table = resolve_table(&load_tables(&tx)?, &table_reference)?.clone();
-    let result = mutate_rows_in_transaction(
-        &tx,
+    let conn = open_file(&file, false)?;
+    let table = resolve_table(&load_tables(&conn)?, &table_reference)?.clone();
+    drop(conn);
+    let result = mutate_rows_via_runtime(
+        &file,
         &RowMutation {
             table_id: table.id.clone(),
             expected_revision: Some(expected_revision.clone()),
             changes,
         },
+        dry_run,
     )?;
-    if dry_run || !result.changed {
-        tx.rollback().map_err(EidosError::from)?;
-    } else {
-        tx.commit().map_err(EidosError::from)?;
-    }
     Ok(CommandOutput::success(json!({
         "dryRun": dry_run,
         "createdIdsAreEphemeral": dry_run,
@@ -1553,6 +1588,52 @@ fn execute_row_intent(
         "expectedRevision": expected_revision,
         "result": result,
     })))
+}
+
+fn mutate_rows_via_runtime(
+    file: &Path,
+    mutation: &RowMutation,
+    dry_run: bool,
+) -> Result<RowMutationResult> {
+    let conn = open_file(file, false)?;
+    let fields = load_fields(&conn)?;
+    let mut request = serde_json::to_value(mutation)?;
+    for change in request["changes"]
+        .as_array_mut()
+        .expect("serialized changes")
+    {
+        if let Some(values) = change.get_mut("values") {
+            let mut normalized = Map::new();
+            for (reference, mut value) in values.as_object().expect("serialized values").clone() {
+                let field_id = resolve_field_in_table(&fields, &mutation.table_id, &reference)?;
+                let field = fields
+                    .iter()
+                    .find(|field| field.id == field_id)
+                    .ok_or_else(|| AppError::internal("resolved Field disappeared"))?;
+                // The CLI accepts JSON numbers for Integer; Runtime wire uses
+                // decimal strings, preserving the full int64 representation.
+                if field.field_type == FieldType::Integer && value.is_number() {
+                    value = Value::String(value.to_string());
+                }
+                if normalized.insert(field_id, value).is_some() {
+                    return Err(AppError::invalid_request(
+                        "duplicate Field reference in row values",
+                    ));
+                }
+            }
+            *values = Value::Object(normalized);
+        }
+    }
+    drop(conn);
+    let action = |session: &crate::runtime::RuntimeSession| {
+        let result = session.call("mutateRows", &request)?;
+        Ok(serde_json::from_value(result)?)
+    };
+    if dry_run {
+        crate::runtime::with_preview_session(file, action)
+    } else {
+        with_runtime_session(file, true, action)
+    }
 }
 
 fn rows_upsert(file: PathBuf, args: RowUpsertArgs) -> Result<CommandOutput> {
@@ -1692,19 +1773,19 @@ fn rows_upsert(file: PathBuf, args: RowUpsertArgs) -> Result<CommandOutput> {
         }
     }
 
-    let result = mutate_rows_in_transaction(
-        &tx,
+    // Keep the selected row identities bound to this revision. The canonical
+    // mutation rejects a concurrent change after this read transaction ends.
+    tx.rollback().map_err(EidosError::from)?;
+    drop(conn);
+    let result = mutate_rows_via_runtime(
+        &file,
         &RowMutation {
             table_id: table.id.clone(),
             expected_revision: Some(args.expected_revision.clone()),
             changes,
         },
+        args.dry_run,
     )?;
-    if args.dry_run || !result.changed {
-        tx.rollback().map_err(EidosError::from)?;
-    } else {
-        tx.commit().map_err(EidosError::from)?;
-    }
     Ok(CommandOutput::success(json!({
         "dryRun": args.dry_run,
         "createdIdsAreEphemeral": args.dry_run,
@@ -2506,7 +2587,7 @@ fn validate_file(args: ValidateArgs) -> Result<CommandOutput> {
 
 fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
     let operation = read_json_source(&args.op)?;
-    if let Some(runtime_operation) = runtime_virtual_schema_operation(&args.file, &operation)? {
+    if let Some(runtime_operation) = runtime_schema_operation(&args.file, &operation)? {
         return runtime_schema_intent_with_options(
             args.file,
             runtime_operation,
@@ -2560,7 +2641,7 @@ fn table_create(args: TableCreateArgs, file: PathBuf) -> Result<CommandOutput> {
     if let Some(settings) = args.settings {
         operation["settings"] = read_json_source(&settings)?;
     }
-    if let Some(runtime_operation) = runtime_virtual_schema_operation(&file, &operation)? {
+    if let Some(runtime_operation) = runtime_schema_operation(&file, &operation)? {
         return runtime_schema_intent(
             file,
             runtime_operation,
@@ -2915,8 +2996,9 @@ fn field_update(args: FieldUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
                     "--target-table, --cardinality, and --on-delete only apply when converting to relation",
                 ));
             }
-            let conversion_policies = conversion_policies(
-                field.field_type,
+            let defaults = canonical_conversion_defaults(
+                &file,
+                &field,
                 target_type,
                 if policies.is_empty() {
                     None
@@ -2929,9 +3011,7 @@ fn field_update(args: FieldUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
                 "fieldId": field.id,
                 "to": target_type.as_str(),
             });
-            if !conversion_policies.is_empty() {
-                conversion["policies"] = json!(conversion_policies);
-            }
+            conversion["policies"] = defaults["policies"].clone();
             if target_type == FieldType::Relation {
                 let target_reference = target_table.as_deref().ok_or_else(|| {
                     AppError::invalid_request(
@@ -2945,12 +3025,8 @@ fn field_update(args: FieldUpdateArgs, file: PathBuf) -> Result<CommandOutput> {
                     "cardinality": relation_cardinality(cardinality.as_deref().unwrap_or("many"))?,
                     "onDelete": relation_on_delete(on_delete.as_deref().unwrap_or("restrict"))?,
                 });
-            } else if !matches!(target_type, FieldType::MultiSelect) {
-                conversion["toNullable"] = json!(
-                    field.nullable
-                        || (field.field_type == FieldType::MultiSelect
-                            && target_type == FieldType::Select)
-                );
+            } else {
+                conversion["toNullable"] = defaults["toNullable"].clone();
             }
 
             let table = tables
@@ -3241,56 +3317,22 @@ fn relation_on_delete(value: &str) -> Result<&str> {
     Ok(value)
 }
 
-fn conversion_policies(
-    from: FieldType,
+fn canonical_conversion_defaults(
+    file: &Path,
+    field: &FieldMeta,
     to: FieldType,
     explicit: Option<&[String]>,
-) -> Result<Vec<String>> {
-    const ALLOWED: &[&str] = &[
-        "round-binary64",
-        "truncate-toward-zero",
-        "round-ties-even",
-        "zero-false-nonzero-true",
-        "utc-date",
-        "first",
-        "null-to-empty-list",
-    ];
-    if let Some(explicit) = explicit {
-        for policy in explicit {
-            if !ALLOWED.contains(&policy.as_str()) {
-                return Err(AppError::invalid_request(format!(
-                    "unknown conversion policy {policy:?}"
-                )));
-            }
-        }
-        return Ok(explicit.to_vec());
+) -> Result<Value> {
+    let mut request = json!({
+        "from": field.field_type.as_str(), "to": to.as_str(),
+        "sourceNullable": field.nullable,
+    });
+    if let Some(policies) = explicit {
+        request["policies"] = json!(policies);
     }
-    let mut policies = Vec::new();
-    if from == FieldType::Integer && to == FieldType::Number {
-        policies.push("round-binary64".to_string());
-    }
-    if from == FieldType::Number && to == FieldType::Integer {
-        policies.push("round-ties-even".to_string());
-    }
-    if matches!(from, FieldType::Integer | FieldType::Number) && to == FieldType::Checkbox {
-        policies.push("zero-false-nonzero-true".to_string());
-    }
-    if from == FieldType::Datetime && to == FieldType::Date {
-        policies.push("utc-date".to_string());
-    }
-    if from == FieldType::MultiSelect && to == FieldType::Select {
-        policies.push("first".to_string());
-    }
-    if !matches!(
-        from,
-        FieldType::MultiSelect | FieldType::File | FieldType::Relation
-    ) && matches!(
-        to,
-        FieldType::MultiSelect | FieldType::File | FieldType::Relation
-    ) {
-        policies.push("null-to-empty-list".to_string());
-    }
-    Ok(policies)
+    with_runtime_session(file, false, |session| {
+        session.host_call("cliConversionDefaults", &request)
+    })
 }
 
 fn option_rename_changes(source: &str, field_id: &str) -> Result<Vec<Value>> {
@@ -3386,9 +3428,10 @@ fn runtime_schema_intent_with_options(
     confirm_lossy: bool,
 ) -> Result<CommandOutput> {
     let public_operation = public_schema_operation(operation.clone());
-    with_runtime_session(&file, true, |session| {
+    let action = |session: &crate::runtime::RuntimeSession| {
         let snapshot = session.call("getSnapshot", &json!({}))?;
         let expected_revision = expected_revision
+            .clone()
             .or_else(|| {
                 snapshot
                     .get("revision")
@@ -3403,15 +3446,6 @@ fn runtime_schema_intent_with_options(
                 "change": operation,
             }),
         )?;
-        if dry_run {
-            return Ok(CommandOutput::success(json!({
-                "dryRun": true,
-                "createdIdsAreEphemeral": true,
-                "expectedRevision": expected_revision,
-                "operation": public_operation,
-                "result": preflight,
-            })));
-        }
         let plan_token = preflight
             .get("planToken")
             .and_then(Value::as_str)
@@ -3425,8 +3459,33 @@ fn runtime_schema_intent_with_options(
             "planToken": plan_token,
             "actionsHash": actions_hash,
         });
-        if confirm_lossy {
+        if confirm_lossy || dry_run {
             mutation["confirmLossy"] = json!(true);
+        }
+        if dry_run {
+            let mut result = preflight;
+            // This session owns an isolated database snapshot. Simulate the
+            // canonical commit there to retain preview revision/ID output,
+            // without guessing revisions or changing the source file.
+            if result["classification"] != "forbidden" {
+                let simulated = session.call("mutateSchema", &mutation)?;
+                result
+                    .as_object_mut()
+                    .expect("schema preflight object")
+                    .extend(
+                        simulated
+                            .as_object()
+                            .expect("schema mutation object")
+                            .clone(),
+                    );
+            }
+            return Ok(CommandOutput::success(json!({
+                "dryRun": true,
+                "createdIdsAreEphemeral": true,
+                "expectedRevision": expected_revision,
+                "operation": public_operation,
+                "result": result,
+            })));
         }
         let result = session.call("mutateSchema", &mutation)?;
         Ok(CommandOutput::success(json!({
@@ -3437,10 +3496,15 @@ fn runtime_schema_intent_with_options(
             "preflight": preflight,
             "result": result,
         })))
-    })
+    };
+    if dry_run {
+        crate::runtime::with_preview_session(&file, action)
+    } else {
+        with_runtime_session(&file, true, action)
+    }
 }
 
-fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Option<Value>> {
+fn runtime_schema_operation(file: &Path, operation: &Value) -> Result<Option<Value>> {
     let Some(object) = operation.as_object() else {
         return Ok(None);
     };
@@ -3461,7 +3525,7 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
             let conn = open_file(file, false)?;
             let mut normalized = Vec::with_capacity(changes.len());
             for change in changes {
-                if let Some(runtime_change) = runtime_virtual_schema_operation(file, change)? {
+                if let Some(runtime_change) = runtime_schema_operation(file, change)? {
                     normalized.push(runtime_change);
                 } else {
                     normalized.push(serde_json::to_value(normalize_schema_change(
@@ -3477,15 +3541,6 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                 .get("fields")
                 .and_then(Value::as_array)
                 .ok_or_else(|| AppError::invalid_request("create-table requires fields array"))?;
-            let has_formula = source_fields.iter().any(|value| {
-                value
-                    .as_object()
-                    .and_then(|field| string_member(field, &["kind", "type", "fieldType"]))
-                    == Some(String::from("formula"))
-            });
-            if !has_formula {
-                return Ok(None);
-            }
             let mut fields = Vec::with_capacity(source_fields.len());
             for (index, value) in source_fields.iter().cloned().enumerate() {
                 let mut field = value;
@@ -3547,6 +3602,8 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                 });
             if let Some(label_key) = label_key {
                 normalized["labelFieldClientKey"] = json!(label_key);
+            } else if object.contains_key("labelField") {
+                return Err(AppError::invalid_request("label field is not in fields"));
             }
             Ok(Some(normalized))
         }
@@ -3563,6 +3620,7 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                     "type",
                     "fieldType",
                     "position",
+                    "nullable",
                     "settings",
                     "definition",
                 ] {
@@ -3576,10 +3634,25 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
             let field_object = field.as_object_mut().ok_or_else(|| {
                 AppError::invalid_request("create-field field must be a JSON object")
             })?;
+            if field_object.contains_key("nullable") {
+                return Err(AppError::invalid_request(
+                    "Field nullability is not exposed by the CLI; omit nullable",
+                ));
+            }
             let field_kind = string_member(field_object, &["kind", "type"])
                 .ok_or_else(|| AppError::invalid_request("create-field requires field type"))?;
             if !matches!(field_kind.as_str(), "formula" | "lookup") {
-                return Ok(None);
+                if !field_object.contains_key("position") {
+                    field_object.insert(
+                        "position".into(),
+                        json!(next_field_position(file, &table_id)?),
+                    );
+                }
+                normalize_new_field(&mut field, 0)?;
+                normalize_relation_target(&conn, &mut field)?;
+                return Ok(Some(
+                    json!({"kind":"create-field", "tableId":table_id, "field":field}),
+                ));
             }
             let name = field_object
                 .get("name")
@@ -3903,16 +3976,18 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                         .collect::<Result<Vec<_>>>()
                 })
                 .transpose()?;
-            let policies =
-                conversion_policies(field.field_type, target_type, explicit_policies.as_deref())?;
+            let defaults = canonical_conversion_defaults(
+                file,
+                &field,
+                target_type,
+                explicit_policies.as_deref(),
+            )?;
             let mut normalized = json!({
                 "kind": "convert-field",
                 "fieldId": field.id,
                 "to": target_type.as_str(),
             });
-            if !policies.is_empty() {
-                normalized["policies"] = json!(policies);
-            }
+            normalized["policies"] = defaults["policies"].clone();
             if target_type == FieldType::Relation {
                 let definition = object
                     .get("definition")
@@ -3936,12 +4011,8 @@ fn runtime_virtual_schema_operation(file: &Path, operation: &Value) -> Result<Op
                         definition.get("onDelete").and_then(Value::as_str).unwrap_or("restrict")
                     )?,
                 });
-            } else if target_type != FieldType::MultiSelect {
-                normalized["toNullable"] = json!(
-                    field.nullable
-                        || (field.field_type == FieldType::MultiSelect
-                            && target_type == FieldType::Select)
-                );
+            } else {
+                normalized["toNullable"] = defaults["toNullable"].clone();
             }
             Ok(Some(normalized))
         }
@@ -4229,6 +4300,9 @@ fn execute_schema_intent(
     expected_revision: Option<String>,
     dry_run: bool,
 ) -> Result<CommandOutput> {
+    if let Some(runtime_operation) = runtime_schema_operation(&file, &operation)? {
+        return runtime_schema_intent(file, runtime_operation, expected_revision, dry_run);
+    }
     let mut conn = open_file(&file, true)?;
     let meta = load_file_meta(&conn)?;
     let expected_revision = expected_revision.unwrap_or_else(|| meta.revision.to_string());
@@ -4335,6 +4409,7 @@ fn normalize_relation_target(conn: &Connection, field: &mut Value) -> Result<()>
         .get_mut("definition")
         .and_then(Value::as_object_mut)
         .ok_or_else(|| AppError::invalid_request("Relation field requires definition object"))?;
+    definition.entry("direction").or_insert(json!("forward"));
     let target = definition
         .remove("targetTable")
         .or_else(|| definition.get("targetTableId").cloned());

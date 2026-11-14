@@ -19,6 +19,17 @@ pub struct RuntimeSession {
 }
 
 impl RuntimeSession {
+    /// Private in-process host helpers, outside the public Runtime wire API.
+    pub fn host_call(&self, method: &str, request: &Value) -> Result<Value> {
+        let request_json = serde_json::to_string(request)
+            .map_err(|error| AppError::internal(format!("serialize host request: {error}")))?;
+        let raw = self
+            .host
+            .invoke(method, &[request_json])
+            .map_err(|error| AppError::internal(format!("host {method} failed: {error}")))?;
+        parse_envelope(&raw, method, true)
+    }
+
     pub fn call(&self, method: &str, request: &Value) -> Result<Value> {
         let request_json = serde_json::to_string(request)
             .map_err(|error| AppError::internal(format!("serialize Runtime request: {error}")))?;
