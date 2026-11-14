@@ -16,7 +16,7 @@ afterEach(() => {
     .forEach((directory) => rmSync(directory, { recursive: true, force: true }))
 })
 
-function fixture() {
+function fixture(checkbox = false) {
   const directory = mkdtempSync(path.join(tmpdir(), "eidos-schema-phase-"))
   directories.push(directory)
   const paths = Object.fromEntries(
@@ -33,6 +33,23 @@ function fixture() {
       { name: "Owner", type: "text" },
     ],
   })
+  if (checkbox) {
+    base.addField(table.id, { name: "Flag", type: "checkbox" })
+    base.insertRow(table.id, { Title: "Existing NULL", Flag: null })
+    base.insertRow(table.id, { Title: "Checked", Flag: true })
+    const flag = base.listFields(table.id).find((item) => item.name === "Flag")!
+    base.createView(table.id, {
+      name: "Unchecked",
+      type: "grid",
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          { type: "rule", field: flag.id, operator: "equals", value: false },
+        ],
+      },
+    })
+  }
   const row = base.insertRow(table.id, { Title: "Shared", Owner: "Alex" })
   const field = base
     .listFields(table.id)
@@ -149,3 +166,56 @@ it("returns the canonical compatible name without requiring a host-side winner r
     normalizeEidosSchemaMergeFiles({ ...options, choices: [] }).outcome
   ).toBe("merged")
 })
+
+it.each(["ours", "theirs"] as const)(
+  "preserves Checkbox defaults, existing NULL and saved filters through %s schema normalization",
+  (result) => {
+    const { paths, table, field, options } = fixture(true)
+    expect(
+      normalizeEidosSchemaMergeFiles({
+        ...options,
+        choices: [{ fieldId: field.id, result }],
+      }).outcome
+    ).toBe("merged")
+    for (const side of ["base", "ours", "theirs", "result"] as const) {
+      const runtime = openEidosFile(paths[side])
+      try {
+        const flag = runtime
+          .listFields(table.id)
+          .find((item) => item.name === "Flag")!
+        const title = runtime
+          .listFields(table.id)
+          .find((item) => item.name === "Title")!
+        const rows = runtime.queryRows(table.id).rows
+        const original = (name: string) =>
+          rows.find((row) => row.fields[title.id] === name)!
+        expect(original("Existing NULL").fields[flag.id]).toBeNull()
+        expect(original("Checked").fields[flag.id]).toBe(true)
+        expect(original("Shared").fields[flag.id]).toBe(false)
+        const view = runtime
+          .listViews(table.id)
+          .find((item) => item.name === "Unchecked")!
+        const unchecked = runtime.queryRows(table.id, {
+          query: { filter: view.filter },
+        }).rows
+        expect(unchecked.every((row) => row.fields[flag.id] === false)).toBe(
+          true
+        )
+        expect(unchecked).toHaveLength(side === "base" ? 1 : 2)
+        const physical = runtime.connection.query<{
+          name: string
+          dflt_value: string | null
+        }>('PRAGMA table_xinfo("Projects")')
+        expect(
+          physical.find((column) => column.name === "Flag")!.dflt_value
+        ).toBe("0")
+        expect(
+          runtime.insertRow(table.id, { Title: "Omitted after merge" }).Flag
+        ).toBe(0)
+        expect(runtime.validate({ level: "full" }).valid).toBe(true)
+      } finally {
+        runtime.close()
+      }
+    }
+  }
+)
