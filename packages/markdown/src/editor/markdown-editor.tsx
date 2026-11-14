@@ -297,6 +297,13 @@ function MarkdownEditorImplementation({
     },
     [onError]
   )
+  const validateLinkUrl = useCallback(
+    (url: string) =>
+      resolveActiveLink(url, baseUri) !== null ||
+      (registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) &&
+        parseObsidianMarkdownLinkDestination(url) !== null),
+    [baseUri, registry.features]
+  )
   const initialConfig = useMemo<InitialConfigType>(
     () => ({
       namespace: "EidosMarkdownEditor",
@@ -543,13 +550,7 @@ function MarkdownEditorImplementation({
             />
             <TextFormatPolicyPlugin transformers={registry.transformers} />
             {registry.features.has(MARKDOWN_FEATURES.link) ? (
-              <LinkPlugin
-                validateUrl={(url) =>
-                  resolveActiveLink(url, baseUri) !== null ||
-                  (registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) &&
-                    parseObsidianMarkdownLinkDestination(url) !== null)
-                }
-              />
+              <LinkPlugin validateUrl={validateLinkUrl} />
             ) : null}
             <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
             <CollapsibleHeadingsPlugin enabled={controls.collapsibleHeadings}>
