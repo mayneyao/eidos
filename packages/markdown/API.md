@@ -1203,6 +1203,23 @@ keep the existing link-only picker. `![[...]]` remains unsupported literal text.
 
 # Document reference completion
 
+`fileDrop?: MarkdownFileDropHandler` enables a host-owned file drag boundary.
+`accepts(types)` identifies the host's payload during dragover;
+`resolve({ documentKey, dataTransfer, signal })` returns existing file candidates
+without copying them. Read drag data synchronously before the first await.
+Optional `onError(error)` receives failures. The shared editor knows no host MIME
+type or filesystem API. The hook requires wiki-link support; `imageUrl` inserts
+an image block when the image feature is enabled, otherwise a link. Other drag
+types keep their existing behavior.
+
+The receiver captures a collapsed selection at the pointer in its own root.
+Async completion is discarded after unmount, identity change or content change;
+it never uses another editor's selection. A batch is one undo transaction.
+`droppedFileSource(candidate)` and `fileDropCaretRange(root, x, y, shadowRoots?)`
+support a host source editor's equivalent insertion. Lite uses Pierre's public
+`applyEdits` API and the source document's UTF-16 position, including wrapped and
+scrolled lines. The host owns exact Space/path validation and cancellation.
+
 Note candidates may include `displayText` for a discovered alias. Completion
 keeps `path` as the canonical destination and emits `[[path|displayText]]`.
 `title` controls the candidate label only; it does not silently rename the target.

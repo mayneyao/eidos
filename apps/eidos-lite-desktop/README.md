@@ -258,6 +258,14 @@ raw filesystem path or handle. The import runs through the Space mutation gate
 and participates in whole-Space history and Sync. Content fields intentionally
 remain outside this filesystem attachment policy.
 
+Drag an existing file from the Space Explorer tree onto a Markdown document to
+reference it at the pointer position. Ordinary files become clickable links;
+images appear directly. This works in both Rich text and Source, in the main
+editor or the file sidebar. Source inserts the corresponding Markdown. Dragging
+several selected files keeps their order and is one undo step. The original files
+stay in place and are reused without copying. A drag belongs to its originating
+Space; switching the target document while files are being resolved cancels it.
+
 Drop ordinary files from the system file manager onto a Space Explorer folder
 or its blank root area to copy them into that location. Sources remain intact;
 existing destinations and duplicate names within a batch are rejected. Imported

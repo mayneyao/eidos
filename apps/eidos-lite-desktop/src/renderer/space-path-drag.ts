@@ -2,14 +2,17 @@ export const EIDOS_LITE_SPACE_PATH_DRAG_TYPE =
   "application/x-eidos-lite-space-path"
 export const EIDOS_LITE_SPACE_PATHS_DRAG_TYPE =
   "application/x-eidos-lite-space-paths"
+export const EIDOS_LITE_SPACE_ID_DRAG_TYPE = "application/x-eidos-lite-space-id"
 
 export function setSpacePathDragData(
   dataTransfer: DataTransfer,
   relativePath: string,
-  relativePaths?: string[]
+  relativePaths?: string[],
+  spaceId?: string
 ): void {
   dataTransfer.effectAllowed = "copyMove"
   dataTransfer.setData(EIDOS_LITE_SPACE_PATH_DRAG_TYPE, relativePath)
+  if (spaceId) dataTransfer.setData(EIDOS_LITE_SPACE_ID_DRAG_TYPE, spaceId)
   if (relativePaths && relativePaths.length > 0) {
     dataTransfer.setData(
       EIDOS_LITE_SPACE_PATHS_DRAG_TYPE,

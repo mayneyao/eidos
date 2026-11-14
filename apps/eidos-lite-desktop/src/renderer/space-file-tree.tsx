@@ -46,6 +46,7 @@ import {
 } from "./explorer-file-filter"
 
 interface SpaceFileTreeProps {
+  spaceId?: string
   entries: SpaceTreeEntry[]
   rootDirectory?: string | null
   sort?: ExplorerSort
@@ -337,6 +338,7 @@ export function buildSpaceFileTreeModel(
 }
 
 export function SpaceFileTree({
+  spaceId,
   entries,
   rootDirectory = null,
   sort = DEFAULT_EXPLORER_SORT,
@@ -1170,7 +1172,8 @@ export function SpaceFileTree({
             entry.relativePath,
             draggedTreePaths.map((path) =>
               spaceTreePath(relativePathFromTreePath(path))
-            )
+            ),
+            spaceId
           )
         }}
         onClick={(event) => {

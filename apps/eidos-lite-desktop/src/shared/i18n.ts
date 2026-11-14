@@ -1898,6 +1898,8 @@ const zh: Record<string, string> = {
   "Link to a file": "链接到文件",
   "Insert link": "插入链接",
   "Insert image": "插入图片",
+  "The document changed while dropping files. Drop them again.":
+    "文档内容已更改，请重新拖入文件。",
   "Search files…": "搜索文件…",
   "Searching files…": "正在搜索文件…",
   "No matching files": "没有匹配的文件",

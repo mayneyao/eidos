@@ -4298,6 +4298,7 @@ function WorkspaceApp({
                 }}
               >
                 <SpaceFileTree
+                  spaceId={space.id}
                   sort={explorerSort}
                   nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
                   fileFilter={explorerFileFilter}

@@ -29,6 +29,7 @@ import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-sur
 import { useMarkdownImageAttachments } from "./markdown-image-attachments"
 import { markdownKeyboardShortcuts } from "./markdown-keyboard-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
+import { spaceFileDocumentDrop } from "./space-file-document-drop"
 
 let pierreModule:
   | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
@@ -132,6 +133,13 @@ export function MarkdownEditorSurface({
     [imageAttachments]
   )
   const { t } = useEidosLiteI18n()
+  const documentFileDrop = useMemo(
+    () => ({
+      ...spaceFileDocumentDrop,
+      onError: (error: Error) => setAttachmentError(t(error.message)),
+    }),
+    [t]
+  )
   const importFiles = useCallback<
     NonNullable<MarkdownEditorProps["onImportFiles"]>
   >(
@@ -336,6 +344,7 @@ export function MarkdownEditorSurface({
       >
         {sessionMode === "source" ? (
           <PierreEditor
+            documentKey={documentKey}
             searchTarget={navigationTarget?.textSearch}
             relativePath={relativePath}
             content={content}
@@ -346,6 +355,7 @@ export function MarkdownEditorSurface({
             placeholder={emptyDocumentPrompt}
             placeholderHint={focusHint}
             onPasteImage={imageAttachments ? importImage : undefined}
+            fileDrop={disabled ? undefined : documentFileDrop}
             onPasteImageError={(error) =>
               setAttachmentError(`Image paste failed: ${error.message}`)
             }
@@ -401,6 +411,7 @@ export function MarkdownEditorSurface({
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
             onPasteImage={imageAttachments ? importImage : undefined}
+            fileDrop={documentFileDrop}
             onImportFiles={imageAttachments ? importFiles : undefined}
             resolveImageUrl={imageAttachments?.resolveImageUrl}
             onError={(error) =>

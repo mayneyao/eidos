@@ -75,6 +75,19 @@ Hosts own image URL authorization. Lite treats one leading `/` in an image URL
 as the current Space root, never an OS absolute path. Such a URL MUST resolve
 only that exact Space path, without document-relative or basename fallback.
 
+A host MAY enable file drops with `fileDrop`. Only payload types accepted by
+that host MUST be intercepted; normal text, external files and other drag
+behaviors MUST retain their existing handlers. Resolved existing files MUST be
+inserted at a collapsed pointer selection in the receiving editor, without
+replacing a stale selection in another pane. Ordinary files become links;
+authorized image candidates become the existing image block when supported.
+The batch MUST use one undo transaction. Cancellation, invalid results,
+unmount/identity change and edits made during asynchronous resolution MUST NOT
+insert stale content or change another document. The host MUST bind the payload
+to its source Space and validate exact file identity/path before insertion.
+Lite supports this operation in Rich text and Source, reusing the same file
+without importing, copying or moving it.
+
 GFM MUST cover CommonMark and the five specified extension families: tables,
 task lists, strikethrough, extended autolinks and disallowed raw HTML. It MUST
 NOT treat YAML envelopes, dollar-delimited equations, math fences or vault

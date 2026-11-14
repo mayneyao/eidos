@@ -34,6 +34,7 @@ import type {
 } from "../profile-system/profile-api"
 import { BlockMarqueeSelectionPlugin } from "../plugins/block-marquee-selection-plugin"
 import { ClipboardImagePlugin } from "../plugins/clipboard-image-plugin"
+import { FileDropPlugin } from "../plugins/file-drop-plugin"
 import { CollapsibleHeadingsPlugin } from "../plugins/collapsible-headings-plugin"
 import { EditorShortcutsPlugin } from "../plugins/editor-shortcuts-plugin"
 import { TextFormatPolicyPlugin } from "../plugins/text-format-policy-plugin"
@@ -261,6 +262,7 @@ function MarkdownEditorImplementation({
   navigationTarget,
   onTextSearchUnavailable,
   onPasteImage,
+  fileDrop,
   onImportFiles,
   resolveImageUrl,
   onError,
@@ -481,6 +483,17 @@ function MarkdownEditorImplementation({
               }
             }}
           >
+            {!readOnly &&
+            fileDrop &&
+            registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) ? (
+              <FileDropPlugin
+                handler={fileDrop}
+                documentKey={documentKey}
+                baseUri={baseUri}
+                supportsImages={registry.features.has(MARKDOWN_FEATURES.image)}
+                onError={handleError}
+              />
+            ) : null}
             <DocumentTailPlugin readOnly={readOnly} />
             <RichTextPlugin
               contentEditable={

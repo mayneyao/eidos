@@ -6,12 +6,16 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type DragEvent,
 } from "react"
 import { Editor, type EditorOptions } from "@pierre/diffs/edit"
 import { EditProvider, File, Virtualizer } from "@pierre/diffs/react"
 import {
   markdownImageSource,
   type MarkdownEditorPasteImageHandler,
+  type MarkdownFileDropHandler,
+  droppedFileSource,
+  fileDropCaretRange,
 } from "@eidos.space/markdown"
 
 import type { ResolvedAppearance } from "./app-appearance"
@@ -74,6 +78,7 @@ function clipboardImageFiles(event: ClipboardEvent<HTMLElement>): File[] {
 
 export default function PierreTextEditorSurface({
   relativePath,
+  documentKey = relativePath,
   content,
   theme,
   persistEditorState = true,
@@ -83,9 +88,11 @@ export default function PierreTextEditorSurface({
   placeholderHint,
   searchTarget,
   onPasteImage,
+  fileDrop,
   onPasteImageError,
   onChange,
 }: {
+  documentKey?: string
   relativePath: string
   content: string
   theme: ResolvedAppearance
@@ -96,10 +103,12 @@ export default function PierreTextEditorSurface({
   placeholderHint?: string
   searchTarget?: TextSearchTarget
   onPasteImage?: MarkdownEditorPasteImageHandler
+  fileDrop?: MarkdownFileDropHandler
   onPasteImageError?(error: Error): void
   onChange(content: string): void
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
+  const fileContainerRef = useRef<HTMLElement | null>(null)
   const [searchMissing, setSearchMissing] = useState(false)
   const [empty, setEmpty] = useState(content === "")
   const { t } = useEidosLiteI18n()
@@ -146,6 +155,14 @@ export default function PierreTextEditorSurface({
   const contentPropRef = useRef(content)
   const currentContentRef = useRef(content)
   const pasteControllersRef = useRef(new Set<AbortController>())
+  const dropControllersRef = useRef(new Set<AbortController>())
+  useEffect(
+    () => () => {
+      for (const controller of dropControllersRef.current) controller.abort()
+      dropControllersRef.current.clear()
+    },
+    [documentKey, fileDrop]
+  )
   if (contentPropRef.current !== content) {
     contentPropRef.current = content
     if (!editorRef.current || !persistEditorState)
@@ -269,6 +286,90 @@ export default function PierreTextEditorSurface({
     },
     [onPasteImage, onPasteImageError, relativePath]
   )
+  const handleDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (!fileDrop?.accepts(Array.from(event.dataTransfer.types))) return
+      const editor = editorRef.current
+      if (!editor) return
+      event.preventDefault()
+      event.stopPropagation()
+      const captured = currentContentRef.current
+      const shadow = fileContainerRef.current?.shadowRoot
+      const range = fileDropCaretRange(
+        event.currentTarget,
+        event.clientX,
+        event.clientY,
+        shadow ? [shadow] : []
+      )
+      const lineElement = (
+        range?.startContainer instanceof Element
+          ? range.startContainer
+          : range?.startContainer.parentElement
+      )?.closest<HTMLElement>("[data-line]")
+      let offset = captured.length
+      if (range && lineElement) {
+        const line = Number(lineElement.dataset.line) - 1
+        const prefix = document.createRange()
+        prefix.selectNodeContents(lineElement)
+        prefix.setEnd(range.startContainer, range.startOffset)
+        const lines = captured.split("\n")
+        if (line >= 0 && line < lines.length)
+          offset =
+            lines
+              .slice(0, line)
+              .reduce((size, text) => size + text.length + 1, 0) +
+            Math.min(lines[line]!.length, prefix.toString().length)
+      }
+      const start = textOffsetPosition(captured, offset)
+      const controller = new AbortController()
+      dropControllersRef.current.add(controller)
+      void fileDrop
+        .resolve({
+          documentKey,
+          dataTransfer: event.dataTransfer,
+          signal: controller.signal,
+        })
+        .then((files) => {
+          if (controller.signal.aborted || !files.length) return
+          const sources = files.map(droppedFileSource)
+          if (sources.some((source) => !source)) return
+          if (captured !== currentContentRef.current)
+            throw new Error(
+              "The document changed while dropping files. Drop them again."
+            )
+          const images = files.some((file) => file.imageUrl)
+          const text = `${images && offset > 0 ? "\n\n" : ""}${sources.join(images ? "\n\n" : " ")}${images && offset < captured.length ? "\n\n" : ""}`
+          const point = {
+            line: start.lineNumber - 1,
+            character: start.character,
+          }
+          editor.setSelections([
+            { start: point, end: point, direction: "none" },
+          ])
+          editor.applyEdits(
+            [{ range: { start: point, end: point }, newText: text }],
+            true
+          )
+          const end = textOffsetPosition(
+            currentContentRef.current,
+            offset + text.length
+          )
+          editor.focus({
+            lineNumber: end.lineNumber,
+            character: end.character,
+            preventScroll: true,
+          })
+        })
+        .catch((cause) => {
+          if (!controller.signal.aborted)
+            (fileDrop.onError ?? onPasteImageError)?.(
+              cause instanceof Error ? cause : new Error(String(cause))
+            )
+        })
+        .finally(() => dropControllersRef.current.delete(controller))
+    },
+    [fileDrop, documentKey, relativePath, onPasteImageError]
+  )
   // Pierre keeps the editable tokenizer and theme CSS inside an imperative
   // Shadow DOM instance. Recreate that instance for each application theme,
   // while carrying the live buffer across the remount.
@@ -281,6 +382,7 @@ export default function PierreTextEditorSurface({
     [content, relativePath, theme]
   )
   const handlePostRender = useCallback((fileContainer: HTMLElement) => {
+    fileContainerRef.current = fileContainer
     ensureEmptyEditorCaretTarget(fileContainer, currentContentRef.current)
   }, [])
   return (
@@ -290,6 +392,13 @@ export default function PierreTextEditorSurface({
         shouldDisableTextEditorLineNumbers(relativePath) ? "hidden" : "visible"
       }
       onPasteCapture={handlePasteCapture}
+      onDragOverCapture={(event) => {
+        if (!fileDrop?.accepts(Array.from(event.dataTransfer.types))) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.dataTransfer.dropEffect = "copy"
+      }}
+      onDropCapture={handleDrop}
     >
       {placeholder && empty ? (
         <div className="text-file-editor-empty-prompt" aria-hidden="true">

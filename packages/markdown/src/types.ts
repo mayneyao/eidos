@@ -31,6 +31,17 @@ export type MarkdownNoteSearchHandler = (request: {
   signal: AbortSignal
 }) => Promise<readonly MarkdownNoteCandidate[]>
 
+/** The host recognizes and resolves its own file drag payload without copying files. */
+export interface MarkdownFileDropHandler {
+  onError?(error: Error): void
+  accepts(types: readonly string[]): boolean
+  resolve(request: {
+    documentKey: string
+    dataTransfer: DataTransfer
+    signal: AbortSignal
+  }): Promise<readonly MarkdownNoteCandidate[]>
+}
+
 export interface MarkdownEditorInternalLinkRequest {
   documentKey: string
   /** Raw internal-link destination before an optional display alias. */
@@ -232,6 +243,7 @@ export interface MarkdownEditorProps {
   onTextSearchUnavailable?: () => void
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */
   onPasteImage?: MarkdownEditorPasteImageHandler
+  fileDrop?: MarkdownFileDropHandler
   /** Image placeholders and mobile insertion: the host picks and persists files before returning portable destinations. */
   onImportFiles?: (request: {
     kind: "image" | "file"
