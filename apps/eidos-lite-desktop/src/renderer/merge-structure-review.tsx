@@ -282,7 +282,7 @@ export function MergeStructureReview({
     return () => {
       active = false
     }
-  }, [path.path, stateToken, tableNames, retry])
+  }, [path.path, path.state, stateToken, tableNames, retry])
   const resolved = path.state === "resolved"
   if (planning)
     return (
