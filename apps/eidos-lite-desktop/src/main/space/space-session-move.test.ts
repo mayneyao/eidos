@@ -61,6 +61,53 @@ async function fixture(count: number) {
   }
 }
 
+it("keeps imported Markdown assets visible through the following bulk move refresh", async () => {
+  const f = await fixture(2)
+  const snapshots: SpaceSnapshot[] = []
+  f.session.onChanged((snapshot) => snapshots.push(snapshot))
+  try {
+    await fs.writeFile(path.join(f.root, "source/note.md"), "# Note\n")
+    const data = new TextEncoder().encode("%PDF-1.4 synthetic attachment")
+    const imported = await f.session.importMarkdownFile({
+      relativePath: "source/note.md",
+      name: "plan.pdf",
+      data,
+    })
+    expect(imported.relativePath).toBe("source/assets/plan.pdf")
+    expect(
+      paths
+        .flattenSpaceTree(snapshots.at(-1)!.entries)
+        .map((entry) => entry.relativePath)
+    ).toEqual(expect.arrayContaining(["source/note.md", "source/assets"]))
+    await f.session.loadDirectory("source/assets")
+    const moved = await f.session.movePaths(
+      ["source/0.txt", "source/1.txt"],
+      "target"
+    )
+    const finalPaths = paths
+      .flattenSpaceTree(moved.snapshot.entries)
+      .map((entry) => entry.relativePath)
+    expect(finalPaths).toEqual(
+      expect.arrayContaining([
+        "source/note.md",
+        "source/assets/plan.pdf",
+        "target/0.txt",
+        "target/1.txt",
+      ])
+    )
+    expect(finalPaths).not.toContain("source/0.txt")
+    expect(finalPaths).not.toContain("source/1.txt")
+    expect(await fs.readFile(path.join(f.root, imported.relativePath))).toEqual(
+      Buffer.from(data)
+    )
+    expect(await fs.readFile(path.join(f.root, "source/note.md"), "utf8")).toBe(
+      "# Note\n"
+    )
+  } finally {
+    await f.close()
+  }
+})
+
 it("rejects a stale directory read after a move and coalesces concurrent reads", async () => {
   const f = await fixture(2)
   const captured = deferred<void>()
