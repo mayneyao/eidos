@@ -439,7 +439,7 @@ export function EidosFileFieldPropertyPanel({
               <p className="text-[11px] leading-4 text-muted-foreground">
                 {conversionMayChangeValues
                   ? t(
-                      "Some values may be shortened or changed. The conversion is atomic, so nothing changes if it cannot be completed."
+                      "Some values may be shortened or changed. If conversion fails, no data is changed."
                     )
                   : t(
                       "Existing values will be converted in place. If a value does not fit, the field remains unchanged."

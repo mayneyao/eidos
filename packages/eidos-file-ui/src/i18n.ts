@@ -696,6 +696,8 @@ const zh: EidosFileUIMessageOverrides = {
     "空白的勾选框单元格将导入为未勾选（false）。",
   "{count} empty cells in this column will become unchecked.":
     "本列 {count} 个空值将变为未勾选。",
+  "Some values may be shortened or changed. If conversion fails, no data is changed.":
+    "部分值可能被缩短或改变。转换失败时不会更改数据。",
   "Export CSV": "导出 CSV",
   "Export current view as CSV": "将当前视图导出为 CSV",
   "Export entire table as CSV": "将整个表格导出为 CSV",
