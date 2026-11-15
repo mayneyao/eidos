@@ -275,14 +275,16 @@ function FieldEditorControl({
       )
     return (
       <Select
-        value={checkboxValue}
+        value={omittedDefault ? "" : checkboxValue}
         disabled={disabled}
         onValueChange={(next) =>
           void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
         }
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
-          <SelectValue />
+          <SelectValue
+            placeholder={omittedDefault ? t("Unchecked") : undefined}
+          />
         </SelectTrigger>
         <SelectContent>
           {field.nullable !== false ? (
