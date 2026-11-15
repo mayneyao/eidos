@@ -383,9 +383,12 @@ mod tests {
                 json!({"level": level, "diagnosticsLimit": 100}),
             )
             .unwrap_err();
-            assert!(error
-                .to_string()
-                .contains("Required feature is unavailable"));
+            let diagnostic: Value = serde_json::from_str(&error.to_string())?;
+            assert_eq!(diagnostic["code"], "corrupt-file");
+            assert!(diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("Required feature is unavailable in this runtime: vtab:fs_meta"));
             assert_eq!(std::fs::read(&path)?, before);
         }
         let connection = rusqlite::Connection::open(&path)?;
