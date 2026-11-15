@@ -161,7 +161,20 @@ button {
 }
 
 .share-record {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   overscroll-behavior: contain;
+}
+.share-record > header,
+.share-record > label,
+.share-record > [role="alert"] {
+  flex: none;
+}
+.share-record-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }

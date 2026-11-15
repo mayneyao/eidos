@@ -136,35 +136,37 @@ export function ShareRecordEditor({
               </select>
             </label>
           )}
-          <EidosFileRecordInspector
-            variant="page"
-            row={row}
-            isNewRecord
-            fields={table.fields.filter((f) => !f.systemRole)}
-            contentField={table.fields.find(
-              (f) => f.id === table.table.contentFieldId
-            )}
-            disabled={busy}
-            onCellEdit={async (row, field, value) => {
-              const next = {
-                ...current.current!,
-                changes: { ...current.current!.changes, [field.id]: value },
+          <div className="share-record-content">
+            <EidosFileRecordInspector
+              variant="page"
+              row={row}
+              isNewRecord
+              fields={table.fields.filter((f) => !f.systemRole)}
+              contentField={table.fields.find(
+                (f) => f.id === table.table.contentFieldId
+              )}
+              disabled={busy}
+              onCellEdit={async (row, field, value) => {
+                const next = {
+                  ...current.current!,
+                  changes: { ...current.current!.changes, [field.id]: value },
+                }
+                await request("share.draft", next)
+                current.current = next
+                setForm(next)
+                return {
+                  tableId: table.table.id,
+                  row: { ...row, [field.tableColumnName]: value },
+                  rowCount: table.rowCount,
+                }
+              }}
+              onSearchRelation={(field, query) =>
+                searchEidosFileRelationRecords(source, field, query)
               }
-              await request("share.draft", next)
-              current.current = next
-              setForm(next)
-              return {
-                tableId: table.table.id,
-                row: { ...row, [field.tableColumnName]: value },
-                rowCount: table.rowCount,
-              }
-            }}
-            onSearchRelation={(field, query) =>
-              searchEidosFileRelationRecords(source, field, query)
-            }
-            onImportFiles={importFiles}
-            onError={report}
-          />
+              onImportFiles={importFiles}
+              onError={report}
+            />
+          </div>
         </>
       )}
     </section>
