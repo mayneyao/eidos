@@ -366,7 +366,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.38`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.40`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -941,12 +941,15 @@ EIDOS_LITE_RUN_GRAFT_MERGE=1 \
   src/main/graft/graft-merge-schema.local.integration.test.ts
 ```
 
-Graft 0.3.25 protects `applyMerge` with the reviewed HEAD, plan token, and clean
-worktree guards, so Lite does not precede it with another full-Space status
-scan. A validation-required SQLite candidate may still be reported as
-`automatic_merge_available` while the worktree remains Local. Do not stage that
-Local file or use a rejected `continueMerge` call as a materialization API.
-Until Graft provides a successful candidate-only materialization operation,
-leave the item unresolved and retain complete-file Local/Hosted recovery. The
-exact reproduction and required contract are recorded in the
+`applyMerge` requires the reviewed HEAD, plan token, and clean worktree guards,
+so Lite does not precede it with another full-Space status scan. The pinned SDK
+can materialize compatible generic SQLite schema unions during that operation;
+Lite still validates every Eidos File through the materialization gate.
+
+A validation-required SQLite candidate may instead remain
+`automatic_merge_available` while the worktree holds Local. Keep that path
+unresolved until the supported Eidos semantic-provider workflow or an explicit
+complete-file Local/Hosted choice produces a validated result. Do not stage the
+Local file as a merged candidate or rely on a rejected `continueMerge` call's
+side effects. Scenario coverage and remaining candidate API limits are in the
 [schema compatibility matrix](./MERGE-SCHEMA-COMPATIBILITY.md).
