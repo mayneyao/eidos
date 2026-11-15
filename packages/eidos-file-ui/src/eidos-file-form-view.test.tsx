@@ -241,6 +241,95 @@ describe("EidosFileFormView", () => {
     await act(async () => option!.click())
   }
 
+  it("accepts choosing the initial default Unchecked as an explicit pointer response", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview")
+    await chooseCheckbox("Unchecked")
+    const submit = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent?.trim() === "Submit")!
+    await act(async () => submit.click())
+    expect(container.textContent).toContain("Saved locally.")
+    expect(container.textContent).not.toContain("This field is required.")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    expect(source.updateView).not.toHaveBeenCalled()
+  })
+
+  it("accepts choosing the initial default Unchecked as an explicit keyboard response", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview")
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Flag"]'
+    )!
+    await act(async () => {
+      trigger.focus()
+      trigger.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    await act(async () => {
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "End",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(document.activeElement?.textContent?.trim()).toBe("Unchecked")
+    await act(async () => {
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    const submit = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent?.trim() === "Submit")!
+    await act(async () => submit.click())
+    expect(container.textContent).toContain("Saved locally.")
+    expect(container.textContent).not.toContain("This field is required.")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    expect(source.updateView).not.toHaveBeenCalled()
+  })
+
+  it("keeps the initial default omitted when opening the selector is canceled with Escape", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview")
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Flag"]')!
+        .click()
+    )
+    expect(document.body.querySelector('[role="listbox"]')).not.toBeNull()
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
+    const submit = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent?.trim() === "Submit")!
+    await act(async () => submit.click())
+    expect(container.textContent).toContain("This field is required.")
+    expect(container.textContent).not.toContain("Saved locally.")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    expect(source.updateView).not.toHaveBeenCalled()
+  })
+
   it("retains required-input validation and resets the response preview to an omitted unchecked draft", async () => {
     const source = createSource()
     await renderCheckboxForm(source, "preview")
