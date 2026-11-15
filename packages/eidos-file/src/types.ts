@@ -1,4 +1,5 @@
 import type { EidosFileSqlPrimitive } from "./connection"
+import type { EidosFileCalendarDayValue } from "./calendar-day"
 import type { JsonValue } from "./protocol-types"
 
 export interface EidosFileMetadata {
@@ -493,6 +494,7 @@ export type EidosFileFilterOperator =
   | "is-none-of"
   | "is-between"
   | "is-relative-to-today"
+  | "is-on-calendar-day"
 
 export type EidosFileFilterValue = string | number | boolean | null
 
@@ -509,6 +511,7 @@ export type EidosFileFilterRuleValue =
   | EidosFileFilterValue
   | EidosFileFilterValue[]
   | EidosFileRelativeDateValue
+  | EidosFileCalendarDayValue
 
 export interface EidosFileFilterRule {
   type: "rule"
@@ -677,6 +680,7 @@ export interface EidosFileRowsUndoResult {
 }
 
 export interface EidosFileSnapshot {
+  queryCapabilities?: { calendarDayTimeZoneData?: string[] }
   path: string
   metadata: EidosFileMetadata
   tables: EidosFileTableSnapshot[]

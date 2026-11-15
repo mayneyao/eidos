@@ -397,6 +397,7 @@ capability means false.
 
 ```ts
 interface RuntimeCapabilities {
+  calendarDayTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -988,6 +989,7 @@ interface RowPage {
   rows: ProjectedRow[]
   nextCursor: string | null
   previousCursor: string | null
+  total?: string
 }
 
 interface RowBatch {
@@ -1033,6 +1035,13 @@ with the requested arrays substituted without reordering. The empty hash is:
 ```
 
 ### 6.2 Page and batch invariants
+
+For a query containing `calendar-day`, `queryRows` MUST include `total`: the
+exact matching-row count as an unsigned decimal string, computed in the same
+read transaction with the same root reference instant as the page. A continued
+page retains the cursor's reference instant for both rows and count. Consumers
+MUST NOT recompute this count in a separate request with a new reference instant.
+Other queries MAY include `total` with the same consistency guarantees.
 
 `queryRows` returns `RowPage`. `getRowsById` returns `RowBatch`, never a page.
 Both bind one File ID, Table ID, revision, and projection. Runtime MUST obtain
@@ -1112,6 +1121,13 @@ type FilterNode =
       fieldId: string
       direction: "past" | "next" | "this"
       unit: "day" | "week" | "month" | "year"
+    }
+  | {
+      op: "calendar-day"
+      fieldId: string
+      day: "yesterday" | "today" | "tomorrow"
+      timeZone: string
+      timeZoneData: string
     }
 ```
 
@@ -1253,6 +1269,18 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
             "direction": { "enum": ["past", "next", "this"] },
             "unit": { "enum": ["day", "week", "month", "year"] }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "day", "timeZone", "timeZoneData"],
+          "properties": {
+            "op": { "const": "calendar-day" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "day": { "enum": ["yesterday", "today", "tomorrow"] },
+            "timeZone": { "type": "string", "minLength": 1 },
+            "timeZoneData": { "type": "string", "minLength": 1 }
+          }
         }
       ]
     }
@@ -1303,6 +1331,7 @@ Operator/type compatibility is normative:
 | `has-any`, `has-all`                       | Multi-select, Relation, File, and every public list TypeRef |
 | `relation-has`                             | forward or inverse Relation                                 |
 | `relative-date`                            | `date`, `datetime`                                          |
+| `calendar-day`                             | `date`, `datetime`                                          |
 
 Operands MUST have the Field's exact logical type; Runtime performs no string,
 number, Boolean, date, or ID coercion. `eq` uses typed exact equality and `ne`
@@ -1330,6 +1359,39 @@ bind the original `R`, so paging one query never moves its window. A new root
 request, including re-opening a saved View, captures a new `R`; saved relative
 filters therefore remain relative and MUST NOT be replaced with persisted
 absolute dates.
+
+`calendar-day` is a separate optional calendar condition. Its required
+`timeZone` is an exact IANA zone name or alias supplied by the selected
+`timeZoneData` profile; `system` and implicit host offsets are invalid. The
+optional capability `calendarDayTimeZoneData` advertises supported profiles;
+absence means unsupported. The default profile is explicitly **2026f**, selected
+only when advertised, never by capability-array order. Profile 2026f uses IANA
+2026f rules for local Gregorian years 1970 through 2499, including names and
+links; it does not prescribe a particular library. Updates must preserve the
+meaning of named profiles or reject unavailable profiles with `unsupported`.
+
+Runtime projects the root reference instant `R` through those rules to a local
+Gregorian date, then adds -1, 0, or +1 calendar date for yesterday, today, or
+tomorrow. Date matches that literal date. Datetime matches the inverse image of
+that date under the same piecewise UTC offsets, using half-open instant ranges.
+A 23/25-hour day, a non-hour transition, a repeated midnight, or a skipped date
+must not be replaced by a 24-hour window or guessed midnight. A skipped date
+has no matching instants. Null is false. Stored dates and UTC instants are not
+rewritten. Ordinary values outside profile years simply do not match; a root
+reference or target date outside the supported years returns `unsupported`.
+Invalid structure, a non-temporal Field, or an unknown zone within a known
+profile returns `invalid-query`; an unavailable profile returns `unsupported`.
+
+All query operations, including aggregates, grouping, neighbours and batch
+pages, share one root `R`. Every continuation, including group and group-row
+cursors, binds that `R` and the complete day/zone/profile query. A changed query
+cannot reuse its cursor. Saving/reopening retains the calendar AST and takes a
+new `R`, never stored absolute dates. A stored unavailable operator/profile is
+preserved as an unsupported query under the existing View compatibility rules;
+known malformed syntax remains invalid. Mixed profiles are not structurally
+invalid: each leaf follows its advertised capability; UI presentation may
+require a uniform profile. Legacy `relative-date` retains the UTC/inclusive
+rolling semantics above, including Date projection of both boundaries.
 
 Multi-select, File, Relation, and list results use `[]`, never null. The empty
 list is therefore distinct from null: `eq []` is TRUE for an empty list,
@@ -3757,7 +3819,12 @@ ER-Reader covers at least:
    row preview errors;
 9. Formula-to-Lookup, Lookup-to-Formula, nested Lookup, flatten, typed distinct,
    all aggregates, deterministic DAG order, and exact cycle path;
-10. all validation levels, deterministic diagnostics/truncation, hostile schema
+10. advertised calendar-day profiles: Date/Datetime agreement in UTC, positive,
+    negative and non-hour offsets; 23/25-hour DST days, a skipped local date,
+    half-open boundaries, one root clock read, cursor continuation over midnight,
+    exact page counts, saved-View reopening, unsupported-profile preservation,
+    and unchanged legacy UTC relative-date results;
+11. all validation levels, deterministic diagnostics/truncation, hostile schema
     objects, cancellation/deadline, and resource limits.
 
 ### 17.3 Required Writer families

@@ -93,6 +93,9 @@ pub enum NullsOrder {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all_fields = "camelCase")]
 pub enum FilterNode {
+    /// Wire transport only; calendar semantics are owned by the TS Runtime.
+    #[serde(rename = "calendar-day")]
+    CalendarDay(CalendarDayFilter),
     #[serde(rename = "and")]
     And { args: Vec<FilterNode> },
     #[serde(rename = "or")]
@@ -144,6 +147,27 @@ pub enum FilterNode {
     },
     #[serde(rename = "relation-has")]
     RelationHas { field_id: String, row_id: String },
+}
+
+/// Wire-only document; the canonical Runtime validates and evaluates it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CalendarDayFilter {
+    pub field_id: String,
+    pub day: String,
+    pub time_zone: String,
+    pub time_zone_data: String,
+}
+
+impl FilterNode {
+    pub fn requires_runtime(&self) -> bool {
+        match self {
+            Self::CalendarDay(_) => true,
+            Self::And { args } | Self::Or { args } => args.iter().any(Self::requires_runtime),
+            Self::Not { arg } => arg.requires_runtime(),
+            _ => false,
+        }
+    }
 }
 
 /// Defense-in-depth budgets for untrusted filter trees (§16).
@@ -314,6 +338,9 @@ impl Compiler<'_> {
             ));
         }
         match node {
+            FilterNode::CalendarDay(_) => {
+                Err(invalid_query("calendar-day requires the canonical Runtime"))
+            }
             // Every leaf below is total, so logical composition uses ordinary
             // two-valued Boolean logic even though SQLite itself has NULL.
             FilterNode::And { args } => {

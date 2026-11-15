@@ -24,7 +24,14 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createRoot } from "react-dom/client"
 import type { EidosFileSnapshot, FileEntry } from "@eidos.space/eidos-file"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
-import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import {
+  EidosFileUIProvider,
+  useEidosFileUI,
+} from "@eidos.space/eidos-file-ui/context"
+import {
+  EidosFileCalendarViewProvider,
+  eidosFileCalendarViewContext,
+} from "@eidos.space/eidos-file-ui/eidos-file-calendar-context"
 import { createMobileAssets } from "@eidos.space/eidos-file-ui/mobile-assets"
 import { EidosFileRelatedRecordPanel } from "@eidos.space/eidos-file-ui/eidos-file-related-record-panel"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
@@ -331,6 +338,20 @@ function Database({
   }, [table?.table.id, viewId])
   const view =
     table?.views.find((value) => value.id === viewId) ?? table?.views[0]
+  const calendarProfiles =
+    snapshot.queryCapabilities?.calendarDayTimeZoneData ?? []
+  const calendar = eidosFileCalendarViewContext(view, calendarProfiles)
+  const { translate: t } = useEidosFileUI()
+  const unavailableCalendarRecord = (
+    <div className="p-6">
+      <button onClick={() => setRecord(null)}>{mobileText("返回文件")}</button>
+      <p role="status">
+        {t(
+          "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile."
+        )}
+      </p>
+    </div>
+  )
   useMobileTableHeader(
     snapshot.tables,
     table?.table.id,
@@ -347,7 +368,7 @@ function Database({
     request,
     (error) => setError(errorText(error))
   )
-  return (
+  const content = (
     <main
       className="database-page"
       style={
@@ -373,33 +394,40 @@ function Database({
           }}
         >
           <MobileRecordPage>
-            {recordTable ? (
-              <EidosFileRelatedRecordPanel
-                onSnapshot={setSnapshot}
-                onImportFiles={importFiles}
-                source={source}
-                table={recordTable}
-                target={{
-                  tableId: recordRoute.route!.tableId,
-                  rowId: record,
-                  title: "",
-                }}
-                onNavigate={(id) =>
-                  recordRoute.open(recordRoute.route!.tableId, id)
-                }
-                presentation="page"
-                onClose={() => setRecord(null)}
-                onMutation={() => setReload((value) => value + 1)}
-                onError={(error) => setError(errorText(error))}
-              />
-            ) : (
-              <div className="p-6">
-                <button onClick={() => recordRoute.close()}>
-                  {mobileText("返回文件")}
-                </button>
-                <p role="alert">{mobileText("记录所属的数据表不存在。")}</p>
-              </div>
-            )}
+            <EidosFileCalendarViewProvider
+              view={view}
+              unsupported={unavailableCalendarRecord}
+            >
+              {view?.queryStatus === "unsupported" ? (
+                unavailableCalendarRecord
+              ) : recordTable ? (
+                <EidosFileRelatedRecordPanel
+                  onSnapshot={setSnapshot}
+                  onImportFiles={importFiles}
+                  source={source}
+                  table={recordTable}
+                  target={{
+                    tableId: recordRoute.route!.tableId,
+                    rowId: record,
+                    title: "",
+                  }}
+                  onNavigate={(id) =>
+                    recordRoute.open(recordRoute.route!.tableId, id)
+                  }
+                  presentation="page"
+                  onClose={() => setRecord(null)}
+                  onMutation={() => setReload((value) => value + 1)}
+                  onError={(error) => setError(errorText(error))}
+                />
+              ) : (
+                <div className="p-6">
+                  <button onClick={() => recordRoute.close()}>
+                    {mobileText("返回文件")}
+                  </button>
+                  <p role="alert">{mobileText("记录所属的数据表不存在。")}</p>
+                </div>
+              )}
+            </EidosFileCalendarViewProvider>
           </MobileRecordPage>
         </RecordContentProvider>
       )}
@@ -557,7 +585,9 @@ function Database({
               void request("keyboard.hide").catch(() => {})
             }}
             onImportFiles={async ({ kind }) => {
-              const files = await importFiles({ imagesOnly: kind === "image" })
+              const files = await importFiles({
+                imagesOnly: kind === "image",
+              })
               return files.map((file) => ({
                 markdownUrl: file.uri,
                 name: file.name,
@@ -603,6 +633,16 @@ function Database({
         </div>
       )}
     </main>
+  )
+  return (
+    <EidosFileUIProvider
+      calendarDayTimeZoneData={calendarProfiles}
+      calendarTimeZoneData={
+        calendar.status === "supported" ? calendar.timeZoneData : null
+      }
+    >
+      {content}
+    </EidosFileUIProvider>
   )
 }
 

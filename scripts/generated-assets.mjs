@@ -9,6 +9,7 @@ const definitions = {
     inputs: [
       "packages/eidos-file/src",
       "packages/eidos-file/package.json",
+      "pnpm-lock.yaml",
       "scripts/build-quickjs.mjs",
       "scripts/generated-assets.mjs",
     ],
@@ -21,6 +22,7 @@ const definitions = {
       "packages/eidos-file-ui/vite-source-aliases.ts",
       "packages/eidos-file-ui/package.json",
       "packages/eidos-file/package.json",
+      "pnpm-lock.yaml",
       "packages/eidos-file-serve/src",
       "packages/eidos-file-serve/index.html",
       "packages/eidos-file-serve/package.json",

@@ -1129,6 +1129,10 @@ export function ServeApp() {
         <main className="serve-shell">
           <EidosFileEditorShell
             className="min-h-0 flex-1 !h-auto"
+            view={activeView}
+            calendarDayTimeZoneData={
+              snapshot.queryCapabilities?.calendarDayTimeZoneData
+            }
             data-eidos-publish-editor={published ? "" : undefined}
             searchNavigation={{
               search,

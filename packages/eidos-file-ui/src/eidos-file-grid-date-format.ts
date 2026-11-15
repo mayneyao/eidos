@@ -6,9 +6,10 @@ import { eidosFileDateKey, eidosFileDateTimeText } from "./eidos-file-date-time"
 export function formatEidosFileGridDate(
   date: Date,
   format: EidosFileGridDateFormat,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   return format === "date"
     ? eidosFileDateKey(date)
-    : eidosFileDateTimeText(date, timeZone)
+    : eidosFileDateTimeText(date, timeZone, calendarTimeZoneData)
 }

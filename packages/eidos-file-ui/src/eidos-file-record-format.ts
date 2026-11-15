@@ -12,6 +12,7 @@ import {
 } from "@eidos.space/eidos-file"
 
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
+import { eidosFileDateTimeText } from "./eidos-file-date-time"
 
 function scalarText(value: EidosFileRowValue | undefined): string {
   if (value === null || value === undefined || value === "") return "Empty"
@@ -22,7 +23,8 @@ function scalarText(value: EidosFileRowValue | undefined): string {
 function dateText(
   value: EidosFileRowValue | undefined,
   dateOnly: boolean,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   if (typeof value !== "string" || value.length === 0) return "Empty"
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -31,6 +33,8 @@ function dateText(
       ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
       : new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
+  if (!dateOnly && calendarTimeZoneData)
+    return eidosFileDateTimeText(parsed, timeZone, calendarTimeZoneData)
   return dateOnly
     ? parsed.toLocaleDateString()
     : parsed.toLocaleString(undefined, timeZone ? { timeZone } : undefined)
@@ -60,7 +64,8 @@ export function eidosFileLookupListElementType(
 export function eidosFileLookupListText(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   const value = row[field.tableColumnName]
   const elementType = eidosFileLookupListElementType(field)
@@ -94,7 +99,8 @@ export function eidosFileLookupListText(
         dateText(
           typeof entry === "string" ? entry : String(entry),
           elementType === "date",
-          timeZone
+          timeZone,
+          calendarTimeZoneData
         )
       )
       .join(", ")
@@ -105,7 +111,8 @@ export function eidosFileLookupListText(
 export function eidosFileRecordFieldText(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   const value = row[field.tableColumnName]
   const displayType =
@@ -114,7 +121,10 @@ export function eidosFileRecordFieldText(
       ? field.property.displayType
       : field.type
   if (field.type === "lookup" && field.storageCodec === "json_array") {
-    return eidosFileLookupListText(row, field, timeZone) || "Empty"
+    return (
+      eidosFileLookupListText(row, field, timeZone, calendarTimeZoneData) ||
+      "Empty"
+    )
   }
   if (field.type === "checkbox") {
     return value === true || value === 1 || value === "1"
@@ -151,7 +161,7 @@ export function eidosFileRecordFieldText(
     displayType === "created-time" ||
     displayType === "last-edited-time"
   ) {
-    return dateText(value, false, timeZone)
+    return dateText(value, false, timeZone, calendarTimeZoneData)
   }
   return scalarText(value)
 }

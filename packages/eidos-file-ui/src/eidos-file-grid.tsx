@@ -569,6 +569,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     themeName,
     timeZone,
     translate: t,
+    calendarTimeZoneData,
   } = useEidosFileUI()
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1421,7 +1422,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         t("Unavailable record"),
         view?.properties?.textWrapping === true,
         timeZone,
-        codeFontFamily
+        codeFontFamily,
+        calendarTimeZoneData
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -1550,6 +1552,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       t,
       timeZone,
       view?.properties?.textWrapping,
+      calendarTimeZoneData,
     ]
   )
   const requestVisiblePages = useCallback(
@@ -3000,7 +3003,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       )?.type
     : undefined
   const cellText = cellMenu
-    ? eidosFileRecordFieldText(cellMenu.row, cellMenu.field, timeZone)
+    ? eidosFileRecordFieldText(
+        cellMenu.row,
+        cellMenu.field,
+        timeZone,
+        calendarTimeZoneData
+      )
     : ""
   let singleFileEntry: FileEntry | undefined
   if (cellMenu?.field.type === "file" && assetPresenter) {

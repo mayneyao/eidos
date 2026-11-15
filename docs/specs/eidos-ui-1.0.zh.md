@@ -1186,6 +1186,20 @@ value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之�
 若失败，catalog entry 作为合法的零使用选项保留。此用户操作不同于 CSV import 中被禁止的
 implicit option inference。
 
+含 `calendar-day` 的 View 从已存查询的每个日历 leaf（包括嵌套 AND/OR/NOT）
+推导展示／输入 profile。一致且支持的 profile 传递到 Grid、card、从该 View 打开的
+record/inspector、created/updated time、日期输入，以及 Calendar 的分组、范围查询、
+创建和拖动。保留现有展示区 preference；条件区独立，若不同须显示差异并提供明确
+对齐动作。同区／同 profile 下，即使宿主规则不同，可见日历日期与筛选成员也必须一致。
+投影与 wall-clock 反解消费 canonical Runtime 规则，不能使用宿主 offset。
+不新增另一份持久化 profile 或全局设置。没有日历 leaf 的旧 View 保持现有展示行为。
+上下文切换保留草稿、焦点和组件 identity；未改值保存保留原 instant 精度。
+DST gap/fold 仍需无歧义 instant。越界值以 canonical 原值和明确展示限制呈现，不能
+令整条本可求值的 row page 失败或默用宿主规则。混合／不可用展示 profile 原样保留
+查询并显示不支持，提供显式修改条件的恢复路径；不能任取第一项、将合法 Runtime
+语法判无效、返回成功的部分／无过滤视图。Native UI 必须消费同一 canonical 投影／
+反解薄桥接，否则明确标记该新 View 的展示不受支持。
+
 Date input 原样发送 calendar value。Datetime display 使用 user/Host 选择的 IANA
 timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input 必须先得到
 unambiguous instant 或 offset；提交值遵守 Runtime canonical UTC binding。Locale 与
@@ -1491,7 +1505,14 @@ Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**�
 **不早于**、**介于**、**相对今天**、**为空**与**不为空**。**介于**接收有顺序且包含
 首尾的 lower/upper value，并发送 `between`。
 
-**相对今天**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
+**位于日历日**提供昨天／今天／明天、固定 IANA 区域和明确声明支持的 profile
+（默认 2026f），保存为独立 `calendar-day` leaf。创建时把展示区解析为固定区域；
+区域不可用时须明确选择支持的区域，不能默用 UTC，也不能由普通控件创建混合 profile。
+旧 `relative-date` 条件清楚标为**相对时间窗口（UTC）**；当前指 UTC 日历周期，过去／
+未来仍为包含端点并按 Date 精度投影的滚动窗口。选择明天是明确的新条件，不重解释
+已有 Future/day。
+
+**相对时间窗口（UTC）**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
 **月**或**年**），并发送一个 `relative-date` leaf。控件必须把 direction 与 unit 持久
 保存在 View 中，绝不能把条件冻结为 absolute date。重新打开时必须保留两个选择；
 reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI

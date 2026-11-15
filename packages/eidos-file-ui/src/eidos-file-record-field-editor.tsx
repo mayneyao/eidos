@@ -13,6 +13,7 @@ import type {
 import {
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
+  projectEidosFileCalendarInstant,
 } from "@eidos.space/eidos-file"
 import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
@@ -41,12 +42,18 @@ import {
 
 function dateTimeInputValue(
   value: EidosFileRow[string],
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   if (typeof value !== "string" || value.length === 0) return ""
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  return eidosFileDateTimeInputValue(date, timeZone)
+  return eidosFileDateTimeInputValue(
+    date,
+    timeZone,
+    false,
+    calendarTimeZoneData
+  )
 }
 
 type FieldEditorProps = {
@@ -92,13 +99,14 @@ function FieldEditorControl({
     timeZone,
     interactionMode,
     translate: t,
+    calendarTimeZoneData,
   } = useEidosFileUI()
   const mobileTitle =
     appearance === "record-title" && interactionMode === "mobile"
   const value = row[field.tableColumnName]
   const [draft, setDraft] = useState(
     field.type === "datetime"
-      ? dateTimeInputValue(value, timeZone)
+      ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
       : value === null || value === undefined
         ? ""
         : String(value)
@@ -112,7 +120,7 @@ function FieldEditorControl({
   const [optionOpen, setOptionOpen] = useState(false)
   const savedDraft =
     field.type === "datetime"
-      ? dateTimeInputValue(value, timeZone)
+      ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
       : value === null || value === undefined
         ? ""
         : String(value)
@@ -121,6 +129,12 @@ function FieldEditorControl({
       Boolean(datetimeError || numberError || urlError || optionError) ||
       optionBusy
   )
+  const draftOrigin = useRef({
+    value,
+    display: savedDraft,
+    timeZone,
+    calendarTimeZoneData,
+  })
   const optionSaving = useRef(false)
   const optionInput = useRef<HTMLInputElement>(null)
   const discardNextBlur = useRef(false)
@@ -139,9 +153,20 @@ function FieldEditorControl({
   })
 
   useEffect(() => {
+    if (
+      draft !== draftOrigin.current.display &&
+      value === draftOrigin.current.value
+    )
+      return
+    draftOrigin.current = {
+      value,
+      display: savedDraft,
+      timeZone,
+      calendarTimeZoneData,
+    }
     setDraft(
       field.type === "datetime"
-        ? dateTimeInputValue(value, timeZone)
+        ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
         : value === null || value === undefined
           ? ""
           : String(value)
@@ -149,9 +174,10 @@ function FieldEditorControl({
     setDatetimeError(null)
     setNumberError(null)
     setUrlError(false)
-  }, [field.type, timeZone, value])
+  }, [field.type, timeZone, value, calendarTimeZoneData])
 
   const commitDraft = () => {
+    if (draft === draftOrigin.current.display) return true
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
     if (field.type === "number") {
       const number = Number(draft)
@@ -179,7 +205,11 @@ function FieldEditorControl({
         ? BigInt(draft.trim())
         : draft
     } else if (field.type === "datetime" && draft) {
-      const date = eidosFileInstantFromInputValue(draft, timeZone)
+      const date = eidosFileInstantFromInputValue(
+        draft,
+        draftOrigin.current.timeZone,
+        draftOrigin.current.calendarTimeZoneData
+      )
       if (!date) {
         setDatetimeError(
           t(
@@ -221,6 +251,27 @@ function FieldEditorControl({
     }
   })
 
+  if (
+    field.type === "datetime" &&
+    calendarTimeZoneData &&
+    typeof value === "string" &&
+    value &&
+    !projectEidosFileCalendarInstant(
+      value,
+      eidosFileResolvedTimeZone(timeZone),
+      calendarTimeZoneData
+    )
+  )
+    return (
+      <div className="text-xs">
+        <span>{value}</span>
+        <p className="text-muted-foreground">
+          {t(
+            "Outside calendar profile years 1970–2499. Use a view without calendar conditions to edit this value."
+          )}
+        </p>
+      </div>
+    )
   if (field.type === "checkbox") {
     const omittedDefault =
       isNewRecord &&
@@ -744,10 +795,16 @@ function FieldEditorControl({
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
+            draftOrigin.current = {
+              value,
+              display: savedDraft,
+              timeZone,
+              calendarTimeZoneData,
+            }
             discardNextBlur.current = true
             setDraft(
               field.type === "datetime"
-                ? dateTimeInputValue(value, timeZone)
+                ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
                 : value === null || value === undefined
                   ? ""
                   : String(value)

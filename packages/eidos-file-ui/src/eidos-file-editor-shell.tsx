@@ -1,4 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react"
+import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
+import { EidosFileCalendarViewProvider } from "./eidos-file-calendar-context"
+import { useEidosFileUI } from "./context"
 
 import {
   EidosFileEditorContent,
@@ -12,6 +15,8 @@ export interface EidosFileEditorShellProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   "children"
 > {
+  view?: EidosFileViewInfo
+  calendarDayTimeZoneData?: readonly string[]
   viewTabs?: ReactNode
   queryToolbar?: ReactNode
   fields?: ReactNode
@@ -35,6 +40,8 @@ export const EidosFileEditorShell = forwardRef<
   EidosFileEditorShellProps
 >(function EidosFileEditorShell(
   {
+    view,
+    calendarDayTimeZoneData,
     viewTabs,
     queryToolbar,
     fields,
@@ -51,6 +58,7 @@ export const EidosFileEditorShell = forwardRef<
   ref
 ) {
   const hasFieldActions = fields !== undefined || fieldCreator !== undefined
+  const { translate: t } = useEidosFileUI()
   const editor = (
     <EidosFileEditorRoot
       ref={ref}
@@ -87,12 +95,33 @@ export const EidosFileEditorShell = forwardRef<
       {overlays}
     </EidosFileEditorRoot>
   )
-  return searchNavigation ? (
+  const content = searchNavigation ? (
     <EidosFileSearchNavigationProvider {...searchNavigation}>
       {editor}
     </EidosFileSearchNavigationProvider>
   ) : (
     editor
+  )
+  return (
+    <EidosFileCalendarViewProvider
+      view={view}
+      supported={calendarDayTimeZoneData ?? []}
+      unsupported={
+        <EidosFileEditorRoot className={className}>
+          <EidosFileEditorWorkbar>
+            {viewTabs}
+            {queryToolbar}
+          </EidosFileEditorWorkbar>
+          <div role="status" className="p-4 text-sm">
+            {t(
+              "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile."
+            )}
+          </div>
+        </EidosFileEditorRoot>
+      }
+    >
+      {content}
+    </EidosFileCalendarViewProvider>
   )
 })
 

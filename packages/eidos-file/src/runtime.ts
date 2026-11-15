@@ -1,4 +1,9 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import {
+  isEidosFileCalendarDayValue,
+  assertEidosFileCalendarZone,
+  supportsEidosFileCalendarProfile,
+} from "./calendar-day"
 import { isEidosFileUriReference } from "./canonical-conversion"
 import { normalizeEidosFileColumnStatConfigs } from "./column-stats"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
@@ -791,6 +796,14 @@ function filterToStorage(
         ? { fieldId, op: "has-any", values: requireValues() }
         : { fieldId, op: "in", values: requireValues() }
 
+    if (rule.operator === "is-on-calendar-day") {
+      if (!isEidosFileCalendarDayValue(rule.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Saved View calendar day filter is invalid"
+        )
+      return { op: "calendar-day", fieldId, ...rule.value }
+    }
     if (rule.operator === "is-relative-to-today") {
       const relative = rule.value
       if (
@@ -974,6 +987,18 @@ function filterFromStorage(
         value: [node.lower, node.upper] as never,
       }
     }
+    if (node.op === "calendar-day") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-on-calendar-day",
+        value: {
+          day: node.day,
+          timeZone: node.timeZone,
+          timeZoneData: node.timeZoneData,
+        } as never,
+      }
+    }
     if (node.op === "relative-date") {
       return {
         type: "rule",
@@ -1081,6 +1106,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "has-all",
   "relation-has",
   "relative-date",
+  "calendar-day",
 ])
 
 function sortsFromStorage(value: unknown): EidosFileSort[] {
@@ -1133,6 +1159,19 @@ function storedViewQueryStatus(
     operator: EidosFileFilterRule["operator"],
     value: unknown
   ): boolean => {
+    if (operator === "is-on-calendar-day") {
+      if (
+        !isEidosFileCalendarDayValue(value) ||
+        !supportsEidosFileCalendarProfile(value.timeZoneData)
+      )
+        return false
+      try {
+        assertEidosFileCalendarZone(value.timeZone, value.timeZoneData)
+        return true
+      } catch {
+        return false
+      }
+    }
     if (operator === "is-relative-to-today") {
       if (!value || typeof value !== "object" || Array.isArray(value)) {
         return false
@@ -1216,6 +1255,18 @@ function storedViewQueryStatus(
       } else if (node.op === "relation-has") {
         allowed.add("rowId")
         if (typeof node.rowId !== "string") return false
+      } else if (node.op === "calendar-day") {
+        allowed.add("day")
+        allowed.add("timeZone")
+        allowed.add("timeZoneData")
+        if (
+          !supportedRuleValue("is-on-calendar-day", {
+            day: node.day,
+            timeZone: node.timeZone,
+            timeZoneData: node.timeZoneData,
+          })
+        )
+          return false
       } else if (node.op === "relative-date") {
         allowed.add("direction")
         allowed.add("unit")
@@ -1289,6 +1340,7 @@ export class EidosFileRuntime {
     | { dataVersion: number; schema: RuntimeSchema }
     | undefined
   private readonly nowInstant: () => string
+  private requestInstant: string | undefined
   private readonly allocateId: () => string
 
   constructor(
@@ -1299,7 +1351,8 @@ export class EidosFileRuntime {
       allocateId?: () => string
     } = {}
   ) {
-    this.nowInstant = environment.nowInstant ?? currentEidosFileInstant
+    const clock = environment.nowInstant ?? currentEidosFileInstant
+    this.nowInstant = () => this.requestInstant ?? clock()
     this.allocateId = environment.allocateId ?? (() => createEidosFileUuid())
     connection.exec("PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF;")
     connection.registerFunction("eidos_casefold", (value) =>
@@ -1753,6 +1806,11 @@ export class EidosFileRuntime {
       )
     }
     return field
+  }
+
+  /** @internal Exact Runtime service transaction composition hook. */
+  setRequestInstant(instant?: string): void {
+    this.requestInstant = instant
   }
 
   /** @internal Exact Runtime service transaction composition hook. */

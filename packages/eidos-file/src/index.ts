@@ -48,3 +48,4 @@ export {
 } from "./temporal"
 export * from "./types"
 export * from "./validation"
+export * from "./calendar-day"

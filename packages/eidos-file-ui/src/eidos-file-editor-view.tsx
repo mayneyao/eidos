@@ -19,6 +19,7 @@ import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileUI } from "./context"
+import { EidosFileCalendarViewProvider } from "./eidos-file-calendar-context"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -310,7 +311,12 @@ export function EidosFileEditorView({
   if (view?.queryStatus === "unsupported") {
     return <EidosFileUnsupportedQuery name={view.name} />
   }
-  if (Renderer) return <Renderer {...props} />
+  if (Renderer)
+    return (
+      <EidosFileCalendarViewProvider view={view}>
+        <Renderer {...props} />
+      </EidosFileCalendarViewProvider>
+    )
   if (renderUnsupportedView) return renderUnsupportedView(props)
   return (
     <EidosFileUnsupportedView name={view?.name ?? "Unknown view"} type={type} />

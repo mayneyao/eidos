@@ -1,5 +1,6 @@
 import {
   assertEidosFileValues,
+  isEidosFileCalendarDayValue,
   canonicalizeEidosFileJson,
   readEidosFilePluginConfig,
   mergeEidosFilePluginConfig,
@@ -322,7 +323,20 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       this.context("rows")
     )
     if (page.nextCursor) cursors.set(offset + page.rows.length, page.nextCursor)
-    const total = totalHint ?? (await this.countRows(tableId, runtimeQuery))
+    const hasCalendar = (
+      node: EidosFileFilterGroup | EidosFileFilterRule
+    ): boolean =>
+      node.type === "rule"
+        ? node.operator === "is-on-calendar-day"
+        : node.children.some(hasCalendar)
+    if (query.filter && hasCalendar(query.filter) && page.total === undefined)
+      throw new Error(
+        "Runtime calendar pages must include their reference-bound total"
+      )
+    const total =
+      page.total !== undefined
+        ? Number(page.total)
+        : (totalHint ?? (await this.countRows(tableId, runtimeQuery)))
     const rows = await this.editorRows(
       page,
       selected,
@@ -2113,6 +2127,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     return {
       path: this.path,
+      queryCapabilities: {
+        calendarDayTimeZoneData:
+          this.runtimeCapabilities?.calendarDayTimeZoneData,
+      },
       metadata,
       tables: tableDescriptors.map((table) => {
         const fields = (this.fieldsByTable.get(table.id) ?? []).map((field) =>
@@ -2648,6 +2666,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                     : field.valueType,
         }
       : undefined
+    if (operator === "is-on-calendar-day") {
+      if (!isEidosFileCalendarDayValue(raw))
+        throw new Error("Calendar day filter value is invalid")
+      return { op: "calendar-day", fieldId, ...raw }
+    }
     if (operator === "is-relative-to-today") {
       const relative = raw as EidosFileRelativeDateValue | null
       if (
@@ -2807,6 +2830,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         field: node.fieldId,
         operator: "is-between",
         value: [node.lower, node.upper] as never,
+      }
+    }
+    if (node.op === "calendar-day") {
+      return {
+        type: "rule",
+        field: node.fieldId,
+        operator: "is-on-calendar-day",
+        value: {
+          day: node.day,
+          timeZone: node.timeZone,
+          timeZoneData: node.timeZoneData,
+        },
       }
     }
     if (node.op === "relative-date") {

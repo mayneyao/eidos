@@ -1610,12 +1610,12 @@ class SpaceRepository(
                         it.getString("name"),
                         it.getJSONObject("query").toString(),
                         it.getJSONObject("layout").toString(),
-                        it.optString("queryStatus") != "unsupported",
+                        it.optString("queryStatus") != "unsupported" && nativeViewSupportsCalendarDisplay(it.getJSONObject("query")),
                         it.getString("position").toLong(),
                     )
                 }
         val view = viewId?.let { id -> checkNotNull(views.find { it.id == id }) { tr("视图已不存在，请重新选择") } }
-        check(view?.supported != false) { tr("此视图的查询暂不受当前 Runtime 支持") }
+        check(view?.supported != false) { tr("此视图的查询或日历显示规则暂不受原生界面支持，请使用文件编辑器打开") }
         if (table == null)
             return@io EidosPage(
                 path,

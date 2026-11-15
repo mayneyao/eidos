@@ -900,7 +900,12 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
     } else {
         Some(args.fields)
     };
-    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+    let page = if fields.iter().any(|field| field.physical_name.is_none())
+        || query
+            .filter
+            .as_ref()
+            .is_some_and(FilterNode::requires_runtime)
+    {
         runtime_query_rows(
             &args.file,
             &table.id,
@@ -1099,7 +1104,12 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         &table.id,
     )?;
     let projection = (!args.fields.is_empty()).then_some(args.fields);
-    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+    let page = if fields.iter().any(|field| field.physical_name.is_none())
+        || query
+            .filter
+            .as_ref()
+            .is_some_and(FilterNode::requires_runtime)
+    {
         runtime_query_rows(
             &args.file,
             &table.id,
@@ -1168,24 +1178,32 @@ fn runtime_query_rows(
                 "offset": offset,
             }),
         )?;
-        let aggregate = session.call(
-            "aggregate",
-            &json!({
-                "tableId": table_id,
-                "query": query,
-                "items": [{"key": "count", "op": "count-all"}],
-            }),
-        )?;
-        let total_estimate = aggregate
-            .get("results")
-            .and_then(Value::as_array)
-            .and_then(|results| results.first())
-            .and_then(|result| result.get("value"))
-            .and_then(|value| match value {
-                Value::String(value) => value.parse::<u64>().ok(),
-                Value::Number(value) => value.as_u64(),
-                _ => None,
-            });
+        let total_estimate = if let Some(total) = page
+            .get("total")
+            .and_then(Value::as_str)
+            .and_then(|value| value.parse::<u64>().ok())
+        {
+            Some(total)
+        } else {
+            let aggregate = session.call(
+                "aggregate",
+                &json!({
+                    "tableId": table_id,
+                    "query": query,
+                    "items": [{"key": "count", "op": "count-all"}],
+                }),
+            )?;
+            aggregate
+                .get("results")
+                .and_then(Value::as_array)
+                .and_then(|results| results.first())
+                .and_then(|result| result.get("value"))
+                .and_then(|value| match value {
+                    Value::String(value) => value.parse::<u64>().ok(),
+                    Value::Number(value) => value.as_u64(),
+                    _ => None,
+                })
+        };
         let columns = page
             .get("columns")
             .and_then(Value::as_array)
@@ -1828,6 +1846,11 @@ fn resolve_upsert_key_fields(
 
 fn view_apply(args: ViewApplyArgs) -> Result<CommandOutput> {
     let request: ViewMutationRequest = serde_json::from_value(read_json_source(&args.request)?)?;
+    if view_request_requires_runtime(&request) {
+        return Ok(CommandOutput::success(canonical_view_mutation(
+            &args.file, &request, false,
+        )?));
+    }
     let mut conn = open_file(&args.file, true)?;
     Ok(CommandOutput::success(json!(mutate_views(
         &mut conn, &request
@@ -1957,7 +1980,7 @@ fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
         "table": {"id": table.id, "name": table.name},
         "viewType": view_type,
     });
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
 }
 
 fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
@@ -2084,7 +2107,7 @@ fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
         "view": {"id": current.id, "name": current.name, "table": table.name},
         "viewType": view_type.as_str(),
     });
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
 }
 
 fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
@@ -2103,10 +2126,38 @@ fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
         }],
     };
     let resolved = json!({"view": saved_view_json(&current, &tables)});
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
+}
+
+fn view_request_requires_runtime(request: &ViewMutationRequest) -> bool {
+    request.changes.iter().any(|change| {
+        let query = match change {
+            ViewChange::CreateView { query, .. } => Some(query),
+            ViewChange::UpdateView { patch, .. } => patch.query.as_ref(),
+            ViewChange::DeleteView { .. } => None,
+        };
+        query
+            .and_then(|query| query.filter.as_ref())
+            .is_some_and(FilterNode::requires_runtime)
+    })
+}
+
+fn canonical_view_mutation(
+    file: &Path,
+    request: &ViewMutationRequest,
+    preview: bool,
+) -> Result<Value> {
+    let value = serde_json::to_value(request)?;
+    let execute = |session: &crate::runtime::RuntimeSession| session.call("mutateView", &value);
+    if preview {
+        crate::runtime::with_preview_session(file, execute)
+    } else {
+        with_runtime_session(file, true, execute)
+    }
 }
 
 fn execute_view_request(
+    file: &Path,
     conn: &mut Connection,
     request: ViewMutationRequest,
     dry_run: bool,
@@ -2114,10 +2165,12 @@ fn execute_view_request(
 ) -> Result<CommandOutput> {
     let request_value = serde_json::to_value(&request)
         .map_err(|error| AppError::internal(format!("serialize View request: {error}")))?;
-    let result = if dry_run {
-        preview_views(conn, &request)?
+    let result = if view_request_requires_runtime(&request) {
+        canonical_view_mutation(file, &request, dry_run)?
+    } else if dry_run {
+        json!(preview_views(conn, &request)?)
     } else {
-        mutate_views(conn, &request)?
+        json!(mutate_views(conn, &request)?)
     };
     Ok(CommandOutput::success(json!({
         "dryRun": dry_run,

@@ -1,3 +1,4 @@
+import type { EidosFileCalendarDayValue } from "./calendar-day"
 import type {
   ByteSource,
   CancellationPort,
@@ -108,6 +109,8 @@ export interface RuntimePublicationSnapshot {
 }
 
 export interface RuntimeCapabilities {
+  /** Supported portable calendar profiles; missing means no calendar-day support. */
+  calendarDayTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -309,6 +312,8 @@ export type ResolvedRelationItem =
     }
 
 export interface RowPage {
+  /** Exact count using this page's reference instant; required for calendar-day queries. */
+  total?: string
   fileId: string
   tableId: string
   revision: string
@@ -342,6 +347,7 @@ export interface RowQuery {
 export type FilterOperand = Exclude<LogicalValue, null>
 
 export type FilterNode =
+  | ({ op: "calendar-day"; fieldId: string } & EidosFileCalendarDayValue)
   // Every valid leaf is a total Boolean predicate. Runtime never exposes SQL
   // NULL/UNKNOWN through logical composition; non-null operands are enforced
   // by request validation.

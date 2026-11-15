@@ -4,6 +4,20 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
+  "is on calendar day": "位于日历日",
+  "Relative window (UTC)": "相对时间窗口（UTC）",
+  Yesterday: "昨天",
+  Tomorrow: "明天",
+  "Calendar time zone": "日历时区",
+  "Calendar rules: {profile}": "日历规则：{profile}",
+  "Display zone is {timeZone}. Use it for this condition.":
+    "显示时区为 {timeZone}，点击将此条件改为该时区。",
+  "UTC calendar for Current; Past/Future are inclusive rolling windows. A Date window can include two dates.":
+    "当前周期采用 UTC 日历；过去和未来为包含端点的滚动窗口。Date 字段的窗口可能包含两个日期。",
+  "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile.":
+    "此视图的日历规则暂不受编辑器支持。请明确修改条件，使用同一种支持的规则。",
+  "Outside calendar profile years 1970–2499. Use a view without calendar conditions to edit this value.":
+    "超出日历规则支持的 1970–2499 年范围。可在不含日历日条件的视图中编辑此值。",
   "Find a field…": "搜索属性…",
   "Filtered property unavailable": "筛选的属性已不可用",
   "Filter operator": "筛选运算符",

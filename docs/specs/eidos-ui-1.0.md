@@ -1295,6 +1295,28 @@ mutation. If the later cell mutation fails, the catalog entry remains a valid
 zero-use option. This user action is distinct from forbidden implicit option
 inference during CSV import.
 
+Views containing `calendar-day` derive their display/input profile from every
+calendar leaf in the saved query, including nested AND/OR/NOT. One supported
+profile applies to Grid, cards, record/inspector panels opened from the View,
+created/updated times, date inputs and Calendar grouping/range queries/creation/
+movement. The existing display-zone preference remains selected; a condition's
+zone is independent and must be shown with an explicit alignment action when
+different. For the same zone/profile, displayed calendar dates and filter
+membership must agree even when host rules differ. Projection and inverse
+wall-clock binding consume canonical Runtime rules, never host offsets.
+There is no extra persisted profile setting and no global profile preference.
+Views without calendar leaves retain their display behaviour. Context changes
+must preserve drafts, focus and component identity; saving an unchanged value
+must retain its original instant precision. Gap/fold input still requires an
+unambiguous instant. Out-of-range values show their canonical raw value with an
+explicit presentation limitation rather than fail an otherwise valid row page
+or silently use host rules. Mixed/unavailable display profiles preserve the
+query and show an unsupported presentation with explicit condition-editing
+recovery; they must not select the first profile, classify valid Runtime syntax
+as invalid, or show a successful partial/unfiltered view. Native UI must consume
+the same canonical projection/inverse bridge or explicitly mark that new View's
+presentation unsupported.
+
 Date input sends the calendar value unchanged. Datetime display uses a
 user- or Host-selected IANA time-zone identifier and clearly exposes it near
 the editor. Input in a DST overlap or gap MUST require an unambiguous instant
@@ -1680,11 +1702,21 @@ without changing their membership. A Host-supplied custom filter editor MAY
 retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
-after**, **is on or before**, **is on or after**, **is between**, **is relative
-to today**, **is empty**, and **is not empty**. **Is between** accepts an
+after**, **is on or before**, **is on or after**, **is between**, **is on
+calendar day**, **Relative window (UTC)**, **is empty**, and **is not empty**. **Is between** accepts an
 ordered inclusive lower and upper value and emits `between`.
 
-**Is relative to today** exposes a direction (**past**, **next**, or **this**)
+**Is on calendar day** exposes Yesterday/Today/Tomorrow, a fixed IANA zone and
+an explicit advertised profile (default 2026f). It persists one `calendar-day`
+leaf. The selected display zone is resolved to a fixed zone at creation; an
+unavailable zone requires a supported explicit selection. The UI cannot silently
+use UTC or create mixed profiles through ordinary controls. Existing
+`relative-date` conditions remain visibly labelled **Relative window (UTC)**;
+Current means a UTC period, and Past/Future retain inclusive rolling boundaries
+with Date precision projection. Choosing Tomorrow is an explicit new condition,
+not a reinterpretation of an existing Future/day filter.
+
+**Relative window (UTC)** exposes a direction (**past**, **next**, or **this**)
 and a unit (**day**, **week**, **month**, or **year**) and emits one
 `relative-date` leaf. The control persists direction and unit in the View and
 MUST NOT freeze the condition into absolute dates. Reopening it preserves both

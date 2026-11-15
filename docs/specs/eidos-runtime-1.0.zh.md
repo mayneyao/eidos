@@ -372,6 +372,7 @@ unbounded foreground wait。
 
 ```ts
 interface RuntimeCapabilities {
+  calendarDayTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -938,6 +939,7 @@ interface RowPage {
   rows: ProjectedRow[]
   nextCursor: string | null
   previousCursor: string | null
+  total?: string
 }
 
 interface RowBatch {
@@ -983,6 +985,12 @@ lowercase 64-character SHA-256：
 ```
 
 ### 6.2 Page 与 batch 不变量
+
+含 `calendar-day` 的 query，其 `queryRows` MUST 返回 `total`：以无符号十进制
+字符串表示的精确匹配数，与 page 在同一 read transaction、同一根 reference instant
+下计算。续页的 rows 与 count 都保留 cursor 的 reference instant。Consumer MUST NOT
+另发请求以新的 reference instant 重算该 count。其他 query MAY 返回具有相同一致性
+保证的 `total`。
 
 `queryRows` 返回 `RowPage`。`getRowsById` 返回 `RowBatch`，绝不返回 page。
 二者都绑定一个 File ID、Table ID、revision 与 projection。Runtime MUST 在一个
@@ -1059,6 +1067,13 @@ type FilterNode =
       fieldId: string
       direction: "past" | "next" | "this"
       unit: "day" | "week" | "month" | "year"
+    }
+  | {
+      op: "calendar-day"
+      fieldId: string
+      day: "yesterday" | "today" | "tomorrow"
+      timeZone: string
+      timeZoneData: string
     }
 ```
 
@@ -1200,6 +1215,18 @@ Runtime 还会执行 Field/type/limit validation。
             "direction": { "enum": ["past", "next", "this"] },
             "unit": { "enum": ["day", "week", "month", "year"] }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "day", "timeZone", "timeZoneData"],
+          "properties": {
+            "op": { "const": "calendar-day" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "day": { "enum": ["yesterday", "today", "tomorrow"] },
+            "timeZone": { "type": "string", "minLength": 1 },
+            "timeZoneData": { "type": "string", "minLength": 1 }
+          }
         }
       ]
     }
@@ -1247,6 +1274,7 @@ Operator/type compatibility 是 normative：
 | `has-any`、`has-all`                       | Multi-select、Relation、File 与每个 public list TypeRef |
 | `relation-has`                             | forward 或 inverse Relation                             |
 | `relative-date`                            | `date`、`datetime`                                      |
+| `calendar-day`                             | `date`, `datetime`                                      |
 
 Operand MUST 具有 Field 的精确 logical type；Runtime 不执行 string、number、
 Boolean、date 或 ID coercion。`eq` 使用 typed exact equality，`ne` 使用其
@@ -1270,6 +1298,29 @@ year。Datetime 比较 exact canonical instant；Date 则先把两个 bound 投�
 `R`，同一 query 的分页不能让 window 移动。新的 root request（包括重新打开 saved
 View）捕获新的 `R`；saved relative filter 因而持续保持 relative，绝不能被替换为
 persisted absolute date。
+
+`calendar-day` 是独立的可选日历条件。必填 `timeZone` 是所选 `timeZoneData`
+profile 中精确的 IANA 区域名或别名，不接受 `system` 或隐式宿主 offset。
+可选 capability `calendarDayTimeZoneData` 列出支持的 profile，缺席表示不支持。
+默认 profile 明确为 **2026f**，只有 capability 声明支持时才能选择，不能取数组首项。
+2026f 使用 IANA 2026f 的区域、link 和 offset 规则，支持当地 Gregorian 年份
+1970–2499；不指定某个实现库。更新必须保留已命名 profile 的含义，否则以
+`unsupported` 拒绝不可用 profile。
+
+Runtime 用同一根参考 instant `R` 按指定规则得到当地日历日期，再按 yesterday、
+today、tomorrow 加减 -1、0、+1 日。Date 比较字面日期；Datetime 匹配该日期在
+分段 UTC offset 下的逆像，采用半开 instant 区间。23/25 小时日、非整小时跳变、
+重复午夜和跳过整日不能替换为 24 小时窗口或猜测午夜；跳过的日期没有匹配 instant。
+null 为 false，日期与 UTC instant 存储不变。普通存储值超出 profile 年份只是不匹配；
+参考日或目标日越界返回 `unsupported`。结构错误、非日期 Field 或已知 profile 中的
+未知区域返回 `invalid-query`；不可用 profile 返回 `unsupported`。
+
+聚合、分组、相邻记录、批量页等 query 通路共享一个根 `R`。包括 group/group-row
+在内的续页 cursor 绑定该 `R` 及完整 day/zone/profile 条件，条件改变不能复用 cursor。
+保存和重开保留日历 AST、重新取得 `R`，不保存绝对日期。已存未知 operator/profile
+按 View 兼容规则原样保留为 unsupported query；已知但畸形的语法仍无效。
+混合 profile 不因此成为结构无效的 AST，各 leaf 按能力求值；UI 可以要求一致的
+展示 profile。旧 `relative-date` 的 UTC、包含端点滚动语义及 Date 边界投影保持不变。
 
 Multi-select、File、Relation 与 list result 使用 `[]`，绝不使用 null。因此 empty
 list 与 null 不同：empty list 上 `eq []` 为 TRUE、`is-null` 为 FALSE，与 non-empty
@@ -3531,7 +3582,11 @@ ER-Reader 至少覆盖：
    preview error；
 9. Formula-to-Lookup、Lookup-to-Formula、nested Lookup、flatten、typed distinct、
    所有 aggregate、deterministic DAG order 与精确 cycle path；
-10. 所有 validation level、deterministic diagnostic/truncation、hostile schema
+10. 已公布的 calendar-day profile：UTC、正负及非整小时 offset 下 Date/Datetime
+    一致性；23/25 小时 DST 日、跳过的本地日期、左闭右开边界、单次根 clock 读取、
+    跨午夜 cursor 续页、精确 page count、保存 View 重开、未知 profile 原样保留，
+    以及旧 UTC relative-date 结果不变；
+11. 所有 validation level、deterministic diagnostic/truncation、hostile schema
     object、cancellation/deadline 与 resource limit。
 
 ### 17.3 Required Writer family

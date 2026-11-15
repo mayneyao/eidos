@@ -687,6 +687,10 @@ export function EidosFileWorkbench({
       resolveMarkdownImageUrl={resolveMarkdownImageUrl}
     >
       <EidosFileEditorShell
+        view={activeView}
+        calendarDayTimeZoneData={
+          snapshot.queryCapabilities?.calendarDayTimeZoneData
+        }
         ref={editorRef}
         data-eidos-file-workbench=""
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"

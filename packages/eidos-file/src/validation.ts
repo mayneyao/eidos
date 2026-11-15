@@ -1,5 +1,11 @@
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import { scanStableRowPages } from "./stable-row-scan"
+import { eidosFileFieldValueType } from "./field-query-capabilities"
+import {
+  isEidosFileCalendarDayValue,
+  supportsEidosFileCalendarProfile,
+  assertEidosFileCalendarZone,
+} from "./calendar-day"
 import { isEidosFileUriReference } from "./canonical-conversion"
 import {
   EIDOS_FILE_APPLICATION_ID,
@@ -278,6 +284,7 @@ const FILTER_OPERATORS = new Set([
   "is-none-of",
   "is-between",
   "is-relative-to-today",
+  "is-on-calendar-day",
 ])
 const RUNTIME_FILTER_OPERATORS = new Set([
   "is-null",
@@ -297,6 +304,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "has-all",
   "relation-has",
   "relative-date",
+  "calendar-day",
 ])
 
 const LEVELS: Record<EidosFileValidationLevel, number> = {
@@ -2094,6 +2102,37 @@ export function validateEidosFile(
                   unsupportedQuery = true
                 return
               }
+              if (node.op === "calendar-day") {
+                const type = eidosFileFieldValueType(field)
+                if (type !== "date" && type !== "datetime")
+                  throw new Error(
+                    "View calendar filter requires a Date or Datetime Field"
+                  )
+                const value = {
+                  day: node.day,
+                  timeZone: node.timeZone,
+                  timeZoneData: node.timeZoneData,
+                }
+                if (!isEidosFileCalendarDayValue(value))
+                  throw new Error("View calendar day filter value is invalid")
+                if (
+                  !hasOnlyKeys(node, [
+                    "op",
+                    "fieldId",
+                    "day",
+                    "timeZone",
+                    "timeZoneData",
+                  ]) ||
+                  !supportsEidosFileCalendarProfile(value.timeZoneData)
+                )
+                  unsupportedQuery = true
+                else
+                  assertEidosFileCalendarZone(
+                    value.timeZone,
+                    value.timeZoneData
+                  )
+                return
+              }
               if (node.op === "relative-date") {
                 if (
                   field.type !== "date" &&
@@ -2173,6 +2212,22 @@ export function validateEidosFile(
                   "View between filter must contain exactly two values"
                 )
               }
+            }
+            if (node.op === "is-on-calendar-day") {
+              const type = eidosFileFieldValueType(field)
+              if (
+                (type !== "date" && type !== "datetime") ||
+                !isEidosFileCalendarDayValue(node.value)
+              )
+                throw new Error("View calendar day filter value is invalid")
+              if (!supportsEidosFileCalendarProfile(node.value.timeZoneData))
+                unsupportedQuery = true
+              else
+                assertEidosFileCalendarZone(
+                  node.value.timeZone,
+                  node.value.timeZoneData
+                )
+              return
             }
             if (node.op === "is-relative-to-today") {
               if (

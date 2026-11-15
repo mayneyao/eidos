@@ -130,6 +130,10 @@ export interface EidosFileUIHost {
   weekStartsOnMonday?: boolean
   /** Host-selected IANA time zone; absent means follow the current system zone. */
   timeZone?: string
+  /** Derived from the active View query; null restores legacy host rules. */
+  calendarTimeZoneData?: string | null
+  /** Negotiated Runtime capability, not a saved or global preference. */
+  calendarDayTimeZoneData?: readonly string[]
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
@@ -192,6 +196,8 @@ export function EidosFileUIProvider({
   locale,
   weekStartsOnMonday,
   timeZone,
+  calendarTimeZoneData,
+  calendarDayTimeZoneData,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
@@ -221,6 +227,12 @@ export function EidosFileUIProvider({
   const resolvedWeekStartsOnMonday =
     weekStartsOnMonday ?? parent.weekStartsOnMonday ?? true
   const resolvedTimeZone = timeZone ?? parent.timeZone
+  const resolvedCalendarTimeZoneData =
+    calendarTimeZoneData === undefined
+      ? parent.calendarTimeZoneData
+      : calendarTimeZoneData
+  const resolvedCalendarDayTimeZoneData =
+    calendarDayTimeZoneData ?? parent.calendarDayTimeZoneData
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
@@ -252,6 +264,8 @@ export function EidosFileUIProvider({
       locale: resolvedLocale,
       weekStartsOnMonday: resolvedWeekStartsOnMonday,
       ...(resolvedTimeZone ? { timeZone: resolvedTimeZone } : {}),
+      calendarTimeZoneData: resolvedCalendarTimeZoneData,
+      calendarDayTimeZoneData: resolvedCalendarDayTimeZoneData,
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -308,6 +322,8 @@ export function EidosFileUIProvider({
       resolvedLocale,
       resolvedThemeName,
       resolvedTimeZone,
+      resolvedCalendarTimeZoneData,
+      resolvedCalendarDayTimeZoneData,
       resolvedWeekStartsOnMonday,
       translateOverride,
     ]

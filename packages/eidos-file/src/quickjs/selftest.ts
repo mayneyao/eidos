@@ -8,6 +8,12 @@ import type {
 } from "../runtime-contract"
 import type { CancellationPort } from "../protocol-types"
 import { QuickJsConnectionPort } from "./port"
+import {
+  eidosFileCalendarDayBounds,
+  projectEidosFileCalendarInstant,
+  resolveEidosFileCalendarInstant,
+} from "../calendar-day"
+import { expectCalendarDayQueryConformance } from "../calendar-day.conformance"
 
 const cancellation: CancellationPort = {
   cancelled: () => false,
@@ -19,12 +25,12 @@ const context = (requestId: string): RequestContext => ({
   deadlineMilliseconds: 30_000,
 })
 
-const environment = (): RuntimeEnvironment => {
+const environment = (reference?: { instant: string }): RuntimeEnvironment => {
   let monotonic = 0
   let entropy = 0
   return {
     clock: {
-      nowInstant: () => "2026-07-22T00:00:00.000Z",
+      nowInstant: () => reference?.instant ?? "2026-07-22T00:00:00.000Z",
       nowMilliseconds: () => ++monotonic,
     },
     entropy: {
@@ -46,13 +52,14 @@ const environment = (): RuntimeEnvironment => {
  */
 export async function runSelfTest(): Promise<string> {
   const checks: string[] = []
+  const calendarReference = { instant: "2026-07-22T00:00:00.000Z" }
   const port = new QuickJsConnectionPort()
   globalThis.__eidos_scalar_dispatch = (name, argsJson) =>
     port.dispatchScalar(name, argsJson)
 
   const binding = await Runtime.create(
     port,
-    environment(),
+    environment(calendarReference),
     { title: "Groups" },
     { cancellation }
   )
@@ -747,6 +754,114 @@ export async function runSelfTest(): Promise<string> {
       [true],
     ])
     checks.push("checkbox-null-to-false")
+
+    const calendarBase = await runtime.getSnapshot({}, context("calendar-base"))
+    const calendarPlan = await runtime.preflightSchema(
+      {
+        expectedRevision: calendarBase.revision,
+        change: {
+          kind: "create-table",
+          clientKey: "calendar",
+          name: "Calendar conformance",
+          position: "99",
+          labelFieldClientKey: "label",
+          fields: [
+            { clientKey: "label", name: "Label", kind: "text", position: "0" },
+            { clientKey: "date", name: "Date", kind: "date", position: "1" },
+            {
+              clientKey: "instant",
+              name: "Instant",
+              kind: "datetime",
+              position: "2",
+            },
+          ],
+        },
+      },
+      context("calendar-plan")
+    )
+    const calendarSchema = await runtime.mutateSchema(
+      {
+        expectedRevision: calendarBase.revision,
+        planToken: calendarPlan.planToken,
+        actionsHash: calendarPlan.actionsHash,
+      },
+      context("calendar-schema")
+    )
+    const calendarId = (key: string) =>
+      calendarSchema.createdObjects.find(
+        (item) => "clientKey" in item && item.clientKey === key
+      )!.id
+    const calendarTable = calendarId("calendar"),
+      label = calendarId("label"),
+      date = calendarId("date"),
+      instant = calendarId("instant")
+    await runtime.mutateRows(
+      {
+        tableId: calendarTable,
+        expectedRevision: calendarSchema.revision,
+        changes: [
+          {
+            kind: "create",
+            clientKey: "today",
+            values: {
+              [label]: "today",
+              [date]: "2026-07-22",
+              [instant]: "2026-07-21T16:00:00.000Z",
+            },
+          },
+          {
+            kind: "create",
+            clientKey: "tomorrow",
+            values: {
+              [label]: "tomorrow",
+              [date]: "2026-07-23",
+              [instant]: "2026-07-22T16:00:00.000Z",
+            },
+          },
+        ],
+      },
+      context("calendar-rows")
+    )
+    for (const fieldId of [date, instant]) {
+      const selected = await runtime.queryRows(
+        {
+          tableId: calendarTable,
+          query: {
+            filter: {
+              op: "calendar-day",
+              fieldId,
+              day: "today",
+              timeZone: "Asia/Shanghai",
+              timeZoneData: "2026f",
+            },
+          },
+          projection: { fields: [label], resolveRelations: [] },
+          limit: 10,
+        },
+        context("calendar-" + fieldId)
+      )
+      expect(selected.rows.map((row) => row.values)).toEqual([["today"]])
+    }
+    const parts = projectEidosFileCalendarInstant(
+      "2026-11-15T23:30:00.123Z",
+      "Africa/Casablanca",
+      "2026f"
+    )!
+    expect(parts).toMatchObject({ day: 15, hour: 23, millisecond: 123 })
+    expect(
+      resolveEidosFileCalendarInstant(parts, "Africa/Casablanca", "2026f")
+    ).toBe("2026-11-15T23:30:00.123Z")
+    expect(
+      eidosFileCalendarDayBounds(
+        { day: "today", timeZone: "America/New_York", timeZoneData: "2026f" },
+        "2026-03-08T12:30:00.000Z"
+      ).intervals
+    ).toEqual([["2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z"]])
+    checks.push("calendar-day-portable-profile")
+    await expectCalendarDayQueryConformance(runtime, (instant) => {
+      calendarReference.instant = instant
+    })
+    checks.push("calendar-day-query-conformance-vectors")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

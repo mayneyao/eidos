@@ -61,7 +61,7 @@ function MobileRecordValue({
   field: EidosFileFieldInfo
   row: EidosFileRow
 }) {
-  const { translate: t, timeZone } = useEidosFileUI()
+  const { translate: t, timeZone, calendarTimeZoneData } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (value === null || value === undefined || value === "")
     return <span className="text-muted-foreground">{t("Empty")}</span>
@@ -108,7 +108,7 @@ function MobileRecordValue({
     )
   return (
     <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
-      {eidosFileRecordFieldText(row, field, timeZone)}
+      {eidosFileRecordFieldText(row, field, timeZone, calendarTimeZoneData)}
     </span>
   )
 }
@@ -171,10 +171,15 @@ function CopyableFieldValue({
   row: EidosFileRow
   onError?: (error: unknown) => void
 }) {
-  const { timeZone, translate: t } = useEidosFileUI()
+  const { timeZone, translate: t, calendarTimeZoneData } = useEidosFileUI()
   const [copied, setCopied] = useState(false)
   const value = row[field.tableColumnName]
-  const text = eidosFileRecordFieldText(row, field, timeZone)
+  const text = eidosFileRecordFieldText(
+    row,
+    field,
+    timeZone,
+    calendarTimeZoneData
+  )
   useEffect(() => {
     setCopied(false)
   }, [text, row._id])
@@ -228,7 +233,12 @@ function FieldValue({
   row: EidosFileRow
   onError?: (error: unknown) => void
 }) {
-  const { activateUrl, timeZone, translate: t } = useEidosFileUI()
+  const {
+    activateUrl,
+    timeZone,
+    translate: t,
+    calendarTimeZoneData,
+  } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (field.type === "checkbox") {
     if (value === null || value === undefined) {
@@ -282,7 +292,12 @@ function FieldValue({
       </button>
     )
   }
-  const display = eidosFileRecordFieldText(row, field, timeZone)
+  const display = eidosFileRecordFieldText(
+    row,
+    field,
+    timeZone,
+    calendarTimeZoneData
+  )
   const empty = display === "Empty"
   return (
     <AutosizedRecordFieldText

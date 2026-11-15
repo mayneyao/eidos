@@ -774,7 +774,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => operator?.click())
     const relative = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
-    ).find((option) => option.textContent?.trim() === "is relative to today")
+    ).find((option) => option.textContent?.trim() === "Relative window (UTC)")
     await act(async () => relative?.click())
     expect(
       document.body.querySelector('input[type="datetime-local"]')
@@ -783,7 +783,8 @@ describe("shared EidosFileQueryToolbar", () => {
       document.body.querySelectorAll<HTMLElement>("span")
     ).find(
       (element) =>
-        element.textContent?.trim() === "Filter updates with the current date."
+        element.textContent?.trim() ===
+        "UTC calendar for Current; Past/Future are inclusive rolling windows. A Date window can include two dates."
     )
     expect(relativeHint?.parentElement?.classList).not.toContain("col-span-2")
     await act(async () => button("Apply")?.click())

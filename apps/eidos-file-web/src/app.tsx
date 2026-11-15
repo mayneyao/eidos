@@ -2251,6 +2251,10 @@ export function App() {
       </div>
 
       <ThemedEidosFileEditorShell
+        view={activeView}
+        calendarDayTimeZoneData={
+          snapshot.queryCapabilities?.calendarDayTimeZoneData
+        }
         themeName={theme}
         className="min-h-0 flex-1 !h-auto"
         searchNavigation={{

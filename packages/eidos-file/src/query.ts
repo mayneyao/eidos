@@ -2,6 +2,10 @@ import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EidosFileError } from "./errors"
 import {
+  eidosFileCalendarDayBounds,
+  isEidosFileCalendarDayValue,
+} from "./calendar-day"
+import {
   eidosFileFieldQueryCapabilities,
   eidosFileFieldValueType,
 } from "./field-query-capabilities"
@@ -41,6 +45,7 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-none-of",
   "is-between",
   "is-relative-to-today",
+  "is-on-calendar-day",
 ])
 
 /** Returns whether a persisted compatibility filter operator is executable. */
@@ -126,6 +131,14 @@ export function assertEidosFileRowQuery(value: unknown): void {
     ) {
       throw new EidosFileError("invalid-query", "Invalid filter rule")
     }
+    if (filter.operator === "is-on-calendar-day") {
+      if (!isEidosFileCalendarDayValue(filter.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Calendar day filter value is invalid"
+        )
+      return
+    }
     if (filter.operator === "is-relative-to-today") {
       if (!isRelativeDateValue(filter.value)) {
         throw new EidosFileError(
@@ -204,18 +217,25 @@ function normalizeFilterNode(
       return null
     }
     const values: EidosFileFilterRuleValue | undefined =
-      candidate.operator === "is-relative-to-today" &&
-      isRelativeDateValue(candidate.value)
+      candidate.operator === "is-on-calendar-day" &&
+      isEidosFileCalendarDayValue(candidate.value)
         ? {
-            direction: candidate.value.direction,
-            unit: candidate.value.unit,
+            day: candidate.value.day,
+            timeZone: candidate.value.timeZone,
+            timeZoneData: candidate.value.timeZoneData,
           }
-        : Array.isArray(candidate.value)
-          ? candidate.value.flatMap((entry) => {
-              const normalized = filterValue(entry)
-              return normalized === undefined ? [] : [normalized]
-            })
-          : filterValue(candidate.value)
+        : candidate.operator === "is-relative-to-today" &&
+            isRelativeDateValue(candidate.value)
+          ? {
+              direction: candidate.value.direction,
+              unit: candidate.value.unit,
+            }
+          : Array.isArray(candidate.value)
+            ? candidate.value.flatMap((entry) => {
+                const normalized = filterValue(entry)
+                return normalized === undefined ? [] : [normalized]
+              })
+            : filterValue(candidate.value)
     return {
       type: "rule",
       field: candidate.field,
@@ -769,6 +789,24 @@ function compileRule(
     return `NOT ${empty}`
   }
 
+  if (rule.operator === "is-on-calendar-day") {
+    const type = temporalFieldType(field)
+    if (!type || !isEidosFileCalendarDayValue(rule.value))
+      throw new EidosFileError(
+        "invalid-query",
+        "Calendar day filter requires a Date/Datetime Field and valid calendar value"
+      )
+    const bounds = eidosFileCalendarDayBounds(rule.value, referenceInstant)
+    if (type === "date") {
+      params.push(bounds.date)
+      return `COALESCE(${column} = ?, 0)`
+    }
+    const spans = bounds.intervals.map(([lower, upper]) => {
+      params.push(lower, upper)
+      return `(${column} >= ? AND ${column} < ?)`
+    })
+    return spans.length ? `COALESCE((${spans.join(" OR ")}), 0)` : "0"
+  }
   if (rule.operator === "is-relative-to-today") {
     const type = temporalFieldType(field)
     if (!type) {

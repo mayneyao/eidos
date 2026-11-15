@@ -17,7 +17,12 @@ import type {
   EidosFileRelativeDateUnit,
   EidosFileSort,
 } from "@eidos.space/eidos-file"
-import { eidosFileFieldQueryCapabilities } from "@eidos.space/eidos-file"
+import {
+  eidosFileFieldQueryCapabilities,
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  eidosFileCalendarTimeZones,
+  isEidosFileCalendarDayValue,
+} from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
   Check,
@@ -124,7 +129,8 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-all-of": "has all of",
   "is-none-of": "has none of",
   "is-between": "is between",
-  "is-relative-to-today": "is relative to today",
+  "is-relative-to-today": "Relative window (UTC)",
+  "is-on-calendar-day": "is on calendar day",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
@@ -350,19 +356,32 @@ function defaultRule(
 
 function datetimeLocalFromFilterInstant(
   value: EidosFileFilterValue,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   if (typeof value !== "string" || value.length === 0) return ""
   const timestamp = Date.parse(value)
   if (Number.isNaN(timestamp)) return ""
-  return eidosFileDateTimeInputValue(new Date(timestamp), timeZone, true)
+  return eidosFileDateTimeInputValue(
+    new Date(timestamp),
+    timeZone,
+    true,
+    calendarTimeZoneData
+  )
 }
 
 function filterInstantFromDatetimeLocal(
   value: string,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
-  return eidosFileInstantFromInputValue(value, timeZone)?.toISOString() ?? ""
+  return (
+    eidosFileInstantFromInputValue(
+      value,
+      timeZone,
+      calendarTimeZoneData
+    )?.toISOString() ?? ""
+  )
 }
 
 function FilterTextInput({
@@ -417,7 +436,7 @@ function FilterValueEditor({
   compact?: boolean
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
-  const { timeZone, translate: t } = useEidosFileUI()
+  const { timeZone, translate: t, calendarTimeZoneData } = useEidosFileUI()
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [datetimeError, setDatetimeError] = useState<string | null>(null)
   if (emptyOperators.has(rule.operator)) return null
@@ -434,9 +453,94 @@ function FilterValueEditor({
       />
     )
   }
+  if (rule.operator === "is-on-calendar-day") {
+    const value = isEidosFileCalendarDayValue(rule.value)
+      ? rule.value
+      : {
+          day: "today" as const,
+          timeZone: eidosFileResolvedTimeZone(timeZone),
+          timeZoneData:
+            calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+        }
+    let zones: string[] = []
+    try {
+      zones = eidosFileCalendarTimeZones(value.timeZoneData)
+    } catch {
+      /* preserve unsupported saved values for explicit editing */
+    }
+    return (
+      <div className="grid min-w-0 gap-1.5">
+        <Select
+          value={value.day}
+          onValueChange={(day: typeof value.day) => onChange({ ...value, day })}
+        >
+          <SelectTrigger className="h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["yesterday", "today", "tomorrow"] as const).map((day) => (
+              <SelectItem key={day} value={day}>
+                {t(
+                  day === "today"
+                    ? "Today"
+                    : day === "yesterday"
+                      ? "Yesterday"
+                      : "Tomorrow"
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label className="text-[11px] text-muted-foreground">
+          {t("Time zone: {timeZone}", { timeZone: value.timeZone })}
+          <select
+            aria-label={t("Calendar time zone")}
+            className="h-7 w-full rounded border bg-background text-xs"
+            value={value.timeZone}
+            onChange={(event) =>
+              onChange({ ...value, timeZone: event.target.value })
+            }
+          >
+            {!zones.includes(value.timeZone) && (
+              <option value={value.timeZone}>{value.timeZone}</option>
+            )}
+            {zones.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-[11px] text-muted-foreground">
+          {t("Calendar rules: {profile}", { profile: value.timeZoneData })}
+        </span>
+        {value.timeZone !== eidosFileResolvedTimeZone(timeZone) && (
+          <button
+            type="button"
+            className="text-left text-[11px] underline"
+            disabled={!zones.includes(eidosFileResolvedTimeZone(timeZone))}
+            onClick={() =>
+              onChange({
+                ...value,
+                timeZone: eidosFileResolvedTimeZone(timeZone),
+              })
+            }
+          >
+            {t("Display zone is {timeZone}. Use it for this condition.", {
+              timeZone: eidosFileResolvedTimeZone(timeZone),
+            })}
+          </button>
+        )}
+      </div>
+    )
+  }
   if (rule.operator === "is-relative-to-today") {
     const candidate =
-      rule.value && typeof rule.value === "object" && !Array.isArray(rule.value)
+      rule.value &&
+      typeof rule.value === "object" &&
+      !Array.isArray(rule.value) &&
+      "direction" in rule.value &&
+      "unit" in rule.value
         ? rule.value
         : null
     const direction: EidosFileRelativeDateDirection =
@@ -495,7 +599,9 @@ function FilterValueEditor({
           </SelectContent>
         </Select>
         <span className="col-span-2 text-[11px] text-muted-foreground">
-          {t("Filter updates with the current date.")}
+          {t(
+            "UTC calendar for Current; Past/Future are inclusive rolling windows. A Date window can include two dates."
+          )}
         </span>
       </div>
     )
@@ -612,11 +718,15 @@ function FilterValueEditor({
   if (displayType === "date" || displayType === "datetime") {
     const inputValue = (value: EidosFileFilterValue): string =>
       displayType === "datetime"
-        ? datetimeLocalFromFilterInstant(value, timeZone)
+        ? datetimeLocalFromFilterInstant(value, timeZone, calendarTimeZoneData)
         : String(value ?? "")
     const committedValue = (value: string): string | undefined =>
       displayType === "datetime" && value
-        ? filterInstantFromDatetimeLocal(value, timeZone) || undefined
+        ? filterInstantFromDatetimeLocal(
+            value,
+            timeZone,
+            calendarTimeZoneData
+          ) || undefined
         : value
     const timezoneHint =
       datetimeError ??
@@ -691,15 +801,22 @@ function FilterValueEditor({
         aria-invalid={displayType === "datetime" && Boolean(datetimeError)}
         value={
           displayType === "datetime"
-            ? datetimeLocalFromFilterInstant(rawValue, timeZone)
+            ? datetimeLocalFromFilterInstant(
+                rawValue,
+                timeZone,
+                calendarTimeZoneData
+              )
             : String(rawValue)
         }
         placeholder={t("Value")}
         onChange={(event) => {
           if (displayType === "datetime") {
             const committed = event.target.value
-              ? filterInstantFromDatetimeLocal(event.target.value, timeZone) ||
-                undefined
+              ? filterInstantFromDatetimeLocal(
+                  event.target.value,
+                  timeZone,
+                  calendarTimeZoneData
+                ) || undefined
               : ""
             if (committed === undefined) {
               setDatetimeError(
@@ -792,7 +909,12 @@ function EidosFileFilterRuleEditor({
   onChange: (rule: EidosFileFilterRule) => void
   onRemove?: () => void
 } & EidosFileFilterEditorOptions) {
-  const { translate: t } = useEidosFileUI()
+  const {
+    translate: t,
+    timeZone,
+    calendarTimeZoneData,
+    calendarDayTimeZoneData,
+  } = useEidosFileUI()
   const field = fields.find(
     (candidate) => eidosFileFieldKey(candidate) === rule.field
   )
@@ -816,7 +938,14 @@ function EidosFileFilterRuleEditor({
   const customValue = renderValue?.(field, rule, (value) =>
     onChange({ ...rule, value })
   )
-  const availableOperators = getOperators(field)
+  const availableOperators = getOperators(field).filter(
+    (operator) =>
+      operator !== "is-on-calendar-day" ||
+      rule.operator === operator ||
+      calendarDayTimeZoneData?.includes(
+        calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+      )
+  )
   const conditions = checkboxConditions.filter((condition) =>
     availableOperators.includes(condition.operator)
   )
@@ -919,23 +1048,31 @@ function EidosFileFilterRuleEditor({
               const nextValue: EidosFileFilterRuleValue | undefined =
                 emptyOperators.has(operator)
                   ? undefined
-                  : relative
-                    ? { direction: "this", unit: "week" }
-                    : between
-                      ? ["", ""]
-                      : multiple
-                        ? Array.isArray(rule.value)
-                          ? rule.value
-                          : typeof rule.value === "string" && rule.value
-                            ? [rule.value]
-                            : []
-                        : membership && Array.isArray(rule.value)
-                          ? (rule.value[0] ?? "")
-                          : rule.value === undefined || currentIsStructured
-                            ? fieldDisplayType(field) === "checkbox"
-                              ? true
-                              : ""
-                            : rule.value
+                  : operator === "is-on-calendar-day"
+                    ? {
+                        day: "today",
+                        timeZone: eidosFileResolvedTimeZone(timeZone),
+                        timeZoneData:
+                          calendarTimeZoneData ??
+                          EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+                      }
+                    : relative
+                      ? { direction: "this", unit: "week" }
+                      : between
+                        ? ["", ""]
+                        : multiple
+                          ? Array.isArray(rule.value)
+                            ? rule.value
+                            : typeof rule.value === "string" && rule.value
+                              ? [rule.value]
+                              : []
+                          : membership && Array.isArray(rule.value)
+                            ? (rule.value[0] ?? "")
+                            : rule.value === undefined || currentIsStructured
+                              ? fieldDisplayType(field) === "checkbox"
+                                ? true
+                                : ""
+                              : rule.value
               onChange({
                 ...rule,
                 operator,

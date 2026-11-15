@@ -10,6 +10,11 @@ import {
 } from "./canonical-conversion"
 import { ConnectionPortEidosFileConnection } from "./connection-port"
 import { EidosFileError, type EidosFileErrorCode } from "./errors"
+import {
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  assertEidosFileCalendarZone,
+  isEidosFileCalendarDayValue,
+} from "./calendar-day"
 import { smallestDependencyCycle } from "./dependency-graph"
 import {
   compileEidosFileFormulaFields,
@@ -127,6 +132,7 @@ import {
 import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
+  normalizeEidosFileInstant,
 } from "./temporal"
 import {
   assertEidosFileSelectOptions,
@@ -169,6 +175,7 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 })
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
+  calendarDayTimeZoneData: [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA],
   readRows: true,
   batchRowPages: true,
   schemaPaging: true,
@@ -344,6 +351,7 @@ export class EidosRuntimeService implements RuntimeClient {
   private readonly requestControls = new Map<string, RequestControl>()
   private readonly schemaPlans = new Map<string, RetainedSchemaPlan>()
   private schemaPlanSequence = 0
+  private requestInstant: string | undefined
   private queue: Promise<void> = Promise.resolve()
   private state: "open" | "closing" | "closed" | "fatal" = "open"
 
@@ -651,6 +659,12 @@ export class EidosRuntimeService implements RuntimeClient {
               )
             }
             coreCursor = selected
+            if (typeof cursor.referenceInstant === "string") {
+              this.requestInstant = normalizeEidosFileInstant(
+                cursor.referenceInstant
+              )
+              this.core.setRequestInstant(this.requestInstant)
+            }
           }
           const extraFields = (request.query.sort ?? []).map(
             (sort) => sort.fieldId
@@ -684,6 +698,8 @@ export class EidosRuntimeService implements RuntimeClient {
               tableId: request.tableId,
               revision: String(metadata.revision),
               queryHash: queryDigest,
+              referenceInstant:
+                this.requestInstant ?? checkedNowInstant(this.environment),
               projectionHash: projectionDigest,
               forward: this.core.createRowCursor(request.tableId, query, row),
               backward: this.core.createRowCursor(
@@ -708,6 +724,9 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             columns,
             rows,
+            ...(usesClockFilter(request.query.filter)
+              ? { total: String(this.core.countRows(request.tableId, query)) }
+              : {}),
             nextCursor: hasLater ? boundaryCursor(logicalRows.at(-1)) : null,
             previousCursor: hasEarlier ? boundaryCursor(logicalRows[0]) : null,
           }
@@ -779,6 +798,9 @@ export class EidosRuntimeService implements RuntimeClient {
                       tableId: request.tableId,
                       revision: String(metadata.revision),
                       queryHash: await hashJson(normalizedRuntimeQuery(query)),
+                      referenceInstant:
+                        this.requestInstant ??
+                        checkedNowInstant(this.environment),
                       projectionHash: projectionDigest,
                       forward: this.core.createRowCursor(
                         request.tableId,
@@ -927,6 +949,12 @@ export class EidosRuntimeService implements RuntimeClient {
         this.read(async () => {
           assertLimit(request.limit, EIDOS_RUNTIME_LIMITS.pageSizeMax, "limit")
           const cursor = this.decodeCursor(request.cursor, "group-rows")
+          if (typeof cursor.referenceInstant === "string") {
+            this.requestInstant = normalizeEidosFileInstant(
+              cursor.referenceInstant
+            )
+            this.core.setRequestInstant(this.requestInstant)
+          }
           const source = cursor.request as unknown as GroupRequest
           if (!source || typeof source !== "object" || Array.isArray(source)) {
             throw runtimeError("invalid-query", "Invalid group row cursor")
@@ -1006,6 +1034,8 @@ export class EidosRuntimeService implements RuntimeClient {
               revision: String(metadata.revision),
               projectionHash: projectionDigest,
               bindingHash: bindingDigest,
+              referenceInstant:
+                this.requestInstant ?? checkedNowInstant(this.environment),
               request: groupCursorSource(source),
               groupKey,
               forward: this.core.createRowCursor(
@@ -2629,6 +2659,13 @@ export class EidosRuntimeService implements RuntimeClient {
   }
 
   private async groupRowsNow(request: GroupRequest): Promise<GroupPage> {
+    if (request.cursor) {
+      const cursor = this.decodeCursor(request.cursor, "groups")
+      if (typeof cursor.referenceInstant === "string") {
+        this.requestInstant = normalizeEidosFileInstant(cursor.referenceInstant)
+        this.core.setRequestInstant(this.requestInstant)
+      }
+    }
     assertLimit(
       request.groupLimit,
       EIDOS_RUNTIME_LIMITS.groupPageSizeMax,
@@ -2788,6 +2825,8 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             bindingHash: bindingDigest,
             groupIdentity: group.identity,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
           })
         : null
     return {
@@ -2819,6 +2858,8 @@ export class EidosRuntimeService implements RuntimeClient {
             bindingHash: bindingDigest,
             request: groupCursorSource(request),
             groupKey: group.key,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
             forward: this.core.createRowCursor(
               request.tableId,
               this.compatibilityQuery(request.tableId, groupedQuery),
@@ -2923,6 +2964,8 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             bindingHash: bindingDigest,
             groupIdentity: group.identity,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
           })
         : null
     const groups = selected.map((group) => {
@@ -2961,6 +3004,8 @@ export class EidosRuntimeService implements RuntimeClient {
           bindingHash: bindingDigest,
           request: groupCursorSource(request),
           groupKey: group.key,
+          referenceInstant:
+            this.requestInstant ?? checkedNowInstant(this.environment),
           forward: this.core.createRowCursor(
             request.tableId,
             compatibilityQuery,
@@ -4483,6 +4528,8 @@ export class EidosRuntimeService implements RuntimeClient {
     const execute = async () => {
       try {
         if (!allowClosing) this.checkControl(context, control, acceptedAt)
+        this.requestInstant = checkedNowInstant(this.environment)
+        this.core.setRequestInstant(this.requestInstant)
         const result = await operation()
         if (result !== undefined && accountResponse) {
           assertJcsBytes(
@@ -4499,6 +4546,8 @@ export class EidosRuntimeService implements RuntimeClient {
         }
         throw failure
       } finally {
+        this.core.setRequestInstant()
+        this.requestInstant = undefined
         control.unsubscribe()
         this.requestControls.delete(context.requestId)
       }
@@ -4680,6 +4729,15 @@ function relationDefinition(
       ? (field.property.onDelete as "restrict" | "detach" | "preserve")
       : "restrict",
   }
+}
+
+function usesClockFilter(node: FilterNode | undefined): boolean {
+  if (!node) return false
+  if (node.op === "calendar-day" || node.op === "relative-date") return true
+  if (node.op === "not") return usesClockFilter(node.arg)
+  if (node.op === "and" || node.op === "or")
+    return node.args.some(usesClockFilter)
+  return false
 }
 
 function normalizedRuntimeQuery(query: RowQuery): JsonObject {
@@ -4890,6 +4948,20 @@ function assertRuntimeRowQuery(
     }
     const type = fieldValueType(field)
     if (node.op === "is-null" || node.op === "is-not-null") return
+    if (node.op === "calendar-day") {
+      const { day, timeZone, timeZoneData } = node
+      if (
+        (type !== "date" && type !== "datetime") ||
+        !isEidosFileCalendarDayValue({ day, timeZone, timeZoneData }) ||
+        Object.keys(node).some(
+          (key) =>
+            !["op", "fieldId", "day", "timeZone", "timeZoneData"].includes(key)
+        )
+      )
+        throw runtimeError("invalid-query", "Calendar day Filter is invalid")
+      assertEidosFileCalendarZone(timeZone, timeZoneData)
+      return
+    }
     if (node.op === "relative-date") {
       if (type !== "date" && type !== "datetime") {
         throw runtimeError(
@@ -5095,6 +5167,18 @@ function runtimeFilterNodeToCompatibility(
       ],
     }
   }
+  if (node.op === "calendar-day") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-on-calendar-day",
+      value: {
+        day: node.day,
+        timeZone: node.timeZone,
+        timeZoneData: node.timeZoneData,
+      },
+    }
+  }
   if (node.op === "relative-date") {
     return {
       type: "rule",
@@ -5137,6 +5221,7 @@ function runtimeFilterNodeToCompatibility(
     | { op: "between" }
     | { op: "has-all" }
     | { op: "relative-date" }
+    | { op: "calendar-day" }
   >
   const operatorMap: Partial<
     Record<FilterNode["op"], EidosFileFilterOperator>
@@ -5227,6 +5312,14 @@ function compatibilityFilterRuleToRuntime(
       ? { op: "has-any", fieldId: rule.field, values: requireValues() }
       : { op: "in", fieldId: rule.field, values: requireValues() }
 
+  if (rule.operator === "is-on-calendar-day") {
+    if (!isEidosFileCalendarDayValue(rule.value))
+      throw runtimeError(
+        "corrupt-file",
+        "Stored calendar day filter is invalid"
+      )
+    return { op: "calendar-day", fieldId: rule.field, ...rule.value }
+  }
   if (rule.operator === "is-relative-to-today") {
     const relative = rule.value as EidosFileRelativeDateValue | undefined
     if (
