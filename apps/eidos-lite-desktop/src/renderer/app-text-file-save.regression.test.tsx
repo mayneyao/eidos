@@ -980,6 +980,7 @@ it.each(["root", "folder", "restore", "recent"])(
     expect(open).toHaveBeenCalledOnce()
     expect(callRuntime).toHaveBeenCalledWith("catalog", "getSnapshot", [], {
       calendarQueryVersion: 2,
+      calendarWindowVersion: 1,
     })
     expect(open).toHaveBeenCalledWith(
       mode === "root" || mode === "recent" ? null : "business"
