@@ -133,6 +133,10 @@ describe("EidosFileFormView", () => {
   let root: Root
 
   beforeEach(() => {
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -141,6 +145,160 @@ describe("EidosFileFormView", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  const checkbox: EidosFileFieldInfo = {
+    ...emailField,
+    id: "flag",
+    name: "Flag",
+    type: "checkbox",
+    tableColumnName: "flag",
+    nullable: false,
+  }
+  const checkboxView: EidosFileViewInfo = {
+    ...view,
+    hiddenFields: [],
+    properties: {
+      ...view.properties,
+      fields: [{ fieldId: checkbox.id, required: true }],
+    },
+  }
+  const checkboxTable: EidosFileTableSnapshot = {
+    ...table,
+    fields: [checkbox],
+    views: [checkboxView],
+  }
+  const renderCheckboxForm = async (
+    source: EidosFileEditorDataSource,
+    mode: "build" | "preview",
+    mobile = false,
+    field = checkbox
+  ) =>
+    act(async () =>
+      root.render(
+        <EidosFileUIProvider interactionMode={mobile ? "mobile" : "desktop"}>
+          <EidosFileFormView
+            source={source}
+            table={{ ...checkboxTable, fields: [field] }}
+            view={checkboxView}
+            query={{}}
+            search=""
+            disabled={false}
+            reloadToken={0}
+            commands={[]}
+            selection={{ rowIds: [] }}
+            state={{ formMode: mode }}
+            capabilities={{
+              read: true,
+              mutate: true,
+              resolveAssets: true,
+              rawFile: false,
+              nativeFileSystem: false,
+            }}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+
+  it("shows an omitted required Checkbox as unchecked in the mobile builder's disabled field preview", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "build", true)
+    const preview = container.querySelector<HTMLFieldSetElement>(
+      'fieldset[aria-label="Field preview"]'
+    )!
+    const trigger = preview.querySelector<HTMLButtonElement>(
+      'button[aria-label="Flag"]'
+    )!
+    expect(preview.disabled).toBe(true)
+    expect(trigger.disabled).toBe(true)
+    expect(trigger.textContent).toContain("Unchecked")
+    expect(source.updateView).not.toHaveBeenCalled()
+    expect(source.insertRow).not.toHaveBeenCalled()
+  })
+
+  it("shows an omitted required Checkbox as unchecked in the desktop response preview", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview")
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Flag"]'
+    )!
+    expect(trigger.disabled).toBe(false)
+    expect(trigger.textContent).toContain("Unchecked")
+    expect(source.updateView).not.toHaveBeenCalled()
+    expect(source.insertRow).not.toHaveBeenCalled()
+  })
+
+  const chooseCheckbox = async (value: "Checked" | "Unchecked" | "Empty") => {
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Flag"]')!
+        .click()
+    )
+    const option = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((element) => element.textContent?.trim() === value)
+    expect(option).toBeDefined()
+    await act(async () => option!.click())
+  }
+
+  it("retains required-input validation and resets the response preview to an omitted unchecked draft", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview")
+    const submit = () =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+        (button) => button.textContent?.trim() === "Submit"
+      )!
+    await act(async () => submit().click())
+    // The visible default did not populate the local draft or bypass validation.
+    expect(container.textContent).toContain("This field is required.")
+    await chooseCheckbox("Checked")
+    expect(
+      container.querySelector('button[aria-label="Flag"]')?.textContent
+    ).toContain("Checked")
+    await chooseCheckbox("Unchecked")
+    await act(async () => submit().click())
+    expect(container.textContent).toContain("Saved locally.")
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Flag"]')!
+        .disabled
+    ).toBe(true)
+    const another = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find(
+      (button) => button.textContent?.trim() === "Preview another response"
+    )!
+    await act(async () => another.click())
+    expect(
+      container.querySelector('button[aria-label="Flag"]')?.textContent
+    ).toContain("Unchecked")
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Flag"]')!
+        .disabled
+    ).toBe(false)
+    await act(async () => submit().click())
+    expect(container.textContent).toContain("This field is required.")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    expect(source.updateRow).not.toHaveBeenCalled()
+    expect(source.updateView).not.toHaveBeenCalled()
+  })
+
+  it("retains nullable empty and explicit NULL selections in the actual response preview", async () => {
+    const source = createSource()
+    await renderCheckboxForm(source, "preview", false, {
+      ...checkbox,
+      nullable: true,
+    })
+    expect(
+      container.querySelector('button[aria-label="Flag"]')?.textContent
+    ).toContain("Empty")
+    await chooseCheckbox("Checked")
+    await chooseCheckbox("Empty")
+    expect(
+      container.querySelector('button[aria-label="Flag"]')?.textContent
+    ).toContain("Empty")
+    expect(source.insertRow).not.toHaveBeenCalled()
+    expect(source.updateRow).not.toHaveBeenCalled()
+    expect(source.updateView).not.toHaveBeenCalled()
   })
 
   it("exposes the builder and preview modes as a compact workbar control", () => {
