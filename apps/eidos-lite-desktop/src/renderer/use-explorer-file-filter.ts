@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
   filterExplorerEntries,
@@ -25,7 +26,8 @@ export function useExplorerFileFilter(
   entries: SpaceTreeEntry[],
   changes?: readonly string[],
   recursive = false,
-  respectGitignore = false
+  respectGitignore = false,
+  calendarExecution?: ExplorerCalendarExecution
 ) {
   const active =
     countExplorerFilterRules(filter) > 0 || recursive || respectGitignore
@@ -37,6 +39,7 @@ export function useExplorerFileFilter(
     directory,
     explorerFilterSignature(filter),
     respectGitignore,
+    ...(properties && calendarExecution ? [calendarExecution] : []),
   ])
   const key = JSON.stringify([scope, treeSignature(entries), retryToken])
   const [result, setResult] = useState<{
@@ -51,9 +54,16 @@ export function useExplorerFileFilter(
     let cancelled = false
     const request = () =>
       void (
-        respectGitignore
-          ? window.eidosLite.filterSpaceFiles(filter, directory, true)
-          : window.eidosLite.filterSpaceFiles(filter, directory)
+        properties && calendarExecution
+          ? window.eidosLite.filterSpaceFiles(
+              filter,
+              directory,
+              respectGitignore,
+              calendarExecution
+            )
+          : respectGitignore
+            ? window.eidosLite.filterSpaceFiles(filter, directory, true)
+            : window.eidosLite.filterSpaceFiles(filter, directory)
       ).then(
         (next) => {
           if (!cancelled) setResult({ key, scope, context, entries: next })

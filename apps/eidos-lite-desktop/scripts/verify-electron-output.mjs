@@ -21,6 +21,7 @@ const chunkNames = [
   "application",
   "automatic-sync",
   "automatic-sync-electron-smoke",
+  "calendar-query-upgrade",
   "compiler",
   "dist",
   "encrypted-staging-smoke",

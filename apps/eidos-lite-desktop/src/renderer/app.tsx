@@ -18,7 +18,11 @@ import {
   TreeExpansionMenu,
   type TreeExpansionActions,
 } from "./tree-expansion-menu"
-import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+import {
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  type EidosFileSnapshot,
+} from "@eidos.space/eidos-file"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import {
   ArrowLeft,
@@ -1111,6 +1115,20 @@ function WorkspaceApp({
     explorerDirectoryEntry?.kind === "directory"
       ? explorerDirectoryEntry.relativePath
       : null
+  const explorerCalendarExecution = useMemo<ExplorerCalendarExecution>(
+    () => ({
+      calendarQueryVersion: 2,
+      calendar: {
+        timeZone:
+          timeZone === "system"
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : timeZone,
+        timeZoneData: EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+        weekStartsOn: weekStartsOnMonday ? 1 : 0,
+      },
+    }),
+    [timeZone, weekStartsOnMonday]
+  )
   const filteredExplorer = useExplorerFileFilter(
     space?.id ?? "",
     explorerDirectory,
@@ -1120,7 +1138,8 @@ function WorkspaceApp({
       : (space?.entries ?? []),
     space?.externalChangePaths ?? space?.materializedPaths ?? undefined,
     explorerSearchVisible && !!explorerSearchQuery.trim(),
-    explorerIgnoreOptions.respectGitignore
+    explorerIgnoreOptions.respectGitignore,
+    explorerCalendarExecution
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
@@ -4272,6 +4291,7 @@ function WorkspaceApp({
               key={space.id}
               theme={theme}
               timeZone={timeZone === "system" ? undefined : timeZone}
+              weekStartsOnMonday={weekStartsOnMonday}
               filter={explorerFileFilter}
               entries={space.entries}
               open={explorerFilterVisible}
@@ -4379,6 +4399,7 @@ function WorkspaceApp({
                   respectGitignore={explorerIgnoreOptions.respectGitignore}
                   directory={explorerDirectory}
                   fileFilter={explorerFileFilter}
+                  calendarExecution={explorerCalendarExecution}
                   changes={
                     space.externalChangePaths ??
                     space.materializedPaths ??

@@ -25,6 +25,7 @@ const cleanOutput = [
   "application-Ab-cD_e1.js",
   "automatic-sync-CtpZ3yCv.js",
   "automatic-sync-electron-smoke-DDe-8k5k.js",
+  "calendar-query-upgrade-BhHeVRcn.js",
   "compiler-d-fxUvkQ.js",
   "dist-DpwEI01X.js",
   "encrypted-staging-smoke-T5mogOX5.js",
@@ -72,7 +73,7 @@ test("accepts the exact main/worker/preload outputs and the new split chunks", a
   const result = await execute(process.execPath, [verifier, root])
   assert.match(
     result.stdout,
-    /Verified clean Eidos Lite Electron output \(30 files\)/
+    /Verified clean Eidos Lite Electron output \(31 files\)/
   )
 })
 

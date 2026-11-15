@@ -25,6 +25,7 @@ export function ExplorerFilterBar({
   triggerRef,
   theme = "light",
   timeZone,
+  weekStartsOnMonday,
   respectGitignore = true,
   onRespectGitignoreChange,
 }: {
@@ -36,10 +37,14 @@ export function ExplorerFilterBar({
   triggerRef: RefObject<HTMLButtonElement>
   theme?: "light" | "dark"
   timeZone?: string
+  weekStartsOnMonday?: boolean
   respectGitignore?: boolean
   onRespectGitignoreChange?(value: boolean): void
 }) {
   const { t, locale } = useEidosLiteI18n()
+  const [calendarProfiles, setCalendarProfiles] = useState<readonly string[]>(
+    []
+  )
   const [fields, setFields] = useState<EidosFileFieldInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -49,22 +54,34 @@ export function ExplorerFilterBar({
     restoreFocus.current = true
     let cancelled = false
     setError(null)
-    void window.eidosLite.getExplorerFilterFields().then(
-      (next) => {
-        if (!cancelled)
-          setFields(
-            next.filter(
-              (field) =>
-                eidosFileFieldQueryCapabilities(field).filterOperators.length >
-                0
+    void window.eidosLite
+      .getExplorerFilterFields({ calendarQueryVersion: 2 })
+      .then(
+        (next) => {
+          if (!cancelled) {
+            const nextFields: EidosFileFieldInfo[] = Array.isArray(next)
+              ? next
+              : next.fields
+            setCalendarProfiles(
+              !Array.isArray(next) &&
+                next.queryCapabilities?.calendarQueryVersion === 2
+                ? (next.queryCapabilities.calendarPeriodTimeZoneData ?? [])
+                : []
             )
-          )
-      },
-      (cause: unknown) => {
-        if (!cancelled)
-          setError(cause instanceof Error ? cause.message : String(cause))
-      }
-    )
+            setFields(
+              nextFields.filter(
+                (field) =>
+                  eidosFileFieldQueryCapabilities(field).filterOperators
+                    .length > 0
+              )
+            )
+          }
+        },
+        (cause: unknown) => {
+          if (!cancelled)
+            setError(cause instanceof Error ? cause.message : String(cause))
+        }
+      )
     return () => {
       cancelled = true
     }
@@ -85,7 +102,13 @@ export function ExplorerFilterBar({
   }, [entries])
   const hasDraft = toExplorerFilterGroup(filter).children.length > 0
   return (
-    <EidosFileUIProvider locale={locale} themeName={theme} timeZone={timeZone}>
+    <EidosFileUIProvider
+      locale={locale}
+      themeName={theme}
+      timeZone={timeZone}
+      weekStartsOnMonday={weekStartsOnMonday}
+      calendarPeriodTimeZoneData={calendarProfiles}
+    >
       <Popover
         open={open}
         onOpenChange={(next) => {

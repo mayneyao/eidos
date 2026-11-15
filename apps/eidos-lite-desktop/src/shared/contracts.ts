@@ -27,6 +27,10 @@ import type { EidosLiteServiceEnvironment } from "./service-environment"
 import type { SparkStatus } from "./spark"
 import type { EidosLiteBuiltInPlugins } from "./built-in-plugins"
 import type { PluginApi } from "./plugins"
+import type {
+  ExplorerCalendarExecution,
+  ExplorerFilterFieldsResult,
+} from "./explorer-calendar"
 import type { ExplorerFileFilter } from "./explorer-file-filter"
 import type {
   ExplorerFilesPage,
@@ -2030,9 +2034,13 @@ export interface EidosLiteApi extends PluginApi {
   filterSpaceFiles(
     filter: ExplorerFileFilter,
     directory: string | null,
-    respectGitignore?: boolean
+    respectGitignore?: boolean,
+    calendarExecution?: ExplorerCalendarExecution
   ): Promise<SpaceTreeEntry[]>
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
+  getExplorerFilterFields(consumer: {
+    calendarQueryVersion: 2
+  }): Promise<ExplorerFilterFieldsResult>
   listExplorerFiles(query: ExplorerFilesQuery): Promise<ExplorerFilesPage>
   getExplorerFileThumbnail(
     request: ExplorerThumbnailRequest

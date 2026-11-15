@@ -1,3 +1,11 @@
+import {
+  hasEidosFileCalendarPeriodQuery,
+  hasRetiredEidosFileDateQuery,
+} from "@eidos.space/eidos-file"
+import {
+  normalizeExplorerCalendarExecution,
+  type ExplorerCalendarExecution,
+} from "../../shared/explorer-calendar"
 import fs from "node:fs/promises"
 import { explorerGitignoreFilter } from "./explorer-gitignore"
 import type { SpaceTreeEntry } from "../../shared/contracts"
@@ -10,6 +18,7 @@ import {
   toExplorerFilterGroup,
   isExplorerRuleActive,
   type ExplorerFilterGroup,
+  type ExplorerFilterRule,
   type ExplorerFileFilter,
 } from "../../shared/explorer-file-filter"
 import {
@@ -22,20 +31,28 @@ import {
 export async function explorerPropertyMatches(
   filter: ExplorerFileFilter,
   table: EidosFileTableSnapshot,
-  getPage: EidosFileDataSource["getPage"]
-): Promise<Map<string, ReadonlySet<string>>> {
-  const matches = new Map<string, ReadonlySet<string>>()
+  getPage: EidosFileDataSource["getPage"],
+  execution?: ExplorerCalendarExecution
+): Promise<Map<string, ReadonlySet<string>> & { referenceInstant?: string }> {
+  const calendarExecution = normalizeExplorerCalendarExecution(execution)
+  const matches: Map<string, ReadonlySet<string>> & {
+    referenceInstant?: string
+  } = new Map()
   const pathField = table.fields.find(
     (field) => field.name === "path" && field.settings?.isSystem === true
   )
   if (!pathField) throw new Error("File properties are unavailable")
-  const visit = async (group: ExplorerFilterGroup): Promise<void> => {
+  const predicates: Extract<ExplorerFilterRule, { field: "property" }>[] = []
+  const collect = (group: ExplorerFilterGroup): void => {
     for (const child of group.children) {
       if (child.type === "group") {
-        await visit(child)
+        collect(child)
         continue
       }
-      if (child.field !== "property" || !isExplorerRuleActive(child)) continue
+      if (child.field !== "property") continue
+      if (hasRetiredEidosFileDateQuery(child.value))
+        throw new Error("Reset this date filter to use calendar periods.")
+      if (!isExplorerRuleActive(child)) continue
       if (
         !table.fields.some(
           (field) =>
@@ -45,29 +62,55 @@ export async function explorerPropertyMatches(
         )
       )
         throw new Error("A filtered property is no longer available")
-      const paths = new Set<string>()
-      let offset = 0
-      for (;;) {
-        const page = await getPage(table.table.id, offset, 500, {
-          filter: {
-            type: "group",
-            conjunction: "and",
-            children: [child.value],
-          },
-        })
-        for (const row of page.rows) {
-          const value = row[pathField.tableColumnName]
-          if (typeof value === "string") paths.add(value.replace(/^\.\//u, ""))
-        }
-        offset += page.rows.length
-        if (offset >= page.total) break
-        if (!page.rows.length)
-          throw new Error("Unable to read all filtered file properties")
-      }
-      matches.set(child.id, paths)
+      predicates.push(child)
     }
   }
-  await visit(toExplorerFilterGroup(filter))
+  collect(toExplorerFilterGroup(filter))
+  // Evaluate one time-dependent predicate first so the canonical Runtime picks
+  // the root instant. Logical composition still follows the original AST.
+  predicates.sort(
+    (left, right) =>
+      Number(hasEidosFileCalendarPeriodQuery(right.value)) -
+      Number(hasEidosFileCalendarPeriodQuery(left.value))
+  )
+  let referenceInstant = calendarExecution?.referenceInstant
+  for (const child of predicates) {
+    const period = hasEidosFileCalendarPeriodQuery(child.value)
+    if (period && !calendarExecution)
+      throw new Error(
+        "Date filters require the application's calendar settings."
+      )
+    const paths = new Set<string>()
+    let offset = 0
+    for (;;) {
+      const page = await getPage(table.table.id, offset, 500, {
+        filter: { type: "group", conjunction: "and", children: [child.value] },
+        ...(calendarExecution ? { calendar: calendarExecution.calendar } : {}),
+        ...(referenceInstant ? { referenceInstant } : {}),
+      })
+      if (period && !page.referenceInstant)
+        throw new Error(
+          "Runtime calendar pages must include their reference instant"
+        )
+      if (page.referenceInstant) {
+        if (referenceInstant && referenceInstant !== page.referenceInstant)
+          throw new Error(
+            "Runtime changed the Explorer query reference instant"
+          )
+        referenceInstant = page.referenceInstant
+      }
+      for (const row of page.rows) {
+        const value = row[pathField.tableColumnName]
+        if (typeof value === "string") paths.add(value.replace(/^\.\//u, ""))
+      }
+      offset += page.rows.length
+      if (offset >= page.total) break
+      if (!page.rows.length)
+        throw new Error("Unable to read all filtered file properties")
+    }
+    matches.set(child.id, paths)
+  }
+  if (referenceInstant) matches.referenceInstant = referenceInstant
   return matches
 }
 

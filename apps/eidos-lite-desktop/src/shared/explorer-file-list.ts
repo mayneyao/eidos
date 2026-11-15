@@ -1,3 +1,7 @@
+import {
+  normalizeExplorerCalendarExecution,
+  type ExplorerCalendarExecution,
+} from "./explorer-calendar"
 import type { SpaceTreeEntry } from "./contracts"
 import {
   normalizeExplorerFileFilter,
@@ -14,8 +18,10 @@ export interface ExplorerFilesQuery {
   period: "recent" | "earlier"
   offset: number
   respectGitignore?: boolean
+  calendarExecution?: ExplorerCalendarExecution
 }
 export interface ExplorerFilesPage {
+  referenceInstant?: string
   entries: SpaceTreeEntry[]
   earlierCount: number
   total: number
@@ -51,6 +57,13 @@ export function normalizeExplorerFilesQuery(
     period: query.period,
     offset: query.offset,
     respectGitignore: query.respectGitignore !== false,
+    ...(query.calendarExecution !== undefined
+      ? {
+          calendarExecution: normalizeExplorerCalendarExecution(
+            query.calendarExecution
+          ),
+        }
+      : {}),
   }
 }
 export function selectExplorerFilesPage(

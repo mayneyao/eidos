@@ -11,6 +11,7 @@ import { PeerService } from "./peer/peer-service"
 import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
+import { normalizeExplorerCalendarExecution } from "../shared/explorer-calendar"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
 import { normalizeExplorerFilesQuery } from "../shared/explorer-file-list"
 import { normalizeExplorerThumbnailRequest } from "../shared/explorer-media"
@@ -1792,7 +1793,13 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.filterFiles,
-    (event, filter: unknown, directory: unknown, respectGitignore: unknown) => {
+    (
+      event,
+      filter: unknown,
+      directory: unknown,
+      respectGitignore: unknown,
+      calendarExecution: unknown
+    ) => {
       const normalized = normalizeExplorerFileFilter(filter)
       if (directory !== null && typeof directory !== "string")
         throw new Error("Invalid file filter")
@@ -1803,11 +1810,29 @@ export function registerIpc(
         throw new Error("Invalid ignore filter")
       return controller
         .requireSession(event.sender)
-        .filterFiles(normalized, directory, respectGitignore === true)
+        .filterFiles(
+          normalized,
+          directory,
+          respectGitignore === true,
+          normalizeExplorerCalendarExecution(calendarExecution)
+        )
     }
   )
-  ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>
-    controller.requireSession(event.sender).getExplorerFilterFields()
+  ipcMain.handle(
+    IPC_CHANNELS.explorerFilterFields,
+    (event, consumer?: { calendarQueryVersion?: unknown }) => {
+      const session = controller.requireSession(event.sender)
+      if (consumer === undefined) return session.getExplorerFilterFields()
+      if (
+        !consumer ||
+        typeof consumer !== "object" ||
+        Array.isArray(consumer) ||
+        Object.keys(consumer).some((key) => key !== "calendarQueryVersion") ||
+        consumer.calendarQueryVersion !== 2
+      )
+        throw new Error("Invalid Explorer calendar consumer")
+      return session.getExplorerFilterFields({ calendarQueryVersion: 2 })
+    }
   )
   ipcMain.handle(IPC_CHANNELS.listExplorerFiles, (event, query: unknown) =>
     controller

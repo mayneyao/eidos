@@ -27,6 +27,10 @@ import type {
 } from "../../shared/text-search"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
+import type {
+  ExplorerCalendarExecution,
+  ExplorerFilterFieldsResult,
+} from "../../shared/explorer-calendar"
 import path from "node:path"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import {
@@ -34,6 +38,7 @@ import {
   applyMarkdownLinkMove,
 } from "./markdown-link-maintenance"
 import type {
+  EidosFileFieldInfo,
   EidosSystemMergeDomainConflict,
   FileEntry,
 } from "@eidos.space/eidos-file"
@@ -702,7 +707,8 @@ export class SpaceSession {
   async filterFiles(
     filter: ExplorerFileFilter,
     directory: string | null,
-    respectGitignore = false
+    respectGitignore = false,
+    calendarExecution?: ExplorerCalendarExecution
   ): Promise<SpaceTreeEntry[]> {
     if (this.closed) throw new Error("Space is closed")
     const key = JSON.stringify([directory, respectGitignore])
@@ -719,7 +725,8 @@ export class SpaceSession {
       })
       this.filteredTreeReads.set(key, read)
     }
-    return this.filterFileEntries(await read, filter)
+    return (await this.filterFileEntries(await read, filter, calendarExecution))
+      .entries
   }
 
   async listExplorerFiles(
@@ -745,28 +752,52 @@ export class SpaceSession {
       if (this.explorerListReads.size >= 4) this.explorerListReads.clear()
       this.explorerListReads.set(key, read)
     }
-    return selectExplorerFilesPage(
-      await this.filterFileEntries(await read, query.filter),
-      query
+    const filtered = await this.filterFileEntries(
+      await read,
+      query.filter,
+      query.calendarExecution
     )
+    return {
+      ...selectExplorerFilesPage(filtered.entries, query),
+      ...(filtered.referenceInstant
+        ? { referenceInstant: filtered.referenceInstant }
+        : {}),
+    }
   }
 
   private async filterFileEntries(
     entries: SpaceTreeEntry[],
-    filter: ExplorerFileFilter
-  ): Promise<SpaceTreeEntry[]> {
+    filter: ExplorerFileFilter,
+    calendarExecution?: ExplorerCalendarExecution
+  ): Promise<{ entries: SpaceTreeEntry[]; referenceInstant?: string }> {
     if (!hasExplorerPropertyFilter(filter))
-      return filterExplorerEntries(entries, filter)
+      return { entries: filterExplorerEntries(entries, filter) }
     const opened = await this.openExistingFileMetadata()
     if (!opened) throw new Error("File properties are unavailable")
     const table = opened.snapshot.tables.find(
       ({ table }) => table.settings?.vtabModule === "fs_meta"
     )
     if (!table) throw new Error("File properties are unavailable")
-    const matches = await explorerPropertyMatches(filter, table, (...args) =>
-      this.runtimePool.call(opened.sessionId, "getPage", args)
+    const matches = await explorerPropertyMatches(
+      filter,
+      table,
+      (...args) =>
+        this.runtimePool.call(
+          opened.sessionId,
+          "getPage",
+          args,
+          calendarExecution
+            ? { calendarQueryVersion: calendarExecution.calendarQueryVersion }
+            : undefined
+        ),
+      calendarExecution
     )
-    return filterExplorerEntries(entries, filter, matches)
+    return {
+      entries: filterExplorerEntries(entries, filter, matches),
+      ...(matches.referenceInstant
+        ? { referenceInstant: matches.referenceInstant }
+        : {}),
+    }
   }
 
   private async openExistingFileMetadata(): Promise<OpenEidosFileResult | null> {
@@ -780,11 +811,26 @@ export class SpaceSession {
     return existing ? this.openFileMetadata(null) : null
   }
 
-  async getExplorerFilterFields() {
+  async getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
+  async getExplorerFilterFields(consumer: {
+    calendarQueryVersion: 2
+  }): Promise<ExplorerFilterFieldsResult>
+  async getExplorerFilterFields(consumer?: {
+    calendarQueryVersion: 2
+  }): Promise<EidosFileFieldInfo[] | ExplorerFilterFieldsResult> {
     if (this.closed) throw new Error("Space is closed")
     const opened = await this.openExistingFileMetadata()
-    return (
-      opened?.snapshot.tables
+    const snapshot =
+      opened && consumer
+        ? await this.runtimePool.call(
+            opened.sessionId,
+            "getSnapshot",
+            [],
+            consumer
+          )
+        : opened?.snapshot
+    const fields =
+      snapshot?.tables
         .find(({ table }) => table.settings?.vtabModule === "fs_meta")
         ?.fields.filter(
           (field) =>
@@ -792,7 +838,9 @@ export class SpaceSession {
             field.valueKind !== "system" &&
             !field.isHidden
         ) ?? []
-    )
+    return consumer
+      ? { fields, queryCapabilities: snapshot?.queryCapabilities }
+      : fields
   }
 
   async searchText(
