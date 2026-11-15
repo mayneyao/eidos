@@ -147,16 +147,24 @@ export function ShareRecordEditor({
               )}
               disabled={busy}
               onCellEdit={async (row, field, value) => {
+                // The inspector emits SQL scalars; share.save takes logical values.
+                const draftValue =
+                  field.type === "checkbox" && (value === 0 || value === 1)
+                    ? value === 1
+                    : value
                 const next = {
                   ...current.current!,
-                  changes: { ...current.current!.changes, [field.id]: value },
+                  changes: {
+                    ...current.current!.changes,
+                    [field.id]: draftValue,
+                  },
                 }
                 await request("share.draft", next)
                 current.current = next
                 setForm(next)
                 return {
                   tableId: table.table.id,
-                  row: { ...row, [field.tableColumnName]: value },
+                  row: { ...row, [field.tableColumnName]: draftValue },
                   rowCount: table.rowCount,
                 }
               }}
