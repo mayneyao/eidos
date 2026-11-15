@@ -24,6 +24,7 @@ before the conversion can proceed.
   English interface language.
 - The Save record button stays above share-form fields and can be tapped when
   saving shared text or attachments to a table.
+- Checking or unchecking a Checkbox in a share form now saves correctly.
 
 ## Install and testing scope
 

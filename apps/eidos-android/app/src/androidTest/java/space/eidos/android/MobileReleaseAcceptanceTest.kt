@@ -15,12 +15,34 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
+import org.junit.After
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
 class MobileReleaseAcceptanceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private var previousHardwareKeyboardIme: String? = null
+
+    @Before
+    fun enableSoftwareKeyboardForViewportChecks() {
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        previousHardwareKeyboardIme = android.provider.Settings.Secure.getString(
+            instrumentation.targetContext.contentResolver, "show_ime_with_hard_keyboard")
+        instrumentation.uiAutomation.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1")
+            .use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
+    }
+
+    @After
+    fun restoreSoftwareKeyboardPreference() {
+        val command = previousHardwareKeyboardIme?.let {
+            "settings put secure show_ime_with_hard_keyboard $it"
+        } ?: "settings delete secure show_ime_with_hard_keyboard"
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .uiAutomation.executeShellCommand(command)
+            .use { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes() }
+    }
 
     @Test
     fun emptyImageBlockOpensSystemPickerAndCancelPreservesDocument() {
@@ -231,6 +253,53 @@ class MobileReleaseAcceptanceTest {
             compose.runOnUiThread { model.open(runBlocking { repository.file(path) }) }
             waitJs("document.querySelector('canvas')?.textContent.includes('Shared checkbox') === true")
             screenshot("share-saved-reopened.png")
+
+            compose.onNodeWithContentDescription("返回文件").performClick()
+            compose.waitUntil(15_000) { model.state.value.webFile == null }
+            val longTitle = "Toggled checkbox " + List(45) { "scrollable" }.joinToString(" ")
+            compose.runOnUiThread { model.receiveShare(emptyList(), longTitle) }
+            compose.waitUntil(15_000) { !model.state.value.busy && model.state.value.pendingShares.isNotEmpty() }
+            compose.runOnUiThread { model.openShareTable(path, table.id) }
+            waitJs("document.querySelector('textarea[aria-label=标题]')?.value === ${JSONObject.quote(longTitle)}")
+            tap("[role=checkbox][aria-label=Flag]")
+            waitJs("document.querySelector('[role=checkbox][aria-label=Flag]')?.getAttribute('aria-checked') === 'true'")
+            tap("[role=checkbox][aria-label=Flag]")
+            waitJs("document.querySelector('[role=checkbox][aria-label=Flag]')?.getAttribute('aria-checked') === 'false'")
+            tap("textarea[aria-label=标题]")
+            compose.waitUntil(15_000) {
+                var visible = false
+                compose.runOnUiThread {
+                    visible = androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                        ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+                }
+                visible
+            }
+            waitJs("(()=>{const e=document.querySelector('[data-eidos-file-record-page-scroll]');return e.scrollHeight > e.clientHeight + 20})()")
+            js("document.querySelector('[data-eidos-file-record-page-scroll]').scrollTop=0")
+            swipeRecordBody()
+            waitJs("document.querySelector('[data-eidos-file-record-page-scroll]').scrollTop > 0")
+            var previousScroll = ""
+            var stableFrames = 0
+            compose.waitUntil(10_000) {
+                android.os.SystemClock.sleep(250)
+                val currentScroll = js("document.querySelector('[data-eidos-file-record-page-scroll]').scrollTop")
+                stableFrames = if (currentScroll == previousScroll) stableFrames + 1 else 0
+                previousScroll = currentScroll
+                stableFrames >= 3
+            }
+            waitJs("(()=>{const r=document.querySelector('.share-record > header > button').getBoundingClientRect();return r.top >= 0 && r.bottom < innerHeight})()")
+            screenshot("share-ime-body-scrolled.png")
+            tap(".share-record > header > button")
+            try {
+                compose.waitUntil(15_000) { model.state.value.pendingShares.isEmpty() && model.state.value.webFile?.path == path }
+            } catch (error: androidx.compose.ui.test.ComposeTimeoutException) {
+                screenshot("share-ime-after-save.png")
+                throw AssertionError(js("document.body.innerText") + "\n" + model.state.value, error)
+            }
+            val toggled = runBlocking { repository.loadEidos(path) }
+            assertEquals(4, toggled.rows.size)
+            assertEquals(false, toggled.rows.single { it.values[table.labelFieldId] == longTitle }.values[flag])
+            assertEquals(JSONObject.NULL, toggled.rows.single { it.values[table.labelFieldId] == "Existing" }.values[legacy])
         } finally {
             compose.runOnUiThread { compose.activity.setContent {}; model.viewModelScope.cancel() }
             runBlocking { repository.close() }
@@ -309,6 +378,34 @@ class MobileReleaseAcceptanceTest {
         js("(()=>{document.querySelectorAll('[data-release-action]').forEach(e=>e.removeAttribute('data-release-action'));const b=Array.from(document.querySelectorAll('[data-eidos-file-detail-panel=field] button')).find(b=>new RegExp($quoted).test(b.textContent));if(!b)throw Error('missing conversion action');b.setAttribute('data-release-action','conversion');b.scrollIntoView({block:'center'});})()")
         waitJs("document.querySelector('[data-release-action=conversion]') !== null")
         tap("[data-release-action=conversion]")
+    }
+
+    private fun swipeRecordBody() {
+        val geometry = js("JSON.stringify((()=>{const r=document.querySelector('[data-eidos-file-record-page-scroll]').getBoundingClientRect();return {x:r.right-10,y:r.bottom-24,distance:r.height-64,width:innerWidth}})())")
+        val point = JSONObject(org.json.JSONTokener(geometry).nextValue() as String)
+        assertTrue(point.getDouble("distance") > 40)
+        val origin = IntArray(2)
+        var scale = 1f
+        compose.runOnUiThread {
+            val web = checkNotNull(findWeb(compose.activity.window.decorView))
+            web.getLocationOnScreen(origin)
+            scale = web.width / point.getDouble("width").toFloat()
+        }
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        val start = android.os.SystemClock.uptimeMillis()
+        for (step in 0..12) {
+            val action = when (step) {
+                0 -> android.view.MotionEvent.ACTION_DOWN
+                12 -> android.view.MotionEvent.ACTION_UP
+                else -> android.view.MotionEvent.ACTION_MOVE
+            }
+            val event = android.view.MotionEvent.obtain(start, android.os.SystemClock.uptimeMillis(), action,
+                origin[0] + point.getDouble("x").toFloat() * scale,
+                origin[1] + (point.getDouble("y") - point.getDouble("distance") * step / 12).toFloat() * scale, 0)
+            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+            android.os.SystemClock.sleep(20)
+        }
     }
 
     private fun screenshot(name: String) {
