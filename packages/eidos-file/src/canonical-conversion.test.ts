@@ -124,7 +124,7 @@ describe("canonical Eidos File conversion standard", () => {
     )
     expect(
       recommendedEidosFileConversionPolicies("number", "checkbox")
-    ).toEqual(["zero-false-nonzero-true"])
+    ).toEqual(["zero-false-nonzero-true", "null-to-false"])
     expect(recommendedEidosFileConversionPolicies("datetime", "date")).toEqual([
       "utc-date",
     ])
@@ -138,6 +138,12 @@ describe("canonical Eidos File conversion standard", () => {
     expect(eidosFileConversionTargetNullable("text", "number", false)).toBe(
       false
     )
+    expect(eidosFileConversionTargetNullable("text", "checkbox", true)).toBe(
+      false
+    )
+    expect(
+      eidosFileConversionTargetNullable("multi-select", "checkbox", false)
+    ).toBe(false)
     expect(
       eidosFileConversionTargetNullable("multi-select", "select", false)
     ).toBe(true)
@@ -166,6 +172,76 @@ describe("canonical Eidos File conversion standard", () => {
     expect(
       eidosFileConversionCanReusePhysicalColumn("text", "select", true, false)
     ).toBe(false)
+  })
+
+  it("only converts NULL to false with an explicit non-null Checkbox policy", () => {
+    const input = {
+      from: "text" as const,
+      to: "checkbox" as const,
+      toNullable: false,
+      rows: [
+        { id: "empty", value: null },
+        { id: "checked", value: "true" },
+        { id: "unchecked", value: "false" },
+      ],
+    }
+    expect(planCanonicalFieldConversion(input).classification).toBe("forbidden")
+    const plan = planCanonicalFieldConversion({
+      ...input,
+      policies: ["null-to-false"],
+    })
+    expect(plan.classification).toBe("explicit-lossy")
+    expect(plan.rows.map((row) => row.value)).toEqual([0n, 1n, 0n])
+    expect(plan.valueChanges).toContainEqual({
+      code: "null-to-false",
+      rows: "1",
+    })
+    const numeric = planCanonicalFieldConversion({
+      from: "number",
+      to: "checkbox",
+      toNullable: false,
+      policies: recommendedEidosFileConversionPolicies("number", "checkbox"),
+      rows: [
+        { id: "null", value: null },
+        { id: "zero", value: 0 },
+        { id: "two", value: 2 },
+      ],
+    })
+    expect(numeric.rows.map((row) => row.value)).toEqual([0n, 0n, 1n])
+    expect(numeric.valueChanges).toEqual(
+      expect.arrayContaining([
+        { code: "null-to-false", rows: "1" },
+        { code: "numeric-to-checkbox", rows: "1" },
+      ])
+    )
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        toNullable: true,
+        policies: [],
+      }).rows[0]?.value
+    ).toBeNull()
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        to: "integer",
+        policies: ["null-to-false"],
+      }).classification
+    ).toBe("forbidden")
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        rows: [{ id: "bad", value: "maybe" }],
+        policies: ["null-to-false"],
+      }).classification
+    ).toBe("forbidden")
+    expect(
+      planCanonicalFieldConversion({
+        ...input,
+        rows: input.rows.slice(1),
+        policies: ["null-to-false"],
+      }).classification
+    ).toBe("lossless-rewrite")
   })
 
   it("classifies metadata, rewrites, loss, and invalid values", () => {

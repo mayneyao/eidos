@@ -1488,6 +1488,10 @@ be automatically reapplied.
 
 ### 11.3 Undo and redo
 
+A single undo or redo action MUST apply its selected history entry once, even
+when applying it synchronously renders updated callbacks. Later actions remain
+independent, including entries with the same cells and values.
+
 Undo is a new Runtime mutation, never a byte rollback. The UI records, per
 committed action, the returned revision, affected stable IDs, and
 Runtime-provided undo token. The undo request uses the current revision and
@@ -1634,6 +1638,46 @@ list result they emit `eq []` and `ne []`; Runtime list values are non-null, so
 an empty list is not represented as null. The editor MUST preserve these
 meanings when loading and saving a View even if its internal compatibility
 model uses different operator names.
+
+Ordinary stored-field conversion to Checkbox uses a
+non-null target. When NULL exists, the editor MUST show the exact number of
+empty cells becoming unchecked and require explicit confirmation of that
+Runtime plan. Canceling, an unconfirmed request, or stale confirmation MUST
+leave data and schema unchanged; a refreshed impact requires another decision.
+Existing nullable fields are not rewritten by opening or unrelated edits.
+
+Newly created Checkbox Fields use Runtime's
+non-null default. Clearing/deleting their cells or pasting a blank MUST submit
+false, including multi-cell edits; an explicit typed NULL remains invalid at
+the Runtime boundary. Existing nullable Checkbox Fields retain their NULL
+state and clear-to-NULL behavior. CSV new-table import uses the canonical
+new-table conversion plan: blank Checkbox cells become unchecked (false),
+the preview displays false and explains the conversion, and the source CSV
+bytes remain unchanged. This is a conversion into a new binary Field, not a
+lossless round trip of nullable Checkbox values. Direct Runtime CSV import
+into an existing Table retains its NULL and constraint behavior.
+
+For an explicitly identified new, unsaved Record draft, an omitted required
+stored Checkbox input is displayed as unchecked, matching Runtime's create
+default. Rendering MUST NOT write the default into the draft or persist a row.
+Explicit NULL, nullable Fields, derived values, loading records, and missing
+values in an existing or partially projected Record retain their empty or
+unavailable meaning. A row ID does not identify this new-record context.
+
+Checkbox conditions use a single state selector instead of requiring a separate
+operator and Boolean operand. Its ordinary choices are Checked and Unchecked,
+which emit `eq true` and `eq false`. Empty-related choices are offered only when
+the Field has an actual SQL NULL value anywhere in the Table, independent of the
+current View filter, search, or page. Merely being nullable or coming from an
+older file is not evidence of an empty value. An already saved empty-related
+condition remains visible and editable even when no current row matches it.
+The editor checks on opening the selector and rejects stale asynchronous results
+after the Field or source changes. Empty and Not empty emit `is-null` and
+`is-not-null`. Unchecked or
+empty emits `ne true`, and Checked or empty emits `ne false`. These labels retain
+the exact Runtime null distinction and MUST round-trip existing View filters
+without changing their membership. A Host-supplied custom filter editor MAY
+retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
 after**, **is on or before**, **is on or after**, **is between**, **is relative

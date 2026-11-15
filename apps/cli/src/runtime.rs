@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use eidos_runtime_host::{
     QjsHost, clear_active_context, open_host_state, open_host_state_read_only,
+    open_host_state_snapshot,
 };
 use serde_json::{Value, json};
 
@@ -19,6 +20,17 @@ pub struct RuntimeSession {
 }
 
 impl RuntimeSession {
+    /// Private in-process host helpers, outside the public Runtime wire API.
+    pub fn host_call(&self, method: &str, request: &Value) -> Result<Value> {
+        let request_json = serde_json::to_string(request)
+            .map_err(|error| AppError::internal(format!("serialize host request: {error}")))?;
+        let raw = self
+            .host
+            .invoke(method, &[request_json])
+            .map_err(|error| AppError::internal(format!("host {method} failed: {error}")))?;
+        parse_envelope(&raw, method, true)
+    }
+
     pub fn call(&self, method: &str, request: &Value) -> Result<Value> {
         let request_json = serde_json::to_string(request)
             .map_err(|error| AppError::internal(format!("serialize Runtime request: {error}")))?;
@@ -50,7 +62,25 @@ pub fn with_session<T>(
     writable: bool,
     action: impl FnOnce(&RuntimeSession) -> Result<T>,
 ) -> Result<T> {
-    let state = if writable {
+    with_session_mode(file, writable, false, action)
+}
+
+pub fn with_preview_session<T>(
+    file: &Path,
+    action: impl FnOnce(&RuntimeSession) -> Result<T>,
+) -> Result<T> {
+    with_session_mode(file, true, true, action)
+}
+
+fn with_session_mode<T>(
+    file: &Path,
+    writable: bool,
+    preview: bool,
+    action: impl FnOnce(&RuntimeSession) -> Result<T>,
+) -> Result<T> {
+    let state = if preview {
+        open_host_state_snapshot(file)
+    } else if writable {
         open_host_state(file)
     } else {
         open_host_state_read_only(file)

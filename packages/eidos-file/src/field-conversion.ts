@@ -75,12 +75,13 @@ export function eidosFileFieldConversionMayRequireLossyConfirmation(
   to: EidosFileFieldType
 ): boolean {
   return (
+    to === "checkbox" ||
     (from === "multi-select" && to === "select") ||
     (from === "datetime" && to === "date") ||
     (from === "number" && to === "integer") ||
     (from === "integer" && to === "number") ||
     ((from === "number" || from === "rating") &&
-      (to === "checkbox" || to === "rating" || to === "number"))
+      (to === "rating" || to === "number"))
   )
 }
 

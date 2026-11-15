@@ -265,11 +265,15 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
   return (
     <EidosFileCalendarView
       onOpenRecord={
-        props.onInspectedRowChange
-          ? (row) => props.onInspectedRowChange?.(String(row._id))
+        props.onOpenRecord || props.onInspectedRowChange
+          ? (row) =>
+              (props.onOpenRecord ?? props.onInspectedRowChange)?.(
+                String(row._id)
+              )
           : undefined
       }
       table={table}
+      recordFocus={props.recordFocus}
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}

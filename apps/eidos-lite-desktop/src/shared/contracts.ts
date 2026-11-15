@@ -16,6 +16,8 @@ import type {
   EidosFileFieldInfo,
   EidosSystemMergeResult,
   EidosSystemMergeDomainConflict,
+  EidosSchemaMergePlan,
+  EidosSchemaMergeChoice,
   FileEntry,
   SchemaPreflightResult,
   UrlImageLease,
@@ -154,6 +156,7 @@ export const IPC_CHANNELS = {
   htmlPreviewClose: "eidos-lite:html-preview-close",
   saveTextFile: "eidos-lite:text-file-save",
   importMarkdownImage: "eidos-lite:markdown-image-import",
+  importMarkdownFile: "eidos-lite:markdown-file-import",
   resolveMarkdownImage: "eidos-lite:markdown-image-resolve",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
@@ -164,6 +167,7 @@ export const IPC_CHANNELS = {
   createFolder: "eidos-lite:path-create-folder",
   renamePath: "eidos-lite:path-rename",
   movePath: "eidos-lite:path-move",
+  movePaths: "eidos-lite:paths-move",
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
@@ -240,7 +244,11 @@ export const IPC_CHANNELS = {
   syncMergeConflicts: "eidos-lite:sync-merge-conflicts",
   syncMergeVersion: "eidos-lite:sync-merge-version",
   syncMergeSqliteDiff: "eidos-lite:sync-merge-sqlite-diff",
+  syncMergeSqlitePreview: "eidos-lite:sync-merge-sqlite-preview",
+  syncMergeSchemaPlan: "eidos-lite:sync-merge-schema-plan",
+  syncMergeResolveSchema: "eidos-lite:sync-merge-resolve-schema",
   syncMergeResolvePath: "eidos-lite:sync-merge-resolve-path",
+  syncMergeCombinePath: "eidos-lite:sync-merge-combine-path",
   syncMergeResolveRow: "eidos-lite:sync-merge-resolve-row",
   syncMergeResolveCell: "eidos-lite:sync-merge-resolve-cell",
   syncMergeResolveTable: "eidos-lite:sync-merge-resolve-table",
@@ -739,6 +747,8 @@ export interface SpaceIgnoreRules {
 
 export interface SpaceSnapshot {
   id: string
+  /** Process-local ordering across events and request responses. */
+  sequence?: number
   /** Local connection or enrollment exists, even if the cloud is unavailable. */
   cloudSyncConnection?: boolean
   name: string
@@ -809,6 +819,13 @@ export interface SpacePathMutationResult {
   snapshot: SpaceSnapshot
   relativePath?: string
   invalidatedSessionIds: string[]
+}
+
+export interface SpacePathsMutationResult extends SpacePathMutationResult {
+  moves: { source: string; relativePath: string }[]
+  failure?: { relativePath: string; message: string }
+  refreshError?: string
+  unattemptedPaths: string[]
 }
 
 export interface EidosLiteAppInfo {
@@ -1446,6 +1463,30 @@ export interface EidosSyncMergeSqliteDiff {
   diff: SpaceVersionDiff
 }
 
+export interface EidosSyncMergeTablePreview {
+  id: string
+  name: string
+  fields: Array<{ id: string; name: string; type: string }>
+  rows: Array<{ id: string; cells: string[] }>
+  hasMoreRows: boolean
+  hasMoreFields: boolean
+}
+
+export interface EidosSyncMergeSqlitePreview {
+  stateToken: string
+  path: string
+  version: EidosSyncMergeSqliteVersion
+  present: boolean
+  tables: EidosSyncMergeTablePreview[]
+}
+
+export interface EidosSyncMergeSqlitePreviewRequest {
+  stateToken: string
+  path: string
+  version: EidosSyncMergeSqliteVersion
+  tables: string[]
+}
+
 export type EidosSyncMergeChoice = "ours" | "theirs"
 export type EidosSyncMergeFailureCode =
   | "stale"
@@ -1808,6 +1849,12 @@ export function isEidosLiteSchemaImpactRequiredResult(
 
 export type RuntimeWorkerRequest =
   | {
+      type: "mergeSchema"
+      requestId: number
+      options: RuntimeSystemMetadataMergeOptions
+      choices: EidosSchemaMergeChoice[] | null
+    }
+  | {
       type: "explorerSummary"
       requestId: number
       filePath: string
@@ -1825,6 +1872,12 @@ export type RuntimeWorkerRequest =
       requestId: number
       filePaths: string[]
       includeColumns?: boolean
+    }
+  | {
+      type: "mergeTablePreview"
+      requestId: number
+      filePath: string
+      tables: string[]
     }
   | {
       type: "create"
@@ -1891,6 +1944,12 @@ export interface RuntimeSystemMetadataMergeOptions {
 }
 
 export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
+
+export type EidosSyncMergeSchemaPlan = EidosSchemaMergePlan
+export type EidosSyncMergeSchemaChoice = EidosSchemaMergeChoice
+export interface EidosSyncMergeSchemaRequest extends EidosSyncMergeUnresolvePathRequest {
+  choices: EidosSyncMergeSchemaChoice[]
+}
 
 export interface PeerTransferDetail {
   id: string
@@ -2033,6 +2092,10 @@ export interface EidosLiteApi extends PluginApi {
     relativePath: string,
     file: File
   ): Promise<EidosLiteMarkdownImageAsset>
+  importMarkdownFile(
+    relativePath: string,
+    file: File
+  ): Promise<EidosLiteMarkdownImageAsset>
   resolveMarkdownImage(
     relativePath: string,
     markdownUrl: string
@@ -2061,6 +2124,10 @@ export interface EidosLiteApi extends PluginApi {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult>
+  movePaths(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult>
   copyPath(
     relativePath: string,
     targetDirectory: string | null
@@ -2264,8 +2331,20 @@ export interface EidosLiteApi extends PluginApi {
   diffSyncMergeSqlite(
     request: EidosSyncMergeSqliteDiffRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqliteDiff>>
+  readSyncMergeSqlitePreview(
+    request: EidosSyncMergeSqlitePreviewRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqlitePreview>>
+  readSyncMergeSchemaPlan(
+    request: EidosSyncMergeUnresolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeSchemaPlan>>
+  resolveSyncMergeSchema(
+    request: EidosSyncMergeSchemaRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   resolveSyncMergePath(
     request: EidosSyncMergeResolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  combineSyncMergePath(
+    request: EidosSyncMergeUnresolvePathRequest
   ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   resolveSyncMergeRow(
     request: EidosSyncMergeResolveRowRequest

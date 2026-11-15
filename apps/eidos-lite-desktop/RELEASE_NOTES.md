@@ -1,28 +1,30 @@
 ## What's new
 
-### Recent files in the sidebar
+### Follow records with a file preview
 
-Switch between **Folders** and **Recent files** to browse your Space by folder or modification date. Recent files groups files into **Today**, **Yesterday**, individual days from the past week, and **Earlier**, with previews to help you find your work.
+When a file is open in the sidebar, clicking a record in a table view updates that preview while keeping your place in the main view. The selected record stays in view across Grid, Gallery, Kanban, Calendar and Feed layouts.
 
-The existing **Filter files** menu now includes an option to hide files matched by `.gitignore`. It is enabled by default; turn it off to show those files. The setting is shared between the folder tree and Recent files.
+### Attach files to Markdown notes
 
-### File and text search together
+In Rich text, type `/` and choose **Attach file** to copy a file into the note's `assets/` folder and insert a relative link.
 
-Press **Cmd/Ctrl+P** to search file and folder names, then switch to **Text** to search file contents in the same window. **Cmd/Ctrl+Shift+F** opens Text search directly. The window keeps a consistent height, including when there are no matches.
+In Rich text, type `[[` to find existing Space files and choose a link or an image where supported. Candidate paths remain readable for Chinese and other non-ASCII filenames.
 
-The sidebar's former full-text search has moved into this Files/Text search window. Sidebar search now quickly filters the directory tree by filename.
+Drag files from the Space Explorer into a note to reference them at the drop position; images appear inline. File drops work in Rich text and Source, in the main editor and file sidebar.
 
-### More capabilities for plugins
+### Two-state checkboxes for new fields
 
-Plugins can integrate with locally installed command-line programs after you approve native access. Supported plugins can offer executable and argument settings, and use atomic private storage to avoid overwriting concurrent updates. These capabilities are available to plugin developers; no agent plugin is bundled with this release.
+New Checkbox fields use checked or unchecked values, with unchecked as the default. Clearing cells or pasting blank values leaves them unchecked. Converting a field to Checkbox previews how many empty values will become unchecked and asks for confirmation before changing them.
+
+Existing nullable Checkbox fields and their empty values remain unchanged. No automatic data conversion runs when you open a file.
 
 ## Improvements
 
-- **Diff previews**: Switching files keeps the current preview visible until the next diff is ready. Longer loads show a small toolbar indicator instead of replacing the content with a loading screen.
-- **Plugin appearance**: Plugin views receive the current theme before their first paint, reducing flashes when opening them.
+- **Saving notes**: Save status appears beside each file title. Cmd/Ctrl+S saves the last text document you used after focus moves to Explorer; when two notes are open, click the intended note or its Save button to select the target.
+- **Moving files**: Dragging several files into a folder keeps the Explorer tree consistent while the move completes, including when part of a batch fails.
 
 ## Bug fixes
 
-- **Local plugin updates**: Opening a local plugin package keeps its review and update actions available, including when the plugin detail page is already open.
-- **Plugin navigation**: Returning to the same plugin page preserves the current view and unsaved input.
-- **Titlebar buttons**: Sidebar, Back, and Forward icons keep the same size when the sidebar opens or closes.
+- **Conflict resolution**: Table and field changes are reviewed before row conflicts. Undoing a choice refreshes the review so subsequent choices use the current merge state.
+- **Image blocks**: The image placeholder opens the image chooser and remains usable after cancellation or an import error. Imported images remain available to file references.
+- **Editor focus**: Updates in one pane no longer take focus from the Markdown editor in the other pane, and switching editing modes places focus in the destination editor.

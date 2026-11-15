@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import litePackage from "../../../package.json" with { type: "json" }
 import type { FileHistoryPage } from "../../shared/path-history"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -50,8 +51,8 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.39"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.39"
+export const GRAFT_SDK_VERSION = litePackage.dependencies["@eidos.space/graft"]
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = GRAFT_SDK_VERSION
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -2318,6 +2319,54 @@ export class GraftClient {
         options
       )
     )
+  }
+
+  async exportMergeSqliteVersion(
+    root: string,
+    relativePath: string,
+    version: EidosSyncMergeSqliteVersion,
+    output: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<{
+    filePath: string | null
+    revision: string | null
+    stateToken: string
+  }> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "exportMergeSqliteVersion",
+        [{ path: relativePath, version, output, expectedStateToken }],
+        options
+      )
+    )
+    return {
+      filePath: stringValue(value.file_path) ?? null,
+      revision: stringValue(value.revision) ?? null,
+      stateToken: requiredString(
+        value.state_token,
+        "merge preview state token"
+      ),
+    }
+  }
+
+  async normalizeMergeSqliteInputs(
+    root: string,
+    relativePath: string,
+    inputs: { base: string; ours: string; theirs: string },
+    expectedStateToken: string,
+    options: GraftMergeMutationOptions = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "normalizeMergeSqliteInputs",
+        [{ path: relativePath, ...inputs, expectedStateToken }],
+        options
+      )
+    )
+    return this.finishMergeMutation(value, options)
   }
 
   async setMergePathResult(

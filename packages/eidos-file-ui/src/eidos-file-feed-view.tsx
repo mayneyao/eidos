@@ -1,3 +1,4 @@
+import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import {
   memo,
   useCallback,
@@ -236,6 +237,7 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
   disabled = false,
   reloadToken = 0,
   searchResultIndex = null,
+  recordFocus,
   loadPage,
   onOpenRecord,
   onDeleteRow,
@@ -248,6 +250,7 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
   disabled?: boolean
   reloadToken?: number
   searchResultIndex?: number | null
+  recordFocus?: EidosFileRecordFocus
   loadPage: (
     offset: number,
     limit: number,
@@ -332,22 +335,42 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
     void requestPage(rows.length, "append")
   }, [failedPage, loading, loadingMore, requestPage, rows.length, total])
 
+  const revealIndex = recordFocus
+    ? (recordFocus.index ?? null)
+    : searchResultIndex
   useEffect(() => {
-    if (searchResultIndex === null || searchResultIndex < 0) return
-    if (searchResultIndex < rows.length) return
+    if (revealIndex === null || revealIndex < 0) return
+    if (revealIndex < rows.length) return
     if (rows.length >= total) return
     loadMore()
-  }, [loadMore, rows.length, searchResultIndex, total])
+  }, [loadMore, rows.length, revealIndex, total])
 
   useEffect(() => {
-    if (searchResultIndex === null || searchResultIndex < 0) return
-    const row = rows[searchResultIndex]
+    if (recordFocus) return
+    if (revealIndex === null || revealIndex < 0) return
+    const row = rows[revealIndex]
     if (!row) return
     const node = scrollRef.current?.querySelector<HTMLElement>(
       `[data-eidos-file-feed-row="${String(row._id)}"]`
     )
     node?.scrollIntoView?.({ block: "center" })
-  }, [rows, searchResultIndex])
+  }, [rows, revealIndex, recordFocus?.token])
+
+  const focusedRecordLoaded =
+    recordFocus &&
+    rows.some((row) => String(row._id) === String(recordFocus.row._id))
+  useEffect(() => {
+    if (!recordFocus || !focusedRecordLoaded) return
+    Array.from(
+      scrollRef.current?.querySelectorAll<HTMLElement>(
+        "[data-eidos-file-feed-row]"
+      ) ?? []
+    )
+      .find(
+        (node) => node.dataset.eidosFileFeedRow === String(recordFocus.row._id)
+      )
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+  }, [recordFocus?.token, focusedRecordLoaded])
 
   useEidosFileScrollKeys(scrollRef)
 
@@ -355,7 +378,11 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
     searchResultIndex !== null && searchResultIndex >= 0
       ? rows[searchResultIndex]
       : undefined
-  const focusedRowId = focusedRow ? String(focusedRow._id) : null
+  const focusedRowId = recordFocus
+    ? String(recordFocus.row._id)
+    : focusedRow
+      ? String(focusedRow._id)
+      : null
 
   return (
     <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">

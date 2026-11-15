@@ -376,23 +376,28 @@ mod tests {
         )?;
         drop(connection);
         let before = std::fs::read(&path)?;
-        let report = execute(
-            &path,
-            "validate",
-            json!({"level": "full", "diagnosticsLimit": 100}),
-        )?;
-        assert_eq!(report["valid"], false);
-        assert_eq!(report["diagnostics"][0]["code"], "file-feature-unsupported");
-        assert_eq!(
-            execute(
+        for level in ["identity", "full"] {
+            let error = execute(
                 &path,
                 "validate",
-                json!({"level": "identity", "diagnosticsLimit": 100})
-            )?["valid"],
-            true
-        );
+                json!({"level": level, "diagnosticsLimit": 100}),
+            )
+            .unwrap_err();
+            let diagnostic: Value = serde_json::from_str(&error.to_string())?;
+            assert_eq!(diagnostic["code"], "corrupt-file");
+            assert!(diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("Required feature is unavailable in this runtime: vtab:fs_meta"));
+            assert_eq!(std::fs::read(&path)?, before);
+        }
+        let connection = rusqlite::Connection::open(&path)?;
+        let integrity: String =
+            connection.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+        assert_eq!(integrity, "ok");
+        connection.execute("UPDATE eidos__features SET required = 0", [])?;
+        drop(connection);
         assert_eq!(execute(&path, "checkIntegrity", json!({}))?["valid"], true);
-        assert_eq!(std::fs::read(&path)?, before);
         std::fs::write(&path, b"incomplete download")?;
         assert!(execute(&path, "checkIntegrity", json!({})).is_err());
         Ok(())

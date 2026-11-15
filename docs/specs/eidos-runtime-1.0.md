@@ -2458,12 +2458,17 @@ Relation keys. It validates the complete logical value before opening a write
 transaction. Missing Select Fields with a valid File Format
 `settings.defaultOption` use that exact option name. This rule runs only for
 create and only when the Field ID is absent from `values`; an explicit null on
-a nullable Select suppresses the default. Other missing nullable Fields become
-null. Missing Multi-select, File, and forward Relation Fields use `[]`. Every
-other missing non-null user Field is `invalid-value`; there is no implicit type
-default. Runtime fills Row ID and created/updated timestamps. CSV
-import/replay preserves its explicit input contract and MUST NOT infer this
-create-time default unless it invokes the ordinary row-create operation.
+a nullable Select suppresses the default. A missing stored Checkbox Field uses
+false, including a non-nullable Checkbox or a legacy column without a physical
+`DEFAULT 0`. An explicit null remains null when that Field is nullable. Other
+missing nullable Fields become null. Missing Multi-select, File, and forward
+Relation Fields use `[]`. Every other missing non-null user Field is
+`invalid-value`; no other implicit scalar type default exists. Update omission
+never applies create defaults or changes an existing value. Runtime fills Row ID
+and created/updated timestamps. CSV import/replay preserves explicit null and
+false values; an omitted Checkbox Field uses false, while an omitted Select
+does not infer its create-time default unless the importer invokes the ordinary
+row-create operation.
 
 Select values absent from the display catalog remain valid. Multi-select and
 Relation values must already be ordered/unique; Runtime does not silently
@@ -2741,6 +2746,7 @@ type ConversionPolicy =
   | "utc-date"
   | "first"
   | "null-to-empty-list"
+  | "null-to-false"
 
 type ScalarStoredFieldType =
   | "text"
@@ -2794,7 +2800,12 @@ allocation. `create-field` may create any kind using only stable-ID
 definitions from the base revision. There are no implicit client-key object
 references other than `labelFieldClientKey` within `create-table`.
 
-`nullable` defaults to true for stored scalar Fields, is fixed false for
+`nullable` defaults to false for a stored Checkbox Field and to true for other
+stored scalar Fields. A newly created Checkbox therefore has physical
+`NOT NULL DEFAULT 0` and accepts only false/true. Explicit `nullable:true`
+remains supported for nullable Checkbox storage; opening or cloning
+an existing Field does not change its declaration or replace SQL NULL with false.
+`nullable` is fixed false for
 File, Multi-select, forward/inverse Relation, and is fixed true for Formula and
 Lookup in core 1.0. Runtime rejects a contrary request. Physical `NOT NULL`
 must match the File Format matrix exactly.
@@ -2808,9 +2819,11 @@ destination uses required `toNullable`; list/forward-Relation destinations are
 fixed non-null.
 
 Creating a stored Field on a populated Table has exact fill behavior. A
-nullable scalar Field fills every existing row with SQL NULL. A
-non-nullable scalar Field is permitted only when the Table has zero rows;
-there is no general default/initial-value member in Runtime 1.0. A Select
+Checkbox Field fills every new cell with false using its canonical `DEFAULT 0`,
+whether nullable or non-nullable. Other nullable scalar Fields fill every
+existing row with SQL NULL. A non-nullable scalar Field other than Checkbox is
+permitted only when the Table has zero rows; there is no general
+default/initial-value member in Runtime 1.0. A Select
 `settings.defaultOption` affects only later row creates and never backfills
 existing rows. Multi-select, File, and forward Relation Fields fill every
 existing row with canonical `[]`.
@@ -2837,7 +2850,7 @@ Format; a conflicting pair is forbidden.
 `policies`, when present, is unique and must occur in this canonical order:
 `round-binary64`, `truncate-toward-zero`,
 `round-ties-even`, `zero-false-nonzero-true`, `utc-date`, `first`,
-`null-to-empty-list`. `truncate-toward-zero` and `round-ties-even` are mutually
+`null-to-empty-list`, `null-to-false`. `truncate-toward-zero` and `round-ties-even` are mutually
 exclusive. Runtime rejects a policy irrelevant to the selected source and
 destination. Multiple policies are allowed only for disjoint stages of one
 cell conversion.
@@ -2897,6 +2910,7 @@ type SchemaValueChangeCode =
   | "numeric-to-checkbox"
   | "datetime-to-date"
   | "null-to-empty-list"
+  | "null-to-false"
   | "list-empty-to-null"
   | "list-tail-dropped"
   | "relation-detached"
@@ -2958,23 +2972,23 @@ hides classification, total affected-row count, or dependency count.
 Preflight uses only these core diagnostic codes (extensions use the namespace
 rule in Section 15):
 
-| Code                          | Severity | Exact trigger                                                          |
-| ----------------------------- | -------- | ---------------------------------------------------------------------- |
-| `fraction-loss`               | warning  | a non-integral Number is truncated or rounded to Integer               |
-| `precision-loss`              | warning  | an Integer is rounded to binary64                                      |
-| `truthiness-loss`             | warning  | a numeric value outside exact 0/1 maps to Checkbox                     |
-| `time-loss`                   | warning  | a non-midnight datetime maps to date                                   |
-| `null-distinction-loss`       | warning  | two actual source categories coalesce through a null/list policy       |
-| `list-tail-loss`              | warning  | `first` discards one or more list elements                             |
-| `option-merge-loss`           | warning  | option values/list occurrences coalesce                                |
-| `object-delete-loss`          | warning  | a Table or Field is deleted                                            |
-| `dependent-source-rewritten`  | info     | a Formula source or saved-View operand is mechanically rewritten       |
-| `dependency-blocked`          | error    | an unhandled dependent prevents the leaf                               |
-| `conversion-domain-invalid`   | error    | at least one source value has no selected destination algorithm        |
-| `non-nullability-blocked`     | error    | SQL NULL would reach a non-null destination without an allowed mapping |
-| `relation-definition-invalid` | error    | target/direction/inverse ownership or target IDs are invalid           |
-| `cardinality-blocked`         | error    | a value exceeds requested Relation cardinality                         |
-| `record-label-blocked`        | error    | a delete/change would leave no valid Record Label                      |
+| Code                          | Severity | Exact trigger                                                                        |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `fraction-loss`               | warning  | a non-integral Number is truncated or rounded to Integer                             |
+| `precision-loss`              | warning  | an Integer is rounded to binary64                                                    |
+| `truthiness-loss`             | warning  | a numeric value outside exact 0/1 maps to Checkbox                                   |
+| `time-loss`                   | warning  | a non-midnight datetime maps to date                                                 |
+| `null-distinction-loss`       | warning  | any NULL maps to false, or two actual categories coalesce through a null/list policy |
+| `list-tail-loss`              | warning  | `first` discards one or more list elements                                           |
+| `option-merge-loss`           | warning  | option values/list occurrences coalesce                                              |
+| `object-delete-loss`          | warning  | a Table or Field is deleted                                                          |
+| `dependent-source-rewritten`  | info     | a Formula source or saved-View operand is mechanically rewritten                     |
+| `dependency-blocked`          | error    | an unhandled dependent prevents the leaf                                             |
+| `conversion-domain-invalid`   | error    | at least one source value has no selected destination algorithm                      |
+| `non-nullability-blocked`     | error    | SQL NULL would reach a non-null destination without an allowed mapping               |
+| `relation-definition-invalid` | error    | target/direction/inverse ownership or target IDs are invalid                         |
+| `cardinality-blocked`         | error    | a value exceeds requested Relation cardinality                                       |
+| `record-label-blocked`        | error    | a delete/change would leave no valid Record Label                                    |
 
 A preflight `forbidden` plan contains at least one error from this table; an
 `explicit-lossy` plan contains at least one corresponding warning. The
@@ -3176,8 +3190,18 @@ nullability guard succeeds. The other cells use only these algorithms:
    the same-direction `set-relation` rules and the direction-flip prohibition
    are in Section 12.1.
 
+The `null-to-false` policy is valid only for a stored Checkbox destination with
+`toNullable=false`. It maps each source SQL NULL to false, records its exact
+row count under `null-to-false`, and emits `null-distinction-loss`. Any actual
+NULL-to-false mapping is `explicit-lossy` and requires confirmation, even if
+the source contains no false value. Without NULL this policy adds no value
+change or lossy classification. Invalid non-null values remain forbidden.
+Editor conversions to stored Checkbox use this non-null target and recommended
+policy, disclose the actual NULL count, and apply only the confirmed retained
+plan at its bound revision. Opening a file or unrelated edits never backfill NULL.
+
 Null remains SQL NULL in every conversion except the explicitly selected
-`null-to-empty-list` policy above. For a scalar destination,
+`null-to-empty-list` and `null-to-false` policies. For a scalar destination,
 `toNullable=true` preserves source SQL NULL; `toNullable=false` is forbidden
 if any conversion stage produces SQL NULL. For a non-null list destination,
 source SQL NULL is forbidden without `null-to-empty-list`. A named policy does
@@ -3305,6 +3329,13 @@ catalog groups locally without an extra Runtime query and without treating
 them as data.
 
 ### 13.2 CSV extension
+
+This extension imports into an existing Table and retains that Table's NULL
+and constraint semantics. A higher-level new-table CSV plan is a separate type
+conversion: a blank Checkbox cell becomes false in a new non-null Checkbox
+Field. Such a planner MUST show the conversion in its preview and submit explicit
+Boolean CSV values (or the equivalent typed row values), without modifying the
+source file or changing this extension's blank-cell behavior.
 
 When `csvExport=true` and/or `csvImport=true`, Runtime exposes the corresponding
 exact optional operation:
@@ -3738,6 +3769,10 @@ ER-Writer additionally covers:
 2. create/update/delete success, Table-scoped missing and duplicate-change failures,
    equal-value no-op, one operation timestamp, one revision increment, overflow
    refusal, full rollback, and unknown-commit reconciliation;
+   omitted Checkbox false on ordinary create/import and legacy columns,
+   explicit nullable null/false preservation, sparse updates that retain an
+   existing Checkbox value, and nullable/non-nullable Checkbox creation on
+   populated Tables;
 3. Relation restrict/detach/preserve for single, multi-row, and self-Relation
    delete sets, survivor order, timestamp, and rollback;
 4. View create/update/delete, saved-search exclusion, unknown layout

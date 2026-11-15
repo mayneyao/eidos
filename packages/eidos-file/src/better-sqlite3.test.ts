@@ -9,6 +9,9 @@ import {
   BetterSqlite3EidosFileConnection,
 } from "./better-sqlite3"
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
+import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
+import { expectCheckboxConversionConformance } from "./checkbox-conversion.conformance"
 import { Runtime } from "./runtime-service"
 import type { RuntimeEnvironment } from "./runtime-contract"
 
@@ -33,6 +36,36 @@ const runtimeContext = (requestId: string) => ({
   requestId,
   deadlineMilliseconds: 30_000,
 })
+
+it("converts Checkbox NULL only after an atomic confirmed plan in Better SQLite", async () => {
+  const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+  try {
+    await expectCheckboxConversionConformance(connection)
+  } finally {
+    connection.close()
+  }
+})
+
+it("creates binary Checkbox fields by default in Better SQLite", async () => {
+  const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+  try {
+    await expectCheckboxBinaryConformance(connection)
+  } finally {
+    connection.close()
+  }
+})
+
+it.each([false, true])(
+  "keeps Checkbox defaults and explicit null distinct in Better SQLite (legacy=%s)",
+  async (legacy) => {
+    const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+    try {
+      await expectCheckboxDefaultConformance(connection, legacy)
+    } finally {
+      connection.close()
+    }
+  }
+)
 
 describe("BetterSqlite3EidosFileConnection statement cache", () => {
   it("reuses prepared statements and evicts the least recently used SQL", () => {

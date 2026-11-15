@@ -1421,6 +1421,79 @@ describe("EidosRuntimeEditorDataSource", () => {
     )
   })
 
+  it.each([false, true])(
+    "probes null presence across the full table with one bounded query (hasNull=%s)",
+    async (hasNull) => {
+      const fixture = conversionRuntime("lossless-rewrite")
+      const source = new EidosRuntimeEditorDataSource(
+        fixture.runtime,
+        "fixture.eidos"
+      )
+      await source.initialize()
+      const queryRows = vi
+        .spyOn(fixture.runtime, "queryRows")
+        .mockResolvedValue({
+          fileId: FILE,
+          tableId: PROJECTS,
+          revision: "1",
+          projectionHash: "null-presence",
+          columns: [],
+          rows: hasNull ? [{ id: PROJECT_ROW, values: [null] }] : [],
+          nextCursor: null,
+          previousCursor: null,
+        })
+      await expect(source.hasNullValues(PROJECTS, TITLE)).resolves.toBe(hasNull)
+      expect(queryRows).toHaveBeenCalledExactlyOnceWith(
+        {
+          tableId: PROJECTS,
+          query: { filter: { op: "is-null", fieldId: TITLE } },
+          projection: { fields: [TITLE], resolveRelations: [] },
+          limit: 1,
+          direction: "forward",
+        },
+        expect.any(Object)
+      )
+    }
+  )
+
+  it("explains that Boolean text cannot be converted to Number", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    fixture.preflightSchema.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'eidos-lite:runtime-call': Error: Text is not the exact inverse binary64 spelling"
+      )
+    )
+    await expect(
+      source.updateField(PROJECTS, SIGNALS, { type: "number" })
+    ).rejects.toThrow("Text “true” and “false” cannot be converted to Number.")
+    expect(fixture.mutateSchema).not.toHaveBeenCalled()
+  })
+
+  it("shows a blocked View dependency without the Electron transport wrapper", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+    const message =
+      "Saved View “Unchecked” has a filter or sort that is incompatible with the new field type. Update or remove it before changing the field type."
+    fixture.preflightSchema.mockRejectedValueOnce(
+      new Error(
+        `Error invoking remote method 'eidos-lite:runtime-call': Error: ${message}`
+      )
+    )
+    await expect(
+      source.updateField(PROJECTS, SIGNALS, { type: "text" })
+    ).rejects.toMatchObject({ message })
+    expect(fixture.mutateSchema).not.toHaveBeenCalled()
+  })
+
   it("plans Multi-select to Select with a nullable target and no implicit lossy confirmation", async () => {
     const fixture = conversionRuntime("lossless-rewrite")
     const source = new EidosRuntimeEditorDataSource(

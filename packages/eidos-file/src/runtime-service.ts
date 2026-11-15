@@ -120,6 +120,11 @@ import type {
 import { scanStableRowPages } from "./stable-row-scan"
 import { initializeEidosFileSchema } from "./schema"
 import {
+  registerCliTableInitializer,
+  type InitialCliTable,
+  type InitialCliTableResult,
+} from "./cli-host-initialization"
+import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
 } from "./temporal"
@@ -350,6 +355,9 @@ export class EidosRuntimeService implements RuntimeClient {
     private readonly generator: EidosUuidV7Generator
   ) {
     this.capabilitiesValue = runtimeCapabilities(writable)
+    registerCliTableInitializer(this, (change, context) =>
+      this.initializeCliTable(change, context)
+    )
     if (writable) {
       this.importCsv = (request, context) =>
         this.importCsvRequest(request, context)
@@ -1520,6 +1528,10 @@ export class EidosRuntimeService implements RuntimeClient {
       for (const field of tableFields) {
         const fieldId = field.id!
         if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.type === "checkbox") {
+          normalized[fieldId] = false
+          continue
+        }
         if (field.type === "select") {
           const defaultOption = parseEidosFileSelectDefaultOption(
             field.settings
@@ -2083,6 +2095,69 @@ export class EidosRuntimeService implements RuntimeClient {
       },
       false,
       request
+    )
+  }
+
+  private initializeCliTable(
+    change: InitialCliTable,
+    context: RequestContext
+  ): Promise<InitialCliTableResult> {
+    return this.invoke(
+      context,
+      () => {
+        this.assertWritable("initializeCliTable")
+        const createdObjects: CreatedSchemaObject[] = []
+        let tableId = ""
+        let viewId = ""
+        // The host publishes this fresh file only after this transaction succeeds.
+        // Ordinary create-table keeps its existing no-default/no-View contract.
+        this.core.applyCanonicalMutation(() => {
+          const before = this.core.info()
+          if (
+            change.kind !== "create-table" ||
+            String(before.revision) !== "0" ||
+            before.defaultTableId != null ||
+            this.core.listTables().length !== 0 ||
+            this.core.connection.query("SELECT id FROM eidos__views").length !==
+              0
+          ) {
+            throw runtimeError(
+              "invalid-request",
+              "Initial Table requires a fresh File at revision 0"
+            )
+          }
+          if (this.analyzeSchemaChange(change).classification === "forbidden") {
+            throw runtimeError("forbidden", "Initial Table schema is forbidden")
+          }
+          this.applySchemaChange(change, createdObjects, new Set(), new Set())
+          tableId = createdObjects.find(
+            (object) => object.object === "table"
+          )!.id
+          this.applySchemaChange(
+            { kind: "set-default-table", tableId },
+            [],
+            new Set(),
+            new Set()
+          )
+          viewId = this.core.createView(tableId, {
+            name: "Grid",
+            type: "grid",
+          }).id
+        }, 0n)
+        return {
+          schema: {
+            revision: String(this.core.info().revision),
+            changed: true,
+            createdObjects: createdObjects.filter(
+              (object) => "clientKey" in object
+            ),
+          },
+          tableId,
+          viewId,
+        }
+      },
+      false,
+      change
     )
   }
 
@@ -3390,6 +3465,7 @@ export class EidosRuntimeService implements RuntimeClient {
             leaf.field.kind !== "formula" &&
             leaf.field.kind !== "lookup" &&
             leaf.field.kind !== "relation" &&
+            leaf.field.kind !== "checkbox" &&
             leaf.field.nullable === false &&
             this.core.countRows(leaf.tableId) > 0
           ) {
@@ -3399,7 +3475,7 @@ export class EidosRuntimeService implements RuntimeClient {
               { tableId: leaf.tableId }
             )
           }
-          // ADD COLUMN with the canonical list default changes the physical
+          // ADD COLUMN with a canonical Checkbox/list default changes the physical
           // schema but does not rewrite any existing logical row value. The
           // schema plan classification is therefore metadata-only.
           break
@@ -3722,7 +3798,63 @@ export class EidosRuntimeService implements RuntimeClient {
               fieldId: leaf.fieldId,
             }))
           )
+          const nullToFalse = conversion.valueChanges.find(
+            (change) => change.code === "null-to-false"
+          )
+          if (nullToFalse)
+            warnings.push({
+              code: "null-distinction-loss",
+              severity: "warning",
+              tableId: field.tableId,
+              fieldId: leaf.fieldId,
+              message: `${nullToFalse.rows} empty cells in this column will become unchecked.`,
+            })
           break
+        }
+      }
+    }
+    const changedQueryFields = fields.filter((field) => {
+      const proposed = proposedFields.get(field.id!)
+      return (
+        proposed &&
+        canonicalizeEidosFileJson(fieldValueType(field)) !==
+          canonicalizeEidosFileJson(fieldValueType(proposed))
+      )
+    })
+    if (changedQueryFields.length > 0) {
+      for (const view of this.allViews()) {
+        if (view.queryStatus === "unsupported") continue
+        const dependency = changedQueryFields.find(
+          (field) =>
+            field.tableId === view.tableId &&
+            (view.sorts.some((sort) => sort.field === field.id) ||
+              compatibilityFilterReferencesField(view.filter, field.id!))
+        )
+        if (!dependency) continue
+        dependencies.set("view:" + view.id, { object: "view", id: view.id })
+        try {
+          // Decode the saved predicate using the original Field shapes. Using
+          // destination shapes could reinterpret a list operand as scalar/null.
+          assertRuntimeRowQuery(proposedByTable.get(view.tableId) ?? [], {
+            ...(view.filter
+              ? { filter: compatibilityFilterToRuntime(view.filter, fields) }
+              : {}),
+            sort: view.sorts.map((sort) => ({
+              fieldId: sort.field,
+              direction: sort.direction,
+              ...(sort.nulls ? { nulls: sort.nulls } : {}),
+            })),
+          })
+        } catch {
+          forbid(
+            "dependency-blocked",
+            `Saved View “${view.name}” has a filter or sort that is incompatible with the new field type. Update or remove it before changing the field type.`,
+            {
+              tableId: view.tableId,
+              fieldId: dependency.id,
+              viewId: view.id,
+            }
+          )
         }
       }
     }
@@ -5400,7 +5532,9 @@ function simulatedNewField(
         ? true
         : list || field.kind === "relation"
           ? false
-          : field.nullable !== false,
+          : field.kind === "checkbox"
+            ? field.nullable === true
+            : field.nullable !== false,
     isRecordLabel: false,
     position: Number(field.position),
     settings: field.settings ?? {},

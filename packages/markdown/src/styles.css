@@ -230,7 +230,7 @@
 .eme-mobile-image-sheet :is(input, button) {
   font: inherit;
   font-size: 16px;
-  min-height: 44px;
+  min-height: 48px;
   padding: 8px 12px;
 }
 .eme-mobile-image-sheet input {
@@ -244,6 +244,21 @@
   border-radius: 8px;
   background: var(--eme-accent);
   color: inherit;
+}
+
+/* Older embedded WebViews cannot resolve the shared light-dark/OKLCH tokens.
+ * Keep the native dialog opaque and its controls visible on those engines. */
+@supports not (color: light-dark(white, black)) {
+  .eme-mobile-image-sheet {
+    background: Canvas;
+    color: CanvasText;
+  }
+  .eme-mobile-image-sheet input {
+    border-color: GrayText;
+  }
+  .eme-mobile-image-sheet button {
+    background: ButtonFace;
+  }
 }
 .eme-editor:has(.eme-mobile-tools) .eme-efm-image-block {
   -webkit-touch-callout: none;
@@ -802,6 +817,23 @@
   white-space: nowrap;
 }
 
+.eme-source-touch-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--eme-border);
+}
+
+.eme-source-touch-actions button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--eme-foreground);
+  font: inherit;
+}
+
 .eme-selection-shortcut-hint {
   position: fixed;
   transform: translate(-100%, -100%);
@@ -1229,6 +1261,10 @@
 .eme-efm-image-placeholder {
   display: block;
   width: 100%;
+}
+
+button.eme-efm-image-placeholder:not(:disabled) {
+  cursor: pointer;
 }
 
 .eme-efm-image-block img {
@@ -1861,9 +1897,26 @@
 .eme-note-menu-options button.is-selected {
   background: var(--eme-accent);
 }
+.eme-note-option-title {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+.eme-note-option-title > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eme-note-option-action {
+  flex-shrink: 0;
+  white-space: pre;
+}
 .eme-note-menu-options small {
+  max-width: 100%;
   color: var(--eme-muted-foreground);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .eme-note-menu-anchor {
   z-index: 60;

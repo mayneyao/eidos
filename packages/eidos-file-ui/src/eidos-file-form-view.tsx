@@ -781,6 +781,7 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
       <EidosFileRecordFieldEditor
         field={field}
         row={draft}
+        isNewRecord
         placeholder={config?.placeholder}
         disabled={disabled}
         onChange={(value) => updateDraft(field.tableColumnName, value)}

@@ -464,79 +464,112 @@ describe("Sync inspector B", () => {
     expect(host.textContent).not.toContain("Eidos Sync is offline")
     await act(async () => root.unmount())
   })
-  it("shows known conflicts during background checks without querying status again", async () => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-    const getSyncMergeStatus = vi.fn()
-    const onReviewMerge = vi.fn()
-    const onReview = vi.fn()
-    Object.defineProperty(window, "eidosLite", {
-      configurable: true,
-      value: {
-        getSyncMergeStatus,
-        listSyncMergePaths: vi.fn().mockResolvedValue({
-          ok: true,
-          value: { items: [], nextCursor: null },
-        }),
-      },
-    })
-    const host = document.createElement("div")
-    document.body.append(host)
-    const root = createRoot(host)
-    await act(async () =>
-      root.render(
-        <SyncInspector
-          state={{ ...base, checking: true }}
-          spaceKey="known-conflict"
-          mergeStatus={{
-            state: "merging",
-            localHead: "ours",
-            hostedHead: "theirs",
-            commonAncestor: "base",
-            stagedCount: 0,
-            unmergedCount: 1,
-            stateToken: "state",
-            policyToken: "policy",
-            policyVersion: 1,
-          }}
-          onClose={() => undefined}
-          onAction={() => undefined}
-          onRetry={() => undefined}
-          onAccount={() => undefined}
-          onReviewMerge={onReviewMerge}
-          onReview={onReview}
-          connectionDetails={<div>Connection details</div>}
-        />
+  it.each([false, true])(
+    "shows only conflict controls while a merge is active (previous failure: %s)",
+    async (previousFailure) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+      const getSyncMergeStatus = vi.fn()
+      const onReviewMerge = vi.fn()
+      const onReview = vi.fn()
+      Object.defineProperty(window, "eidosLite", {
+        configurable: true,
+        value: {
+          getSyncMergeStatus,
+          listSyncMergePaths: vi.fn().mockResolvedValue({
+            ok: true,
+            value: {
+              items: [
+                {
+                  path: "notes.md",
+                  state: "unmerged",
+                  kind: "text_file",
+                  storage: "inline",
+                  hasBase: true,
+                  hasLocal: true,
+                  hasHosted: true,
+                },
+              ],
+              nextCursor: null,
+            },
+          }),
+        },
+      })
+      const host = document.createElement("div")
+      document.body.append(host)
+      const root = createRoot(host)
+      await act(async () =>
+        root.render(
+          <SyncInspector
+            state={{
+              ...base,
+              checking: true,
+              failure: previousFailure
+                ? {
+                    code: "remote-conflict",
+                    state: "needs-attention",
+                    title: "Cloud updates changed",
+                    message: "A reviewed merge is already in progress.",
+                    action: "retry-now",
+                    actionLabel: "Review changes",
+                    retryable: true,
+                    localSafe: true,
+                  }
+                : null,
+            }}
+            spaceKey="known-conflict"
+            mergeStatus={{
+              state: "merging",
+              localHead: "ours",
+              hostedHead: "theirs",
+              commonAncestor: "base",
+              stagedCount: 0,
+              unmergedCount: 1,
+              stateToken: "state",
+              policyToken: "policy",
+              policyVersion: 1,
+            }}
+            onClose={() => undefined}
+            onAction={() => undefined}
+            onRetry={() => undefined}
+            onAccount={() => undefined}
+            onReviewMerge={onReviewMerge}
+            onReview={onReview}
+            connectionDetails={<div>Connection details</div>}
+            connectionActions={<button>Cloud connection action</button>}
+          />
+        )
       )
-    )
-    expect(host.textContent).toContain("Resolve merge conflicts")
-    expect(host.querySelector("h2")?.textContent).toBe(
-      "Local and cloud both changed"
-    )
-    expect(host.textContent).toContain(
-      "Review conflicting files and tables in Changes. Nothing was overwritten."
-    )
-    expect(host.textContent).toContain(
-      "Merging waits until every conflict is resolved."
-    )
-    expect(host.textContent).toContain("Connection details")
-    expect(host.textContent).not.toContain("Checking remote updates…")
-    expect(getSyncMergeStatus).not.toHaveBeenCalled()
-    const statusActions = host.querySelector(".sync-status-actions")!
-    await act(async () =>
-      [...statusActions.querySelectorAll("button")]
-        .find((button) => button.textContent === "Review in Changes")!
-        .click()
-    )
-    expect(onReviewMerge).toHaveBeenCalledOnce()
-    await act(async () =>
-      [...statusActions.querySelectorAll("button")]
-        .find((button) => button.textContent === "Open Versions")!
-        .click()
-    )
-    expect(onReview).toHaveBeenCalledOnce()
-    await act(async () => root.unmount())
-    host.remove()
-  })
+      expect(host.textContent).toContain("Resolve merge conflicts")
+      expect(
+        host.querySelector(".sync-merge-overview strong")?.textContent
+      ).toBe("1 conflict remaining")
+      expect(host.textContent).toContain("Select a file to compare and resolve")
+      expect(
+        host.querySelectorAll(".sync-merge-overview [aria-label='Show Base']")
+      ).toHaveLength(1)
+      expect(host.textContent).not.toContain("Connection details")
+      expect(host.textContent).not.toContain("Cloud connection action")
+      expect(host.textContent).not.toContain("Cloud updates changed")
+      expect(host.textContent).not.toContain("Review changes")
+      expect(host.textContent).not.toContain("Review in Changes")
+      expect(host.textContent).not.toContain("Keep a local copy")
+      expect(host.querySelector(".sync-status-actions")).toBeNull()
+      expect(host.textContent).not.toContain("Checking remote updates…")
+      expect(getSyncMergeStatus).not.toHaveBeenCalled()
+      const tree = host.querySelector("[data-merge-change-tree]")!
+      await act(async () =>
+        tree
+          .shadowRoot!.querySelector<HTMLButtonElement>(
+            "button[data-item-path='Merge Conflicts/notes.md']"
+          )!
+          .click()
+      )
+      expect(onReviewMerge).toHaveBeenCalledWith("notes.md", undefined)
+      expect(onReview).not.toHaveBeenCalled()
+      await act(async () => root.unmount())
+      host.remove()
+    }
+  )
   it("opens the account menu from the identity and dismisses it with Escape", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     Object.defineProperty(window, "eidosLite", {

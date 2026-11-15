@@ -16,6 +16,112 @@ import {
 } from "./eidos-file-runtime"
 import * as vtabResolver from "./vtab-resolver"
 
+it("keeps new Checkbox fields binary through Lite source, streaming CSV and reopen", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "eidos-checkbox-binary-"))
+  const filePath = path.join(root, "checks.eidos")
+  let opened = await createEidosLiteFileRuntime(filePath, "Checks")
+  try {
+    const tableId = opened.initialSnapshot.tables[0]!.table.id
+    const snapshot = await opened.source.addField(tableId, {
+      name: "Flag",
+      type: "checkbox",
+    })
+    const flag = snapshot.tables[0]!.fields.find(
+      (field) => field.name === "Flag"
+    )!
+    expect(flag.nullable).toBe(false)
+    const row = await opened.source.insertRow(tableId, {})
+    expect(row.row[flag.id]).toBe(false)
+    await expect(
+      opened.source.updateRow(tableId, String(row.row._id), { [flag.id]: null })
+    ).rejects.toMatchObject({ code: "constraint" })
+    const conversionSnapshot = await opened.source.addField(tableId, {
+      name: "Converted Flag",
+      type: "text",
+    })
+    const convertedFlag = conversionSnapshot.tables[0]!.fields.find(
+      (field) => field.name === "Converted Flag"
+    )!
+    await expect(
+      opened.source.updateField(tableId, convertedFlag.id, { type: "checkbox" })
+    ).rejects.toMatchObject({
+      code: "schema-impact-confirmation-required",
+      impact: {
+        valueChanges: expect.arrayContaining([
+          expect.objectContaining({ code: "null-to-false", rows: "1" }),
+        ]),
+      },
+    })
+    await opened.source.updateField(tableId, convertedFlag.id, {
+      type: "checkbox",
+      confirmLossy: true,
+    })
+    expect(
+      (await opened.source.getRow(tableId, String(row.row._id)))![
+        convertedFlag.id
+      ]
+    ).toBe(false)
+    const content =
+      'Name,Flag,Note\nchecked,true,"comma, and ""quote"""\nblank,,\nunchecked,false,"two\nlines"\n'
+    const csvPath = path.join(root, "Imported.csv")
+    await writeFile(csvPath, content)
+    const stats = await stat(csvPath)
+    const csv = {
+      sourcePath: csvPath,
+      fileName: "Imported.csv",
+      size: stats.size,
+      modifiedAtMs: stats.mtimeMs,
+    }
+    const plan = await opened.previewCsvFile(csv, {}, "binary-preview")
+    expect(plan.sampleRows.map((record) => record[1])).toEqual([
+      "true",
+      "false",
+      "false",
+    ])
+    const imported = await opened.importCsvFile(csv, {}, "binary-import")
+    expect(imported.result.importedRowCount).toBe(3)
+    expect(await readFile(csvPath, "utf8")).toBe(content)
+    await opened.close()
+    opened = await openEidosLiteFileRuntime(filePath)
+    const importedTable = opened.initialSnapshot.tables.find(
+      (table) => table.table.name === "Imported"
+    )!
+    expect(
+      opened.initialSnapshot.tables
+        .find((table) => table.table.id === tableId)!
+        .fields.find((field) => field.id === convertedFlag.id)
+    ).toMatchObject({ type: "checkbox", nullable: false })
+    const importedFlag = importedTable.fields.find(
+      (field) => field.name === "Flag"
+    )!
+    expect(importedFlag.nullable).toBe(false)
+    const page = await opened.source.getPage(importedTable.table.id, 0, 100, {})
+    expect(page.rows.map((record) => record[importedFlag.id])).toEqual([
+      true,
+      false,
+      false,
+    ])
+    const physical = new DatabaseSync(filePath, { readOnly: true })
+    try {
+      expect(
+        physical.prepare('PRAGMA table_xinfo("Imported")').all()
+      ).toContainEqual(
+        expect.objectContaining({ name: "Flag", notnull: 1, dflt_value: "0" })
+      )
+      expect(physical.prepare('SELECT "Flag" FROM "Imported"').all()).toEqual([
+        { Flag: 1 },
+        { Flag: 0 },
+        { Flag: 0 },
+      ])
+    } finally {
+      physical.close()
+    }
+  } finally {
+    await opened.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 it.each([undefined, "Content", "正文"])(
   "persists the initial table's optional record content field (%s)",
   async (contentFieldName) => {

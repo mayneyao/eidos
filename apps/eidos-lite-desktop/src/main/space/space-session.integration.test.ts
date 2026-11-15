@@ -3535,7 +3535,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
-  it.each(["apply", "recover"])(
+  it.each(["apply", "recover", "retry"])(
     "automatically resolves Eidos system metadata through the Graft provider: %s",
     async (mode) => {
       const root = await fs.mkdtemp(
@@ -3786,8 +3786,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
         await expect(
           mode === "recover"
             ? session.getSyncMergeStatus()
-            : session.applyHostedMerge({ expectedHead: localHead, planToken })
-        ).resolves.toEqual({ state: "none" })
+            : mode === "retry"
+              ? session.combineSyncMergePath(stateToken, relativePath)
+              : session.applyHostedMerge({ expectedHead: localHead, planToken })
+        ).resolves.toEqual(
+          mode === "retry"
+            ? { ...merging, stagedCount: 1, unmergedCount: 0 }
+            : { state: "none" }
+        )
 
         expect(graft.status).not.toHaveBeenCalled()
         expect(calls).toEqual([
@@ -3798,7 +3804,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
                 "status",
                 "close",
               ]
-            : ["contract:applyMerge", "close", "apply"]),
+            : mode === "retry"
+              ? [
+                  "contract:acceptSemanticMergeResult",
+                  "status",
+                  "close",
+                  "status",
+                ]
+              : ["contract:applyMerge", "close", "apply"]),
           "list-paths",
           "prepare-semantic",
           "runtime-merge",
@@ -3806,13 +3819,17 @@ describe("SpaceSession Graft-backed snapshots", () => {
           "accept-semantic",
           `validate:${relativePath}`,
           "reopen",
-          "contract:continueMerge",
-          "status",
-          "close",
-          `validate:${relativePath}`,
-          `continue:Merge Hosted changes:${stateToken}`,
-          `validate:${relativePath}`,
-          "reopen",
+          ...(mode === "retry"
+            ? []
+            : [
+                "contract:continueMerge",
+                "status",
+                "close",
+                `validate:${relativePath}`,
+                `continue:Merge Hosted changes:${stateToken}`,
+                `validate:${relativePath}`,
+                "reopen",
+              ]),
         ])
         expect(prepareSemanticMerge).toHaveBeenCalledWith(
           await fs.realpath(root),
@@ -4275,21 +4292,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
       calls.length = 0
       signals.length = 0
 
-      await expect(session.getSyncMergeStatus()).resolves.toEqual({
-        state: "none",
+      vi.mocked(graft.continueMerge).mockClear()
+      await expect(session.getSyncMergeStatus()).resolves.toMatchObject({
+        state: "merging",
+        unmergedCount: 0,
       })
-      expect(calls.slice(0, 8)).toEqual([
-        "status",
-        "contract",
-        "status",
-        "close",
-        "validate:archive.eidos,records.eidos",
-        "continue",
-        "validate:records.eidos",
-        "reopen",
-      ])
-      expect(signals).toHaveLength(4)
-      expect(new Set(signals).size).toBe(2)
+      expect(calls).toEqual(["status"])
+      expect(graft.continueMerge).not.toHaveBeenCalled()
+      expect(signals).toHaveLength(1)
       expect(session.gate.current().phase).toBe("ready")
     } finally {
       await session?.close().catch(() => undefined)

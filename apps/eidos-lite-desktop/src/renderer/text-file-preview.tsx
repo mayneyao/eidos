@@ -8,6 +8,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react"
+import { createPortal } from "react-dom"
 import {
   CircleAlert,
   FileText,
@@ -35,6 +36,10 @@ import {
 } from "./markdown-editor-surface"
 import { renderSafeMarkdown } from "./markdown-preview"
 import { textDraftLifecycle } from "./text-draft-lifecycle"
+import {
+  acceptsTextFileSave,
+  registerTextFileSaveTarget,
+} from "./text-file-save-shortcut"
 
 const useRendererLayoutEffect =
   typeof document === "undefined" ? useEffect : useLayoutEffect
@@ -42,6 +47,25 @@ const useRendererLayoutEffect =
 type TextPreview = Extract<TextFilePreviewResult, { type: "text" }>
 type TextSurfacePreview = Exclude<TextFilePreviewResult, { type: "media" }>
 type SaveState = "saved" | "dirty" | "saving" | "conflict" | "error"
+
+function saveFailureMessage(
+  cause: unknown,
+  t: (message: string) => string
+): string {
+  const message = cause instanceof Error ? cause.message : String(cause)
+  if (/EACCES|EPERM|EROFS|permission denied|read-only/iu.test(message))
+    return t(
+      "Check write access to this file's folder and try again. Your draft is kept."
+    )
+  if (/ENOSPC|disk.*full/iu.test(message))
+    return t(
+      "The disk is full. Free some space and try again. Your draft is kept."
+    )
+  if (/2 MB/u.test(message)) return t("Edited text exceeds the 2 MB file limit")
+  return t(
+    "The file could not be saved. Your draft is kept. Try again or save a copy."
+  )
+}
 
 export interface TextFileDraft {
   content: string
@@ -91,6 +115,7 @@ function unavailableMessage(
 
 function EditableTextFile({
   preview,
+  platform,
   draft,
   theme,
   autoFocus = false,
@@ -101,12 +126,14 @@ function EditableTextFile({
   onOpenInternalLink,
   focusShortcutLabel,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onSaved,
   onReload,
   onDraftChange,
 }: {
   preview: TextPreview
+  platform: string
   draft?: TextFileDraft
   theme: ResolvedAppearance
   autoFocus?: boolean
@@ -120,6 +147,7 @@ function EditableTextFile({
   ): void | Promise<void>
   focusShortcutLabel?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -149,6 +177,28 @@ function EditableTextFile({
   )
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const mountedRef = useRef(true)
+  const sectionRef = useRef<HTMLElement>(null)
+  const saveRef = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    const root = sectionRef.current
+    if (root)
+      return registerTextFileSaveTarget({
+        root,
+        platform,
+        save: () => saveRef.current(),
+      })
+  }, [platform])
+
+  useEffect(() => {
+    if (!saveStatusTarget) return
+    // The title control belongs to this editor even when the other pane was
+    // used last. Register its actual DOM location as well as the editor body.
+    return registerTextFileSaveTarget({
+      root: saveStatusTarget,
+      platform,
+      save: () => saveRef.current(),
+    })
+  }, [platform, saveStatusTarget])
 
   useRendererLayoutEffect(() => {
     if (preview.revision !== revisionRef.current) {
@@ -240,15 +290,17 @@ function EditableTextFile({
             }
           }
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause)
           if (mountedRef.current) {
-            setError(message)
+            setError(saveFailureMessage(cause, t))
             setState("error")
           }
         }
       })
     return textDraftLifecycle.track(queueRef.current)
-  }, [onDraftChange, onSaved, preview.relativePath])
+  }, [onDraftChange, onSaved, preview.relativePath, t])
+  saveRef.current = () => {
+    void requestSave()
+  }
 
   const [copySaved, setCopySaved] = useState(false)
 
@@ -307,6 +359,7 @@ function EditableTextFile({
 
   return (
     <section
+      ref={sectionRef}
       className="text-file-preview text-file-editor"
       aria-label={t("Text editor for {path}", {
         path: preview.relativePath,
@@ -315,11 +368,10 @@ function EditableTextFile({
       data-text-file-preview-state="text"
       data-text-file-preview-truncated="false"
       data-text-file-editor={preview.relativePath}
+      data-text-file-save-state={state}
       onKeyDownCapture={(event) => {
         if (
-          (event.metaKey || event.ctrlKey) &&
-          !event.altKey &&
-          event.key.toLowerCase() === "s"
+          acceptsTextFileSave(event.nativeEvent, event.currentTarget, platform)
         ) {
           event.preventDefault()
           void requestSave()
@@ -350,11 +402,7 @@ function EditableTextFile({
                 .then((saved) => {
                   if (saved) setCopySaved(true)
                 })
-                .catch((cause) =>
-                  setError(
-                    cause instanceof Error ? cause.message : String(cause)
-                  )
-                )
+                .catch((cause) => setError(saveFailureMessage(cause, t)))
             }}
           >
             {t("Save a copy")}
@@ -387,6 +435,89 @@ function EditableTextFile({
         onEditingModeChange={onEditingModeChange}
         onChange={handleChange}
       />
+      {saveStatusTarget
+        ? createPortal(
+            <span
+              className="text-file-title-save"
+              data-save-state={state}
+              data-save-path={preview.relativePath}
+            >
+              <span
+                className="text-file-save-announcement"
+                role="status"
+                aria-live="polite"
+              >
+                {t(
+                  state === "saving"
+                    ? "Saving…"
+                    : state === "saved"
+                      ? "Saved to disk"
+                      : state === "error"
+                        ? "Save failed"
+                        : state === "conflict"
+                          ? "Changed on disk"
+                          : "Unsaved changes"
+                )}
+              </span>
+              {state !== "saved" ? (
+                <button
+                  type="button"
+                  className="text-file-title-save-action"
+                  disabled={state === "saving" || state === "conflict"}
+                  aria-label={
+                    state === "conflict"
+                      ? t("Changed on disk")
+                      : state === "saving"
+                        ? t("Saving…")
+                        : t("Save {path} ({shortcut})", {
+                            path: preview.relativePath,
+                            shortcut:
+                              platform === "darwin" ? "Cmd+S" : "Ctrl+S",
+                          })
+                  }
+                  title={
+                    state === "conflict"
+                      ? t("Changed on disk")
+                      : state === "error"
+                        ? `${t("Save failed")}: ${error}`
+                        : t("Save {path} ({shortcut})", {
+                            path: preview.relativePath,
+                            shortcut:
+                              platform === "darwin" ? "Cmd+S" : "Ctrl+S",
+                          })
+                  }
+                  onClick={() => void requestSave()}
+                >
+                  {state === "saving" ? (
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                  ) : state === "error" || state === "conflict" ? (
+                    <CircleAlert aria-hidden="true" />
+                  ) : (
+                    <span
+                      className="text-file-title-save-dot"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>
+                    {t(
+                      state === "saving"
+                        ? "Saving…"
+                        : state === "error"
+                          ? "Retry"
+                          : state === "conflict"
+                            ? "Changed on disk"
+                            : "Save"
+                    )}
+                  </span>
+                  {state === "dirty" || state === "error" ? (
+                    <kbd>{platform === "darwin" ? "⌘S" : "Ctrl+S"}</kbd>
+                  ) : null}
+                </button>
+              ) : null}
+            </span>,
+            saveStatusTarget
+          )
+        : null}
     </section>
   )
 }
@@ -515,16 +646,19 @@ function MarkdownPreview({
 
 function DocumentFilePreview({
   preview,
+  platform,
   draft,
   theme,
   markdownFileEditingMode,
   htmlFileOpenMode,
+  allowAutoFocus,
   markdownCompatibilityProfile,
   navigationTarget,
   onOpenInternalLink,
   focusRequestToken,
   focusShortcutLabel,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onSaved,
   onReload,
@@ -535,6 +669,7 @@ function DocumentFilePreview({
   theme: ResolvedAppearance
   markdownFileEditingMode: EidosLiteMarkdownEditingMode
   htmlFileOpenMode: "preview" | "source"
+  allowAutoFocus: boolean
   markdownCompatibilityProfile: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -546,6 +681,7 @@ function DocumentFilePreview({
   focusShortcutLabel?: string
   onReveal(): void
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -574,6 +710,7 @@ function DocumentFilePreview({
       <EditableTextFile
         key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
+        platform={platform}
         draft={draft}
         theme={theme}
         editingMode={markdownFileEditingMode}
@@ -583,6 +720,7 @@ function DocumentFilePreview({
         focusRequestToken={focusRequestToken}
         focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}
+        saveStatusTarget={saveStatusTarget}
         onEditingModeChange={onEditingModeChange}
         onSaved={onSaved}
         onReload={onReload}
@@ -617,12 +755,14 @@ function DocumentFilePreview({
           <EditableTextFile
             key={preview.editorIdentity ?? preview.relativePath}
             preview={preview}
+            platform={platform}
             draft={draft}
             theme={theme}
             editingMode="source"
-            autoFocus
+            autoFocus={allowAutoFocus}
             focusRequestToken={focusRequestToken}
             focusShortcutLabel={focusShortcutLabel}
+            saveStatusTarget={saveStatusTarget}
             onEditingModeChange={onEditingModeChange}
             onSaved={onSaved}
             onReload={onReload}
@@ -640,12 +780,14 @@ export function TextFilePreview({
   theme,
   markdownFileEditingMode = "source",
   htmlFileOpenMode = "preview",
+  allowAutoFocus = true,
   markdownCompatibilityProfile = "eidos",
   navigationTarget,
   onOpenInternalLink,
   platform,
   focusRequestToken = 0,
   keyboardShortcuts,
+  saveStatusTarget,
   onEditingModeChange,
   onReveal,
   onSaved,
@@ -657,6 +799,8 @@ export function TextFilePreview({
   theme: ResolvedAppearance
   markdownFileEditingMode?: EidosLiteMarkdownEditingMode
   htmlFileOpenMode?: "preview" | "source"
+  /** Background previews keep keyboard focus in their owning record view. */
+  allowAutoFocus?: boolean
   markdownCompatibilityProfile?: EidosLiteMarkdownCompatibilityProfile
   navigationTarget?: MarkdownEditorNavigationTarget
   onOpenInternalLink?(
@@ -666,6 +810,7 @@ export function TextFilePreview({
   platform: string
   focusRequestToken?: number
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
+  saveStatusTarget?: HTMLElement | null
   onEditingModeChange?(mode: EidosLiteMarkdownEditingMode): void
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -719,6 +864,7 @@ export function TextFilePreview({
           theme={theme}
           markdownFileEditingMode={markdownFileEditingMode}
           htmlFileOpenMode={htmlFileOpenMode}
+          allowAutoFocus={allowAutoFocus}
           markdownCompatibilityProfile={markdownCompatibilityProfile}
           navigationTarget={navigationTarget}
           onOpenInternalLink={onOpenInternalLink}
@@ -726,6 +872,7 @@ export function TextFilePreview({
           focusRequestToken={focusRequestToken}
           focusShortcutLabel={focusShortcutLabel}
           keyboardShortcuts={keyboardShortcuts}
+          saveStatusTarget={saveStatusTarget}
           onEditingModeChange={onEditingModeChange}
           onReveal={onReveal}
           onSaved={onSaved}
@@ -738,9 +885,11 @@ export function TextFilePreview({
       <EditableTextFile
         key={preview.editorIdentity ?? preview.relativePath}
         preview={preview}
+        platform={platform}
         draft={draft}
         theme={theme}
         navigationTarget={navigationTarget}
+        saveStatusTarget={saveStatusTarget}
         focusRequestToken={focusRequestToken}
         focusShortcutLabel={focusShortcutLabel}
         keyboardShortcuts={keyboardShortcuts}

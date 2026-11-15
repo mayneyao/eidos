@@ -154,6 +154,20 @@ export function assertEncryptedSdk(sdk, version) {
   )
 }
 
+export function assertMergeSdk(sdk) {
+  for (const method of [
+    "exportMergeSqliteVersion",
+    "normalizeMergeSqliteInputs",
+  ]) {
+    if (typeof sdk.RepositorySession?.prototype?.[method] !== "function")
+      throw new Error(`Published Graft SDK lacks the required ${method} API`)
+  }
+  if (sdk.operationMaterializesWorktree("normalizeMergeSqliteInputs") !== true)
+    throw new Error(
+      "Published Graft SDK lacks schema merge materialization coordination"
+    )
+}
+
 export function assertEncryptedRemote(packageRoot) {
   // Resolve with Node's import condition from the consuming project's directory.
   // Remote intentionally has import-only exports; require.resolve rejects it.
@@ -210,6 +224,7 @@ async function verify(surface) {
       require("@eidos.space/graft"),
       lite.dependencies["@eidos.space/graft"]
     )
+    assertMergeSdk(require("@eidos.space/graft"))
   }
   assertEncryptedRemote(
     surface === "lite" ? appRoot : path.join(root, "apps/graft-remote")

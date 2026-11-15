@@ -63,6 +63,7 @@ import {
   type EidosSyncMergeContinueRequest,
   type EidosSyncMergePathsRequest,
   type EidosSyncMergeResolvePathRequest,
+  type EidosSyncMergeSchemaChoice,
   type EidosSyncMergeResolveCellRequest,
   type EidosSyncMergeResolveRowRequest,
   type EidosSyncMergeResolveTableRequest,
@@ -1908,6 +1909,11 @@ export function registerIpc(
       .requireSession(event.sender)
       .importMarkdownImage(markdownImageImportRequest(value))
   )
+  ipcMain.handle(IPC_CHANNELS.importMarkdownFile, (event, value: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .importMarkdownFile(markdownImageImportRequest(value))
+  )
   ipcMain.handle(
     IPC_CHANNELS.resolveMarkdownImage,
     (event, relativePath: unknown, markdownUrl: unknown) => {
@@ -2078,6 +2084,28 @@ export function registerIpc(
       if (result.relativePath) {
         try {
           publishEngine.remapBindings(session, source, result.relativePath)
+        } catch (error) {
+          console.warn("Could not remap Publication bindings after move", error)
+        }
+      }
+      return result
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.movePaths,
+    async (event, relativePaths: unknown, targetDirectory: unknown) => {
+      const session = controller.requireSession(event.sender)
+      if (!Array.isArray(relativePaths) || relativePaths.length === 0)
+        throw new Error("Expected Space paths")
+      const result = await session.movePaths(
+        relativePaths.map((value: unknown) =>
+          requiredString(value, "Space path")
+        ),
+        optionalRelativePath(targetDirectory)
+      )
+      for (const move of result.moves) {
+        try {
+          publishEngine.remapBindings(session, move.source, move.relativePath)
         } catch (error) {
           console.warn("Could not remap Publication bindings after move", error)
         }
@@ -3876,6 +3904,70 @@ export function registerIpc(
       return controller
         .requireSession(event.sender)
         .resolveSyncMergePath(request.stateToken, request.path, request.result)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeSqlitePreview, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeVersionRequest(value)
+      if (request.version === "result")
+        throw new Error("Preview requires an immutable version")
+      const tables = (value as Record<string, unknown>).tables
+      if (
+        !Array.isArray(tables) ||
+        tables.length > 16 ||
+        tables.some((table) => typeof table !== "string" || table.length > 256)
+      )
+        throw new Error("Invalid preview table selection")
+      return controller
+        .requireSession(event.sender)
+        .readSyncMergeSqlitePreview(
+          request.stateToken,
+          request.path,
+          request.version,
+          tables as string[]
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeSchemaPlan, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .readSyncMergeSchemaPlan(request.stateToken, request.path)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolveSchema, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      const choices = (value as Record<string, unknown>).choices
+      if (
+        !Array.isArray(choices) ||
+        choices.length > 256 ||
+        choices.some(
+          (choice) =>
+            typeof choice !== "object" ||
+            choice === null ||
+            typeof choice.fieldId !== "string" ||
+            choice.fieldId.length > 256 ||
+            !["ours", "theirs"].includes(choice.result)
+        )
+      )
+        throw new Error("Invalid schema choices")
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergeSchema(
+          request.stateToken,
+          request.path,
+          choices as EidosSyncMergeSchemaChoice[]
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeCombinePath, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .combineSyncMergePath(request.stateToken, request.path)
     })
   )
   ipcMain.handle(IPC_CHANNELS.syncMergeResolveRow, (event, value: unknown) =>

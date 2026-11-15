@@ -158,6 +158,146 @@ describe("MergeTableDiff", () => {
     expect(onResolveTable).toHaveBeenCalledWith("Projects", "ours")
   })
 
+  it("shares unchanged cells within each record and recomputes spans when Base is toggled", async () => {
+    const conflicts = [
+      rowConflict("project-1", "Projects", "Atlas"),
+      rowConflict("project-2", "Projects", "Atlas"),
+    ]
+    const render = (showBase: boolean) =>
+      act(async () =>
+        root.render(
+          createElement(MergeTableDiff, {
+            conflicts,
+            showBase,
+            disabled: false,
+            identityKey: "portfolio.eidos",
+            onResolveRow: vi.fn(),
+            onResolveTable: vi.fn(),
+          })
+        )
+      )
+    for (const showBase of [true, false, true]) {
+      await render(showBase)
+      const groups = host.querySelectorAll("tbody")
+      expect(groups).toHaveLength(2)
+      for (const group of groups) {
+        const shared = group.querySelectorAll<HTMLTableCellElement>(
+          'td[data-cell-change="shared"]'
+        )
+        expect(shared).toHaveLength(1)
+        expect(shared[0]!.textContent).toBe("Atlas")
+        expect(shared[0]!.rowSpan).toBe(showBase ? 3 : 2)
+        expect(group.querySelectorAll("td[data-cell-conflict]")).toHaveLength(4)
+      }
+    }
+  })
+
+  it.each([
+    { values: ["Before", "Before", "After"], spans: [2, 1] },
+    { values: ["Before", "After", "After"], spans: [1, 2] },
+    { values: ["Same", "Different", "Same"], spans: [1, 1, 1] },
+    { values: [null, null, null], spans: [3] },
+    { values: [1, "1", 1], spans: [1, 1, 1] },
+    { values: [null, "null", null], spans: [1, 1, 1] },
+  ])(
+    "only spans adjacent equal typed values: $values",
+    async ({ values, spans }) => {
+      const conflict: EidosSyncMergeConflict = {
+        ...rowConflict("project-1", "Projects", "Atlas"),
+        columns: ["_id", "Name", "Value"],
+        baseRow: ["project-1", "Atlas", values[0]],
+        oursRow: ["project-1", "Atlas", values[1]],
+        theirsRow: ["project-1", "Atlas", values[2]],
+      }
+      await act(async () =>
+        root.render(
+          createElement(MergeTableDiff, {
+            conflicts: [conflict],
+            showBase: true,
+            disabled: false,
+            identityKey: "portfolio.eidos",
+            onResolveRow: vi.fn(),
+            onResolveTable: vi.fn(),
+          })
+        )
+      )
+      // All fields includes an unchanged Value column as well as changed values.
+      await act(async () =>
+        [...host.querySelectorAll("button")]
+          .find((item) => item.textContent === "All fields")
+          ?.click()
+      )
+      const cells = host.querySelectorAll<HTMLTableCellElement>(
+        "tbody tr > td:last-child"
+      )
+      expect([...cells].map((cell) => cell.rowSpan)).toEqual(spans)
+      expect([...cells].map((cell) => cell.textContent)).toEqual(
+        values
+          .filter((_, index) =>
+            index === 0 ? true : !Object.is(values[index - 1], values[index])
+          )
+          .map(String)
+      )
+    }
+  )
+
+  it("keeps absent rows and per-cell resolution controls separate", async () => {
+    const conflict: EidosSyncMergeConflict = {
+      ...rowConflict("project-1", "Projects", "Atlas"),
+      columns: ["_id", "Name", "Status"],
+      baseRow: ["project-1", "Atlas", null],
+      oursRow: undefined,
+      theirsRow: ["project-1", "Atlas", null],
+      oursOperation: "delete",
+    }
+    const render = (item: EidosSyncMergeConflict) =>
+      act(async () =>
+        root.render(
+          createElement(MergeTableDiff, {
+            conflicts: [item],
+            showBase: true,
+            disabled: false,
+            identityKey: "portfolio.eidos",
+            onResolveRow: vi.fn(),
+            onResolveCell: vi.fn(),
+            onResolveTable: vi.fn(),
+          })
+        )
+      )
+    await render(conflict)
+    expect(
+      host.querySelectorAll("td[rowspan='2'], td[rowspan='3']")
+    ).toHaveLength(0)
+    expect(
+      [
+        ...host.querySelectorAll<HTMLTableCellElement>(
+          "tbody tr > td:last-child"
+        ),
+      ].map((cell) => cell.textContent)
+    ).toEqual(["null", "—", "null"])
+
+    await render({
+      ...conflict,
+      oursRow: conflict.baseRow,
+      cells: [{ column: "Status", base: null, local: null, hosted: null }],
+    })
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((item) => item.textContent === "All fields")
+        ?.click()
+    )
+    expect(
+      host.querySelectorAll("button[aria-label*='value for Status']")
+    ).toHaveLength(2)
+    expect(
+      [
+        ...host.querySelectorAll<HTMLTableCellElement>(
+          "tbody tr > td:last-child"
+        ),
+      ].map((cell) => cell.rowSpan)
+    ).toEqual([1, 1, 1])
+  })
+
   it("keeps multiple conflicting records in one compact table group", async () => {
     const onResolveRow = vi.fn()
     const atlas = rowConflict("project-1", "Projects", "Atlas")

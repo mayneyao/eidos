@@ -70,9 +70,17 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
   if (!view) return null
   return (
     <EidosFileGalleryView
+      onPreviewRecord={
+        props.onOpenRecord
+          ? (row) => props.onOpenRecord?.(String(row._id))
+          : undefined
+      }
       onOpenRecord={
-        props.onInspectedRowChange
-          ? (row) => props.onInspectedRowChange?.(String(row._id))
+        props.onOpenRecord || props.onInspectedRowChange
+          ? (row) =>
+              (props.onOpenRecord ?? props.onInspectedRowChange)?.(
+                String(row._id)
+              )
           : undefined
       }
       table={table}
@@ -80,6 +88,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       searchResultIndex={props.searchResultIndex}
+      recordFocus={props.recordFocus}
       loadPage={loadPage}
       loadRow={
         source.getRow

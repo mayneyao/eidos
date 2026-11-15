@@ -1332,6 +1332,9 @@ conversion 不得自动 reapply。
 
 ### 11.3 Undo/redo
 
+单次 undo 或 redo action 必须只应用选中的 history entry 一次，即使应用时同步
+渲染了新的 callback。后续 action 仍各自独立，包括 cell 与 value 相同的 entry。
+
 Undo 是新的 Runtime mutation，不是 byte rollback。每个 committed action 记录
 returned revision、affected stable ID 与 Runtime 提供的 undo token。Undo request 使用
 current revision 调 `revertMutation`；成功会消费该 token，redo 使用 result 返回的
@@ -1449,6 +1452,34 @@ Filter label 必须保留 Runtime 第 7.1 节的 total-Boolean semantics。具�
 发送 `not(in(...))`，对 list 发送 `not(has-any(...))`。这些 negative label 会包含
 scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 或其他会
 泄漏 SQL UNKNOWN 的 expression 实现它们。
+
+普通 stored Field 转为 Checkbox 使用非空目标。存在 NULL 时，editor
+必须显示将变为未勾选的空值精确数量，并要求确认该 Runtime plan。取消、未确认
+请求或过期确认不得改变数据和 schema；刷新后的影响需要重新确认。打开或无关
+编辑不会重写既有 nullable Field。
+
+新建 Checkbox Field 使用 Runtime 的非空默认。清空、删除或空白粘贴必须提交
+false，多格编辑亦同；显式 typed NULL 在 Runtime boundary 仍无效。既有 nullable
+Checkbox 保留 NULL 状态和清空为 NULL 的行为。CSV 新建表导入使用 canonical
+新建表转换计划：空白 Checkbox cell 转成未勾选（false），预览显示 false 并说明
+转换，原 CSV 字节不变。这是转换到新的二值 Field，不是 nullable Checkbox 值
+的无损往返。直接向既有 Table 调用 Runtime CSV import 仍保留 NULL 与约束行为。
+
+对明确标识为新建且未保存的 Record draft，省略的 required stored Checkbox
+输入显示为未勾选，与 Runtime 的 create 默认一致。渲染不得把默认值写入 draft
+或保存 row。显式 NULL、nullable Field、derived 值、正在加载的记录，以及既有
+或部分投影 Record 中缺失的值，保留空值或不可用含义。不得通过 row ID 判断该
+新记录上下文。
+
+Checkbox condition 使用单个状态选择器，无需分别选择 operator 和 Boolean operand。
+常规选项只有已勾选/未勾选，发送 `eq true`/`eq false`。只有该 Field 在整张 Table
+中实际存在 SQL NULL 时才提供空值相关选项，不受当前 View filter、search 或分页影响。
+仅 nullable 或来自旧文件不能证明存在空值。已经保存的空值相关 condition 即使当前
+没有匹配行，也继续可见、可编辑。Editor 在打开选择器时检查，并忽略 Field/source
+改变后的过期异步结果。为空/不为空发送 `is-null`/`is-not-null`；
+未勾选或为空发送 `ne true`，已勾选或为空发送 `ne false`。这些 label 保留 Runtime
+精确的 null 区别，必须在既有 View filter 往返时保持成员集合不变。Host 提供的
+custom filter editor 可以保留专用控件。
 
 **为空**与**不为空**是 shape-aware label。对 scalar 分别发送 `is-null` 与
 `is-not-null`；对 Multi-select、File、Relation 或其他 list result 分别发送 `eq []`

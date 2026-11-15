@@ -5,7 +5,9 @@ import { beforeEach, vi } from "vitest"
 const editorModuleLoaded = vi.hoisted(() => vi.fn())
 const saveTextFile = vi.hoisted(() => vi.fn())
 const editorSurfaceRendered = vi.hoisted(() =>
-  vi.fn<(props: { onChange(content: string): void }) => void>()
+  vi.fn<
+    (props: { onChange(content: string): void; autoFocus?: boolean }) => void
+  >()
 )
 
 vi.mock("./pierre-text-editor-surface", () => {
@@ -121,9 +123,13 @@ describe("TextFilePreview", () => {
     expect(saveTextFile).not.toHaveBeenCalled()
   })
 
-  it.each(["preview", "source"] as const)(
-    "opens HTML in %s mode without a toolbar",
-    async (htmlFileOpenMode) => {
+  it.each([
+    ["preview", true],
+    ["source", true],
+    ["source", false],
+  ] as const)(
+    "opens HTML in %s mode without a toolbar (allow autofocus: %s)",
+    async (htmlFileOpenMode, allowAutoFocus) => {
       const preview = {
         type: "text",
         relativePath: "dashboard.html",
@@ -145,6 +151,7 @@ describe("TextFilePreview", () => {
         createElement(TextFilePreview, {
           preview,
           htmlFileOpenMode,
+          allowAutoFocus,
           theme: "light",
           platform: "darwin",
           onReveal: () => undefined,
@@ -159,6 +166,10 @@ describe("TextFilePreview", () => {
       expect(markup).toContain(
         `data-document-file-preview-mode="${htmlFileOpenMode === "source" ? "edit" : "preview"}"`
       )
+      if (htmlFileOpenMode === "source")
+        expect(editorSurfaceRendered.mock.lastCall?.[0].autoFocus).toBe(
+          allowAutoFocus
+        )
       if (htmlFileOpenMode === "preview")
         expect(markup).toContain('class="html-preview-host"')
       else expect(markup).not.toContain('class="html-preview-host"')

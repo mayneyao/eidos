@@ -15,7 +15,7 @@ import { isDeniedEfmUri } from "../markdown/efm-uri"
 import { resizeImageSource } from "../markdown/resize-image-source"
 import type { MarkdownEditorLabels } from "../types"
 
-/** Touch-only image actions; scrolling cancels the long press. */
+/** Image actions own short taps and holds before generic mobile block selection. */
 export function MobileImagePlugin({
   labels,
 }: {
@@ -31,32 +31,52 @@ export function MobileImagePlugin({
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    let origin: { x: number; y: number; id: number } | null = null
+    let origin: { x: number; y: number; id: number; target: Element } | null =
+      null
+    let tapTarget: Element | null = null
+    let touchInteraction = false
     let consumed = false
+    const imageTarget = (event: Event) => {
+      const element = event.target instanceof Element ? event.target : null
+      // Import buttons and resize handles retain their own pointer/keyboard behavior.
+      if (
+        element?.closest(
+          "button, input, textarea, a[href], [data-efm-editor-interactive='true']"
+        )
+      )
+        return null
+      return (
+        element?.closest(
+          "[data-efm-image-block], .eme-efm-image, .eme-efm-image-unavailable"
+        ) ?? null
+      )
+    }
     const cancel = () => {
       clearTimeout(timer)
       origin = null
+      tapTarget = null
     }
     const down = (event: PointerEvent) => {
       cancel()
       consumed = false
+      touchInteraction = event.pointerType !== "mouse"
       if (
         event.pointerType === "mouse" ||
         !event.isPrimary ||
         !editor.isEditable()
       )
         return
-      const target =
-        event.target instanceof Element
-          ? event.target.closest(
-              "[data-efm-image-block], .eme-efm-image, .eme-efm-image-unavailable"
-            )
-          : null
+      const target = imageTarget(event)
       if (!target) return
       // Do not move the caret or summon the keyboard before the hold completes.
       // Pointer cancellation still lets the browser take over a scrolling gesture.
       event.preventDefault()
-      origin = { x: event.clientX, y: event.clientY, id: event.pointerId }
+      origin = {
+        x: event.clientX,
+        y: event.clientY,
+        id: event.pointerId,
+        target,
+      }
       selection.current = editor
         .getEditorState()
         .read(() => $getSelection()?.clone() ?? null)
@@ -89,18 +109,25 @@ export function MobileImagePlugin({
         cancel()
     }
     const click = (event: MouseEvent) => {
-      if (!consumed) return
-      consumed = false
+      const target = imageTarget(event)
+      if (!target) return
+      // WebView emits click after touch pointerup even when pointerdown was
+      // prevented. It must never fall through to the generic source editor.
       event.preventDefault()
       event.stopImmediatePropagation()
+      if (!consumed && (!touchInteraction || tapTarget === target)) open(target)
+      consumed = false
+      touchInteraction = false
+      tapTarget = null
+    }
+    const up = (event: PointerEvent) => {
+      if (origin?.id !== event.pointerId) return
+      clearTimeout(timer)
+      tapTarget = origin.target
+      origin = null
     }
     const context = (event: MouseEvent) => {
-      const target =
-        event.target instanceof Element
-          ? event.target.closest(
-              "[data-efm-image-block], .eme-efm-image, .eme-efm-image-unavailable"
-            )
-          : null
+      const target = imageTarget(event)
       if (!target) return
       event.preventDefault()
       cancel()
@@ -115,14 +142,14 @@ export function MobileImagePlugin({
       root?.addEventListener("contextmenu", context)
     })
     window.addEventListener("pointermove", move, true)
-    window.addEventListener("pointerup", cancel, true)
+    window.addEventListener("pointerup", up, true)
     window.addEventListener("pointercancel", cancel, true)
     window.addEventListener("scroll", cancel, true)
     return () => {
       cancel()
       unregister()
       window.removeEventListener("pointermove", move, true)
-      window.removeEventListener("pointerup", cancel, true)
+      window.removeEventListener("pointerup", up, true)
       window.removeEventListener("pointercancel", cancel, true)
       window.removeEventListener("scroll", cancel, true)
     }

@@ -187,6 +187,57 @@ describe("SourceRangeEditingPlugin integration", () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
+  it.each(["done", "cancel", "native-back"])(
+    "exits a mobile image source draft through %s",
+    async (action) => {
+      const markdown =
+        "Before\n\n![Cover](https://example.com/cover.png)\n\nAfter"
+      await renderEditor(markdown, false, undefined, "mobile")
+      await act(async () => {
+        selectBlocks(1)
+        openSourceEditor()
+      })
+      await flushEditor()
+      const textarea = container.querySelector<HTMLTextAreaElement>(
+        "[data-source-range-textarea]"
+      )!
+      expect(textarea).not.toBeNull()
+      expect(container.querySelector("[data-source-shortcut-hint]")).toBeNull()
+      await act(async () =>
+        changeTextarea(textarea, "![Updated](https://example.com/cover.png)")
+      )
+      await act(async () => {
+        if (action === "native-back")
+          document.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Escape",
+              bubbles: true,
+              cancelable: true,
+            })
+          )
+        else
+          Array.from(
+            container.querySelectorAll<HTMLButtonElement>(
+              ".eme-source-touch-actions button"
+            )
+          )
+            .find(
+              (button) =>
+                button.textContent === (action === "done" ? "Done" : "Cancel")
+            )!
+            .click()
+      })
+      await flushEditor()
+      expect(container.querySelector("[data-source-range-editor]")).toBeNull()
+      expect(container.querySelector("img")?.alt).toBe(
+        action === "done" ? "Updated" : "Cover"
+      )
+      if (action === "done")
+        expect(onMarkdownChange.mock.lastCall?.[0]).toContain("![Updated]")
+      else expect(onMarkdownChange).not.toHaveBeenCalled()
+    }
+  )
+
   it.each([
     ["desktop", false, "floating"],
     ["read-only mobile", true, "mobile"],

@@ -134,7 +134,8 @@ export async function tableViewRequest(
       throw new Error("Invalid row")
     const row = await source.getRow?.(table.table.id, rowId)
     if (!row) throw new Error("Record is unavailable")
-    props.onInspectedRowChange?.(rowId)
+    const openRecord = props.onOpenRecord ?? props.onInspectedRowChange
+    openRecord?.(rowId)
     return null
   }
   if (request.method === "table.aggregate") {

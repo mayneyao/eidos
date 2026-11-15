@@ -5,6 +5,9 @@ import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it, vi } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
+import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
+import { expectCheckboxConversionConformance } from "./checkbox-conversion.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
@@ -54,6 +57,48 @@ const runtimeContext = (requestId: string) => ({
 })
 
 it.runIf(supportsElectron43NodeSqlite)(
+  "converts Checkbox NULL only after an atomic confirmed plan in Node SQLite",
+  async () => {
+    const connection = new NodeSqliteConnectionPort(
+      new DatabaseSync(":memory:")
+    )
+    try {
+      await expectCheckboxConversionConformance(connection)
+    } finally {
+      connection.close()
+    }
+  }
+)
+
+it.runIf(supportsElectron43NodeSqlite)(
+  "creates binary Checkbox fields by default in Node SQLite",
+  async () => {
+    const connection = new NodeSqliteConnectionPort(
+      new DatabaseSync(":memory:")
+    )
+    try {
+      await expectCheckboxBinaryConformance(connection)
+    } finally {
+      connection.close()
+    }
+  }
+)
+
+it.runIf(supportsElectron43NodeSqlite).each([false, true])(
+  "keeps Checkbox defaults and explicit null distinct in Node SQLite (legacy=%s)",
+  async (legacy) => {
+    const connection = new NodeSqliteConnectionPort(
+      new DatabaseSync(":memory:")
+    )
+    try {
+      await expectCheckboxDefaultConformance(connection, legacy)
+    } finally {
+      connection.close()
+    }
+  }
+)
+
+it.runIf(supportsElectron43NodeSqlite)(
   "keeps bulk-import schema reads bounded while validating every row ID",
   () => {
     const database = new DatabaseSync(":memory:")
@@ -92,13 +137,14 @@ it.runIf(supportsElectron43NodeSqlite)(
   }
 )
 
-it.runIf(supportsElectron43NodeSqlite).each(["vtab:unknown", "vtab:fs_meta"])(
+it
+  .runIf(supportsElectron43NodeSqlite)
+  .each(["vtab:unknown", "vtab:fs_meta", "query:unknown"])(
   "rejects unavailable required feature %s before querying its schema",
-  (feature) => {
+  async (feature) => {
     const database = new DatabaseSync(":memory:")
-    const connection = new ConnectionPortEidosFileConnection(
-      new NodeSqliteConnectionPort(database)
-    )
+    const port = new NodeSqliteConnectionPort(database)
+    const connection = new ConnectionPortEidosFileConnection(port)
     try {
       initializeEidosFileSchema(connection, { title: "Capabilities" })
       database
@@ -106,10 +152,7 @@ it.runIf(supportsElectron43NodeSqlite).each(["vtab:unknown", "vtab:fs_meta"])(
           "INSERT INTO eidos__features (name, version, required, config_json) VALUES (?, '1.0.0', 1, '{}')"
         )
         .run(feature)
-      expect(validateEidosFile(connection, { level: "identity" }).valid).toBe(
-        true
-      )
-      for (const level of ["structural", "full"] as const) {
+      for (const level of ["identity", "structural", "full"] as const) {
         expect(validateEidosFile(connection, { level })).toMatchObject({
           valid: false,
           errors: [
@@ -120,8 +163,21 @@ it.runIf(supportsElectron43NodeSqlite).each(["vtab:unknown", "vtab:fs_meta"])(
           ],
         })
       }
+      for (const mode of ["read", "readwrite"] as const) {
+        await expect(
+          Runtime.open(port, runtimeEnvironment(), mode, runtimeFactoryContext)
+        ).rejects.toMatchObject({ code: "corrupt-file" })
+        expect(
+          database.prepare("SELECT required FROM eidos__features").get()
+        ).toMatchObject({ required: 1 })
+      }
       database.exec("UPDATE eidos__features SET required = 0")
       expect(validateEidosFile(connection).valid).toBe(true)
+      for (const mode of ["read", "readwrite"] as const) {
+        await expect(
+          Runtime.open(port, runtimeEnvironment(), mode, runtimeFactoryContext)
+        ).resolves.toHaveProperty("service")
+      }
     } finally {
       database.close()
     }

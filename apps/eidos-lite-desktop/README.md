@@ -91,7 +91,7 @@ must complete before enabling named resources across supported platforms.
 > architecture and verification contract.
 
 Local Spaces, editing, and version history require no account. Eidos Lite uses
-Graft SDK 0.3.38 for durable merge state,
+Graft SDK 0.3.40 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -258,6 +258,26 @@ raw filesystem path or handle. The import runs through the Space mutation gate
 and participates in whole-Space history and Sync. Content fields intentionally
 remain outside this filesystem attachment policy.
 
+Drag an existing file from the Space Explorer tree onto a Markdown document to
+reference it at the pointer position. Ordinary files become clickable links;
+images appear directly. This works in both Rich text and Source, in the main
+editor or the file sidebar. Source inserts the corresponding Markdown. Dragging
+several selected files keeps their order and is one undo step. The original files
+stay in place and are reused without copying. A drag belongs to its originating
+Space; switching the target document while files are being resolved cancels it.
+
+Drop ordinary files from the system file manager onto a Space Explorer folder
+or its blank root area to copy them into that location. Sources remain intact;
+existing destinations and duplicate names within a batch are rejected. Imported
+files are available to file search as soon as import completes. In Rich text,
+type `[[` to find an existing file. An image offers **Insert link** (a clickable
+reference) and **Insert image** (an image block using the same file). Use the
+arrow keys and Enter/Tab or click either option. The image action writes standard
+Markdown with a `/` URL rooted in this Space, never an OS absolute path. It
+resolves that exact file, including when other folders contain the same name;
+a missing target stays unavailable. Source mode supports editing the Markdown
+directly but does not show this completion menu. `![[...]]` remains literal text.
+
 Packaged staging acceptance has exercised this exact UI path with the resident
 SDK: whole-Space push, cold clone into a second ordinary folder, and pull while
 an Eidos File editor handle was open all completed with full validation and
@@ -313,7 +333,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the `@eidos.space/graft@0.3.38` Node-API SDK contract.
+Graft runs through the `@eidos.space/graft@0.3.40` Node-API SDK contract.
 The SDK and its five native packages use exact registry versions recorded in
 the lockfile. Production and release builds reject local dependency overrides
 and require the installed native addon to provide the encrypted-session API.
@@ -322,7 +342,7 @@ local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
 `RepositorySession` for that Space. Normal status, diff, history, checkpoint,
 restore, push, and clone paths use only the SDK; Lite contains no Graft CLI
-adapter, subprocess fallback, or bundled CLI binary.
+adapter, subprocess fallback, or bundled Graft CLI binary.
 
 ## Local development
 
@@ -341,6 +361,40 @@ EIDOS_LITE_STAGING_ACCOUNT_STATE=/owner-only/path/to/smoke-account.json \
 pnpm build:eidos-lite
 pnpm dev:eidos-lite
 ```
+
+### Repeatable merge UI demo
+
+Run `pnpm demo:eidos-lite:merge` from the repository root. The command creates
+five offline merge scenarios, validates the conflicts, and starts
+`pnpm dev:eidos-lite` with a separate user profile. The scenarios cover text
+edits, deletion of a parent directory, conflicting row cells, a field rename,
+and compatible View changes that the Runtime can merge automatically.
+
+Quit the development app before starting another round. Each invocation creates
+a new run and preserves earlier results, including completed or aborted merges.
+The output folder contains macOS and Windows launchers for starting another
+round, plus `CURRENT.txt` and `latest.json` pointing to the latest Demo Space.
+After opening, expect four unresolved files and one automatically resolved file.
+
+To exercise the engine workflow against private copies of a generated run:
+
+```sh
+pnpm verify:eidos-lite:merge-demo /absolute/path/to/runs/<run>
+```
+
+The verifier leaves the interactive Demo unchanged. It checks automatic merge
+after Undo/reopen, schema decisions followed by record choices, preservation of
+both sides' inserted records, deleted directories, independent cell choices,
+manual text, stale-token rejection, Complete Merge, Abort, and canonical File
+validation. Results are saved under that run's `verification-*/report.json`.
+
+The default output is `~/eidos-lite-demos/merge-conflicts`. Use `--output <folder>`
+or `EIDOS_LITE_MERGE_DEMO_ROOT` in `.env.development.local` to choose another
+location outside existing Graft repositories. The local `fs://` remote currently
+requires an output path without whitespace. `--create-only` prepares a run
+without launching the UI. The demo reads the same development SDK override as
+Vite; unpublished SDK testing uses the documented `EIDOS_LITE_GRAFT_SDK_PATH`
+setting. No cloud account is needed.
 
 Lite follows the system language by default and currently includes English and
 Simplified Chinese. The preference in **Settings > Appearance > Language** also

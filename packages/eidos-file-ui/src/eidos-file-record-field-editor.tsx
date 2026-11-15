@@ -52,6 +52,8 @@ function dateTimeInputValue(
 type FieldEditorProps = {
   field: EidosFileFieldInfo
   row: EidosFileRow
+  /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean
   placeholder?: string
   appearance?: "field" | "record-title" | "record-property" | "compact"
   disabled: boolean
@@ -76,6 +78,7 @@ export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
 function FieldEditorControl({
   field,
   row,
+  isNewRecord = false,
   placeholder,
   appearance = "field",
   disabled,
@@ -219,8 +222,16 @@ function FieldEditorControl({
   })
 
   if (field.type === "checkbox") {
+    const omittedDefault =
+      isNewRecord &&
+      !Object.hasOwn(row, field.tableColumnName) &&
+      field.nullable === false &&
+      field.valueKind === "source" &&
+      field.storageCodec === "scalar" &&
+      !field.isDerived &&
+      field.systemRole == null
     const checkboxValue =
-      value === null || value === undefined
+      (value === null || value === undefined) && !omittedDefault
         ? "empty"
         : value === true || value === 1 || value === "1"
           ? "checked"
@@ -264,14 +275,16 @@ function FieldEditorControl({
       )
     return (
       <Select
-        value={checkboxValue}
+        value={omittedDefault ? "" : checkboxValue}
         disabled={disabled}
         onValueChange={(next) =>
           void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
         }
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
-          <SelectValue />
+          <SelectValue
+            placeholder={omittedDefault ? t("Unchecked") : undefined}
+          />
         </SelectTrigger>
         <SelectContent>
           {field.nullable !== false ? (

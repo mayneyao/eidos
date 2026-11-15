@@ -139,6 +139,7 @@ export function ShareRecordEditor({
           <EidosFileRecordInspector
             variant="page"
             row={row}
+            isNewRecord
             fields={table.fields.filter((f) => !f.systemRole)}
             contentField={table.fields.find(
               (f) => f.id === table.table.contentFieldId

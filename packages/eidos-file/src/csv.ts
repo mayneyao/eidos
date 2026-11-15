@@ -305,16 +305,35 @@ export function planEidosFileCsvImport(
   return plan
 }
 
+/** Prepare a new table; blank Checkbox cells explicitly become false. */
 export function prepareEidosFileCsvImport(
   file: { name: string; content: string },
   options: EidosFileCsvImportOptions = {}
-): { plan: EidosFileCsvImportPlan; rows: EidosFileRow[] } {
+): { plan: EidosFileCsvImportPlan; rows: EidosFileRow[]; csv: string } {
   const { plan, parsed } = buildImportPlan(file, options)
+  const rows = parsed.rows.map((row, rowIndex) =>
+    eidosFileCsvRowToEidosFileRow(row, rowIndex + 2, plan)
+  )
   return {
     plan,
-    rows: parsed.rows.map((row, rowIndex) =>
-      eidosFileCsvRowToEidosFileRow(row, rowIndex + 2, plan)
-    ),
+    rows,
+    // Runtime.importCsv imports into an existing schema and preserves NULL.
+    // Encode the new-table plan explicitly, without changing source bytes or
+    // the other columns' parsed text, order, or CSV quoting semantics.
+    csv:
+      encodeEidosFileCsvRecord(parsed.header) +
+      parsed.rows
+        .map((row, index) => {
+          const values = [...row]
+          for (const column of plan.columns) {
+            if (column.type === "checkbox") {
+              values[column.sourceIndex] =
+                rows[index]![column.columnName] === 1 ? "true" : "false"
+            }
+          }
+          return encodeEidosFileCsvRecord(values)
+        })
+        .join(""),
   }
 }
 
@@ -408,7 +427,14 @@ export function createEidosFileCsvImportPlan(
     rowCount: source.rowCount,
     skippedRowCount: source.skippedRowCount,
     columns,
-    sampleRows: source.sampleRows,
+    sampleRows: source.sampleRows.map((row) =>
+      row.map((value, index) =>
+        columns.find((column) => column.sourceIndex === index)?.type ===
+          "checkbox" && !value.trim()
+          ? "false"
+          : value
+      )
+    ),
     issues: source.issues,
   }
 }
@@ -470,24 +496,39 @@ function convertValue(
   return value
 }
 
+/** Convert a CSV record for a new table, including blank Checkbox to false. */
 export function eidosFileCsvRowToEidosFileRow(
   row: string[],
   rowNumber: number,
   plan: EidosFileCsvImportPlan
 ): EidosFileRow {
+  return csvRowToEidosFileRow(row, rowNumber, plan, true)
+}
+
+function csvRowToEidosFileRow(
+  row: string[],
+  rowNumber: number,
+  plan: EidosFileCsvImportPlan,
+  binaryCheckbox: boolean
+): EidosFileRow {
   return Object.fromEntries(
     plan.columns.map((column) => [
       column.columnName,
-      convertValue(
-        row[column.sourceIndex] ?? "",
-        column.type,
-        rowNumber,
-        column.name
-      ),
+      binaryCheckbox &&
+      column.type === "checkbox" &&
+      !(row[column.sourceIndex] ?? "").trim()
+        ? 0
+        : convertValue(
+            row[column.sourceIndex] ?? "",
+            column.type,
+            rowNumber,
+            column.name
+          ),
     ])
   )
 }
 
+/** Parse records for an existing table; blank cells retain SQL NULL semantics. */
 export function parseEidosFileCsvRows(
   file: { name: string; content: string },
   plan: EidosFileCsvImportPlan,
@@ -495,6 +536,6 @@ export function parseEidosFileCsvRows(
 ): EidosFileRow[] {
   const hasHeader = options.hasHeader ?? true
   return parseCsv(file.content, hasHeader).rows.map((row, rowIndex) =>
-    eidosFileCsvRowToEidosFileRow(row, rowIndex + (hasHeader ? 2 : 1), plan)
+    csvRowToEidosFileRow(row, rowIndex + (hasHeader ? 2 : 1), plan, false)
   )
 }

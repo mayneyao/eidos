@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["src/node-sqlite.test.ts"],
+    include: ["src/node-sqlite.test.ts", "src/*.node-sqlite.test.ts"],
     maxWorkers: 1,
   },
 })

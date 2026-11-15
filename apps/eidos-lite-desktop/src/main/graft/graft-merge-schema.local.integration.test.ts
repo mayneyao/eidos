@@ -2558,7 +2558,7 @@ integrationDescribe("Eidos Lite Graft schema merge matrix", () => {
     }
   }, 120_000)
 
-  it("reports the reviewed multi-entry candidate and retains complete-file recovery", async () => {
+  it("merges the reviewed multi-entry candidate and retains complete-file recovery", async () => {
     const relativePath = "auto.eidos"
     const harness = await createHarness({
       prefix: "eidos-lite-schema-auto-",
@@ -2582,24 +2582,36 @@ integrationDescribe("Eidos Lite Graft schema merge matrix", () => {
           )
         )
       )
-      expect(merge.unmergedCount).toBe(1)
-      expect(
-        (
-          await harness.cloneClient.listMergeConflicts(
+      expect(merge.unmergedCount).toBe(0)
+      const mergedPath = path.join(harness.clone, relativePath)
+      expect(sqliteColumns(mergedPath, "union_columns")).toEqual(
+        expect.arrayContaining(["id", "local_value", "hosted_value"])
+      )
+      expect(sqliteColumns(mergedPath, "union_columns")).toHaveLength(3)
+      const mergedSchema = sqliteSchema(mergedPath)
+      for (const name of [
+        "local_table",
+        "hosted_table",
+        "idx_local",
+        "idx_hosted",
+        "view_local",
+        "view_hosted",
+        "trigger_local",
+        "trigger_hosted",
+      ]) {
+        expect(mergedSchema.has(name), name).toBe(true)
+      }
+      merge = mergeToken(
+        await materialize(harness, "unresolveMergePath", (signal) =>
+          harness.cloneClient.unresolveMergePath(
             harness.clone,
             relativePath,
             merge.stateToken,
-            { limit: 100 }
+            { signal }
           )
-        ).items
-      ).toEqual([
-        expect.objectContaining({
-          kind: "file",
-          reason: "automatic_merge_available",
-          recommendedAction: "apply_merge",
-          recommendedResult: "merged",
-        }),
-      ])
+        )
+      )
+      expect(merge.unmergedCount).toBe(1)
       const [oursDiff, theirsDiff] = await Promise.all([
         harness.cloneClient.diffMergeSqlite(
           harness.clone,

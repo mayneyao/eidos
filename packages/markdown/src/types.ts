@@ -15,6 +15,12 @@ export type EfmInputProfile = MarkdownInputMode
 export type BuiltInMarkdownProfileId = "eidos" | "obsidian" | "gfm"
 
 export interface MarkdownNoteCandidate {
+  /** Readable host path for the picker only. Preserve literal percent sequences;
+   * this text is never decoded or used as an insertion destination. */
+  displayPath?: string
+  /** Optional canonical image destination. Enables an explicit image action;
+   * selecting the ordinary candidate still inserts a wiki link. */
+  imageUrl?: string
   /** Optional alias label; the destination remains the canonical file path. */
   displayText?: string
   /** An unambiguous wiki-link target supplied by the host. */
@@ -27,6 +33,17 @@ export type MarkdownNoteSearchHandler = (request: {
   query: string
   signal: AbortSignal
 }) => Promise<readonly MarkdownNoteCandidate[]>
+
+/** The host recognizes and resolves its own file drag payload without copying files. */
+export interface MarkdownFileDropHandler {
+  onError?(error: Error): void
+  accepts(types: readonly string[]): boolean
+  resolve(request: {
+    documentKey: string
+    dataTransfer: DataTransfer
+    signal: AbortSignal
+  }): Promise<readonly MarkdownNoteCandidate[]>
+}
 
 export interface MarkdownEditorInternalLinkRequest {
   documentKey: string
@@ -192,6 +209,11 @@ export interface MarkdownEditorLabels {
   unfoldAllSections: string
 }
 
+export interface MarkdownFileCompletionLabels {
+  insertFileLink?: string
+  insertFileImage?: string
+}
+
 export interface MarkdownEditorInteractions {
   /** Floating text formatting toolbar. Does not disable formatting shortcuts. */
   toolbar?: boolean
@@ -224,7 +246,8 @@ export interface MarkdownEditorProps {
   onTextSearchUnavailable?: () => void
   /** Persists a pasted clipboard image and returns its canonical Markdown URL. */
   onPasteImage?: MarkdownEditorPasteImageHandler
-  /** Mobile insertion: the host picks and persists files before returning portable destinations. */
+  fileDrop?: MarkdownFileDropHandler
+  /** Image placeholders and mobile insertion: the host picks and persists files before returning portable destinations. */
   onImportFiles?: (request: {
     kind: "image" | "file"
     signal: AbortSignal
@@ -240,7 +263,7 @@ export interface MarkdownEditorProps {
   onError?(error: Error): void
   onEfmDiagnostics?(diagnostics: readonly EfmDiagnostic[]): void
   onUnsupportedMarkdown?(features: readonly MarkdownUnsupportedFeature[]): void
-  labels?: Partial<MarkdownEditorLabels>
+  labels?: Partial<MarkdownEditorLabels> & MarkdownFileCompletionLabels
   placeholder?: ReactNode
   ariaLabel?: string
   className?: string

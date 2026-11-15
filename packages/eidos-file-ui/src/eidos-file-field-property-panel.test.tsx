@@ -897,6 +897,80 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
   })
 
+  it("shows the Runtime Checkbox NULL count and lets the user cancel or confirm", async () => {
+    const review = () =>
+      new EidosFileSchemaImpactRequiredError({
+        classification: "explicit-lossy",
+        affectedRows: "3",
+        dependencyCount: "0",
+        warnings: [],
+        warningsTruncated: false,
+        valueChanges: [
+          {
+            code: "null-to-false",
+            rows: "2",
+            tableId: "table",
+            fieldId: "flag",
+          },
+        ],
+        valueChangesTruncated: false,
+      })
+    const onUpdate = vi
+      .fn()
+      .mockRejectedValueOnce(review())
+      .mockRejectedValueOnce(review())
+      .mockResolvedValue(undefined)
+    await act(async () =>
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("text")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    )
+    const choose = async () => {
+      await act(async () => {
+        container
+          .querySelector<HTMLElement>('button[role="combobox"]')
+          ?.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+          )
+      })
+      await act(async () =>
+        document.body
+          .querySelector<HTMLElement>('[data-eidos-file-field-type="checkbox"]')
+          ?.click()
+      )
+    }
+    const click = async (label: string) =>
+      act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === label)
+          ?.click()
+      })
+    await choose()
+    await click("Apply type")
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.any(Object), {
+      type: "checkbox",
+    })
+    expect(container.textContent).toContain(
+      "2 empty cells in this column will become unchecked."
+    )
+    await click("Cancel")
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain("2 empty cells")
+    await choose()
+    await click("Apply type")
+    await click("Convert anyway")
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.any(Object), {
+      type: "checkbox",
+      confirmLossy: true,
+    })
+  })
+
   it("keeps File fields read-only instead of offering unsafe conversions", async () => {
     await act(async () => {
       root.render(

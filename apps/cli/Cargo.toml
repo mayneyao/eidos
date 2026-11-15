@@ -42,6 +42,4 @@ eidos-file-core.workspace = true
 eidos-runtime-host = { workspace = true, features = ["serve"] }
 cap-std = "4.0.2"
 cap-fs-ext = "4.0.2"
-
-[dev-dependencies]
 tempfile = "3.19"

@@ -70,6 +70,7 @@ import { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { usePluginTableViews } from "./plugin-table-view"
 import { PluginTableActions } from "./plugin-table-actions"
 import { fileMetadataScopedView } from "./file-metadata-actions"
+import { useFileSidebarRecordOpen } from "./use-file-sidebar-record-open"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
@@ -89,6 +90,7 @@ export interface EidosFileWorkbenchProps {
   onPendingEditChange?(editorId: string, pending: boolean): void
   onOpenSpaceFile?(path: string): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
+  fileSidebarOpen?: boolean
   relativePath: string
   metadataDirectory?: string
   snapshot: EidosFileSnapshot
@@ -124,6 +126,7 @@ export function EidosFileWorkbench({
   onPendingEditChange,
   onOpenSpaceFile,
   onOpenFileInSidebar,
+  fileSidebarOpen = false,
   relativePath,
   metadataDirectory,
   snapshot,
@@ -161,6 +164,13 @@ export function EidosFileWorkbench({
     Record<string, EidosFileFormEditorMode>
   >({})
   const [search, setSearch] = useState("")
+  const [recordFocus, setRecordFocus] = useState<{
+    scope: string
+    row: EidosFileRow
+    token: number
+    index?: number | null
+  } | null>(null)
+  const recordFocusToken = useRef(0)
   const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
     null
@@ -423,6 +433,63 @@ export function EidosFileWorkbench({
     activeView?.type === "form"
       ? (formModes[activeView.id] ?? "build")
       : "build"
+
+  const recordFocusScope = JSON.stringify([
+    source.sessionId,
+    relativePath,
+    activeTable?.table.id,
+    activeView?.id,
+    metadataDirectory,
+    recordNavigationQuery,
+  ])
+  const activeRecordFocus =
+    fileSidebarOpen && recordFocus?.scope === recordFocusScope
+      ? recordFocus
+      : undefined
+  useEffect(() => {
+    if (!activeRecordFocus || !activeTable || !source.getRowIndex) return
+    let current = true
+    const token = activeRecordFocus.token
+    void source
+      .getRowIndex(
+        activeTable.table.id,
+        String(activeRecordFocus.row._id),
+        recordNavigationQuery ?? {}
+      )
+      .then((index) => {
+        if (current)
+          setRecordFocus((focus) =>
+            focus?.token === token ? { ...focus, index } : focus
+          )
+      })
+      .catch((error: unknown) => {
+        if (current) onError(error)
+      })
+    return () => {
+      current = false
+    }
+  }, [source, activeRecordFocus?.token, recordFocusScope])
+  const sidebarRecords = useFileSidebarRecordOpen({
+    enabled: fileSidebarOpen && !disabled && activeView?.type !== "form",
+    source,
+    table: activeTable,
+    relativePath,
+    scope: `${activeView?.id ?? ""}:${metadataDirectory ?? ""}`,
+    query: recordNavigationQuery,
+    onError,
+    onOpenFile: onOpenFileInSidebar,
+    onInspectRecord: onInspectedRowChange,
+    onRecordFocus: (row) =>
+      setRecordFocus({
+        scope: recordFocusScope,
+        row,
+        token: ++recordFocusToken.current,
+      }),
+  })
+  const focusRecordView = () =>
+    editorRef.current
+      ?.querySelector<HTMLElement>(".eidos-file-content")
+      ?.focus({ preventScroll: true })
 
   const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
     if (!activeTable) return null
@@ -753,6 +820,7 @@ export function EidosFileWorkbench({
           className: "eidos-file-content",
           id: "eidos-file-grid",
           tabIndex: -1,
+          onKeyDownCapture: sidebarRecords.onKeyDown,
         }}
         sheetTabs={
           <EidosFileSheetTabs
@@ -861,10 +929,23 @@ export function EidosFileWorkbench({
           fileRelativePath={relativePath}
           onOpenSpaceFile={onOpenSpaceFile}
           onOpenFileInSidebar={onOpenFileInSidebar}
+          onPreviewRecord={(rowId, row) => {
+            sidebarRecords.rememberRecord(rowId, row)
+            focusRecordView()
+          }}
           onError={onError}
         >
           <div className="eidos-file-detail-layout relative h-full min-h-0 w-full">
             <EidosFileEditorView
+              recordFocus={activeRecordFocus}
+              onOpenRecord={
+                sidebarRecords.openRecord
+                  ? (rowId) => {
+                      sidebarRecords.openRecord?.(rowId)
+                      focusRecordView()
+                    }
+                  : undefined
+              }
               inspectedRowId={inspectedRowId}
               onInspectedRowChange={onInspectedRowChange}
               recordPresentation={recordOpenMode}

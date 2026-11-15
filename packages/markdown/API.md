@@ -46,6 +46,22 @@ are inserted as image blocks; files become Markdown links at the saved selection
 The editor reports import errors through `onError` and aborts pending insertion
 when its session is disposed. Hosts own file selection, storage and URL resolution.
 
+The empty image block created by `/image` also uses `onImportFiles` with
+`kind: "image"`. The first returned image fills that block; additional selected
+images follow it. Cancellation or failure leaves the empty block and surrounding
+text intact. When only `onPasteImage` is supplied, activating the placeholder
+opens a native file input and sends the selected image through the same host
+persistence callback. Hosts without either callback show a static placeholder.
+Read-only editors cannot activate imports.
+
+On mobile, tap or hold an existing image to edit its URL, alt text and title.
+Save applies the draft; Close or native Back cancels it. Dragging or scrolling
+over an image does not open its settings. Desktop block selection and source
+editing shortcuts remain available.
+Mobile source ranges also expose Done and Cancel buttons. Native Back cancels
+the active source draft before leaving the document; hosts can use the same
+document-level Escape dismissal as for their other web dialogs.
+
 The component requires React 18 or 19 and a browser DOM. It is currently a
 workspace-private prerelease, not a published stable package.
 
@@ -1176,7 +1192,41 @@ not headings, block anchors, or embeds. Despite its compatibility name,
 `searchNotes` accepts any file candidate, not only Markdown. Lite searches ordinary
 files and `.eidos` files in the open Space and shows paths to distinguish namesakes.
 
+Supply optional `displayPath` from the original file metadata for a readable
+picker path, for example `{ title: "示例图片.png", displayPath: "素材/示例图片.png",
+path: "%E7%B4%A0%E6%9D%90/%E7%A4%BA%E4%BE%8B%E5%9B%BE%E7%89%87.png" }`. Display text is never
+URI-decoded or used for insertion; literal `%20` in a filename stays `%20`.
+Without `displayPath`, the picker shows `path` as supplied by the existing host.
+Rows stay on two lines; long namesake paths use a distinguishing directory
+suffix. The full readable path remains in the tooltip and accessible name.
+
+An image candidate may additionally provide `imageUrl`, a canonical destination
+authorized by the host's existing image resolver. With image support enabled,
+the candidate exposes **Insert link** (the default) and **Insert image** as
+separate options. Arrow keys and Enter/Tab or a pointer select either option.
+Image insertion emits a standard Markdown image block and reuses that URL;
+it does not call the import/paste handler. Optional `insertFileLink` and
+`insertFileImage` labels customize these actions. Hosts that omit `imageUrl`
+keep the existing link-only picker. `![[...]]` remains unsupported literal text.
+
 # Document reference completion
+
+`fileDrop?: MarkdownFileDropHandler` enables a host-owned file drag boundary.
+`accepts(types)` identifies the host's payload during dragover;
+`resolve({ documentKey, dataTransfer, signal })` returns existing file candidates
+without copying them. Read drag data synchronously before the first await.
+Optional `onError(error)` receives failures. The shared editor knows no host MIME
+type or filesystem API. The hook requires wiki-link support; `imageUrl` inserts
+an image block when the image feature is enabled, otherwise a link. Other drag
+types keep their existing behavior.
+
+The receiver captures a collapsed selection at the pointer in its own root.
+Async completion is discarded after unmount, identity change or content change;
+it never uses another editor's selection. A batch is one undo transaction.
+`droppedFileSource(candidate)` and `fileDropCaretRange(root, x, y, shadowRoots?)`
+support a host source editor's equivalent insertion. Lite uses Pierre's public
+`applyEdits` API and the source document's UTF-16 position, including wrapped and
+scrolled lines. The host owns exact Space/path validation and cancellation.
 
 Note candidates may include `displayText` for a discovered alias. Completion
 keeps `path` as the canonical destination and emits `[[path|displayText]]`.

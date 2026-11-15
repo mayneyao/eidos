@@ -34,6 +34,7 @@ import type {
 } from "../profile-system/profile-api"
 import { BlockMarqueeSelectionPlugin } from "../plugins/block-marquee-selection-plugin"
 import { ClipboardImagePlugin } from "../plugins/clipboard-image-plugin"
+import { FileDropPlugin } from "../plugins/file-drop-plugin"
 import { CollapsibleHeadingsPlugin } from "../plugins/collapsible-headings-plugin"
 import { EditorShortcutsPlugin } from "../plugins/editor-shortcuts-plugin"
 import { TextFormatPolicyPlugin } from "../plugins/text-format-policy-plugin"
@@ -50,10 +51,14 @@ import {
   MarkdownShortcutProvider,
   useMarkdownShortcuts,
 } from "../shortcuts/shortcut-context"
-import type { MarkdownEditorLabels, MarkdownEditorProps } from "../types"
+import type {
+  MarkdownEditorLabels,
+  MarkdownEditorProps,
+  MarkdownFileCompletionLabels,
+} from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
 
-const DEFAULT_LABELS: MarkdownEditorLabels = {
+const DEFAULT_LABELS: MarkdownEditorLabels & MarkdownFileCompletionLabels = {
   imageSettings: "Image settings",
   closeImageSettings: "Close image settings",
   imageUrl: "Image URL",
@@ -95,6 +100,8 @@ const DEFAULT_LABELS: MarkdownEditorLabels = {
   dragBlock: "Drag block",
   copyBlockLink: "Copy block link",
   linkToFile: "Link to a file",
+  insertFileLink: "Insert link",
+  insertFileImage: "Insert image",
   searchFiles: "Search files…",
   searchingFiles: "Searching files…",
   noMatchingFiles: "No matching files",
@@ -255,6 +262,7 @@ function MarkdownEditorImplementation({
   navigationTarget,
   onTextSearchUnavailable,
   onPasteImage,
+  fileDrop,
   onImportFiles,
   resolveImageUrl,
   onError,
@@ -297,6 +305,13 @@ function MarkdownEditorImplementation({
     },
     [onError]
   )
+  const validateLinkUrl = useCallback(
+    (url: string) =>
+      resolveActiveLink(url, baseUri) !== null ||
+      (registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) &&
+        parseObsidianMarkdownLinkDestination(url) !== null),
+    [baseUri, registry.features]
+  )
   const initialConfig = useMemo<InitialConfigType>(
     () => ({
       namespace: "EidosMarkdownEditor",
@@ -323,6 +338,8 @@ function MarkdownEditorImplementation({
       markdown={markdown}
       onError={handleError}
       resolveImageUrl={resolveImageUrl}
+      onImportFiles={onImportFiles}
+      onPasteImage={onPasteImage}
       onOpenInternalLink={onOpenInternalLink}
       baseUri={baseUri}
       codeHighlightTokenizer={codeHighlightTokenizer}
@@ -330,6 +347,8 @@ function MarkdownEditorImplementation({
       syntaxFeatures={registry.features}
       transformers={registry.transformers}
       saveBlockLabel={resolvedLabels.saveBlock}
+      cancelBlockEditLabel={resolvedLabels.cancelBlockEdit}
+      toolbarMode={toolbarMode}
       emptyMathBlockLabel={resolvedLabels.emptyMathBlock}
       emptyImageBlockLabel={resolvedLabels.emptyImageBlock}
       obsidianWikilinks={registry.features.has(
@@ -464,6 +483,17 @@ function MarkdownEditorImplementation({
               }
             }}
           >
+            {!readOnly &&
+            fileDrop &&
+            registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) ? (
+              <FileDropPlugin
+                handler={fileDrop}
+                documentKey={documentKey}
+                baseUri={baseUri}
+                supportsImages={registry.features.has(MARKDOWN_FEATURES.image)}
+                onError={handleError}
+              />
+            ) : null}
             <DocumentTailPlugin readOnly={readOnly} />
             <RichTextPlugin
               contentEditable={
@@ -539,13 +569,7 @@ function MarkdownEditorImplementation({
             />
             <TextFormatPolicyPlugin transformers={registry.transformers} />
             {registry.features.has(MARKDOWN_FEATURES.link) ? (
-              <LinkPlugin
-                validateUrl={(url) =>
-                  resolveActiveLink(url, baseUri) !== null ||
-                  (registry.features.has(MARKDOWN_FEATURES.obsidianWikilink) &&
-                    parseObsidianMarkdownLinkDestination(url) !== null)
-                }
-              />
+              <LinkPlugin validateUrl={validateLinkUrl} />
             ) : null}
             <MarkdownShortcutPlugin transformers={[...registry.transformers]} />
             <CollapsibleHeadingsPlugin enabled={controls.collapsibleHeadings}>

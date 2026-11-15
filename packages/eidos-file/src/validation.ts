@@ -728,16 +728,6 @@ export function validateEidosFile(
     }
   }
 
-  if (LEVELS[level] === LEVELS.identity) {
-    return {
-      valid: errors.length === 0,
-      metadata,
-      tables: [],
-      errors,
-      warnings,
-    }
-  }
-
   // Check capabilities before inspecting virtual table schemas: SQLite may call
   // xConnect during PRAGMA table_list/table_info and throw for an absent module.
   if (sqliteTables.has(EIDOS_FILE_FEATURES_TABLE)) {
@@ -778,7 +768,10 @@ export function validateEidosFile(
     }
   }
 
-  if (errors.some((issue) => issue.code === "unsupported-feature")) {
+  if (
+    errors.some((issue) => issue.code === "unsupported-feature") ||
+    LEVELS[level] === LEVELS.identity
+  ) {
     return {
       valid: errors.length === 0,
       metadata,
@@ -1634,6 +1627,7 @@ export function validateEidosFile(
         name: string
         type: string
         notnull: number
+        dflt_value: string | null
       }>(`PRAGMA table_xinfo(${quoteIdentifier(table.physical_name)})`)
       const physicalColumns = new Map(
         physicalColumnRows.map((column) => [
@@ -1643,6 +1637,9 @@ export function validateEidosFile(
       )
       const physicalNullability = new Map(
         physicalColumnRows.map((column) => [column.name, column.notnull === 0])
+      )
+      const physicalDefaults = new Map(
+        physicalColumnRows.map((column) => [column.name, column.dflt_value])
       )
       for (const required of ["_id", "_created_at", "_updated_at"]) {
         if (!physicalColumns.has(required)) {
@@ -1680,6 +1677,19 @@ export function validateEidosFile(
       for (const field of fields) {
         const fieldId = field.id!
         if (field.physicalName) {
+          const columnDefault = physicalDefaults.get(field.physicalName)
+          if (
+            !isVirtual &&
+            field.type === "checkbox" &&
+            columnDefault != null &&
+            columnDefault !== "0"
+          ) {
+            add(
+              errors,
+              "invalid-schema",
+              `Checkbox Field ${field.name} must omit its legacy default or use DEFAULT 0`
+            )
+          }
           const actualType = physicalColumns.get(field.physicalName)
           const expected = expectedColumnType(field.type)
           if (!actualType) {

@@ -10,6 +10,7 @@ import {
   type EidosFileTableSnapshot,
   type EidosFileViewInfo,
   type EidosFileRowQuery,
+  type EidosFileRow,
   type LogicalValue,
 } from "@eidos.space/eidos-file"
 import type { PluginManifest, TableActionItem } from "@eidos.space/plugin-sdk"
@@ -40,6 +41,7 @@ interface Props {
   fileRelativePath?: string
   onOpenSpaceFile?(path: string): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
+  onPreviewRecord?(rowId: string, row: EidosFileRow): void
   onError?(error: unknown): void
   source: EidosFileDataSource
   table: EidosFileTableSnapshot
@@ -187,9 +189,10 @@ export function PluginTableActions(props: Props) {
               if (!path) throw new Error(t("This file is no longer available"))
               if (id === "host/open-mapped-file")
                 await props.onOpenSpaceFile?.(path)
-              else if (id === "host/open-mapped-file-sidebar")
+              else if (id === "host/open-mapped-file-sidebar") {
                 await props.onOpenFileInSidebar?.(path)
-              else if (id === "host/mapped-file-properties")
+                props.onPreviewRecord?.(target.rowId!, row!)
+              } else if (id === "host/mapped-file-properties")
                 await window.eidosLite.openFileProperties(path)
               else await window.eidosLite.openPath(path)
             })
@@ -207,6 +210,7 @@ export function PluginTableActions(props: Props) {
       props.fileRelativePath,
       props.onOpenSpaceFile,
       props.onOpenFileInSidebar,
+      props.onPreviewRecord,
       props.onError,
       t,
       revision,

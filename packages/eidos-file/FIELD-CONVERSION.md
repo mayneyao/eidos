@@ -18,11 +18,11 @@ The matrix is source row to destination column:
 
 | From → To    | Text | Number | Integer | Checkbox | Select | Multi-select | Rating | Date | Date & time | URL |
 | ------------ | :--: | :----: | :-----: | :------: | :----: | :----------: | :----: | :--: | :---------: | :-: |
-| Text         |  •   |   ✓    |    ✓    |    ✓     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Text         |  •   |   ✓    |    ✓    |    ⚠     |   ✓    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
 | Number       |  ✓   |   •    |    ⚠    |    ⚠     |   ✓    |      —       |   ⚠    |  —   |      —      |  —  |
 | Integer      |  ✓   |   ⚠    |    •    |    ⚠     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
 | Checkbox     |  ✓   |   ✓    |    ✓    |    •     |   ✓    |      —       |   ✓    |  —   |      —      |  —  |
-| Select       |  ✓   |   ✓    |    ✓    |    ✓     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
+| Select       |  ✓   |   ✓    |    ✓    |    ⚠     |   •    |      ✓       |   ✓    |  ✓   |      ✓      |  ✓  |
 | Multi-select |  ✓   |   —    |    —    |    —     |   ⚠    |      •       |   —    |  —   |      —      |  —  |
 | Rating       |  ✓   |   ✓    |    ✓    |    ⚠     |   ✓    |      —       |   •    |  —   |      —      |  —  |
 | Date         |  ✓   |   —    |    —    |    —     |   ✓    |      —       |   —    |  •   |      ✓      |  ✓  |
@@ -67,6 +67,10 @@ Default lossy policies are explicit and shared by Runtime adapters:
 - Date & time to Date keeps the UTC calendar date and discards time.
 - Multi-select to Select keeps the first option; an empty list becomes `NULL`.
 - Scalar-to-list conversion maps SQL `NULL` to an empty list.
+- Converting to Checkbox uses a non-null target. If SQL `NULL` exists, the
+  preview reports how many empty cells will become unchecked; the user must
+  confirm before `null-to-false` applies. Canceling or a stale preview does not
+  change the field. Explicit low-level nullable conversions retain NULL.
 
 Text-to-Number accepts only canonical inverse binary64 spellings: whitespace,
 noncanonical leading zeroes, infinities, and partially numeric strings fail.

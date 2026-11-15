@@ -15,6 +15,7 @@ import {
   Database,
   FileCode2,
   FileQuestion,
+  FileX2,
   GitMerge,
   LoaderCircle,
   RotateCcw,
@@ -30,16 +31,20 @@ import type {
   EidosSyncMergePath,
   EidosSyncMergeResponse,
   EidosSyncMergeStatus,
+  EidosSyncMergeSchemaChoice,
   SpaceSnapshot,
-  SpaceVersionTextContentDiff,
 } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
 import {
   MergeChangeTree,
   mergeConflictTableName,
+  requiresWholeFileChoice,
+  isNormalizedSchemaConflict,
   type MergeChangeTreeTarget,
 } from "./merge-change-tree"
 import { MergeTableDiff } from "./merge-table-diff"
+import { MergeStructureReview } from "./merge-structure-review"
+import { MergeDisplayOptions, useSyncMergeShowBase } from "./sync-merge-display"
 import { InlineTextDiff } from "./version-text-diff"
 import { useEidosLiteI18n } from "./i18n"
 
@@ -59,7 +64,7 @@ type MergeBusy =
   | "abort"
   | null
 
-type TextResultSource = "ours" | "theirs" | "edited" | null
+type TextResultSource = "edited" | null
 
 interface MergeConflictPageState {
   stateToken: string
@@ -370,14 +375,15 @@ export function SyncMergeWorkspace({
           </div>
           {compact ? (
             <footer className="sync-merge-completion">
-              <label>
-                <span>{t("Merge message (optional)")}</span>
+              <details className="sync-merge-message">
+                <summary>{t("Merge message (optional)")}</summary>
                 <input
+                  aria-label={t("Merge message (optional)")}
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   maxLength={200}
                 />
-              </label>
+              </details>
               <button
                 className="primary-action"
                 data-sync-merge-continue
@@ -454,6 +460,8 @@ export function SyncMergeWorkbench({
   ): void | Promise<void>
 }) {
   const [status, setStatus] = useState<ActiveMergeStatus>(initialStatus)
+  const statusRef = useRef(initialStatus)
+  const observedStatusTokenRef = useRef(initialStatus.stateToken)
   const [paths, setPaths] = useState<EidosSyncMergePath[]>([])
   const [pathsCursor, setPathsCursor] = useState<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<EidosSyncMergePath | null>(
@@ -478,14 +486,16 @@ export function SyncMergeWorkbench({
   const [conflictPages, setConflictPages] = useState<
     Map<string, MergeConflictPageState>
   >(() => new Map())
+  const [conflictRefreshKey, setConflictRefreshKey] = useState(0)
   const conflictPagesRef = useRef(conflictPages)
   conflictPagesRef.current = conflictPages
   const [versions, setVersions] = useState<EidosSyncMergeContent[]>([])
   const [textResult, setTextResult] = useState("")
+  const textDraftsRef = useRef(new Map<string, string>())
   const [textResultSource, setTextResultSource] =
     useState<TextResultSource>(null)
   const [message, setMessage] = useState("Merge incoming changes")
-  const [showBase, setShowBase] = useState(false)
+  const showBase = useSyncMergeShowBase()
   const [failure, setFailure] = useState<EidosSyncMergeFailure | null>(null)
   const [busy, setBusy] = useState<MergeBusy>("status")
 
@@ -499,8 +509,11 @@ export function SyncMergeWorkbench({
   }
 
   const publishStatus = (next: EidosSyncMergeStatus) => {
+    if (next.state === "merging") {
+      statusRef.current = next
+      setStatus(next)
+    }
     onStatusChange(next)
-    if (next.state === "merging") setStatus(next)
   }
 
   const materialized = async (relativePaths: readonly string[]) => {
@@ -516,13 +529,13 @@ export function SyncMergeWorkbench({
     merge: ActiveMergeStatus,
     preferredPath?: string
   ) => {
-    const page = accept(
-      await window.eidosLite.listSyncMergePaths({
-        stateToken: merge.stateToken,
-        filter: "all",
-        limit: 100,
-      })
-    )
+    const response = await window.eidosLite.listSyncMergePaths({
+      stateToken: merge.stateToken,
+      filter: "all",
+      limit: 100,
+    })
+    if (statusRef.current.stateToken !== merge.stateToken) return
+    const page = accept(response)
     if (!page) return
     setPaths(page.items)
     setPathsCursor(page.nextCursor)
@@ -561,6 +574,35 @@ export function SyncMergeWorkbench({
     // Initial durable state is supplied by App and loaded once on entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (initialStatus.stateToken === observedStatusTokenRef.current) return
+    if (initialStatus.stateToken === statusRef.current.stateToken) {
+      observedStatusTokenRef.current = initialStatus.stateToken
+      return
+    }
+    if (busy) return
+    if (textResultSource === "edited") {
+      setFailure({
+        code: "stale",
+        title: "Merge changed",
+        message:
+          "The merge changed while you were editing. Your draft is preserved; reload when you are ready to review the latest state.",
+        localSafe: true,
+        retryable: true,
+      })
+      return
+    }
+    observedStatusTokenRef.current = initialStatus.stateToken
+    statusRef.current = initialStatus
+    setStatus(initialStatus)
+    setFailure(null)
+    setBusy("status")
+    void loadPaths(initialStatus).finally(() => setBusy(null))
+    // Parent recovery may advance the durable merge after this workspace mounts.
+    // Our own mutations update statusRef before notifying the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStatus.stateToken, busy, textResultSource])
 
   useEffect(() => {
     if (!selectedPath || selectedPath.kind !== "sqlite_database") return
@@ -604,15 +646,21 @@ export function SyncMergeWorkbench({
     return () => {
       active = false
     }
-  }, [selectedPath?.kind, selectedPath?.path, status.stateToken])
+  }, [
+    selectedPath?.kind,
+    selectedPath?.path,
+    status.stateToken,
+    conflictRefreshKey,
+  ])
 
   useEffect(() => {
-    setTextResultSource(null)
     if (!selectedPath) {
+      setTextResultSource(null)
       setVersions([])
       return
     }
     if (selectedPath.kind !== "text_file") {
+      setTextResultSource(null)
       setVersions([])
       setBusy(null)
       return
@@ -641,14 +689,15 @@ export function SyncMergeWorkbench({
       }
       setVersions(loaded)
       const result = loaded.find((item) => item.version === "result")
-      const local = loaded.find((item) => item.version === "ours")
+      const draft =
+        selectedPath.state === "resolved"
+          ? undefined
+          : textDraftsRef.current.get(selectedPath.path)
       setTextResult(
-        result?.content.state === "utf8"
-          ? result.content.content
-          : local?.content.state === "utf8"
-            ? local.content.content
-            : ""
+        draft ??
+          (result?.content.state === "utf8" ? result.content.content : "")
       )
+      setTextResultSource(draft === undefined ? null : "edited")
       if (active) setBusy(null)
     }
     void load()
@@ -658,7 +707,12 @@ export function SyncMergeWorkbench({
     // The token changes after every materializing choice and must reload the
     // selected path from the newest durable merge state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPath?.path, status.stateToken])
+  }, [
+    selectedPath?.path,
+    selectedPath?.kind,
+    selectedPath?.state,
+    status.stateToken,
+  ])
 
   const updateAfterMutation = async (
     response: EidosSyncMergeResponse<EidosSyncMergeStatus>,
@@ -674,6 +728,11 @@ export function SyncMergeWorkbench({
       return
     }
     publishStatus(next)
+    const remainingPages = new Map(conflictPagesRef.current)
+    for (const path of materializedPaths) remainingPages.delete(path)
+    conflictPagesRef.current = remainingPages
+    setConflictPages(remainingPages)
+    setConflictRefreshKey((key) => key + 1)
     await materialized(materializedPaths)
     if (next.state === "merging") await loadPaths(next, preferredPath)
   }
@@ -681,16 +740,61 @@ export function SyncMergeWorkbench({
   const resolvePath = async (result: "ours" | "theirs") => {
     if (!selectedPath) return
     setBusy("resolve")
-    await updateAfterMutation(
-      await window.eidosLite.resolveSyncMergePath({
+    try {
+      const response = await window.eidosLite.resolveSyncMergePath({
         stateToken: status.stateToken,
         path: selectedPath.path,
         result,
-      }),
-      [selectedPath.path],
-      selectedPath.path
-    )
-    setBusy(null)
+      })
+      if (response.ok) textDraftsRef.current.delete(selectedPath.path)
+      await updateAfterMutation(
+        response,
+        [selectedPath.path],
+        selectedPath.path
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const combinePath = async () => {
+    if (!selectedPath) return
+    setBusy("resolve")
+    try {
+      await updateAfterMutation(
+        await window.eidosLite.combineSyncMergePath({
+          stateToken: status.stateToken,
+          path: selectedPath.path,
+        }),
+        [selectedPath.path],
+        selectedPath.path
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const resolveSchema = async (choices: EidosSyncMergeSchemaChoice[]) => {
+    if (!selectedPath) return
+    setBusy("resolve")
+    try {
+      const response = await window.eidosLite.resolveSyncMergeSchema({
+        stateToken: status.stateToken,
+        path: selectedPath.path,
+        choices,
+      })
+      if (response.ok) {
+        setSelectedScope("file")
+        setSelectedTable(null)
+      }
+      await updateAfterMutation(
+        response,
+        [selectedPath.path],
+        selectedPath.path
+      )
+    } finally {
+      setBusy(null)
+    }
   }
 
   const resolveRow = async (
@@ -791,12 +895,14 @@ export function SyncMergeWorkbench({
     if (!selectedPath) return
     setBusy("resolve")
     try {
+      const response = await window.eidosLite.writeSyncMergeText({
+        stateToken: status.stateToken,
+        path: selectedPath.path,
+        content: textResult,
+      })
+      if (response.ok) textDraftsRef.current.delete(selectedPath.path)
       await updateAfterMutation(
-        await window.eidosLite.writeSyncMergeText({
-          stateToken: status.stateToken,
-          path: selectedPath.path,
-          content: textResult,
-        }),
+        response,
         [selectedPath.path],
         selectedPath.path
       )
@@ -878,10 +984,14 @@ export function SyncMergeWorkbench({
   const selectedConflictPage = selectedPath
     ? conflictPages.get(selectedPath.path)
     : undefined
-  const conflicts =
+  const allConflicts =
     selectedConflictPage?.stateToken === status.stateToken
       ? selectedConflictPage.items
       : []
+  const schemaNormalized = allConflicts.some(isNormalizedSchemaConflict)
+  const conflicts = allConflicts.filter(
+    (conflict) => !isNormalizedSchemaConflict(conflict)
+  )
   const conflictsByPath = useMemo(
     () =>
       new Map(
@@ -934,25 +1044,32 @@ export function SyncMergeWorkbench({
       <main className="sync-merge-editor" data-sync-merge-workbench>
         <header className="sync-merge-editor-toolbar">
           {titlebarNavigation}
-          <div className="sync-merge-editor-title">
+          <div className="file-titlebar-identity sync-merge-editor-title">
             <MergePathIcon path={selectedPath} />
             <div>
               <strong>{selectedPath?.path ?? "Merge conflicts"}</strong>
               <span>
-                {selectedTable
-                  ? `${selectedTable} table`
-                  : selectedScope === "structure"
+                {selectedPath?.state === "resolved"
+                  ? "Resolved"
+                  : requiresWholeFileChoice(conflicts)
                     ? "File structure"
-                    : selectedPath?.state === "resolved"
-                      ? "Resolved"
-                      : `${status.unmergedCount} remaining`}
+                    : selectedTable
+                      ? `${selectedTable} table`
+                      : selectedScope === "structure"
+                        ? "File structure"
+                        : `${status.unmergedCount} remaining`}
               </span>
             </div>
+            <button
+              type="button"
+              className="icon-button active-file-close"
+              onClick={onClose}
+              aria-label="Close merge view"
+              title="Close merge view"
+            >
+              <X />
+            </button>
           </div>
-          <details className="merge-secondary-details">
-            <summary>Version details</summary>
-            <MergeIdentitySummary status={status} compact />
-          </details>
           <div className="sync-merge-editor-actions">
             <button
               type="button"
@@ -974,23 +1091,18 @@ export function SyncMergeWorkbench({
             </button>
             <button
               type="button"
-              className="secondary-action sync-merge-base-toggle"
-              aria-pressed={showBase}
-              onClick={() => setShowBase((current) => !current)}
+              className="icon-button sync-merge-unresolve"
+              data-sync-merge-unresolve
+              aria-label="Undo resolution"
+              title="Undo resolution"
+              disabled={
+                loading ||
+                (selectedPath?.state !== "resolved" && !schemaNormalized)
+              }
+              onClick={() => void unresolvePath()}
             >
-              {showBase ? "Hide Base" : "Show Base"}
+              <RotateCcw />
             </button>
-            {selectedPath?.state === "resolved" ? (
-              <button
-                type="button"
-                className="secondary-action sync-merge-unresolve"
-                data-sync-merge-unresolve
-                disabled={loading}
-                onClick={() => void unresolvePath()}
-              >
-                <RotateCcw /> Undo resolution
-              </button>
-            ) : null}
           </div>
         </header>
 
@@ -1012,15 +1124,13 @@ export function SyncMergeWorkbench({
               versions={versions}
               result={textResult}
               resultSource={textResultSource}
+              showBase={showBase}
               disabled={loading}
               saving={busy === "resolve"}
-              showBase={showBase}
               theme={theme}
-              onUseVersion={(source, value) => {
-                setTextResult(value)
-                setTextResultSource(source)
-              }}
+              onUseVersion={(source) => void resolvePath(source)}
               onEditResult={(value) => {
+                textDraftsRef.current.set(selectedPath.path, value)
                 setTextResult(value)
                 setTextResultSource("edited")
               }}
@@ -1029,7 +1139,9 @@ export function SyncMergeWorkbench({
           ) : selectedPath?.kind === "sqlite_database" ? (
             <SqliteMergeResolution
               path={selectedPath}
+              stateToken={status.stateToken}
               conflicts={conflicts}
+              schemaResolved={schemaNormalized}
               selectedTable={selectedTable}
               selectedScope={selectedScope}
               pendingResolution={pendingRowResolution}
@@ -1044,6 +1156,8 @@ export function SyncMergeWorkbench({
                 void resolveCell(conflict, column, result)
               }
               onResolvePath={(result) => void resolvePath(result)}
+              onResolveSchema={(choices) => void resolveSchema(choices)}
+              onCombinePath={() => void combinePath()}
               onResolveTable={(table, result) =>
                 void resolveTable(table, result)
               }
@@ -1107,6 +1221,7 @@ export function SyncMergeWorkbench({
                 ? "All conflicts resolved"
                 : `${status.unmergedCount} unresolved`}
             </strong>
+            <MergeDisplayOptions />
           </div>
 
           <div className="version-panel-body sync-merge-changes-body">
@@ -1281,6 +1396,89 @@ function MergePathIcon({ path }: { path: EidosSyncMergePath | null }) {
   return <FileQuestion />
 }
 
+function mergeVersionPreview(
+  content: EidosSyncMergeContent["content"] | undefined
+): string {
+  if (content?.state === "utf8") return content.content
+  return content?.state === "absent" ? "File deleted" : "Preview unavailable"
+}
+
+function MergeTextVersionPane({
+  source,
+  path,
+  versions,
+  resolved,
+  disabled,
+  theme,
+  onUseVersion,
+}: {
+  source: "ours" | "theirs"
+  path: string
+  versions: EidosSyncMergeContent[]
+  resolved: boolean
+  disabled: boolean
+  theme: ResolvedAppearance
+  onUseVersion(source: "ours" | "theirs"): void
+}) {
+  const { t } = useEidosLiteI18n()
+  const content = versions.find((item) => item.version === source)?.content
+  const title = t(source === "ours" ? "Local changes" : "Incoming changes")
+  const action = resolved ? undefined : (
+    <button
+      type="button"
+      className="sync-merge-use-version"
+      disabled={disabled}
+      onClick={() => onUseVersion(source)}
+    >
+      {t(source === "ours" ? "Use Local" : "Use Incoming")}
+    </button>
+  )
+  return (
+    <section
+      className="sync-merge-diff-pane"
+      data-merge-version={source === "ours" ? "local" : "hosted"}
+    >
+      {!content ? (
+        <div className="version-text-diff">
+          <header className="version-inspector-diff-bar version-text-diff-toolbar">
+            <strong>{title}</strong>
+          </header>
+          <p className="sync-merge-loading">Loading versions…</p>
+        </div>
+      ) : content.state === "absent" ? (
+        <div className="version-text-diff">
+          <header className="version-inspector-diff-bar version-text-diff-toolbar">
+            <div>
+              <strong>{title}</strong>
+              <span>{t("File deleted")}</span>
+            </div>
+            {action}
+          </header>
+          <div className="sync-merge-deleted-version">
+            <FileX2 aria-hidden="true" />
+            <strong>{t("File deleted")}</strong>
+            <span>{t("This version deletes the file")}</span>
+          </div>
+        </div>
+      ) : (
+        <InlineTextDiff
+          content={{
+            path,
+            before: versions.find((item) => item.version === "base")
+              ?.content ?? { state: "absent" },
+            after: content,
+          }}
+          theme={theme}
+          title={title}
+          fixedLayout="unified"
+          fixedSoftWrap
+          toolbarEnd={action}
+        />
+      )}
+    </section>
+  )
+}
+
 function TextMergeResolution({
   path,
   versions,
@@ -1302,46 +1500,25 @@ function TextMergeResolution({
   saving: boolean
   showBase: boolean
   theme: ResolvedAppearance
-  onUseVersion(source: "ours" | "theirs", value: string): void
+  onUseVersion(source: "ours" | "theirs"): void
   onEditResult(value: string): void
   onSave(): void
 }) {
   const { t } = useEidosLiteI18n()
+  const [editingResult, setEditingResult] = useState(resultSource === "edited")
+  useEffect(
+    () => setEditingResult(resultSource === "edited"),
+    [path.path, resultSource]
+  )
   const resolved = path.state === "resolved"
-  const text = (version: "base" | "ours" | "theirs") => {
-    const content = versions.find((item) => item.version === version)?.content
-    return content?.state === "utf8" ? content.content : ""
-  }
-  const display = (version: "base" | "ours" | "theirs") => {
-    const content = versions.find((item) => item.version === version)?.content
-    return content?.state === "utf8"
-      ? content.content
-      : `[${content?.state ?? "unavailable"}]`
-  }
-  const editable =
-    !resolved &&
-    versions.some(
-      (item) => item.version === "result" && item.content.state === "utf8"
-    )
+  const resultContent = versions.find(
+    (item) => item.version === "result"
+  )?.content
+  const editable = !resolved && resultContent?.state === "utf8"
   const resultSourceLabel =
-    resultSource === "ours"
-      ? "Local selected · Review, then Save & Stage"
-      : resultSource === "theirs"
-        ? "Incoming selected · Review, then Save & Stage"
-        : resultSource === "edited"
-          ? "Edited result · Review, then Save & Stage"
-          : "Editable merge output"
-  const diff = (
-    afterVersion: "ours" | "theirs"
-  ): SpaceVersionTextContentDiff => ({
-    path: path.path,
-    before:
-      versions.find((item) => item.version === "base")?.content ??
-      ({ state: "absent" } as const),
-    after:
-      versions.find((item) => item.version === afterVersion)?.content ??
-      ({ state: "absent" } as const),
-  })
+    resultSource === "edited"
+      ? "Unsaved changes"
+      : "Combine both versions in the editor"
   return (
     <section
       className="sync-merge-text-editor"
@@ -1349,134 +1526,116 @@ function TextMergeResolution({
       data-sync-merge-path-state={path.state}
     >
       {resolved ? <ResolvedPathNotice title="Document resolved" /> : null}
-      {showBase ? <MergeBaseReference value={display("base")} /> : null}
+      {showBase ? (
+        <MergeBaseReference
+          value={mergeVersionPreview(
+            versions.find((item) => item.version === "base")?.content
+          )}
+        />
+      ) : null}
       <div className="sync-merge-input-grid">
-        <section className="sync-merge-diff-pane" data-merge-version="local">
-          <InlineTextDiff
-            content={diff("ours")}
+        {(["ours", "theirs"] as const).map((source) => (
+          <MergeTextVersionPane
+            key={source}
+            source={source}
+            path={path.path}
+            versions={versions}
+            resolved={resolved}
+            disabled={disabled}
             theme={theme}
-            title={t("Local changes")}
-            fixedLayout="unified"
-            toolbarEnd={
-              resolved ? undefined : (
-                <button
-                  type="button"
-                  className="sync-merge-use-version"
-                  disabled={disabled}
-                  aria-pressed={resultSource === "ours"}
-                  data-merge-selection={
-                    resultSource === "ours" ? "selected" : undefined
-                  }
-                  onClick={() => onUseVersion("ours", text("ours"))}
-                >
-                  {resultSource === "ours" ? <Check /> : null}
-                  {t(resultSource === "ours" ? "Using Local" : "Use Local")}
-                </button>
-              )
-            }
+            onUseVersion={onUseVersion}
           />
-        </section>
-        <section className="sync-merge-diff-pane" data-merge-version="hosted">
-          <InlineTextDiff
-            content={diff("theirs")}
-            theme={theme}
-            title={t("Incoming changes")}
-            fixedLayout="unified"
-            toolbarEnd={
-              resolved ? undefined : (
-                <button
-                  type="button"
-                  className="sync-merge-use-version"
-                  disabled={disabled}
-                  aria-pressed={resultSource === "theirs"}
-                  data-merge-selection={
-                    resultSource === "theirs" ? "selected" : undefined
-                  }
-                  onClick={() => onUseVersion("theirs", text("theirs"))}
-                >
-                  {resultSource === "theirs" ? <Check /> : null}
-                  {t(
-                    resultSource === "theirs"
-                      ? "Using Incoming"
-                      : "Use Incoming"
-                  )}
-                </button>
-              )
-            }
-          />
-        </section>
+        ))}
       </div>
       {resolved ? (
-        <section className="sync-merge-result-pane sync-merge-staged-result">
-          <header>
-            <div>
-              <strong>Staged result</strong>
-              <span>Undo resolution to edit and stage a new result</span>
-            </div>
-          </header>
-          <pre>{result}</pre>
-        </section>
+        <details className="sync-merge-result-disclosure">
+          <summary>{t("Resolved result")}</summary>
+          <section className="sync-merge-result-pane sync-merge-staged-result">
+            <pre>
+              {resultContent?.state === "absent"
+                ? t("File deleted")
+                : resultContent?.state === "utf8"
+                  ? result
+                  : t("Preview unavailable")}
+            </pre>
+          </section>
+        </details>
       ) : editable ? (
-        <section className="sync-merge-result-pane">
-          <header>
-            <div>
-              <strong>Result</strong>
-              <span
-                aria-live="polite"
-                data-sync-merge-text-result-source={resultSource ?? "initial"}
+        <details
+          className="sync-merge-result-disclosure"
+          open={editingResult}
+          onToggle={(event) => setEditingResult(event.currentTarget.open)}
+        >
+          <summary>{t("Edit result")}</summary>
+          {editingResult ? (
+            <section className="sync-merge-result-pane">
+              <header>
+                <div>
+                  <span
+                    aria-live="polite"
+                    data-sync-merge-text-result-source={
+                      resultSource ?? "initial"
+                    }
+                  >
+                    {t(resultSourceLabel)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={disabled}
+                  aria-busy={saving}
+                  onClick={onSave}
+                >
+                  {saving ? (
+                    <>
+                      <LoaderCircle className="spin" /> Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Save /> {t("Save resolution")}
+                    </>
+                  )}
+                </button>
+              </header>
+              <div
+                className="sync-merge-result-editor"
+                aria-disabled={disabled}
               >
-                {resultSourceLabel}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="primary-action"
-              disabled={disabled}
-              aria-busy={saving}
-              onClick={onSave}
-            >
-              {saving ? (
-                <>
-                  <LoaderCircle className="spin" /> Saving…
-                </>
-              ) : (
-                <>
-                  <Save /> Save &amp; Stage
-                </>
-              )}
-            </button>
-          </header>
-          <div className="sync-merge-result-editor" aria-disabled={disabled}>
-            <Suspense
-              fallback={
-                <p className="sync-merge-loading">Loading result editor…</p>
-              }
-            >
-              <PierreTextEditorSurface
-                relativePath={path.path}
-                content={result}
-                theme={theme}
-                persistEditorState={false}
-                onChange={onEditResult}
-              />
-            </Suspense>
-          </div>
-        </section>
-      ) : (
+                <Suspense
+                  fallback={
+                    <p className="sync-merge-loading">Loading result editor…</p>
+                  }
+                >
+                  <PierreTextEditorSurface
+                    relativePath={path.path}
+                    content={result}
+                    theme={theme}
+                    persistEditorState={false}
+                    autoFocus
+                    onChange={onEditResult}
+                  />
+                </Suspense>
+              </div>
+            </section>
+          ) : null}
+        </details>
+      ) : resultContent?.state !== "absent" ? (
         <p className="sync-merge-unavailable">
-          This result cannot be edited safely at its current size.
+          {t("Choose a version to resolve this file")}
         </p>
-      )}
+      ) : null}
     </section>
   )
 }
 
 function MergeBaseReference({ value }: { value: string }) {
+  const { t } = useEidosLiteI18n()
   return (
     <section className="sync-merge-base-reference">
       <header>
-        <strong>Base (Common Ancestor)</strong>
-        <span>Read-only reference</span>
+        <strong>{t("Base (Common Ancestor)")}</strong>
+        <span>{t("Read-only reference")}</span>
       </header>
       <pre>{value}</pre>
     </section>
@@ -1484,250 +1643,13 @@ function MergeBaseReference({ value }: { value: string }) {
 }
 
 function ResolvedPathNotice({ title }: { title: string }) {
+  const { t } = useEidosLiteI18n()
   return (
     <div className="sync-merge-resolved-notice">
       <Check />
       <div>
-        <strong>{title}</strong>
-        <span>The staged result remains reviewable until merge completes.</span>
-      </div>
-    </div>
-  )
-}
-
-function readableMergeTerm(value: string | undefined): string {
-  if (!value) return "Details unavailable"
-  return value
-    .replaceAll(/[_-]+/g, " ")
-    .replaceAll(/\b\w/g, (character) => character.toUpperCase())
-}
-
-function schemaSideChanges(
-  conflict: EidosSyncMergeConflict,
-  side: "ours" | "theirs"
-) {
-  return (conflict.columnChanges ?? []).filter((change) => {
-    const normalized = change.side.toLowerCase()
-    return side === "ours"
-      ? normalized === "ours" || normalized === "local"
-      : normalized === "theirs" || normalized === "hosted"
-  })
-}
-
-function SchemaConflictSide({
-  label,
-  operation,
-  changes,
-}: {
-  label: "Local" | "Hosted"
-  operation: string | undefined
-  changes: EidosSyncMergeConflict["columnChanges"]
-}) {
-  return (
-    <section data-schema-conflict-side={label.toLowerCase()}>
-      <header>{label}</header>
-      <strong>{readableMergeTerm(operation)}</strong>
-      {changes && changes.length > 0 ? (
-        <ul>
-          {changes.map((change, index) => (
-            <li key={`${change.side}:${change.operation}:${index}`}>
-              <span>{readableMergeTerm(change.operation)}</span>
-              {change.from || change.to ? (
-                <code>
-                  {change.from ?? "∅"} → {change.to ?? "∅"}
-                </code>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No column-level detail was reported.</p>
-      )}
-    </section>
-  )
-}
-
-function SchemaConflictReview({
-  conflicts,
-}: {
-  conflicts: readonly EidosSyncMergeConflict[]
-}) {
-  const hasWholeFileRecommendation = conflicts.every(
-    (conflict) =>
-      conflict.autoResolvable &&
-      (conflict.recommendedResult === "ours" ||
-        conflict.recommendedResult === "theirs")
-  )
-  const hasPendingMergedCandidate = conflicts.some(
-    (conflict) =>
-      conflict.autoResolvable && conflict.recommendedResult === "merged"
-  )
-  return (
-    <div className="sync-merge-schema-review" data-sync-merge-schema-review>
-      <header>
-        {hasWholeFileRecommendation ? <ShieldCheck /> : <AlertTriangle />}
-        <div>
-          <strong>
-            {hasWholeFileRecommendation
-              ? "Safe resolution available"
-              : hasPendingMergedCandidate
-                ? "Combined result unavailable"
-                : `${conflicts.length} structure ${
-                    conflicts.length === 1 ? "conflict" : "conflicts"
-                  }`}
-          </strong>
-          <p>
-            {hasWholeFileRecommendation
-              ? "Hosted has no logical changes to apply. Keep Local to preserve the meaningful edits."
-              : hasPendingMergedCandidate
-                ? "The compatible candidate still needs a validation step that this build cannot complete. Choose one complete file; both versions remain recoverable."
-                : "Review what changed on each side, then choose one complete Local or Hosted Eidos File. Row-level merging is unsafe for these items."}
-          </p>
-        </div>
-      </header>
-      <div className="sync-merge-schema-list">
-        {conflicts.map((conflict) => {
-          const localChanges = schemaSideChanges(conflict, "ours")
-          const hostedChanges = schemaSideChanges(conflict, "theirs")
-          const objectLabel =
-            conflict.table ??
-            conflict.name ??
-            conflict.entryType ??
-            "File structure"
-          const hasWholeFileRecommendation =
-            conflict.autoResolvable &&
-            (conflict.recommendedResult === "ours" ||
-              conflict.recommendedResult === "theirs")
-          const hasPendingMergedCandidate =
-            conflict.autoResolvable && conflict.recommendedResult === "merged"
-          return (
-            <article key={conflict.id} data-schema-conflict={conflict.id}>
-              <header>
-                <div>
-                  <strong>{objectLabel}</strong>
-                  <span>
-                    {hasWholeFileRecommendation
-                      ? "Safe recommendation"
-                      : hasPendingMergedCandidate
-                        ? "Needs validation"
-                        : conflict.kind === "schema"
-                          ? "Schema"
-                          : conflict.systemConflict
-                            ? readableMergeTerm(
-                                conflict.systemConflict.objectKind
-                              )
-                            : "Opaque"}
-                  </span>
-                </div>
-                <p>{readableMergeTerm(conflict.reason)}</p>
-              </header>
-              <div className="sync-merge-schema-versions">
-                {conflict.systemConflict ? (
-                  (["base", "ours", "theirs"] as const).map((side) => {
-                    const domain = conflict.systemConflict!
-                    const summary = domain[side]
-                    const operation =
-                      summary.state === "absent"
-                        ? "Not present"
-                        : side === "base"
-                          ? "Present in common ancestor"
-                          : domain.base.state === "absent"
-                            ? "Added"
-                            : summary.changedGroups?.length
-                              ? "Changed"
-                              : "Present"
-                    return (
-                      <section
-                        key={side}
-                        data-schema-conflict-side={
-                          side === "ours"
-                            ? "local"
-                            : side === "theirs"
-                              ? "hosted"
-                              : "base"
-                        }
-                      >
-                        <header>
-                          {side === "ours"
-                            ? "Local"
-                            : side === "theirs"
-                              ? "Hosted"
-                              : "Base"}
-                        </header>
-                        <strong>{operation}</strong>
-                        {summary.name && (
-                          <p>
-                            {summary.name}
-                            {summary.type ? ` · ${summary.type}` : ""}
-                          </p>
-                        )}
-                        {summary.changedGroups?.length ? (
-                          <p>
-                            {summary.changedGroups
-                              .map(readableMergeTerm)
-                              .join(", ")}
-                          </p>
-                        ) : null}
-                      </section>
-                    )
-                  })
-                ) : (
-                  <>
-                    <section data-schema-conflict-side="base">
-                      <header>Base</header>
-                      <strong>Common ancestor</strong>
-                      <p>
-                        {conflict.entryType
-                          ? `${readableMergeTerm(conflict.entryType)} structure before both edits.`
-                          : "The shared structure used to detect these incompatible edits."}
-                      </p>
-                    </section>
-                    {hasWholeFileRecommendation ? (
-                      <>
-                        <section data-schema-conflict-side="local">
-                          <header>Local</header>
-                          <strong>
-                            {conflict.recommendedResult === "ours"
-                              ? "Recommended result"
-                              : "Changed version"}
-                          </strong>
-                          <p>Contains the meaningful logical changes.</p>
-                        </section>
-                        <section data-schema-conflict-side="hosted">
-                          <header>Hosted</header>
-                          <strong>
-                            {conflict.recommendedResult === "theirs"
-                              ? "Recommended result"
-                              : "Logically equivalent to Base"}
-                          </strong>
-                          <p>
-                            Only SQLite storage bytes differ from the ancestor.
-                          </p>
-                        </section>
-                      </>
-                    ) : (
-                      <>
-                        <SchemaConflictSide
-                          label="Local"
-                          operation={conflict.oursOperation}
-                          changes={localChanges}
-                        />
-                        <SchemaConflictSide
-                          label="Hosted"
-                          operation={conflict.theirsOperation}
-                          changes={hostedChanges}
-                        />
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-              {conflict.message ? (
-                <p className="sync-merge-schema-message">{conflict.message}</p>
-              ) : null}
-            </article>
-          )
-        })}
+        <strong>{t(title)}</strong>
+        <span>{t("You can undo this choice before completing the merge")}</span>
       </div>
     </div>
   )
@@ -1735,7 +1657,9 @@ function SchemaConflictReview({
 
 function SqliteMergeResolution({
   path,
+  stateToken,
   conflicts,
+  schemaResolved,
   selectedTable,
   selectedScope,
   pendingResolution,
@@ -1746,12 +1670,16 @@ function SqliteMergeResolution({
   onResolveRow,
   onResolveCell,
   onResolvePath,
+  onResolveSchema,
+  onCombinePath,
   onResolveTable,
   hasMore,
   onLoadMore,
 }: {
   path: EidosSyncMergePath
+  stateToken: string
   conflicts: EidosSyncMergeConflict[]
+  schemaResolved: boolean
   selectedTable: string | null
   selectedScope: MergeChangeTreeTarget["scope"]
   pendingResolution: {
@@ -1779,10 +1707,40 @@ function SqliteMergeResolution({
     result: "ours" | "theirs"
   ): void
   onResolvePath(result: "ours" | "theirs"): void
+  onResolveSchema(choices: EidosSyncMergeSchemaChoice[]): void
+  onCombinePath(): void
   onResolveTable(table: string, result: "ours" | "theirs"): void
   hasMore: boolean
   onLoadMore(): void
 }) {
+  if (requiresWholeFileChoice(conflicts)) {
+    return (
+      <section
+        className="sync-merge-sqlite-editor"
+        data-sync-merge-eidos={path.path}
+        data-sync-merge-path-state={path.state}
+      >
+        {path.state === "resolved" ? (
+          <ResolvedPathNotice title="Eidos File resolved" />
+        ) : null}
+        <MergeStructureReview
+          key={path.path}
+          path={path}
+          stateToken={stateToken}
+          conflicts={conflicts}
+          showBase={showBase}
+          disabled={disabled}
+          onResolvePath={onResolvePath}
+          onResolveSchema={onResolveSchema}
+        />
+        {hasMore ? (
+          <button type="button" disabled={disabled} onClick={onLoadMore}>
+            Load more conflicts
+          </button>
+        ) : null}
+      </section>
+    )
+  }
   const visibleConflicts =
     selectedScope === "structure"
       ? conflicts.filter(
@@ -1798,6 +1756,12 @@ function SqliteMergeResolution({
   const recommendedResult = nonRows.find(
     (item) => item.autoResolvable && item.recommendedResult
   )?.recommendedResult
+  const canCombine =
+    rows.length === 0 &&
+    nonRows.length > 0 &&
+    nonRows.every(
+      (item) => item.autoResolvable && item.recommendedResult === "merged"
+    )
   const unsafeTables = new Set(
     nonRows.flatMap((item) => {
       const table = mergeConflictTableName(item)
@@ -1813,17 +1777,28 @@ function SqliteMergeResolution({
       {path.state === "resolved" && rows.length === 0 ? (
         <ResolvedPathNotice title="Eidos File resolved" />
       ) : null}
+      {schemaResolved && path.state !== "resolved" ? (
+        <ResolvedPathNotice title="Table structure resolved" />
+      ) : null}
+      {path.state === "unmerged" && canCombine ? (
+        <div className="sync-merge-file-resolution-actions">
+          <span>Combine the compatible changes from both versions.</span>
+          <button type="button" disabled={disabled} onClick={onCombinePath}>
+            Merge automatically
+          </button>
+        </div>
+      ) : null}
       {path.state === "unmerged" &&
       (selectedScope !== "table" || nonRows.length > 0) ? (
         <details
           className="merge-file-options"
-          open={nonRows.length > 0 || undefined}
+          open={(nonRows.length > 0 && !canCombine) || undefined}
         >
           <summary>Whole file options</summary>
           <div className="sync-merge-file-resolution-actions">
             <span>
               {recommendedResult === "merged"
-                ? "A combined result needs validation support unavailable in this build. Choose one complete file."
+                ? "Or replace the result with one complete file."
                 : recommendedResult
                   ? `Recommended: keep ${recommendedResult === "ours" ? "Local" : "Hosted"}`
                   : nonRows.length > 0
@@ -1864,9 +1839,6 @@ function SqliteMergeResolution({
           onResolveCell={onResolveCell}
           onResolveTable={onResolveTable}
         />
-      ) : null}
-      {nonRows.length > 0 && selectedScope !== "table" ? (
-        <SchemaConflictReview conflicts={nonRows} />
       ) : null}
       {hasMore ? (
         <button type="button" disabled={disabled} onClick={onLoadMore}>

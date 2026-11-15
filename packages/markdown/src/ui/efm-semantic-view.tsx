@@ -1,5 +1,6 @@
 import { InlineMathView, MathPreview } from "../features/math/view"
 import { ResizableImage } from "./resizable-image"
+import { ImagePlaceholder } from "./image-placeholder"
 import { ACTIVE_HTML } from "../core/html-safety"
 import {
   createElement,
@@ -516,6 +517,14 @@ function useOpenObsidianLink(data: EfmInlineData): () => void {
 
 function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
   const openInternalLink = useOpenObsidianLink(data)
+  let label = data.label || data.target
+  if (!data.label && data.target) {
+    try {
+      label = decodeURIComponent(data.target)
+    } catch {
+      // Keep malformed source readable without interpreting it as a URL.
+    }
+  }
 
   if (data.kind === "obsidian-link") {
     return (
@@ -525,7 +534,7 @@ function ObsidianInlinePreview({ data }: { data: EfmInlineData }) {
         data-obsidian-target={data.target}
         onClick={openInternalLink}
       >
-        {data.label || data.target}
+        {label}
       </button>
     )
   }
@@ -676,9 +685,11 @@ function referenceDefinitionPreview(source: string): {
 export function EfmBlockView({
   data,
   onResizeImage,
+  onImportImages,
 }: {
   data: EfmBlockData
   onResizeImage?: (width: number) => void
+  onImportImages?: (images: EfmBlockData[]) => void
 }) {
   const { emptyImageBlockLabel, emptyMathBlockLabel } =
     useEfmSourceBlockContext()
@@ -720,9 +731,9 @@ export function EfmBlockView({
           contentEditable={false}
         >
           {empty ? (
-            <div className="eme-efm-image-placeholder">
+            <ImagePlaceholder onImport={onImportImages}>
               <EmptyBlockPrompt kind="image" label={emptyImageBlockLabel} />
-            </div>
+            </ImagePlaceholder>
           ) : imageUrl ? (
             <ResizableImage
               data={data}

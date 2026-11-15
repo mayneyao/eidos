@@ -6,6 +6,7 @@ import type {
   EidosFileValidationResult,
 } from "./types"
 import { validateEidosFile } from "./validation"
+import { EidosFileRuntime } from "./runtime"
 
 const PROFILE = "ER-System-Merge-1.0"
 const MAX_INT64 = 9_223_372_036_854_775_807n
@@ -114,6 +115,202 @@ export interface EidosSystemMergeInput {
   oursKey: string
   theirsKey: string
   operationInstant: string
+}
+
+export interface EidosSchemaMergeField {
+  tableId: string
+  tableName: string
+  fieldId: string
+  baseName: string
+  oursName: string
+  theirsName: string
+  type: string
+  conflicted: boolean
+  mergedName: string | null
+}
+
+export interface EidosSchemaMergePlan {
+  supported: boolean
+  fields: EidosSchemaMergeField[]
+  blockers: string[]
+}
+
+export interface EidosSchemaMergeChoice {
+  fieldId: string
+  result: "ours" | "theirs"
+}
+
+/** Canonical field IDs identify a rename; positions and display names never identify a column. */
+export function planEidosSchemaMerge(
+  input: Pick<EidosSystemMergeInput, "base" | "ours" | "theirs">
+): EidosSchemaMergePlan {
+  for (const connection of [input.base, input.ours, input.theirs]) {
+    const validation = validateEidosFile(connection, { level: "structural" })
+    if (!validation.valid)
+      return {
+        supported: false,
+        fields: [],
+        blockers: validation.errors.map((issue) => issue.message),
+      }
+  }
+  const snapshots = [input.base, input.ours, input.theirs].map(readSnapshot)
+  const [base, ours, theirs] = snapshots
+  const blockers: string[] = []
+  const fields: EidosSchemaMergeField[] = []
+  if (
+    !snapshots.every((snapshot) =>
+      equal(immutableMeta(snapshot.meta), immutableMeta(base.meta))
+    )
+  )
+    blockers.push("The snapshots do not share the same Eidos File identity.")
+  for (const id of ids(base.tables, ours.tables, theirs.tables)) {
+    const tables = snapshots.map((snapshot) => snapshot.tables.get(id))
+    if (
+      !tables.every(
+        (table) =>
+          table &&
+          tables[0] &&
+          equal(structuralTable(table), structuralTable(tables[0]))
+      )
+    )
+      blockers.push(
+        "Table creation, deletion or renaming requires a complete-file decision."
+      )
+  }
+  for (const id of ids(base.fields, ours.fields, theirs.fields)) {
+    const versions = snapshots.map((snapshot) => snapshot.fields.get(id))
+    if (versions.some((field) => !field)) {
+      blockers.push(
+        "Adding or deleting a field requires a data and dependency migration."
+      )
+      continue
+    }
+    const [original, local, incoming] = versions as [
+      FieldRow,
+      FieldRow,
+      FieldRow,
+    ]
+    const shape = (field: FieldRow) => [
+      field.id,
+      field.table_id,
+      field.type,
+      field.system_role,
+      field.nullable,
+      field.created_at,
+    ]
+    if (
+      !equal(shape(original), shape(local)) ||
+      !equal(shape(original), shape(incoming))
+    ) {
+      blockers.push(
+        "Field type or dependency changes require an explicit canonical migration."
+      )
+      continue
+    }
+    if (original.name === local.name && original.name === incoming.name)
+      continue
+    if (
+      original.system_role ||
+      !versions.every((field) => field!.physical_name === field!.name)
+    ) {
+      blockers.push("This field does not support a stored-column rename.")
+      continue
+    }
+    const conflicted =
+      local.name !== original.name &&
+      incoming.name !== original.name &&
+      local.name !== incoming.name
+    fields.push({
+      tableId: original.table_id,
+      tableName: base.tables.get(original.table_id)?.name ?? original.table_id,
+      fieldId: id,
+      baseName: original.name,
+      oursName: local.name,
+      theirsName: incoming.name,
+      type: original.type,
+      conflicted,
+      mergedName: conflicted
+        ? null
+        : local.name !== original.name
+          ? local.name
+          : incoming.name,
+    })
+  }
+  if (fields.length === 0)
+    blockers.push("No supported field renames were found.")
+  return {
+    supported: blockers.length === 0,
+    fields,
+    blockers: [...new Set(blockers)],
+  }
+}
+
+/**
+ * All four connections must be private writable copies; Result starts as an exact Ours copy.
+ * Only schema and canonical metadata change. Each input keeps its own records for Graft to merge.
+ */
+export function normalizeEidosSchemaMerge(
+  input: EidosSystemMergeInput & { choices: readonly EidosSchemaMergeChoice[] }
+): EidosSystemMergeResult {
+  const plan = planEidosSchemaMerge(input)
+  if (!plan.supported) throw new Error(plan.blockers.join(" "))
+  const choices = new Map(
+    input.choices.map((choice) => [choice.fieldId, choice.result])
+  )
+  if (
+    choices.size !== input.choices.length ||
+    input.choices.some(
+      (choice) =>
+        !["ours", "theirs"].includes(choice.result) ||
+        !plan.fields.some(
+          (field) => field.conflicted && field.fieldId === choice.fieldId
+        )
+    )
+  )
+    throw new Error(
+      "Schema choices must identify each conflicting field exactly once"
+    )
+  for (const field of plan.fields)
+    if (field.conflicted && !choices.has(field.fieldId))
+      throw new Error("Choose a structure for every conflicting field")
+  const connections = [input.base, input.ours, input.theirs, input.result]
+  const latest = connections
+    .map(readSnapshot)
+    .flatMap((snapshot) => [
+      snapshot.meta.updated_at,
+      ...[...snapshot.tables.values()].map((table) => table.updated_at),
+      ...[...snapshot.fields.values()].map((field) => field.updated_at),
+      ...[...snapshot.views.values()].map((view) => view.updated_at),
+    ])
+    .sort()
+    .at(-1)!
+  const schemaInstant = new Date(Date.parse(latest) + 1).toISOString()
+  const operationInstant = new Date(Date.parse(schemaInstant) + 1).toISOString()
+  for (const connection of connections) {
+    const runtime = new EidosFileRuntime(connection, false, {
+      nowInstant: () => schemaInstant,
+    })
+    for (const field of plan.fields) {
+      const side = choices.get(field.fieldId)
+      const name =
+        field.mergedName ??
+        (side === "ours" ? field.oursName : field.theirsName)
+      // Runtime owns SQLite DDL, Views, derived dependencies, revisions and validation.
+      if (
+        runtime
+          .listFields(field.tableId)
+          .find((item) => item.id === field.fieldId)?.name !== name
+      )
+        runtime.updateField(field.tableId, field.fieldId, { name })
+    }
+  }
+  const outcome = mergeEidosSystemMetadata({ ...input, operationInstant })
+  if (outcome.outcome !== "merged") return outcome
+  const merged = readSnapshot(input.result)
+  const metadata = { ...merged, conflicts: [], automaticResolutions: [] }
+  for (const connection of [input.base, input.ours, input.theirs])
+    applyPlan(connection, metadata)
+  return outcome
 }
 
 interface MetaRow {

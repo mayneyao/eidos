@@ -4,6 +4,10 @@ import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type {
+  MarkdownEditorProps,
+  MarkdownNoteCandidate,
+} from "@eidos.space/markdown"
 
 const sourceEditor = vi.hoisted(() => vi.fn())
 const wysiwygEditor = vi.hoisted(() => vi.fn())
@@ -86,6 +90,66 @@ describe("MarkdownEditorSurface", () => {
     Reflect.deleteProperty(URL, "revokeObjectURL")
   })
 
+  it("reports actionable import errors without internal paths and clears them on retry", async () => {
+    Object.assign(window.eidosLite, {
+      importMarkdownFile: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "EACCES: permission denied /private/assets/.eidos-image-secret.tmp"
+          )
+        ),
+    })
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="note.md"
+          relativePath="note.md"
+          assetDocumentPath="note.md"
+          content="draft"
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    const importFiles = wysiwygEditor.mock.lastCall![0]
+      .onImportFiles as NonNullable<MarkdownEditorProps["onImportFiles"]>
+    let pending!: ReturnType<typeof importFiles>
+    act(() => {
+      pending = importFiles({
+        kind: "file",
+        signal: new AbortController().signal,
+      })
+    })
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    Object.defineProperty(input, "files", {
+      value: [new File(["pdf"], "report.pdf")],
+    })
+    await act(async () => {
+      input.dispatchEvent(new Event("change"))
+      await pending
+    })
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Check write access to this note's folder and try again."
+    )
+    expect(container.textContent).not.toContain(".tmp")
+    act(() => {
+      pending = importFiles({
+        kind: "file",
+        signal: new AbortController().signal,
+      })
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    await act(async () => {
+      document
+        .querySelector('input[type="file"]')!
+        .dispatchEvent(new Event("cancel"))
+      await pending
+    })
+  })
+
   it("routes source mode to Pierre", async () => {
     await act(async () => {
       root.render(
@@ -108,6 +172,48 @@ describe("MarkdownEditorSurface", () => {
       expect.objectContaining({ content: "# Source" })
     )
     expect(wysiwygEditor).not.toHaveBeenCalled()
+  })
+
+  it("clears a previous image import error when retrying through the host", async () => {
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="README.md"
+          relativePath="README.md"
+          assetDocumentPath="README.md"
+          content="![]()"
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    await act(async () =>
+      wysiwygEditor.mock.lastCall![0].onError(new Error("Invalid image"))
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Invalid image"
+    )
+    vi.mocked(window.eidosLite.importMarkdownImage).mockResolvedValue({
+      markdownUrl: "assets/cover.png",
+      relativePath: "assets/cover.png",
+      mediaType: "image/png",
+    })
+    const file = new File(["fixture"], "cover.png", { type: "image/png" })
+    await act(async () => {
+      await wysiwygEditor.mock.lastCall![0].onPasteImage({
+        documentKey: "README.md",
+        file,
+        signal: new AbortController().signal,
+        index: 0,
+        total: 1,
+      })
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(window.eidosLite.importMarkdownImage).toHaveBeenCalledWith(
+      "README.md",
+      file
+    )
   })
 
   it("keeps search fallback in the current session across parent rerenders", async () => {
@@ -268,8 +374,54 @@ describe("MarkdownEditorSurface", () => {
         signal: new AbortController().signal,
       })
     ).toEqual([
-      { title: "Guide", path: "Notes/Actual.md", displayText: "Guide" },
+      {
+        title: "Guide",
+        path: "Notes/Actual.md",
+        displayText: "Guide",
+        displayPath: "Notes/Actual.md",
+      },
     ])
+  })
+
+  it("keeps original display paths separate from encoded file and image destinations", async () => {
+    const paths = [
+      "中文 %20 %25 %E4%B8%AD/图 [片] (#%).png",
+      "中文 空格/图 [片] (#%).png",
+      "资料 %20/附件 [报告] (#%).txt",
+    ]
+    vi.mocked(window.eidosLite.searchSpacePaths).mockResolvedValue(
+      paths.map((relativePath) => ({
+        relativePath,
+        name: relativePath.split("/").at(-1)!,
+        kind: "file",
+        score: 100,
+      }))
+    )
+    await act(async () =>
+      root.render(
+        <MarkdownEditorSurface
+          documentKey="Main.md"
+          relativePath="Main.md"
+          content=""
+          editingMode="wysiwyg"
+          theme="light"
+          onChange={vi.fn()}
+        />
+      )
+    )
+    const search = wysiwygEditor.mock.calls.at(-1)![0].searchNotes
+    const candidates: readonly MarkdownNoteCandidate[] = await search({
+      documentKey: "Main.md",
+      query: "",
+      signal: new AbortController().signal,
+    })
+    expect(candidates.map((candidate) => candidate.displayPath)).toEqual(paths)
+    for (const [index, candidate] of candidates.entries()) {
+      const encoded = paths[index]!.split("/").map(encodeURIComponent).join("/")
+      expect(candidate.path).toBe(encoded)
+      expect(candidate.imageUrl).toBe(index < 2 ? `/${encoded}` : undefined)
+    }
+    expect(candidates[0]!.path).toContain("%2520%20%2525%20%25E4%25B8%25AD")
   })
 
   it("offers an unresolved note reference without creating a file during search", async () => {
@@ -387,9 +539,18 @@ describe("MarkdownEditorSurface", () => {
     await expect(
       props.searchNotes({ documentKey: "index.md", query: "", signal })
     ).resolves.toEqual([
-      { title: "Note", path: "Notes/Note.md" },
-      { title: "image.png", path: "/image.png" },
-      { title: "customers.eidos", path: "business/customers.eidos" },
+      { title: "Note", path: "Notes/Note.md", displayPath: "Notes/Note.md" },
+      {
+        title: "image.png",
+        path: "/image.png",
+        imageUrl: "/image.png",
+        displayPath: "image.png",
+      },
+      {
+        title: "customers.eidos",
+        path: "business/customers.eidos",
+        displayPath: "business/customers.eidos",
+      },
     ])
     expect(window.eidosLite.searchSpacePaths).toHaveBeenCalledWith(".", 200)
   })

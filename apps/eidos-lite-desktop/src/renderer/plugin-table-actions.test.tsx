@@ -108,6 +108,8 @@ it("opens mapped files through the existing internal and system host flows", asy
   const root = createRoot(container)
   cleanup = () => root.unmount()
   const onOpenSpaceFile = vi.fn()
+  const onOpenFileInSidebar = vi.fn()
+  const onPreviewRecord = vi.fn()
   const getRow = vi
     .fn()
     .mockResolvedValue({ _id: "notes.md", path: "notes.md" })
@@ -127,6 +129,8 @@ it("opens mapped files through the existing internal and system host flows", asy
     onSnapshot: vi.fn(),
     fileRelativePath: "assets/files.eidos",
     onOpenSpaceFile,
+    onOpenFileInSidebar,
+    onPreviewRecord,
     onError: vi.fn(),
   } as unknown as Omit<ComponentProps<typeof PluginTableActions>, "children">
   await act(async () =>
@@ -146,6 +150,7 @@ it("opens mapped files through the existing internal and system host flows", asy
     container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
   expect([...items].map((item) => item.textContent)).toEqual([
     "Open in Eidos",
+    "Open in sidebar",
     "Open with default app",
     "File properties",
   ])
@@ -153,6 +158,12 @@ it("opens mapped files through the existing internal and system host flows", asy
   expect(onOpenSpaceFile).toHaveBeenCalledWith("assets/notes.md")
   expect(openPath).not.toHaveBeenCalled()
   await act(async () => items[1]!.click())
+  expect(onOpenFileInSidebar).toHaveBeenCalledWith("assets/notes.md")
+  expect(onPreviewRecord).toHaveBeenCalledExactlyOnceWith("notes.md", {
+    _id: "notes.md",
+    path: "notes.md",
+  })
+  await act(async () => items[2]!.click())
   expect(openPath).toHaveBeenCalledWith("assets/notes.md")
   expect(props.onError).not.toHaveBeenCalled()
 })

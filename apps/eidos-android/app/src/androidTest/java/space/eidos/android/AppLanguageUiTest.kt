@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +19,38 @@ import java.util.UUID
 
 class AppLanguageUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun customServerNavigationAndFormFollowAppLanguage() {
+        val context = compose.activity.application
+        val original = AppLanguage.selected()
+        lateinit var model: EidosModel
+        try {
+            compose.runOnUiThread {
+                AppLanguage.set(context, "en")
+                model = EidosModel(context)
+                compose.activity.setContent {
+                    MaterialTheme { SyncScreen(AppState(), model) }
+                }
+            }
+            compose.onNodeWithText("Custom server").assertIsDisplayed()
+            compose.onNodeWithText("Connect to your own Graft server without an Eidos account").assertIsDisplayed()
+            compose.onNodeWithText("Custom server").performClick()
+            compose.onNodeWithText("Custom server").assertIsDisplayed()
+            compose.onNodeWithText("Server address").assertIsDisplayed()
+            compose.onNodeWithText("Server access key").assertIsDisplayed()
+            compose.onNodeWithText("Browse server Spaces").performScrollTo().assertIsDisplayed()
+            compose.runOnUiThread { AppLanguage.set(context, "zh") }
+            compose.onNodeWithText("浏览服务器 Space").assertIsDisplayed()
+            compose.onNodeWithContentDescription("返回同步").performClick()
+            compose.onNodeWithText("自定义服务器").assertIsDisplayed()
+            compose.onNodeWithText("连接自建 Graft 服务器，无需 Eidos 账号").assertIsDisplayed()
+            compose.runOnUiThread { AppLanguage.set(context, "en") }
+            compose.onNodeWithText("Custom server").assertIsDisplayed()
+            compose.onNodeWithText("Connect to your own Graft server without an Eidos account").assertIsDisplayed()
+        } finally {
+            compose.runOnUiThread { model.viewModelScope.cancel(); AppLanguage.set(context, original) }
+        }
+    }
 
     @Test fun newFileTemplateUsesAppLanguageAndPreservesExistingNames() {
         val context = compose.activity.application

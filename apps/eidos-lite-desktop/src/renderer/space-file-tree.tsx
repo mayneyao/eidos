@@ -46,6 +46,7 @@ import {
 } from "./explorer-file-filter"
 
 interface SpaceFileTreeProps {
+  spaceId?: string
   entries: SpaceTreeEntry[]
   rootDirectory?: string | null
   sort?: ExplorerSort
@@ -87,6 +88,56 @@ export interface SpaceFileTreeModel {
   paths: string[]
   initialExpandedPaths: string[]
   entryByTreePath: Map<string, SpaceTreeEntry>
+}
+
+interface PendingTreeMove {
+  paths: readonly string[]
+  target: FileTreeDropTarget
+  before: SpaceFileTreeModel
+}
+
+function projectPendingMove(
+  tree: SpaceFileTreeModel,
+  move: PendingTreeMove | null,
+  rootDirectory?: string | null
+): SpaceFileTreeModel {
+  if (!move) return tree
+  const entries = new Map(tree.entryByTreePath)
+  for (const source of move.paths) {
+    const destination = droppedTreePath(source, move.target)
+    for (const [oldPath, entry] of move.before.entryByTreePath) {
+      if (
+        (oldPath === source ||
+          (source.endsWith("/") && oldPath.startsWith(source))) &&
+        !entries.has(oldPath)
+      )
+        entries.set(oldPath, entry)
+    }
+    for (const [oldPath, entry] of [...entries]) {
+      if (
+        oldPath !== source &&
+        !(source.endsWith("/") && oldPath.startsWith(source))
+      )
+        continue
+      entries.delete(oldPath)
+      const nextPath = destination + oldPath.slice(source.length)
+      entries.set(nextPath, {
+        ...entry,
+        relativePath: rootDirectory
+          ? `${rootDirectory}/${relativePathFromTreePath(nextPath)}`
+          : relativePathFromTreePath(nextPath),
+      })
+    }
+  }
+  return {
+    paths: [...entries.keys()],
+    entryByTreePath: entries,
+    initialExpandedPaths: move.paths.reduce(
+      (paths, source) =>
+        remappedTreePaths(paths, source, droppedTreePath(source, move.target)),
+      tree.initialExpandedPaths
+    ),
+  }
 }
 
 export function parentTreePaths(relativePath: string): string[] {
@@ -287,6 +338,7 @@ export function buildSpaceFileTreeModel(
 }
 
 export function SpaceFileTree({
+  spaceId,
   entries,
   rootDirectory = null,
   sort = DEFAULT_EXPLORER_SORT,
@@ -340,6 +392,7 @@ export function SpaceFileTree({
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
   const mutationInFlightRef = useRef(false)
+  const [pendingMove, setPendingMove] = useState<PendingTreeMove | null>(null)
   const onOpenRef = useRef(onOpen)
   onOpenRef.current = onOpen
   const onSelectRef = useRef(onSelect)
@@ -358,14 +411,18 @@ export function SpaceFileTree({
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(
     () =>
-      buildSpaceFileTreeModel(
-        entries,
-        rootDirectory,
-        sort,
-        fileFilter,
-        nameQuery
+      projectPendingMove(
+        buildSpaceFileTreeModel(
+          entries,
+          rootDirectory,
+          sort,
+          fileFilter,
+          nameQuery
+        ),
+        pendingMove,
+        rootDirectory
       ),
-    [entries, rootDirectory, sort, fileFilter, nameQuery]
+    [entries, rootDirectory, sort, fileFilter, nameQuery, pendingMove]
   )
   const spaceDirectory = (path: string | null): string | null =>
     rootDirectory ? (path ? `${rootDirectory}/${path}` : rootDirectory) : path
@@ -415,6 +472,7 @@ export function SpaceFileTree({
   ) => {
     if (draggedPaths.length === 0) return
     mutationInFlightRef.current = true
+    setPendingMove({ paths: draggedPaths, target, before: treeRef.current })
     appliedPathsSignatureRef.current = sortedPathsSignature(
       draggedPaths.reduce(
         (paths, sourcePath) =>
@@ -441,6 +499,7 @@ export function SpaceFileTree({
       })
       .finally(() => {
         mutationInFlightRef.current = false
+        setPendingMove(null)
       })
   }
 
@@ -574,7 +633,7 @@ export function SpaceFileTree({
     if (
       appliedPathsSignatureRef.current === signature &&
       appliedSortSignatureRef.current === sortSignature &&
-      appliedOrderRef.current === treeSignature &&
+      (appliedOrderRef.current === treeSignature || pendingMove !== null) &&
       appliedNameQueryRef.current === nameQuery
     )
       return
@@ -1079,9 +1138,12 @@ export function SpaceFileTree({
               return
             const files = Array.from(event.dataTransfer.files)
             if (!files.length) return
-            const targetDirectory = spaceDirectory(
-              externalDropTargetDirectory(treePath)
-            )
+            const directory = externalDropTargetDirectory(treePath)
+            if (directory) {
+              const folder = model.getItem(`${directory}/`)
+              if (folder && "expand" in folder) folder.expand()
+            }
+            const targetDirectory = spaceDirectory(directory)
             mutationInFlightRef.current = true
             void onImportFiles(files, targetDirectory)
               .catch(onMoveError)
@@ -1110,7 +1172,8 @@ export function SpaceFileTree({
             entry.relativePath,
             draggedTreePaths.map((path) =>
               spaceTreePath(relativePathFromTreePath(path))
-            )
+            ),
+            spaceId
           )
         }}
         onClick={(event) => {

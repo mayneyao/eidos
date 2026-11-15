@@ -7,6 +7,9 @@ import { utilityProcess, type UtilityProcess } from "electron"
 
 import type {
   EidosFileIssue,
+  EidosSyncMergeTablePreview,
+  EidosSyncMergeSchemaPlan,
+  EidosSyncMergeSchemaChoice,
   FileMetadataSchema,
   OpenEidosFileResult,
   RuntimeCalls,
@@ -586,6 +589,102 @@ export class RuntimePool {
         type: "mergeSystemMetadata",
         requestId: 1,
         ...options,
+      } satisfies RuntimeWorkerRequest)
+    })
+  }
+
+  async mergeSchema(
+    options: RuntimeSystemMetadataMergeOptions,
+    choices: EidosSyncMergeSchemaChoice[] | null,
+    signal: AbortSignal
+  ): Promise<EidosSyncMergeSchemaPlan | RuntimeSystemMetadataMergeResult> {
+    signal.throwIfAborted()
+    const child = utilityProcess.fork(this.workerPath, [], {
+      serviceName: "Eidos File · Schema merge",
+      stdio: "pipe",
+    })
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (operation: () => void) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener("abort", abort)
+        operation()
+        child.kill()
+      }
+      const abort = () => finish(() => reject(signal.reason))
+      signal.addEventListener("abort", abort, { once: true })
+      child.on("message", (message) => {
+        if (!isWorkerResponse(message) || message.requestId !== 1) return
+        if (message.ok)
+          finish(() =>
+            resolve(
+              message.result as
+                | EidosSyncMergeSchemaPlan
+                | RuntimeSystemMetadataMergeResult
+            )
+          )
+        else finish(() => reject(new Error(message.error.message)))
+      })
+      child.once("exit", (code) =>
+        finish(() =>
+          reject(new Error(`Schema merge worker exited with code ${code}`))
+        )
+      )
+      if (signal.aborted) {
+        abort()
+        return
+      }
+      child.postMessage({
+        type: "mergeSchema",
+        requestId: 1,
+        options,
+        choices,
+      } satisfies RuntimeWorkerRequest)
+    })
+  }
+
+  async readMergeTablePreview(
+    filePath: string,
+    tables: string[],
+    signal: AbortSignal
+  ): Promise<EidosSyncMergeTablePreview[]> {
+    signal.throwIfAborted()
+    const child = utilityProcess.fork(this.workerPath, [], {
+      serviceName: "Eidos File · Merge preview",
+      stdio: "pipe",
+    })
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (operation: () => void) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener("abort", abort)
+        operation()
+        child.kill()
+      }
+      const abort = () => finish(() => reject(signal.reason))
+      signal.addEventListener("abort", abort, { once: true })
+      child.on("message", (message) => {
+        if (!isWorkerResponse(message) || message.requestId !== 1) return
+        if (message.ok)
+          finish(() => resolve(message.result as EidosSyncMergeTablePreview[]))
+        else finish(() => reject(new Error(message.error.message)))
+      })
+      child.once("exit", (code) =>
+        finish(() =>
+          reject(new Error(`Merge preview worker exited with code ${code}`))
+        )
+      )
+      if (signal.aborted) {
+        abort()
+        return
+      }
+      child.postMessage({
+        type: "mergeTablePreview",
+        requestId: 1,
+        filePath,
+        tables,
       } satisfies RuntimeWorkerRequest)
     })
   }

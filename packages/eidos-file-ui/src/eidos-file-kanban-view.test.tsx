@@ -1964,57 +1964,74 @@ describe("EidosFileKanbanView", () => {
     )
   })
 
-  it("loads the target group page and reveals a search result", async () => {
-    const loadGroupPage = vi.fn(
-      async (_field, value: string | null, offset: number, limit: number) => ({
-        tableId: "tasks",
-        offset,
-        limit,
-        total: value === "todo" ? 51 : 0,
-        rows:
-          value === "todo"
-            ? Array.from({ length: offset === 0 ? 50 : 1 }, (_, index) => ({
-                _id: `row_${offset + index}`,
-                title: `Task ${offset + index}`,
-                status: "todo",
-              }))
-            : [],
-      })
-    )
-    const onRowCountChange = vi.fn()
-
-    await act(async () => {
-      root.render(
-        <EidosFileKanbanView
-          table={table}
-          view={view}
-          searchResultIndex={50}
-          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 51 }])}
-          loadGroupPage={loadGroupPage}
-          onCellEdit={vi.fn()}
-          onAddRow={vi.fn()}
-          onRowCountChange={onRowCountChange}
-        />
+  it.each(["search", "record"])(
+    "loads the target group page and reveals a %s target",
+    async (mode) => {
+      const loadGroupPage = vi.fn(
+        async (
+          _field,
+          value: string | null,
+          offset: number,
+          limit: number
+        ) => ({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "todo" ? 51 : 0,
+          rows:
+            value === "todo"
+              ? Array.from({ length: offset === 0 ? 50 : 1 }, (_, index) => ({
+                  _id: `row_${offset + index}`,
+                  title: `Task ${offset + index}`,
+                  status: "todo",
+                }))
+              : [],
+        })
       )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+      const onRowCountChange = vi.fn()
 
-    expect(loadGroupPage).toHaveBeenCalledWith(
-      expect.objectContaining({ tableColumnName: "status" }),
-      "todo",
-      50,
-      50,
-      51
-    )
-    expect(onRowCountChange).toHaveBeenLastCalledWith(51)
-    expect(
-      container
-        .querySelector('[data-eidos-file-row-id="row_50"]')
-        ?.getAttribute("aria-current")
-    ).toBe("true")
-  })
+      await act(async () => {
+        root.render(
+          <EidosFileKanbanView
+            table={table}
+            view={view}
+            searchResultIndex={mode === "search" ? 50 : null}
+            recordFocus={
+              mode === "record"
+                ? {
+                    row: { _id: "row_50", title: "Task 50", status: "todo" },
+                    token: 1,
+                  }
+                : undefined
+            }
+            locateRow={async () => 50}
+            loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 51 }])}
+            loadGroupPage={loadGroupPage}
+            onCellEdit={vi.fn()}
+            onAddRow={vi.fn()}
+            onRowCountChange={onRowCountChange}
+          />
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(loadGroupPage).toHaveBeenCalledWith(
+        expect.objectContaining({ tableColumnName: "status" }),
+        "todo",
+        50,
+        50,
+        51
+      )
+      expect(onRowCountChange).toHaveBeenLastCalledWith(51)
+      expect(
+        container
+          .querySelector('[data-eidos-file-row-id="row_50"]')
+          ?.getAttribute("aria-current")
+      ).toBe("true")
+    }
+  )
 
   it("virtualizes a million-card column and loads the target window on scroll", async () => {
     const loadGroupPage = vi.fn(

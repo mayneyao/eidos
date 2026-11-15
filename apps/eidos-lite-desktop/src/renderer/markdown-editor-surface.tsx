@@ -15,7 +15,10 @@ import type { EidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import type {
   MarkdownEditorInternalLinkHandler,
   MarkdownNoteSearchHandler,
+  MarkdownNoteCandidate,
   MarkdownEditorInternalLinkRequest,
+  MarkdownEditorPasteImageHandler,
+  MarkdownEditorProps,
 } from "@eidos.space/markdown"
 import type { TextFileNavigationTarget as MarkdownEditorNavigationTarget } from "./text-search-navigation"
 import {
@@ -27,6 +30,7 @@ import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-sur
 import { useMarkdownImageAttachments } from "./markdown-image-attachments"
 import { markdownKeyboardShortcuts } from "./markdown-keyboard-shortcuts"
 import { useEidosLiteI18n } from "./i18n"
+import { spaceFileDocumentDrop } from "./space-file-document-drop"
 
 let pierreModule:
   | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
@@ -122,7 +126,45 @@ export function MarkdownEditorSurface({
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const previousDocumentKeyRef = useRef(documentKey)
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
+  const importImage = useCallback<MarkdownEditorPasteImageHandler>(
+    async (request) => {
+      setAttachmentError(null)
+      return imageAttachments?.onPasteImage(request) ?? null
+    },
+    [imageAttachments]
+  )
   const { t } = useEidosLiteI18n()
+  const documentFileDrop = useMemo(
+    () => ({
+      ...spaceFileDocumentDrop,
+      onError: (error: Error) => setAttachmentError(t(error.message)),
+    }),
+    [t]
+  )
+  const importFiles = useCallback<
+    NonNullable<MarkdownEditorProps["onImportFiles"]>
+  >(
+    async (request) => {
+      setAttachmentError(null)
+      try {
+        return (await imageAttachments?.onImportFiles(request)) ?? []
+      } catch (cause) {
+        if (request.signal.aborted) return []
+        const message = cause instanceof Error ? cause.message : String(cause)
+        setAttachmentError(
+          t(
+            /EACCES|EPERM|EROFS|permission denied|read-only/iu.test(message)
+              ? "Could not attach file. Check write access to this note's folder and try again."
+              : /between 1 byte and 64 MiB/u.test(message)
+                ? "Choose an attachment between 1 byte and 64 MiB, then try again."
+                : "Could not attach file. Choose the file again to retry."
+          )
+        )
+        return []
+      }
+    },
+    [imageAttachments, t]
+  )
   const emptyDocumentPrompt =
     layout === "document" ? t("Start writing…") : undefined
   const focusHint = focusShortcutLabel
@@ -186,14 +228,20 @@ export function MarkdownEditorSurface({
         ).values(),
       ].sort((a, b) => b.score - a.score)
       if (signal.aborted) return []
-      const candidates = hits
+      const candidates: MarkdownNoteCandidate[] = hits
         .filter((hit) => hit.kind === "file" || hit.kind === "eidos")
         .map((hit) => ({
           title: hit.matchedAlias ?? hit.name.replace(/\.md$/iu, ""),
+          displayPath: hit.relativePath,
           displayText: hit.matchedAlias,
           path: hit.relativePath.includes("/")
-            ? hit.relativePath
-            : `/${hit.relativePath}`,
+            ? hit.relativePath.split("/").map(encodeURIComponent).join("/")
+            : `/${encodeURIComponent(hit.relativePath)}`,
+          ...(/\.(?:png|jpe?g|gif|webp|avif|bmp|ico|svg)$/iu.test(hit.name)
+            ? {
+                imageUrl: `/${hit.relativePath.split("/").map(encodeURIComponent).join("/")}`,
+              }
+            : {}),
         }))
       const missing = missingMarkdownNotePath(relativePath, {
         path: query,
@@ -298,6 +346,7 @@ export function MarkdownEditorSurface({
       >
         {sessionMode === "source" ? (
           <PierreEditor
+            documentKey={documentKey}
             searchTarget={navigationTarget?.textSearch}
             relativePath={relativePath}
             content={content}
@@ -307,7 +356,8 @@ export function MarkdownEditorSurface({
             focusRequestToken={focusRequestToken}
             placeholder={emptyDocumentPrompt}
             placeholderHint={focusHint}
-            onPasteImage={imageAttachments?.onPasteImage}
+            onPasteImage={imageAttachments ? importImage : undefined}
+            fileDrop={disabled ? undefined : documentFileDrop}
             onPasteImageError={(error) =>
               setAttachmentError(`Image paste failed: ${error.message}`)
             }
@@ -328,6 +378,9 @@ export function MarkdownEditorSurface({
               closeFind: t("Close find"),
               copyBlockLink: t("Copy block link"),
               linkToFile: t("Link to a file"),
+              insertFileLink: t("Insert link"),
+              insertFileImage: t("Insert image"),
+              attachFile: t("Attach file"),
               searchFiles: t("Search files…"),
               searchingFiles: t("Searching files…"),
               noMatchingFiles: t("No matching files"),
@@ -359,7 +412,9 @@ export function MarkdownEditorSurface({
             focusRequestToken={focusRequestToken}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}
-            onPasteImage={imageAttachments?.onPasteImage}
+            onPasteImage={imageAttachments ? importImage : undefined}
+            fileDrop={documentFileDrop}
+            onImportFiles={imageAttachments ? importFiles : undefined}
             resolveImageUrl={imageAttachments?.resolveImageUrl}
             onError={(error) =>
               setAttachmentError(`Markdown editor error: ${error.message}`)

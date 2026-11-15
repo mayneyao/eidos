@@ -166,11 +166,37 @@ export class EfmBlockNode extends DecoratorBlockNode {
 
   decorate(editor: LexicalEditor): JSX.Element {
     const nodeKey = this.getKey()
+    const source = this.getData().source
     return (
       <>
         <EfmBlockSelection editor={editor} nodeKey={nodeKey} />
         <EfmBlockView
           data={this.getData()}
+          onImportImages={(images) => {
+            if (!editor.isEditable() || images.length === 0) return
+            editor.update(
+              () => {
+                const node = $getNodeByKey(nodeKey)
+                if (!$isEfmBlockNode(node)) return
+                const current = node.getData()
+                // A picker must never replace a block edited while it was open.
+                if (
+                  current.kind !== "image" ||
+                  current.url?.trim() ||
+                  current.source !== source
+                )
+                  return
+                node.setData(images[0])
+                let previous = node
+                for (const data of images.slice(1)) {
+                  const image = $createEfmBlockNode(data)
+                  previous.insertAfter(image)
+                  previous = image
+                }
+              },
+              { tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] }
+            )
+          }}
           onResizeImage={(width) => {
             if (!editor.isEditable()) return
             editor.update(

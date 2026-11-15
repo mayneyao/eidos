@@ -2336,11 +2336,14 @@ physical name、unknown Field、system Field、Formula、Lookup 与 inverse Rela
 key。它在打开 write transaction 前验证完整 logical value。具有有效 File Format
 `settings.defaultOption` 的 missing Select Field 使用该 exact option name。此规则
 只用于 create，且只在 `values` 中没有该 Field ID 时运行；nullable Select 的显式
-null 会抑制 default。其他 missing nullable Field 成为 null。missing Multi-select、
-File 与 forward Relation Field 使用 `[]`。其他所有 missing non-null user Field
-都是 `invalid-value`；不存在 implicit type default。Runtime 填充 Row ID 与
-created/updated timestamp。CSV import/replay 保持其 explicit input contract；除非
-它调用 ordinary row-create operation，否则不得推断此 create-time default。
+null 会抑制 default。missing stored Checkbox Field 使用 false，包括 non-nullable
+Checkbox 和没有 physical `DEFAULT 0` 的旧 column。nullable Checkbox 的显式 null
+仍为 null。其他 missing nullable Field 成为 null。missing Multi-select、File 与
+forward Relation Field 使用 `[]`。其他所有 missing non-null user Field 都是
+`invalid-value`；不存在其他 implicit scalar type default。Update 省略字段时不会
+应用 create default 或改变既有值。Runtime 填充 Row ID 与 created/updated
+timestamp。CSV import/replay 保留显式 null/false；省略 Checkbox Field 时使用 false，
+省略 Select 时不推断 create-time default，除非调用 ordinary row-create operation。
 
 display catalog 中不存在的 Select value 仍然有效。Multi-select 与 Relation value
 必须已 ordered/unique；Runtime 不会默默 deduplicate。JSON Field input 是 JCS
@@ -2601,6 +2604,7 @@ type ConversionPolicy =
   | "utc-date"
   | "first"
   | "null-to-empty-list"
+  | "null-to-false"
 
 type ScalarStoredFieldType =
   | "text"
@@ -2652,7 +2656,11 @@ stable ID 存在后，通过后续 schema operation 添加它们。允许 Formul
 revision 上仅含 stable-ID 的 definition 创建任意 kind。除 `create-table` 内的
 `labelFieldClientKey` 外，不存在 implicit client-key object reference。
 
-`nullable` 对 stored scalar Field 默认为 true；对 File、Multi-select、
+`nullable` 对 stored Checkbox Field 默认为 false，对其他 stored scalar Field
+默认为 true。因此新建 Checkbox 的 physical column 是 `NOT NULL DEFAULT 0`，
+只接受 false/true。仍支持显式 `nullable:true` 的可空 Checkbox；打开或 clone
+既有 Field 不会自动改变其声明，也不会把 SQL NULL 替换为 false。
+`nullable` 对 File、Multi-select、
 forward/inverse Relation 固定为 false；对 core 1.0 的 Formula 与 Lookup 固定为
 true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Format matrix
 精确一致。
@@ -2663,10 +2671,11 @@ true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Form
 forbidden；不会 invent implicit default。转换为 scalar destination 时使用
 required `toNullable`；list/forward-Relation destination 固定 non-null。
 
-在 populated Table 上创建 stored Field 有精确的 fill behavior。nullable scalar
-Field 以 SQL NULL 填充每个 existing row。只有 Table 为零行时才允许创建
-non-nullable scalar Field；Runtime 1.0 中没有 general default/initial-value
-member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
+在 populated Table 上创建 stored Field 有精确的 fill behavior。Checkbox Field
+无论 nullable 还是 non-nullable，都通过 canonical `DEFAULT 0` 把每个新 cell
+初始化为 false。其他 nullable scalar Field 以 SQL NULL 填充每个 existing row。
+Checkbox 之外的 non-nullable scalar Field 仍只允许在零行 Table 上创建；Runtime
+1.0 中没有 general default/initial-value member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
 existing row。Multi-select、File 与 forward Relation Field 以 canonical `[]`
 填充每个 existing row。Formula、Lookup 与 inverse Relation Field 不添加
 user-table column。
@@ -2689,7 +2698,7 @@ Field 是其 forward Field 的 unique inverse；conflicting pair 是 forbidden�
 存在 `policies` 时，其中元素唯一且必须遵循以下 canonical order：
 `round-binary64`、`truncate-toward-zero`、
 `round-ties-even`、`zero-false-nonzero-true`、`utc-date`、`first`、
-`null-to-empty-list`。`truncate-toward-zero` 与 `round-ties-even` mutually
+`null-to-empty-list`、`null-to-false`。`truncate-toward-zero` 与 `round-ties-even` mutually
 exclusive。Runtime 拒绝与 selected source/destination 无关的 policy。只有针对
 一次 cell conversion 中互不重叠的 stage，才允许多个 policy。
 
@@ -2748,6 +2757,7 @@ type SchemaValueChangeCode =
   | "numeric-to-checkbox"
   | "datetime-to-date"
   | "null-to-empty-list"
+  | "null-to-false"
   | "list-empty-to-null"
   | "list-tail-dropped"
   | "relation-detached"
@@ -2806,23 +2816,23 @@ classification、total affected-row count 或 dependency count。
 Preflight 只使用以下 core diagnostic code（extension 使用第 15 节的 namespace
 rule）：
 
-| Code                          | Severity | Exact trigger                                                 |
-| ----------------------------- | -------- | ------------------------------------------------------------- |
-| `fraction-loss`               | warning  | non-integral Number 被 truncate 或 round 为 Integer           |
-| `precision-loss`              | warning  | Integer 被 round 为 binary64                                  |
-| `truthiness-loss`             | warning  | exact 0/1 之外的 numeric value 映射为 Checkbox                |
-| `time-loss`                   | warning  | non-midnight datetime 映射为 date                             |
-| `null-distinction-loss`       | warning  | 两种实际 source category 通过 null/list policy 合并           |
-| `list-tail-loss`              | warning  | `first` 丢弃一个或多个 list element                           |
-| `option-merge-loss`           | warning  | option value/list occurrence 合并                             |
-| `object-delete-loss`          | warning  | Table 或 Field 被删除                                         |
-| `dependent-source-rewritten`  | info     | Formula source 或 saved-View operand 被 mechanically rewrite  |
-| `dependency-blocked`          | error    | 未处理的 dependent 阻止该 leaf                                |
-| `conversion-domain-invalid`   | error    | 至少一个 source value 没有 selected destination algorithm     |
-| `non-nullability-blocked`     | error    | SQL NULL 会在没有 allowed mapping 时抵达 non-null destination |
-| `relation-definition-invalid` | error    | target/direction/inverse ownership 或 target ID 无效          |
-| `cardinality-blocked`         | error    | value 超过 requested Relation cardinality                     |
-| `record-label-blocked`        | error    | delete/change 会导致没有 valid Record Label                   |
+| Code                          | Severity | Exact trigger                                                               |
+| ----------------------------- | -------- | --------------------------------------------------------------------------- |
+| `fraction-loss`               | warning  | non-integral Number 被 truncate 或 round 为 Integer                         |
+| `precision-loss`              | warning  | Integer 被 round 为 binary64                                                |
+| `truthiness-loss`             | warning  | exact 0/1 之外的 numeric value 映射为 Checkbox                              |
+| `time-loss`                   | warning  | non-midnight datetime 映射为 date                                           |
+| `null-distinction-loss`       | warning  | 任意 NULL 转为 false，或两种实际 source category 通过 null/list policy 合并 |
+| `list-tail-loss`              | warning  | `first` 丢弃一个或多个 list element                                         |
+| `option-merge-loss`           | warning  | option value/list occurrence 合并                                           |
+| `object-delete-loss`          | warning  | Table 或 Field 被删除                                                       |
+| `dependent-source-rewritten`  | info     | Formula source 或 saved-View operand 被 mechanically rewrite                |
+| `dependency-blocked`          | error    | 未处理的 dependent 阻止该 leaf                                              |
+| `conversion-domain-invalid`   | error    | 至少一个 source value 没有 selected destination algorithm                   |
+| `non-nullability-blocked`     | error    | SQL NULL 会在没有 allowed mapping 时抵达 non-null destination               |
+| `relation-definition-invalid` | error    | target/direction/inverse ownership 或 target ID 无效                        |
+| `cardinality-blocked`         | error    | value 超过 requested Relation cardinality                                   |
+| `record-label-blocked`        | error    | delete/change 会导致没有 valid Record Label                                 |
 
 `forbidden` preflight plan 至少包含一个来自该表的 error；`explicit-lossy` plan 至少
 包含一个对应 warning。只要 owning `tableId`/`fieldId`/`viewId` object 存在，
@@ -3004,7 +3014,15 @@ metadata-only。其他 cell 只使用以下 algorithm：
    `M?`；否则 forbidden。`convert-field` 从不改变 direction；same-direction
    `set-relation` rule 与 direction-flip prohibition 见第 12.1 节。
 
-除上述显式选择的 `null-to-empty-list` policy 外，每种 conversion 中 null 都保持
+`null-to-false` policy 只适用于 `toNullable=false` 的 stored Checkbox 目标。
+它把 source SQL NULL 转为 false，以 `null-to-false` 记录精确行数，并发出
+`null-distinction-loss`。只要实际发生 NULL→false，就必须是 `explicit-lossy`
+并要求确认，即使 source 没有 false 值。没有 NULL 时，该 policy 不增加值变化
+或有损分类；非法 non-null 值仍被拒绝。普通 editor 转为 stored Checkbox 时，
+使用此非空目标和推荐 policy，显示实际 NULL 数量，只在绑定 revision 上应用已
+确认的 retained plan。打开文件或无关编辑不会回填 NULL。
+
+除上述显式选择的 `null-to-empty-list` 和 `null-to-false` policy 外，每种 conversion 中 null 都保持
 SQL NULL。对于 scalar destination，`toNullable=true` 保留 source SQL NULL；
 如果任一 conversion stage 产生 SQL NULL，则 `toNullable=false` 为 forbidden。
 对于 non-null list destination，如果不使用 `null-to-empty-list`，source SQL NULL
@@ -3116,6 +3134,11 @@ catalog group，而不是 Runtime query group。因此 UI `showEmptyGroups` opti
 data。
 
 ### 13.2 CSV extension
+
+此 extension 向既有 Table 导入，保留目标的 NULL 与约束语义。高层 CSV 新建表
+计划是独立的类型转换：空白 Checkbox cell 转成新非空 Checkbox Field 的 false。
+该计划必须在预览中显示转换，并提交显式 Boolean CSV 值或等价 typed row 值，
+不修改源文件，也不改变本 extension 的空白单元格行为。
 
 当 `csvExport=true` 和/或 `csvImport=true` 时，Runtime 暴露对应的精确 optional
 operation：
@@ -3520,6 +3543,9 @@ ER-Writer 还覆盖：
 2. create/update/delete success、Table-scoped missing 与 duplicate-change failure、
    equal-value no-op、一个 operation timestamp、一次 revision increment、overflow
    refusal、full rollback 与 unknown-commit reconciliation；
+   ordinary create/import 和旧 column 中遗漏 Checkbox 时使用 false，保留显式
+   nullable null/false，sparse update 保留既有 Checkbox 值，以及 populated Table
+   上的 nullable/non-nullable Checkbox 创建；
 3. 对 single、multi-row 与 self-Relation delete set 的 Relation
    restrict/detach/preserve，以及 survivor order、timestamp 与 rollback；
 4. View create/update/delete、saved-search exclusion、unknown layout preservation

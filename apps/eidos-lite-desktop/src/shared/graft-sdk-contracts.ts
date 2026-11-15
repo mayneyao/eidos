@@ -108,6 +108,8 @@ export type GraftSdkCommand =
   | "listMergePaths"
   | "listMergeConflicts"
   | "readMergeVersion"
+  | "exportMergeSqliteVersion"
+  | "normalizeMergeSqliteInputs"
   | "diffMergeSqlite"
   | "setMergePathResult"
   | "resolveMergeRow"

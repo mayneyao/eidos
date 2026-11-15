@@ -35,6 +35,8 @@
     "deploy:docs": "pnpm run --filter docs deploy",
     "build:cli": "cargo build -p eidos --release --locked",
     "build:cli:dev": "cargo build -p eidos --locked",
+    "demo:eidos-lite:merge": "node apps/eidos-lite-desktop/scripts/merge-ui-demo.mjs",
+    "verify:eidos-lite:merge-demo": "pnpm --filter @eidos.space/eidos-lite-desktop verify:merge-demo",
     "smoke:cli-graft": "node apps/cli/graft-versioning-smoke.mjs",
     "smoke:eidos-lite-graft": "pnpm run --filter @eidos.space/eidos-lite-desktop test:graft",
     "smoke:eidos-lite-services": "pnpm run --filter @eidos.space/eidos-lite-desktop test:service-discovery",

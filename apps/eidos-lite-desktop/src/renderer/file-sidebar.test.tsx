@@ -12,7 +12,9 @@ const textSurface = vi.hoisted(() =>
   vi.fn<
     (props: {
       preview: TextFilePreviewResult
+      allowAutoFocus?: boolean
       draft?: { content: string }
+      saveStatusTarget?: HTMLElement | null
       onReload(preview: TextFilePreviewResult): void
       onSaved(preview: Extract<TextFilePreviewResult, { type: "text" }>): void
     }) => void
@@ -59,6 +61,11 @@ const plugin = (ticket: string): PluginOpenResult => ({
     editor: { key: "review/file", label: "Review", pluginName: "Review" },
   },
 })
+const originalImageDecode = Object.getOwnPropertyDescriptor(
+  HTMLImageElement.prototype,
+  "decode"
+)
+const decodeImage = vi.fn<(this: HTMLImageElement) => Promise<void>>()
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((done) => (resolve = done))
@@ -82,6 +89,11 @@ let openPlugin: ReturnType<
 let closePlugin: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  decodeImage.mockReset().mockResolvedValue(undefined)
+  Object.defineProperty(HTMLImageElement.prototype, "decode", {
+    configurable: true,
+    value: decodeImage,
+  })
   container = document.createElement("div")
   document.body.append(container)
   root = createRoot(container)
@@ -116,6 +128,13 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   textDraftLifecycle.update("review.md", null)
+  if (originalImageDecode)
+    Object.defineProperty(
+      HTMLImageElement.prototype,
+      "decode",
+      originalImageDecode
+    )
+  else Reflect.deleteProperty(HTMLImageElement.prototype, "decode")
 })
 const render = async (changes: Partial<typeof props> = {}) => {
   props = { ...props, ...changes }
@@ -206,12 +225,80 @@ it("keeps ready content while switching and disposes a superseded File View", as
   expect(
     container.querySelector<HTMLDivElement>(".file-sidebar-body")?.inert
   ).toBe(true)
+  expect(container.querySelector(".file-sidebar-status")).toBeNull()
+  expect(
+    [...container.querySelector(".file-sidebar")!.children].map(
+      (element) => element.tagName
+    )
+  ).toEqual(["HEADER", "DIV"])
+  expect(
+    container
+      .querySelector('header [aria-label="Refresh"] svg')
+      ?.classList.contains("spin")
+  ).toBe(true)
   await render({ relativePath: "c.png" })
   await act(async () => pending.resolve(plugin("stale")))
   expect(closePlugin).toHaveBeenCalledExactlyOnceWith("stale")
   expect(container.querySelector("header strong")?.textContent).toBe("c.png")
   expect(container.querySelector("img")?.alt).toBe("c.png")
   expect(container.querySelector("[data-plugin-ticket]")).toBeNull()
+})
+
+it("keeps the displayed image and title until the next image has decoded", async () => {
+  await render()
+  const currentImage = container.querySelector("img")!
+  const pending = deferred<void>()
+  decodeImage.mockImplementation(function (this: HTMLImageElement) {
+    return this.src.endsWith("/b.png") ? pending.promise : Promise.resolve()
+  })
+  await render({ relativePath: "b.png" })
+  expect(container.querySelector("img")).toBe(currentImage)
+  expect(currentImage.alt).toBe("a.png")
+  expect(currentImage.getAttribute("src")).toBe("eidos-space://test/a.png")
+  expect(container.querySelector("header strong")?.textContent).toBe("a.png")
+  expect(container.querySelector(".file-sidebar-status")).toBeNull()
+  expect(
+    container.querySelector(".file-sidebar")?.getAttribute("aria-busy")
+  ).toBe("true")
+  await act(async () => pending.resolve())
+  expect(container.querySelector("img")).toBe(currentImage)
+  expect(currentImage.alt).toBe("b.png")
+  expect(container.querySelector("header strong")?.textContent).toBe("b.png")
+  expect(
+    container.querySelector(".file-sidebar")?.getAttribute("aria-busy")
+  ).toBe("false")
+  expect(preview.mock.calls.map(([path]) => path)).toEqual(["a.png", "b.png"])
+})
+
+it("discards a superseded image decode during rapid A to B to C switching", async () => {
+  await render()
+  const pending = deferred<void>()
+  decodeImage.mockImplementation(function (this: HTMLImageElement) {
+    return this.src.endsWith("/b.png") ? pending.promise : Promise.resolve()
+  })
+  await render({ relativePath: "b.png" })
+  expect(container.querySelector("img")?.alt).toBe("a.png")
+  await render({ relativePath: "c.png" })
+  expect(container.querySelector("img")?.alt).toBe("c.png")
+  await act(async () => pending.resolve())
+  expect(container.querySelector("img")?.alt).toBe("c.png")
+  expect(container.querySelector("header strong")?.textContent).toBe("c.png")
+})
+
+it("retains the current image if decoding the replacement fails, then retries", async () => {
+  await render()
+  decodeImage.mockRejectedValueOnce(new Error("image decode failed"))
+  await render({ relativePath: "b.png" })
+  expect(container.querySelector("img")?.alt).toBe("a.png")
+  expect(container.querySelector("header strong")?.textContent).toBe("a.png")
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "b.png: image decode failed"
+  )
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click()
+  )
+  expect(container.querySelector("img")?.alt).toBe("b.png")
+  expect(container.querySelector('[role="alert"]')).toBeNull()
 })
 
 it("retains the previous file on failure and can retry the requested file", async () => {
@@ -243,6 +330,13 @@ it("does not replace the new file when an earlier editor finishes a save or relo
   preview.mockResolvedValueOnce(old)
   await render({ relativePath: "old.txt" })
   const callbacks = textSurface.mock.calls.at(-1)![0]
+  expect(callbacks.allowAutoFocus).toBe(false)
+  expect(callbacks.saveStatusTarget).toBe(
+    container.querySelector("header .text-file-save-slot")
+  )
+  expect(callbacks.saveStatusTarget?.previousElementSibling?.className).toBe(
+    "file-sidebar-title"
+  )
   await render({ relativePath: "new.png" })
   await act(async () => {
     callbacks.onReload(old)

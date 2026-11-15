@@ -699,7 +699,7 @@ describe("Eidos File 1.0 native Runtime", () => {
         fields: [
           { name: "Name", type: "text", isRecordLabel: true },
           { name: "Score", type: "number" },
-          { name: "Done", type: "checkbox" },
+          { name: "Done", type: "checkbox", nullable: true },
           { name: "Tags", type: "multi-select" },
           {
             name: "Team",

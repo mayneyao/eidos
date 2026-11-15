@@ -55,6 +55,8 @@
   "请先断开当前 Space 的服务器连接": "Disconnect the current Space from its server first.",
   "请使用上次初始化的服务器和同步密码继续连接": "Continue with the same server and sync password used for the interrupted setup.",
   "自定义服务器已连接，可立即同步": "Custom server connected. You can sync now.",
+  "自定义服务器": "Custom server",
+  "连接自建 Graft 服务器，无需 Eidos 账号": "Connect to your own Graft server without an Eidos account",
   "会在本地保存或重命名后自动处理当前文档。": "Runs automatically on the current document after local saves or renames.",
   "语言": "Language",
   "跟随系统": "Follow system",

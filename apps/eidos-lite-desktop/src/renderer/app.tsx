@@ -875,6 +875,8 @@ function WorkspaceApp({
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const [textSaveStatusTarget, setTextSaveStatusTarget] =
+    useState<HTMLSpanElement | null>(null)
   const textPreviewIdentity = useRef("")
   textPreviewIdentity.current = textPreview
     ? `${textPreview.relativePath}:${textPreview.type === "text" ? textPreview.revision : textPreview.modifiedAtMs}`
@@ -1525,8 +1527,18 @@ function WorkspaceApp({
     )
   }, [])
 
+  const acceptedSnapshotRef = useRef<SpaceSnapshot | null>(null)
   const acceptSpaceSnapshot = useCallback(
     (snapshot: SpaceSnapshot) => {
+      const previous = acceptedSnapshotRef.current
+      if (
+        previous?.id === snapshot.id &&
+        previous.sequence !== undefined &&
+        snapshot.sequence !== undefined &&
+        snapshot.sequence < previous.sequence
+      )
+        return
+      acceptedSnapshotRef.current = snapshot
       if (
         materializationSpaceId.current &&
         materializationSpaceId.current !== snapshot.id
@@ -3513,33 +3525,32 @@ function WorkspaceApp({
       setPathMutationBusy(true)
       setError(null)
       let activePathMoved = false
-      let moved = 0
       try {
-        for (const relativePath of relativePaths) {
-          const result = await window.eidosLite.movePath(
-            relativePath,
-            targetDirectory
-          )
-          await applyPathMutation(result)
-          if (result.relativePath) {
-            updateRecentFilePaths(relativePath, result.relativePath)
-            setSelectedEntry(
-              findSpaceEntry(result.snapshot.entries, result.relativePath)
-            )
-          }
-          if (pathMatchesPrefix(activeDocumentPath, relativePath)) {
+        const result = await window.eidosLite.movePaths(
+          relativePaths,
+          targetDirectory
+        )
+        await applyPathMutation(result)
+        for (const move of result.moves) {
+          updateRecentFilePaths(move.source, move.relativePath)
+          if (pathMatchesPrefix(activeDocumentPath, move.source))
             activePathMoved = true
-          }
-          moved += 1
         }
-      } catch (cause) {
-        if (moved > 0)
-          throw new Error(
-            `Moved ${moved} of ${relativePaths.length} items. ${errorMessage(cause)}`
+        const lastMove = result.moves.at(-1)
+        if (lastMove)
+          setSelectedEntry(
+            findSpaceEntry(result.snapshot.entries, lastMove.relativePath)
           )
-        throw cause
+        if (result.failure)
+          throw new Error(
+            `Moved ${result.moves.length} of ${relativePaths.length} items. ${result.failure.message}`
+          )
+        if (result.refreshError)
+          throw new Error(
+            `Files were moved, but the folder could not be refreshed. ${result.refreshError}`
+          )
       } finally {
-        if (activePathMoved && moved > 0) {
+        if (activePathMoved) {
           setActiveSession(null)
           setTextPreview(null)
           recordNavigationLocation(null)
@@ -4287,6 +4298,7 @@ function WorkspaceApp({
                 }}
               >
                 <SpaceFileTree
+                  spaceId={space.id}
                   sort={explorerSort}
                   nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
                   fileFilter={explorerFileFilter}
@@ -4628,6 +4640,17 @@ function WorkspaceApp({
               ) : (
                 <strong>{titlebarPresentation.title}</strong>
               )}
+              <span
+                className="text-file-save-slot"
+                ref={setTextSaveStatusTarget}
+                hidden={
+                  Boolean(pluginPage) ||
+                  pluginsVisible ||
+                  whatsNew.open ||
+                  titlebarPresentation.pending ||
+                  textPreview?.relativePath !== activeDocumentPath
+                }
+              />
               {!pluginPage &&
               !pluginsVisible &&
               !whatsNew.open &&
@@ -5067,6 +5090,7 @@ function WorkspaceApp({
                     key={`${textPreview.type === "text" ? (textPreview.editorIdentity ?? textPreview.relativePath) : textPreview.relativePath}:${textPreviewReloadToken}`}
                     preview={textPreview}
                     draft={textFileDrafts[textPreview.relativePath]}
+                    saveStatusTarget={textSaveStatusTarget}
                     theme={theme}
                     markdownFileEditingMode={textPreviewEditingMode}
                     htmlFileOpenMode={textPreviewHtmlMode}
@@ -5215,6 +5239,9 @@ function WorkspaceApp({
                     <EidosFileWorkbench
                       onPendingEditChange={updateEidosPendingEdit}
                       onOpenFileInSidebar={openFileInSidebar}
+                      fileSidebarOpen={
+                        workbenchSurfaces.right === "file-preview"
+                      }
                       onOpenSpaceFile={async (path) => {
                         const entry = findSpaceEntry(space.entries, path) ?? {
                           name: path.split("/").at(-1)!,

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import { RefreshCw, X } from "lucide-react"
 import { SyncedRepositoryRow } from "./synced-repository-row"
 import type { EidosSyncRepositoryManagement } from "../shared/contracts"
-import appLogo from "../../assets/logo.svg"
 import type {
   EidosCustomSyncServer,
   EidosSyncRepository,
@@ -199,7 +198,6 @@ export function OpenSyncedSpacePanel({
       >
         <header>
           <div>
-            <img className="sync-dialog-mark" src={appLogo} alt="" />
             <strong>{t("Open Synced Space")}</strong>
           </div>
           <button

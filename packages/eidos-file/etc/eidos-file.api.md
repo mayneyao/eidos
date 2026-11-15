@@ -723,7 +723,7 @@ export interface ConnectionSnapshot {
 }
 
 // @public (undocumented)
-export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "null-to-empty-list";
+export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "null-to-empty-list" | "null-to-false";
 
 // @public (undocumented)
 export type ConvertFieldChange = {
@@ -1293,7 +1293,7 @@ export interface EidosFileCsvImportResult {
     table: EidosFileTableInfo;
 }
 
-// @public (undocumented)
+// @public
 export function eidosFileCsvRowToEidosFileRow(row: string[], rowNumber: number, plan: EidosFileCsvImportPlan): EidosFileRow;
 
 // @public
@@ -2807,6 +2807,46 @@ export class EidosRuntimeService implements RuntimeClient {
 }
 
 // @public (undocumented)
+export interface EidosSchemaMergeChoice {
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    result: "ours" | "theirs";
+}
+
+// @public (undocumented)
+export interface EidosSchemaMergeField {
+    // (undocumented)
+    baseName: string;
+    // (undocumented)
+    conflicted: boolean;
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    mergedName: string | null;
+    // (undocumented)
+    oursName: string;
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    tableName: string;
+    // (undocumented)
+    theirsName: string;
+    // (undocumented)
+    type: string;
+}
+
+// @public (undocumented)
+export interface EidosSchemaMergePlan {
+    // (undocumented)
+    blockers: string[];
+    // (undocumented)
+    fields: EidosSchemaMergeField[];
+    // (undocumented)
+    supported: boolean;
+}
+
+// @public (undocumented)
 export interface EidosSystemMergeAutomaticResolution {
     // (undocumented)
     group: string;
@@ -3679,9 +3719,14 @@ export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery;
 export function normalizeEidosFileSorts(value: unknown): EidosFileSort[];
 
 // @public
+export function normalizeEidosSchemaMerge(input: EidosSystemMergeInput & {
+    choices: readonly EidosSchemaMergeChoice[];
+}): EidosSystemMergeResult;
+
+// @public
 export type OwnedBytes = Uint8Array;
 
-// @public (undocumented)
+// @public
 export function parseEidosFileCsvRows(file: {
     name: string;
     content: string;
@@ -3713,13 +3758,17 @@ export function planEidosFileCsvImport(file: {
 // @public (undocumented)
 export function planEidosFileFieldConversion(field: EidosFileFieldInfo, rows: EidosFileFieldValueRow[], targetType: MutableEidosFileFieldType): EidosFileFieldConversionPlan;
 
-// @public (undocumented)
+// @public
+export function planEidosSchemaMerge(input: Pick<EidosSystemMergeInput, "base" | "ours" | "theirs">): EidosSchemaMergePlan;
+
+// @public
 export function prepareEidosFileCsvImport(file: {
     name: string;
     content: string;
 }, options?: EidosFileCsvImportOptions): {
     plan: EidosFileCsvImportPlan;
     rows: EidosFileRow[];
+    csv: string;
 };
 
 // @public (undocumented)
@@ -4498,7 +4547,7 @@ export interface SchemaValueChange {
 }
 
 // @public (undocumented)
-export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "null-to-empty-list" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
+export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "null-to-empty-list" | "null-to-false" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
 
 // @public
 export function setEidosFileMetadata(connection: EidosFileConnection, entries: Record<string, string | undefined>): void;

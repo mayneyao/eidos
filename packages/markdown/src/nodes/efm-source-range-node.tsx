@@ -140,6 +140,7 @@ function SourceRangeEditor({
 }) {
   const {
     baseUri,
+    cancelBlockEditLabel,
     codec,
     clearSourceRangeCommit,
     codeHighlightTokenizer,
@@ -149,10 +150,13 @@ function SourceRangeEditor({
     queueSourceRangeCommit,
     readOnly,
     registerDraft,
+    saveBlockLabel,
     syntaxFeatures,
     transformers,
+    toolbarMode,
   } = useEfmSourceBlockContext()
   const { ariaKeys, label, matches } = useMarkdownShortcuts()
+  const mobile = toolbarMode === "mobile"
   const [draft, setDraft] = useState(data.source)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [tokens, setTokens] = useState<readonly CodeHighlightToken[]>([])
@@ -247,6 +251,20 @@ function SourceRangeEditor({
   useEffect(() => {
     if (readOnly) cancel()
   }, [readOnly])
+
+  useEffect(() => {
+    if (!mobile) return
+    // Native mobile hosts dismiss the active web dialog by sending Escape at
+    // document, while physical keyboard events remain owned by the textarea.
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.target === document && matches(event, "overlay.dismiss")) {
+        event.preventDefault()
+        cancel()
+      }
+    }
+    document.addEventListener("keydown", dismiss)
+    return () => document.removeEventListener("keydown", dismiss)
+  }, [mobile, matches, cancel])
 
   const save = () => {
     if (draft === data.source) {
@@ -393,29 +411,42 @@ function SourceRangeEditor({
       data-source-range-editor="true"
       style={{ minHeight: `${Math.max(96, data.minimumHeight)}px` }}
       aria-label="Selected blocks source editor"
+      role={mobile ? "dialog" : undefined}
     >
-      <div
-        className="eme-source-shortcut-hint"
-        data-source-shortcut-hint="true"
-        aria-hidden="true"
-      >
-        {visibleSourceHints.map(({ shortcuts, text }, index) => (
-          <span key={text}>
-            <span className="eme-shortcut-hint-keys">
-              {shortcuts.map((shortcut, shortcutIndex) => (
-                <span key={shortcut}>
-                  <kbd>{shortcut}</kbd>
-                  {shortcutIndex < shortcuts.length - 1 ? "/" : null}
-                </span>
-              ))}
+      {mobile ? (
+        <div className="eme-source-touch-actions">
+          <button type="button" onClick={cancel}>
+            {cancelBlockEditLabel}
+          </button>
+          <button type="button" onClick={save}>
+            {saveBlockLabel}
+          </button>
+        </div>
+      ) : null}
+      {!mobile ? (
+        <div
+          className="eme-source-shortcut-hint"
+          data-source-shortcut-hint="true"
+          aria-hidden="true"
+        >
+          {visibleSourceHints.map(({ shortcuts, text }, index) => (
+            <span key={text}>
+              <span className="eme-shortcut-hint-keys">
+                {shortcuts.map((shortcut, shortcutIndex) => (
+                  <span key={shortcut}>
+                    <kbd>{shortcut}</kbd>
+                    {shortcutIndex < shortcuts.length - 1 ? "/" : null}
+                  </span>
+                ))}
+              </span>
+              {text}
+              {index < visibleSourceHints.length - 1 ? (
+                <span className="eme-shortcut-hint-separator">·</span>
+              ) : null}
             </span>
-            {text}
-            {index < visibleSourceHints.length - 1 ? (
-              <span className="eme-shortcut-hint-separator">·</span>
-            ) : null}
-          </span>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
       <div className="eme-source-range-code">
         <pre aria-hidden="true">
           <code>{highlightedSource(draft, tokens)}</code>

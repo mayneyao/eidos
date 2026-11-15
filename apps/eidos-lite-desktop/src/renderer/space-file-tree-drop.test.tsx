@@ -38,6 +38,97 @@ vi.mock("@pierre/trees/react", async () => {
 })
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
+it("does not resurrect optimistically moved nodes when an older directory read arrives", async () => {
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  let complete!: () => void
+  const file = (name: string) => ({
+    name,
+    relativePath: `docs/${name}`,
+    kind: "file" as const,
+    modifiedAtMs: 1,
+    size: 1,
+  })
+  const entries = [
+    {
+      name: "docs",
+      relativePath: "docs",
+      kind: "directory" as const,
+      modifiedAtMs: 1,
+      size: 0,
+      childrenLoaded: true,
+      children: [file("a.txt"), file("b.txt")],
+    },
+  ]
+  const props = {
+    entries,
+    activePath: null,
+    renameRequest: null,
+    onMove: vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve
+        })
+    ),
+    onMoveError: vi.fn(),
+    onSelect: vi.fn(),
+    onOpen: vi.fn(),
+    onLoadDirectory: vi.fn(),
+    onRename: vi.fn(),
+    onRenameError: vi.fn(),
+    onContextMenu: vi.fn(),
+  }
+  try {
+    await act(async () => root.render(<SpaceFileTree {...props} />))
+    treeModel.getItem("docs/a.txt")?.select()
+    treeModel.getItem("docs/b.txt")?.select()
+    treeModel.batch(
+      ["a.txt", "b.txt"].map((name) => ({
+        type: "move" as const,
+        from: `docs/${name}`,
+        to: name,
+      }))
+    )
+    const dnd = treeOptions.dragAndDrop!
+    if (typeof dnd === "boolean") throw new Error("Missing drag configuration")
+    await act(async () =>
+      dnd.onDropComplete?.({
+        draggedPaths: ["docs/a.txt", "docs/b.txt"],
+        operation: "move",
+        target: {
+          kind: "root",
+          directoryPath: null,
+          hoveredPath: null,
+          flattenedSegmentPath: null,
+        },
+      })
+    )
+    // An in-flight lazy read has a different path signature (external addition),
+    // but still includes both sources from before the move started.
+    await act(async () =>
+      root.render(
+        <SpaceFileTree
+          {...props}
+          entries={[
+            {
+              ...entries[0]!,
+              children: [...entries[0]!.children, file("external.txt")],
+            },
+          ]}
+        />
+      )
+    )
+    expect(treeModel.getItem("docs/a.txt")).toBeNull()
+    expect(treeModel.getItem("docs/b.txt")).toBeNull()
+    expect(treeModel.getItem("a.txt")).not.toBeNull()
+    expect(treeModel.getItem("b.txt")).not.toBeNull()
+    expect(treeModel.getItem("docs/external.txt")).not.toBeNull()
+    await act(async () => complete())
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("keeps scoped folder actions addressed to the original Space paths", async () => {
   const host = document.createElement("div")
   const root = createRoot(host)

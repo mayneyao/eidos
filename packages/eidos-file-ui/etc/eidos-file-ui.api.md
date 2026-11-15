@@ -4,6 +4,7 @@
 
 ```ts
 import { _ as translateEidosFileUI, a as EidosFileMarkdownSourceEditorRequest, c as EidosFileUIAssetSession, d as EidosFileUIProvider, f as EidosFileUIThemeName, g as EidosFileUIMessageValues, h as EidosFileUIMessageOverrides, i as EidosFileMarkdownHtml, l as EidosFileUIHost, m as EidosFileUILocale, n as EidosFileImagePresentationLease, o as EidosFileRelationRecordTarget, p as useEidosFileUI, r as EidosFileMarkdownEditorRequest, s as EidosFileThumbnailSize, t as AssetPresenter, u as EidosFileUIKeyboardShortcuts } from "./context-HASH.mjs";
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileCalendarCreateMode, EidosFileCalendarFieldType, EidosFileCalendarLayout, EidosFileCalendarPage, EidosFileCalendarPageRequest, EidosFileCalendarRange, EidosFileCalendarView, eidosFileCalendarCreateMode, eidosFileCalendarCreateValue, eidosFileCalendarDateFields, eidosFileCalendarFieldType, eidosFileCalendarLayout, eidosFileCalendarRowDateKey } from "./eidos-file-calendar-view.mjs";
 import { n as EidosFileCsvOperationProgressBar, r as EidosFileCsvOperationProgressBarProps, t as EidosFileCsvOperationProgress } from "./eidos-file-csv-operation-progress-HASH.mjs";
 import { EidosFileCsvImportPopover, EidosFileCsvImportPopoverProps } from "./eidos-file-csv-import-popover.mjs";
@@ -282,6 +283,7 @@ interface EidosFileGridProps {
   onSelectedRowsChange?: (ranges: EidosFileRowRange[]) => void;
   onRowCountChange?: (rowCount: number | null) => void;
   searchResultIndex?: number | null;
+  recordFocus?: EidosFileRecordFocus;
   onImportFiles?: (options?: {
     imagesOnly?: boolean;
   }) => Promise<FileEntry[]>;
@@ -485,7 +487,8 @@ declare function useEidosFileSearchNavigation(): EidosFileSearchNavigationState 
 //#region src/eidos-file-record-field-editor.d.ts
 type FieldEditorProps = {
   field: EidosFileFieldInfo;
-  row: EidosFileRow;
+  row: EidosFileRow; /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean;
   placeholder?: string;
   appearance?: "field" | "record-title" | "record-property" | "compact";
   disabled: boolean;
@@ -552,6 +555,8 @@ declare function eidosFileRecordTitle(row: EidosFileRow, fields?: EidosFileField
 interface EidosFileRecordInspectorProps {
   row: EidosFileRow;
   fields: EidosFileFieldInfo[];
+  /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean;
   variant?: "panel" | "page";
   contentField?: EidosFileFieldInfo | null;
   onClose?: () => void;
@@ -580,6 +585,7 @@ interface EidosFileRecordInspectorProps {
 declare function EidosFileRecordInspector({
   row,
   fields,
+  isNewRecord,
   variant: requestedVariant,
   contentField,
   onClose,
@@ -797,6 +803,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   getRowIndex(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
   getRow(tableId: string, rowId: string): Promise<EidosFileRow | null>;
   getGroupCounts(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
+  hasNullValues(tableId: string, fieldId: string): Promise<boolean>;
   calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
   aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
   previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
@@ -1132,6 +1139,7 @@ export { AssetPresenter, EidosFileImagePresentationLease, EidosFileMarkdownEdito
 ## ./eidos-file-calendar-view
 
 ```ts
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
@@ -1171,6 +1179,7 @@ declare function EidosFileCalendarView({
   loadRow,
   onCellEdit,
   onOpenRecord,
+  recordFocus,
   onAddRow,
   onDeleteRow,
   onImportFiles,
@@ -1190,6 +1199,7 @@ declare function EidosFileCalendarView({
   loadPages?: (field: EidosFileFieldInfo, ranges: EidosFileCalendarRange[], limit: number) => Promise<EidosFileCalendarPage[] | null>;
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;
   onOpenRecord?: (row: EidosFileRow) => void;
+  recordFocus?: EidosFileRecordFocus;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
   onAddRow?: (field: EidosFileFieldInfo, day: Date) => Promise<EidosFileRowMutationResult>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
@@ -1264,6 +1274,7 @@ export { EidosFileCsvOperationProgress, EidosFileCsvOperationProgressBar, EidosF
 ## ./eidos-file-data-grid
 
 ```ts
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { n as EidosFileEditorDataSource } from "./data-source-HASH.mjs";
 import { t as EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor-HASH.mjs";
 import { EidosFileFieldInfo, EidosFileRowMutationResult, EidosFileRowQuery, EidosFileRowRange, EidosFileRowsDeleteResult, EidosFileSnapshot, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
@@ -1277,6 +1288,7 @@ interface EidosFileDataGridProps {
   view?: EidosFileViewInfo;
   search?: string;
   searchResultIndex?: number | null;
+  recordFocus?: EidosFileRecordFocus;
   showRowMarkers?: boolean;
   allowFrozenColumns?: boolean;
   inspectedRowId?: string | null;
@@ -1316,6 +1328,7 @@ declare function EidosFileDataGrid({
   view,
   search,
   searchResultIndex,
+  recordFocus,
   showRowMarkers,
   allowFrozenColumns,
   inspectedRowId,
@@ -1439,6 +1452,7 @@ export { eidosFileErrorMessage };
 ## ./eidos-file-feed-view
 
 ```ts
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileFieldInfo, EidosFileRow, EidosFileRowPage, EidosFileRowPageProjection, EidosFileTableSnapshot, EidosFileViewInfo } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
@@ -1453,6 +1467,7 @@ declare const EidosFileFeedView: _$react.NamedExoticComponent<{
   disabled?: boolean;
   reloadToken?: number;
   searchResultIndex?: number | null;
+  recordFocus?: EidosFileRecordFocus;
   loadPage: (offset: number, limit: number, totalHint?: number, cursor?: string) => Promise<EidosFileRowPage>;
   onOpenRecord?: (row: EidosFileRow) => void;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
@@ -1592,6 +1607,7 @@ export { EidosFileFormulaComposer, EidosFileFormulaComposerProps, EidosFileFormu
 ## ./eidos-file-gallery-view
 
 ```ts
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
@@ -1603,6 +1619,7 @@ declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
   disabled?: boolean;
   reloadToken?: number;
   searchResultIndex?: number | null;
+  recordFocus?: EidosFileRecordFocus;
   loadPage: (offset: number, limit: number, totalHint?: number, cursor?: string) => Promise<EidosFileRowPage>;
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
@@ -1613,7 +1630,8 @@ declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
   onOpenRecordInTab?: (row: EidosFileRow) => void;
-  onOpenRecord?: (row: EidosFileRow) => void;
+  onOpenRecord?: (row: EidosFileRow) => void; /** Host-owned file preview replaces the Gallery lightbox for this record. */
+  onPreviewRecord?: (row: EidosFileRow) => void;
   onRowCountChange?: (rowCount: number | null) => void;
   onError?: (error: unknown) => void;
   sidePanel?: ReactNode;
@@ -1625,6 +1643,7 @@ export { EidosFileGalleryView };
 ## ./eidos-file-kanban-view
 
 ```ts
+import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
@@ -1636,6 +1655,8 @@ declare const EidosFileKanbanView: _$react.NamedExoticComponent<{
   disabled?: boolean;
   reloadToken?: number;
   searchResultIndex?: number | null;
+  recordFocus?: EidosFileRecordFocus;
+  locateRow?: (field: EidosFileFieldInfo, value: string | null, rowId: string) => Promise<number | null>;
   loadGroupCounts: (field: EidosFileFieldInfo) => Promise<EidosFileRowGroupCount[]>;
   loadGroupPage: (field: EidosFileFieldInfo, value: string | null, offset: number, limit: number, totalHint: number, cursor?: string) => Promise<EidosFileRowPage>;
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;

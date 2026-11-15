@@ -93,6 +93,20 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       searchEidosFileRelationRecords(source, field, relationQuery),
     [source]
   )
+  const locateRow = useCallback(
+    async (field: EidosFileFieldInfo, value: string | null, rowId: string) =>
+      source.getRowIndex
+        ? source.getRowIndex(table.table.id, rowId, {
+            ...query,
+            filter: eidosFileViewGroupFilter(
+              query.filter,
+              eidosFileFieldKey(field),
+              value
+            ),
+          })
+        : null,
+    [source, table.table.id, query]
+  )
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, value: string | null, title: string) => {
       const labelField = table.fields.find(isEidosFileRecordLabelField)
@@ -120,8 +134,11 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
   return (
     <EidosFileKanbanView
       onOpenRecord={
-        props.onInspectedRowChange
-          ? (row) => props.onInspectedRowChange?.(String(row._id))
+        props.onOpenRecord || props.onInspectedRowChange
+          ? (row) =>
+              (props.onOpenRecord ?? props.onInspectedRowChange)?.(
+                String(row._id)
+              )
           : undefined
       }
       table={table}
@@ -129,6 +146,8 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       searchResultIndex={props.searchResultIndex}
+      recordFocus={props.recordFocus}
+      locateRow={locateRow}
       loadGroupCounts={loadGroupCounts}
       loadGroupPage={loadGroupPage}
       loadRow={loadRow}

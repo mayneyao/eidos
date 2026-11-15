@@ -543,7 +543,7 @@ export interface ConnectionSnapshot {
 }
 
 // @public (undocumented)
-export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "null-to-empty-list";
+export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "null-to-empty-list" | "null-to-false";
 
 // @public (undocumented)
 export type ConvertFieldChange = {
@@ -3216,7 +3216,7 @@ export interface SchemaValueChange {
 }
 
 // @public (undocumented)
-export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "null-to-empty-list" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
+export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "null-to-empty-list" | "null-to-false" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
 
 // @public (undocumented)
 export interface SnapshotContext {

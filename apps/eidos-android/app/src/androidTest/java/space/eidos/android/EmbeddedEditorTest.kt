@@ -1572,6 +1572,71 @@ class EmbeddedEditorTest {
     }
 
     @Test
+    fun markdownImageShortTapHasTouchExitPaths() {
+        val app = compose.activity.application
+        val id = "image-short-tap-${UUID.randomUUID()}"
+        val repository = SpaceRepository(app, id)
+        val root = File(app.filesDir, "spaces/$id")
+        val note = runBlocking { repository.create("", "Touch image", "markdown") }
+        val original = "Before image\n\n![Cover](assets/cover.png)\n\nAfter image\n"
+        File(root, note).writeText(original)
+        File(root, "assets/cover.png").apply {
+            parentFile!!.mkdirs()
+            android.graphics.Bitmap.createBitmap(120, 80, android.graphics.Bitmap.Config.ARGB_8888).let { bitmap ->
+                bitmap.eraseColor(android.graphics.Color.BLUE)
+                outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                bitmap.recycle()
+            }
+        }
+        lateinit var model: EidosModel
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        try {
+            compose.runOnUiThread { model = EidosModel(app, repository); compose.activity.setContent { EidosApp(model) } }
+            compose.waitUntil(15_000) { !model.state.value.busy }
+            compose.runOnUiThread { model.open(runBlocking { repository.file(note) }) }
+            waitJs("Array.from(document.images).some(i=>i.naturalWidth===120)")
+            // Loaded DOM dimensions can precede WebView's first submitted frame.
+            screenshot("image-before-short-tap.png")
+            touchCanvas(60f, 40f, 80L, "[data-efm-image-block] img")
+            waitJs("document.querySelector('.eme-mobile-image-sheet')?.open === true")
+            assertEquals("false", js("document.querySelector('[data-source-range-editor]') !== null"))
+            screenshot("image-short-tap-settings.png")
+            // Cancel an actual input draft through native Back; it must preserve the file.
+            js("(()=>{const i=document.querySelectorAll('.eme-mobile-image-sheet input')[1];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Discard me');i.dispatchEvent(new Event('input',{bubbles:true}));})()")
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            waitJs("document.querySelector('.eme-mobile-image-sheet') === null")
+            assertEquals(original, File(root, note).readText())
+            touchCanvas(60f, 40f, 80L, "[data-efm-image-block] img")
+            waitJs("document.querySelector('.eme-mobile-image-sheet')?.open === true")
+            js("(()=>{const i=document.querySelectorAll('.eme-mobile-image-sheet input')[1];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Updated cover');i.dispatchEvent(new Event('input',{bubbles:true}));})()")
+            screenshot("image-draft-before-save.png")
+            waitJs("(()=>{const b=document.querySelector('.eme-mobile-image-sheet button[type=submit]');const r=b.getBoundingClientRect();return document.elementFromPoint(r.x+28,r.y+24)===b})()")
+            touchCanvas(28f, 24f, 80L, ".eme-mobile-image-sheet button[type=submit]")
+            waitJs("document.querySelector('.eme-mobile-image-sheet') === null")
+            compose.waitUntil(10_000) { File(root, note).readText().contains("![Updated cover]") }
+            touchCanvas(60f, 40f, 700L, "[data-efm-image-block] img")
+            waitJs("document.querySelector('.eme-mobile-image-sheet')?.open === true")
+            screenshot("image-hold-before-close.png")
+            touchCanvas(22f, 24f, 80L, ".eme-mobile-image-sheet header button")
+            waitJs("document.querySelector('.eme-mobile-image-sheet') === null")
+            js("(()=>{const p=Array.from(document.querySelectorAll('.eme-content-editable p')).find(p=>p.textContent==='After image');const r=document.createRange();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);p.closest('[contenteditable=true]').focus();document.execCommand('insertText',false,' continued');})()")
+            compose.waitUntil(10_000) { File(root, note).readText().contains("After image continued") }
+            screenshot("image-settings-return-to-editing.png")
+            js("window.eidosLeave('back')")
+            compose.waitUntil(15_000) { model.state.value.webFile == null }
+            compose.onAllNodesWithText(note).onFirst().performClick()
+            waitJs("Array.from(document.images).some(i=>i.naturalWidth===120 && i.alt==='Updated cover')")
+            assertTrue(File(root, note).readText().contains("After image continued"))
+            assertEquals("false", js("document.querySelector('[data-source-range-editor]') !== null"))
+            screenshot("image-saved-reopened.png")
+        } finally {
+            compose.runOnUiThread { compose.activity.setContent {}; model.viewModelScope.cancel() }
+            runBlocking { repository.close() }
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun markdownImportsImageAndFileThroughSystemPicker() {
         val app = compose.activity.application
         app.getSharedPreferences("editor", 0).edit().putBoolean("web", true).commit()

@@ -52,6 +52,10 @@ import type {
   EidosSyncMergePathPage,
   EidosSyncMergePlan,
   EidosSyncMergeSqliteDiff,
+  EidosSyncMergeSqlitePreview,
+  EidosSyncMergeSchemaPlan,
+  EidosSyncMergeSchemaChoice,
+  RuntimeSystemMetadataMergeOptions,
   EidosSyncMergeSqliteVersion,
   EidosSyncMergeStatus,
   EidosSyncOutcome,
@@ -66,6 +70,7 @@ import type {
   RuntimeMethod,
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
+  SpacePathsMutationResult,
   SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
@@ -176,6 +181,7 @@ import type { FileThumbnailProvider } from "./file-thumbnails"
 import type { ExplorerThumbnailRequest } from "../../shared/explorer-media"
 import { readExplorerFileThumbnail } from "./explorer-file-thumbnail"
 import {
+  importMarkdownDocumentFile,
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
 } from "./markdown-document-assets"
@@ -209,6 +215,8 @@ function isEidosDatabaseSidecar(value: string): boolean {
     normalized.endsWith(`.eidos${suffix}`)
   )
 }
+
+let snapshotSequence = 0
 
 async function renameWithRetry(
   sourcePath: string,
@@ -451,6 +459,13 @@ export class SpaceSession {
   >()
   private readonly backgroundIgnoreKeys = new Set<string>()
   private readonly directoryEntriesCache = new Map<string, SpaceTreeEntry[]>()
+  private directoryEpoch = 0
+  private readonly directoryReads = new Map<
+    string,
+    { epoch: number; promise: Promise<void> }
+  >()
+  private pathMoveInFlight: Promise<SpacePathsMutationResult> | null = null
+  private readonly moveWatcherPaths = new Set<string>()
   private readonly pendingEidosFileAssets = new Map<
     string,
     Map<string, FileEntry>
@@ -564,6 +579,10 @@ export class SpaceSession {
     this.watcher = new SpaceWatcher(
       canonical.root,
       (relativePaths) => {
+        if (this.pathMoveInFlight) {
+          this.collectMoveWatcherPaths(relativePaths)
+          return
+        }
         if (this.closed || this.gate.hasActiveMutations()) return
         this.watcherRefreshTail = this.watcherRefreshTail
           .then(() => this.handleStableWatcherChange(relativePaths))
@@ -571,6 +590,7 @@ export class SpaceSession {
       },
       150,
       async (relativePaths) => {
+        if (this.pathMoveInFlight) return new Set()
         if (this.gate.hasActiveMutations()) return new Set(relativePaths)
         const ignored = await this.inspectIgnores(relativePaths, "background")
         return new Set(
@@ -660,6 +680,8 @@ export class SpaceSession {
 
   snapshot(): Promise<SpaceSnapshot> {
     if (this.closed) return Promise.reject(new Error("Space is closed"))
+    if (this.pathMoveInFlight)
+      return this.pathMoveInFlight.then((result) => result.snapshot)
     if (this.refreshInFlight) return this.refreshInFlight
     this.refreshInFlight = this.readSnapshot(true).finally(() => {
       this.refreshInFlight = null
@@ -816,9 +838,11 @@ export class SpaceSession {
   }
 
   async refreshExplorer(): Promise<SpaceSnapshot> {
+    await this.pathMoveInFlight
     this.prioritizeLocalWork()
     this.explorerListReads.clear()
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
+    this.directoryEpoch += 1
     this.directoryEntriesCache.clear()
     await this.reloadDirectoryEntries(loadedDirectories, false)
     const snapshot = await this.readSnapshot(true)
@@ -827,11 +851,14 @@ export class SpaceSession {
   }
 
   async loadDirectory(relativePath: string): Promise<SpaceSnapshot> {
+    await this.pathMoveInFlight
     this.prioritizeLocalWork()
     const normalized = normalizeMutableRelativePath(relativePath)
     // Explorer navigation is a local filesystem operation. Ignore filtering is
     // version metadata and must never put Graft on the navigation critical path.
     await this.loadDirectoryEntries(normalized, false)
+    // A move may have started while the directory read was waiting on IO.
+    await this.pathMoveInFlight
     const snapshot = this.buildSnapshot(
       this.buildCachedTree(),
       this.graftStatusCache ?? this.pendingGraftStatus()
@@ -1568,6 +1595,18 @@ export class SpaceSession {
     return result
   }
 
+  async importMarkdownFile(
+    request: EidosLiteMarkdownImageImportRequest
+  ): Promise<EidosLiteMarkdownImageAsset> {
+    this.prioritizeLocalWork()
+    const result = await this.gate.withMutation(() =>
+      importMarkdownDocumentFile(this.canonical.root, request)
+    )
+    this.noteLocalChange()
+    await this.freshSnapshotAndEmit()
+    return result
+  }
+
   async resolveMarkdownImage(
     relativePath: string,
     markdownUrl: string
@@ -1938,44 +1977,185 @@ export class SpaceSession {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult> {
+    const result = await this.movePaths([relativePath], targetDirectory)
+    if (result.failure) throw new Error(result.failure.message)
+    return { ...result, relativePath: result.moves[0]?.relativePath }
+  }
+
+  movePaths(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult> {
+    if (this.pathMoveInFlight)
+      return Promise.reject(new Error("A file move is already in progress"))
+    const operation = this.performPathMoves(relativePaths, targetDirectory)
+    this.pathMoveInFlight = operation
+    void operation
+      .finally(() => {
+        this.pathMoveInFlight = null
+        if (this.moveWatcherPaths.size) {
+          const paths = [...this.moveWatcherPaths]
+          this.moveWatcherPaths.clear()
+          this.watcherRefreshTail = this.watcherRefreshTail
+            .then(() => this.handleStableWatcherChange(paths))
+            .catch(() => undefined)
+        }
+      })
+      .catch(() => undefined)
+    return operation
+  }
+
+  private collectMoveWatcherPaths(paths: readonly string[]): void {
+    for (const value of paths.length ? paths : [""])
+      this.moveWatcherPaths.add(value)
+  }
+
+  private async performPathMoves(
+    relativePaths: string[],
+    targetDirectory: string | null
+  ): Promise<SpacePathsMutationResult> {
     this.prioritizeLocalWork()
-    const source = normalizeMutableRelativePath(relativePath)
-    await fs.lstat(this.resolveUserPath(source))
-    await resolveSpaceDirectory(this.canonical.root, targetDirectory)
-    const target = joinSpaceRelativePath(
-      targetDirectory,
-      path.posix.basename(source)
+    // Install the batch fence before the first async work. Do not wait for a
+    // watcher read that may itself be waiting for this batch's final snapshot.
+    await Promise.resolve()
+    const initiallyLoaded = [...this.directoryEntriesCache.keys()]
+    const moves: SpacePathsMutationResult["moves"] = []
+    const invalidatedSessionIds = new Set<string>()
+    const updatedPaths = new Set<string>()
+    const skippedPaths = new Set<string>()
+    let failure: SpacePathsMutationResult["failure"]
+    let attempted = 0
+    await this.gate.withMutation(async () => {
+      for (const relativePath of relativePaths) {
+        attempted += 1
+        try {
+          const source = normalizeMutableRelativePath(relativePath)
+          await fs.lstat(this.resolveUserPath(source))
+          await resolveSpaceDirectory(this.canonical.root, targetDirectory)
+          const target = joinSpaceRelativePath(
+            targetDirectory,
+            path.posix.basename(source)
+          )
+          if (target === source) {
+            moves.push({ source, relativePath: target })
+            continue
+          }
+          if (target.startsWith(`${source}/`))
+            throw new Error("A folder cannot be moved inside itself")
+          await this.requireMissingPath(target)
+          const linkPlan = await this.prepareMarkdownLinkMove(source, target)
+          for (const id of await this.closeAndEvictRuntimeSessions(source))
+            invalidatedSessionIds.add(id)
+          await renameWithRetry(
+            this.resolveUserPath(source),
+            this.resolveUserPath(target)
+          )
+          moves.push({ source, relativePath: target })
+          this.noteLocalChange()
+          this.recordPathMoveInBackground(source, target)
+          const links = await applyMarkdownLinkMove(
+            this.canonical.root,
+            linkPlan
+          )
+          for (const value of links.updatedPaths) updatedPaths.add(value)
+          for (const value of links.skippedPaths) skippedPaths.add(value)
+          this.collectMoveWatcherPaths([source, target, ...links.updatedPaths])
+        } catch (cause) {
+          failure = {
+            relativePath,
+            message: cause instanceof Error ? cause.message : String(cause),
+          }
+          break
+        }
+      }
+    })
+    // One authoritative reconciliation, including external changes received while
+    // the serial filesystem operations ran. No transaction/rollback is implied.
+    const loaded = [
+      ...new Set([...initiallyLoaded, ...this.directoryEntriesCache.keys()]),
+    ]
+    const remapped = loaded.map((key) =>
+      moves.reduce(
+        (value, move) =>
+          value === move.source || value.startsWith(`${move.source}/`)
+            ? move.relativePath + value.slice(move.source.length)
+            : value,
+        key
+      )
     )
-    if (target === source) {
-      return {
-        snapshot: await this.snapshot(),
-        relativePath: source,
-        invalidatedSessionIds: [],
+    const remap = (value: string) =>
+      moves.reduce(
+        (current, move) =>
+          current === move.source || current.startsWith(`${move.source}/`)
+            ? move.relativePath + current.slice(move.source.length)
+            : current,
+        value
+      )
+    // If a final directory read fails, retain a coherent tree reflecting actual
+    // successful renames and report the read error separately from IO outcomes.
+    const fallback = new Map(
+      remapped.map((key) => [key, [] as SpaceTreeEntry[]])
+    )
+    for (const entries of this.directoryEntriesCache.values()) {
+      for (const entry of entries) {
+        const relativePath = remap(entry.relativePath)
+        const parent = path.posix.dirname(relativePath)
+        fallback.get(parent === "." ? "" : parent)?.push({
+          ...entry,
+          relativePath,
+          name: path.posix.basename(relativePath),
+        })
       }
     }
-    if (target.startsWith(`${source}/`)) {
-      throw new Error("A folder cannot be moved inside itself")
+    const changed = new Set<string>()
+    let snapshot: SpaceSnapshot
+    let refreshError: string | undefined
+    do {
+      const paths = [...this.moveWatcherPaths]
+      this.moveWatcherPaths.clear()
+      for (const value of paths) changed.add(value)
+      const directories = this.invalidateDirectoryCaches(paths)
+      try {
+        await this.reloadDirectoryEntries([...directories, ...remapped], false)
+        snapshot = await this.readSnapshot(true, undefined, true)
+      } catch (cause) {
+        for (const [key, entries] of fallback) {
+          if (!this.directoryEntriesCache.has(key))
+            this.directoryEntriesCache.set(key, entries)
+        }
+        refreshError = cause instanceof Error ? cause.message : String(cause)
+        snapshot = this.buildSnapshot(
+          this.buildCachedTree(),
+          this.graftStatusCache ?? this.pendingGraftStatus()
+        )
+        break
+      }
+    } while (this.moveWatcherPaths.size > 0)
+    const externalChangePaths = changed.has("") ? [] : [...changed]
+    this.notifyMarkdownWatchers(externalChangePaths)
+    const finalSnapshot = {
+      ...snapshot,
+      externalChangePaths,
+      invalidatedSessionIds: [
+        ...new Set([
+          ...snapshot.invalidatedSessionIds,
+          ...invalidatedSessionIds,
+        ]),
+      ],
     }
-    await this.requireMissingPath(target)
-    let invalidatedSessionIds: string[] = []
-    let markdownLinks: SpacePathMutationResult["markdownLinks"]
-    await this.gate.withMutation(async () => {
-      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
-      await renameWithRetry(
-        this.resolveUserPath(source),
-        this.resolveUserPath(target)
-      )
-      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
-    })
-    this.noteLocalChange()
-    this.recordPathMoveInBackground(source, target)
-    this.notifyMarkdownWatchers([source, target])
+    for (const listener of this.changeListeners) listener(finalSnapshot)
+    void this.pathIndex.applyChanges(externalChangePaths).catch(() => undefined)
     return {
-      snapshot: await this.freshSnapshotAndEmit(),
-      relativePath: target,
-      invalidatedSessionIds,
-      markdownLinks,
+      snapshot: finalSnapshot,
+      moves,
+      failure,
+      refreshError,
+      unattemptedPaths: relativePaths.slice(attempted),
+      invalidatedSessionIds: [...invalidatedSessionIds],
+      markdownLinks: {
+        updatedPaths: [...updatedPaths],
+        skippedPaths: [...skippedPaths],
+      },
     }
   }
 
@@ -2079,6 +2259,15 @@ export class SpaceSession {
         }
       })
     )
+    const destinationKeys = new Set<string>()
+    for (const source of sources) {
+      const key = source.relativePath
+        .normalize("NFC")
+        .toLocaleLowerCase("en-US")
+      if (destinationKeys.has(key))
+        throw new Error("Files with the same name cannot be imported together")
+      destinationKeys.add(key)
+    }
     await this.gate.withMutation(async () => {
       const copied: string[] = []
       const published: string[] = []
@@ -2095,11 +2284,13 @@ export class SpaceSession {
           }
         }
         for (const source of sources) {
-          await renameWithRetry(
+          // Exclusive publication also protects a destination created after preflight.
+          await fs.link(
             this.resolveUserPath(source.temporaryPath),
             this.resolveUserPath(source.relativePath)
           )
           published.push(source.relativePath)
+          await fs.unlink(this.resolveUserPath(source.temporaryPath))
         }
       } catch (error) {
         await Promise.all([
@@ -2113,6 +2304,9 @@ export class SpaceSession {
         throw error
       }
     })
+    await this.pathIndex.applyChanges(
+      sources.map((source) => source.relativePath)
+    )
     this.noteLocalChange()
     this.notifyMarkdownWatchers(sources.map((source) => source.relativePath))
     return {
@@ -3076,7 +3270,7 @@ export class SpaceSession {
       repositoryOptions
     )
 
-    let activeMerge = await this.gate.withRepositoryOperation(
+    const activeMerge = await this.gate.withRepositoryOperation(
       "Checking for an interrupted merge",
       (signal) =>
         typeof this.graft.getMergeStatusIfAvailable === "function"
@@ -3086,9 +3280,6 @@ export class SpaceSession {
           : Promise.resolve({ state: "none" as const }),
       repositoryOptions
     )
-    if (action === "pull") {
-      activeMerge = await this.completeResolvedMerge(activeMerge)
-    }
     if (activeMerge.state === "merging" && action !== "fetch") {
       const relation = await readStatus()
       return finish(
@@ -3530,7 +3721,9 @@ export class SpaceSession {
         this.systemMergeRecovery = null
       }
     }
-    return this.completeResolvedMerge(merge)
+    // A fully reviewed merge remains undoable until the user completes it.
+    // Status refreshes must not finalize manual resolutions as a side effect.
+    return merge
   }
 
   async planHostedMerge(
@@ -3680,16 +3873,18 @@ export class SpaceSession {
                 (table) => table === conflict.table
               )
           )
-          const workspace = hasUnmanagedConflict
-            ? null
-            : await this.graft.prepareSemanticMerge(
-                this.canonical.root,
-                normalized,
-                EIDOS_SYSTEM_MERGE_PROVIDER,
-                EIDOS_FILE_METADATA_TABLES,
-                stateToken,
-                { signal }
-              )
+          const workspace =
+            hasUnmanagedConflict ||
+            !page.items.some((conflict) => conflict.status === "unresolved")
+              ? null
+              : await this.graft.prepareSemanticMerge(
+                  this.canonical.root,
+                  normalized,
+                  EIDOS_SYSTEM_MERGE_PROVIDER,
+                  EIDOS_FILE_METADATA_TABLES,
+                  stateToken,
+                  { signal }
+                )
           if (workspace?.record.state === "conflict") {
             const domainConflicts = workspace.record.conflicts
               .map(semanticDomainConflict)
@@ -3799,6 +3994,225 @@ export class SpaceSession {
           { ...options, signal }
         ),
       { preemptible: true }
+    )
+  }
+
+  readSyncMergeSqlitePreview(
+    stateToken: string,
+    relativePath: string,
+    version: EidosSyncMergeSqliteVersion,
+    tables: string[]
+  ): Promise<EidosSyncMergeSqlitePreview> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos"))
+      throw new Error("Table previews require an Eidos File")
+    return this.gate.withRepositoryOperation(
+      `Reading ${version} table preview`,
+      async (signal) => {
+        const previewRoot = path.join(this.stateDirectory, "merge-previews")
+        await fs.mkdir(previewRoot, { recursive: true })
+        const directory = await fs.mkdtemp(path.join(previewRoot, "input-"))
+        const output = path.join(directory, "version.eidos")
+        try {
+          const exported = await this.graft.exportMergeSqliteVersion(
+            this.canonical.root,
+            normalized,
+            version,
+            output,
+            stateToken,
+            { signal }
+          )
+          const preview = exported.filePath
+            ? await this.runtimePool.readMergeTablePreview(
+                exported.filePath,
+                tables,
+                signal
+              )
+            : []
+          return {
+            stateToken: exported.stateToken,
+            path: normalized,
+            version,
+            present: exported.filePath !== null,
+            tables: preview,
+          }
+        } finally {
+          await fs.chmod(output, 0o600).catch(() => undefined)
+          await fs.rm(directory, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          })
+        }
+      },
+      { preemptible: true }
+    )
+  }
+
+  private async withMergeSchemaInputs<T>(
+    stateToken: string,
+    relativePath: string,
+    signal: AbortSignal,
+    writable: boolean,
+    operation: (options: RuntimeSystemMetadataMergeOptions) => Promise<T>
+  ): Promise<T> {
+    if (!relativePath.toLowerCase().endsWith(".eidos"))
+      throw new Error("Schema merging requires an Eidos File")
+    const merge = await this.graft.getMergeStatus(this.canonical.root, {
+      signal,
+    })
+    if (merge.state !== "merging" || merge.stateToken !== stateToken)
+      throw Object.assign(new Error("The merge changed; reload it first"), {
+        code: "GRAFT_SDK_REPOSITORY_STALE",
+      })
+    const root = path.join(this.stateDirectory, "merge-previews")
+    await fs.mkdir(root, { recursive: true })
+    const directory = await fs.mkdtemp(path.join(root, "schema-"))
+    try {
+      const files = {
+        base: path.join(directory, "base.eidos"),
+        ours: path.join(directory, "ours.eidos"),
+        theirs: path.join(directory, "theirs.eidos"),
+      }
+      for (const version of ["base", "ours", "theirs"] as const) {
+        const exported = await this.graft.exportMergeSqliteVersion(
+          this.canonical.root,
+          relativePath,
+          version,
+          files[version],
+          stateToken,
+          { signal }
+        )
+        if (!exported.filePath)
+          throw new Error(
+            "Schema merging requires all three Eidos File versions"
+          )
+        if (writable) await fs.chmod(files[version], 0o600)
+      }
+      const resultPath = path.join(directory, "result.eidos")
+      if (writable) await fs.copyFile(files.ours, resultPath)
+      return await operation({
+        basePath: files.base,
+        oursPath: files.ours,
+        theirsPath: files.theirs,
+        resultPath,
+        oursKey: merge.localHead,
+        theirsKey: merge.hostedHead,
+        operationInstant: new Date().toISOString(),
+      })
+    } finally {
+      await Promise.all(
+        (await fs.readdir(directory)).map((name) =>
+          fs.chmod(path.join(directory, name), 0o600).catch(() => undefined)
+        )
+      )
+      await fs.rm(directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      })
+    }
+  }
+
+  readSyncMergeSchemaPlan(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeSchemaPlan> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.gate.withRepositoryOperation(
+      "Reading structure decisions",
+      (signal) =>
+        this.withMergeSchemaInputs(
+          stateToken,
+          normalized,
+          signal,
+          false,
+          async (options) => {
+            const result = await this.runtimePool.mergeSchema(
+              options,
+              null,
+              signal
+            )
+            if (!("supported" in result))
+              throw new Error("Invalid schema merge plan")
+            return result
+          }
+        ),
+      { preemptible: true }
+    )
+  }
+
+  resolveSyncMergeSchema(
+    stateToken: string,
+    relativePath: string,
+    choices: EidosSyncMergeSchemaChoice[]
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "normalizeMergeSqliteInputs",
+      "resolve-merge-schema",
+      `Applying structure decisions for ${normalized}`,
+      stateToken,
+      (signal, onWorktreePaths) =>
+        this.withMergeSchemaInputs(
+          stateToken,
+          normalized,
+          signal,
+          true,
+          async (options) => {
+            const result = await this.runtimePool.mergeSchema(
+              options,
+              choices,
+              signal
+            )
+            if (!("outcome" in result) || result.outcome !== "merged")
+              throw new Error(
+                "The Runtime could not safely reconcile the selected structure and its metadata. Review a complete file instead."
+              )
+            return this.graft.normalizeMergeSqliteInputs(
+              this.canonical.root,
+              normalized,
+              {
+                base: options.basePath,
+                ours: options.oursPath,
+                theirs: options.theirsPath,
+              },
+              stateToken,
+              { signal, onWorktreePaths }
+            )
+          }
+        ),
+      [normalized]
+    )
+  }
+
+  combineSyncMergePath(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos")) {
+      throw new Error("Automatic metadata merging requires an Eidos File")
+    }
+    return this.materializeMergeOperation(
+      "acceptSemanticMergeResult",
+      "combine-merge-path",
+      `Combining and validating ${normalized}`,
+      stateToken,
+      async (signal, onWorktreePaths) => {
+        const merge = await this.graft.getMergeStatus(this.canonical.root, {
+          signal,
+        })
+        if (merge.state !== "merging") throw new Error("No active merge")
+        return this.resolveEidosSystemMetadataMerges(
+          merge,
+          signal,
+          onWorktreePaths,
+          normalized
+        )
+      }
     )
   }
 
@@ -5139,8 +5553,10 @@ export class SpaceSession {
 
   private async readSnapshot(
     scheduleGraftStatus: boolean,
-    authoritativeGraftStatus?: GraftSpaceStatus
+    authoritativeGraftStatus?: GraftSpaceStatus,
+    completingMove = false
   ): Promise<SpaceSnapshot> {
+    if (!completingMove) await this.pathMoveInFlight
     const reconciledFileIssues = await this.runtimePool.reconcilePaths(() =>
       ["ready", "syncing"].includes(this.gate.current().phase)
     )
@@ -5150,6 +5566,7 @@ export class SpaceSession {
     // A Space snapshot is the local browsing boundary. Version state is filled in
     // progressively and must not delay the first usable tree.
     await this.loadDirectoryEntries("", false)
+    if (!completingMove) await this.pathMoveInFlight
     const entries = this.buildCachedTree()
     const graft =
       authoritativeGraftStatus ??
@@ -5313,6 +5730,24 @@ export class SpaceSession {
   ): Promise<void> {
     const key = relativePath === "." ? "" : relativePath
     if (this.directoryEntriesCache.has(key)) return
+    const epoch = this.directoryEpoch
+    const pending = this.directoryReads.get(key)
+    if (pending?.epoch === epoch) return pending.promise
+    const promise = this.readDirectoryEntries(key, respectIgnores, epoch)
+    this.directoryReads.set(key, { epoch, promise })
+    try {
+      await promise
+    } finally {
+      if (this.directoryReads.get(key)?.promise === promise)
+        this.directoryReads.delete(key)
+    }
+  }
+
+  private async readDirectoryEntries(
+    key: string,
+    respectIgnores: boolean,
+    epoch: number
+  ): Promise<void> {
     const entries = (
       await listSpaceDirectory(
         this.canonical.root,
@@ -5334,6 +5769,10 @@ export class SpaceSession {
           : {}
       )
     ).filter((entry) => !isEidosDatabaseSidecar(entry.relativePath))
+    if (epoch !== this.directoryEpoch) {
+      await this.loadDirectoryEntries(key, respectIgnores)
+      return
+    }
     this.directoryEntriesCache.set(key, entries)
     if (!respectIgnores)
       this.reconcileDirectoryIgnoresInBackground(key, entries)
@@ -5465,6 +5904,7 @@ export class SpaceSession {
       : undefined
     return {
       id: this.canonical.id,
+      sequence: ++snapshotSequence,
       cloudSyncConnection:
         this.cloudSyncConnection || Boolean(this.syncHistoryState),
       name: this.canonical.name,
@@ -5627,6 +6067,10 @@ export class SpaceSession {
     relativePaths: readonly string[]
   ): Promise<void> {
     if (this.closed) return Promise.resolve()
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(relativePaths)
+      return Promise.resolve()
+    }
     this.notifyMarkdownWatchers(relativePaths)
     return this.gate.withRuntimeRead(() =>
       this.handleStableWatcherChangeWithRuntime(relativePaths)
@@ -5649,6 +6093,10 @@ export class SpaceSession {
     ]
     const explorerPaths =
       await this.explorerPathsForWatcherChange(normalizedPaths)
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(relativePaths)
+      return
+    }
     if (normalizedPaths.length === 0 || explorerPaths.length > 0) {
       void this.pathIndex.applyChanges(explorerPaths).catch(() => undefined)
     }
@@ -5819,6 +6267,10 @@ export class SpaceSession {
     externalChangePaths?: readonly string[]
   ): Promise<void> {
     if (this.closed) return
+    if (this.pathMoveInFlight) {
+      this.collectMoveWatcherPaths(externalChangePaths ?? directoriesToRefresh)
+      return
+    }
     try {
       await Promise.all(
         directoriesToRefresh.map((relativePath) =>
@@ -5863,7 +6315,12 @@ export class SpaceSession {
   }
 
   private emitCachedOperationSnapshot(): void {
-    if (this.closed || !this.directoryEntriesCache.has("")) return
+    if (
+      this.closed ||
+      this.pathMoveInFlight ||
+      !this.directoryEntriesCache.has("")
+    )
+      return
     const snapshot = this.buildSnapshot(
       this.buildCachedTree(),
       this.graftStatusCache ?? this.pendingGraftStatus()
@@ -5872,6 +6329,7 @@ export class SpaceSession {
   }
 
   private invalidateSnapshotCaches(): void {
+    this.directoryEpoch += 1
     this.explorerListReads.clear()
     this.invalidateGraftStatusCache()
     this.directoryEntriesCache.clear()
@@ -5881,6 +6339,7 @@ export class SpaceSession {
   private invalidateDirectoryCaches(
     relativePaths: readonly string[]
   ): string[] {
+    this.directoryEpoch += 1
     this.explorerListReads.clear()
     if (relativePaths.length === 0) {
       const loaded = [...this.directoryEntriesCache.keys()]
@@ -6071,7 +6530,8 @@ export class SpaceSession {
   private async resolveEidosSystemMetadataMerges(
     initial: EidosSyncMergeStatus & { state: "merging" },
     signal: AbortSignal,
-    onWorktreePaths: (paths: string[] | null) => void
+    onWorktreePaths: (paths: string[] | null) => void,
+    onlyPath?: string
   ): Promise<EidosSyncMergeStatus> {
     let merge: EidosSyncMergeStatus = initial
     const eidosPaths: string[] = []
@@ -6092,12 +6552,19 @@ export class SpaceSession {
           .filter(
             (item) =>
               item.kind === "sqlite_database" &&
-              item.path.toLowerCase().endsWith(".eidos")
+              item.path.toLowerCase().endsWith(".eidos") &&
+              (!onlyPath || item.path === onlyPath)
           )
           .map((item) => item.path)
       )
       after = page.nextCursor ?? undefined
     } while (after)
+
+    if (onlyPath && eidosPaths.length === 0) {
+      throw new Error(
+        "This Eidos File is no longer unresolved; reload the merge"
+      )
+    }
 
     for (const relativePath of eidosPaths) {
       if (merge.state !== "merging") break
@@ -6144,6 +6611,11 @@ export class SpaceSession {
           continue
         }
         if (outcome.outcome !== "merged") {
+          if (onlyPath) {
+            throw new Error(
+              "The Eidos Runtime could not validate a combined result. Review the versions before choosing a complete file."
+            )
+          }
           console.warn(
             `Could not automatically merge Eidos system metadata for ${relativePath}`,
             outcome
@@ -6168,6 +6640,7 @@ export class SpaceSession {
           { signal, onWorktreePaths }
         )
       } catch (error) {
+        if (onlyPath) throw error
         console.warn(
           `Eidos system metadata merge is not available for ${relativePath}`,
           error
@@ -6184,6 +6657,7 @@ export class SpaceSession {
       | "resolveMergeRow"
       | "resolveMergeCell"
       | "resolveMergeTable"
+      | "normalizeMergeSqliteInputs"
       | "unresolveMergePath"
       | "writeAndStageTextResult"
       | "continueMerge"

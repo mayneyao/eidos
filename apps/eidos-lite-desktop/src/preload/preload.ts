@@ -430,6 +430,16 @@ const api: EidosLiteApi = {
       data: new Uint8Array(await file.arrayBuffer()),
     })
   },
+  importMarkdownFile: async (relativePath, file) => {
+    if (file.size === 0 || file.size > EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX) {
+      throw new Error("Markdown attachments must be between 1 byte and 64 MiB")
+    }
+    return ipcRenderer.invoke(IPC_CHANNELS.importMarkdownFile, {
+      relativePath,
+      name: file.name,
+      data: new Uint8Array(await file.arrayBuffer()),
+    })
+  },
   resolveMarkdownImage: (relativePath, markdownUrl) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.resolveMarkdownImage,
@@ -458,6 +468,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.renamePath, relativePath, name),
   movePath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.movePath, relativePath, targetDirectory),
+  movePaths: (relativePaths, targetDirectory) =>
+    ipcRenderer.invoke(IPC_CHANNELS.movePaths, relativePaths, targetDirectory),
   copyPath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.copyPath, relativePath, targetDirectory),
   deletePath: (relativePath) =>
@@ -718,8 +730,16 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeVersion, request),
   diffSyncMergeSqlite: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeSqliteDiff, request),
+  readSyncMergeSqlitePreview: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeSqlitePreview, request),
   resolveSyncMergePath: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolvePath, request),
+  readSyncMergeSchemaPlan: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeSchemaPlan, request),
+  resolveSyncMergeSchema: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveSchema, request),
+  combineSyncMergePath: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeCombinePath, request),
   resolveSyncMergeRow: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveRow, request),
   resolveSyncMergeCell: (request) =>

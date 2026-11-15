@@ -29,6 +29,8 @@ export type {
 } from "./core/document-contract"
 export { MarkdownEditor } from "./editor/markdown-editor"
 export { markdownReferenceTargets } from "./markdown/document-embed-source"
+export { droppedFileSource, fileDropCaretRange } from "./markdown/file-drop"
+export type { MarkdownFileDropHandler } from "./types"
 
 // Optional behavior and highlighting extension points
 export { CodeHighlightPlugin } from "./plugins/code-highlight-plugin"

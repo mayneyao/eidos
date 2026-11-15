@@ -6,8 +6,30 @@ import test from "node:test"
 import {
   assertEncryptedRemote,
   assertEncryptedSdk,
+  assertMergeSdk,
   validateGraftReleaseInputs,
 } from "./verify-graft-release.mjs"
+
+test("requires the complete schema-first SDK instead of a development-only override", () => {
+  class MergeSession {
+    exportMergeSqliteVersion() {}
+    normalizeMergeSqliteInputs() {}
+  }
+  const sdk = {
+    RepositorySession: MergeSession,
+    operationMaterializesWorktree: () => true,
+  }
+  assert.doesNotThrow(() => assertMergeSdk(sdk))
+  assert.throws(
+    () => assertMergeSdk({ ...sdk, RepositorySession: class {} }),
+    /exportMergeSqliteVersion/
+  )
+  assert.throws(
+    () =>
+      assertMergeSdk({ ...sdk, operationMaterializesWorktree: () => false }),
+    /materialization coordination/
+  )
+})
 
 test("checks import-only Remote exports from each consuming project's dependency", async (t) => {
   const temporary = await fs.mkdtemp(

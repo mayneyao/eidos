@@ -90,6 +90,27 @@ NOT return a publishable candidate while it remains unresolved.
 
 ## 2. Terminology and Input Contract
 
+### Structure decisions before record reconciliation
+
+Runtime MAY expose a schema-only plan for stored Field renames. It MUST match
+Fields by stable Field ID, return unresolved names from each side and the
+canonical `mergedName` for compatible renames, and reject unsupported Table,
+Field type, addition/deletion, or dependency migrations. Hosts MUST NOT infer
+these decisions from column positions or display names.
+
+Normalization accepts one `ours` or `theirs` choice per conflicting Field.
+Missing, duplicate, foreign or invalid choices MUST fail before mutation.
+The host supplies private writable copies of Base, Ours, Theirs, and a Result
+that starts as an exact Ours copy. Immutable originals MUST remain unchanged.
+Runtime applies selected names through its ordinary schema mutation boundary,
+including physical columns, Views, dependencies, clocks and revisions, then
+reconciles canonical metadata and validates the result. Every input copy MUST
+retain its own user records; normalized metadata is identical in all three.
+The host may pass these normalized inputs to its version manager for ordinary
+record reconciliation. This step does not select or resolve conflicting user
+records, and does not authorize publication before that reconciliation and
+full File validation complete.
+
 - **Base**, **Ours**, and **Theirs**: three immutable Eidos File snapshots.
 - **side key**: a stable version-manager identity for Ours or Theirs, such as a
   commit object ID. A side key is 1..128 lowercase ASCII characters matching

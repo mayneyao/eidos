@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
-import appLogo from "../../assets/logo.svg"
 import { SyncInspector } from "./sync-inspector"
 import { syncProgressPresentation } from "./sync-progress-presentation"
 import { SyncTransportTabs } from "./sync-transport-tabs"
@@ -2584,7 +2583,6 @@ export function SyncPanel({
       >
         <header>
           <div>
-            <img className="sync-dialog-mark" src={appLogo} alt="" />
             <span className="sync-dialog-copy">
               <span className="sync-dialog-title-line">
                 <strong id="sync-dialog-title">Sync</strong>
@@ -2674,7 +2672,6 @@ export function SyncLocalVersionGate({
       >
         <header>
           <div>
-            <img className="sync-dialog-mark" src={appLogo} alt="" />
             <span className="sync-dialog-title-line">
               <strong id="sync-dialog-title">{t("Sync")}</strong>
             </span>
@@ -2829,7 +2826,6 @@ function SyncAccessGate({
       >
         <header>
           <div>
-            <img className="sync-dialog-mark" src={appLogo} alt="" />
             <span className="sync-dialog-title-line">
               <strong id="sync-dialog-title">{t("Sync")}</strong>
               {environment === "staging" ? (

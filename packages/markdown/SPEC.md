@@ -65,7 +65,34 @@ PDFs. `[[path|label]]` navigates; `![[path]]` is unsupported literal text. The h
 search, path resolution and opening. Markdown links resolve relative to the
 current document; explicit wiki paths resolve from the Space root. Symlinks and
 paths escaping the Space are not authoring candidates. The picker MUST show the
-file path to distinguish identical names. Selecting a file MUST NOT embed it.
+file path to distinguish identical names. The default file action MUST insert a
+link. An optional host `displayPath` MUST be used only for readable picker text,
+without URI decoding; insertion MUST continue using `path` or `imageUrl`.
+Hosts SHOULD supply this text from original file metadata. Omitted display
+paths MUST fall back to the host's existing `path` unchanged. Compact rows MUST
+retain distinguishing directories for namesakes and expose the complete path
+in a tooltip and accessible name.
+A host MAY provide an optional `imageUrl` for an image candidate; when the
+image feature is enabled the picker MUST then offer separate **Insert link** and
+**Insert image** actions, both reachable with the keyboard and pointer. The image
+action MUST insert the existing semantic image block using standard Markdown
+image syntax at the query's selection, without importing or copying the file.
+Hosts own image URL authorization. Lite treats one leading `/` in an image URL
+as the current Space root, never an OS absolute path. Such a URL MUST resolve
+only that exact Space path, without document-relative or basename fallback.
+
+A host MAY enable file drops with `fileDrop`. Only payload types accepted by
+that host MUST be intercepted; normal text, external files and other drag
+behaviors MUST retain their existing handlers. Resolved existing files MUST be
+inserted at a collapsed pointer selection in the receiving editor, without
+replacing a stale selection in another pane. Ordinary files become links;
+authorized image candidates become the existing image block when supported.
+The batch MUST use one undo transaction. Cancellation, invalid results,
+unmount/identity change and edits made during asynchronous resolution MUST NOT
+insert stale content or change another document. The host MUST bind the payload
+to its source Space and validate exact file identity/path before insertion.
+Lite supports this operation in Rich text and Source, reusing the same file
+without importing, copying or moving it.
 
 GFM MUST cover CommonMark and the five specified extension families: tables,
 task lists, strikethrough, extended autolinks and disallowed raw HTML. It MUST

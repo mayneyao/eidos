@@ -37,6 +37,28 @@ export type MergeConflictsByPath = ReadonlyMap<
   readonly EidosSyncMergeConflict[]
 >
 
+/** Presentation scope: structural blockers offer a single complete-file choice. */
+export function isNormalizedSchemaConflict(
+  conflict: EidosSyncMergeConflict
+): boolean {
+  return (
+    conflict.kind === "schema" &&
+    conflict.reason === "schema_normalized" &&
+    conflict.status === "resolved"
+  )
+}
+
+export function requiresWholeFileChoice(
+  conflicts: readonly EidosSyncMergeConflict[]
+): boolean {
+  return conflicts.some(
+    (conflict) =>
+      !isNormalizedSchemaConflict(conflict) &&
+      conflict.kind !== "row" &&
+      !(conflict.autoResolvable && conflict.recommendedResult === "merged")
+  )
+}
+
 function tableTreeSegment(name: string): string {
   return (name.trim() || "Untitled table")
     .replaceAll("/", "／")
@@ -120,13 +142,18 @@ export function buildMergeChangeTreeModel(
 
   for (const path of mergePaths) {
     const root = path.state === "unmerged" ? UNRESOLVED_ROOT : RESOLVED_ROOT
-    const conflicts = conflictsByPath.get(path.path) ?? []
+    const conflicts = (conflictsByPath.get(path.path) ?? []).filter(
+      (conflict) => !isNormalizedSchemaConflict(conflict)
+    )
+    const wholeFileChoice = requiresWholeFileChoice(conflicts)
     const fileStructureConflicts = conflicts.filter(
       (conflict) =>
-        conflict.kind !== "row" && mergeConflictTableName(conflict) === null
+        conflict.kind !== "row" &&
+        (wholeFileChoice || mergeConflictTableName(conflict) === null)
     )
     const tableCounts = new Map<string, TableConflictCounts>()
     for (const conflict of conflicts) {
+      if (wholeFileChoice) break
       const table = mergeConflictTableName(conflict)
       if (!table) continue
       const counts = tableCounts.get(table) ?? {
@@ -196,12 +223,22 @@ export function buildMergeChangeTreeModel(
         scope: "table",
       }
       paths.push(tablePath)
-      decorationByPath.set(tablePath, tableConflictSummary(counts))
+      decorationByPath.set(
+        tablePath,
+        path.state === "resolved" ? "Resolved" : tableConflictSummary(counts)
+      )
       targetByTreePath.set(tablePath, tableTarget)
       treePathByTarget.set(tableTarget.key, tablePath)
     }
 
     if (fileStructureConflicts.length > 0) {
+      const unresolvedStructureCount = wholeFileChoice
+        ? path.state === "unmerged"
+          ? 1
+          : 0
+        : fileStructureConflicts.filter(
+            (conflict) => conflict.status !== "resolved"
+          ).length
       let structurePath = `${filePath}File structure`
       let structureIndex = 1
       while (targetByTreePath.has(structurePath)) {
@@ -217,7 +254,9 @@ export function buildMergeChangeTreeModel(
       paths.push(structurePath)
       decorationByPath.set(
         structurePath,
-        `${fileStructureConflicts.length} ${fileStructureConflicts.length === 1 ? "conflict" : "conflicts"}`
+        path.state === "resolved" || unresolvedStructureCount === 0
+          ? "Resolved"
+          : `${unresolvedStructureCount} ${unresolvedStructureCount === 1 ? "conflict" : "conflicts"}`
       )
       targetByTreePath.set(structurePath, structureTarget)
       treePathByTarget.set(structureTarget.key, structurePath)

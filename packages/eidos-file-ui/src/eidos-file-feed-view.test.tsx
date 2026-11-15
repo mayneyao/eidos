@@ -398,6 +398,43 @@ describe("EidosFileFeedView", () => {
     )
   })
 
+  it("marks the sidebar record and reveals it without changing its open state", async () => {
+    const reveal = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: reveal,
+    })
+    const loadPage = vi.fn(async (offset: number, limit: number) =>
+      page(offset, limit, [firstRow, secondRow], 2)
+    )
+    try {
+      await act(async () => {
+        root.render(
+          <EidosFileFeedView
+            table={table}
+            view={view}
+            loadPage={loadPage}
+            recordFocus={{ row: secondRow, index: 1, token: 1 }}
+          />
+        )
+      })
+      expect(
+        container
+          .querySelector(
+            `[data-eidos-file-feed-row="${String(secondRow._id)}"]`
+          )
+          ?.getAttribute("aria-current")
+      ).toBe("true")
+      expect(reveal).toHaveBeenCalledExactlyOnceWith({
+        block: "nearest",
+        inline: "nearest",
+      })
+      expect(loadPage).toHaveBeenCalledOnce()
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
+
   it("collapses long content behind See more", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
