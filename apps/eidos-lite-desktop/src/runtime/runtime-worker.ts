@@ -49,6 +49,7 @@ if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 let openedRuntime: EidosLiteFileRuntime | null = null
 let source: EidosRuntimeEditorDataSource | null = null
 let calendarSource: Promise<EidosRuntimeEditorDataSource> | null = null
+let calendarWindowSource: Promise<EidosRuntimeEditorDataSource> | null = null
 const connectionId = randomUUID()
 
 function requireSource(): EidosRuntimeEditorDataSource {
@@ -133,7 +134,8 @@ function methodArgs<M extends RuntimeMethod>(
 async function runtimeCall(
   method: Extract<RuntimeWorkerRequest, { type: "call" }>["method"],
   args: unknown[],
-  calendarQueryVersion?: 2
+  calendarQueryVersion?: 2,
+  calendarWindowVersion?: 1
 ): Promise<unknown> {
   const legacySource = requireSource()
   if (calendarQueryVersion === 2 && !calendarSource) {
@@ -151,8 +153,31 @@ async function runtimeCall(
       })
     calendarSource = pending
   }
+  if (
+    calendarWindowVersion === 1 &&
+    calendarQueryVersion === 2 &&
+    !calendarWindowSource
+  ) {
+    const declared = new EidosRuntimeEditorDataSource(
+      legacySource.runtime,
+      legacySource.path,
+      { calendarQueryVersion: 2, calendarWindowVersion: 1 }
+    )
+    const pending = declared
+      .initialize()
+      .then(() => declared)
+      .catch((error) => {
+        if (calendarWindowSource === pending) calendarWindowSource = null
+        throw error
+      })
+    calendarWindowSource = pending
+  }
   const dataSource =
-    calendarQueryVersion === 2 ? await calendarSource! : legacySource
+    calendarWindowVersion === 1 && calendarQueryVersion === 2
+      ? await calendarWindowSource!
+      : calendarQueryVersion === 2
+        ? await calendarSource!
+        : legacySource
   switch (method) {
     case "readTablePluginConfig":
       return dataSource.readTablePluginConfig(
@@ -392,6 +417,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       )
       source = openedRuntime.source
       calendarSource = null
+      calendarWindowSource = null
       return openedRuntime.initialSnapshot
     }
     case "inspectMergeTables": {
@@ -417,13 +443,15 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       })
       source = openedRuntime.source
       calendarSource = null
+      calendarWindowSource = null
       return openedRuntime.initialSnapshot
     }
     case "call":
       return runtimeCall(
         request.method,
         request.args,
-        request.calendarQueryVersion
+        request.calendarQueryVersion,
+        request.calendarWindowVersion
       )
     case "mergeSchema": {
       if (openedRuntime)
@@ -469,6 +497,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         openedRuntime = null
         source = null
         calendarSource = null
+        calendarWindowSource = null
       }
       return { closed: true }
     }

@@ -14,6 +14,7 @@ import {
   resolveEidosFileCalendarInstant,
 } from "../calendar-day"
 import { expectCalendarDayQueryConformance } from "../calendar-day.conformance"
+import { expectCalendarWindowConformance } from "../calendar-window.conformance"
 
 const cancellation: CancellationPort = {
   cancelled: () => false,
@@ -866,6 +867,10 @@ export async function runSelfTest(): Promise<string> {
       calendarReference.instant = instant
     })
     checks.push("calendar-period-query-conformance-vectors")
+    await expectCalendarWindowConformance(runtime, (instant) => {
+      calendarReference.instant = instant
+    })
+    checks.push("calendar-window-query-conformance-vectors")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

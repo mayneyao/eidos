@@ -1118,6 +1118,7 @@ function WorkspaceApp({
   const explorerCalendarExecution = useMemo<ExplorerCalendarExecution>(
     () => ({
       calendarQueryVersion: 2,
+      calendarWindowVersion: 1,
       calendar: {
         timeZone:
           timeZone === "system"
@@ -2707,7 +2708,7 @@ function WorkspaceApp({
           opened.sessionId,
           "getSnapshot",
           [],
-          { calendarQueryVersion: 2 }
+          { calendarQueryVersion: 2, calendarWindowVersion: 1 }
         )
         const source = new IpcEidosFileDataSource(
           opened.sessionId,
@@ -2724,7 +2725,7 @@ function WorkspaceApp({
                 return { ...file, snapshot, tableId }
               })
             ),
-          { calendarQueryVersion: 2 }
+          { calendarQueryVersion: 2, calendarWindowVersion: 1 }
         )
         const file: CachedFile = {
           sessionId: opened.sessionId,

@@ -72,6 +72,7 @@ export interface OpenEidosUISourceRequest {
 export interface EidosUIKernelOptions {
   /** Actual consumer opt-in; transport/SDK upgrades never imply UI support. */
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   /** A product may publish a lower bound than Runtime's negotiated maximum. */
   schemaObjectsMax?: number
   pageSizeMax?: number
@@ -577,7 +578,12 @@ export class EidosUIKernel {
         {
           revision: snapshot.revision,
           ...(this.options.calendarQueryVersion === 2
-            ? { calendarQueryVersion: 2 as const }
+            ? {
+                calendarQueryVersion: 2 as const,
+                ...(this.options.calendarWindowVersion === 1
+                  ? { calendarWindowVersion: 1 as const }
+                  : {}),
+              }
             : {}),
           limit: Math.min(100, limits.schemaPageSizeMax),
           ...(cursor === undefined ? {} : { cursor }),

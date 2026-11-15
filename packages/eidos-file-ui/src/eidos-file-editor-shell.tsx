@@ -17,6 +17,7 @@ export interface EidosFileEditorShellProps extends Omit<
 > {
   view?: EidosFileViewInfo
   calendarPeriodTimeZoneData?: readonly string[]
+  calendarWindowVersion?: 1
   viewTabs?: ReactNode
   queryToolbar?: ReactNode
   fields?: ReactNode
@@ -42,6 +43,7 @@ export const EidosFileEditorShell = forwardRef<
   {
     view,
     calendarPeriodTimeZoneData,
+    calendarWindowVersion,
     viewTabs,
     queryToolbar,
     fields,
@@ -106,6 +108,7 @@ export const EidosFileEditorShell = forwardRef<
     <EidosFileCalendarViewProvider
       view={view}
       supported={calendarPeriodTimeZoneData ?? []}
+      calendarWindowVersion={calendarWindowVersion}
       unsupported={
         <EidosFileEditorRoot className={className}>
           <EidosFileEditorWorkbar>

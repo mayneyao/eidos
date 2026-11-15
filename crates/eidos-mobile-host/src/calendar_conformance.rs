@@ -23,6 +23,7 @@ pub(crate) fn check(mut execute: impl FnMut(&Path, &str, Value) -> Result<Value>
         json!({"protocol":"eidos-runtime","versions":["1.0"]}),
     )?;
     ensure!(capability["capabilities"]["calendarQueryVersion"] == 2);
+    ensure!(capability["capabilities"]["calendarWindowVersion"] == 1);
     ensure!(capability["capabilities"]
         .get("calendarDayTimeZoneData")
         .is_none());
@@ -192,5 +193,69 @@ pub(crate) fn check(mut execute: impl FnMut(&Path, &str, Value) -> Result<Value>
         drop(connection);
         ensure!(execute(&feature_path, "web:getSnapshot", json!({})).is_err());
     }
+    let snapshot = execute(&path, "web:getSnapshot", json!({}))?;
+    let changes: Vec<Value> = (13..=17).map(|day| json!({"kind":"create","clientKey":format!("window-{day}"),"values":{label:format!("window-{day}"),date:format!("2026-11-{day}"),instant:format!("2026-11-{day}T15:00:00.000Z")}})).collect();
+    let inserted = execute(
+        &path,
+        "web:mutateRows",
+        json!({"tableId":table,"expectedRevision":snapshot["revision"],"changes":changes}),
+    )?;
+    let calendar = json!({"timeZone":"Asia/Shanghai","timeZoneData":"2026f","weekStartsOn":1});
+    let reference = "2026-11-15T01:15:00.000Z";
+    for field in [date, instant] {
+        for direction in ["past", "next"] {
+            for count in [1, 2] {
+                let page = execute(
+                    &path,
+                    "web:queryRows",
+                    json!({"tableId":table,"calendar":calendar,"referenceInstant":reference,"query":{"filter":{"op":"and","args":[{"op":"starts-with","fieldId":label,"value":"window-"},{"op":"calendar-window","fieldId":field,"direction":direction,"count":count,"unit":"day"}]},"sort":[{"fieldId":label,"direction":"asc"}]},"projection":{"fields":[label],"resolveRelations":[]},"limit":20}),
+                )?;
+                let start = if direction == "past" { 15 - count } else { 15 };
+                let end = if direction == "past" { 15 } else { 15 + count };
+                let expected: Vec<String> =
+                    (start..=end).map(|day| format!("window-{day}")).collect();
+                ensure!(
+                    page["rows"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|row| row["values"][0].as_str().unwrap().to_string())
+                        .collect::<Vec<_>>()
+                        == expected
+                );
+                ensure!(
+                    page["referenceInstant"] == reference
+                        && page["total"].as_str().unwrap().parse::<usize>()? == expected.len()
+                );
+            }
+        }
+    }
+    let query = json!({"filter":{"op":"calendar-window","fieldId":date,"direction":"past","count":1,"unit":"month"}});
+    let saved = execute(
+        &path,
+        "web:mutateView",
+        json!({"expectedRevision":inserted["revision"],"calendarQueryVersion":2,"calendarWindowVersion":1,"changes":[{"kind":"create-view","clientKey":"window","tableId":table,"name":"Past month","type":"grid","query":query,"layout":{},"position":"99"}]}),
+    )?;
+    let window_view = saved["createdViews"][0]["viewId"].clone();
+    for version in [false, true] {
+        let mut request =
+            json!({"revision":saved["revision"],"calendarQueryVersion":2,"limit":100});
+        if version {
+            request["calendarWindowVersion"] = json!(1);
+        }
+        let schema = execute(&path, "web:getSchemaPage", request)?;
+        let view = schema["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|view| view["id"] == window_view)
+            .unwrap();
+        ensure!(view["queryStatus"] == if version { "supported" } else { "unsupported" });
+        ensure!(view["query"].to_string().contains("calendar-window"));
+    }
+    ensure!(execute(&path,"web:mutateView",json!({"expectedRevision":saved["revision"],"calendarQueryVersion":2,"changes":[{"kind":"update-view","viewId":window_view,"patch":{"query":{}}}]})).is_err());
+    execute(&path, "close", Value::Null)?;
+    ensure!(execute(&path, "web:getSnapshot", json!({}))?["schemaCounts"]["features"] == "2");
+    execute(&path, "close", Value::Null)?;
     Ok(())
 }

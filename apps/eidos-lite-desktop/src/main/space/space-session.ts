@@ -787,7 +787,10 @@ export class SpaceSession {
           "getPage",
           args,
           calendarExecution
-            ? { calendarQueryVersion: calendarExecution.calendarQueryVersion }
+            ? {
+                calendarQueryVersion: calendarExecution.calendarQueryVersion,
+                calendarWindowVersion: calendarExecution.calendarWindowVersion,
+              }
             : undefined
         ),
       calendarExecution
@@ -814,9 +817,11 @@ export class SpaceSession {
   async getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
   async getExplorerFilterFields(consumer: {
     calendarQueryVersion: 2
+    calendarWindowVersion?: 1
   }): Promise<ExplorerFilterFieldsResult>
   async getExplorerFilterFields(consumer?: {
     calendarQueryVersion: 2
+    calendarWindowVersion?: 1
   }): Promise<EidosFileFieldInfo[] | ExplorerFilterFieldsResult> {
     if (this.closed) throw new Error("Space is closed")
     const opened = await this.openExistingFileMetadata()
@@ -2395,7 +2400,7 @@ export class SpaceSession {
     sessionId: string,
     method: M,
     args: RuntimeCalls[M]["args"],
-    consumer?: { calendarQueryVersion?: 2 }
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const isMutation = mutationMethods.has(method)
     const isCsvOperationControl = csvOperationControlMethods.has(method)

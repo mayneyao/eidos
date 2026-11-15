@@ -1600,6 +1600,14 @@ compatibility with old readers. Schema feature counts and descriptors report
 actual rows. Existing atomic feature merge/conflict rules apply unchanged;
 final candidate validation MUST reject new syntax without its declaration.
 
+The additional first-party feature `(name="eidos:calendar-window", version="1")`
+requires `required=1`, exactly `config_json='{}'`, and the exact calendar-query@2
+feature above. Any persisted calendar-window View MUST carry both declarations,
+installed atomically with the View in one revision. Their open, validation,
+copy/merge preservation, unsupported-reader and no-downgrade requirements are
+identical. Transient windows never install required features. Calendar-period
+meaning is unchanged; a full previous/next period is not a rolling window.
+
 ## 21. Media Type Registration Template
 
 This subsection is a registration template and does not claim that the vendor

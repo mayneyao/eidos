@@ -1,4 +1,5 @@
 import type { EidosFileCalendarDayValue } from "./calendar-day"
+import type { EidosFileCalendarWindowValue } from "./calendar-window"
 import type {
   EidosFileCalendarContext,
   EidosFileCalendarPeriodValue,
@@ -113,6 +114,7 @@ export interface RuntimePublicationSnapshot {
 }
 
 export interface RuntimeCapabilities {
+  calendarWindowVersion?: 1
   calendarQueryVersion?: 2
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
@@ -272,6 +274,7 @@ export type SchemaDescriptor =
   | FeatureDescriptor
 
 export interface GetSchemaPageRequest {
+  calendarWindowVersion?: 1
   /** Explicit acceptance by the consuming UI; transports never infer this. */
   calendarQueryVersion?: 2
   revision: string
@@ -355,6 +358,7 @@ export interface RowQuery {
 export type FilterOperand = Exclude<LogicalValue, null>
 
 export type FilterNode =
+  | ({ op: "calendar-window"; fieldId: string } & EidosFileCalendarWindowValue)
   | ({ op: "calendar-period"; fieldId: string } & EidosFileCalendarPeriodValue)
   /** @deprecated Retired wire shape retained for diagnostics and explicit upgrade. */
   | ({ op: "calendar-day"; fieldId: string } & EidosFileCalendarDayValue)
@@ -697,6 +701,7 @@ export type ViewChange =
   | { kind: "delete-view"; viewId: string }
 
 export interface ViewMutationRequest {
+  calendarWindowVersion?: 1
   calendarQueryVersion?: 2
   expectedRevision: string
   changes: ViewChange[]

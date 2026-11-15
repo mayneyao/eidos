@@ -149,3 +149,72 @@ it.each([
     }
   }
 )
+
+async function windowBytes() {
+  const db = new Database(
+    readFileSync(
+      new URL("../test-fixtures/date-queries-v1.eidos", import.meta.url)
+    )
+  )
+  const port = new BetterSqlite3ConnectionPort(db)
+  const runtime = (
+    await Runtime.open(port, environment, "readwrite", { cancellation })
+  ).service
+  await runtime.mutateView(
+    {
+      expectedRevision: fixture.revision,
+      calendarQueryVersion: 2,
+      calendarWindowVersion: 1,
+      changes: [
+        {
+          kind: "create-view",
+          clientKey: "window",
+          tableId: fixture.tableId,
+          name: "Past month",
+          type: "grid",
+          position: "99",
+          layout: {},
+          query: {
+            filter: {
+              op: "calendar-window",
+              fieldId: fixture.date,
+              direction: "past",
+              count: 1,
+              unit: "month",
+            },
+          },
+        },
+      ],
+    },
+    context()
+  )
+  await runtime.close(context())
+  const bytes = db.serialize()
+  port.close()
+  return bytes
+}
+
+it.each([
+  "DELETE FROM eidos__features WHERE name='eidos:calendar-window'",
+  "DELETE FROM eidos__features WHERE name='eidos:calendar-query'",
+  "UPDATE eidos__features SET version='2' WHERE name='eidos:calendar-window'",
+  "UPDATE eidos__features SET required=0 WHERE name='eidos:calendar-window'",
+  "UPDATE eidos__features SET config_json='{\"extra\":true}' WHERE name='eidos:calendar-window'",
+])(
+  "rejects an invalid window feature declaration in both access modes: %s",
+  async (sql) => {
+    for (const access of ["read", "readwrite"] as const) {
+      const db = new Database(await windowBytes())
+      // Deliberately corrupt a synthetic fixture; product writes only use Runtime.
+      db.exec(sql)
+      const port = new BetterSqlite3ConnectionPort(db)
+      try {
+        await expect(
+          Runtime.open(port, environment, access, { cancellation })
+        ).rejects.toMatchObject({ code: "corrupt-file" })
+      } finally {
+        port.close()
+      }
+    }
+  }
+)

@@ -17,7 +17,10 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     readonly sessionId: string,
     private snapshotValue: EidosFileSnapshot,
     private readonly onSnapshot?: (snapshot: EidosFileSnapshot) => void,
-    private readonly consumer: { calendarQueryVersion?: 2 } = {}
+    private readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {}
   ) {}
 
   private callRuntime: typeof window.eidosLite.callRuntime = (

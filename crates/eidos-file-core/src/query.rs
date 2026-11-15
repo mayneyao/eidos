@@ -98,6 +98,8 @@ pub enum FilterNode {
     CalendarDay(CalendarDayFilter),
     #[serde(rename = "calendar-period")]
     CalendarPeriod(CalendarPeriodFilter),
+    #[serde(rename = "calendar-window")]
+    CalendarWindow(CalendarWindowFilter),
     #[serde(rename = "relative-date")]
     RelativeDate(RelativeDateFilter),
     #[serde(rename = "and")]
@@ -173,6 +175,15 @@ pub struct CalendarPeriodFilter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CalendarWindowFilter {
+    pub field_id: String,
+    pub direction: String,
+    pub count: u32,
+    pub unit: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RelativeDateFilter {
     pub field_id: String,
     pub direction: String,
@@ -182,7 +193,10 @@ pub struct RelativeDateFilter {
 impl FilterNode {
     pub fn requires_runtime(&self) -> bool {
         match self {
-            Self::CalendarDay(_) | Self::CalendarPeriod(_) | Self::RelativeDate(_) => true,
+            Self::CalendarDay(_)
+            | Self::CalendarPeriod(_)
+            | Self::CalendarWindow(_)
+            | Self::RelativeDate(_) => true,
             Self::And { args } | Self::Or { args } => args.iter().any(Self::requires_runtime),
             Self::Not { arg } => arg.requires_runtime(),
             _ => false,
@@ -362,6 +376,7 @@ impl Compiler<'_> {
         match node {
             FilterNode::CalendarDay(_)
             | FilterNode::CalendarPeriod(_)
+            | FilterNode::CalendarWindow(_)
             | FilterNode::RelativeDate(_) => Err(invalid_query(
                 "calendar queries require the canonical Runtime",
             )),

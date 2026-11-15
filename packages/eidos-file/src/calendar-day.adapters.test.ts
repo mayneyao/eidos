@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite"
 import { expect, it } from "vitest"
 import { Runtime } from "./runtime-service"
 import { expectCalendarDayQueryConformance } from "./calendar-day.conformance"
+import { expectCalendarWindowConformance } from "./calendar-window.conformance"
 import { SQLiteWasmConnectionPort } from "./sqlite-wasm"
 import { NodeSqliteConnectionPort } from "./node-sqlite"
 import type {
@@ -651,6 +652,9 @@ async function run(adapter: string) {
       ).rows.map((row) => row.values[0])
     ).toEqual(["midday", "today-midnight"])
     await expectCalendarDayQueryConformance(runtime, (instant) => {
+      reference = instant
+    })
+    await expectCalendarWindowConformance(runtime, (instant) => {
       reference = instant
     })
   } finally {

@@ -1820,18 +1820,35 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.explorerFilterFields,
-    (event, consumer?: { calendarQueryVersion?: unknown }) => {
+    (
+      event,
+      consumer?: {
+        calendarQueryVersion?: unknown
+        calendarWindowVersion?: unknown
+      }
+    ) => {
       const session = controller.requireSession(event.sender)
       if (consumer === undefined) return session.getExplorerFilterFields()
       if (
         !consumer ||
         typeof consumer !== "object" ||
         Array.isArray(consumer) ||
-        Object.keys(consumer).some((key) => key !== "calendarQueryVersion") ||
+        Object.keys(consumer).some(
+          (key) =>
+            !["calendarQueryVersion", "calendarWindowVersion"].includes(key)
+        ) ||
+        (consumer.calendarWindowVersion !== undefined &&
+          (consumer.calendarWindowVersion !== 1 ||
+            consumer.calendarQueryVersion !== 2)) ||
         consumer.calendarQueryVersion !== 2
       )
         throw new Error("Invalid Explorer calendar consumer")
-      return session.getExplorerFilterFields({ calendarQueryVersion: 2 })
+      return session.getExplorerFilterFields({
+        calendarQueryVersion: 2,
+        ...(consumer.calendarWindowVersion === 1
+          ? { calendarWindowVersion: 1 as const }
+          : {}),
+      })
     }
   )
   ipcMain.handle(IPC_CHANNELS.listExplorerFiles, (event, query: unknown) =>
@@ -2515,7 +2532,7 @@ export function registerIpc(
       sessionId: unknown,
       method: unknown,
       args: unknown,
-      consumer?: { calendarQueryVersion?: 2 }
+      consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
     ): Promise<unknown> => {
       if (typeof sessionId !== "string")
         throw new Error("Invalid runtime session")
@@ -2531,7 +2548,13 @@ export function registerIpc(
         consumer !== undefined &&
         (typeof consumer !== "object" ||
           consumer === null ||
-          Object.keys(consumer).some((key) => key !== "calendarQueryVersion") ||
+          Object.keys(consumer).some(
+            (key) =>
+              !["calendarQueryVersion", "calendarWindowVersion"].includes(key)
+          ) ||
+          (consumer.calendarWindowVersion !== undefined &&
+            (consumer.calendarWindowVersion !== 1 ||
+              consumer.calendarQueryVersion !== 2)) ||
           (consumer.calendarQueryVersion !== undefined &&
             consumer.calendarQueryVersion !== 2))
       )

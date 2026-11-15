@@ -688,6 +688,9 @@ export function EidosFileWorkbench({
     >
       <EidosFileEditorShell
         view={activeView}
+        calendarWindowVersion={
+          snapshot.queryCapabilities?.calendarWindowVersion
+        }
         calendarPeriodTimeZoneData={
           snapshot.queryCapabilities?.calendarPeriodTimeZoneData
         }

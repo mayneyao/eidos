@@ -11,6 +11,10 @@ import {
 import { ConnectionPortEidosFileConnection } from "./connection-port"
 import { EidosFileError, type EidosFileErrorCode } from "./errors"
 import {
+  hasEidosFileCalendarWindowQuery,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
+import {
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   assertEidosFileCalendarZone,
   isEidosFileCalendarDayValue,
@@ -185,6 +189,7 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 })
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
+  calendarWindowVersion: 1,
   calendarQueryVersion: 2,
   calendarPeriodTimeZoneData: [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA],
   readRows: true,
@@ -531,6 +536,15 @@ export class EidosRuntimeService implements RuntimeClient {
       async () =>
         this.read(async () => {
           if (
+            request.calendarWindowVersion !== undefined &&
+            (request.calendarWindowVersion !== 1 ||
+              request.calendarQueryVersion !== 2)
+          )
+            throw runtimeError(
+              "unsupported",
+              "Unsupported client calendar window version"
+            )
+          if (
             request.calendarQueryVersion !== undefined &&
             request.calendarQueryVersion !== 2
           )
@@ -553,6 +567,8 @@ export class EidosRuntimeService implements RuntimeClient {
               payload.revision !== request.revision ||
               payload.calendarQueryVersion !==
                 (request.calendarQueryVersion ?? null) ||
+              payload.calendarWindowVersion !==
+                (request.calendarWindowVersion ?? null) ||
               typeof payload.offset !== "number" ||
               !Number.isSafeInteger(payload.offset) ||
               payload.offset < 0
@@ -561,7 +577,10 @@ export class EidosRuntimeService implements RuntimeClient {
             }
             offset = payload.offset
           }
-          const objects = this.schemaDescriptors(request.calendarQueryVersion)
+          const objects = this.schemaDescriptors(
+            request.calendarQueryVersion,
+            request.calendarWindowVersion
+          )
           const page = objects.slice(offset, offset + request.limit)
           if (offset > objects.length) {
             throw runtimeError("invalid-query", "Schema cursor is past the end")
@@ -579,6 +598,8 @@ export class EidosRuntimeService implements RuntimeClient {
                       revision: snapshot.revision,
                       calendarQueryVersion:
                         request.calendarQueryVersion ?? null,
+                      calendarWindowVersion:
+                        request.calendarWindowVersion ?? null,
                       offset: nextOffset,
                     })
                   : null,
@@ -1839,6 +1860,15 @@ export class EidosRuntimeService implements RuntimeClient {
       () => {
         this.assertWritable("mutateView")
         if (
+          request.calendarWindowVersion !== undefined &&
+          (request.calendarWindowVersion !== 1 ||
+            request.calendarQueryVersion !== 2)
+        )
+          throw runtimeError(
+            "invalid-request",
+            "Unsupported calendar window consumer version"
+          )
+        if (
           request.calendarQueryVersion !== undefined &&
           request.calendarQueryVersion !== 2
         )
@@ -1982,6 +2012,17 @@ export class EidosRuntimeService implements RuntimeClient {
                     "unsupported",
                     "This View requires a client that explicitly accepts calendar query version 2"
                   )
+                if (change.patch.query !== undefined)
+                  if (
+                    hasEidosFileCalendarWindowQuery(
+                      JSON.parse(current.query)
+                    ) &&
+                    request.calendarWindowVersion !== 1
+                  )
+                    throw runtimeError(
+                      "unsupported",
+                      "This View requires a client that explicitly accepts calendar window version 1"
+                    )
                 if (change.patch.query !== undefined)
                   assertRuntimeSavedViewQuery(
                     this.core.listFields(current.tableId),
@@ -2502,7 +2543,10 @@ export class EidosRuntimeService implements RuntimeClient {
     }
   }
 
-  private schemaDescriptors(calendarQueryVersion?: 2): SchemaDescriptor[] {
+  private schemaDescriptors(
+    calendarQueryVersion?: 2,
+    calendarWindowVersion?: 1
+  ): SchemaDescriptor[] {
     const tables = this.core.listTables()
     const tableSettings = new Map(
       this.core.connection
@@ -2539,6 +2583,8 @@ export class EidosRuntimeService implements RuntimeClient {
         name: view.name,
         type: view.type,
         ...(view.queryStatus === "unsupported" ||
+        (calendarWindowVersion !== 1 &&
+          hasEidosFileCalendarWindowQuery(JSON.parse(view.query))) ||
         (calendarQueryVersion !== 2 &&
           hasEidosFileCalendarPeriodQuery(JSON.parse(view.query)))
           ? {
@@ -4947,7 +4993,8 @@ function relationDefinition(
 
 function usesCalendarPeriod(node: FilterNode | undefined): boolean {
   if (!node) return false
-  if (node.op === "calendar-period") return true
+  if (node.op === "calendar-period" || node.op === "calendar-window")
+    return true
   if (node.op === "not") return usesCalendarPeriod(node.arg)
   return (
     (node.op === "and" || node.op === "or") &&
@@ -4957,7 +5004,8 @@ function usesCalendarPeriod(node: FilterNode | undefined): boolean {
 
 function usesClockFilter(node: FilterNode | undefined): boolean {
   if (!node) return false
-  if (node.op === "calendar-period") return true
+  if (node.op === "calendar-period" || node.op === "calendar-window")
+    return true
   if (node.op === "not") return usesClockFilter(node.arg)
   if (node.op === "and" || node.op === "or")
     return node.args.some(usesClockFilter)
@@ -5221,6 +5269,22 @@ function assertRuntimeRowQuery(
     }
     const type = fieldValueType(field)
     if (node.op === "is-null" || node.op === "is-not-null") return
+    if (node.op === "calendar-window") {
+      if (
+        (type !== "date" && type !== "datetime") ||
+        !isEidosFileCalendarWindowValue({
+          direction: node.direction,
+          unit: node.unit,
+          count: node.count,
+        }) ||
+        Object.keys(node).some(
+          (key) =>
+            !["op", "fieldId", "direction", "unit", "count"].includes(key)
+        )
+      )
+        throw runtimeError("invalid-query", "Calendar window Filter is invalid")
+      return
+    }
     if (node.op === "calendar-period") {
       if (
         (type !== "date" && type !== "datetime") ||
@@ -5463,6 +5527,14 @@ function runtimeFilterNodeToCompatibility(
       ],
     }
   }
+  if (node.op === "calendar-window") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-in-calendar-window",
+      value: { direction: node.direction, count: node.count, unit: node.unit },
+    }
+  }
   if (node.op === "calendar-period") {
     return {
       type: "rule",
@@ -5527,6 +5599,7 @@ function runtimeFilterNodeToCompatibility(
     | { op: "relative-date" }
     | { op: "calendar-day" }
     | { op: "calendar-period" }
+    | { op: "calendar-window" }
   >
   const operatorMap: Partial<
     Record<FilterNode["op"], EidosFileFilterOperator>
@@ -5617,6 +5690,11 @@ function compatibilityFilterRuleToRuntime(
       ? { op: "has-any", fieldId: rule.field, values: requireValues() }
       : { op: "in", fieldId: rule.field, values: requireValues() }
 
+  if (rule.operator === "is-in-calendar-window") {
+    if (!isEidosFileCalendarWindowValue(rule.value))
+      throw runtimeError("corrupt-file", "Stored calendar window is invalid")
+    return { op: "calendar-window", fieldId: rule.field, ...rule.value }
+  }
   if (rule.operator === "is-in-calendar-period") {
     if (!isEidosFileCalendarPeriodValue(rule.value))
       throw runtimeError("corrupt-file", "Stored calendar period is invalid")

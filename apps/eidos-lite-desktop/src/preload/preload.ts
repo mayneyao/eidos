@@ -321,8 +321,10 @@ const api: EidosLiteApi = {
       respectGitignore,
       calendarExecution
     ),
-  getExplorerFilterFields: (consumer?: { calendarQueryVersion: 2 }) =>
-    ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields, consumer),
+  getExplorerFilterFields: (consumer?: {
+    calendarQueryVersion: 2
+    calendarWindowVersion?: 1
+  }) => ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields, consumer),
   listExplorerFiles: (query) =>
     ipcRenderer.invoke(IPC_CHANNELS.listExplorerFiles, query),
   getExplorerFileThumbnail: (request) =>
@@ -569,7 +571,7 @@ const api: EidosLiteApi = {
     sessionId: string,
     method: M,
     args: RuntimeCalls[M]["args"],
-    consumer?: { calendarQueryVersion?: 2 }
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.runtimeCall,

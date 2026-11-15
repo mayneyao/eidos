@@ -689,7 +689,12 @@ export class HttpRuntimeClient implements RuntimeClient {
  * file; there is no browser file handle and no OPFS recovery copy.
  */
 export class EidosFileHttpClient {
-  constructor(private readonly consumer: { calendarQueryVersion?: 2 } = {}) {}
+  constructor(
+    private readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {}
+  ) {}
   readonly kind = "http" as const
   private editor: EidosRuntimeEditorDataSource | null = null
   private inFlightMutations = 0

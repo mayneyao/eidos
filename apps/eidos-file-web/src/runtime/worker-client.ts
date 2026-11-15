@@ -51,7 +51,12 @@ export class EidosFileWorkerClient {
   private editor: EidosRuntimeEditorDataSource | null = null
   private inFlightMutations = 0
 
-  constructor(private readonly consumer: { calendarQueryVersion?: 2 } = {}) {
+  constructor(
+    private readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {}
+  ) {
     this.worker.addEventListener(
       "message",
       (

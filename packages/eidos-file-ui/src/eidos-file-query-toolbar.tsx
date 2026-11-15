@@ -19,6 +19,7 @@ import {
   eidosFileFieldQueryCapabilities,
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   isEidosFileCalendarPeriodValue,
+  isEidosFileCalendarWindowValue,
 } from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
@@ -30,6 +31,7 @@ import {
   ChevronRight,
   Filter,
   LoaderCircle,
+  MoreHorizontal,
   Plus,
   Search,
   Trash2,
@@ -77,6 +79,9 @@ import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { SelectOptionItem } from "./ui/select-option-item"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { Select as SelectPrimitive } from "radix-ui"
+
+import { EidosFileRelativeDateControls } from "./eidos-file-relative-date-controls"
+import { RelativeDatePreview } from "./eidos-file-relative-date-preview"
 
 function FilterFieldIcon({ field }: { field: EidosFileFieldInfo }) {
   const Icon = eidosFileFieldTypeIcon(field.type)
@@ -128,7 +133,8 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-between": "is between",
   "is-relative-to-today": "Date filters need updating",
   "is-on-calendar-day": "Date filters need updating",
-  "is-in-calendar-period": "Relative date",
+  "is-in-calendar-period": "Is relative to today",
+  "is-in-calendar-window": "Is relative to today",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
@@ -427,12 +433,14 @@ function FilterValueEditor({
   rule,
   source,
   compact = false,
+  onRuleChange,
   onChange,
 }: {
   field: EidosFileFieldInfo
   rule: EidosFileFilterRule
   source?: EidosFileEditorDataSource
   compact?: boolean
+  onRuleChange?: (rule: EidosFileFilterRule) => void
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
   const { timeZone, translate: t, calendarTimeZoneData } = useEidosFileUI()
@@ -452,62 +460,63 @@ function FilterValueEditor({
       />
     )
   }
-  if (rule.operator === "is-in-calendar-period") {
-    const value = isEidosFileCalendarPeriodValue(rule.value)
+  if (
+    rule.operator === "is-in-calendar-period" ||
+    rule.operator === "is-in-calendar-window"
+  ) {
+    const period = isEidosFileCalendarPeriodValue(rule.value)
       ? rule.value
-      : ({ unit: "day", offset: 0 } as const)
+      : undefined
+    const window = isEidosFileCalendarWindowValue(rule.value)
+      ? rule.value
+      : undefined
+    const legacy = !!period && period.offset !== 0
+    const selection = window ?? {
+      direction:
+        period?.offset === -1
+          ? ("past" as const)
+          : period?.offset === 1
+            ? ("next" as const)
+            : ("this" as const),
+      count: 1,
+      unit: period?.unit ?? "day",
+    }
     return (
-      <div
-        data-eidos-file-calendar-period
-        className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-1.5"
+      <fieldset
+        disabled={!!window && !onRuleChange}
+        className="m-0 min-w-0 border-0 p-0"
       >
-        <Select
-          value={String(value.offset)}
-          onValueChange={(offset) => {
-            const period = { ...value, offset: Number(offset) }
-            if (isEidosFileCalendarPeriodValue(period)) onChange(period)
+        <EidosFileRelativeDateControls
+          value={selection}
+          legacyPeriod={legacy || (!onRuleChange && !window)}
+          onChange={(value) => {
+            if (legacy || !onRuleChange || value.direction === "this") {
+              const offset: -1 | 0 | 1 =
+                value.direction === "past"
+                  ? -1
+                  : value.direction === "next"
+                    ? 1
+                    : 0
+              const next = {
+                ...rule,
+                operator: "is-in-calendar-period" as const,
+                value: { unit: value.unit, offset },
+              }
+              if (onRuleChange) onRuleChange(next)
+              else onChange(next.value)
+            } else
+              onRuleChange({
+                ...rule,
+                operator: "is-in-calendar-window",
+                value: {
+                  direction: value.direction,
+                  count: value.count,
+                  unit: value.unit,
+                },
+              })
           }}
-        >
-          <SelectTrigger
-            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
-            aria-label={t("Period relation")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[
-              { offset: -1, label: "Last period" },
-              { offset: 0, label: "This period" },
-              { offset: 1, label: "Next period" },
-            ].map((period) => (
-              <SelectItem key={period.offset} value={String(period.offset)}>
-                {t(period.label)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={value.unit}
-          onValueChange={(unit) => {
-            const period = { ...value, unit }
-            if (isEidosFileCalendarPeriodValue(period)) onChange(period)
-          }}
-        >
-          <SelectTrigger
-            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
-            aria-label={t("Calendar unit")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(["day", "week", "month", "year"] as const).map((unit) => (
-              <SelectItem key={unit} value={unit}>
-                {t(unit)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        />
+      </fieldset>
     )
   }
   if (
@@ -817,6 +826,7 @@ function EidosFileFilterRuleEditor({
     translate: t,
     calendarTimeZoneData,
     calendarPeriodTimeZoneData,
+    calendarWindowVersion,
   } = useEidosFileUI()
   const field = fields.find(
     (candidate) => eidosFileFieldKey(candidate) === rule.field
@@ -843,11 +853,12 @@ function EidosFileFilterRuleEditor({
   )
   const availableOperators = getOperators(field).filter(
     (operator) =>
-      operator !== "is-in-calendar-period" ||
-      rule.operator === operator ||
-      calendarPeriodTimeZoneData?.includes(
-        calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
-      )
+      operator !== "is-in-calendar-window" &&
+      (operator !== "is-in-calendar-period" ||
+        rule.operator === operator ||
+        calendarPeriodTimeZoneData?.includes(
+          calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+        ))
   )
   const conditions = checkboxConditions.filter((condition) =>
     availableOperators.includes(condition.operator)
@@ -861,8 +872,16 @@ function EidosFileFilterRuleEditor({
               condition.value === rule.value)
         )
       : undefined
+  const legacyPeriod =
+    rule.operator === "is-in-calendar-period" &&
+    isEidosFileCalendarPeriodValue(rule.value) &&
+    rule.value.offset !== 0
+  const relative =
+    rule.operator === "is-in-calendar-window" ||
+    (rule.operator === "is-in-calendar-period" && !legacyPeriod)
   return (
     <div
+      data-relative-rule={relative || legacyPeriod || undefined}
       className={cn(
         "grid items-start gap-1.5",
         fixedField
@@ -937,8 +956,13 @@ function EidosFileFilterRuleEditor({
       ) : (
         <>
           <Select
-            value={rule.operator}
-            onValueChange={(operator: EidosFileFilterOperator) => {
+            value={relative ? "relative-date" : rule.operator}
+            onValueChange={(selected: string) => {
+              const operator = (
+                selected === "relative-date"
+                  ? "is-in-calendar-period"
+                  : selected
+              ) as EidosFileFilterOperator
               const relative = operator === "is-in-calendar-period"
               const between = operator === "is-between"
               const membership =
@@ -980,14 +1004,30 @@ function EidosFileFilterRuleEditor({
               className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:min-w-0 [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
               aria-label={t("Filter operator")}
             >
-              <SelectValue />
+              <SelectValue>
+                {fixedField && relative
+                  ? `${eidosFileFieldDisplayName(field)} ${t("is relative to today")}`
+                  : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {availableOperators.map((operator) => (
-                <SelectItem key={operator} value={operator}>
+                <SelectItem
+                  key={operator}
+                  value={
+                    operator === "is-in-calendar-period"
+                      ? "relative-date"
+                      : operator
+                  }
+                >
                   {t(operatorLabel(field, operator))}
                 </SelectItem>
               ))}
+              {legacyPeriod && (
+                <SelectItem value="is-in-calendar-period">
+                  {t("In a calendar period")}
+                </SelectItem>
+              )}
             </SelectContent>
           </Select>
           <div
@@ -1000,11 +1040,17 @@ function EidosFileFilterRuleEditor({
                 rule={rule}
                 source={source}
                 compact
+                onRuleChange={
+                  calendarWindowVersion === 1 ? onChange : undefined
+                }
                 onChange={(value) => onChange({ ...rule, value })}
               />
             )}
           </div>
         </>
+      )}
+      {fixedField && (relative || legacyPeriod) && (
+        <RelativeDatePreview rule={rule} />
       )}
       {onRemove && (
         <Button
@@ -1062,6 +1108,12 @@ export function EidosFileFieldFilterEditor({
     return current?.type === "rule" ? current : defaultRule(field)
   })
   const [pending, setPending] = useState(false)
+  const relative =
+    draft.operator === "is-in-calendar-period" ||
+    draft.operator === "is-in-calendar-window"
+  const draftRef = useRef(draft)
+  const valueRef = useRef(value)
+  valueRef.current = value
   const pendingRef = useRef(false)
   const lifecycleRef = useRef({ active: false, generation: 0 })
   const callbacksRef = useRef({ onClose, onPendingChange })
@@ -1087,7 +1139,7 @@ export function EidosFileFieldFilterEditor({
       }
     }
   }, [])
-  const commit = async () => {
+  const commit = async (nextDraft = draft, close = true) => {
     if (disabled || pendingRef.current || !lifecycleRef.current.active) return
     const generation = lifecycleRef.current.generation
     const isActive = () =>
@@ -1098,6 +1150,7 @@ export function EidosFileFieldFilterEditor({
     callbacksRef.current.onPendingChange?.(true)
     setError(null)
     try {
+      const value = valueRef.current
       const index = directFieldFilterRuleIndex(value, field)
       const next: EidosFileFilterGroup =
         value?.conjunction === "and"
@@ -1106,17 +1159,18 @@ export function EidosFileFieldFilterEditor({
               children:
                 index >= 0
                   ? value.children.map((child, childIndex) =>
-                      childIndex === index ? draft : child
+                      childIndex === index ? nextDraft : child
                     )
-                  : [...value.children, draft],
+                  : [...value.children, nextDraft],
             }
           : {
               type: "group",
               conjunction: "and",
-              children: value ? [value, draft] : [draft],
+              children: value ? [value, nextDraft] : [nextDraft],
             }
       await onChange(next)
-      if (isActive()) callbacksRef.current.onClose()
+      valueRef.current = next
+      if (isActive() && close) callbacksRef.current.onClose()
     } catch (changeError) {
       if (isActive()) {
         setError(
@@ -1130,34 +1184,99 @@ export function EidosFileFieldFilterEditor({
         pendingRef.current = false
         setPending(false)
         callbacksRef.current.onPendingChange?.(false)
+        if (!close && draftRef.current !== nextDraft)
+          void commit(draftRef.current, false)
       }
     }
   }
   return (
     <div
       ref={editorRef}
-      className="w-80 max-w-full p-3"
+      className={cn(
+        "max-w-full p-3",
+        draft.operator === "is-in-calendar-period" ||
+          draft.operator === "is-in-calendar-window"
+          ? "eidos-relative-date-panel"
+          : "w-80"
+      )}
       aria-busy={pending || undefined}
     >
-      <fieldset disabled={pending} className="m-0 min-w-0 border-0 p-0">
-        <div className="mb-3 flex min-w-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            aria-label={t("Back")}
-            onClick={onBack}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0">
-            <p className="text-[10px] text-muted-foreground">{t("Filter")}</p>
-            <h3 className="truncate text-xs font-medium">
-              {eidosFileFieldDisplayName(field)}
-            </h3>
+      <fieldset
+        disabled={pending && !relative}
+        className="m-0 min-w-0 border-0 p-0"
+      >
+        {relative && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="eidos-relative-date-more"
+                aria-label={t("More actions")}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-1" align="end">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                onClick={onBack}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {t("Back")}
+              </button>
+              <button
+                type="button"
+                disabled={disabled || pending}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                onClick={async () => {
+                  const current = valueRef.current
+                  const index = directFieldFilterRuleIndex(current, field)
+                  if (current && index >= 0) {
+                    try {
+                      await onChange({
+                        ...current,
+                        children: current.children.filter(
+                          (_, childIndex) => childIndex !== index
+                        ),
+                      })
+                      onClose()
+                    } catch (error) {
+                      setError(
+                        error instanceof Error
+                          ? error.message
+                          : t("Unable to update filters")
+                      )
+                    }
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("Remove filter")}
+              </button>
+            </PopoverContent>
+          </Popover>
+        )}
+        {!relative && (
+          <div className="mb-3 flex min-w-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={t("Back")}
+              onClick={onBack}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground">{t("Filter")}</p>
+              <h3 className="truncate text-xs font-medium">
+                {eidosFileFieldDisplayName(field)}
+              </h3>
+            </div>
           </div>
-        </div>
+        )}
         <fieldset disabled={disabled} className="m-0 min-w-0 border-0 p-0">
           <EidosFileFilterRuleEditor
             key={disabled ? "disabled" : "enabled"}
@@ -1165,7 +1284,15 @@ export function EidosFileFieldFilterEditor({
             fixedField
             rule={draft}
             source={source}
-            onChange={setDraft}
+            onChange={(next) => {
+              draftRef.current = next
+              setDraft(next)
+              if (
+                next.operator === "is-in-calendar-period" ||
+                next.operator === "is-in-calendar-window"
+              )
+                void commit(next, false)
+            }}
           />
         </fieldset>
         {error ? (
@@ -1173,29 +1300,31 @@ export function EidosFileFieldFilterEditor({
             {error}
           </p>
         ) : null}
-        <div className="mt-3 flex justify-end gap-1.5 border-t pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={onClose}
-          >
-            {t("Cancel")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 gap-1.5 text-xs"
-            disabled={disabled}
-            onClick={() => void commit()}
-          >
-            {pending ? (
-              <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-            ) : null}
-            {t(pending ? "Applying…" : "Apply")}
-          </Button>
-        </div>
+        {!relative && (
+          <div className="mt-3 flex justify-end gap-1.5 border-t pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={onClose}
+            >
+              {t("Cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              disabled={disabled}
+              onClick={() => void commit()}
+            >
+              {pending ? (
+                <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+              ) : null}
+              {t(pending ? "Applying…" : "Apply")}
+            </Button>
+          </div>
+        )}
       </fieldset>
     </div>
   )

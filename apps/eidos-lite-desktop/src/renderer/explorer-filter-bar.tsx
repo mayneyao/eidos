@@ -45,6 +45,7 @@ export function ExplorerFilterBar({
   const [calendarProfiles, setCalendarProfiles] = useState<readonly string[]>(
     []
   )
+  const [calendarWindows, setCalendarWindows] = useState<1 | undefined>()
   const [fields, setFields] = useState<EidosFileFieldInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -55,13 +56,21 @@ export function ExplorerFilterBar({
     let cancelled = false
     setError(null)
     void window.eidosLite
-      .getExplorerFilterFields({ calendarQueryVersion: 2 })
+      .getExplorerFilterFields({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       .then(
         (next) => {
           if (!cancelled) {
             const nextFields: EidosFileFieldInfo[] = Array.isArray(next)
               ? next
               : next.fields
+            setCalendarWindows(
+              Array.isArray(next)
+                ? undefined
+                : next.queryCapabilities?.calendarWindowVersion
+            )
             setCalendarProfiles(
               !Array.isArray(next) &&
                 next.queryCapabilities?.calendarQueryVersion === 2
@@ -107,6 +116,7 @@ export function ExplorerFilterBar({
       themeName={theme}
       timeZone={timeZone}
       weekStartsOnMonday={weekStartsOnMonday}
+      calendarWindowVersion={calendarWindows}
       calendarPeriodTimeZoneData={calendarProfiles}
     >
       <Popover

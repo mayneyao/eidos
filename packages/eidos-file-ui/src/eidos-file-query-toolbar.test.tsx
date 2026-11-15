@@ -776,7 +776,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => operator?.click())
     const relative = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
-    ).find((option) => option.textContent?.trim() === "Relative date")
+    ).find((option) => option.textContent?.trim() === "Is relative to today")
     await act(async () => relative?.click())
     expect(
       document.body.querySelector('input[type="datetime-local"]')

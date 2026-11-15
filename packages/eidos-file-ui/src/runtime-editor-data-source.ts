@@ -1,6 +1,7 @@
 import {
   assertEidosFileValues,
   isEidosFileCalendarPeriodValue,
+  isEidosFileCalendarWindowValue,
   hasRetiredEidosFileDateQuery,
   type EidosFileCalendarContext,
   canonicalizeEidosFileJson,
@@ -244,13 +245,25 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   constructor(
     readonly runtime: RuntimeClient,
     readonly path: string,
-    readonly consumer: { calendarQueryVersion?: 2 } = {}
+    readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {}
   ) {}
 
-  private calendarConsumer() {
+  private calendarConsumer(): {
+    calendarQueryVersion?: 2
+    calendarWindowVersion?: 1
+  } {
     return this.consumer.calendarQueryVersion === 2 &&
       this.runtimeCapabilities?.calendarQueryVersion === 2
-      ? { calendarQueryVersion: 2 as const }
+      ? {
+          calendarQueryVersion: 2 as const,
+          ...(this.consumer.calendarWindowVersion === 1 &&
+          this.runtimeCapabilities.calendarWindowVersion === 1
+            ? { calendarWindowVersion: 1 as const }
+            : {}),
+        }
       : {}
   }
 
@@ -351,7 +364,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       node: EidosFileFilterGroup | EidosFileFilterRule
     ): boolean =>
       node.type === "rule"
-        ? node.operator === "is-in-calendar-period"
+        ? node.operator === "is-in-calendar-period" ||
+          node.operator === "is-in-calendar-window"
         : node.children.some(hasCalendar)
     if (query.filter && hasCalendar(query.filter) && page.total === undefined)
       throw new Error(
@@ -2253,6 +2267,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return {
       path: this.path,
       queryCapabilities: {
+        calendarWindowVersion: this.calendarConsumer().calendarWindowVersion,
         calendarQueryVersion: this.runtimeCapabilities?.calendarQueryVersion,
         calendarPeriodTimeZoneData:
           this.runtimeCapabilities?.calendarQueryVersion === 2
@@ -2801,6 +2816,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                     : field.valueType,
         }
       : undefined
+    if (operator === "is-in-calendar-window") {
+      if (!isEidosFileCalendarWindowValue(raw))
+        throw new TypeError("Calendar window is invalid")
+      return { op: "calendar-window", fieldId, ...raw }
+    }
     if (operator === "is-in-calendar-period") {
       if (!isEidosFileCalendarPeriodValue(raw))
         throw new TypeError("Calendar period is invalid")
@@ -2953,6 +2973,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         field: node.fieldId,
         operator: "is-between",
         value: [node.lower, node.upper] as never,
+      }
+    }
+    if (node.op === "calendar-window") {
+      return {
+        type: "rule",
+        field: node.fieldId,
+        operator: "is-in-calendar-window",
+        value: {
+          direction: node.direction,
+          unit: node.unit,
+          count: node.count,
+        },
       }
     }
     if (node.op === "calendar-period") {

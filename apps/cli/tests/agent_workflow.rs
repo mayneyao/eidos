@@ -641,6 +641,46 @@ fn agent_can_create_update_preview_and_delete_view_by_intent() {
 }
 
 #[test]
+fn agent_can_round_trip_calendar_windows_through_view_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("windows.eidos"));
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Tasks",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Due","type":"date"}]"#,
+    ]);
+    let past =
+        r#"{"op":"calendar-window","fieldId":"Due","direction":"past","count":1,"unit":"month"}"#;
+    let created = success(&[
+        "view", "create", &file, "--name", "Rolling", "--type", "grid", "--where", past,
+    ]);
+    assert_eq!(created["request"]["calendarQueryVersion"], 2);
+    assert_eq!(created["request"]["calendarWindowVersion"], 1);
+    let next =
+        r#"{"op":"calendar-window","fieldId":"Due","direction":"next","count":2,"unit":"day"}"#;
+    success(&["view", "update", &file, "Rolling", "--where", next]);
+    let before = success(&["view", "inspect", &file, "Rolling"])["view"]["query"].clone();
+    assert!(before.to_string().contains("calendar-window"));
+    assert!(before.to_string().contains("\"count\":2"));
+    success(&["view", "update", &file, "Rolling", "--name", "Renamed"]);
+    assert_eq!(
+        success(&["view", "inspect", &file, "Renamed"])["view"]["query"],
+        before
+    );
+    let connection =
+        Connection::open_with_flags(&file, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let count:i64=connection.query_row("SELECT count(*) FROM eidos__features WHERE (name='eidos:calendar-query' AND version='2') OR (name='eidos:calendar-window' AND version='1')",[],|row|row.get(0)).unwrap();
+    assert_eq!(count, 2);
+    assert_eq!(
+        success(&[&file, "validate", "--level", "full"])["valid"],
+        true
+    );
+}
+
+#[test]
 fn agent_can_mutate_schema_by_table_field_and_relation_intent() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("schema-intent.eidos"));

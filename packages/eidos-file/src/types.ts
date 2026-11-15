@@ -1,5 +1,6 @@
 import type { EidosFileSqlPrimitive } from "./connection"
 import type { EidosFileCalendarDayValue } from "./calendar-day"
+import type { EidosFileCalendarWindowValue } from "./calendar-window"
 import type {
   EidosFileCalendarContext,
   EidosFileCalendarPeriodValue,
@@ -504,6 +505,7 @@ export type EidosFileFilterOperator =
   | "is-relative-to-today"
   | "is-on-calendar-day"
   | "is-in-calendar-period"
+  | "is-in-calendar-window"
 
 export type EidosFileFilterValue = string | number | boolean | null
 
@@ -522,6 +524,7 @@ export type EidosFileFilterRuleValue =
   | EidosFileRelativeDateValue
   | EidosFileCalendarDayValue
   | EidosFileCalendarPeriodValue
+  | EidosFileCalendarWindowValue
 
 export interface EidosFileFilterRule {
   type: "rule"
@@ -695,6 +698,7 @@ export interface EidosFileRowsUndoResult {
 
 export interface EidosFileSnapshot {
   queryCapabilities?: {
+    calendarWindowVersion?: 1
     calendarQueryVersion?: 2
     calendarPeriodTimeZoneData?: string[]
   }

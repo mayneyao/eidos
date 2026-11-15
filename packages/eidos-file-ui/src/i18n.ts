@@ -3,10 +3,27 @@ export type EidosFileUILocale = "en" | "zh"
 export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
+const en: EidosFileUIMessageOverrides = {
+  "Past (relative date)": "Past",
+  "Next (relative date)": "Next",
+  "This (relative date)": "This",
+  "Last (relative date)": "Last",
+}
+
 const zh: EidosFileUIMessageOverrides = {
+  "Past (relative date)": "过去",
+  "Next (relative date)": "接下来",
+  "This (relative date)": "当前",
+  "Last (relative date)": "上一个",
+  "Number of periods": "数量",
+  "More actions": "更多操作",
+  "Filter date range": "筛选日期范围",
+  "Filter will update with the current date": "筛选会随当前日期自动更新",
   "After updating, this file requires Eidos with the new date filters.":
     "更新后，此文件需要支持新版日期筛选的 Eidos。",
   "Relative date": "相对日期",
+  "Is relative to today": "相对于今天",
+  "In a calendar period": "属于日历周期",
   "Period relation": "周期关系",
   "Calendar unit": "周期单位",
   "Last period": "上期",
@@ -837,7 +854,9 @@ export function translateEidosFileUI(
   overrides: Partial<EidosFileUIMessageOverrides> = {}
 ): string {
   const template =
-    overrides[message] ?? (locale === "zh" ? zh[message] : null) ?? message
+    overrides[message] ??
+    (locale === "zh" ? zh[message] : en[message]) ??
+    message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
     template

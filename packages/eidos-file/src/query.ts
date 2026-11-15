@@ -9,6 +9,10 @@ import {
 } from "./calendar-period"
 import { isEidosFileCalendarDayValue } from "./calendar-day"
 import {
+  eidosFileCalendarWindowBounds,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
+import {
   eidosFileFieldQueryCapabilities,
   eidosFileFieldValueType,
 } from "./field-query-capabilities"
@@ -51,6 +55,7 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-relative-to-today",
   "is-on-calendar-day",
   "is-in-calendar-period",
+  "is-in-calendar-window",
 ])
 
 /** Returns whether a persisted compatibility filter operator is executable. */
@@ -146,6 +151,14 @@ export function assertEidosFileRowQuery(value: unknown): void {
     ) {
       throw new EidosFileError("invalid-query", "Invalid filter rule")
     }
+    if (filter.operator === "is-in-calendar-window") {
+      if (!isEidosFileCalendarWindowValue(filter.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Calendar window filter is invalid"
+        )
+      return
+    }
     if (filter.operator === "is-in-calendar-period") {
       if (!isEidosFileCalendarPeriodValue(filter.value))
         throw new EidosFileError(
@@ -240,28 +253,35 @@ function normalizeFilterNode(
       return null
     }
     const values: EidosFileFilterRuleValue | undefined =
-      candidate.operator === "is-in-calendar-period" &&
-      isEidosFileCalendarPeriodValue(candidate.value)
-        ? { unit: candidate.value.unit, offset: candidate.value.offset }
-        : candidate.operator === "is-on-calendar-day" &&
-            isEidosFileCalendarDayValue(candidate.value)
-          ? {
-              day: candidate.value.day,
-              timeZone: candidate.value.timeZone,
-              timeZoneData: candidate.value.timeZoneData,
-            }
-          : candidate.operator === "is-relative-to-today" &&
-              isRelativeDateValue(candidate.value)
+      candidate.operator === "is-in-calendar-window" &&
+      isEidosFileCalendarWindowValue(candidate.value)
+        ? {
+            direction: candidate.value.direction,
+            count: candidate.value.count,
+            unit: candidate.value.unit,
+          }
+        : candidate.operator === "is-in-calendar-period" &&
+            isEidosFileCalendarPeriodValue(candidate.value)
+          ? { unit: candidate.value.unit, offset: candidate.value.offset }
+          : candidate.operator === "is-on-calendar-day" &&
+              isEidosFileCalendarDayValue(candidate.value)
             ? {
-                direction: candidate.value.direction,
-                unit: candidate.value.unit,
+                day: candidate.value.day,
+                timeZone: candidate.value.timeZone,
+                timeZoneData: candidate.value.timeZoneData,
               }
-            : Array.isArray(candidate.value)
-              ? candidate.value.flatMap((entry) => {
-                  const normalized = filterValue(entry)
-                  return normalized === undefined ? [] : [normalized]
-                })
-              : filterValue(candidate.value)
+            : candidate.operator === "is-relative-to-today" &&
+                isRelativeDateValue(candidate.value)
+              ? {
+                  direction: candidate.value.direction,
+                  unit: candidate.value.unit,
+                }
+              : Array.isArray(candidate.value)
+                ? candidate.value.flatMap((entry) => {
+                    const normalized = filterValue(entry)
+                    return normalized === undefined ? [] : [normalized]
+                  })
+                : filterValue(candidate.value)
     return {
       type: "rule",
       field: candidate.field,
@@ -746,18 +766,29 @@ function compileRule(
       "Retired date filter requires an explicit upgrade"
     )
   }
-  if (rule.operator === "is-in-calendar-period") {
+  if (
+    rule.operator === "is-in-calendar-period" ||
+    rule.operator === "is-in-calendar-window"
+  ) {
     const type = temporalFieldType(field)
-    if (!type || !isEidosFileCalendarPeriodValue(rule.value))
+    const period =
+      rule.operator === "is-in-calendar-period" &&
+      isEidosFileCalendarPeriodValue(rule.value)
+        ? rule.value
+        : null
+    const window =
+      rule.operator === "is-in-calendar-window" &&
+      isEidosFileCalendarWindowValue(rule.value)
+        ? rule.value
+        : null
+    if (!type || (!period && !window))
       throw new EidosFileError(
         "invalid-query",
         "Calendar period requires a Date/Datetime Field"
       )
-    const bounds = eidosFileCalendarPeriodBounds(
-      rule.value,
-      calendar!,
-      referenceInstant
-    )
+    const bounds = window
+      ? eidosFileCalendarWindowBounds(window, calendar!, referenceInstant)
+      : eidosFileCalendarPeriodBounds(period!, calendar!, referenceInstant)
     if (type === "date") {
       params.push(bounds.startDate, bounds.endDate)
       return `COALESCE(${column} >= ? AND ${column} < ?, 0)`

@@ -4,6 +4,7 @@ import {
   assertEidosFileCalendarZone,
 } from "./calendar-day"
 import { isEidosFileCalendarPeriodValue } from "./calendar-period"
+import { isEidosFileCalendarWindowValue } from "./calendar-window"
 import { EidosFileError } from "./errors"
 import type { JsonObject, SavedViewQuery } from "./runtime-contract"
 
@@ -144,6 +145,7 @@ export function upgradeEidosFileDateQuery(
       return { op: "calendar-period", fieldId: node.fieldId, ...period }
     }
     const operands: Record<string, readonly string[]> = {
+      "calendar-window": ["direction", "unit", "count"],
       "calendar-period": ["unit", "offset"],
       "is-null": [],
       "is-not-null": [],
@@ -192,6 +194,15 @@ export function upgradeEidosFileDateQuery(
       invalid("Query text operand is invalid")
     if (node.op === "relation-has" && typeof node.rowId !== "string")
       invalid("Query Relation operand is invalid")
+    if (
+      node.op === "calendar-window" &&
+      !isEidosFileCalendarWindowValue({
+        direction: node.direction,
+        unit: node.unit,
+        count: node.count,
+      })
+    )
+      invalid("Calendar window is invalid")
     if (
       node.op === "calendar-period" &&
       !isEidosFileCalendarPeriodValue({ unit: node.unit, offset: node.offset })

@@ -9,6 +9,7 @@ import {
 /** Explicit intent from the Explorer UI, forwarded per request. Never saved in a filter. */
 export interface ExplorerCalendarExecution {
   calendarQueryVersion: 2
+  calendarWindowVersion?: 1
   calendar: EidosFileCalendarContext
   referenceInstant?: string
 }
@@ -27,9 +28,16 @@ export function normalizeExplorerCalendarExecution(
   const item = value as Record<string, unknown>
   if (
     item.calendarQueryVersion !== 2 ||
+    (item.calendarWindowVersion !== undefined &&
+      item.calendarWindowVersion !== 1) ||
     Object.keys(item).some(
       (key) =>
-        !["calendarQueryVersion", "calendar", "referenceInstant"].includes(key)
+        ![
+          "calendarQueryVersion",
+          "calendarWindowVersion",
+          "calendar",
+          "referenceInstant",
+        ].includes(key)
     )
   )
     throw new Error("Invalid Explorer calendar consumer")
@@ -41,6 +49,9 @@ export function normalizeExplorerCalendarExecution(
     throw new Error("Invalid Explorer reference instant")
   return {
     calendarQueryVersion: 2,
+    ...(item.calendarWindowVersion === 1
+      ? { calendarWindowVersion: 1 as const }
+      : {}),
     calendar: { ...item.calendar },
     ...(typeof item.referenceInstant === "string"
       ? { referenceInstant: item.referenceInstant }

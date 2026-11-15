@@ -136,6 +136,7 @@ export interface EidosFileUIHost {
   queryEditingDisabled?: boolean
   /** Negotiated Runtime capability, not a saved or global preference. */
   calendarPeriodTimeZoneData?: readonly string[]
+  calendarWindowVersion?: 1
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
@@ -201,6 +202,7 @@ export function EidosFileUIProvider({
   calendarTimeZoneData,
   queryEditingDisabled,
   calendarPeriodTimeZoneData,
+  calendarWindowVersion,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
@@ -270,6 +272,8 @@ export function EidosFileUIProvider({
       calendarTimeZoneData: resolvedCalendarTimeZoneData,
       queryEditingDisabled: queryEditingDisabled ?? parent.queryEditingDisabled,
       calendarPeriodTimeZoneData: resolvedCalendarPeriodTimeZoneData,
+      calendarWindowVersion:
+        calendarWindowVersion ?? parent.calendarWindowVersion,
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -330,6 +334,8 @@ export function EidosFileUIProvider({
       queryEditingDisabled,
       parent.queryEditingDisabled,
       resolvedCalendarPeriodTimeZoneData,
+      calendarWindowVersion,
+      parent.calendarWindowVersion,
       resolvedWeekStartsOnMonday,
       translateOverride,
     ]

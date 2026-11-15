@@ -1,9 +1,15 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
-import { hasEidosFileCalendarPeriodQuery } from "./calendar-period"
+import { hasEidosFileCalendarQuery } from "./calendar-period"
+import {
+  hasEidosFileCalendarWindowQuery,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
 import {
   enableCalendarQueryFeature,
   hasCalendarQueryFeature,
   requireCalendarQueryFeature,
+  enableCalendarWindowFeature,
+  requireCalendarWindowFeature,
 } from "./calendar-query-feature"
 import {
   isEidosFileCalendarDayValue,
@@ -810,6 +816,14 @@ function filterToStorage(
         ? { fieldId, op: "has-any", values: requireValues() }
         : { fieldId, op: "in", values: requireValues() }
 
+    if (rule.operator === "is-in-calendar-window") {
+      if (!isEidosFileCalendarWindowValue(rule.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Saved calendar window is invalid"
+        )
+      return { op: "calendar-window", fieldId, ...rule.value }
+    }
     if (rule.operator === "is-in-calendar-period") {
       if (!isEidosFileCalendarPeriodValue(rule.value))
         throw new EidosFileError(
@@ -1010,6 +1024,18 @@ function filterFromStorage(
         value: [node.lower, node.upper] as never,
       }
     }
+    if (node.op === "calendar-window") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-in-calendar-window",
+        value: {
+          direction: node.direction,
+          unit: node.unit,
+          count: node.count,
+        } as never,
+      }
+    }
     if (node.op === "calendar-period") {
       return {
         type: "rule",
@@ -1139,6 +1165,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "relative-date",
   "calendar-day",
   "calendar-period",
+  "calendar-window",
 ])
 
 function sortsFromStorage(value: unknown): EidosFileSort[] {
@@ -1191,6 +1218,8 @@ function storedViewQueryStatus(
     operator: EidosFileFilterRule["operator"],
     value: unknown
   ): boolean => {
+    if (operator === "is-in-calendar-window")
+      return isEidosFileCalendarWindowValue(value)
     if (operator === "is-in-calendar-period")
       return isEidosFileCalendarPeriodValue(value)
     if (
@@ -1268,6 +1297,18 @@ function storedViewQueryStatus(
       } else if (node.op === "relation-has") {
         allowed.add("rowId")
         if (typeof node.rowId !== "string") return false
+      } else if (node.op === "calendar-window") {
+        allowed.add("unit")
+        allowed.add("direction")
+        allowed.add("count")
+        if (
+          !isEidosFileCalendarWindowValue({
+            unit: node.unit,
+            direction: node.direction,
+            count: node.count,
+          })
+        )
+          return false
       } else if (node.op === "calendar-period") {
         allowed.add("unit")
         allowed.add("offset")
@@ -3503,8 +3544,10 @@ export class EidosFileRuntime {
     const tableId = uuid(row.table_id)
     const fields = this.listFields(tableId)
     const query = jsonObject(row.query_json)
-    if (hasEidosFileCalendarPeriodQuery(query))
+    if (hasEidosFileCalendarQuery(query))
       requireCalendarQueryFeature(this.connection)
+    if (hasEidosFileCalendarWindowQuery(query))
+      requireCalendarWindowFeature(this.connection)
     const layout = jsonObject(row.layout_json)
     const queryStatus = storedViewQueryStatus(query, fields)
     const storedSorts = sortsFromStorage(query.sort)
@@ -3640,8 +3683,10 @@ export class EidosFileRuntime {
     const mappedLayoutField = (value: unknown): string | null =>
       typeof value === "string" ? (fieldByKey.get(value) ?? null) : null
     return this.mutate(() => {
+      if (hasEidosFileCalendarWindowQuery(input.filter))
+        enableCalendarWindowFeature(this.connection)
       if (
-        hasEidosFileCalendarPeriodQuery({
+        hasEidosFileCalendarQuery({
           filter: filterToStorage(input.filter, fields),
         })
       )
@@ -3785,6 +3830,8 @@ export class EidosFileRuntime {
         return current
       return this.mutate(() => {
         enableCalendarQueryFeature(this.connection)
+        if (hasEidosFileCalendarWindowQuery(target))
+          enableCalendarWindowFeature(this.connection)
         this.connection.run(
           `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET query_json = ?, layout_json = ?, updated_at = ? WHERE id = ?`,
           [
@@ -3864,9 +3911,11 @@ export class EidosFileRuntime {
       changes.orderMap !== undefined ||
       changes.hiddenFields !== undefined
     return this.mutate(() => {
+      if (queryChanged && hasEidosFileCalendarWindowQuery(next.filter))
+        enableCalendarWindowFeature(this.connection)
       if (
         queryChanged &&
-        hasEidosFileCalendarPeriodQuery({
+        hasEidosFileCalendarQuery({
           filter: filterToStorage(next.filter, fields),
         })
       )

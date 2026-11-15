@@ -1713,21 +1713,28 @@ without changing their membership. A Host-supplied custom filter editor MAY
 retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
-after**, **is on or before**, **is on or after**, **is between**, **Relative
-date**, **is empty**, and **is not empty**. Is between emits the inclusive
+after**, **is on or before**, **is on or after**, **is between**, **is relative to today**, **is empty**, and **is not empty**. Is between emits the inclusive
 `between` predicate. There is one relative-date entry and no parallel UTC range,
 calendar-day entry, per-condition zone selector, frozen-zone hint, rules version,
 or permanent technical tip.
 
-Relative date uses two selectors in order: Last period / This period /
-Next period, then day / week / month / year. View and Explorer use the same
-shared controls. These twelve combinations select a complete local
-calendar period through `calendar-period` with unit day/week/month/year and
-offset -1/0/1. It never saves current application zone/profile/week start, an
-absolute date or a rolling duration. Weeks use Calendar's existing preference,
-with Monday as the default. A 23/25-hour local day remains that day. The user has
-one existing application time-zone setting; UTC has no separate default filter
-semantics. This capability revision provides no rolling-duration control.
+Relative date shares Past / Next / This and day / week / month / year selectors.
+Past and Next show a positive integer count between them; This hides it and
+switching from This resets it to 1. This emits calendar-period offset 0;
+Past/Next emit calendar-window, including both endpoint dates. Past 1 day
+includes yesterday and today; Next 1 day includes today and tomorrow. Month/year
+shifts clamp to the target month end. View and Explorer use the same controls
+and canonical Runtime helpers. Advanced filters retain a horizontal rule row.
+Single-field configuration uses a 260 CSS px popover with property/operator
+header, selectors, read-only 42-day calendar range, month navigation and
+“Filter will update with the current date”. Preview uses the application zone
+and week-start preference (Monday default). Existing calendar-period offset ±1
+keeps its full-period meaning and accurate legacy label; opening or editing
+other conditions MUST NOT silently convert it into a window. Window-aware UIs
+explicitly declare calendarWindowVersion 1. Empty/invalid count drafts retain
+the last effective filter, never request unfiltered data. Single-field edits
+save immediately; advanced filters retain their Apply/Cancel transaction.
+The application retains one time-zone setting.
 
 New UI MUST NOT revive old UTC semantics when connected to an older Runtime.
 Retired date queries are locally treated as unsupported even if that Runtime

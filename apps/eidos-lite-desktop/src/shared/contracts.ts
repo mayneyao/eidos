@@ -1903,6 +1903,7 @@ export type RuntimeWorkerRequest =
       requestId: number
       method: RuntimeMethod
       calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
       args: unknown[]
     }
   | {
@@ -2040,6 +2041,7 @@ export interface EidosLiteApi extends PluginApi {
   getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
   getExplorerFilterFields(consumer: {
     calendarQueryVersion: 2
+    calendarWindowVersion?: 1
   }): Promise<ExplorerFilterFieldsResult>
   listExplorerFiles(query: ExplorerFilesQuery): Promise<ExplorerFilesPage>
   getExplorerFileThumbnail(
@@ -2184,7 +2186,7 @@ export interface EidosLiteApi extends PluginApi {
     sessionId: string,
     method: M,
     args: RuntimeCalls[M]["args"],
-    consumer?: { calendarQueryVersion?: 2 }
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
   getSpaceIgnoreRules(): Promise<SpaceIgnoreRules>

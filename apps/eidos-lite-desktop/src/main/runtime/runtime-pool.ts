@@ -282,7 +282,7 @@ export class RuntimePool {
     sessionId: string,
     method: M,
     args: RuntimeCalls[M]["args"],
-    consumer?: { calendarQueryVersion?: 2 }
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const entry = this.requireEntry(sessionId)
     if (entry.closed || this.closingEntries.has(entry)) {

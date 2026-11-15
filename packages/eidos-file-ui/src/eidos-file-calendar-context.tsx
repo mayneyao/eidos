@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from "react"
 import {
   assertEidosFileCalendarZone,
-  hasEidosFileCalendarPeriodQuery,
+  hasEidosFileCalendarQuery,
+  hasEidosFileCalendarWindowQuery,
   supportsEidosFileCalendarProfile,
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   type EidosFileCalendarContext,
@@ -29,8 +30,8 @@ export function eidosFileCalendarViewContext(
   } catch {
     /* preserved unsupported document */
   }
-  return hasEidosFileCalendarPeriodQuery(query) ||
-    hasEidosFileCalendarPeriodQuery(view?.filter)
+  return hasEidosFileCalendarQuery(query) ||
+    hasEidosFileCalendarQuery(view?.filter)
     ? { status: "unsupported" }
     : { status: "legacy" }
 }
@@ -68,16 +69,31 @@ export function EidosFileCalendarViewProvider({
   supported,
   children,
   unsupported,
+  calendarWindowVersion,
 }: {
   view?: EidosFileViewInfo
   supported?: readonly string[]
   children: ReactNode
   unsupported?: ReactNode
+  calendarWindowVersion?: 1
 }) {
   const host = useEidosFileUI()
   const capabilities = supported ?? host.calendarPeriodTimeZoneData ?? []
+  const windows = calendarWindowVersion ?? host.calendarWindowVersion
   const state = eidosFileCalendarViewContext(view, capabilities)
   let available = state.status !== "unsupported"
+  let query: unknown
+  try {
+    query = view?.query ? JSON.parse(view.query) : undefined
+  } catch {
+    /* opaque document */
+  }
+  if (
+    windows !== 1 &&
+    (hasEidosFileCalendarWindowQuery(view?.filter) ||
+      hasEidosFileCalendarWindowQuery(query))
+  )
+    available = false
   if (state.status === "supported") {
     try {
       assertEidosFileCalendarZone(
@@ -95,6 +111,7 @@ export function EidosFileCalendarViewProvider({
         view?.queryStatus === "unsupported" || host.queryEditingDisabled
       }
       calendarPeriodTimeZoneData={capabilities}
+      calendarWindowVersion={windows}
       calendarTimeZoneData={
         state.status === "supported" && available ? state.timeZoneData : null
       }

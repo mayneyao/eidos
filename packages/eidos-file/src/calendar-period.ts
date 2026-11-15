@@ -19,26 +19,38 @@ export interface EidosFileCalendarPeriodValue {
   offset: -1 | 0 | 1
 }
 
-/** Inspect filter syntax, never opaque operand objects. */
+/** Inspect period syntax without treating operand objects as predicates. */
 export function hasEidosFileCalendarPeriodQuery(value: unknown): boolean {
+  return hasCalendarQuery(value, false)
+}
+
+/** Calendar context and root-R requirements apply to periods and windows. */
+export function hasEidosFileCalendarQuery(value: unknown): boolean {
+  return hasCalendarQuery(value, true)
+}
+
+function hasCalendarQuery(value: unknown, windows: boolean): boolean {
   if (!value || typeof value !== "object") return false
-  if (Array.isArray(value)) return value.some(hasEidosFileCalendarPeriodQuery)
+  const visit = (value: unknown): boolean => hasCalendarQuery(value, windows)
+  if (Array.isArray(value)) return value.some(visit)
   const node = value as Record<string, unknown>
   if (
     node.op === "calendar-period" ||
-    (node.type === "rule" && node.operator === "is-in-calendar-period")
+    (windows && node.op === "calendar-window") ||
+    (node.type === "rule" &&
+      (node.operator === "is-in-calendar-period" ||
+        (windows && node.operator === "is-in-calendar-window")))
   )
     return true
   return (
-    (node.filter !== undefined &&
-      hasEidosFileCalendarPeriodQuery(node.filter)) ||
-    (node.op === "not" && hasEidosFileCalendarPeriodQuery(node.arg)) ||
+    (node.filter !== undefined && visit(node.filter)) ||
+    (node.op === "not" && visit(node.arg)) ||
     ((node.op === "and" || node.op === "or") &&
       Array.isArray(node.args) &&
-      node.args.some(hasEidosFileCalendarPeriodQuery)) ||
+      node.args.some(visit)) ||
     (node.type === "group" &&
       Array.isArray(node.children) &&
-      node.children.some(hasEidosFileCalendarPeriodQuery))
+      node.children.some(visit))
   )
 }
 

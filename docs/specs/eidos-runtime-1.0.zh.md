@@ -373,6 +373,7 @@ unbounded foreground wait。
 ```ts
 interface RuntimeCapabilities {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
@@ -857,6 +858,7 @@ type SchemaDescriptor =
 
 interface GetSchemaPageRequest {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   revision: string
   limit: number
   cursor?: string
@@ -1090,6 +1092,13 @@ type FilterNode =
       unit: "day" | "week" | "month" | "year"
       offset: -1 | 0 | 1
     }
+  | {
+      op: "calendar-window"
+      fieldId: string
+      direction: "past" | "next"
+      count: number // integer 1..1_000_000
+      unit: "day" | "week" | "month" | "year"
+    }
 ```
 
 以下 Draft 2020-12 JSON Schema 是 `RowQuery` 可执行的 structural validation。
@@ -1230,6 +1239,18 @@ Runtime 还会执行 Field/type/limit validation。
             "unit": { "enum": ["day", "week", "month", "year"] },
             "offset": { "enum": [-1, 0, 1] }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "direction", "count", "unit"],
+          "properties": {
+            "op": { "const": "calendar-window" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "direction": { "enum": ["past", "next"] },
+            "count": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "unit": { "enum": ["day", "week", "month", "year"] }
+          }
         }
       ]
     }
@@ -1277,6 +1298,7 @@ Operator/type compatibility 是 normative：
 | `has-any`、`has-all`                       | Multi-select、Relation、File 与每个 public list TypeRef |
 | `relation-has`                             | forward 或 inverse Relation                             |
 | `calendar-period`                          | `date`, `datetime`                                      |
+| `calendar-window`                          | `date`, `datetime`                                      |
 
 Operand MUST 具有 Field 的精确 logical type；Runtime 不执行 string、number、
 Boolean、date 或 ID coercion。`eq` 使用 typed exact equality，`ne` 使用其
@@ -1286,12 +1308,31 @@ list/Multi-select/File/Relation 使用 length 加 ordered typed element equality
 `ends-with` 在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode scalar sequence；
 非 ASCII 保持不变。`search` 使用同一 portable fold。
 
-`calendar-period` 是唯一的相对日历条件，需要 `calendarQueryVersion:2` 和已广告的
+`calendar-period` 选择完整日历周期，需要 `calendarQueryVersion:2` 和已广告的
 `calendarPeriodTimeZoneData`。leaf 仅保存 Field ID、unit 与 offset。offset -1/0/1
 分别选择完整的上一／当前／下一本地 Gregorian 日、周、月或年，绝不表示滚动时长。
 周起始复用应用现有周一／周日配置；没有配置时产品默认周一，不新增设置。
 
 查询操作把执行信息放在 request，不能放进 `RowQuery`／`SavedViewQuery`：
+
+`calendar-window` 额外要求 Runtime 广告 `calendarWindowVersion:1`，并依赖
+calendar query version 2 与 2026f。只保存 Field ID、direction past|next、
+1..1,000,000 的整数 count 及 day/week/month/year。把根参考瞬间 R 投影到应用
+时区得到今天 D，按 count 个日历单位移动 D；一周为七个日期，月／年移动把日
+截到目标月末。Past 包含目标日到 D，Next 包含 D 到目标日，两端日期均包含。
+执行为 [起始日, 结束日次日)；Date 比较日期字面量，Datetime 使用固定时区规则
+下整个日期范围的逆像，覆盖 DST 折叠／缺口及跳过日期，不按经过的小时数计算。
+例如11月15日的 Past 1 day 为11月14–15日，Next 1 day 为11月15–16日，包含这些
+日期内的全部时间。非法操作数为 invalid-query，移出1970–2499为 unsupported。
+
+下文 period 的 R、calendar、cursor、cache、count、group、neighbors、批页及
+export 契约同样适用于 window。Schema read 与 View mutation 的
+`calendarWindowVersion?:1` 是实际消费者另行声明，仅与 calendarQueryVersion 2
+一起有效；桥只转发。未声明时，整份 window 查询保持 opaque unsupported，不能
+替换已有 View 的 query；改名等 metadata edit 和精确 opaque copy 保留完整查询。
+Schema cursor/cache 绑定两项声明。首次持久化 window 在同一 revision 事务安装
+`eidos:calendar-window@1` 与依赖 `eidos:calendar-query@2`；打开／临时查询不安装，
+删除最后一个 window 不降级文件。
 
 ```ts
 interface CalendarQueryExecution {
@@ -2577,6 +2618,7 @@ type ViewChange =
 
 interface ViewMutationRequest {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   expectedRevision: string
   changes: ViewChange[]
 }

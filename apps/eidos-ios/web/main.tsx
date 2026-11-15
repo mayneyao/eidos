@@ -659,6 +659,7 @@ function Database({
   )
   return (
     <EidosFileUIProvider
+      calendarWindowVersion={snapshot.queryCapabilities?.calendarWindowVersion}
       calendarPeriodTimeZoneData={calendarProfiles}
       calendarTimeZoneData={
         calendar.status === "supported" ? calendar.timeZoneData : null
@@ -704,7 +705,7 @@ function App() {
               return value
             }),
             document.path,
-            { calendarQueryVersion: 2 }
+            { calendarQueryVersion: 2, calendarWindowVersion: 1 }
           )
           database = { source, initialSnapshot: await source.initialize() }
         }

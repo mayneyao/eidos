@@ -75,6 +75,8 @@ pub enum ViewChange {
 pub struct ViewMutationRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calendar_query_version: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar_window_version: Option<u8>,
     pub expected_revision: String,
     pub changes: Vec<ViewChange>,
 }
@@ -244,6 +246,14 @@ fn validate_request(request: &ViewMutationRequest) -> Result<()> {
             "Unsupported calendar query consumer version".into(),
         ));
     }
+    if request
+        .calendar_window_version
+        .is_some_and(|version| version != 1 || request.calendar_query_version != Some(2))
+    {
+        return Err(EidosError::InvalidRequest(
+            "Unsupported calendar window consumer version".into(),
+        ));
+    }
     let mut client_keys = HashSet::new();
     let mut view_ids = HashSet::new();
     for change in &request.changes {
@@ -289,7 +299,7 @@ fn run_views(
     ensure_revision(&tx, &request.expected_revision)?;
     validate_request(request)?;
     if tx.query_row(
-        "SELECT COUNT(*) FROM eidos__features WHERE name='eidos:calendar-query'",
+        "SELECT COUNT(*) FROM eidos__features WHERE name IN ('eidos:calendar-query','eidos:calendar-window')",
         [],
         |row| row.get::<_, i64>(0),
     )? > 0
@@ -526,6 +536,7 @@ mod tests {
             &mut conn,
             &ViewMutationRequest {
                 calendar_query_version: None,
+                calendar_window_version: None,
                 expected_revision: "1".into(),
                 changes: vec![ViewChange::CreateView {
                     client_key: "calendar".into(),
@@ -557,6 +568,7 @@ mod tests {
             &mut conn,
             &ViewMutationRequest {
                 calendar_query_version: None,
+                calendar_window_version: None,
                 expected_revision: "2".into(),
                 changes: vec![
                     ViewChange::UpdateView {
@@ -586,6 +598,7 @@ mod tests {
             &mut conn,
             &ViewMutationRequest {
                 calendar_query_version: None,
+                calendar_window_version: None,
                 expected_revision: "3".into(),
                 changes: vec![ViewChange::DeleteView {
                     view_id: calendar_id.clone(),
@@ -609,6 +622,7 @@ mod tests {
             &mut conn,
             &ViewMutationRequest {
                 calendar_query_version: None,
+                calendar_window_version: None,
                 expected_revision: "1".into(),
                 changes: vec![ViewChange::UpdateView {
                     view_id: grid.id.clone(),
@@ -628,6 +642,7 @@ mod tests {
             &mut conn,
             &ViewMutationRequest {
                 calendar_query_version: None,
+                calendar_window_version: None,
                 expected_revision: "1".into(),
                 changes: vec![
                     ViewChange::CreateView {

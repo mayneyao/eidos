@@ -147,7 +147,7 @@ describe("calendar filter feedback", () => {
       timeZone: "Pacific/Honolulu",
     })
     await mount(group(rule("is-empty")), "America/New_York")
-    await select("Filter operator", "Relative date")
+    await select("Filter operator", "Is relative to today")
     assertSingleModel()
     await apply()
     expect(change).toHaveBeenCalledWith(
@@ -158,7 +158,7 @@ describe("calendar filter feedback", () => {
     "does not freeze resolved system preference %s in a condition",
     async (timeZone) => {
       await mount(group(rule("is-empty")), timeZone)
-      await select("Filter operator", "Relative date")
+      await select("Filter operator", "Is relative to today")
       await apply()
       expect(change).toHaveBeenCalledWith(
         group(rule("is-in-calendar-period", calendar))
@@ -200,7 +200,7 @@ describe("calendar filter feedback", () => {
       group(rule("is-in-calendar-period", calendar)),
       "America/New_York"
     )
-    await select("Period relation", "Next period")
+    await select("Period relation", "Next")
     await select("Calendar unit", "week")
     await apply()
     expect(change).toHaveBeenCalledWith(
@@ -231,10 +231,16 @@ describe("calendar filter feedback", () => {
         [...document.querySelectorAll('[role="option"]')].map((node) =>
           node.textContent?.trim()
         )
-      ).toEqual(["Last period", "This period", "Next period"].map(t))
+      ).toEqual(
+        [
+          "Last (relative date)",
+          "Next (relative date)",
+          "This (relative date)",
+        ].map(t)
+      )
       await click(
         [...document.querySelectorAll('[role="option"]')].find(
-          (node) => node.textContent?.trim() === t("Last period")
+          (node) => node.textContent?.trim() === t("Last (relative date)")
         )
       )
       await click(
@@ -244,7 +250,9 @@ describe("calendar filter feedback", () => {
         [...document.querySelectorAll('[role="option"]')].map((node) =>
           node.textContent?.trim()
         )
-      ).toEqual(["day", "week", "month", "year"].map(t))
+      ).toEqual(
+        [locale === "zh" ? "天" : "day", "week", "month", "year"].map(t)
+      )
       expect(document.body.textContent).not.toMatch(
         /UTC|24 hours|7 days|24 小时|7 天/
       )
@@ -267,7 +275,7 @@ describe("calendar filter feedback", () => {
     expect(
       document.querySelector('button[aria-label="Calendar unit"]')?.textContent
     ).toContain("month")
-    await select("Period relation", "This period")
+    await select("Period relation", "This")
     expect(
       document.querySelector('button[aria-label="Calendar unit"]')?.textContent
     ).toContain("month")
@@ -275,7 +283,7 @@ describe("calendar filter feedback", () => {
     expect(
       document.querySelector('button[aria-label="Period relation"]')
         ?.textContent
-    ).toContain("This period")
+    ).toContain("This")
     await apply()
     expect(change).toHaveBeenCalledWith(
       group(rule("is-in-calendar-period", { unit: "year", offset: 0 }))
@@ -286,7 +294,7 @@ describe("calendar filter feedback", () => {
     await click(document.querySelector('button[aria-label="Filter operator"]'))
     expect(
       [...document.querySelectorAll('[role="option"]')].some(
-        (option) => option.textContent?.trim() === "Relative date"
+        (option) => option.textContent?.trim() === "Is relative to today"
       )
     ).toBe(false)
   })

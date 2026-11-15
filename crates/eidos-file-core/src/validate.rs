@@ -166,6 +166,7 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
             rows.collect::<rusqlite::Result<Vec<_>>>()
         });
     let mut calendar_feature = false;
+    let mut window_feature = false;
     match required_features {
         Ok(features) => {
             for (name, version, required, config) in features {
@@ -177,7 +178,18 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
                     calendar_feature = true;
                     continue;
                 }
-                if required != 1 && name != "eidos:calendar-query" {
+                if name == "eidos:calendar-window"
+                    && version == "1"
+                    && required == 1
+                    && config == "{}"
+                {
+                    window_feature = true;
+                    continue;
+                }
+                if required != 1
+                    && name != "eidos:calendar-query"
+                    && name != "eidos:calendar-window"
+                {
                     continue;
                 }
                 diagnostic(
@@ -197,7 +209,16 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
             "/eidos__features",
         ),
     }
-    if !calendar_feature {
+    if window_feature && !calendar_feature {
+        diagnostic(
+            diagnostics,
+            Severity::Error,
+            "file-core-object-invalid",
+            "Calendar window feature requires calendar query version 2",
+            "/eidos__features/eidos:calendar-window",
+        );
+    }
+    if !calendar_feature || !window_feature {
         let scan = || -> rusqlite::Result<Vec<String>> {
             let mut statement =
                 conn.prepare("SELECT id,query_json FROM eidos__views ORDER BY id")?;
@@ -209,7 +230,12 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
                 let (id, query) = view?;
                 if serde_json::from_str::<JsonValue>(&query)
                     .ok()
-                    .is_some_and(|query| has_calendar_period(&query))
+                    .is_some_and(|query| {
+                        (!calendar_feature
+                            && (has_calendar_period(&query)
+                                || has_calendar_filter(&query, "calendar-window")))
+                            || (!window_feature && has_calendar_filter(&query, "calendar-window"))
+                    })
                 {
                     invalid.push(id);
                 }
@@ -223,7 +249,7 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
                         diagnostics,
                         Severity::Error,
                         "file-core-object-invalid",
-                        "Calendar period Views require the calendar query feature",
+                        "Calendar Views require their calendar query and window features",
                         format!("/eidos__views/{id}"),
                     );
                 }
@@ -243,21 +269,27 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
 }
 
 fn has_calendar_period(value: &JsonValue) -> bool {
+    has_calendar_filter(value, "calendar-period")
+}
+
+fn has_calendar_filter(value: &JsonValue, operator: &str) -> bool {
     let Some(node) = value.as_object() else {
         return false;
     };
-    if node.get("op").and_then(JsonValue::as_str) == Some("calendar-period") {
+    if node.get("op").and_then(JsonValue::as_str) == Some(operator) {
         return true;
     }
     if let Some(filter) = node.get("filter") {
-        return has_calendar_period(filter);
+        return has_calendar_filter(filter, operator);
     }
     match node.get("op").and_then(JsonValue::as_str) {
         Some("and" | "or") => node
             .get("args")
             .and_then(JsonValue::as_array)
-            .is_some_and(|args| args.iter().any(has_calendar_period)),
-        Some("not") => node.get("arg").is_some_and(has_calendar_period),
+            .is_some_and(|args| args.iter().any(|arg| has_calendar_filter(arg, operator))),
+        Some("not") => node
+            .get("arg")
+            .is_some_and(|arg| has_calendar_filter(arg, operator)),
         _ => false,
     }
 }

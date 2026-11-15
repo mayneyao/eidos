@@ -1511,15 +1511,21 @@ custom filter editor 可以保留专用控件。
 这些语义。
 
 Date／Datetime 控件必须提供**是**、**早于**、**晚于**、**不晚于**、**不早于**、
-**介于**、**相对日期**、**为空**和**不为空**。介于发送包含端点的 between predicate。
+**介于**、**相对于今天**、**为空**和**不为空**。介于发送包含端点的 between predicate。
 相对日期只有一个入口，不并列 UTC 范围或日历日入口，不显示条件级时区选择、冻结区
 提示、规则版本或常驻技术说明。
 
-相对日期使用两段选择器：先选**上期／本期／下期**，再选**日／周／月／年**。
-View 和 Explorer 复用同一控件。十二种组合通过 calendar-period 的 day/week/month/year 与 offset -1/0/1 选择完整本地
-日历周期；不保存当前应用区域／profile／周起始，不冻结 absolute date，不表示滚动
-持续时长。周起始复用 Calendar 既有 preference，默认周一。23／25小时本地日仍是该日。
-用户只有应用已有的时区入口，UTC 不另有默认筛选语义；本能力版本不提供滚动时长控件。
+相对日期复用 Past／Next／This（过去／接下来／当前）与 day／week／month／year
+选择器。Past／Next 中间显示正整数数量，This 隐藏数量；从 This 切回数量重置为1。
+This 发 calendar-period offset0，Past／Next 发 calendar-window；两端日期均包含，
+例如过去1天包含昨天与今天，接下来1天包含今天与明天。月／年按目标月末截断。
+View 与 Explorer 使用同一控件与 Runtime helper。组合过滤器保持横排行；单字段
+弹层宽260 CSS px，含属性／operator header、选择器、只读42格日历预览、月份导航
+与“筛选会随当前日期自动更新”。预览使用实际应用时区与周起始，周一为默认。
+旧 calendar-period offset±1 保持完整周期与准确标签，打开、改名或编辑其他条件
+不能把它静默转换为 window。Window UI 必须另行声明 calendarWindowVersion 1。
+非法／空数量草稿保留上次有效筛选，不能发无过滤查询；单字段修改即时保存，
+组合过滤器保留其 Apply／Cancel 事务边界。时区只使用应用已有设置。
 
 新 UI 连接旧 Runtime 也不能恢复旧 UTC 行为：即便旧 Runtime 称旧日期查询 supported，
 新 UI 也将其标为 unsupported。缺 version2 能力不能创建或升级。新 Runtime 拒绝执行旧

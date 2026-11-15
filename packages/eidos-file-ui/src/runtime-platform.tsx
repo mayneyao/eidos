@@ -93,6 +93,11 @@ export function EidosUIRuntimeProvider({
       <EidosFileUIProvider
         themeName={themeName}
         timeZone={timeZone}
+        calendarWindowVersion={
+          kernel.options.calendarWindowVersion === 1
+            ? state.runtimeCapabilities?.calendarWindowVersion
+            : undefined
+        }
         calendarPeriodTimeZoneData={
           state.runtimeCapabilities?.calendarQueryVersion === 2
             ? state.runtimeCapabilities.calendarPeriodTimeZoneData

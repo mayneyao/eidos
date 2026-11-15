@@ -398,6 +398,7 @@ capability means false.
 ```ts
 interface RuntimeCapabilities {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
@@ -907,6 +908,7 @@ type SchemaDescriptor =
 
 interface GetSchemaPageRequest {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   revision: string
   limit: number
   cursor?: string
@@ -1153,6 +1155,13 @@ type FilterNode =
       unit: "day" | "week" | "month" | "year"
       offset: -1 | 0 | 1
     }
+  | {
+      op: "calendar-window"
+      fieldId: string
+      direction: "past" | "next"
+      count: number // integer 1..1_000_000
+      unit: "day" | "week" | "month" | "year"
+    }
 ```
 
 The following Draft 2020-12 JSON Schema is executable structural validation
@@ -1293,6 +1302,18 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
             "unit": { "enum": ["day", "week", "month", "year"] },
             "offset": { "enum": [-1, 0, 1] }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "fieldId", "direction", "count", "unit"],
+          "properties": {
+            "op": { "const": "calendar-window" },
+            "fieldId": { "$ref": "#/$defs/id" },
+            "direction": { "enum": ["past", "next"] },
+            "count": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "unit": { "enum": ["day", "week", "month", "year"] }
+          }
         }
       ]
     }
@@ -1343,6 +1364,7 @@ Operator/type compatibility is normative:
 | `has-any`, `has-all`                       | Multi-select, Relation, File, and every public list TypeRef |
 | `relation-has`                             | forward or inverse Relation                                 |
 | `calendar-period`                          | `date`, `datetime`                                          |
+| `calendar-window`                          | `date`, `datetime`                                          |
 
 Operands MUST have the Field's exact logical type; Runtime performs no string,
 number, Boolean, date, or ID coercion. `eq` uses typed exact equality and `ne`
@@ -1353,7 +1375,7 @@ comparisons. `contains`, `starts-with`, and `ends-with` compare Unicode scalar
 sequences after folding ASCII `A..Z` to `a..z`; non-ASCII is unchanged. This
 same portable fold is used by `search`.
 
-`calendar-period` is the single relative-calendar condition. It requires
+`calendar-period` selects complete calendar periods. It requires
 `calendarQueryVersion:2` and an advertised `calendarPeriodTimeZoneData` profile.
 The leaf stores only Field ID, unit and offset. Offset -1/0/1 selects the complete
 previous/current/next local Gregorian day, week, month or year. It never means a
@@ -1362,6 +1384,32 @@ preference, with Monday as the product default when no preference exists.
 
 Query operations carry execution settings outside `RowQuery` and
 `SavedViewQuery`:
+
+`calendar-window` requires advertised `calendarWindowVersion:1` in addition to
+calendar query version 2 and profile 2026f. Its only operands are Field ID,
+`direction: past|next`, integer `count` in 1..1,000,000, and unit day/week/month/year.
+Project root R into the configured zone to obtain today's Gregorian date D.
+Shift D by count units (a week is seven civil dates); month/year shifts clamp
+the target day to the target month's last day. Past includes target through D;
+Next includes D through target. Both endpoint dates are included. Compile this
+as [start date, day after end date). Date uses literal date bounds; Datetime
+uses the complete inverse of that civil range under pinned zone rules, including
+DST folds/gaps and skipped dates. It never means now plus/minus elapsed hours.
+Thus on November 15, Past 1 day selects November 14–15 and Next 1 day selects
+November 15–16, including every hour of those dates. Invalid operands are
+invalid-query; a shifted range outside 1970–2499 is unsupported.
+
+All period root-R, calendar execution, cursor, cache, count, group, neighbors,
+page-batch and export requirements below also apply to calendar-window.
+`calendarWindowVersion?:1` on schema reads and View mutations is a separate,
+explicit actual-consumer declaration, valid only with calendarQueryVersion 2.
+Bridges only forward it. Without it, the whole saved window query is opaque and
+unsupported, and replacing that existing View's query is rejected. Metadata
+edits and exact opaque copies preserve the complete query. Schema cursor/cache
+identity binds both consumer declarations. Persisting the first window installs
+eidos:calendar-window@1 and its eidos:calendar-query@2 dependency atomically in
+the same revision; transient queries/opening install neither and deleting the
+last window does not downgrade the file.
 
 ```ts
 interface CalendarQueryExecution {
@@ -2743,6 +2791,7 @@ type ViewChange =
 
 interface ViewMutationRequest {
   calendarQueryVersion?: 2
+  calendarWindowVersion?: 1
   expectedRevision: string
   changes: ViewChange[]
 }

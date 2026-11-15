@@ -1,12 +1,19 @@
 import {
   isEidosFileCalendarPeriodValue,
-  hasEidosFileCalendarPeriodQuery,
+  hasEidosFileCalendarQuery,
 } from "./calendar-period"
 import {
   EIDOS_CALENDAR_QUERY_FEATURE,
   hasCalendarQueryFeature,
   requireCalendarQueryFeature,
+  EIDOS_CALENDAR_WINDOW_FEATURE,
+  hasCalendarWindowFeature,
+  requireCalendarWindowFeature,
 } from "./calendar-query-feature"
+import {
+  hasEidosFileCalendarWindowQuery,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import { scanStableRowPages } from "./stable-row-scan"
 import { eidosFileFieldValueType } from "./field-query-capabilities"
@@ -295,6 +302,7 @@ const FILTER_OPERATORS = new Set([
   "is-relative-to-today",
   "is-on-calendar-day",
   "is-in-calendar-period",
+  "is-in-calendar-window",
 ])
 const RUNTIME_FILTER_OPERATORS = new Set([
   "is-null",
@@ -316,6 +324,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "relative-date",
   "calendar-day",
   "calendar-period",
+  "calendar-window",
 ])
 
 const LEVELS: Record<EidosFileValidationLevel, number> = {
@@ -776,9 +785,14 @@ export function validateEidosFile(
               `Feature ${feature.name} has non-canonical config_json`
             )
           }
-          if (feature.name === EIDOS_CALENDAR_QUERY_FEATURE) {
+          if (
+            feature.name === EIDOS_CALENDAR_QUERY_FEATURE ||
+            feature.name === EIDOS_CALENDAR_WINDOW_FEATURE
+          ) {
             try {
-              hasCalendarQueryFeature(connection)
+              if (feature.name === EIDOS_CALENDAR_WINDOW_FEATURE)
+                hasCalendarWindowFeature(connection)
+              else hasCalendarQueryFeature(connection)
             } catch (error) {
               add(
                 errors,
@@ -823,7 +837,8 @@ export function validateEidosFile(
   if (
     sqliteTables.has(EIDOS_FILE_VIEWS_TABLE) &&
     (!sqliteTables.has(EIDOS_FILE_FEATURES_TABLE) ||
-      !hasCalendarQueryFeature(connection))
+      !hasCalendarQueryFeature(connection) ||
+      !hasCalendarWindowFeature(connection))
   ) {
     try {
       scanStableRowPages<{ id: string; query_json: string }>(
@@ -837,10 +852,12 @@ export function validateEidosFile(
         (views) => {
           for (const view of views) {
             if (
-              hasEidosFileCalendarPeriodQuery(
+              hasEidosFileCalendarWindowQuery(
                 parseEidosFileJson(view.query_json)
               )
             )
+              requireCalendarWindowFeature(connection)
+            if (hasEidosFileCalendarQuery(parseEidosFileJson(view.query_json)))
               requireCalendarQueryFeature(connection)
           }
         }
@@ -2043,8 +2060,10 @@ export function validateEidosFile(
           )
           const fieldIds = new Set(fieldsById.keys())
           const query = parseEidosFileJson(view.query_json)
-          if (hasEidosFileCalendarPeriodQuery(query))
+          if (hasEidosFileCalendarQuery(query))
             requireCalendarQueryFeature(connection)
+          if (hasEidosFileCalendarWindowQuery(query))
+            requireCalendarWindowFeature(connection)
           const layout = parseEidosFileJson(view.layout_json)
           if (!query || Array.isArray(query) || typeof query !== "object") {
             throw new Error("View query_json must be an object")
@@ -2180,6 +2199,26 @@ export function validateEidosFile(
                   unsupportedQuery = true
                 return
               }
+              if (node.op === "calendar-window") {
+                const type = eidosFileFieldValueType(field)
+                if (
+                  (type !== "date" && type !== "datetime") ||
+                  !isEidosFileCalendarWindowValue({
+                    direction: node.direction,
+                    count: node.count,
+                    unit: node.unit,
+                  }) ||
+                  !hasOnlyKeys(node, [
+                    "op",
+                    "fieldId",
+                    "direction",
+                    "count",
+                    "unit",
+                  ])
+                )
+                  throw new Error("View calendar window is invalid")
+                return
+              }
               if (node.op === "calendar-period") {
                 const type = eidosFileFieldValueType(field)
                 if (
@@ -2305,6 +2344,15 @@ export function validateEidosFile(
                   "View between filter must contain exactly two values"
                 )
               }
+            }
+            if (node.op === "is-in-calendar-window") {
+              const type = eidosFileFieldValueType(field)
+              if (
+                (type !== "date" && type !== "datetime") ||
+                !isEidosFileCalendarWindowValue(node.value)
+              )
+                throw new Error("View calendar window is invalid")
+              return
             }
             if (node.op === "is-in-calendar-period") {
               const type = eidosFileFieldValueType(field)

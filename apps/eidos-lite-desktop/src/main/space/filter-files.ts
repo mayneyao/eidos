@@ -1,5 +1,5 @@
 import {
-  hasEidosFileCalendarPeriodQuery,
+  hasEidosFileCalendarQuery,
   hasRetiredEidosFileDateQuery,
 } from "@eidos.space/eidos-file"
 import {
@@ -70,12 +70,12 @@ export async function explorerPropertyMatches(
   // the root instant. Logical composition still follows the original AST.
   predicates.sort(
     (left, right) =>
-      Number(hasEidosFileCalendarPeriodQuery(right.value)) -
-      Number(hasEidosFileCalendarPeriodQuery(left.value))
+      Number(hasEidosFileCalendarQuery(right.value)) -
+      Number(hasEidosFileCalendarQuery(left.value))
   )
   let referenceInstant = calendarExecution?.referenceInstant
   for (const child of predicates) {
-    const period = hasEidosFileCalendarPeriodQuery(child.value)
+    const period = hasEidosFileCalendarQuery(child.value)
     if (period && !calendarExecution)
       throw new Error(
         "Date filters require the application's calendar settings."

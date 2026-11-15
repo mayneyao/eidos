@@ -1940,8 +1940,7 @@ fn view_upgrade_dates(file: PathBuf, args: ViewUpgradeDatesArgs) -> Result<Comma
         let result = session.call("mutateView", &request)?;
         let mut cursor: Option<Value> = None;
         loop {
-            let mut request =
-                json!({ "revision": result["revision"], "limit": 1000, "calendarQueryVersion": 2 });
+            let mut request = json!({ "revision": result["revision"], "limit": 1000, "calendarQueryVersion": 2, "calendarWindowVersion": 1 });
             if let Some(value) = &cursor {
                 request["cursor"] = value.clone();
             }
@@ -2038,6 +2037,7 @@ fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
         calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::CreateView {
             client_key: "agent-view".into(),
@@ -2165,6 +2165,7 @@ fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
         calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::UpdateView {
             view_id: current.id.clone(),
@@ -2195,6 +2196,7 @@ fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
         calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::DeleteView {
             view_id: current.id.clone(),
@@ -2208,7 +2210,7 @@ fn view_source_requires_runtime(file: &Path, request: &ViewMutationRequest) -> R
     let marker_conn = open_file(file, false)?;
     if marker_conn
         .query_row(
-            "SELECT COUNT(*) FROM eidos__features WHERE name='eidos:calendar-query'",
+            "SELECT COUNT(*) FROM eidos__features WHERE name IN ('eidos:calendar-query','eidos:calendar-window')",
             [],
             |row| row.get::<_, i64>(0),
         )

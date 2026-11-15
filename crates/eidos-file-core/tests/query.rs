@@ -1567,3 +1567,35 @@ fn calendar_day_is_strict_wire_transport_and_recursively_requires_runtime() {
     extra["ignoredFutureRule"] = json!(true);
     assert!(serde_json::from_value::<FilterNode>(extra).is_err());
 }
+
+#[test]
+fn calendar_window_is_strict_transport_and_never_reimplemented_in_rust() {
+    let leaf =
+        json!({"op":"calendar-window","fieldId":"due","direction":"past","count":2,"unit":"month"});
+    let filter: FilterNode = serde_json::from_value(leaf.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&filter).unwrap(), leaf);
+    let nested = FilterNode::Not {
+        arg: Box::new(filter),
+    };
+    assert!(nested.requires_runtime());
+    let (_dir, _conn, table, fields) = tasks_fixture();
+    assert!(
+        compile_query(
+            &table,
+            &fields,
+            &RowQuery {
+                filter: Some(nested),
+                ..Default::default()
+            }
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("canonical Runtime")
+    );
+    let mut invalid = leaf.clone();
+    invalid["timeZone"] = json!("UTC");
+    assert!(serde_json::from_value::<FilterNode>(invalid).is_err());
+    let mut invalid = leaf;
+    invalid["count"] = json!(1.5);
+    assert!(serde_json::from_value::<FilterNode>(invalid).is_err());
+}

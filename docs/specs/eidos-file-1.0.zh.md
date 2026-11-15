@@ -1356,6 +1356,12 @@ revision 的事务内安装该精确声明。持久化新语法缺失声明属�
 声明。沿用现有原子 feature 合并/冲突规则；最终候选校验必须拒绝有新语法而
 缺少合法声明的文件。
 
+额外的 first-party feature `(name="eidos:calendar-window", version="1")` 要求
+`required=1`、精确 `config_json='{}'`，并依赖上述 calendar-query@2 声明。
+持久化 calendar-window View 必须在同一 revision 原子安装两项声明。打开、校验、
+复制／合并保留、拒绝不支持的 reader 及不自动降级要求与上述相同。临时 window
+不安装 feature。Calendar-period 原义不变，完整上／下周期不是滚动日期范围。
+
 ## 21. Media type registration template
 
 这是 registration template，不表示 vendor media type 已经完成 IANA registration：

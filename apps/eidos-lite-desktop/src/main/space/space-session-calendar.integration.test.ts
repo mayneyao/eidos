@@ -348,6 +348,67 @@ describe.skipIf(
         /timeZone|weekStartsOn|referenceInstant/
       )
       expect(requireSparkFeature).not.toHaveBeenCalled()
+      const windowFields = await session.getExplorerFilterFields({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
+      expect(windowFields.queryCapabilities?.calendarWindowVersion).toBe(1)
+      for (const field of [day, instant])
+        for (const direction of ["past", "next"] as const) {
+          const window: ExplorerFilterGroup = {
+            type: "group",
+            id: "window",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                id: "window-date",
+                field: "property",
+                operator: "matches",
+                value: {
+                  type: "rule",
+                  field,
+                  operator: "is-in-calendar-window",
+                  value: { direction, count: 1, unit: "day" },
+                },
+              },
+            ],
+          }
+          const executionWithWindow = {
+            ...execution,
+            calendarWindowVersion: 1 as const,
+          }
+          const matches = leaves(
+            await session.filterFiles(window, null, false, executionWithWindow)
+          )
+          if (field === day) expect(matches).toHaveLength(names.length - 1)
+          else {
+            expect(matches).toContain(
+              direction === "past" ? "before.md" : "boundary.md"
+            )
+            expect(matches).not.toContain(
+              direction === "past" ? "boundary.md" : "before.md"
+            )
+          }
+          const page = await session.listExplorerFiles({
+            directory: null,
+            filter: window,
+            sort: { by: "name", direction: "ascending" },
+            sinceMs: 0,
+            period: "recent",
+            offset: 0,
+            calendarExecution: executionWithWindow,
+          })
+          expect(page.entries.map((entry) => entry.relativePath)).toEqual(
+            [...matches].sort().slice(0, page.entries.length)
+          )
+        }
+      expect(
+        transport.requests.some(
+          (request) =>
+            request.type === "call" && request.calendarWindowVersion === 1
+        )
+      ).toBe(true)
       await session.close()
       session = undefined
       expect(

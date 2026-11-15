@@ -175,7 +175,7 @@ export function EidosFileFieldMenu({
         sideOffset={2}
         className={cn(
           "max-w-[calc(100vw-32px)]",
-          filtering ? "w-80 p-0" : "w-56 p-1"
+          filtering ? "w-auto p-0" : "w-56 p-1"
         )}
         role={filtering ? "dialog" : "menu"}
         aria-label={
