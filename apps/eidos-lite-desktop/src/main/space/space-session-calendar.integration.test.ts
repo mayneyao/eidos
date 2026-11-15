@@ -40,11 +40,57 @@ import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import { createEidosLiteFileRuntime } from "../../runtime/eidos-file-runtime"
 import { SPACE_FILE_METADATA_PATH } from "../../shared/file-metadata"
 import { flattenSpaceTree } from "./space-paths"
+import { RuntimePool } from "../runtime/runtime-pool"
 
 const worker = path.resolve(process.cwd(), "dist-electron/runtime-worker.js")
 describe.skipIf(
   process.env.EIDOS_LITE_RUN_CALENDAR_BRIDGE !== "1" || !existsSync(worker)
 )("built Explorer Runtime bridge", () => {
+  it("accepts the window consumer on its first worker call and isolates concurrent consumers", async () => {
+    const root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "eidos-cold-calendar-worker-"))
+    )
+    const pool = new RuntimePool(root, worker)
+    try {
+      transport.requests.length = 0
+      transport.bootstrap = path.join(root, "worker.mjs")
+      await fs.writeFile(
+        transport.bootstrap,
+        `Object.defineProperty(process,"parentPort",{value:{on:(_event,listener)=>process.on("message",value=>listener({data:value})),postMessage:value=>process.send(value)}});await import(${JSON.stringify(worker)});`
+      )
+      const opened = await pool.create("calendar.eidos", "Cold calendar worker")
+      const windows = {
+        calendarQueryVersion: 2 as const,
+        calendarWindowVersion: 1 as const,
+      }
+      const first = await pool.call(
+        opened.sessionId,
+        "getSnapshot",
+        [],
+        windows
+      )
+      expect(first.queryCapabilities?.calendarWindowVersion).toBe(1)
+      const snapshots = await Promise.all([
+        pool.call(opened.sessionId, "getSnapshot", []),
+        pool.call(opened.sessionId, "getSnapshot", [], {
+          calendarQueryVersion: 2,
+        }),
+        pool.call(opened.sessionId, "getSnapshot", [], windows),
+      ])
+      expect(snapshots.map((snapshot) => snapshot.metadata)).toEqual(
+        snapshots.map(() => opened.snapshot.metadata)
+      )
+      expect(
+        snapshots.map(
+          (snapshot) => snapshot.queryCapabilities?.calendarWindowVersion
+        )
+      ).toEqual([undefined, undefined, 1])
+    } finally {
+      await pool.destroy()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("runs local periods through SpaceSession and the actual worker without creating a catalog or persisting the query", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-explorer-calendar-")

@@ -103,6 +103,7 @@ interface RowDeletionUndoRuntimeClient extends RuntimeClient {
 
 const DEFAULT_PAGE_SIZE = 250
 const MAX_INFERRED_FIELD_OPTIONS = 1_000
+let runtimeEditorSourceSequence = 0
 const pendingSchemaImpacts = new WeakMap<
   object,
   { changeKey: string; plan: SchemaPreflightResult }
@@ -231,6 +232,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
   >()
   private actionUndoBytes = 0
+  // Different calendar consumers can share one Runtime and run concurrently.
+  private readonly requestNamespace = ++runtimeEditorSourceSequence
   private sequence = 0
   private runtimeCapabilities: RuntimeCapabilities | null = null
   private runtimeLimits: RuntimeLimits | null = null
@@ -3493,7 +3496,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
 
   private context(prefix: string) {
     return {
-      requestId: `${prefix}-${++this.sequence}`,
+      requestId: `${prefix}-${this.requestNamespace}-${++this.sequence}`,
       deadlineMilliseconds: 30_000,
     }
   }

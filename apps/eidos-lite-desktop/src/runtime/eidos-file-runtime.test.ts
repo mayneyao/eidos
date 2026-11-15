@@ -9,12 +9,150 @@ import {
   createEidosFileUuid,
   encodeEidosFileValues,
 } from "@eidos.space/eidos-file"
+import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 
 import {
   createEidosLiteFileRuntime,
   openEidosLiteFileRuntime,
 } from "./eidos-file-runtime"
 import * as vtabResolver from "./vtab-resolver"
+
+it("initializes concurrent calendar consumers on one Runtime without request ID collisions", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "eidos-calendar-consumers-"))
+  const opened = await createEidosLiteFileRuntime(
+    path.join(root, "calendar.eidos"),
+    "Calendar consumers"
+  )
+  try {
+    const tableId = opened.initialSnapshot.tables[0]!.table.id
+    const seeded = await opened.source.addField(tableId, {
+      name: "Date",
+      type: "date",
+    })
+    const dateFieldId = seeded.tables[0]!.fields.find(
+      (field) => field.name === "Date"
+    )!.id
+    await opened.source.runtime.mutateView(
+      {
+        expectedRevision: String(seeded.metadata.revision),
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+        changes: [
+          {
+            kind: "create-view",
+            clientKey: "period",
+            tableId,
+            name: "Period",
+            type: "grid",
+            query: {
+              filter: {
+                op: "calendar-period",
+                fieldId: dateFieldId,
+                unit: "day",
+                offset: 0,
+              },
+            },
+            layout: {},
+            position: "1",
+          },
+          {
+            kind: "create-view",
+            clientKey: "window",
+            tableId,
+            name: "Window",
+            type: "grid",
+            query: {
+              filter: {
+                op: "calendar-window",
+                fieldId: dateFieldId,
+                direction: "past",
+                unit: "day",
+                count: 2,
+              },
+            },
+            layout: {},
+            position: "2",
+          },
+        ],
+      },
+      { requestId: "seed-calendar-consumer-views" }
+    )
+    const consumers = [
+      new EidosRuntimeEditorDataSource(opened.source.runtime, "calendar.eidos"),
+      new EidosRuntimeEditorDataSource(
+        opened.source.runtime,
+        "calendar.eidos",
+        { calendarQueryVersion: 2 }
+      ),
+      new EidosRuntimeEditorDataSource(
+        opened.source.runtime,
+        "calendar.eidos",
+        { calendarQueryVersion: 2, calendarWindowVersion: 1 }
+      ),
+    ]
+    const initial = await Promise.allSettled(
+      consumers.map((consumer) => consumer.initialize())
+    )
+    expect(initial.map((result) => result.status)).toEqual([
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+    ])
+    const snapshots = await Promise.all(
+      consumers.map((consumer) => consumer.getSnapshot())
+    )
+    expect(snapshots).toEqual(
+      initial.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      )
+    )
+    expect(
+      snapshots.map(
+        (snapshot) => snapshot.queryCapabilities?.calendarWindowVersion
+      )
+    ).toEqual([undefined, undefined, 1])
+    expect(
+      snapshots.map((snapshot) => [
+        snapshot.tables[0]!.views.find((view) => view.name === "Period")!
+          .queryStatus,
+        snapshot.tables[0]!.views.find((view) => view.name === "Window")!
+          .queryStatus,
+      ])
+    ).toEqual([
+      ["unsupported", "unsupported"],
+      ["supported", "unsupported"],
+      ["supported", "supported"],
+    ])
+    for (const name of ["Period", "Window"]) {
+      const queries = snapshots.map(
+        (snapshot) =>
+          snapshot.tables[0]!.views.find((view) => view.name === name)!.query
+      )
+      expect(queries).toEqual(queries.map(() => queries[2]))
+    }
+    const duplicate = await Promise.allSettled([
+      opened.source.runtime.getSnapshot(
+        {},
+        { requestId: "explicit-duplicate" }
+      ),
+      opened.source.runtime.getSnapshot(
+        {},
+        { requestId: "explicit-duplicate" }
+      ),
+    ])
+    expect(duplicate[0]!.status).toBe("fulfilled")
+    expect(duplicate[1]).toMatchObject({
+      status: "rejected",
+      reason: {
+        code: "invalid-request",
+        message: "requestId is already unresolved",
+      },
+    })
+  } finally {
+    await opened.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 it("keeps new Checkbox fields binary through Lite source, streaming CSV and reopen", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "eidos-checkbox-binary-"))

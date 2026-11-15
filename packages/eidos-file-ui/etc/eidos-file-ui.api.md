@@ -788,6 +788,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   };
   private actionUndo;
   private actionUndoBytes;
+  private readonly requestNamespace;
   private sequence;
   private runtimeCapabilities;
   private runtimeLimits;
