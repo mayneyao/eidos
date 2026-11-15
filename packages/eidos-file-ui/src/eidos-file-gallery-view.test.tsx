@@ -32,7 +32,8 @@ const contextMocks = vi.hoisted(() => ({
     ),
 }))
 
-vi.mock("./context", () => ({
+vi.mock("./context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./context")>()),
   useEidosFileUI: () => ({
     themeName: "light",
     translate: contextMocks.translate,

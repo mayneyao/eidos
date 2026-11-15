@@ -278,6 +278,10 @@ export const eidosFileCalendarPeriodOptions = [
   { unit: "year", offset: 1, label: "Next year" },
 ] as const
 
+function configuredCalendarTimeZone(timeZone?: string): string {
+  return eidosFileResolvedTimeZone(timeZone === "system" ? undefined : timeZone)
+}
+
 function queryCandidateFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
     (field) =>
