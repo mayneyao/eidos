@@ -781,12 +781,16 @@ mod tests {
         let original = rusqlite::Connection::open(&path).unwrap();
         original
             .execute_batch(
-                "CREATE TABLE example(value TEXT); INSERT INTO example VALUES('original');",
+                "PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0; \
+                 CREATE TABLE example(value TEXT); INSERT INTO example VALUES('original');",
             )
             .unwrap();
-        drop(original);
         let before = std::fs::read(&path).unwrap();
+        let wal_path = path.with_extension("sqlite-wal");
+        let wal_before = std::fs::read(&wal_path).unwrap();
+        assert!(!wal_before.is_empty());
         let copy = super::open_host_state_snapshot(&path).unwrap();
+        assert!(host_query(&copy, "SELECT value FROM example", "[]", false).contains("original"));
         assert_eq!(
             copy.conn
                 .query_row("PRAGMA trusted_schema", [], |row| row.get::<_, i64>(0))
@@ -806,6 +810,14 @@ mod tests {
         assert!(host_query(&copy, "SELECT value FROM example", "[]", false).contains("preview"));
         drop(copy);
         assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert_eq!(std::fs::read(&wal_path).unwrap(), wal_before);
+        assert_eq!(
+            original
+                .query_row("SELECT value FROM example", [], |row| row
+                    .get::<_, String>(0))
+                .unwrap(),
+            "original"
+        );
     }
 
     #[test]
