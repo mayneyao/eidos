@@ -1719,8 +1719,9 @@ date**, **is empty**, and **is not empty**. Is between emits the inclusive
 calendar-day entry, per-condition zone selector, frozen-zone hint, rules version,
 or permanent technical tip.
 
-Relative date exposes exactly Yesterday/Today/Tomorrow, Last/This/Next week,
-Last/This/Next month, and Last/This/Next year. Each selects a complete local
+Relative date uses two selectors in order: Last period / This period /
+Next period, then day / week / month / year. View and Explorer use the same
+shared controls. These twelve combinations select a complete local
 calendar period through `calendar-period` with unit day/week/month/year and
 offset -1/0/1. It never saves current application zone/profile/week start, an
 absolute date or a rolling duration. Weeks use Calendar's existing preference,

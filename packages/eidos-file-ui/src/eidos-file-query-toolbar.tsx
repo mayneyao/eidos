@@ -457,32 +457,57 @@ function FilterValueEditor({
       ? rule.value
       : ({ unit: "day", offset: 0 } as const)
     return (
-      <Select
-        value={`${value.unit}:${value.offset}`}
-        onValueChange={(key) => {
-          const period = eidosFileCalendarPeriodOptions.find(
-            (item) => `${item.unit}:${item.offset}` === key
-          )
-          if (period) onChange({ unit: period.unit, offset: period.offset })
-        }}
+      <div
+        data-eidos-file-calendar-period
+        className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-1.5"
       >
-        <SelectTrigger
-          className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
-          aria-label={t("Relative date")}
+        <Select
+          value={String(value.offset)}
+          onValueChange={(offset) => {
+            const period = { ...value, offset: Number(offset) }
+            if (isEidosFileCalendarPeriodValue(period)) onChange(period)
+          }}
         >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {eidosFileCalendarPeriodOptions.map((period) => (
-            <SelectItem
-              key={`${period.unit}:${period.offset}`}
-              value={`${period.unit}:${period.offset}`}
-            >
-              {t(period.label)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+          <SelectTrigger
+            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
+            aria-label={t("Period relation")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[
+              { offset: -1, label: "Last period" },
+              { offset: 0, label: "This period" },
+              { offset: 1, label: "Next period" },
+            ].map((period) => (
+              <SelectItem key={period.offset} value={String(period.offset)}>
+                {t(period.label)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={value.unit}
+          onValueChange={(unit) => {
+            const period = { ...value, unit }
+            if (isEidosFileCalendarPeriodValue(period)) onChange(period)
+          }}
+        >
+          <SelectTrigger
+            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
+            aria-label={t("Calendar unit")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["day", "week", "month", "year"] as const).map((unit) => (
+              <SelectItem key={unit} value={unit}>
+                {t(unit)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     )
   }
   if (

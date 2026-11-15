@@ -200,14 +200,15 @@ describe("calendar filter feedback", () => {
       group(rule("is-in-calendar-period", calendar)),
       "America/New_York"
     )
-    await select("Relative date", "Next week")
+    await select("Period relation", "Next period")
+    await select("Calendar unit", "week")
     await apply()
     expect(change).toHaveBeenCalledWith(
       group(rule("is-in-calendar-period", { unit: "week", offset: 1 }))
     )
   })
   it.each(["en", "zh"] as const)(
-    "offers the same twelve calendar periods in %s",
+    "offers period relation then calendar unit in %s",
     async (locale) => {
       const t = (message: string) => translateEidosFileUI(locale, message)
       await mount(
@@ -216,35 +217,40 @@ describe("calendar filter feedback", () => {
         locale
       )
       assertSingleModel()
+      expect(
+        [
+          ...document.querySelectorAll(
+            '[data-eidos-file-calendar-period] button[role="combobox"]'
+          ),
+        ].map((node) => node.getAttribute("aria-label"))
+      ).toEqual([t("Period relation"), t("Calendar unit")])
       await click(
-        document.querySelector(`button[aria-label="${t("Relative date")}"]`)
+        document.querySelector(`button[aria-label="${t("Period relation")}"]`)
       )
-      expect(document.querySelectorAll('[role="option"]')).toHaveLength(12)
-      for (const label of [
-        "Yesterday",
-        "Today",
-        "Tomorrow",
-        "Last week",
-        "This week",
-        "Next week",
-        "Last month",
-        "This month",
-        "Next month",
-        "Last year",
-        "This year",
-        "Next year",
-      ])
-        expect(
-          [...document.querySelectorAll('[role="option"]')].map((node) =>
-            node.textContent?.trim()
-          )
-        ).toContain(t(label))
+      expect(
+        [...document.querySelectorAll('[role="option"]')].map((node) =>
+          node.textContent?.trim()
+        )
+      ).toEqual(["Last period", "This period", "Next period"].map(t))
+      await click(
+        [...document.querySelectorAll('[role="option"]')].find(
+          (node) => node.textContent?.trim() === t("Last period")
+        )
+      )
+      await click(
+        document.querySelector(`button[aria-label="${t("Calendar unit")}"]`)
+      )
+      expect(
+        [...document.querySelectorAll('[role="option"]')].map((node) =>
+          node.textContent?.trim()
+        )
+      ).toEqual(["day", "week", "month", "year"].map(t))
       expect(document.body.textContent).not.toMatch(
         /UTC|24 hours|7 days|24 小时|7 天/
       )
       await click(
         [...document.querySelectorAll('[role="option"]')].find(
-          (node) => node.textContent?.trim() === t("Last year")
+          (node) => node.textContent?.trim() === t("year")
         )
       )
       await apply(locale)
@@ -253,6 +259,28 @@ describe("calendar filter feedback", () => {
       )
     }
   )
+  it("preserves the other dimension when changing either selector", async () => {
+    await mount(
+      group(rule("is-in-calendar-period", { unit: "month", offset: -1 })),
+      "America/New_York"
+    )
+    expect(
+      document.querySelector('button[aria-label="Calendar unit"]')?.textContent
+    ).toContain("month")
+    await select("Period relation", "This period")
+    expect(
+      document.querySelector('button[aria-label="Calendar unit"]')?.textContent
+    ).toContain("month")
+    await select("Calendar unit", "year")
+    expect(
+      document.querySelector('button[aria-label="Period relation"]')
+        ?.textContent
+    ).toContain("This period")
+    await apply()
+    expect(change).toHaveBeenCalledWith(
+      group(rule("is-in-calendar-period", { unit: "year", offset: 0 }))
+    )
+  })
   it("does not offer new calendar conditions to an unadvertised Runtime", async () => {
     await mount(group(rule("is-empty")), "America/New_York", "en", [])
     await click(document.querySelector('button[aria-label="Filter operator"]'))

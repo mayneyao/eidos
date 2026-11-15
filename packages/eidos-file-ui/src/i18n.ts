@@ -7,6 +7,11 @@ const zh: EidosFileUIMessageOverrides = {
   "After updating, this file requires Eidos with the new date filters.":
     "更新后，此文件需要支持新版日期筛选的 Eidos。",
   "Relative date": "相对日期",
+  "Period relation": "周期关系",
+  "Calendar unit": "周期单位",
+  "Last period": "上期",
+  "This period": "本期",
+  "Next period": "下期",
   Yesterday: "昨天",
   Tomorrow: "明天",
   "Last week": "上周",
