@@ -487,7 +487,8 @@ declare function useEidosFileSearchNavigation(): EidosFileSearchNavigationState 
 //#region src/eidos-file-record-field-editor.d.ts
 type FieldEditorProps = {
   field: EidosFileFieldInfo;
-  row: EidosFileRow;
+  row: EidosFileRow; /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean;
   placeholder?: string;
   appearance?: "field" | "record-title" | "record-property" | "compact";
   disabled: boolean;
@@ -554,6 +555,8 @@ declare function eidosFileRecordTitle(row: EidosFileRow, fields?: EidosFileField
 interface EidosFileRecordInspectorProps {
   row: EidosFileRow;
   fields: EidosFileFieldInfo[];
+  /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean;
   variant?: "panel" | "page";
   contentField?: EidosFileFieldInfo | null;
   onClose?: () => void;
@@ -582,6 +585,7 @@ interface EidosFileRecordInspectorProps {
 declare function EidosFileRecordInspector({
   row,
   fields,
+  isNewRecord,
   variant: requestedVariant,
   contentField,
   onClose,

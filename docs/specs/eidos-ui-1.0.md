@@ -1657,6 +1657,13 @@ bytes remain unchanged. This is a conversion into a new binary Field, not a
 lossless round trip of nullable Checkbox values. Direct Runtime CSV import
 into an existing Table retains its NULL and constraint behavior.
 
+For an explicitly identified new, unsaved Record draft, an omitted required
+stored Checkbox input is displayed as unchecked, matching Runtime's create
+default. Rendering MUST NOT write the default into the draft or persist a row.
+Explicit NULL, nullable Fields, derived values, loading records, and missing
+values in an existing or partially projected Record retain their empty or
+unavailable meaning. A row ID does not identify this new-record context.
+
 Checkbox conditions use a single state selector instead of requiring a separate
 operator and Boolean operand. Its ordinary choices are Checked and Unchecked,
 which emit `eq true` and `eq false`. Empty-related choices are offered only when

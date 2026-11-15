@@ -409,6 +409,8 @@ function MarkdownContentEditor({
 export interface EidosFileRecordInspectorProps {
   row: EidosFileRow
   fields: EidosFileFieldInfo[]
+  /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
+  isNewRecord?: boolean
   variant?: "panel" | "page"
   contentField?: EidosFileFieldInfo | null
   onClose?: () => void
@@ -449,6 +451,7 @@ export interface EidosFileRecordInspectorProps {
 export function EidosFileRecordInspector({
   row,
   fields,
+  isNewRecord = false,
   variant: requestedVariant = "panel",
   contentField,
   onClose,
@@ -810,6 +813,7 @@ export function EidosFileRecordInspector({
               <EidosFileRecordFieldEditor
                 field={field}
                 row={currentRow}
+                isNewRecord={isNewRecord && !loading}
                 appearance="record-property"
                 placeholder={t("Empty")}
                 disabled={editorDisabled}
@@ -854,6 +858,7 @@ export function EidosFileRecordInspector({
             <EidosFileRecordFieldEditor
               field={field}
               row={currentRow}
+              isNewRecord={isNewRecord && !loading}
               disabled={editorDisabled}
               onChange={(value) => editField(field, value)}
             />
@@ -943,6 +948,7 @@ export function EidosFileRecordInspector({
                     <EidosFileRecordFieldEditor
                       field={pageTitleField}
                       row={currentRow}
+                      isNewRecord={isNewRecord && !loading}
                       placeholder={eidosFileFieldDisplayName(pageTitleField)}
                       appearance="record-title"
                       onEnter={() => {
@@ -1152,6 +1158,7 @@ export function EidosFileRecordInspector({
                     <EidosFileRecordFieldEditor
                       field={pageTitleField}
                       row={currentRow}
+                      isNewRecord={isNewRecord && !loading}
                       placeholder={t("Untitled")}
                       appearance="record-title"
                       disabled={editorDisabled}

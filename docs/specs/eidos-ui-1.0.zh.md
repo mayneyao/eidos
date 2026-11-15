@@ -1465,6 +1465,12 @@ Checkbox 保留 NULL 状态和清空为 NULL 的行为。CSV 新建表导入使�
 转换，原 CSV 字节不变。这是转换到新的二值 Field，不是 nullable Checkbox 值
 的无损往返。直接向既有 Table 调用 Runtime CSV import 仍保留 NULL 与约束行为。
 
+对明确标识为新建且未保存的 Record draft，省略的 required stored Checkbox
+输入显示为未勾选，与 Runtime 的 create 默认一致。渲染不得把默认值写入 draft
+或保存 row。显式 NULL、nullable Field、derived 值、正在加载的记录，以及既有
+或部分投影 Record 中缺失的值，保留空值或不可用含义。不得通过 row ID 判断该
+新记录上下文。
+
 Checkbox condition 使用单个状态选择器，无需分别选择 operator 和 Boolean operand。
 常规选项只有已勾选/未勾选，发送 `eq true`/`eq false`。只有该 Field 在整张 Table
 中实际存在 SQL NULL 时才提供空值相关选项，不受当前 View filter、search 或分页影响。
