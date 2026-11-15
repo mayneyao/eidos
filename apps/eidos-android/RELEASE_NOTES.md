@@ -1,36 +1,37 @@
-# Eidos Android 0.6.0
+# Eidos Android 0.7.0
 
-Move files and folders between existing directories in your Space using a native
-touch interface. Android 9 or newer is required. Refs #401.
+This update improves Checkbox fields and image editing. Android 9 or newer is
+required.
 
-## Move files and folders
+## Checkbox fields
 
-Open an item's **…** menu, or long-press its row, and choose **Move to…**.
-Browse folders, then tap **Move here**. Choose **Space root** to move back to
-the root directory. The action is also available from an open document's menu;
-pending edits are saved before choosing a destination.
+New Checkbox fields start unchecked and store checked or unchecked values.
+Clearing a new Checkbox returns it to unchecked. Existing nullable Checkbox
+fields and their empty cells remain unchanged.
 
-- Move ordinary files, Markdown, `.eidos` files and complete nested folders.
-- Favorites, recent files and open document paths follow the moved item.
-- Existing names and unfinished recovery drafts block the move. Cancel keeps
-  the item in place. Files are never overwritten.
-- Moving works offline without signing in. The next local checkpoint and Sync
-  include the resulting paths.
+Converting a column to Checkbox shows how many empty cells will become
+unchecked and asks for confirmation. A changed column requires a fresh review
+before the conversion can proceed.
 
-Relative links and attachment paths inside documents stay unchanged. Moving an
-individual file can break those references. Moving a whole folder with its
-attachments preserves relationships within that folder; references crossing its
-boundary may still need adjustment. The destination picker shows this guidance.
+## Editor fixes
+
+- Tapping an empty image block opens Android's image picker. Canceling leaves
+  the document unchanged.
+- Tapping an existing image opens its touch controls. Save, Cancel and Android
+  Back return to editing; image changes persist after leaving and reopening
+  the document.
+- The Custom server heading and description in Sync now follow the selected
+  English interface language.
+- The Save record button stays above share-form fields and can be tapped when
+  saving shared text or attachments to a table.
 
 ## Install and testing scope
 
-Download `eidos-android-0.6.0.apk` and verify it against `SHA256SUMS`. Install over
+Download `eidos-android-0.7.0.apk` and verify it against `SHA256SUMS`. Install over
 the previous stable APK to retain local data. Signed GitHub APKs support ARM64
-and x86-64. Distribution uses GitHub APKs; Google Play is not configured.
+and x86-64. Google Play distribution is not configured.
 
-Device checks cover Android 13 emulator file moves, cancellation, name conflicts,
-draft and permission errors, nested attachments, local history and editor
-save/reopen behavior. The release APK also receives a 16 KB page-size emulator
-smoke and an in-place upgrade check from the public 0.5.0 APK before acceptance.
-Physical-device testing and a full TalkBack pass are outside this release's
-verification scope.
+Acceptance uses Android emulators for native Runtime writes, Checkbox creation
+and conversion, image-picker and touch-editor exits, offline save/reopen, and
+an in-place upgrade from the public 0.6.0 APK. Physical-device testing and a full
+TalkBack pass are outside this release's verification scope.
