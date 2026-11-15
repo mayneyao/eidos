@@ -2346,7 +2346,8 @@ export class SpaceSession {
   async callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const isMutation = mutationMethods.has(method)
     const isCsvOperationControl = csvOperationControlMethods.has(method)
@@ -2362,7 +2363,8 @@ export class SpaceSession {
             const mutationResult = await this.runtimePool.call(
               sessionId,
               method,
-              args
+              args,
+              consumer
             )
             await this.rememberRuntimeExternalChangeState(
               sessionId,
@@ -2374,9 +2376,9 @@ export class SpaceSession {
             return mutationResult
           })
         : isCsvOperationControl
-          ? await this.runtimePool.call(sessionId, method, args)
+          ? await this.runtimePool.call(sessionId, method, args, consumer)
           : await this.gate.withRuntimeRead(() =>
-              this.runtimePool.call(sessionId, method, args)
+              this.runtimePool.call(sessionId, method, args, consumer)
             )
     } catch (error) {
       if (error instanceof EidosFileRuntimeError) {

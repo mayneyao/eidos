@@ -1898,6 +1898,7 @@ export type RuntimeWorkerRequest =
       type: "call"
       requestId: number
       method: RuntimeMethod
+      calendarQueryVersion?: 2
       args: unknown[]
     }
   | {
@@ -2174,7 +2175,8 @@ export interface EidosLiteApi extends PluginApi {
   callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2 }
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
   getSpaceIgnoreRules(): Promise<SpaceIgnoreRules>

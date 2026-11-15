@@ -181,7 +181,7 @@ function errorMessage(error: unknown): string {
 }
 
 async function discardPersistentWorkingCopy(recoveryId: string): Promise<void> {
-  const cleanupClient = new EidosFileWorkerClient()
+  const cleanupClient = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
   try {
     await cleanupClient.discardRecovery(recoveryId)
   } catch (error) {
@@ -705,7 +705,7 @@ export function App() {
       // later must never clobber a newer session.
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
       const id = crypto.randomUUID()
       try {
         const result = await client.openEditorSource(
@@ -745,7 +745,7 @@ export function App() {
     async (manifest: CliHostManifest) => {
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileHttpClient()
+      const client = new EidosFileHttpClient({ calendarQueryVersion: 2 })
       const id = crypto.randomUUID()
       try {
         const result = await client.openEditorSource(
@@ -855,7 +855,7 @@ export function App() {
       const generation = ++openGenerationRef.current
       setNotice(null)
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
       const id = crypto.randomUUID()
       const createdAt = Date.now()
       const copy =
@@ -958,7 +958,7 @@ export function App() {
       if (!switchConfirmed && !confirmSwitch()) return false
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
       try {
         const permission = target.handle
           ? await queryWritePermission(target.handle)
@@ -1108,7 +1108,7 @@ export function App() {
 
   const discardRecovery = useCallback(async () => {
     if (!recovery) return
-    const client = new EidosFileWorkerClient()
+    const client = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
     try {
       await client.discardRecovery(recovery.id)
       await deleteRecoverySession(recovery.id)
@@ -1283,7 +1283,7 @@ export function App() {
 
       if (!handle || !previousClient || !isCurrentAndClean()) return false
 
-      const nextClient = new EidosFileWorkerClient()
+      const nextClient = new EidosFileWorkerClient({ calendarQueryVersion: 2 })
       const nextId = crypto.randomUUID()
       const discardPreparedClient = () => {
         nextClient.terminate()
@@ -2252,8 +2252,8 @@ export function App() {
 
       <ThemedEidosFileEditorShell
         view={activeView}
-        calendarDayTimeZoneData={
-          snapshot.queryCapabilities?.calendarDayTimeZoneData
+        calendarPeriodTimeZoneData={
+          snapshot.queryCapabilities?.calendarPeriodTimeZoneData
         }
         themeName={theme}
         className="min-h-0 flex-1 !h-auto"

@@ -1,7 +1,10 @@
-import type { ReactNode } from "react"
+import { useMemo, type ReactNode } from "react"
 import {
   assertEidosFileCalendarZone,
+  hasEidosFileCalendarPeriodQuery,
   supportsEidosFileCalendarProfile,
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  type EidosFileCalendarContext,
   type EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider, useEidosFileUI } from "./context"
@@ -12,51 +15,52 @@ export type EidosFileCalendarViewContext =
   | { status: "supported"; timeZoneData: string }
   | { status: "unsupported" }
 
-/** Examine every leaf, including NOT/OR and unsupported raw saved documents. */
+/** Saved conditions never select presentation rules or freeze preferences. */
 export function eidosFileCalendarViewContext(
   view?: Pick<EidosFileViewInfo, "filter" | "query">,
   supported?: readonly string[]
 ): EidosFileCalendarViewContext {
-  const values: unknown[] = [view?.filter]
-  if (view?.query) {
-    try {
-      values.push(JSON.parse(view.query))
-    } catch {
-      /* legacy presentation strings are not calendar AST */
-    }
+  const profile = EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+  if (supported?.includes(profile) && supportsEidosFileCalendarProfile(profile))
+    return { status: "supported", timeZoneData: profile }
+  let query: unknown
+  try {
+    query = view?.query ? JSON.parse(view.query) : undefined
+  } catch {
+    /* preserved unsupported document */
   }
-  const profiles = new Set<string>()
-  let malformed = false
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return
-    const node = value as Record<string, unknown>
-    const calendar =
-      node.op === "calendar-day"
-        ? node
-        : node.operator === "is-on-calendar-day" ||
-            node.op === "is-on-calendar-day"
-          ? (node.value as Record<string, unknown>)
-          : undefined
-    if (calendar) {
-      if (typeof calendar.timeZoneData === "string")
-        profiles.add(calendar.timeZoneData)
-      else malformed = true
-    }
-    if ("filter" in node) visit(node.filter)
-    if (node.op === "not") visit(node.arg)
-    if (Array.isArray(node.args)) node.args.forEach(visit)
-    if (Array.isArray(node.children)) node.children.forEach(visit)
-  }
-  values.forEach(visit)
-  if (!profiles.size && !malformed) return { status: "legacy" }
-  const profile = [...profiles][0]
-  return !malformed &&
-    profiles.size === 1 &&
-    profile &&
-    supportsEidosFileCalendarProfile(profile) &&
-    (!supported || supported.includes(profile))
-    ? { status: "supported", timeZoneData: profile }
-    : { status: "unsupported" }
+  return hasEidosFileCalendarPeriodQuery(query) ||
+    hasEidosFileCalendarPeriodQuery(view?.filter)
+    ? { status: "unsupported" }
+    : { status: "legacy" }
+}
+
+/** Host-resolved execution preferences shared by every renderer and input. */
+export function useEidosFileCalendarExecution():
+  | EidosFileCalendarContext
+  | undefined {
+  const {
+    timeZone,
+    calendarTimeZoneData,
+    calendarPeriodTimeZoneData,
+    weekStartsOnMonday,
+  } = useEidosFileUI()
+  const profile =
+    calendarTimeZoneData ??
+    (calendarPeriodTimeZoneData?.includes(EIDOS_FILE_CALENDAR_TIME_ZONE_DATA)
+      ? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+      : undefined)
+  return useMemo(
+    () =>
+      profile
+        ? {
+            timeZone: eidosFileResolvedTimeZone(timeZone),
+            timeZoneData: profile,
+            weekStartsOn: weekStartsOnMonday === false ? 0 : 1,
+          }
+        : undefined,
+    [profile, timeZone, weekStartsOnMonday]
+  )
 }
 
 export function EidosFileCalendarViewProvider({
@@ -71,7 +75,7 @@ export function EidosFileCalendarViewProvider({
   unsupported?: ReactNode
 }) {
   const host = useEidosFileUI()
-  const capabilities = supported ?? host.calendarDayTimeZoneData ?? []
+  const capabilities = supported ?? host.calendarPeriodTimeZoneData ?? []
   const state = eidosFileCalendarViewContext(view, capabilities)
   let available = state.status !== "unsupported"
   if (state.status === "supported") {
@@ -86,7 +90,11 @@ export function EidosFileCalendarViewProvider({
   }
   return (
     <EidosFileUIProvider
-      calendarDayTimeZoneData={capabilities}
+      timeZone={eidosFileResolvedTimeZone(host.timeZone)}
+      queryEditingDisabled={
+        view?.queryStatus === "unsupported" || host.queryEditingDisabled
+      }
+      calendarPeriodTimeZoneData={capabilities}
       calendarTimeZoneData={
         state.status === "supported" && available ? state.timeZoneData : null
       }
@@ -96,7 +104,7 @@ export function EidosFileCalendarViewProvider({
         : (unsupported ?? (
             <div role="status" className="p-4 text-sm text-muted-foreground">
               {host.translate(
-                "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile."
+                "This editor cannot use the application's calendar settings. Open this view in an updated editor."
               )}
             </div>
           ))}

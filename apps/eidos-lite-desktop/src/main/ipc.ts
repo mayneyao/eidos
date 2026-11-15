@@ -2489,7 +2489,8 @@ export function registerIpc(
       event,
       sessionId: unknown,
       method: unknown,
-      args: unknown
+      args: unknown,
+      consumer?: { calendarQueryVersion?: 2 }
     ): Promise<unknown> => {
       if (typeof sessionId !== "string")
         throw new Error("Invalid runtime session")
@@ -2501,6 +2502,15 @@ export function registerIpc(
       }
       if (!Array.isArray(args))
         throw new Error("Runtime arguments must be an array")
+      if (
+        consumer !== undefined &&
+        (typeof consumer !== "object" ||
+          consumer === null ||
+          Object.keys(consumer).some((key) => key !== "calendarQueryVersion") ||
+          (consumer.calendarQueryVersion !== undefined &&
+            consumer.calendarQueryVersion !== 2))
+      )
+        throw new Error("Invalid calendar query consumer")
       const runtimeMethod = method as RuntimeMethod
       const runtimeArgs =
         runtimeMethod === "previewCsvFile" || runtimeMethod === "importCsvFile"
@@ -2511,7 +2521,8 @@ export function registerIpc(
         .callRuntime(
           sessionId,
           runtimeMethod,
-          runtimeArgs as RuntimeCalls[RuntimeMethod]["args"]
+          runtimeArgs as RuntimeCalls[RuntimeMethod]["args"],
+          consumer
         )
       if (
         (RUNTIME_MUTATION_METHODS as readonly string[]).includes(runtimeMethod)

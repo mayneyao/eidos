@@ -45,11 +45,7 @@ const group = (...children: EidosFileFilterRule[]): EidosFileFilterGroup => ({
   conjunction: "and",
   children,
 })
-const calendar = {
-  day: "today" as const,
-  timeZone: "Europe/Berlin",
-  timeZoneData: "2026f",
-}
+const calendar = { unit: "day" as const, offset: 0 as const }
 
 describe("calendar filter feedback", () => {
   let root: Root
@@ -90,7 +86,7 @@ describe("calendar filter feedback", () => {
         <EidosFileUIProvider
           locale={locale}
           timeZone={timeZone}
-          calendarDayTimeZoneData={supported}
+          calendarPeriodTimeZoneData={supported}
         >
           <EidosFileQueryToolbar
             fields={fields}
@@ -132,71 +128,55 @@ describe("calendar filter feedback", () => {
       )
     )
   }
-  function assertReadOnlyZone(zone: string) {
-    expect(
-      document.querySelector("[data-eidos-file-calendar-time-zone]")
-        ?.textContent
-    ).toContain(zone)
-    expect(
-      document.querySelector('select[aria-label="Calendar time zone"]')
-    ).toBeNull()
+  function assertSingleModel() {
     expect(document.querySelectorAll("select")).toHaveLength(0)
     expect(document.body.textContent).not.toMatch(
-      /Calendar rules|2026f|Use it for this condition/
+      /Calendar rules|2026f|UTC|Date range|日历日|日期范围/
     )
+    expect(
+      document.querySelector("[data-eidos-file-calendar-time-zone]")
+    ).toBeNull()
+    expect(
+      document.querySelector("[data-eidos-file-date-range-help]")
+    ).toBeNull()
   }
-  it("creates from the configured zone when the browser uses a different zone", async () => {
+  it("creates only a period, without persisting the configured or browser zone", async () => {
     const options = new Intl.DateTimeFormat().resolvedOptions()
     vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
       ...options,
       timeZone: "Pacific/Honolulu",
     })
     await mount(group(rule("is-empty")), "America/New_York")
-    await select("Filter operator", "Calendar day")
-    assertReadOnlyZone("America/New_York")
+    await select("Filter operator", "Relative date")
+    assertSingleModel()
     await apply()
     expect(change).toHaveBeenCalledWith(
-      group(
-        rule("is-on-calendar-day", {
-          ...calendar,
-          timeZone: "America/New_York",
-        })
-      )
+      group(rule("is-in-calendar-period", calendar))
     )
   })
   it.each([undefined, "system"])(
-    "resolves the system preference %s to a saved IANA zone",
+    "does not freeze resolved system preference %s in a condition",
     async (timeZone) => {
-      const options = new Intl.DateTimeFormat().resolvedOptions()
-      vi.spyOn(
-        Intl.DateTimeFormat.prototype,
-        "resolvedOptions"
-      ).mockReturnValue({ ...options, timeZone: "Pacific/Honolulu" })
       await mount(group(rule("is-empty")), timeZone)
-      await select("Filter operator", "Calendar day")
-      assertReadOnlyZone("Pacific/Honolulu")
+      await select("Filter operator", "Relative date")
       await apply()
-      expect(change.mock.calls[0]?.[0]).toEqual(
-        group(
-          rule("is-on-calendar-day", {
-            ...calendar,
-            timeZone: "Pacific/Honolulu",
-          })
-        )
+      expect(change).toHaveBeenCalledWith(
+        group(rule("is-in-calendar-period", calendar))
       )
     }
   )
-  it("preserves an existing zone on open and an unrelated Apply", async () => {
+  it("keeps period semantics during an unrelated Apply without a second time-zone authority", async () => {
     const title: EidosFileFilterRule = {
       type: "rule",
       field: fields[2]!.id,
       operator: "contains",
       value: "old",
     }
-    const original = group(rule("is-on-calendar-day", calendar), title)
-    await mount(original, "America/New_York")
-    assertReadOnlyZone("Europe/Berlin")
-    expect(change).not.toHaveBeenCalled()
+    await mount(
+      group(rule("is-in-calendar-period", calendar), title),
+      "America/New_York"
+    )
+    assertSingleModel()
     const input = document.querySelector<HTMLInputElement>(
       'input[placeholder="Value"]'
     )!
@@ -209,61 +189,76 @@ describe("calendar filter feedback", () => {
     })
     await apply()
     expect(change).toHaveBeenCalledWith(
-      group(rule("is-on-calendar-day", calendar), {
+      group(rule("is-in-calendar-period", calendar), {
         ...title,
         value: "updated",
       })
     )
-    expect(original.children[0]).toEqual(rule("is-on-calendar-day", calendar))
   })
-  it("keeps the saved zone when changing only the calendar day", async () => {
-    await mount(group(rule("is-on-calendar-day", calendar)), "America/New_York")
-    await select("Calendar day", "Tomorrow")
-    assertReadOnlyZone("Europe/Berlin")
+  it("persists a complete next week instead of a rolling duration", async () => {
+    await mount(
+      group(rule("is-in-calendar-period", calendar)),
+      "America/New_York"
+    )
+    await select("Relative date", "Next week")
     await apply()
     expect(change).toHaveBeenCalledWith(
-      group(rule("is-on-calendar-day", { ...calendar, day: "tomorrow" }))
+      group(rule("is-in-calendar-period", { unit: "week", offset: 1 }))
     )
   })
   it.each(["en", "zh"] as const)(
-    "keeps UTC and rolling units clear in %s with help only on demand",
+    "offers the same twelve calendar periods in %s",
     async (locale) => {
-      const original = group(
-        rule("is-relative-to-today", { direction: "past", unit: "week" })
-      )
       const t = (message: string) => translateEidosFileUI(locale, message)
-      await mount(original, "America/New_York", locale)
-      expect(document.body.textContent).toContain(t("Date range (UTC)"))
-      expect(document.body.textContent).toContain(t("7 days"))
-      expect(document.body.textContent).not.toContain(
-        "inclusive rolling windows"
+      await mount(
+        group(rule("is-in-calendar-period", calendar)),
+        "America/New_York",
+        locale
       )
-      expect(
-        document.querySelector("[data-eidos-file-date-range-help]")
-      ).toBeNull()
+      assertSingleModel()
       await click(
-        document.querySelector(`button[aria-label="${t("About date ranges")}"]`)
+        document.querySelector(`button[aria-label="${t("Relative date")}"]`)
       )
-      expect(
-        document.querySelector("[data-eidos-file-date-range-help]")?.textContent
-      ).toBe(
-        t("Measured from now. Dates without a time include both end dates.")
+      expect(document.querySelectorAll('[role="option"]')).toHaveLength(12)
+      for (const label of [
+        "Yesterday",
+        "Today",
+        "Tomorrow",
+        "Last week",
+        "This week",
+        "Next week",
+        "Last month",
+        "This month",
+        "Next month",
+        "Last year",
+        "This year",
+        "Next year",
+      ])
+        expect(
+          [...document.querySelectorAll('[role="option"]')].map((node) =>
+            node.textContent?.trim()
+          )
+        ).toContain(t(label))
+      expect(document.body.textContent).not.toMatch(
+        /UTC|24 hours|7 days|24 小时|7 天/
       )
-      await act(async () =>
-        document.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      await click(
+        [...document.querySelectorAll('[role="option"]')].find(
+          (node) => node.textContent?.trim() === t("Last year")
         )
       )
       await apply(locale)
-      expect(change).toHaveBeenCalledWith(original)
+      expect(change).toHaveBeenCalledWith(
+        group(rule("is-in-calendar-period", { unit: "year", offset: -1 }))
+      )
     }
   )
-  it("keeps calendar creation unavailable when the Runtime does not advertise support", async () => {
+  it("does not offer new calendar conditions to an unadvertised Runtime", async () => {
     await mount(group(rule("is-empty")), "America/New_York", "en", [])
     await click(document.querySelector('button[aria-label="Filter operator"]'))
     expect(
       [...document.querySelectorAll('[role="option"]')].some(
-        (option) => option.textContent?.trim() === "Calendar day"
+        (option) => option.textContent?.trim() === "Relative date"
       )
     ).toBe(false)
   })

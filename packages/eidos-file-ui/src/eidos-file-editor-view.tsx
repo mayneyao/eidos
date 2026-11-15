@@ -19,7 +19,11 @@ import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileUI } from "./context"
-import { EidosFileCalendarViewProvider } from "./eidos-file-calendar-context"
+import {
+  EidosFileCalendarViewProvider,
+  useEidosFileCalendarExecution,
+} from "./eidos-file-calendar-context"
+import { EidosFileDateQueryUpgrade } from "./eidos-file-date-query-upgrade"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -278,9 +282,13 @@ export function EidosFileEditorView({
       : searchResultIndex
   const reportSearchResultCount =
     onSearchResultCountChange ?? searchNavigation?.reportSearchResultCount
+  const calendar = useEidosFileCalendarExecution()
   const query = useMemo(
-    () => eidosFileViewRowQuery(view, search),
-    [search, view]
+    () => ({
+      ...eidosFileViewRowQuery(view, search),
+      ...(calendar ? { calendar } : {}),
+    }),
+    [search, view, calendar]
   )
   const props: EidosFileViewRendererProps = {
     source,
@@ -309,7 +317,16 @@ export function EidosFileEditorView({
     pluginRegistry.viewRenderers[type] ??
     builtInEidosFileViewRenderers[type]
   if (view?.queryStatus === "unsupported") {
-    return <EidosFileUnsupportedQuery name={view.name} />
+    return (
+      <EidosFileDateQueryUpgrade
+        source={source}
+        view={view}
+        fields={table.fields}
+        disabled={disabled || !capabilities.mutate}
+        onSnapshot={callbacks.onSnapshot}
+        fallback={<EidosFileUnsupportedQuery name={view.name} />}
+      />
+    )
   }
   if (Renderer)
     return (

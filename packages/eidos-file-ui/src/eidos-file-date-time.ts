@@ -91,7 +91,7 @@ export function eidosFileDateTimeText(
       timeZoneData
     )
   )
-    return `${date.toISOString()} · outside calendar profile`
+    return date.toISOString()
   const parts = eidosFileDateTimeParts(date, timeZone, timeZoneData)
   return `${String(parts.year).padStart(4, "0")}-${twoDigits(parts.month)}-${twoDigits(parts.day)} ${twoDigits(parts.hour)}:${twoDigits(parts.minute)}:${twoDigits(parts.second)}`
 }
@@ -305,5 +305,9 @@ export function eidosFileInstantFromWallDate(
 }
 
 export function eidosFileResolvedTimeZone(timeZone?: string): string {
-  return timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"
+  return (
+    (timeZone && timeZone !== "system" ? timeZone : undefined) ??
+    Intl.DateTimeFormat().resolvedOptions().timeZone ??
+    "UTC"
+  )
 }

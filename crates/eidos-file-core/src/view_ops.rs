@@ -64,11 +64,17 @@ pub enum ViewChange {
     UpdateView { view_id: String, patch: ViewPatch },
     #[serde(rename = "delete-view")]
     DeleteView { view_id: String },
+    #[serde(rename = "upgrade-date-query")]
+    UpgradeDateQuery { view_id: String },
+    #[serde(rename = "restore-date-query")]
+    RestoreDateQuery { view_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ViewMutationRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar_query_version: Option<u8>,
     pub expected_revision: String,
     pub changes: Vec<ViewChange>,
 }
@@ -230,6 +236,14 @@ fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
 }
 
 fn validate_request(request: &ViewMutationRequest) -> Result<()> {
+    if request
+        .calendar_query_version
+        .is_some_and(|version| version != 2)
+    {
+        return Err(EidosError::InvalidRequest(
+            "Unsupported calendar query consumer version".into(),
+        ));
+    }
     let mut client_keys = HashSet::new();
     let mut view_ids = HashSet::new();
     for change in &request.changes {
@@ -241,7 +255,10 @@ fn validate_request(request: &ViewMutationRequest) -> Result<()> {
                     ));
                 }
             }
-            ViewChange::UpdateView { view_id, .. } | ViewChange::DeleteView { view_id } => {
+            ViewChange::UpdateView { view_id, .. }
+            | ViewChange::DeleteView { view_id }
+            | ViewChange::UpgradeDateQuery { view_id }
+            | ViewChange::RestoreDateQuery { view_id } => {
                 if !is_valid_uuidv7(view_id) {
                     return Err(EidosError::InvalidRequest(format!(
                         "View ID {view_id:?} is not a lowercase UUIDv7"
@@ -271,6 +288,16 @@ fn run_views(
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     ensure_revision(&tx, &request.expected_revision)?;
     validate_request(request)?;
+    if tx.query_row(
+        "SELECT COUNT(*) FROM eidos__features WHERE name='eidos:calendar-query'",
+        [],
+        |row| row.get::<_, i64>(0),
+    )? > 0
+    {
+        return Err(EidosError::InvalidRequest(
+            "View changes in this file require the canonical Runtime".into(),
+        ));
+    }
     let before = load_file_meta(&tx)?;
     let tables = load_tables(&tx)?;
     let fields = load_fields(&tx)?;
@@ -325,6 +352,19 @@ fn run_views(
             ViewChange::UpdateView { view_id, patch } => {
                 let current_views = load_views(&tx)?;
                 let current = view_by_id(&current_views, view_id)?.clone();
+                if patch.query.is_some() {
+                    let original = serde_json::from_str::<SavedViewQuery>(&current.query_json);
+                    if original.as_ref().map_or(true, |query| {
+                        query
+                            .filter
+                            .as_ref()
+                            .is_some_and(FilterNode::requires_runtime)
+                    }) {
+                        return Err(EidosError::InvalidRequest(
+                            "Updating this View query requires the canonical Runtime".into(),
+                        ));
+                    }
+                }
                 let table = table_by_id(&tables, &current.table_id)?;
                 let name = patch.name.as_deref().unwrap_or(&current.name);
                 let view_type = patch.view_type.as_deref().unwrap_or(&current.view_type);
@@ -372,6 +412,11 @@ fn run_views(
                     changed = true;
                 }
                 affected_view_ids.insert(view_id.clone());
+            }
+            ViewChange::UpgradeDateQuery { .. } | ViewChange::RestoreDateQuery { .. } => {
+                return Err(EidosError::InvalidRequest(
+                    "date query upgrade/restore requires the canonical Runtime".into(),
+                ));
             }
             ViewChange::DeleteView { view_id } => {
                 let current_views = load_views(&tx)?;
@@ -480,6 +525,7 @@ mod tests {
         let created = mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "1".into(),
                 changes: vec![ViewChange::CreateView {
                     client_key: "calendar".into(),
@@ -510,6 +556,7 @@ mod tests {
         let updated = mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "2".into(),
                 changes: vec![
                     ViewChange::UpdateView {
@@ -538,6 +585,7 @@ mod tests {
         let deleted = mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "3".into(),
                 changes: vec![ViewChange::DeleteView {
                     view_id: calendar_id.clone(),
@@ -560,6 +608,7 @@ mod tests {
         let no_op = mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "1".into(),
                 changes: vec![ViewChange::UpdateView {
                     view_id: grid.id.clone(),
@@ -578,6 +627,7 @@ mod tests {
         let error = mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "1".into(),
                 changes: vec![
                     ViewChange::CreateView {

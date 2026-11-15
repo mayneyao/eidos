@@ -122,7 +122,7 @@ export function MobileDateEditor({
         {value}
         <p>
           {t(
-            "Outside calendar profile years 1970–2499. Use a view without calendar conditions to edit this value."
+            "Dates outside 1970–2499 are read-only here. Your saved value is unchanged."
           )}
         </p>
       </div>

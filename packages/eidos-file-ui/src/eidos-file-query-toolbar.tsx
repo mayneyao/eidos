@@ -13,14 +13,12 @@ import type {
   EidosFileFilterRule,
   EidosFileFilterRuleValue,
   EidosFileFilterValue,
-  EidosFileRelativeDateDirection,
-  EidosFileRelativeDateUnit,
   EidosFileSort,
 } from "@eidos.space/eidos-file"
 import {
   eidosFileFieldQueryCapabilities,
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
-  isEidosFileCalendarDayValue,
+  isEidosFileCalendarPeriodValue,
 } from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
@@ -31,7 +29,6 @@ import {
   ChevronUp,
   ChevronRight,
   Filter,
-  CircleHelp,
   LoaderCircle,
   Plus,
   Search,
@@ -63,9 +60,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Popover as HelpPopover,
-  PopoverContent as HelpPopoverContent,
-  PopoverTrigger as HelpPopoverTrigger,
 } from "./ui/primitives"
 
 import type { EidosFileEditorDataSource } from "./data-source"
@@ -132,8 +126,9 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-all-of": "has all of",
   "is-none-of": "has none of",
   "is-between": "is between",
-  "is-relative-to-today": "Date range (UTC)",
-  "is-on-calendar-day": "Calendar day",
+  "is-relative-to-today": "Date filters need updating",
+  "is-on-calendar-day": "Date filters need updating",
+  "is-in-calendar-period": "Relative date",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
@@ -146,20 +141,6 @@ const multipleValueOperators = new Set<EidosFileFilterOperator>([
   "is-all-of",
   "is-none-of",
 ])
-
-const relativeDirectionLabels: Record<EidosFileRelativeDateDirection, string> =
-  {
-    past: "Past",
-    next: "Future",
-    this: "Current",
-  }
-
-const relativeUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
-  day: "day",
-  week: "week",
-  month: "month",
-  year: "year",
-}
 
 const checkboxConditions: Array<{
   key: string
@@ -276,62 +257,20 @@ function CheckboxConditionSelect({
   )
 }
 
-const rollingUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
-  day: "24 hours",
-  week: "7 days",
-  month: "1 month",
-  year: "1 year",
-}
-
-function configuredCalendarTimeZone(timeZone?: string): string {
-  return eidosFileResolvedTimeZone(timeZone === "system" ? undefined : timeZone)
-}
-
-function RelativeDateHelp({
-  direction,
-  unit,
-  dateOnly,
-}: {
-  direction: EidosFileRelativeDateDirection
-  unit: EidosFileRelativeDateUnit
-  dateOnly: boolean
-}) {
-  const { translate: t } = useEidosFileUI()
-  const calendarHelp: Record<EidosFileRelativeDateUnit, string> = {
-    day: "Today starts and ends at midnight in UTC.",
-    week: "This week runs from Monday to Sunday in UTC.",
-    month: "This month uses the calendar month in UTC.",
-    year: "This year uses the calendar year in UTC.",
-  }
-  const message =
-    direction === "this"
-      ? calendarHelp[unit]
-      : dateOnly
-        ? "Measured from now. Dates without a time include both end dates."
-        : "Measured from now, including the start and end times."
-  return (
-    <HelpPopover>
-      <HelpPopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          aria-label={t("About date ranges")}
-          title={t("About date ranges")}
-        >
-          <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      </HelpPopoverTrigger>
-      <HelpPopoverContent
-        align="end"
-        sideOffset={6}
-        className="w-64 max-w-[calc(100vw-32px)] p-2 text-xs leading-relaxed"
-        data-eidos-file-date-range-help
-      >
-        {t(message)}
-      </HelpPopoverContent>
-    </HelpPopover>
-  )
-}
+export const eidosFileCalendarPeriodOptions = [
+  { unit: "day", offset: -1, label: "Yesterday" },
+  { unit: "day", offset: 0, label: "Today" },
+  { unit: "day", offset: 1, label: "Tomorrow" },
+  { unit: "week", offset: -1, label: "Last week" },
+  { unit: "week", offset: 0, label: "This week" },
+  { unit: "week", offset: 1, label: "Next week" },
+  { unit: "month", offset: -1, label: "Last month" },
+  { unit: "month", offset: 0, label: "This month" },
+  { unit: "month", offset: 1, label: "Next month" },
+  { unit: "year", offset: -1, label: "Last year" },
+  { unit: "year", offset: 0, label: "This year" },
+  { unit: "year", offset: 1, label: "Next year" },
+] as const
 
 function queryCandidateFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
@@ -513,130 +452,37 @@ function FilterValueEditor({
       />
     )
   }
-  if (rule.operator === "is-on-calendar-day") {
-    const value = isEidosFileCalendarDayValue(rule.value)
+  if (rule.operator === "is-in-calendar-period") {
+    const value = isEidosFileCalendarPeriodValue(rule.value)
       ? rule.value
-      : {
-          day: "today" as const,
-          timeZone: configuredCalendarTimeZone(timeZone),
-          timeZoneData:
-            calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
-        }
+      : ({ unit: "day", offset: 0 } as const)
     return (
-      <div className="grid min-w-0 gap-1.5">
-        <Select
-          value={value.day}
-          onValueChange={(day: typeof value.day) => onChange({ ...value, day })}
+      <Select
+        value={`${value.unit}:${value.offset}`}
+        onValueChange={(key) => {
+          const period = eidosFileCalendarPeriodOptions.find(
+            (item) => `${item.unit}:${item.offset}` === key
+          )
+          if (period) onChange({ unit: period.unit, offset: period.offset })
+        }}
+      >
+        <SelectTrigger
+          className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
+          aria-label={t("Relative date")}
         >
-          <SelectTrigger
-            className="h-7 min-w-0 gap-1 px-2 text-xs [&>svg]:shrink-0"
-            aria-label={t("Calendar day")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(["yesterday", "today", "tomorrow"] as const).map((day) => (
-              <SelectItem key={day} value={day}>
-                {t(
-                  day === "today"
-                    ? "Today"
-                    : day === "yesterday"
-                      ? "Yesterday"
-                      : "Tomorrow"
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p
-          className="break-words text-[11px] leading-4 text-muted-foreground"
-          data-eidos-file-calendar-time-zone
-        >
-          {t("Time zone: {timeZone}", { timeZone: value.timeZone })}
-        </p>
-      </div>
-    )
-  }
-  if (rule.operator === "is-relative-to-today") {
-    const candidate =
-      rule.value &&
-      typeof rule.value === "object" &&
-      !Array.isArray(rule.value) &&
-      "direction" in rule.value &&
-      "unit" in rule.value
-        ? rule.value
-        : null
-    const direction: EidosFileRelativeDateDirection =
-      candidate?.direction === "past" ||
-      candidate?.direction === "next" ||
-      candidate?.direction === "this"
-        ? candidate.direction
-        : "this"
-    const unit: EidosFileRelativeDateUnit =
-      candidate?.unit === "day" ||
-      candidate?.unit === "week" ||
-      candidate?.unit === "month" ||
-      candidate?.unit === "year"
-        ? candidate.unit
-        : "week"
-    return (
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] items-start gap-1.5">
-        <Select
-          value={direction}
-          onValueChange={(next: EidosFileRelativeDateDirection) =>
-            onChange({ direction: next, unit })
-          }
-        >
-          <SelectTrigger
-            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
-            aria-label={t("Date range direction")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(
-              Object.keys(
-                relativeDirectionLabels
-              ) as EidosFileRelativeDateDirection[]
-            ).map((entry) => (
-              <SelectItem key={entry} value={entry}>
-                {t(relativeDirectionLabels[entry])}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={unit}
-          onValueChange={(next: EidosFileRelativeDateUnit) =>
-            onChange({ direction, unit: next })
-          }
-        >
-          <SelectTrigger
-            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
-            aria-label={t("Date range unit")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(
-              Object.keys(relativeUnitLabels) as EidosFileRelativeDateUnit[]
-            ).map((entry) => (
-              <SelectItem key={entry} value={entry}>
-                {t(
-                  (direction === "this"
-                    ? relativeUnitLabels
-                    : rollingUnitLabels)[entry]
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <RelativeDateHelp
-          direction={direction}
-          unit={unit}
-          dateOnly={displayType === "date"}
-        />
-      </div>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {eidosFileCalendarPeriodOptions.map((period) => (
+            <SelectItem
+              key={`${period.unit}:${period.offset}`}
+              value={`${period.unit}:${period.offset}`}
+            >
+              {t(period.label)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     )
   }
   if (
@@ -944,9 +790,8 @@ function EidosFileFilterRuleEditor({
 } & EidosFileFilterEditorOptions) {
   const {
     translate: t,
-    timeZone,
     calendarTimeZoneData,
-    calendarDayTimeZoneData,
+    calendarPeriodTimeZoneData,
   } = useEidosFileUI()
   const field = fields.find(
     (candidate) => eidosFileFieldKey(candidate) === rule.field
@@ -973,9 +818,9 @@ function EidosFileFilterRuleEditor({
   )
   const availableOperators = getOperators(field).filter(
     (operator) =>
-      operator !== "is-on-calendar-day" ||
+      operator !== "is-in-calendar-period" ||
       rule.operator === operator ||
-      calendarDayTimeZoneData?.includes(
+      calendarPeriodTimeZoneData?.includes(
         calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
       )
   )
@@ -1069,7 +914,7 @@ function EidosFileFilterRuleEditor({
           <Select
             value={rule.operator}
             onValueChange={(operator: EidosFileFilterOperator) => {
-              const relative = operator === "is-relative-to-today"
+              const relative = operator === "is-in-calendar-period"
               const between = operator === "is-between"
               const membership =
                 eidosFileFieldQueryCapabilities(field).membership
@@ -1082,31 +927,23 @@ function EidosFileFilterRuleEditor({
               const nextValue: EidosFileFilterRuleValue | undefined =
                 emptyOperators.has(operator)
                   ? undefined
-                  : operator === "is-on-calendar-day"
-                    ? {
-                        day: "today",
-                        timeZone: configuredCalendarTimeZone(timeZone),
-                        timeZoneData:
-                          calendarTimeZoneData ??
-                          EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
-                      }
-                    : relative
-                      ? { direction: "this", unit: "week" }
-                      : between
-                        ? ["", ""]
-                        : multiple
-                          ? Array.isArray(rule.value)
-                            ? rule.value
-                            : typeof rule.value === "string" && rule.value
-                              ? [rule.value]
-                              : []
-                          : membership && Array.isArray(rule.value)
-                            ? (rule.value[0] ?? "")
-                            : rule.value === undefined || currentIsStructured
-                              ? fieldDisplayType(field) === "checkbox"
-                                ? true
-                                : ""
-                              : rule.value
+                  : relative
+                    ? { unit: "day", offset: 0 }
+                    : between
+                      ? ["", ""]
+                      : multiple
+                        ? Array.isArray(rule.value)
+                          ? rule.value
+                          : typeof rule.value === "string" && rule.value
+                            ? [rule.value]
+                            : []
+                        : membership && Array.isArray(rule.value)
+                          ? (rule.value[0] ?? "")
+                          : rule.value === undefined || currentIsStructured
+                            ? fieldDisplayType(field) === "checkbox"
+                              ? true
+                              : ""
+                            : rule.value
               onChange({
                 ...rule,
                 operator,
@@ -2036,7 +1873,7 @@ export function EidosFileQueryToolbar({
   onFilterChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
   onSortsChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, queryEditingDisabled } = useEidosFileUI()
   const hasSearchableFields = useMemo(
     () =>
       queryCandidateFields(fields).some(
@@ -2213,13 +2050,13 @@ export function EidosFileQueryToolbar({
         fields={fields}
         value={filter}
         source={source}
-        disabled={disabled || mutationsDisabled}
+        disabled={disabled || mutationsDisabled || queryEditingDisabled}
         onChange={onFilterChange}
       />
       <EidosFileSortPopover
         fields={fields}
         value={sorts}
-        disabled={disabled || mutationsDisabled}
+        disabled={disabled || mutationsDisabled || queryEditingDisabled}
         onChange={onSortsChange}
       />
     </div>

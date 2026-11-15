@@ -3187,6 +3187,7 @@ mod tests {
         mutate_views(
             &mut conn,
             &ViewMutationRequest {
+                calendar_query_version: None,
                 expected_revision: "1".into(),
                 changes: vec![ViewChange::CreateView {
                     client_key: "feedback".into(),

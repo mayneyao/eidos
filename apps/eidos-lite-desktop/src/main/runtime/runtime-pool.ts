@@ -281,7 +281,8 @@ export class RuntimePool {
   async call<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const entry = this.requireEntry(sessionId)
     if (entry.closed || this.closingEntries.has(entry)) {
@@ -301,6 +302,7 @@ export class RuntimePool {
         requestId: entry.nextRequestId++,
         method,
         args,
+        ...consumer,
       }) as Promise<RuntimeCalls[M]["result"]>
     })
     if (!call) throw new Error("Eidos File runtime call did not start")

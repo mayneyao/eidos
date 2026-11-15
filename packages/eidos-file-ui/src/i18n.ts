@@ -4,31 +4,43 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
-  "Calendar day": "日历日",
-  "Date range (UTC)": "日期范围（UTC）",
+  "After updating, this file requires Eidos with the new date filters.":
+    "更新后，此文件需要支持新版日期筛选的 Eidos。",
+  "Relative date": "相对日期",
   Yesterday: "昨天",
   Tomorrow: "明天",
-  "Date range direction": "日期范围方向",
-  "Date range unit": "日期范围单位",
-  "About date ranges": "日期范围说明",
-  "24 hours": "24 小时",
-  "7 days": "7 天",
-  "1 month": "1 个月",
-  "1 year": "1 年",
-  "Today starts and ends at midnight in UTC.":
-    "今天从 UTC 零点开始，到下一个零点结束。",
-  "This week runs from Monday to Sunday in UTC.":
-    "本周为 UTC 时间的周一至周日。",
-  "This month uses the calendar month in UTC.": "本月按 UTC 时间的自然月计算。",
-  "This year uses the calendar year in UTC.": "本年按 UTC 时间的自然年计算。",
-  "Measured from now. Dates without a time include both end dates.":
-    "从现在往前或往后计算；没有时间的日期会包含首尾日期。",
-  "Measured from now, including the start and end times.":
-    "从现在往前或往后计算，包含开始和结束时刻。",
-  "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile.":
-    "此视图的日历规则暂不受编辑器支持。请明确修改条件，使用同一种支持的规则。",
-  "Outside calendar profile years 1970–2499. Use a view without calendar conditions to edit this value.":
-    "超出日历规则支持的 1970–2499 年范围。可在不含日历日条件的视图中编辑此值。",
+  "Last week": "上周",
+  "This week": "本周",
+  "Last month": "上月",
+  "This month": "本月",
+  "Last year": "去年",
+  "This year": "本年",
+  "Next year": "明年",
+  "Date filters need updating": "日期筛选需要更新",
+  "Update date filters": "更新日期筛选",
+  "Updating…": "正在更新…",
+  "Could not update date filters": "日期筛选更新失败",
+  "Update these filters to use whole calendar periods in your current time zone. Their meaning will change as shown below. Your original query will be kept for recovery.":
+    "更新后，这些筛选将按你当前时区的完整日历周期计算，含义会按下表改变。原查询会保留，供恢复使用。",
+  "This editor cannot use the application's calendar settings. Open this view in an updated editor.":
+    "此编辑器暂不支持当前日历设置。请使用新版编辑器打开此视图。",
+  "Yesterday (saved time zone)": "昨天（原时区）",
+  "Today (saved time zone)": "今天（原时区）",
+  "Tomorrow (saved time zone)": "明天（原时区）",
+  "Past 24 hours": "过去 24 小时",
+  "Past 7 days": "过去 7 天",
+  "Past month from now": "从现在往前一个月",
+  "Past year from now": "从现在往前一年",
+  "Next 24 hours": "未来 24 小时",
+  "Next 7 days": "未来 7 天",
+  "Next month from now": "从现在往后一个月",
+  "Next year from now": "从现在往后一年",
+  "Today (UTC)": "今天（UTC）",
+  "This week (UTC)": "本周（UTC）",
+  "This month (UTC)": "本月（UTC）",
+  "This year (UTC)": "本年（UTC）",
+  "Dates outside 1970–2499 are read-only here. Your saved value is unchanged.":
+    "此处只能查看 1970–2499 年以外的日期。已保存的值保持不变。",
   "Find a field…": "搜索属性…",
   "Filtered property unavailable": "筛选的属性已不可用",
   "Filter operator": "筛选运算符",

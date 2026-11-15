@@ -56,7 +56,10 @@ export function Viewer({
   sourceToken: string
   assetPresenter: AssetPresenter<ReactNode>
 }) {
-  const kernel = useMemo(() => new EidosUIKernel(host), [host])
+  const kernel = useMemo(
+    () => new EidosUIKernel(host, { calendarQueryVersion: 2 }),
+    [host]
+  )
   useEffect(() => {
     void kernel.openSource({ sourceToken, access: "read" })
     return () => {
@@ -93,6 +96,14 @@ revision or epoch replacement. Latest-wins reads use Runtime cancellation.
 consume Runtime query/group results; they do not reproduce filtering,
 Formula/Lookup, Relation or grouping semantics locally. Unknown persisted View
 types remain accessible as unsupported renderers.
+
+The consuming UI opts into calendar-period syntax explicitly. Use
+`new EidosRuntimeEditorDataSource(runtime, path, { calendarQueryVersion: 2 })`
+for the current shared editor, or the Kernel option shown above. Reusable
+clients default to no declaration. The Runtime returns new period Views as
+opaque unsupported queries to undeclared consumers; preserve the original and
+block Apply/execution. Transports forward this per-request declaration without
+inferring it from their own version or Runtime capabilities.
 
 ## Shared editor composition
 

@@ -16,7 +16,10 @@ import type {
   RowPage,
   ViewDescriptor,
 } from "@eidos.space/eidos-file"
-import { eidosFileTypeRefQueryCapabilities } from "@eidos.space/eidos-file"
+import {
+  eidosFileTypeRefQueryCapabilities,
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+} from "@eidos.space/eidos-file"
 
 import {
   eidosUIPresentValue,
@@ -30,6 +33,7 @@ import {
   type AssetPresenter,
 } from "./context"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import { eidosFileDateKey } from "./eidos-file-date-time"
 
 export interface EidosUIRuntimeContextValue {
@@ -89,6 +93,19 @@ export function EidosUIRuntimeProvider({
       <EidosFileUIProvider
         themeName={themeName}
         timeZone={timeZone}
+        calendarPeriodTimeZoneData={
+          state.runtimeCapabilities?.calendarQueryVersion === 2
+            ? state.runtimeCapabilities.calendarPeriodTimeZoneData
+            : []
+        }
+        calendarTimeZoneData={
+          state.runtimeCapabilities?.calendarQueryVersion === 2 &&
+          state.runtimeCapabilities.calendarPeriodTimeZoneData?.includes(
+            EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+          )
+            ? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+            : null
+        }
         assetSession={assetSession}
         assetPresenter={assetPresenter}
       >
@@ -138,6 +155,7 @@ export function EidosStandardView({
 }: EidosStandardViewProps) {
   const { kernel, state } = useEidosUIRuntime()
   const { timeZone } = useEidosFileUI()
+  const calendar = useEidosFileCalendarExecution()
   const schema = state.schema
   const table =
     (tableId ? schema?.tables.get(tableId) : undefined) ??
@@ -179,7 +197,7 @@ export function EidosStandardView({
     }),
     [projectedFields]
   )
-  const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}`
+  const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}:${JSON.stringify(calendar ?? null)}`
 
   useEffect(() => {
     setCursor(undefined)
@@ -212,6 +230,7 @@ export function EidosStandardView({
         .groupRows(`standard:${view.id}`, {
           tableId: table.id,
           query,
+          ...(calendar ? { calendar } : {}),
           groupBy: [groupField],
           aggregates: [],
           projection,
@@ -237,6 +256,7 @@ export function EidosStandardView({
       .queryRows(`standard:${view.id}`, {
         tableId: table.id,
         query,
+        ...(calendar ? { calendar } : {}),
         projection,
         limit: Math.min(pageSize, state.runtimeLimits?.pageSizeMax ?? pageSize),
         ...(cursor ? { cursor } : {}),
@@ -253,6 +273,7 @@ export function EidosStandardView({
     }
   }, [
     cursor,
+    calendar,
     direction,
     identity,
     kernel,
@@ -504,6 +525,7 @@ function RuntimeValue({
   value: LogicalValue
 }) {
   const { timeZone } = useEidosFileUI()
+  const calendar = useEidosFileCalendarExecution()
   const fileEntries =
     field.valueType === "file" ||
     (typeof field.valueType === "object" &&

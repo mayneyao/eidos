@@ -166,7 +166,7 @@ export function MobileViewSettings({
                   fields={table.fields}
                   value={view.filter ?? null}
                   source={source}
-                  disabled={busy}
+                  disabled={busy || view.queryStatus === "unsupported"}
                   onChange={(filter) =>
                     mutate(() => source.updateView(view.id, { filter }))
                   }
@@ -174,7 +174,7 @@ export function MobileViewSettings({
                 <EidosFileSortPopover
                   fields={table.fields}
                   value={view.sorts}
-                  disabled={busy}
+                  disabled={busy || view.queryStatus === "unsupported"}
                   onChange={(sorts) =>
                     mutate(() => source.updateView(view.id, { sorts }))
                   }

@@ -567,8 +567,16 @@ const api: EidosLiteApi = {
   callRuntime: <M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
-  ) => ipcRenderer.invoke(IPC_CHANNELS.runtimeCall, sessionId, method, args),
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2 }
+  ) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.runtimeCall,
+      sessionId,
+      method,
+      args,
+      consumer
+    ),
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
   getSpaceIgnoreRules: () =>
     ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesGet),

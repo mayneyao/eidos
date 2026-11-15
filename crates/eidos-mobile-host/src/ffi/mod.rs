@@ -171,9 +171,11 @@ pub unsafe extern "C" fn eidos_ios_free(value: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    static C_TRANSPORT_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn c_transport_owns_strings_and_rejects_missing_arguments() -> Result<()> {
+        let _guard = C_TRANSPORT_TEST_LOCK.lock().unwrap();
         let dir = tempfile::tempdir()?;
         let path = CString::new(dir.path().join("bridge.eidos").to_str().unwrap())?;
         let method = CString::new("create")?;
@@ -249,5 +251,27 @@ mod tests {
         assert!(host.execute(path.clone(), "create", json!({})).is_err());
         assert!(host.execute(path, "executeSql", json!({})).is_err());
         Ok(())
+    }
+
+    #[test]
+    fn calendar_context_survives_the_c_ffi_request() -> Result<()> {
+        let _guard = C_TRANSPORT_TEST_LOCK.lock().unwrap();
+        crate::calendar_conformance::check(|path, method, request| {
+            let method = method.strip_prefix("web:").unwrap_or(method);
+            let path = CString::new(path.to_str().unwrap())?;
+            let method = CString::new(method)?;
+            let request = CString::new(request.to_string())?;
+            let value: Value = unsafe {
+                let response = eidos_ios_execute(path.as_ptr(), method.as_ptr(), request.as_ptr());
+                let result = serde_json::from_str(CStr::from_ptr(response).to_str()?);
+                eidos_ios_free(response);
+                result?
+            };
+            if value["ok"] == true {
+                Ok(value["value"].clone())
+            } else {
+                Err(anyhow!("{}", value["error"]))
+            }
+        })
     }
 }

@@ -1325,6 +1325,9 @@ stable Field IDs in the definition rows are canonical.
 
 ## 13. Saved View Definition Storage
 
+Persisted calendar-period queries require the declaration in §20. Unsupported
+query documents remain preserved and are never implicitly rewritten.
+
 A View is the row in `eidos__views` identified by its stable View ID.
 `query_json` and `layout_json` are JCS objects and all structural Field
 references inside them use Field IDs. Neither object may contain copied cell
@@ -1576,6 +1579,26 @@ A compatible clarification may add examples and tests but cannot change an
 existing valid byte/value interpretation. Any persisted meaning change
 requires a new File Format version. Upper-layer API, port, and interaction
 versions are independent as defined by the suite index.
+
+### Required calendar query feature
+
+The registered first-party feature `(name="eidos:calendar-query", version="2")`
+requires `required=1` and exactly the empty object `config_json='{}'`. It opts
+into the Runtime calendar-period query contract; it does not change Date or
+Datetime raw storage, the File 1.0 physical schema, or old query meanings.
+Persisting any `calendar-period` View, or explicitly upgrading/restoring date
+queries, MUST install this exact declaration in the same revision-checked
+transaction. Missing or incorrect declarations with persisted new syntax are
+invalid; an unsupported tuple/config MUST be rejected. Opening, transient
+queries, and unrelated mutations MUST NOT install it. The declaration MUST
+survive metadata edits, copies, restoration, and deletion of the last such View.
+Preview operates on a private copy and MUST leave the source unchanged.
+
+Readers that do not support this required feature MUST reject the entire file
+before exposing canonical data. Restoring saved conditions does not restore
+compatibility with old readers. Schema feature counts and descriptors report
+actual rows. Existing atomic feature merge/conflict rules apply unchanged;
+final candidate validation MUST reject new syntax without its declaration.
 
 ## 21. Media Type Registration Template
 

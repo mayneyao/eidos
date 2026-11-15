@@ -271,7 +271,7 @@ export function ServeApp() {
         }
         setManifest(nextManifest)
         setBootPhase("opening")
-        const nextClient = new EidosFileHttpClient()
+        const nextClient = new EidosFileHttpClient({ calendarQueryVersion: 2 })
         openingClient = nextClient
         const result = await nextClient.openEditorSource(
           nextManifest.fileName,
@@ -1130,8 +1130,8 @@ export function ServeApp() {
           <EidosFileEditorShell
             className="min-h-0 flex-1 !h-auto"
             view={activeView}
-            calendarDayTimeZoneData={
-              snapshot.queryCapabilities?.calendarDayTimeZoneData
+            calendarPeriodTimeZoneData={
+              snapshot.queryCapabilities?.calendarPeriodTimeZoneData
             }
             data-eidos-publish-editor={published ? "" : undefined}
             searchNavigation={{

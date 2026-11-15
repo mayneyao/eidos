@@ -16,7 +16,7 @@ export interface EidosFileEditorShellProps extends Omit<
   "children"
 > {
   view?: EidosFileViewInfo
-  calendarDayTimeZoneData?: readonly string[]
+  calendarPeriodTimeZoneData?: readonly string[]
   viewTabs?: ReactNode
   queryToolbar?: ReactNode
   fields?: ReactNode
@@ -41,7 +41,7 @@ export const EidosFileEditorShell = forwardRef<
 >(function EidosFileEditorShell(
   {
     view,
-    calendarDayTimeZoneData,
+    calendarPeriodTimeZoneData,
     viewTabs,
     queryToolbar,
     fields,
@@ -105,7 +105,7 @@ export const EidosFileEditorShell = forwardRef<
   return (
     <EidosFileCalendarViewProvider
       view={view}
-      supported={calendarDayTimeZoneData ?? []}
+      supported={calendarPeriodTimeZoneData ?? []}
       unsupported={
         <EidosFileEditorRoot className={className}>
           <EidosFileEditorWorkbar>
@@ -114,7 +114,7 @@ export const EidosFileEditorShell = forwardRef<
           </EidosFileEditorWorkbar>
           <div role="status" className="p-4 text-sm">
             {t(
-              "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile."
+              "This editor cannot use the application's calendar settings. Open this view in an updated editor."
             )}
           </div>
         </EidosFileEditorRoot>

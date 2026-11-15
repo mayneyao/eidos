@@ -26,6 +26,7 @@ import type { EidosFileEditorDataSource } from "./data-source"
 import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { MobileFields } from "./mobile-fields"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import { useEidosFileUI } from "./context"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
@@ -202,6 +203,7 @@ export function EidosFileDataGrid({
   onImportDroppedFiles,
 }: EidosFileDataGridProps) {
   const { interactionMode } = useEidosFileUI()
+  const calendar = useEidosFileCalendarExecution()
   const rowWriteTail = useRef<Promise<void> | null>(null)
   const enqueueRowWrite = useCallback(<T,>(write: () => Promise<T>) => {
     // The source captures expectedRevision when called. Wait until the prior
@@ -228,11 +230,12 @@ export function EidosFileDataGrid({
     useState<EidosFileFieldInfo | null>(null)
   const query = useMemo<EidosFileRowQuery>(
     () => ({
+      ...(calendar ? { calendar } : {}),
       ...(search.trim() ? { search: search.trim() } : {}),
       ...(view?.filter ? { filter: view.filter } : {}),
       ...(view?.sorts.length ? { sorts: view.sorts } : {}),
     }),
-    [search, view?.filter, view?.sorts]
+    [search, view?.filter, view?.sorts, calendar]
   )
 
   const loadPage = useCallback(

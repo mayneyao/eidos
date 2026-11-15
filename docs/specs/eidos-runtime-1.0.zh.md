@@ -372,7 +372,8 @@ unbounded foreground wait。
 
 ```ts
 interface RuntimeCapabilities {
-  calendarDayTimeZoneData?: string[]
+  calendarQueryVersion?: 2
+  calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -575,6 +576,24 @@ conflict/fatal，绝不授权 replay。receipt/preparation 只在该 revision ch
 candidate outcome。
 
 ## 5. Public Schema 与 Logical Value
+
+### 实际消费端的日期能力声明
+
+`GetSchemaPageRequest` 和 `ViewMutationRequest` 接受 `calendarQueryVersion?: 2`。
+这是理解 `calendar-period` 的实际 UI/Kernel/CLI 显式声明，不等同于 Runtime
+广告的能力。通用 SDK、RPC、HTTP、JNI 和 C FFI 仅保真透传，不能因桥接版本
+更新而替旧 UI 声明。未声明时，新语法 View 返回 `queryStatus="unsupported"`
+和完整原始 opaque query；声明 2 且 Runtime 支持时才返回 supported。
+按每次请求投影，不能跨客户端保留声明。schema cursor/cache 绑定声明，续页
+省略或改变声明返回 invalid-query。更新已有 period View 的 query 必须声明 2，
+包括清空、仅 sort 的整查询替换和嵌套条件。metadata-only 改动允许并保留 query。
+批次不能绕过检查，失败整批回滚。新语法和显式 upgrade/restore 本身是新语义请求。
+
+首次保存 period 或显式升级/恢复日期查询，必须同事务写入 File §20 的精确
+required feature `eidos:calendar-query@2`，不能替换未知版本/config。实际 feature
+计数与 descriptor 包含该声明，恢复和删除最后一个 period 后保留。
+升级预览说明“更新后，此文件需要支持新版日期筛选的 Eidos。”恢复条件不会
+恢复旧版本兼容。
 
 ### 5.1 无损 scalar binding
 
@@ -809,17 +828,18 @@ interface FieldDescriptor {
   definition?: RelationDefinition | FormulaDefinition | LookupDefinition
 }
 
-interface ViewDescriptor {
+type ViewDescriptor = {
   object: "view"
   id: string
   tableId: string
   name: string
   type: string
-  queryStatus?: "supported" | "unsupported"
-  query: SavedViewQuery
   layout: JsonObject
   position: string
-}
+} & (
+  | { queryStatus?: "supported"; query: SavedViewQuery }
+  | { queryStatus: "unsupported"; query: JsonObject }
+)
 
 interface FeatureDescriptor {
   object: "feature"
@@ -836,6 +856,7 @@ type SchemaDescriptor =
   | FeatureDescriptor
 
 interface GetSchemaPageRequest {
+  calendarQueryVersion?: 2
   revision: string
   limit: number
   cursor?: string
@@ -931,6 +952,7 @@ type ResolvedRelationItem =
     }
 
 interface RowPage {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -986,7 +1008,7 @@ lowercase 64-character SHA-256：
 
 ### 6.2 Page 与 batch 不变量
 
-含 `calendar-day` 的 query，其 `queryRows` MUST 返回 `total`：以无符号十进制
+含 `calendar-period` 的 query，其 `queryRows` MUST 返回 `referenceInstant` 与 `total`：以无符号十进制
 字符串表示的精确匹配数，与 page 在同一 read transaction、同一根 reference instant
 下计算。续页的 rows 与 count 都保留 cursor 的 reference instant。Consumer MUST NOT
 另发请求以新的 reference instant 重算该 count。其他 query MAY 返回具有相同一致性
@@ -1063,17 +1085,10 @@ type FilterNode =
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
   | {
-      op: "relative-date"
+      op: "calendar-period"
       fieldId: string
-      direction: "past" | "next" | "this"
       unit: "day" | "week" | "month" | "year"
-    }
-  | {
-      op: "calendar-day"
-      fieldId: string
-      day: "yesterday" | "today" | "tomorrow"
-      timeZone: string
-      timeZoneData: string
+      offset: -1 | 0 | 1
     }
 ```
 
@@ -1208,24 +1223,12 @@ Runtime 还会执行 Field/type/limit validation。
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["op", "fieldId", "direction", "unit"],
+          "required": ["op", "fieldId", "unit", "offset"],
           "properties": {
-            "op": { "const": "relative-date" },
+            "op": { "const": "calendar-period" },
             "fieldId": { "$ref": "#/$defs/id" },
-            "direction": { "enum": ["past", "next", "this"] },
-            "unit": { "enum": ["day", "week", "month", "year"] }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["op", "fieldId", "day", "timeZone", "timeZoneData"],
-          "properties": {
-            "op": { "const": "calendar-day" },
-            "fieldId": { "$ref": "#/$defs/id" },
-            "day": { "enum": ["yesterday", "today", "tomorrow"] },
-            "timeZone": { "type": "string", "minLength": 1 },
-            "timeZoneData": { "type": "string", "minLength": 1 }
+            "unit": { "enum": ["day", "week", "month", "year"] },
+            "offset": { "enum": [-1, 0, 1] }
           }
         }
       ]
@@ -1273,8 +1276,7 @@ Operator/type compatibility 是 normative：
 | `contains`、`starts-with`、`ends-with`     | `text`、`url`、`select`、`row-id`                       |
 | `has-any`、`has-all`                       | Multi-select、Relation、File 与每个 public list TypeRef |
 | `relation-has`                             | forward 或 inverse Relation                             |
-| `relative-date`                            | `date`、`datetime`                                      |
-| `calendar-day`                             | `date`, `datetime`                                      |
+| `calendar-period`                          | `date`, `datetime`                                      |
 
 Operand MUST 具有 Field 的精确 logical type；Runtime 不执行 string、number、
 Boolean、date 或 ID coercion。`eq` 使用 typed exact equality，`ne` 使用其
@@ -1284,43 +1286,59 @@ list/Multi-select/File/Relation 使用 length 加 ordered typed element equality
 `ends-with` 在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode scalar sequence；
 非 ASCII 保持不变。`search` 使用同一 portable fold。
 
-`relative-date` 通过 direction 与 unit 组合能力，而不是枚举每个快捷条件。Runtime
-在 root query request 开始时捕获一个 canonical UTC reference instant `R`，同一
-request 的所有 relative leaf 使用同一个 `R`。对于 `past` 与 `next`，day 和 week
-分别是一个或七个精确的 24-hour day；month 和 year 将 `R` 按 UTC calendar 移动
-一个单位，并把 day clamp 到 target month 最后一个 valid day。past 与 next window
-均包含首尾，分别为 `[boundary,R]` 与 `[R,boundary]`。
+`calendar-period` 是唯一的相对日历条件，需要 `calendarQueryVersion:2` 和已广告的
+`calendarPeriodTimeZoneData`。leaf 仅保存 Field ID、unit 与 offset。offset -1/0/1
+分别选择完整的上一／当前／下一本地 Gregorian 日、周、月或年，绝不表示滚动时长。
+周起始复用应用现有周一／周日配置；没有配置时产品默认周一，不新增设置。
 
-对于 `this`，Runtime 选择包含 `R` 的 UTC calendar period：day 从 00:00 到当天最后
-一毫秒；week 使用 ISO 周一到周日；month 是当前 calendar month；year 是当前 calendar
-year。Datetime 比较 exact canonical instant；Date 则先把两个 bound 投影为 UTC
-`YYYY-MM-DD` date，再进行 inclusive comparison。continuation cursor 必须绑定原始
-`R`，同一 query 的分页不能让 window 移动。新的 root request（包括重新打开 saved
-View）捕获新的 `R`；saved relative filter 因而持续保持 relative，绝不能被替换为
-persisted absolute date。
+查询操作把执行信息放在 request，不能放进 `RowQuery`／`SavedViewQuery`：
 
-`calendar-day` 是独立的可选日历条件。必填 `timeZone` 是所选 `timeZoneData`
-profile 中精确的 IANA 区域名或别名，不接受 `system` 或隐式宿主 offset。
-可选 capability `calendarDayTimeZoneData` 列出支持的 profile，缺席表示不支持。
-默认 profile 明确为 **2026f**，只有 capability 声明支持时才能选择，不能取数组首项。
-2026f 使用 IANA 2026f 的区域、link 和 offset 规则，支持当地 Gregorian 年份
-1970–2499；不指定某个实现库。更新必须保留已命名 profile 的含义，否则以
-`unsupported` 拒绝不可用 profile。
+```ts
+interface CalendarQueryExecution {
+  calendar?: {
+    timeZone: string
+    timeZoneData: string
+    weekStartsOn: 0 | 1 // 周日／周一
+  }
+  referenceInstant?: string
+}
+```
 
-Runtime 用同一根参考 instant `R` 按指定规则得到当地日历日期，再按 yesterday、
-today、tomorrow 加减 -1、0、+1 日。Date 比较字面日期；Datetime 匹配该日期在
-分段 UTC offset 下的逆像，采用半开 instant 区间。23/25 小时日、非整小时跳变、
-重复午夜和跳过整日不能替换为 24 小时窗口或猜测午夜；跳过的日期没有匹配 instant。
-null 为 false，日期与 UTC instant 存储不变。普通存储值超出 profile 年份只是不匹配；
-参考日或目标日越界返回 `unsupported`。结构错误、非日期 Field 或已知 profile 中的
-未知区域返回 `invalid-query`；不可用 profile 返回 `unsupported`。
+这些字段适用于 `queryRows`、`queryRowPages`、`aggregate`、`groupRows`、
+`queryGroupRows`、`getRecordNeighbors` 及受支持的按查询导出。它们不是通用
+`RequestContext` metadata、AST 成员、View 状态或第二份时区配置。Host 将当前应用
+配置（含 system）解析为明确 IANA 名／alias，Runtime MUST NOT 猜 OS 区域或默退 UTC。
+含新 leaf 的 request 必须给完整 `calendar`；无此 leaf 不要求 calendar context。
+未知成员、缺上下文、system、非法 weekStartsOn、已知 profile 内未知区域或非日期
+Field 返回 `invalid-query`；不可用规则／profile 返回 `unsupported`。
 
-聚合、分组、相邻记录、批量页等 query 通路共享一个根 `R`。包括 group/group-row
-在内的续页 cursor 绑定该 `R` 及完整 day/zone/profile 条件，条件改变不能复用 cursor。
-保存和重开保留日历 AST、重新取得 `R`，不保存绝对日期。已存未知 operator/profile
-按 View 兼容规则原样保留为 unsupported query；已知但畸形的语法仍无效。
-混合 profile 不因此成为结构无效的 AST，各 leaf 按能力求值；UI 可以要求一致的
-展示 profile。旧 `relative-date` 的 UTC、包含端点滚动语义及 Date 边界投影保持不变。
+默认 portable profile 明确为已广告的 **2026f**，不按数组第一项选择；它定义本地
+Gregorian 年 1970–2499 的 IANA 名、链接与规则。命名 profile 保持语义稳定。根参考
+或目标周期越界返回 `unsupported`；普通已存越界值只是不匹配。UTC 继续作为 Datetime
+内部存储表示，用户配置 UTC 时按该区域计算，不另建 UTC 筛选模型。
+
+新根从 ClockPort 采样一次 canonical UTC 参考点 R。显式 canonical `referenceInstant`
+复用调用方已有根 R，非法 instant 返回 `invalid-query`。Runtime 通过传入规则投影 R，
+计算半开本地日期范围 `[startDate,endDate)`。Date 按字面日期比较，不偏移时区；Datetime
+使用同一分段 offset 规则的完整逆像，以半开 instant 区间匹配。DST23／25h、非整小时
+变化、重复午夜与整日跳过不得替换为固定24小时或猜测午夜。跳过日期可匹配字面 Date，
+但无匹配 instant。Null 在 NOT／AND／OR 组合前为 false。存储 Date／Datetime 不改写。
+
+例如 R=2026-01-01T00:30:00.000Z，上海今天为 Date 2026-01-01，Datetime 范围
+[2025-12-31T16:00Z,2026-01-01T16:00Z)；纽约今天为 Date 2025-12-31，范围
+[2025-12-31T05:00Z,2026-01-01T05:00Z)。纽约2026-03-08日从05:00Z到次日04:00Z，
+不是24小时。
+
+同一根的 rows、精确 total、group、neighbour、批页及受支持导出使用同一 R 和完整
+calendar context。日历响应暴露 referenceInstant，以便关联读取复用。所有续页绑定
+R、query、已解析区域／profile／周起始；任何上下文字段变化或显式不同 R 均使旧 cursor
+以 `invalid-query` 失效。应用配置变化时 Host 清分页缓存并建立新根。保存、复制、重开、
+升级 View 不得持久化配置、R 或 absolute bounds。
+
+已淘汰的 `relative-date`／`calendar-day` 仅保留 wire 识别、诊断与显式升级。合法旧查询
+不执行并返回 `unsupported`；已知结构非法返回 `invalid-query`。它们不再广告能力，也
+不是 UTC／冻结区域旁路。已存旧查询保持 opaque unsupported View，直到§11.5明确升级。
+升级不能吞掉任意非日期未知语义。
 
 Multi-select、File、Relation 与 list result 使用 `[]`，绝不使用 null。因此 empty
 list 与 null 不同：empty list 上 `eq []` 为 TRUE、`is-null` 为 FALSE，与 non-empty
@@ -1391,7 +1409,7 @@ null 表示序列边界，不循环切换。Runtime MUST 在一次一致性读�
 View ID 推断视觉分组顺序或日历范围。
 
 ```ts
-interface QueryRowsRequest {
+interface QueryRowsRequest extends CalendarQueryExecution {
   tableId: string
   query: RowQuery
   projection: ProjectionSpec
@@ -1431,7 +1449,7 @@ logical value。`limit`、paging direction 与 cursor 本身不属于 query hash
 ### 7.3 Aggregate 与 column statistics
 
 ```ts
-interface AggregateRequest {
+interface AggregateRequest extends CalendarQueryExecution {
   tableId: string
   query?: RowQuery
   items: AggregateItem[]
@@ -1661,7 +1679,7 @@ interface GroupPage {
   previousCursor: string | null
 }
 
-interface GroupRowsRequest {
+interface GroupRowsRequest extends CalendarQueryExecution {
   cursor: string
   limit: number
   direction?: "forward" | "backward"
@@ -2554,8 +2572,11 @@ type ViewChange =
       }
     }
   | { kind: "delete-view"; viewId: string }
+  | { kind: "upgrade-date-query"; viewId: string }
+  | { kind: "restore-date-query"; viewId: string }
 
 interface ViewMutationRequest {
+  calendarQueryVersion?: 2
   expectedRevision: string
   changes: ViewChange[]
 }
@@ -2577,6 +2598,22 @@ canonical int64 decimal string，且只通过 explicit patch 改变；Runtime �
 invent append position。`createdViews` 遵循 create-change order，
 `affectedViewIds` unique 且按 `BINARY` order 排列。View change 遵循上述精确的
 no-op、expected-revision、timestamp、single-increment 与 rollback rule。
+
+`upgrade-date-query` 用 canonical `upgradeEidosFileDateQuery` helper 预览，经 mutateView
+按 expectedRevision、no-op、timestamp、单次 revision 与失败回滚规则原子提交。
+calendar-day 的昨天／今天／明天变为 day -1/0/1；relative-date 的 past／this／next
+变为同 unit -1/0/1。这是明确改义：过去7天变为完整上周，Host 在操作前展示前后含义。
+未知或非法节点拒绝整次升级；AND／OR／NOT、其他 operand、sort 与 layout 保留，不删
+条件。已升级查询重试为 no-op。
+
+保留的开放 layout key `space.eidos/date-query-upgrade` 存一份有界恢复回执
+`{version:2,originalQuery,changes}`，UTF-8 JCS 最多65,536字节。它只备份原查询，绝非
+执行上下文、规则 preference 或查询权威。升级不覆盖首份回执；普通 layout 保存、
+重命名、复制和无关编辑保留它。回执过大／非法时整事务失败，不能留下半升级 View。
+不新增表或通用 history。restore-date-query 恢复原文并保持 unsupported，绝不启用旧
+UTC 路线。缺失／非法恢复 metadata 返回 invalid-value；原查询与当前字段不兼容时拒绝
+恢复。CLI schema view upgrade-dates 默认在私有副本预览，--apply 经 Runtime 提交，
+--restore 预览／恢复原查询；迁移流程不使用 raw SQL write。
 
 ## 12. Schema Preflight、Reference Rewrite 与 Conversion
 
@@ -3163,20 +3200,20 @@ interface SavedViewQuery {
 search 合并为 `RowQuery` request，但不持久化 search。Runtime 针对 View 的 Table
 验证每个 saved Field ID/operator/value。
 
-Runtime 能理解完整 stored query 时，`ViewDescriptor.queryStatus` 为
-`"supported"`，`query` 可执行。该 member 仅为 transport compatibility 而 optional；
-缺省等同 `"supported"`。若 stored operator、sort semantic 或 query member 来自更新
-Runtime，Runtime 返回 `queryStatus:"unsupported"`，在 `query` 中返回不可执行的
-`{}` placeholder，并在内部保留原始 canonical query document。不得把 placeholder
-当作该 View query 执行。省略 `query` 的 `mutateView` patch 必须原样保留原 document；
-显式提供 `query` 才替换它。duplicate 必须原样保留 opaque document，或以
-`unsupported` 失败；不得创建 partial copy。
+Runtime 理解完整 stored query 时，queryStatus 为 supported，query 可执行；缺省仅为
+兼容旧 transport 而等同 supported。遇到不支持的 operator、参数、sort 或 query member，
+必须明确返回 `queryStatus:"unsupported"`，且 query 携带完整原始 JsonObject（含未知成员）。
+不得替换为 `{}`、删条件或 cast 成可执行 SavedViewQuery。Client 在构造 rows／count／
+group／neighbour 请求前必须按 discriminant 分支。直接发送 opaque 文档也须校验失败
+或返回 unsupported，不能成功变成无过滤查询。
 
-malformed known syntax 仍是 `view-query-invalid`。unsupported query 不得被默默忽略，
-也不得让 unrelated Table/View 不可用。无法安全隔离到 opaque View boundary 的
-semantics 仍由 required File feature 拥有。
+省略 query 的 mutateView patch 原样保留文档。对 unsupported View 显式提供 query 的
+普通 patch 返回 unsupported，只有已定义的明确升级／恢复操作能替换它。Duplicate
+原样保留 opaque 文档或 unsupported 失败。已知非法语法在 File validation 中仍是
+view-query-invalid。Unsupported View 不影响其他 Table／View 或普通 row write；不能
+安全隔离在 View 边界的语义仍归 required File feature。
 
-Runtime 把 `layout_json` 当作 JCS object，并保留 unknown member。它不解释 grid
+除§11.5保留的有界恢复回执外，Runtime 把 `layout_json` 当作 JCS object，并保留 unknown member。它不解释 grid
 width、hidden Field、grouping presentation、card layout、selection、focus、scroll
 或 renderer state。standard layout meaning 属于 UI。Runtime `groupRows` 报告
 canonical row data 中实际存在的 group；display catalog 中 zero-row entry 是 UI
@@ -3582,10 +3619,10 @@ ER-Reader 至少覆盖：
    preview error；
 9. Formula-to-Lookup、Lookup-to-Formula、nested Lookup、flatten、typed distinct、
    所有 aggregate、deterministic DAG order 与精确 cycle path；
-10. 已公布的 calendar-day profile：UTC、正负及非整小时 offset 下 Date/Datetime
-    一致性；23/25 小时 DST 日、跳过的本地日期、左闭右开边界、单次根 clock 读取、
-    跨午夜 cursor 续页、精确 page count、保存 View 重开、未知 profile 原样保留，
-    以及旧 UTC relative-date 结果不变；
+10. calendar-query version 2：12项周期、周日／周一起始、跨年／月／闰年、正负／非整小时区、
+    DST23／25h、跳日、毫秒半开边界、NULL／NOT、越界值、Date／Datetime显示日一致；
+    count／group／neighbour／batch同根R/context、改上下文拒旧cursor；拒绝旧查询，
+    schema/wire保留opaque原文，明确升级／恢复回执与原子回滚；
 11. 所有 validation level、deterministic diagnostic/truncation、hostile schema
     object、cancellation/deadline 与 resource limit。
 

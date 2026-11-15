@@ -340,7 +340,7 @@ function Database({
   const view =
     table?.views.find((value) => value.id === viewId) ?? table?.views[0]
   const calendarProfiles =
-    snapshot.queryCapabilities?.calendarDayTimeZoneData ?? []
+    snapshot.queryCapabilities?.calendarPeriodTimeZoneData ?? []
   const calendar = eidosFileCalendarViewContext(view, calendarProfiles)
   const { translate: t } = useEidosFileUI()
   const unavailableCalendarRecord = (
@@ -348,7 +348,7 @@ function Database({
       <button onClick={() => setRecord(null)}>{mobileText("返回文件")}</button>
       <p role="status">
         {t(
-          "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile."
+          "This editor cannot use the application's calendar settings. Open this view in an updated editor."
         )}
       </p>
     </div>
@@ -659,7 +659,7 @@ function Database({
   )
   return (
     <EidosFileUIProvider
-      calendarDayTimeZoneData={calendarProfiles}
+      calendarPeriodTimeZoneData={calendarProfiles}
       calendarTimeZoneData={
         calendar.status === "supported" ? calendar.timeZoneData : null
       }
@@ -703,7 +703,8 @@ function App() {
               assets.observe(value)
               return value
             }),
-            document.path
+            document.path,
+            { calendarQueryVersion: 2 }
           )
           database = { source, initialSnapshot: await source.initialize() }
         }

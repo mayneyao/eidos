@@ -167,6 +167,16 @@ string; its Field descriptor supplies the logical type.
 
 ## 5. Bootstrap, capability negotiation, and exact clients
 
+### Calendar consumer compatibility
+
+A UI that understands calendar-period opts in explicitly with
+`calendarQueryVersion: 2` on schema reads and View mutations. Reusable data
+sources, kernels and transports default to no declaration. An SDK upgrade alone
+must not make a legacy UI editable. Unsupported queries remain opaque and block
+query execution, Apply, and duplication rather than becoming empty filters.
+The upgrade preview includes the file compatibility consequence specified by
+Runtime; recovery does not restore compatibility with older Eidos versions.
+
 ### 5.1 RuntimeClient
 
 The following generated mirror of Eidos Runtime's language-neutral binding is
@@ -1295,30 +1305,28 @@ mutation. If the later cell mutation fails, the catalog entry remains a valid
 zero-use option. This user action is distinct from forbidden implicit option
 inference during CSV import.
 
-Views containing `calendar-day` derive their display/input profile from every
-calendar leaf in the saved query, including nested AND/OR/NOT. One supported
-profile applies to Grid, cards, record/inspector panels opened from the View,
-created/updated times, date inputs and Calendar grouping/range queries/creation/
-movement. New calendar conditions resolve the user's existing display-zone
-preference to a fixed IANA zone, including the existing system-zone resolver.
-Filter controls do not offer per-condition zone selection or alignment actions.
-An existing condition retains its saved zone when opened or saved unchanged;
-one concise read-only zone hint identifies the zone actually used. For the same
-zone/profile, displayed calendar dates and filter
-membership must agree even when host rules differ. Projection and inverse
-wall-clock binding consume canonical Runtime rules, never host offsets.
-There is no extra persisted profile setting and no global profile preference.
-Views without calendar leaves retain their display behaviour. Context changes
-must preserve drafts, focus and component identity; saving an unchanged value
-must retain its original instant precision. Gap/fold input still requires an
-unambiguous instant. Out-of-range values show their canonical raw value with an
-explicit presentation limitation rather than fail an otherwise valid row page
-or silently use host rules. Mixed/unavailable display profiles preserve the
-query and show an unsupported presentation with explicit condition-editing
-recovery; they must not select the first profile, classify valid Runtime syntax
-as invalid, or show a successful partial/unfiltered view. Native UI must consume
-the same canonical projection/inverse bridge or explicitly mark that new View's
-presentation unsupported.
+For `calendarQueryVersion:2`, all shared Grid, card, record/inspector, created/
+updated time, date input and Calendar surfaces use the negotiated portable
+profile with the current application time-zone preference. The default supported
+profile is explicitly 2026f, not the first capability entry. A saved filter MUST
+NOT choose presentation rules or retain another authoritative time zone. Host
+resolves system to an IANA name and sends the same zone/profile and existing
+week-start preference as query execution context. No additional setting is
+introduced. Changing application preferences recomputes filters, display and
+input together, starts a new root and invalidates old page/cursor caches without
+rewriting stored dates, instants or View conditions.
+
+For the same displayed calendar date, Date literal membership and Datetime
+projection membership agree. Projection and inverse wall-clock binding use
+canonical Runtime rules rather than host offsets. Context changes preserve
+drafts, focus and component identity. Saving an unchanged value retains its
+original instant precision; gap/fold input requires an unambiguous instant.
+Values outside portable rule years display their original canonical value,
+with editing explicitly unavailable rather than failing the row page or using
+host rules. Unavailable Runtime/profile combinations preserve the query and show
+unsupported state; they MUST NOT render a successful partial or unfiltered View.
+Native UI consumes the same canonical projection/inverse bridge or explicitly
+restricts calendar-period Views while preserving their data.
 
 Date input sends the calendar value unchanged. Datetime display uses a
 user- or Host-selected IANA time-zone identifier and clearly exposes it near
@@ -1705,40 +1713,39 @@ without changing their membership. A Host-supplied custom filter editor MAY
 retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
-after**, **is on or before**, **is on or after**, **is between**, **Calendar
-day**, **Date range (UTC)**, **is empty**, and **is not empty**. **Is between** accepts an
-ordered inclusive lower and upper value and emits `between`.
+after**, **is on or before**, **is on or after**, **is between**, **Relative
+date**, **is empty**, and **is not empty**. Is between emits the inclusive
+`between` predicate. There is one relative-date entry and no parallel UTC range,
+calendar-day entry, per-condition zone selector, frozen-zone hint, rules version,
+or permanent technical tip.
 
-**Calendar day** exposes Yesterday/Today/Tomorrow and persists one `calendar-day`
-leaf. Creation resolves the user's configured display zone, rather than the
-browser's system zone when an explicit preference exists. The saved zone is
-read-only here; the Host's existing time-zone setting supplies defaults for new conditions.
-Opening the filter or applying unrelated edits MUST NOT rewrite an existing
-condition's zone/profile. The supported default profile (2026f) remains an
-internal capability choice, not a user-facing version control or permanent tip.
-An unavailable configured zone must not silently fall back to UTC or another
-zone. Ordinary controls cannot create mixed profiles. Existing
-`relative-date` conditions remain visibly labelled **Date range (UTC)**;
-Current means a UTC period, and Past/Future retain inclusive rolling boundaries
-with Date precision projection. Choosing Tomorrow is an explicit new condition,
-not a reinterpretation of an existing Future/day filter.
+Relative date exposes exactly Yesterday/Today/Tomorrow, Last/This/Next week,
+Last/This/Next month, and Last/This/Next year. Each selects a complete local
+calendar period through `calendar-period` with unit day/week/month/year and
+offset -1/0/1. It never saves current application zone/profile/week start, an
+absolute date or a rolling duration. Weeks use Calendar's existing preference,
+with Monday as the default. A 23/25-hour local day remains that day. The user has
+one existing application time-zone setting; UTC has no separate default filter
+semantics. This capability revision provides no rolling-duration control.
 
-**Date range (UTC)** exposes a direction (**past**, **next**, or **this**)
-and a unit (**day**, **week**, **month**, or **year**) and emits one
-`relative-date` leaf. The control persists direction and unit in the View and
-MUST NOT freeze the condition into absolute dates. Reopening it preserves both
-selections while Runtime remains authoritative for the reference instant,
-calendar-period rules, and inclusive boundaries. Past/Future day and week units
-are labelled **24 hours** and **7 days**, not the previous/next calendar day or
-week. Help is available on demand in plain, localized language about the chosen
-range. No permanent implementation explanation is shown. A range preview MAY
-reuse canonical results, without a separate UI date evaluator.
+New UI MUST NOT revive old UTC semantics when connected to an older Runtime.
+Retired date queries are locally treated as unsupported even if that Runtime
+reports them supported. Missing version-2 capability prevents creation and
+upgrade. A supported new Runtime rejects old executable queries. Unsupported
+Views retain their complete query, cannot send unfiltered rows/count/groups, and
+cannot apply ordinary filter/sort changes. Only an actually retired query with a
+complete safe preview exposes **Update date filters**. The localized preview
+shows changed meanings, such as Past 7 days → Last week and Today (saved time
+zone) → Today using current settings, before the action. The action performs the
+canonical atomic upgrade and preserves its recovery receipt. Arbitrary non-date
+unknown queries offer no date upgrade. Ordinary new filters expose no migration
+or version tools.
 
 Filter rows keep Field, operator, value and Delete aligned at a compact common
 height when their text fits. Long operator text remains readable and can grow
 vertically rather than overflowing a fixed-height trigger. Narrow filter
 containers place values on a second row without horizontal overflow. Secondary
-help and zone hints do not create large empty columns or expand the popover.
+controls do not create large empty columns or expand the popover.
 
 The common Fields control and the applicable Grid, Card, Kanban, Calendar, and
 Form controls from Eidos Standard Views 1.0 are required Editor surfaces, not

@@ -50,7 +50,7 @@ describe("Eidos File field query capabilities", () => {
       "is-not-empty",
     ])
     expect(eidosFileTypeRefQueryCapabilities("date").filterOperators).toContain(
-      "is-relative-to-today"
+      "is-in-calendar-period"
     )
     expect(eidosFileTypeRefQueryCapabilities("row-id")).toMatchObject({
       searchable: true,

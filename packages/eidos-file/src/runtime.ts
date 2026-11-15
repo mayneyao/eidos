@@ -1,4 +1,10 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import { hasEidosFileCalendarPeriodQuery } from "./calendar-period"
+import {
+  enableCalendarQueryFeature,
+  hasCalendarQueryFeature,
+  requireCalendarQueryFeature,
+} from "./calendar-query-feature"
 import {
   isEidosFileCalendarDayValue,
   assertEidosFileCalendarZone,
@@ -112,6 +118,13 @@ import type {
   UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "./types"
+import { isEidosFileCalendarPeriodValue } from "./calendar-period"
+import {
+  upgradeEidosFileDateQuery,
+  eidosFileDateQueryUpgradeReceipt,
+  EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT,
+  EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT_MAX_BYTES,
+} from "./calendar-query-upgrade"
 import { validateEidosFile } from "./validation"
 
 interface TableRow {
@@ -751,6 +764,7 @@ function filterToStorage(
   filter: EidosFileFilterGroup | null | undefined,
   fields: EidosFileFieldInfo[]
 ): Record<string, unknown> | null {
+  if (filter) assertEidosFileRowQuery({ filter })
   const normalized = normalizeEidosFileFilter(filter)
   if (!normalized) return null
   const byKey = new Map<string, EidosFileFieldInfo>()
@@ -796,13 +810,24 @@ function filterToStorage(
         ? { fieldId, op: "has-any", values: requireValues() }
         : { fieldId, op: "in", values: requireValues() }
 
+    if (rule.operator === "is-in-calendar-period") {
+      if (!isEidosFileCalendarPeriodValue(rule.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Saved calendar period is invalid"
+        )
+      return { op: "calendar-period", fieldId, ...rule.value }
+    }
     if (rule.operator === "is-on-calendar-day") {
       if (!isEidosFileCalendarDayValue(rule.value))
         throw new EidosFileError(
           "invalid-query",
           "Saved View calendar day filter is invalid"
         )
-      return { op: "calendar-day", fieldId, ...rule.value }
+      throw new EidosFileError(
+        "unsupported-feature",
+        "Retired calendar-day query requires an explicit date filter upgrade"
+      )
     }
     if (rule.operator === "is-relative-to-today") {
       const relative = rule.value
@@ -820,12 +845,10 @@ function filterToStorage(
           "Saved View relative date filter is invalid"
         )
       }
-      return {
-        direction: relative.direction,
-        fieldId,
-        op: "relative-date",
-        unit: relative.unit,
-      }
+      throw new EidosFileError(
+        "unsupported-feature",
+        "Retired relative-date query requires an explicit date filter upgrade"
+      )
     }
     if (rule.operator === "is-between") {
       if (
@@ -987,6 +1010,14 @@ function filterFromStorage(
         value: [node.lower, node.upper] as never,
       }
     }
+    if (node.op === "calendar-period") {
+      return {
+        type: "rule",
+        field,
+        operator: "is-in-calendar-period",
+        value: { unit: node.unit, offset: node.offset } as never,
+      }
+    }
     if (node.op === "calendar-day") {
       return {
         type: "rule",
@@ -1107,6 +1138,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "relation-has",
   "relative-date",
   "calendar-day",
+  "calendar-period",
 ])
 
 function sortsFromStorage(value: unknown): EidosFileSort[] {
@@ -1159,32 +1191,13 @@ function storedViewQueryStatus(
     operator: EidosFileFilterRule["operator"],
     value: unknown
   ): boolean => {
-    if (operator === "is-on-calendar-day") {
-      if (
-        !isEidosFileCalendarDayValue(value) ||
-        !supportsEidosFileCalendarProfile(value.timeZoneData)
-      )
-        return false
-      try {
-        assertEidosFileCalendarZone(value.timeZone, value.timeZoneData)
-        return true
-      } catch {
-        return false
-      }
-    }
-    if (operator === "is-relative-to-today") {
-      if (!value || typeof value !== "object" || Array.isArray(value)) {
-        return false
-      }
-      const relative = value as Record<string, unknown>
-      return (
-        Object.keys(relative).every(
-          (key) => key === "direction" || key === "unit"
-        ) &&
-        ["past", "next", "this"].includes(String(relative.direction)) &&
-        ["day", "week", "month", "year"].includes(String(relative.unit))
-      )
-    }
+    if (operator === "is-in-calendar-period")
+      return isEidosFileCalendarPeriodValue(value)
+    if (
+      operator === "is-on-calendar-day" ||
+      operator === "is-relative-to-today"
+    )
+      return false
     if (operator === "is-between") {
       return (
         Array.isArray(value) &&
@@ -1255,6 +1268,18 @@ function storedViewQueryStatus(
       } else if (node.op === "relation-has") {
         allowed.add("rowId")
         if (typeof node.rowId !== "string") return false
+      } else if (node.op === "calendar-period") {
+        allowed.add("unit")
+        allowed.add("offset")
+        if (
+          !isEidosFileCalendarPeriodValue({
+            unit: node.unit,
+            offset: node.offset,
+          })
+        )
+          return false
+      } else if (node.op === "calendar-day" || node.op === "relative-date") {
+        return false
       } else if (node.op === "calendar-day") {
         allowed.add("day")
         allowed.add("timeZone")
@@ -1341,6 +1366,7 @@ export class EidosFileRuntime {
     | undefined
   private readonly nowInstant: () => string
   private requestInstant: string | undefined
+  private batchQuerySequence = 0
   private readonly allocateId: () => string
 
   constructor(
@@ -3477,6 +3503,8 @@ export class EidosFileRuntime {
     const tableId = uuid(row.table_id)
     const fields = this.listFields(tableId)
     const query = jsonObject(row.query_json)
+    if (hasEidosFileCalendarPeriodQuery(query))
+      requireCalendarQueryFeature(this.connection)
     const layout = jsonObject(row.layout_json)
     const queryStatus = storedViewQueryStatus(query, fields)
     const storedSorts = sortsFromStorage(query.sort)
@@ -3612,6 +3640,12 @@ export class EidosFileRuntime {
     const mappedLayoutField = (value: unknown): string | null =>
       typeof value === "string" ? (fieldByKey.get(value) ?? null) : null
     return this.mutate(() => {
+      if (
+        hasEidosFileCalendarPeriodQuery({
+          filter: filterToStorage(input.filter, fields),
+        })
+      )
+        enableCalendarQueryFeature(this.connection)
       this.connection.run(
         `INSERT INTO ${EIDOS_FILE_VIEWS_TABLE}
           (id, table_id, name, type, query_json, layout_json, position, created_at, updated_at)
@@ -3654,6 +3688,126 @@ export class EidosFileRuntime {
   ): EidosFileViewInfo {
     const currentRow = this.viewRow(viewId)
     const current = this.mapView(currentRow)
+    if (changes.upgradeDateQuery || changes.restoreDateQuery) {
+      if (
+        Object.keys(changes).some(
+          (key) => key !== "upgradeDateQuery" && key !== "restoreDateQuery"
+        ) ||
+        (changes.upgradeDateQuery && changes.restoreDateQuery)
+      )
+        throw new EidosFileError(
+          "invalid-value",
+          "Date query upgrade/restore must be a separate View change"
+        )
+      const source = parseEidosFileJson(currentRow.query_json)
+      const layout = parseEidosFileJson(currentRow.layout_json) as Record<
+        string,
+        unknown
+      >
+      const retained = layout[EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT]
+      if (retained !== undefined) {
+        if (
+          !retained ||
+          typeof retained !== "object" ||
+          Array.isArray(retained) ||
+          Object.keys(retained).some(
+            (key) => !["version", "originalQuery", "changes"].includes(key)
+          )
+        )
+          throw new EidosFileError(
+            "invalid-value",
+            "Existing date query recovery receipt is invalid"
+          )
+        if (
+          new TextEncoder().encode(canonicalizeEidosFileJson(retained))
+            .byteLength > EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT_MAX_BYTES
+        )
+          throw new EidosFileError(
+            "query-limit",
+            "Date query recovery receipt exceeds 65536 bytes"
+          )
+      }
+      let target: unknown
+      let receipt = retained
+      if (changes.restoreDateQuery) {
+        if (
+          !retained ||
+          typeof retained !== "object" ||
+          Array.isArray(retained) ||
+          !("originalQuery" in retained) ||
+          !("version" in retained) ||
+          retained.version !== 2
+        )
+          throw new EidosFileError(
+            "invalid-value",
+            "No date query recovery receipt is available"
+          )
+        target = retained.originalQuery
+        const preview = upgradeEidosFileDateQuery(target)
+        if (!preview.changes.length)
+          throw new EidosFileError(
+            "invalid-value",
+            "Recovery receipt has no retired date query"
+          )
+        eidosFileDateQueryUpgradeReceipt(target, preview)
+      } else {
+        const preview = upgradeEidosFileDateQuery(source)
+        if (!preview.changes.length) return current
+        target = preview.query
+        if (retained !== undefined) {
+          if (
+            !retained ||
+            typeof retained !== "object" ||
+            Array.isArray(retained) ||
+            !("version" in retained) ||
+            retained.version !== 2 ||
+            !("originalQuery" in retained)
+          )
+            throw new EidosFileError(
+              "invalid-value",
+              "Existing date query recovery receipt is invalid"
+            )
+          const original = upgradeEidosFileDateQuery(retained.originalQuery)
+          if (!original.changes.length)
+            throw new EidosFileError(
+              "invalid-value",
+              "Recovery receipt has no retired date query"
+            )
+          eidosFileDateQueryUpgradeReceipt(retained.originalQuery, original)
+        }
+        receipt ??= eidosFileDateQueryUpgradeReceipt(source, preview)
+      }
+      const queryJson = canonicalizeEidosFileJson(target)
+      if (
+        queryJson === currentRow.query_json &&
+        hasCalendarQueryFeature(this.connection)
+      )
+        return current
+      return this.mutate(() => {
+        enableCalendarQueryFeature(this.connection)
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET query_json = ?, layout_json = ?, updated_at = ? WHERE id = ?`,
+          [
+            queryJson,
+            canonicalizeEidosFileJson({
+              ...layout,
+              [EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT]: receipt,
+            }),
+            this.operationInstant(),
+            viewId,
+          ]
+        )
+        return this.mapView(this.viewRow(viewId))
+      })
+    }
+    if (
+      current.queryStatus === "unsupported" &&
+      (changes.filter !== undefined || changes.sorts !== undefined)
+    )
+      throw new EidosFileError(
+        "unsupported-feature",
+        "Unsupported View query must be upgraded explicitly before editing"
+      )
     const fields = this.listFields(current.tableId)
     const name = assertEidosFileDisplayName(
       changes.name ?? current.name,
@@ -3683,7 +3837,17 @@ export class EidosFileRuntime {
       properties:
         changes.properties === undefined
           ? current.properties
-          : changes.properties,
+          : {
+              ...changes.properties,
+              ...(current.properties?.[
+                EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT
+              ] !== undefined
+                ? {
+                    [EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT]:
+                      current.properties[EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT],
+                  }
+                : {}),
+            },
       filter: changes.filter === undefined ? current.filter : changes.filter,
       sorts: changes.sorts === undefined ? current.sorts : changes.sorts,
       orderMap:
@@ -3700,6 +3864,13 @@ export class EidosFileRuntime {
       changes.orderMap !== undefined ||
       changes.hiddenFields !== undefined
     return this.mutate(() => {
+      if (
+        queryChanged &&
+        hasEidosFileCalendarPeriodQuery({
+          filter: filterToStorage(next.filter, fields),
+        })
+      )
+        enableCalendarQueryFeature(this.connection)
       const fieldByKey = new Map(
         fields.flatMap((field) =>
           field.id
@@ -4270,7 +4441,7 @@ export class EidosFileRuntime {
     let effectiveOffset = offset
     let cursorWhere = ""
     let cursorParams: EidosFileSqlPrimitive[] = []
-    let referenceInstant = this.nowInstant()
+    let referenceInstant = compatibleQuery.referenceInstant ?? this.nowInstant()
     if (cursor) {
       try {
         const payload = JSON.parse(decodeURIComponent(cursor)) as {
@@ -4414,7 +4585,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
     const targetWhere = compiled.whereSql
@@ -4459,7 +4630,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const targetWhere = compiled.whereSql
       ? `${compiled.whereSql} AND "__base_rowid" = ?`
@@ -4582,12 +4753,22 @@ export class EidosFileRuntime {
         ])
       )
     )
-    const referenceInstant = this.nowInstant()
+    const referenceInstant = queries[0]?.referenceInstant ?? this.nowInstant()
     const compiled = compatible.map((query) =>
       compileEidosFileRowQuery(source.fields, query, { referenceInstant })
     )
     // A fresh internal alias avoids collisions with user-defined physical names.
-    const prefix = `__batch_${this.allocateId().replaceAll("-", "")}`
+    // SQL-local aliases need no UUID allocation or second read of the ClockPort.
+    const columnNames = new Set(
+      source.fields.map((field) => field.tableColumnName)
+    )
+    let prefix: string
+    do {
+      prefix = `__batch_${++this.batchQuerySequence}`
+    } while (
+      columnNames.has(`${prefix}_page`) ||
+      columnNames.has(`${prefix}_count`)
+    )
     const batchKey = `${prefix}_page`
     const countKey = `${prefix}_count`
     const params: EidosFileSqlPrimitive[] = []
@@ -4771,7 +4952,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const selectedFields = fieldIds.map((fieldId) =>
       this.fieldByKey(tableId, fieldId)
@@ -4925,7 +5106,7 @@ export class EidosFileRuntime {
         ),
         lastId: row.id,
         direction: "forward",
-        referenceInstant: this.nowInstant(),
+        referenceInstant: query.referenceInstant ?? this.nowInstant(),
       })
     )
   }
@@ -4933,7 +5114,7 @@ export class EidosFileRuntime {
   countRows(
     tableId: string,
     query: EidosFileRowQuery = {},
-    referenceInstant = this.nowInstant()
+    referenceInstant = query.referenceInstant ?? this.nowInstant()
   ): number {
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
@@ -4971,7 +5152,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const column = quoteIdentifier(field.tableColumnName)
     if (
@@ -5021,7 +5202,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     return configs.map((config) => {
       const field = this.fieldByKey(tableId, config.fieldId)
@@ -5119,7 +5300,7 @@ export class EidosFileRuntime {
     )
 
     const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
-      referenceInstant: this.nowInstant(),
+      referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
 
     let metricSql = "count(*)"

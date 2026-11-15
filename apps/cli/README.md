@@ -577,3 +577,26 @@ instance serves one host lifecycle and exits when its input closes.
 ## License
 
 AGPL-3.0
+
+## Relative date filters
+
+Date filters use complete days, weeks, months, or years in an explicitly chosen
+time zone. Query requests use `--time-zone America/New_York`, optionally
+`--week-start sunday`; the default week begins Monday. `--reference-instant`
+can reuse a previous query's canonical UTC reference across related reads.
+The time zone and reference are execution preferences, never saved in a View.
+
+For existing saved date conditions, preview before applying:
+
+```bash
+eidos --json schema view upgrade-dates records.eidos "Upcoming"
+eidos --json schema view upgrade-dates records.eidos "Upcoming" --apply
+```
+
+The preview shows the original and replacement query and keeps the source file
+unchanged. For example, a rolling past week becomes the complete previous
+calendar week. Updating requires Eidos with the new date filters for this entire
+file. The original conditions remain in a recovery receipt. To preview and
+apply their restoration, add `--restore`, then `--restore --apply`. Restoration
+returns the conditions as unsupported; it does not restore their previous
+execution behavior or compatibility with older Eidos versions.

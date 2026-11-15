@@ -7,6 +7,8 @@ use eidos_runtime_host::{
 };
 use serde_json::{json, Value};
 
+#[cfg(test)]
+mod calendar_conformance;
 pub mod cancellation;
 mod encrypted_sync;
 #[cfg(test)]

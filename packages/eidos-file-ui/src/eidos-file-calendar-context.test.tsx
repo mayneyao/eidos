@@ -26,11 +26,10 @@ const profile = "2026f",
   zone = "Africa/Casablanca",
   value = "2026-11-15T23:30:00.123Z"
 const leaf = {
-  op: "calendar-day",
+  op: "calendar-period",
   fieldId: "instant",
-  day: "today",
-  timeZone: zone,
-  timeZoneData: profile,
+  unit: "day",
+  offset: 0,
 }
 function view(filter: unknown): EidosFileViewInfo {
   return {
@@ -85,7 +84,8 @@ describe("View calendar presentation context", () => {
     })
     const raw = current.query
     expect(eidosFileCalendarViewContext(current, [profile, "future"])).toEqual({
-      status: "unsupported",
+      status: "supported",
+      timeZoneData: profile,
     })
     expect(current.query).toBe(raw)
     expect(
@@ -180,7 +180,7 @@ describe("View calendar presentation context", () => {
       )
     ).toBeUndefined()
   })
-  it("enters/leaves the profile without remounting children and preserves the selected zone", async () => {
+  it("keeps current application rules across Views without remounting children", async () => {
     const mounted = vi.fn()
     function Probe() {
       const host = useEidosFileUI()
@@ -198,7 +198,7 @@ describe("View calendar presentation context", () => {
     const render = (current: EidosFileViewInfo) => (
       <EidosFileUIProvider
         timeZone="Asia/Shanghai"
-        calendarDayTimeZoneData={[profile]}
+        calendarPeriodTimeZoneData={[profile]}
       >
         <EidosFileCalendarViewProvider view={current}>
           <Probe />
@@ -222,7 +222,7 @@ describe("View calendar presentation context", () => {
       )
     )
     expect(container.querySelector("output")).toBe(node)
-    expect(node.textContent).toBe("legacy")
+    expect(node.textContent).toBe(profile)
     expect(mounted).toHaveBeenCalledTimes(1)
   })
   it("does not mount a misleading partial view when a profile is unavailable", async () => {
@@ -242,7 +242,7 @@ describe("View calendar presentation context", () => {
       )
     )
     expect(rendered).not.toHaveBeenCalled()
-    expect(container.textContent).toContain("cannot display")
+    expect(container.textContent).toContain("cannot use")
   })
   it("shows a raw out-of-range value explicitly without failing a page or enabling its Grid editor", () => {
     const cell = eidosFileValueToGridCell(
@@ -264,7 +264,7 @@ describe("View calendar presentation context", () => {
     })
     expect(cell).toMatchObject({
       data: {
-        displayDate: expect.stringContaining("outside calendar profile"),
+        displayDate: "1969-12-31T23:30:00.123Z",
       },
     })
   })

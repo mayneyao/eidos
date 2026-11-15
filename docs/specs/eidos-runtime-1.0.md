@@ -397,7 +397,8 @@ capability means false.
 
 ```ts
 interface RuntimeCapabilities {
-  calendarDayTimeZoneData?: string[]
+  calendarQueryVersion?: 2
+  calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -606,6 +607,32 @@ is conflict/fatal and never authorizes replay. A receipt/preparation proves
 only the candidate outcome until that revision check.
 
 ## 5. Public Schema and Logical Values
+
+### Consuming-client calendar declaration
+
+`GetSchemaPageRequest` and `ViewMutationRequest` accept
+`calendarQueryVersion?: 2`. This is an explicit declaration by the actual
+consumer that understands `calendar-period`, separate from Runtime's advertised
+capability. Generic SDKs and RPC/HTTP/JNI/C FFI transports MUST only forward it;
+upgrading a bridge MUST NOT opt an old UI into new query semantics.
+Without it, a View containing the new leaf is returned with
+`queryStatus="unsupported"` and its entire original query as opaque JSON.
+With it and a v2 Runtime, the same View is supported. This projection is per
+request, never sticky across clients. Schema cursors and caches bind it;
+changing or omitting it on continuation is invalid-query.
+Updating an existing period View's query requires declaration 2, including
+empty/sort-only replacement and nested periods. Metadata-only changes are
+allowed and preserve the original query. A batch cannot bypass this check;
+all changes roll back on failure. Explicit upgrade/restore and new leaf syntax
+remain explicit requests for the new semantics.
+
+The first persisted period or explicit date upgrade/restore installs the exact
+required File feature `eidos:calendar-query@2` transactionally. Unsupported
+versions/configs are never silently overwritten. Feature counts/descriptors
+include the declaration; restore and deleting the last period retain it.
+An upgrade preview tells users: "After updating, this file requires Eidos with
+the new date filters." Restoring conditions does not restore older-version
+compatibility. See File §20 for the required declaration and open behavior.
 
 ### 5.1 Lossless scalar binding
 
@@ -851,17 +878,18 @@ interface FieldDescriptor {
   definition?: RelationDefinition | FormulaDefinition | LookupDefinition
 }
 
-interface ViewDescriptor {
+type ViewDescriptor = {
   object: "view"
   id: string
   tableId: string
   name: string
   type: string
-  queryStatus?: "supported" | "unsupported"
-  query: SavedViewQuery
   layout: JsonObject
   position: string
-}
+} & (
+  | { queryStatus?: "supported"; query: SavedViewQuery }
+  | { queryStatus: "unsupported"; query: JsonObject }
+)
 
 interface FeatureDescriptor {
   object: "feature"
@@ -878,6 +906,7 @@ type SchemaDescriptor =
   | FeatureDescriptor
 
 interface GetSchemaPageRequest {
+  calendarQueryVersion?: 2
   revision: string
   limit: number
   cursor?: string
@@ -981,6 +1010,7 @@ type ResolvedRelationItem =
     }
 
 interface RowPage {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -1036,7 +1066,8 @@ with the requested arrays substituted without reordering. The empty hash is:
 
 ### 6.2 Page and batch invariants
 
-For a query containing `calendar-day`, `queryRows` MUST include `total`: the
+For a query containing `calendar-period`, `queryRows` MUST include `referenceInstant`
+and `total`: the
 exact matching-row count as an unsigned decimal string, computed in the same
 read transaction with the same root reference instant as the page. A continued
 page retains the cursor's reference instant for both rows and count. Consumers
@@ -1117,17 +1148,10 @@ type FilterNode =
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
   | {
-      op: "relative-date"
+      op: "calendar-period"
       fieldId: string
-      direction: "past" | "next" | "this"
       unit: "day" | "week" | "month" | "year"
-    }
-  | {
-      op: "calendar-day"
-      fieldId: string
-      day: "yesterday" | "today" | "tomorrow"
-      timeZone: string
-      timeZoneData: string
+      offset: -1 | 0 | 1
     }
 ```
 
@@ -1262,24 +1286,12 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["op", "fieldId", "direction", "unit"],
+          "required": ["op", "fieldId", "unit", "offset"],
           "properties": {
-            "op": { "const": "relative-date" },
+            "op": { "const": "calendar-period" },
             "fieldId": { "$ref": "#/$defs/id" },
-            "direction": { "enum": ["past", "next", "this"] },
-            "unit": { "enum": ["day", "week", "month", "year"] }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["op", "fieldId", "day", "timeZone", "timeZoneData"],
-          "properties": {
-            "op": { "const": "calendar-day" },
-            "fieldId": { "$ref": "#/$defs/id" },
-            "day": { "enum": ["yesterday", "today", "tomorrow"] },
-            "timeZone": { "type": "string", "minLength": 1 },
-            "timeZoneData": { "type": "string", "minLength": 1 }
+            "unit": { "enum": ["day", "week", "month", "year"] },
+            "offset": { "enum": [-1, 0, 1] }
           }
         }
       ]
@@ -1330,8 +1342,7 @@ Operator/type compatibility is normative:
 | `contains`, `starts-with`, `ends-with`     | `text`, `url`, `select`, `row-id`                           |
 | `has-any`, `has-all`                       | Multi-select, Relation, File, and every public list TypeRef |
 | `relation-has`                             | forward or inverse Relation                                 |
-| `relative-date`                            | `date`, `datetime`                                          |
-| `calendar-day`                             | `date`, `datetime`                                          |
+| `calendar-period`                          | `date`, `datetime`                                          |
 
 Operands MUST have the Field's exact logical type; Runtime performs no string,
 number, Boolean, date, or ID coercion. `eq` uses typed exact equality and `ne`
@@ -1342,56 +1353,77 @@ comparisons. `contains`, `starts-with`, and `ends-with` compare Unicode scalar
 sequences after folding ASCII `A..Z` to `a..z`; non-ASCII is unchanged. This
 same portable fold is used by `search`.
 
-`relative-date` composes a direction and unit instead of enumerating shortcuts.
-Runtime captures one canonical UTC reference instant `R` when the root query
-request begins and uses that same `R` for every relative leaf in the request.
-For `past` and `next`, day and week mean one or seven exact 24-hour days; month
-and year shift `R` by one UTC calendar unit and clamp the day to the last valid
-day of the target month. Past and next windows are inclusive
-`[boundary,R]` and `[R,boundary]`.
+`calendar-period` is the single relative-calendar condition. It requires
+`calendarQueryVersion:2` and an advertised `calendarPeriodTimeZoneData` profile.
+The leaf stores only Field ID, unit and offset. Offset -1/0/1 selects the complete
+previous/current/next local Gregorian day, week, month or year. It never means a
+rolling duration. Week begins on the application's existing Monday/Sunday
+preference, with Monday as the product default when no preference exists.
 
-For `this`, Runtime selects the UTC calendar period containing `R`: day is
-00:00 through the final millisecond of that day, week is ISO Monday through
-Sunday, month is the current calendar month, and year is the current calendar
-year. Datetime compares exact canonical instants. Date projects both bounds to
-UTC `YYYY-MM-DD` dates before inclusive comparison. A continuation cursor MUST
-bind the original `R`, so paging one query never moves its window. A new root
-request, including re-opening a saved View, captures a new `R`; saved relative
-filters therefore remain relative and MUST NOT be replaced with persisted
-absolute dates.
+Query operations carry execution settings outside `RowQuery` and
+`SavedViewQuery`:
 
-`calendar-day` is a separate optional calendar condition. Its required
-`timeZone` is an exact IANA zone name or alias supplied by the selected
-`timeZoneData` profile; `system` and implicit host offsets are invalid. The
-optional capability `calendarDayTimeZoneData` advertises supported profiles;
-absence means unsupported. The default profile is explicitly **2026f**, selected
-only when advertised, never by capability-array order. Profile 2026f uses IANA
-2026f rules for local Gregorian years 1970 through 2499, including names and
-links; it does not prescribe a particular library. Updates must preserve the
-meaning of named profiles or reject unavailable profiles with `unsupported`.
+```ts
+interface CalendarQueryExecution {
+  calendar?: {
+    timeZone: string
+    timeZoneData: string
+    weekStartsOn: 0 | 1 // Sunday / Monday
+  }
+  referenceInstant?: string
+}
+```
 
-Runtime projects the root reference instant `R` through those rules to a local
-Gregorian date, then adds -1, 0, or +1 calendar date for yesterday, today, or
-tomorrow. Date matches that literal date. Datetime matches the inverse image of
-that date under the same piecewise UTC offsets, using half-open instant ranges.
-A 23/25-hour day, a non-hour transition, a repeated midnight, or a skipped date
-must not be replaced by a 24-hour window or guessed midnight. A skipped date
-has no matching instants. Null is false. Stored dates and UTC instants are not
-rewritten. Ordinary values outside profile years simply do not match; a root
-reference or target date outside the supported years returns `unsupported`.
-Invalid structure, a non-temporal Field, or an unknown zone within a known
-profile returns `invalid-query`; an unavailable profile returns `unsupported`.
+These members apply to `queryRows`, `queryRowPages`, `aggregate`, `groupRows`,
+`queryGroupRows`, `getRecordNeighbors` and query-based export when supported.
+They are not generic `RequestContext` metadata, AST members, saved View state,
+or a second time-zone preference. Hosts resolve the current application
+preference, including `system`, to an explicit IANA name/alias. Runtime MUST NOT
+guess the OS zone or fall back to UTC. A request containing a calendar-period
+leaf requires a complete `calendar`; requests without such a leaf need no
+calendar context. Unknown members, missing context, `system`, invalid
+`weekStartsOn`, unknown names within a known profile, and non-temporal Fields
+return `invalid-query`. Unavailable rules/profile versions return `unsupported`.
 
-All query operations, including aggregates, grouping, neighbours and batch
-pages, share one root `R`. Every continuation, including group and group-row
-cursors, binds that `R` and the complete day/zone/profile query. A changed query
-cannot reuse its cursor. Saving/reopening retains the calendar AST and takes a
-new `R`, never stored absolute dates. A stored unavailable operator/profile is
-preserved as an unsupported query under the existing View compatibility rules;
-known malformed syntax remains invalid. Mixed profiles are not structurally
-invalid: each leaf follows its advertised capability; UI presentation may
-require a uniform profile. Legacy `relative-date` retains the UTC/inclusive
-rolling semantics above, including Date projection of both boundaries.
+The default portable profile is explicitly **2026f**, selected only when
+advertised, never by array order. It defines IANA names, links and rules for
+local Gregorian years 1970–2499. Named profiles retain their meaning. Root
+reference/target periods outside that range return `unsupported`; ordinary
+stored values outside it simply do not match. UTC remains the internal Datetime
+storage representation and is an ordinary configured zone when the user selects
+it, not a parallel filtering model.
+
+A fresh root captures one canonical UTC reference instant `R` from ClockPort.
+An explicit canonical `referenceInstant` reuses a caller's root `R`; malformed
+instants return `invalid-query`. Runtime projects `R` through the supplied
+calendar rules and computes half-open local date bounds `[startDate,endDate)`.
+Date compares literal dates, without zone offsets. Datetime matches the complete
+inverse image under those same piecewise UTC offsets, with half-open instant
+intervals. DST 23/25-hour days, non-hour transitions, repeated midnight and whole
+skipped dates MUST NOT become fixed 24-hour durations or guessed midnight. A
+skipped date can match a literal Date but has no matching instants. Null is false
+before NOT/AND/OR composition. Stored Date and Datetime values are not rewritten.
+
+For example, at `2026-01-01T00:30:00.000Z`, today in Shanghai is Date 2026-01-01
+and Datetime `[2025-12-31T16:00Z,2026-01-01T16:00Z)`; in New York it is Date
+2025-12-31 and `[2025-12-31T05:00Z,2026-01-01T05:00Z)`. New York's 2026-03-08
+calendar day spans 05:00Z through the next day's 04:00Z, not 24 hours.
+
+Rows, exact total, groups, neighbours, batch pages and supported exports for one
+root use the same `R` and complete calendar context. Calendar responses expose
+`referenceInstant` so associated reads can reuse it. Every continuation binds
+that `R`, query and resolved zone/profile/week start. Changing any context member
+invalidates a cursor with `invalid-query`; an explicitly different R also fails.
+A host starts a new root and invalidates its page caches when application
+settings change. Settings, R and absolute bounds MUST NOT be persisted by saving,
+cloning, reopening or upgrading a View.
+
+The retired `relative-date` and `calendar-day` wire shapes are recognized for
+explicit upgrade and diagnostics only. A well-formed retired query returns
+`unsupported` without execution; a malformed known shape returns `invalid-query`.
+They are not advertised capabilities or alternative UTC/frozen-zone routes.
+Saved retired queries remain opaque unsupported Views until the explicit upgrade
+in §11.5. Unknown non-date semantics cannot be swallowed by that upgrade.
 
 Multi-select, File, Relation, and list results use `[]`, never null. The empty
 list is therefore distinct from null: `eq []` is TRUE for an empty list,
@@ -1473,7 +1505,7 @@ filters and search. This operation traverses query order; it does not infer
 visual group order or a calendar range from a saved View ID.
 
 ```ts
-interface QueryRowsRequest {
+interface QueryRowsRequest extends CalendarQueryExecution {
   tableId: string
   query: RowQuery
   projection: ProjectionSpec
@@ -1518,7 +1550,7 @@ direction with a different permitted limit.
 ### 7.3 Aggregate and column statistics
 
 ```ts
-interface AggregateRequest {
+interface AggregateRequest extends CalendarQueryExecution {
   tableId: string
   query?: RowQuery
   items: AggregateItem[]
@@ -1759,7 +1791,7 @@ interface GroupPage {
   previousCursor: string | null
 }
 
-interface GroupRowsRequest {
+interface GroupRowsRequest extends CalendarQueryExecution {
   cursor: string
   limit: number
   direction?: "forward" | "backward"
@@ -2706,8 +2738,11 @@ type ViewChange =
       }
     }
   | { kind: "delete-view"; viewId: string }
+  | { kind: "upgrade-date-query"; viewId: string }
+  | { kind: "restore-date-query"; viewId: string }
 
 interface ViewMutationRequest {
+  calendarQueryVersion?: 2
   expectedRevision: string
   changes: ViewChange[]
 }
@@ -2730,6 +2765,29 @@ are changed only by an explicit patch; Runtime never invents an append
 position. `createdViews` follows create-change order and `affectedViewIds` is
 unique in `BINARY` order. View changes follow the exact no-op, expected-revision, timestamp,
 single-increment, and rollback rules above.
+
+`upgrade-date-query` previews through the canonical `upgradeEidosFileDateQuery`
+helper and applies atomically through `mutateView`, with the same expectedRevision,
+no-op, timestamp, single-revision and rollback rules. `calendar-day` yesterday/
+today/tomorrow becomes day -1/0/1; `relative-date` past/this/next becomes the same
+unit -1/0/1. This is a semantic change: past seven days becomes the complete last
+calendar week. Hosts show the before/after meanings before the upgrade action.
+Unknown or malformed nodes reject the entire upgrade; AND/OR/NOT, other operands,
+sorting and layout are preserved. No condition is dropped. Retried upgrades of
+already upgraded queries are no-ops.
+
+The reserved open-layout member `space.eidos/date-query-upgrade` contains one
+bounded recovery receipt `{version:2,originalQuery,changes}` of at most 65,536 UTF-8
+JCS bytes. It is only an original-query backup, never execution context, a profile
+preference or query authority. Upgrades preserve the first receipt; ordinary
+layout saves, renames, copies and unrelated edits preserve it. An oversized or
+invalid receipt rejects the transaction without a half-upgraded View. There is no
+new table or history system. `restore-date-query` reinstates the retained original
+as an unsupported query; it never re-enables UTC execution. Missing/invalid recovery
+metadata returns `invalid-value`; an incompatible original query rejects restoration.
+CLI `schema view upgrade-dates` defaults to a private-copy preview; `--apply` uses
+Runtime mutation and `--restore` previews/restores the retained query. No raw SQL
+write is part of the migration workflow.
 
 ## 12. Schema Preflight, Reference Rewrite, and Conversion
 
@@ -3366,22 +3424,25 @@ persisting search. Runtime validates every saved Field ID/operator/value
 against the View's Table.
 
 When Runtime understands the entire stored query, `ViewDescriptor.queryStatus`
-is `"supported"` and `query` is executable. The member is optional only for
-transport compatibility; absence means `"supported"`. When a stored operator,
-sort semantic, or query member is from a newer Runtime, Runtime returns
-`queryStatus:"unsupported"`, returns `{}` as a non-executable placeholder in
-`query`, and retains the original canonical query document internally. It MUST
-NOT execute the placeholder as the View's query. A `mutateView` patch that
-omits `query` preserves the original document exactly; one that supplies
-`query` explicitly replaces it. Duplication MUST preserve the opaque document
-exactly or fail with `unsupported`—it MUST NOT create a partial copy.
+is `"supported"` and `query` is executable. Absence means supported only for older
+transports. An unsupported stored operator, parameter, sort or query member
+requires `queryStatus:"unsupported"` and the complete original `JsonObject` in
+`query`, including unknown members. Runtime MUST NOT replace it with `{}`, strip
+conditions, or cast it into an executable SavedViewQuery. Clients branch on the
+discriminant before constructing rows/count/group/neighbour requests. Sending
+the opaque document directly still fails validation or returns `unsupported`;
+it cannot succeed as an unfiltered query.
 
-Malformed known syntax remains `view-query-invalid`. An unsupported query is
-not silently ignored and does not make unrelated Tables or Views inaccessible.
-A required File feature still owns semantics that cannot be safely isolated to
-the opaque View boundary.
+A `mutateView` patch omitting `query` preserves the original document exactly.
+An ordinary patch supplying `query` for an unsupported View returns `unsupported`;
+only a defined explicit upgrade/restore operation may replace it. Duplication
+preserves the opaque document exactly or fails with `unsupported`. Malformed
+known syntax remains `view-query-invalid` in File validation. Unsupported Views
+do not make unrelated Tables, Views or ordinary row writes inaccessible. Required
+File features still own semantics that cannot be isolated to the opaque boundary.
 
-Runtime treats `layout_json` as a JCS object and preserves unknown members. It
+Apart from the reserved bounded recovery receipt in §11.5, Runtime treats
+`layout_json` as a JCS object and preserves unknown members. It
 does not interpret grid widths, hidden Fields, grouping presentation, card
 layout, selection, focus, scroll, or renderer state. Standard layout meaning
 belongs to UI. Runtime `groupRows` reports groups that exist in canonical row
@@ -3819,11 +3880,12 @@ ER-Reader covers at least:
    row preview errors;
 9. Formula-to-Lookup, Lookup-to-Formula, nested Lookup, flatten, typed distinct,
    all aggregates, deterministic DAG order, and exact cycle path;
-10. advertised calendar-day profiles: Date/Datetime agreement in UTC, positive,
-    negative and non-hour offsets; 23/25-hour DST days, a skipped local date,
-    half-open boundaries, one root clock read, cursor continuation over midnight,
-    exact page counts, saved-View reopening, unsupported-profile preservation,
-    and unchanged legacy UTC relative-date results;
+10. calendar-query version 2: all 12 periods, Sunday/Monday starts, year/month/leap
+    boundaries, positive/negative/non-hour offsets, 23/25-hour DST, skipped dates,
+    millisecond half-open boundaries, NULL/NOT, out-of-range values; Date/Datetime
+    display-day agreement; one root R/context across count/group/neighbours/batches,
+    cursor invalidation on context changes; rejected retired queries, opaque schema
+    and wire preservation, explicit upgrade/restore receipts and atomic rollback;
 11. all validation levels, deterministic diagnostics/truncation, hostile schema
     objects, cancellation/deadline, and resource limits.
 

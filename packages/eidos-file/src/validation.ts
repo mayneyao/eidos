@@ -1,3 +1,12 @@
+import {
+  isEidosFileCalendarPeriodValue,
+  hasEidosFileCalendarPeriodQuery,
+} from "./calendar-period"
+import {
+  EIDOS_CALENDAR_QUERY_FEATURE,
+  hasCalendarQueryFeature,
+  requireCalendarQueryFeature,
+} from "./calendar-query-feature"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import { scanStableRowPages } from "./stable-row-scan"
 import { eidosFileFieldValueType } from "./field-query-capabilities"
@@ -285,6 +294,7 @@ const FILTER_OPERATORS = new Set([
   "is-between",
   "is-relative-to-today",
   "is-on-calendar-day",
+  "is-in-calendar-period",
 ])
 const RUNTIME_FILTER_OPERATORS = new Set([
   "is-null",
@@ -305,6 +315,7 @@ const RUNTIME_FILTER_OPERATORS = new Set([
   "relation-has",
   "relative-date",
   "calendar-day",
+  "calendar-period",
 ])
 
 const LEVELS: Record<EidosFileValidationLevel, number> = {
@@ -744,42 +755,107 @@ export function validateEidosFile(
         .query<{ name: string }>("PRAGMA module_list")
         .map((row) => row.name)
     )
-    for (const feature of connection.query<{
+    scanStableRowPages<{
       name: string
       required: number
       config_json: string
     }>(
-      `SELECT name, required, config_json FROM ${EIDOS_FILE_FEATURES_TABLE}`
-    )) {
-      if (!isCanonicalEidosFileJson(feature.config_json)) {
-        add(
-          errors,
-          "invalid-schema",
-          `Feature ${feature.name} has non-canonical config_json`
-        )
+      connection,
+      {
+        columnsSql: "name, required, config_json",
+        tableSql: EIDOS_FILE_FEATURES_TABLE,
+        rowIdSql: "name",
+        rowIdKey: "name",
+      },
+      (features) => {
+        for (const feature of features) {
+          if (!isCanonicalEidosFileJson(feature.config_json)) {
+            add(
+              errors,
+              "invalid-schema",
+              `Feature ${feature.name} has non-canonical config_json`
+            )
+          }
+          if (feature.name === EIDOS_CALENDAR_QUERY_FEATURE) {
+            try {
+              hasCalendarQueryFeature(connection)
+            } catch (error) {
+              add(
+                errors,
+                "unsupported-feature",
+                error instanceof Error
+                  ? error.message
+                  : "Unsupported calendar feature"
+              )
+            }
+            continue
+          }
+          const moduleName = feature.name.startsWith("vtab:")
+            ? feature.name.slice(5)
+            : null
+          if (
+            feature.required === 1 &&
+            (!moduleName ||
+              !SUPPORTED_VTAB_MODULES.has(moduleName) ||
+              !loadedModules.has(moduleName))
+          ) {
+            add(
+              errors,
+              "unsupported-feature",
+              `Required feature is unavailable in this runtime: ${feature.name}`
+            )
+          }
+        }
       }
-      const moduleName = feature.name.startsWith("vtab:")
-        ? feature.name.slice(5)
-        : null
-      if (
-        feature.required === 1 &&
-        (!moduleName ||
-          !SUPPORTED_VTAB_MODULES.has(moduleName) ||
-          !loadedModules.has(moduleName))
-      ) {
-        add(
-          errors,
-          "unsupported-feature",
-          `Required feature is unavailable in this runtime: ${feature.name}`
-        )
-      }
+    )
+  }
+
+  if (errors.some((issue) => issue.code === "unsupported-feature")) {
+    return {
+      valid: errors.length === 0,
+      metadata,
+      tables: [],
+      errors,
+      warnings,
     }
   }
 
   if (
-    errors.some((issue) => issue.code === "unsupported-feature") ||
-    LEVELS[level] === LEVELS.identity
+    sqliteTables.has(EIDOS_FILE_VIEWS_TABLE) &&
+    (!sqliteTables.has(EIDOS_FILE_FEATURES_TABLE) ||
+      !hasCalendarQueryFeature(connection))
   ) {
+    try {
+      scanStableRowPages<{ id: string; query_json: string }>(
+        connection,
+        {
+          columnsSql: "id, query_json",
+          tableSql: EIDOS_FILE_VIEWS_TABLE,
+          rowIdSql: "id",
+          rowIdKey: "id",
+        },
+        (views) => {
+          for (const view of views) {
+            if (
+              hasEidosFileCalendarPeriodQuery(
+                parseEidosFileJson(view.query_json)
+              )
+            )
+              requireCalendarQueryFeature(connection)
+          }
+        }
+      )
+    } catch (error) {
+      add(
+        errors,
+        "invalid-schema",
+        error instanceof Error
+          ? error.message
+          : "Invalid calendar query feature"
+      )
+    }
+  }
+  if (LEVELS[level] === LEVELS.identity) {
     return {
       valid: errors.length === 0,
       metadata,
@@ -1967,6 +2043,8 @@ export function validateEidosFile(
           )
           const fieldIds = new Set(fieldsById.keys())
           const query = parseEidosFileJson(view.query_json)
+          if (hasEidosFileCalendarPeriodQuery(query))
+            requireCalendarQueryFeature(connection)
           const layout = parseEidosFileJson(view.layout_json)
           if (!query || Array.isArray(query) || typeof query !== "object") {
             throw new Error("View query_json must be an object")
@@ -2102,7 +2180,21 @@ export function validateEidosFile(
                   unsupportedQuery = true
                 return
               }
+              if (node.op === "calendar-period") {
+                const type = eidosFileFieldValueType(field)
+                if (
+                  (type !== "date" && type !== "datetime") ||
+                  !isEidosFileCalendarPeriodValue({
+                    unit: node.unit,
+                    offset: node.offset,
+                  }) ||
+                  !hasOnlyKeys(node, ["op", "fieldId", "unit", "offset"])
+                )
+                  throw new Error("View calendar period is invalid")
+                return
+              }
               if (node.op === "calendar-day") {
+                unsupportedQuery = true
                 const type = eidosFileFieldValueType(field)
                 if (type !== "date" && type !== "datetime")
                   throw new Error(
@@ -2134,6 +2226,7 @@ export function validateEidosFile(
                 return
               }
               if (node.op === "relative-date") {
+                unsupportedQuery = true
                 if (
                   field.type !== "date" &&
                   field.type !== "datetime" &&
@@ -2213,7 +2306,17 @@ export function validateEidosFile(
                 )
               }
             }
+            if (node.op === "is-in-calendar-period") {
+              const type = eidosFileFieldValueType(field)
+              if (
+                (type !== "date" && type !== "datetime") ||
+                !isEidosFileCalendarPeriodValue(node.value)
+              )
+                throw new Error("View calendar period is invalid")
+              return
+            }
             if (node.op === "is-on-calendar-day") {
+              unsupportedQuery = true
               const type = eidosFileFieldValueType(field)
               if (
                 (type !== "date" && type !== "datetime") ||
@@ -2230,6 +2333,7 @@ export function validateEidosFile(
               return
             }
             if (node.op === "is-relative-to-today") {
+              unsupportedQuery = true
               if (
                 field.type !== "date" &&
                 field.type !== "datetime" &&

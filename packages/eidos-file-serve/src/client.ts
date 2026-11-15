@@ -514,6 +514,15 @@ export class HttpRuntimeClient implements RuntimeClient {
     >
   }
 
+  async queryRowPages(
+    request: Parameters<NonNullable<RuntimeClient["queryRowPages"]>>[0],
+    context: RequestContext
+  ) {
+    return (await this.call("queryRowPages", request, context)) as Awaited<
+      ReturnType<NonNullable<RuntimeClient["queryRowPages"]>>
+    >
+  }
+
   async aggregate(
     request: Parameters<RuntimeClient["aggregate"]>[0],
     context: RequestContext
@@ -680,6 +689,7 @@ export class HttpRuntimeClient implements RuntimeClient {
  * file; there is no browser file handle and no OPFS recovery copy.
  */
 export class EidosFileHttpClient {
+  constructor(private readonly consumer: { calendarQueryVersion?: 2 } = {}) {}
   readonly kind = "http" as const
   private editor: EidosRuntimeEditorDataSource | null = null
   private inFlightMutations = 0
@@ -888,7 +898,8 @@ export class EidosFileHttpClient {
   private async connectEditor(path: string): Promise<EidosFileSnapshot> {
     const editor = new EidosRuntimeEditorDataSource(
       new HttpRuntimeClient(),
-      path
+      path,
+      this.consumer
     )
     this.editor = editor
     return editor.initialize()

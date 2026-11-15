@@ -1,5 +1,9 @@
 import type { EidosFileCalendarDayValue } from "./calendar-day"
 import type {
+  EidosFileCalendarContext,
+  EidosFileCalendarPeriodValue,
+} from "./calendar-period"
+import type {
   ByteSource,
   CancellationPort,
   CancellationSignal,
@@ -109,8 +113,8 @@ export interface RuntimePublicationSnapshot {
 }
 
 export interface RuntimeCapabilities {
-  /** Supported portable calendar profiles; missing means no calendar-day support. */
-  calendarDayTimeZoneData?: string[]
+  calendarQueryVersion?: 2
+  calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
   schemaPaging: boolean
@@ -239,18 +243,19 @@ export interface FieldDescriptor {
   definition?: RelationDefinition | FormulaDefinition | LookupDefinition
 }
 
-export interface ViewDescriptor {
+export type ViewDescriptor = {
   object: "view"
   id: string
   tableId: string
   name: string
   type: string
-  /** Absent means supported for compatibility with older Runtime transports. */
-  queryStatus?: "supported" | "unsupported"
-  query: SavedViewQuery
   layout: JsonObject
   position: string
-}
+} & (
+  | { queryStatus?: "supported"; query: SavedViewQuery }
+  /** Opaque original document. It must never be replaced with an empty query. */
+  | { queryStatus: "unsupported"; query: JsonObject }
+)
 
 export interface FeatureDescriptor {
   object: "feature"
@@ -267,6 +272,8 @@ export type SchemaDescriptor =
   | FeatureDescriptor
 
 export interface GetSchemaPageRequest {
+  /** Explicit acceptance by the consuming UI; transports never infer this. */
+  calendarQueryVersion?: 2
   revision: string
   limit: number
   cursor?: string
@@ -312,7 +319,8 @@ export type ResolvedRelationItem =
     }
 
 export interface RowPage {
-  /** Exact count using this page's reference instant; required for calendar-day queries. */
+  referenceInstant?: string
+  /** Exact count using this page's reference instant; required for calendar-period queries. */
   total?: string
   fileId: string
   tableId: string
@@ -347,6 +355,8 @@ export interface RowQuery {
 export type FilterOperand = Exclude<LogicalValue, null>
 
 export type FilterNode =
+  | ({ op: "calendar-period"; fieldId: string } & EidosFileCalendarPeriodValue)
+  /** @deprecated Retired wire shape retained for diagnostics and explicit upgrade. */
   | ({ op: "calendar-day"; fieldId: string } & EidosFileCalendarDayValue)
   // Every valid leaf is a total Boolean predicate. Runtime never exposes SQL
   // NULL/UNKNOWN through logical composition; non-null operands are enforced
@@ -374,6 +384,7 @@ export type FilterNode =
   | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
   | {
+      /** @deprecated Retired wire shape; execution returns unsupported. */
       op: "relative-date"
       fieldId: string
       direction: "past" | "next" | "this"
@@ -381,6 +392,9 @@ export type FilterNode =
     }
 
 export interface QueryRowsRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   tableId: string
   query: RowQuery
   projection: ProjectionSpec
@@ -396,12 +410,18 @@ export type RecordNeighbors =
   | { found: true; previousId: string | null; nextId: string | null }
 
 export interface GetRecordNeighborsRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   tableId: string
   rowId: string
   query: RowQuery
 }
 
 export interface AggregateRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   tableId: string
   query?: RowQuery
   items: AggregateItem[]
@@ -428,6 +448,7 @@ export type AggregateResult =
   | { key: string; statistics: ColumnStatistics }
 
 export interface AggregateResponse {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -445,6 +466,9 @@ export interface ColumnStatistics {
 }
 
 export interface GroupRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   tableId: string
   query: RowQuery
   groupBy: string[]
@@ -457,6 +481,7 @@ export interface GroupRequest {
 }
 
 export interface GroupPage {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -474,12 +499,16 @@ export interface GroupPage {
 }
 
 export interface GroupRowsRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   cursor: string
   limit: number
   direction?: "forward" | "backward"
 }
 
 export interface GroupRowPage {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -642,6 +671,8 @@ export interface TransportCommitBarrier {
 }
 
 export type ViewChange =
+  | { kind: "upgrade-date-query"; viewId: string }
+  | { kind: "restore-date-query"; viewId: string }
   | {
       kind: "create-view"
       clientKey: string
@@ -666,6 +697,7 @@ export type ViewChange =
   | { kind: "delete-view"; viewId: string }
 
 export interface ViewMutationRequest {
+  calendarQueryVersion?: 2
   expectedRevision: string
   changes: ViewChange[]
 }
@@ -870,6 +902,9 @@ export interface SavedViewQuery {
 }
 
 export interface CsvExportRequest {
+  calendar?: EidosFileCalendarContext
+  /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+  referenceInstant?: string
   tableId: string
   query: RowQuery
   fields: string[]
@@ -1007,6 +1042,9 @@ export interface RuntimeClient {
   queryRowPages?(
     request: {
       tableId: string
+      calendar?: EidosFileCalendarContext
+      /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+      referenceInstant?: string
       queries: RowQuery[]
       projection: ProjectionSpec
       limit: number

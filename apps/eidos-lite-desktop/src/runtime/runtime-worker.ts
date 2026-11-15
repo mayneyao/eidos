@@ -11,7 +11,7 @@ import type {
   EidosFileRowQuery,
 } from "@eidos.space/eidos-file"
 import { mergeEidosSystemMetadataFiles } from "@eidos.space/eidos-file/node-sqlite"
-import type { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
+import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 
 import type {
   RuntimeCalls,
@@ -48,6 +48,7 @@ if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
 let openedRuntime: EidosLiteFileRuntime | null = null
 let source: EidosRuntimeEditorDataSource | null = null
+let calendarSource: Promise<EidosRuntimeEditorDataSource> | null = null
 const connectionId = randomUUID()
 
 function requireSource(): EidosRuntimeEditorDataSource {
@@ -131,9 +132,27 @@ function methodArgs<M extends RuntimeMethod>(
 
 async function runtimeCall(
   method: Extract<RuntimeWorkerRequest, { type: "call" }>["method"],
-  args: unknown[]
+  args: unknown[],
+  calendarQueryVersion?: 2
 ): Promise<unknown> {
-  const dataSource = requireSource()
+  const legacySource = requireSource()
+  if (calendarQueryVersion === 2 && !calendarSource) {
+    const declaredSource = new EidosRuntimeEditorDataSource(
+      legacySource.runtime,
+      legacySource.path,
+      { calendarQueryVersion: 2 }
+    )
+    const pending: Promise<EidosRuntimeEditorDataSource> = declaredSource
+      .initialize()
+      .then(() => declaredSource)
+      .catch((error) => {
+        if (calendarSource === pending) calendarSource = null
+        throw error
+      })
+    calendarSource = pending
+  }
+  const dataSource =
+    calendarQueryVersion === 2 ? await calendarSource! : legacySource
   switch (method) {
     case "readTablePluginConfig":
       return dataSource.readTablePluginConfig(
@@ -330,12 +349,16 @@ async function runtimeCall(
       const input = csvInput(args[0], args[1])
       return dataSource.importCsv(input.name, input.bytes, csvOptions(args[2]))
     }
-    case "importCsvFile":
-      return requireRuntime().importCsvFile(
+    case "importCsvFile": {
+      const imported = await requireRuntime().importCsvFile(
         csvFileSource(args[0]),
         csvOptions(args[1]),
         requireString(args[2], "CSV operation ID")
       )
+      return calendarQueryVersion === 2
+        ? { ...imported, snapshot: await dataSource.getSnapshot() }
+        : imported
+    }
   }
 }
 
@@ -368,6 +391,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         }
       )
       source = openedRuntime.source
+      calendarSource = null
       return openedRuntime.initialSnapshot
     }
     case "inspectMergeTables": {
@@ -392,10 +416,15 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         readOnly: request.readOnly,
       })
       source = openedRuntime.source
+      calendarSource = null
       return openedRuntime.initialSnapshot
     }
     case "call":
-      return runtimeCall(request.method, request.args)
+      return runtimeCall(
+        request.method,
+        request.args,
+        request.calendarQueryVersion
+      )
     case "mergeSchema": {
       if (openedRuntime)
         throw new Error("Schema merge requires a private Runtime worker")
@@ -439,6 +468,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       } finally {
         openedRuntime = null
         source = null
+        calendarSource = null
       }
       return { closed: true }
     }

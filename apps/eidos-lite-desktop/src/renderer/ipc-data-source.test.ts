@@ -20,6 +20,29 @@ const snapshot = {
   tables: [],
 } as unknown as EidosFileSnapshot
 
+it("forwards calendar support only from the actual consuming UI on each call", async () => {
+  const callRuntime = vi.fn(async () => snapshot)
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { callRuntime },
+  })
+  const legacy = new IpcEidosFileDataSource("same-session", snapshot)
+  const declared = new IpcEidosFileDataSource(
+    "same-session",
+    snapshot,
+    undefined,
+    { calendarQueryVersion: 2 }
+  )
+  await legacy.getSnapshot()
+  await declared.getSnapshot()
+  await legacy.getSnapshot()
+  expect(callRuntime.mock.calls).toEqual([
+    ["same-session", "getSnapshot", []],
+    ["same-session", "getSnapshot", [], { calendarQueryVersion: 2 }],
+    ["same-session", "getSnapshot", []],
+  ])
+})
+
 it("bridges plugin config and action operations without cloning AbortSignals", async () => {
   const callRuntime = vi.fn(async (_session: string, method: string) =>
     method === "captureTableActionTarget"

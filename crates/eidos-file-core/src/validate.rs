@@ -153,16 +153,33 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
         ),
     }
     let required_features = conn
-        .prepare("SELECT name,version FROM eidos__features WHERE required=1 ORDER BY name")
+        .prepare("SELECT name,version,required,config_json FROM eidos__features ORDER BY name")
         .and_then(|mut statement| {
             let rows = statement.query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
         });
+    let mut calendar_feature = false;
     match required_features {
         Ok(features) => {
-            for (name, version) in features {
+            for (name, version, required, config) in features {
+                if name == "eidos:calendar-query"
+                    && version == "2"
+                    && required == 1
+                    && config == "{}"
+                {
+                    calendar_feature = true;
+                    continue;
+                }
+                if required != 1 && name != "eidos:calendar-query" {
+                    continue;
+                }
                 diagnostic(
                     diagnostics,
                     Severity::Error,
@@ -180,9 +197,69 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
             "/eidos__features",
         ),
     }
+    if !calendar_feature {
+        let scan = || -> rusqlite::Result<Vec<String>> {
+            let mut statement =
+                conn.prepare("SELECT id,query_json FROM eidos__views ORDER BY id")?;
+            let views = statement.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            let mut invalid = Vec::new();
+            for view in views {
+                let (id, query) = view?;
+                if serde_json::from_str::<JsonValue>(&query)
+                    .ok()
+                    .is_some_and(|query| has_calendar_period(&query))
+                {
+                    invalid.push(id);
+                }
+            }
+            Ok(invalid)
+        };
+        match scan() {
+            Ok(ids) => {
+                for id in ids {
+                    diagnostic(
+                        diagnostics,
+                        Severity::Error,
+                        "file-core-object-invalid",
+                        "Calendar period Views require the calendar query feature",
+                        format!("/eidos__views/{id}"),
+                    );
+                }
+            }
+            Err(error) => diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-core-object-invalid",
+                error.to_string(),
+                "/eidos__views",
+            ),
+        }
+    }
     !diagnostics
         .iter()
         .any(|item| item.severity <= Severity::Error)
+}
+
+fn has_calendar_period(value: &JsonValue) -> bool {
+    let Some(node) = value.as_object() else {
+        return false;
+    };
+    if node.get("op").and_then(JsonValue::as_str) == Some("calendar-period") {
+        return true;
+    }
+    if let Some(filter) = node.get("filter") {
+        return has_calendar_period(filter);
+    }
+    match node.get("op").and_then(JsonValue::as_str) {
+        Some("and" | "or") => node
+            .get("args")
+            .and_then(JsonValue::as_array)
+            .is_some_and(|args| args.iter().any(has_calendar_period)),
+        Some("not") => node.get("arg").is_some_and(has_calendar_period),
+        _ => false,
+    }
 }
 
 fn expected_sql_type(field: &FieldMeta) -> Option<&'static str> {

@@ -2684,6 +2684,12 @@ function WorkspaceApp({
           }
           return true
         }
+        opened.snapshot = await window.eidosLite.callRuntime(
+          opened.sessionId,
+          "getSnapshot",
+          [],
+          { calendarQueryVersion: 2 }
+        )
         const source = new IpcEidosFileDataSource(
           opened.sessionId,
           opened.snapshot,
@@ -2698,7 +2704,8 @@ function WorkspaceApp({
                   : (snapshot.tables[0]?.table.id ?? file.tableId)
                 return { ...file, snapshot, tableId }
               })
-            )
+            ),
+          { calendarQueryVersion: 2 }
         )
         const file: CachedFile = {
           sessionId: opened.sessionId,

@@ -826,13 +826,17 @@ export async function runSelfTest(): Promise<string> {
       const selected = await runtime.queryRows(
         {
           tableId: calendarTable,
+          calendar: {
+            timeZone: "Asia/Shanghai",
+            timeZoneData: "2026f",
+            weekStartsOn: 1,
+          },
           query: {
             filter: {
-              op: "calendar-day",
+              op: "calendar-period",
               fieldId,
-              day: "today",
-              timeZone: "Asia/Shanghai",
-              timeZoneData: "2026f",
+              unit: "day",
+              offset: 0,
             },
           },
           projection: { fields: [label], resolveRelations: [] },
@@ -861,7 +865,7 @@ export async function runSelfTest(): Promise<string> {
     await expectCalendarDayQueryConformance(runtime, (instant) => {
       calendarReference.instant = instant
     })
-    checks.push("calendar-day-query-conformance-vectors")
+    checks.push("calendar-period-query-conformance-vectors")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

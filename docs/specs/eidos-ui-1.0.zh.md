@@ -150,6 +150,14 @@ UI 不得 widen、coerce 或 reinterpret 导入类型。尤其 int64 decimal str
 
 ## 5. Bootstrap、capability negotiation 与精确 client
 
+### 日期消费端兼容
+
+理解 calendar-period 的实际 UI 在 schema 读取和 View 写入显式传入
+`calendarQueryVersion: 2`。可复用 data source、Kernel 和 transport 默认不声明，
+不能因 SDK 升级而让旧 UI 编辑新版条件。unsupported query 保持完整 opaque
+原文，阻止执行、Apply 和复制，不能变为空筛选。升级预览说明 Runtime 定义的
+整个文件兼容性后果；恢复条件不恢复旧 Eidos 兼容。
+
 ### 5.1 RuntimeClient
 
 下面是 Eidos Runtime language-neutral binding 的 generated mirror；它只对 UI 如何
@@ -1186,21 +1194,20 @@ value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之�
 若失败，catalog entry 作为合法的零使用选项保留。此用户操作不同于 CSV import 中被禁止的
 implicit option inference。
 
-含 `calendar-day` 的 View 从已存查询的每个日历 leaf（包括嵌套 AND/OR/NOT）
-推导展示／输入 profile。一致且支持的 profile 传递到 Grid、card、从该 View 打开的
-record/inspector、created/updated time、日期输入，以及 Calendar 的分组、范围查询、
-创建和拖动。新日历条件将用户现有的展示区 preference 解析成固定 IANA 区域，包含
-既有的 system 区域解析。筛选控件不提供逐条件改时区或对齐的入口。打开或原样保存
-既有条件时保留已存区域，仅用一处简短只读提示说明实际使用的区域。同区／同 profile
-下，即使宿主规则不同，可见日历日期与筛选成员也必须一致。
-投影与 wall-clock 反解消费 canonical Runtime 规则，不能使用宿主 offset。
-不新增另一份持久化 profile 或全局设置。没有日历 leaf 的旧 View 保持现有展示行为。
-上下文切换保留草稿、焦点和组件 identity；未改值保存保留原 instant 精度。
-DST gap/fold 仍需无歧义 instant。越界值以 canonical 原值和明确展示限制呈现，不能
-令整条本可求值的 row page 失败或默用宿主规则。混合／不可用展示 profile 原样保留
-查询并显示不支持，提供显式修改条件的恢复路径；不能任取第一项、将合法 Runtime
-语法判无效、返回成功的部分／无过滤视图。Native UI 必须消费同一 canonical 投影／
-反解薄桥接，否则明确标记该新 View 的展示不受支持。
+当 Runtime 广告 calendarQueryVersion:2，所有共享 Grid、card、record/inspector、
+created/updated time、日期输入和 Calendar 均使用协商的 portable profile 与当前应用
+时区配置。默认 profile 明确为支持的2026f，不取能力数组第一项。已存条件不能选择展示
+规则，也不能保留第二份权威时区。Host 解析 system 为明确 IANA 名，把同一时区／profile
+和既有周起始 preference 作为 query execution context 传入，不新增设置。修改应用配置
+使筛选、显示、输入共同重算，建立新根并清除旧页／cursor cache，不改写已存 Date、
+instant 或 View 条件。
+
+同一可见日历日期下，Date 字面成员与 Datetime 投影成员一致。投影和 wall-clock 反解
+使用 canonical Runtime 规则，不使用宿主 offset。切换上下文保留草稿、焦点和组件
+identity；未改值保存保留原 instant 精度；gap/fold 输入需无歧义 instant。规则年份外
+普通值显示原 canonical 值并明确不能在此编辑，不让整页失败或降级宿主规则。Runtime／
+profile 不支持时保留查询并显示 unsupported，不成功展示部分／无过滤 View。Native UI
+消费相同 canonical 投影／反解桥接，否则明确限制 calendar-period View 并保留数据。
 
 Date input 原样发送 calendar value。Datetime display 使用 user/Host 选择的 IANA
 timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input 必须先得到
@@ -1503,30 +1510,28 @@ custom filter editor 可以保留专用控件。
 内部 compatibility model 使用不同 operator name，加载和保存 View 时也必须保留
 这些语义。
 
-Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**、**不晚于**、
-**不早于**、**介于**、**日历日**、**日期范围（UTC）**、**为空**与**不为空**。**介于**接收有顺序且包含
-首尾的 lower/upper value，并发送 `between`。
+Date／Datetime 控件必须提供**是**、**早于**、**晚于**、**不晚于**、**不早于**、
+**介于**、**相对日期**、**为空**和**不为空**。介于发送包含端点的 between predicate。
+相对日期只有一个入口，不并列 UTC 范围或日历日入口，不显示条件级时区选择、冻结区
+提示、规则版本或常驻技术说明。
 
-**日历日**提供昨天／今天／明天，保存为独立 `calendar-day` leaf。创建时解析用户配置
-的展示时区；已有明确 preference 时不能改用浏览器系统区。该条件的已存区域在这里
-只读，新条件的默认时区由 Host 既有的时区设置提供。打开筛选或提交无关修改 MUST NOT 改写
-既有条件的区域／profile。支持的默认 profile（2026f）是内部能力选择，不作为普通
-用户的版本控件或常驻提示。配置区域不可用时不得默退 UTC 或其他区域；普通控件
-不能创建混合 profile。旧 `relative-date` 条件清楚标为**日期范围（UTC）**；当前指 UTC 日历周期，过去／
-未来仍为包含端点并按 Date 精度投影的滚动窗口。选择明天是明确的新条件，不重解释
-已有 Future/day。
+相对日期恰好提供昨天／今天／明天，上周／本周／下周，上月／本月／下月，去年／本年／
+明年。每项通过 calendar-period 的 day/week/month/year 与 offset -1/0/1 选择完整本地
+日历周期；不保存当前应用区域／profile／周起始，不冻结 absolute date，不表示滚动
+持续时长。周起始复用 Calendar 既有 preference，默认周一。23／25小时本地日仍是该日。
+用户只有应用已有的时区入口，UTC 不另有默认筛选语义；本能力版本不提供滚动时长控件。
 
-**日期范围（UTC）**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
-**月**或**年**），并发送一个 `relative-date` leaf。控件必须把 direction 与 unit 持久
-保存在 View 中，绝不能把条件冻结为 absolute date。重新打开时必须保留两个选择；
-reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
-过去／未来的 day、week 单位清楚标为 **24 小时**、**7 天**，不得称为上一／下一
-日历日或周。帮助按需展示，用当前 UI 语言说明所选范围，不常驻实现细节。范围预览
-可复用 canonical 结果，但不在 UI 新建日期计算器。
+新 UI 连接旧 Runtime 也不能恢复旧 UTC 行为：即便旧 Runtime 称旧日期查询 supported，
+新 UI 也将其标为 unsupported。缺 version2 能力不能创建或升级。新 Runtime 拒绝执行旧
+查询。Unsupported View 保留完整原query，不能发无过滤 rows／count／group，也不能普通
+Apply 筛选／排序。只有确实含旧日期条件且能完整安全预览时，显示一次**更新日期筛选**。
+本地化预览在操作前说明改义，例如过去7天→上周、今天（原时区）→按当前设置的今天。
+操作经 canonical Runtime 原子升级并保留恢复回执；非日期未知查询不提供该升级。普通
+新筛选不出现迁移或版本工具。
 
 筛选行的 Field、operator、value、Delete 在文字可容纳时保持紧凑一致的高度与对齐。
 长 operator 不得溢出固定高度，可自然增高以保留含义。窄容器把 value 放到第二行，
-避免横向溢出；辅助帮助和时区提示不撑大弹层或造成大块空白。
+避免横向溢出；不添加撑大弹层或造成大块空白的辅助配置列。
 
 Eidos 标准视图 1.0 的通用 Fields 控件以及适用的 Grid、Card、Kanban、Calendar、
 Form 控件是 Editor required surface，不是 optional authoring convenience。每个控件通过一次 revision-checked

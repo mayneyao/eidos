@@ -371,11 +371,12 @@ describe("Runtime list-filter regression", () => {
       const recent = await runtime.queryRows(
         {
           tableId,
+          calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
           query: {
             filter: {
-              op: "relative-date",
+              op: "calendar-period",
               fieldId: dayFieldId,
-              direction: "this",
+              offset: 0,
               unit: "week",
             },
           },

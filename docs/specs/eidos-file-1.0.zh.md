@@ -1142,6 +1142,9 @@ canonical，parsed edge/topological plan 只是 generated state。
 
 ## 13. Saved View definition storage
 
+持久化 calendar-period 查询必须带 §20 的必需声明。unsupported query 文档
+须完整保留，不能隐式重写。
+
 View 是 `eidos__views` 中以 stable View ID 标识的 row。`query_json` 与
 `layout_json` 必须是 JCS object；其中结构化 Field reference 只用 Field ID。它们不能
 保存 copied cell、resolved label、generated SQL、cursor/page、current selection/focus/
@@ -1336,6 +1339,22 @@ value。extension table/index 只有对 declared extension 才是 canonical。co
 clarification 可以增加
 example/test，但不能改变已有 valid byte/value interpretation；任何 persisted meaning
 change 都必须升级 File Format version。Runtime/Adapter/UI version 相互独立。
+
+### 必需日历查询特性
+
+登记的 first-party feature 为 `(name="eidos:calendar-query", version="2")`，
+必须有 `required=1` 且 `config_json='{}'`。它显式启用 Runtime 的完整日历周期
+查询契约，不改变 Date/Datetime 原值、File 1.0 物理 schema 或旧查询含义。
+保存任何 `calendar-period` View 或显式升级/恢复日期查询，必须在同一检查
+revision 的事务内安装该精确声明。持久化新语法缺失声明属于无效文件；
+不支持的 tuple/config 必须拒绝。单纯打开、瞬时查询和无关写入不能安装声明。
+改名、layout、复制、恢复条件以及删除最后一个新版日期 View 后仍须保留声明。
+预览只能修改私有副本，不得改变源文件。
+
+不支持该必需特性的 Reader 必须在暴露 canonical 数据前拒绝整个文件。
+恢复条件不会恢复旧版本兼容。schema 的 feature 计数和 descriptor 返回实际
+声明。沿用现有原子 feature 合并/冲突规则；最终候选校验必须拒绝有新语法而
+缺少合法声明的文件。
 
 ## 21. Media type registration template
 

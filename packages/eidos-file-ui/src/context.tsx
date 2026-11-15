@@ -130,10 +130,12 @@ export interface EidosFileUIHost {
   weekStartsOnMonday?: boolean
   /** Host-selected IANA time zone; absent means follow the current system zone. */
   timeZone?: string
-  /** Derived from the active View query; null restores legacy host rules. */
+  /** Negotiated portable profile used with the current application settings. */
   calendarTimeZoneData?: string | null
+  /** Unsupported saved queries cannot be edited piecemeal. */
+  queryEditingDisabled?: boolean
   /** Negotiated Runtime capability, not a saved or global preference. */
-  calendarDayTimeZoneData?: readonly string[]
+  calendarPeriodTimeZoneData?: readonly string[]
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
@@ -197,7 +199,8 @@ export function EidosFileUIProvider({
   weekStartsOnMonday,
   timeZone,
   calendarTimeZoneData,
-  calendarDayTimeZoneData,
+  queryEditingDisabled,
+  calendarPeriodTimeZoneData,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
@@ -231,8 +234,8 @@ export function EidosFileUIProvider({
     calendarTimeZoneData === undefined
       ? parent.calendarTimeZoneData
       : calendarTimeZoneData
-  const resolvedCalendarDayTimeZoneData =
-    calendarDayTimeZoneData ?? parent.calendarDayTimeZoneData
+  const resolvedCalendarPeriodTimeZoneData =
+    calendarPeriodTimeZoneData ?? parent.calendarPeriodTimeZoneData
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
@@ -265,7 +268,8 @@ export function EidosFileUIProvider({
       weekStartsOnMonday: resolvedWeekStartsOnMonday,
       ...(resolvedTimeZone ? { timeZone: resolvedTimeZone } : {}),
       calendarTimeZoneData: resolvedCalendarTimeZoneData,
-      calendarDayTimeZoneData: resolvedCalendarDayTimeZoneData,
+      queryEditingDisabled: queryEditingDisabled ?? parent.queryEditingDisabled,
+      calendarPeriodTimeZoneData: resolvedCalendarPeriodTimeZoneData,
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -323,7 +327,9 @@ export function EidosFileUIProvider({
       resolvedThemeName,
       resolvedTimeZone,
       resolvedCalendarTimeZoneData,
-      resolvedCalendarDayTimeZoneData,
+      queryEditingDisabled,
+      parent.queryEditingDisabled,
+      resolvedCalendarPeriodTimeZoneData,
       resolvedWeekStartsOnMonday,
       translateOverride,
     ]

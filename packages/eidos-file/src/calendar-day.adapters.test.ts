@@ -7,7 +7,12 @@ import { Runtime } from "./runtime-service"
 import { expectCalendarDayQueryConformance } from "./calendar-day.conformance"
 import { SQLiteWasmConnectionPort } from "./sqlite-wasm"
 import { NodeSqliteConnectionPort } from "./node-sqlite"
-import type { RuntimeEnvironment } from "./runtime-contract"
+import type {
+  RowQuery,
+  QueryRowsRequest,
+  RequestContext,
+  RuntimeEnvironment,
+} from "./runtime-contract"
 import type { ConnectionPort } from "./adapter-contract"
 
 const context = (requestId: string) => ({
@@ -77,6 +82,13 @@ async function run(adapter: string) {
     }
   )
   let runtime = binding.service
+  const execution = {
+    timeZone: "Asia/Shanghai",
+    timeZoneData: "2026f",
+    weekStartsOn: 1 as const,
+  }
+  const queryRows = (request: QueryRowsRequest, ctx: RequestContext) =>
+    runtime.queryRows({ calendar: execution, ...request }, ctx)
   try {
     const plan = await runtime.preflightSchema(
       {
@@ -156,16 +168,15 @@ async function run(adapter: string) {
       ["date", day],
       ["datetime", instant],
     ]) {
-      const page = await runtime.queryRows(
+      const page = await queryRows(
         {
           tableId,
           query: {
             filter: {
-              op: "calendar-day",
+              op: "calendar-period",
               fieldId,
-              day: "today",
-              timeZone: "Asia/Shanghai",
-              timeZoneData: "2026f",
+              unit: "day",
+              offset: 0,
             },
           },
           projection: { fields: [title, day, instant], resolveRelations: [] },
@@ -182,11 +193,10 @@ async function run(adapter: string) {
       ["today-midnight", "2026-11-12", "2026-11-11T16:00:00.000Z"],
     ])
     const calendar = {
-      op: "calendar-day" as const,
+      op: "calendar-period" as const,
       fieldId: instant,
-      day: "today" as const,
-      timeZone: "Asia/Shanghai",
-      timeZoneData: "2026f",
+      unit: "day" as const,
+      offset: 0 as const,
     }
     const query = {
       filter: calendar,
@@ -250,7 +260,7 @@ async function run(adapter: string) {
       },
       context("extra-rows")
     )
-    const all = await runtime.queryRows(
+    const all = await queryRows(
       { tableId, query, projection, limit: 20 },
       context("boundaries")
     )
@@ -261,7 +271,7 @@ async function run(adapter: string) {
     ])
     advanceDuringRoot = true
     rootClockCalls = 0
-    const oneRoot = await runtime.queryRows(
+    const oneRoot = await queryRows(
       {
         tableId,
         query: {
@@ -277,62 +287,159 @@ async function run(adapter: string) {
     )
     expect(oneRoot.rows).toHaveLength(3)
     expect(rootClockCalls).toBe(1)
+    rootClockCalls = 0
+    const batch = await runtime.queryRowPages!(
+      {
+        tableId,
+        calendar: execution,
+        queries: [query, { filter: { ...calendar, fieldId: day } }],
+        projection,
+        limit: 20,
+      },
+      context("batch-root")
+    )
+    expect(
+      batch.map((page) => [page.total, page.referenceInstant, page.rows.length])
+    ).toEqual([
+      ["3", "2026-11-12T12:30:00.000Z", 3],
+      ["3", "2026-11-12T12:30:00.000Z", 3],
+    ])
+    expect(rootClockCalls).toBe(1)
     advanceDuringRoot = false
-    const first = await runtime.queryRows(
+    const first = await queryRows(
       { tableId, query, projection, limit: 1 },
       context("first")
     )
     expect(first.nextCursor).toBeTruthy()
+    expect(first.referenceInstant).toBe("2026-11-12T12:30:00.000Z")
     reference = "2026-11-13T12:30:00.000Z"
-    const next = await runtime.queryRows(
+    const rootCount = await runtime.aggregate(
+      {
+        tableId,
+        query,
+        calendar: execution,
+        referenceInstant: first.referenceInstant,
+        items: [{ key: "count", op: "count-all" }],
+      },
+      context("same-root-count")
+    )
+    expect(rootCount).toMatchObject({
+      referenceInstant: first.referenceInstant,
+      results: [{ key: "count", value: "3" }],
+    })
+    const rootNeighbors = await runtime.getRecordNeighbors(
+      {
+        tableId,
+        query,
+        rowId: all.rows[1]!.id,
+        calendar: execution,
+        referenceInstant: first.referenceInstant,
+      },
+      context("same-root-neighbors")
+    )
+    expect(rootNeighbors).toEqual({
+      found: true,
+      previousId: all.rows[0]!.id,
+      nextId: all.rows[2]!.id,
+    })
+    await expect(
+      queryRows(
+        {
+          tableId,
+          query,
+          projection,
+          limit: 1,
+          cursor: first.nextCursor!,
+          referenceInstant: reference,
+        },
+        context("changed-reference")
+      )
+    ).rejects.toMatchObject({ code: "invalid-query" })
+    const next = await queryRows(
       { tableId, query, projection, limit: 1, cursor: first.nextCursor! },
       context("next")
     )
     expect(next.rows[0]!.values[0]).toBe("midday")
     expect(first.total).toBe("3")
     expect(next.total).toBe("3")
-    const third = await runtime.queryRows(
+    const third = await queryRows(
       { tableId, query, projection, limit: 1, cursor: next.nextCursor! },
       context("third")
     )
     expect(third.rows[0]!.values[0]).toBe("today-midnight")
     expect(third.total).toBe("3")
-    for (const changed of [
-      { ...calendar, day: "tomorrow" as const },
-      { ...calendar, timeZone: "UTC" },
-    ]) {
+    for (const [filter, calendarContext] of [
+      [{ ...calendar, offset: 1 as const }, execution],
+      [calendar, { ...execution, timeZone: "UTC" }],
+      [calendar, { ...execution, weekStartsOn: 0 as const }],
+    ] as const) {
       await expect(
-        runtime.queryRows(
+        queryRows(
           {
             tableId,
-            query: { ...query, filter: changed },
+            query: { ...query, filter },
+            calendar: calendarContext,
             projection,
             limit: 1,
             cursor: first.nextCursor!,
           },
-          context(
-            "changed-" +
-              changed.day +
-              "-" +
-              (changed.timeZone === "UTC" ? "utc" : "shanghai")
-          )
+          context("changed-context")
         )
       ).rejects.toMatchObject({ code: "invalid-query" })
     }
     await expect(
       runtime.queryRows(
+        { tableId, query, projection, limit: 1 },
+        context("missing-context")
+      )
+    ).rejects.toMatchObject({ code: "invalid-query" })
+    await expect(
+      runtime.queryRows(
         {
           tableId,
-          query: { filter: { ...calendar, timeZoneData: "unavailable" } },
+          query,
+          calendar: { ...execution, timeZoneData: "unavailable" },
           projection,
           limit: 20,
         },
         context("unavailable")
       )
     ).rejects.toMatchObject({ code: "unsupported" })
+    for (const invalid of [
+      { ...execution, timeZone: "system" },
+      { ...execution, timeZone: "Not/A_Zone" },
+      { ...execution, weekStartsOn: 2 },
+      { ...execution, timeZoneData: "2026f", extra: true },
+    ]) {
+      await expect(
+        queryRows(
+          {
+            tableId,
+            query,
+            projection,
+            limit: 20,
+            calendar: invalid as typeof execution,
+          },
+          context("invalid-execution")
+        )
+      ).rejects.toMatchObject({ code: "invalid-query" })
+    }
+    await expect(
+      queryRows(
+        {
+          tableId,
+          query: {
+            filter: { ...calendar, timeZone: "UTC" },
+          } as RowQuery,
+          projection,
+          limit: 20,
+        },
+        context("frozen-zone-in-leaf")
+      )
+    ).rejects.toMatchObject({ code: "invalid-query" })
     expect(
       (
-        await runtime.queryRows(
+        await queryRows(
           { tableId, query, projection, limit: 20 },
           context("new-root")
         )
@@ -342,6 +449,7 @@ async function run(adapter: string) {
     const counted = await runtime.aggregate(
       {
         tableId,
+        calendar: execution,
         query,
         items: [
           { key: "count", op: "count-all" },
@@ -355,7 +463,7 @@ async function run(adapter: string) {
       { key: "dates", value: "1" },
     ])
     const neighbors = await runtime.getRecordNeighbors(
-      { tableId, query, rowId: all.rows[1]!.id },
+      { tableId, calendar: execution, query, rowId: all.rows[1]!.id },
       context("neighbors")
     )
     expect(neighbors).toEqual({
@@ -365,6 +473,7 @@ async function run(adapter: string) {
     })
     const groupRequest = {
       tableId,
+      calendar: execution,
       query,
       groupBy: [title],
       aggregates: [],
@@ -373,12 +482,23 @@ async function run(adapter: string) {
       rowsPerGroup: 1,
     }
     const grouped = await runtime.groupRows(groupRequest, context("groups"))
+    expect(grouped.referenceInstant).toBe("2026-11-12T12:30:00.000Z")
     reference = "2026-11-13T12:30:00.000Z"
     const nextGroup = await runtime.groupRows(
       { ...groupRequest, cursor: grouped.nextCursor! },
       context("next-group")
     )
     expect(nextGroup.groups[0]!.key).toEqual(["midday"])
+    await expect(
+      runtime.groupRows(
+        {
+          ...groupRequest,
+          cursor: grouped.nextCursor!,
+          calendar: { ...execution, timeZone: "UTC" },
+        },
+        context("changed-group-zone")
+      )
+    ).rejects.toMatchObject({ code: "invalid-query" })
     reference = "2026-11-12T12:30:00.000Z"
     const dayGroup = await runtime.groupRows(
       { ...groupRequest, groupBy: [day] },
@@ -386,41 +506,52 @@ async function run(adapter: string) {
     )
     reference = "2026-11-13T12:30:00.000Z"
     const remaining = await runtime.queryGroupRows(
-      { cursor: dayGroup.groups[0]!.nextRowCursor!, limit: 20 },
+      {
+        cursor: dayGroup.groups[0]!.nextRowCursor!,
+        limit: 20,
+        calendar: execution,
+      },
       context("group-rows")
     )
     expect(remaining.rows).toHaveLength(2)
+    expect(remaining.referenceInstant).toBe("2026-11-12T12:30:00.000Z")
+    await expect(
+      runtime.queryGroupRows(
+        {
+          cursor: dayGroup.groups[0]!.nextRowCursor!,
+          limit: 20,
+          calendar: { ...execution, weekStartsOn: 0 },
+        },
+        context("changed-group-row-context")
+      )
+    ).rejects.toMatchObject({ code: "invalid-query" })
     expect(remaining.rows.every((row) => row.values[1] === "2026-11-12")).toBe(
       true
     )
     reference = "2026-11-12T12:30:00.000Z"
-    const oldUtc = await runtime.queryRows(
-      {
-        tableId,
-        query: {
-          ...query,
-          filter: {
-            op: "relative-date",
-            fieldId: instant,
-            direction: "this",
-            unit: "day",
+    await expect(
+      queryRows(
+        {
+          tableId,
+          query: {
+            ...query,
+            filter: {
+              op: "relative-date",
+              fieldId: instant,
+              direction: "this",
+              unit: "day",
+            },
           },
+          projection,
+          limit: 20,
         },
-        projection,
-        limit: 20,
-      },
-      context("legacy-utc")
-    )
-    expect(oldUtc.rows.map((row) => row.values[0])).toEqual([
-      "at-end",
-      "at-upper",
-      "midday",
-      "tomorrow-0200",
-    ])
+        context("legacy-utc")
+      )
+    ).rejects.toMatchObject({ code: "unsupported" })
     const beforeSave = await runtime.getSnapshot({}, context("before-save"))
     expect(
       (
-        await runtime.queryRows(
+        await queryRows(
           {
             tableId,
             query: { filter: { ...calendar, fieldId: id("formula-day") } },
@@ -476,7 +607,7 @@ async function run(adapter: string) {
       })
     ).service
     const reopenedSchema = await runtime.getSchemaPage(
-      { revision: saved.revision, limit: 100 },
+      { revision: saved.revision, limit: 100, calendarQueryVersion: 2 },
       context("reopen-schema")
     )
     const savedView = reopenedSchema.objects.find(
@@ -488,7 +619,7 @@ async function run(adapter: string) {
     })
     expect(
       (
-        await runtime.queryRows(
+        await queryRows(
           { tableId, query, projection, limit: 20 },
           context("reopened")
         )
@@ -513,7 +644,7 @@ async function run(adapter: string) {
     )
     expect(
       (
-        await runtime.queryRows(
+        await queryRows(
           { tableId, query, projection, limit: 20 },
           context("recalculate")
         )

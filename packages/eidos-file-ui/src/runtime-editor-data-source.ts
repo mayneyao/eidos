@@ -1,6 +1,8 @@
 import {
   assertEidosFileValues,
-  isEidosFileCalendarDayValue,
+  isEidosFileCalendarPeriodValue,
+  hasRetiredEidosFileDateQuery,
+  type EidosFileCalendarContext,
   canonicalizeEidosFileJson,
   readEidosFilePluginConfig,
   mergeEidosFilePluginConfig,
@@ -30,7 +32,6 @@ import {
   type EidosFileFilterGroup,
   type EidosFileFilterOperator,
   type EidosFileFilterRule,
-  type EidosFileRelativeDateValue,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
   type EidosFileLogicalValue,
@@ -239,10 +240,19 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private fieldsByTable = new Map<string, FieldDescriptor[]>()
   private views = new Map<string, ViewDescriptor>()
   private cursorCache = new Map<string, Map<number, string | undefined>>()
+  private queryReferences = new Map<string, string>()
   constructor(
     readonly runtime: RuntimeClient,
-    readonly path: string
+    readonly path: string,
+    readonly consumer: { calendarQueryVersion?: 2 } = {}
   ) {}
+
+  private calendarConsumer() {
+    return this.consumer.calendarQueryVersion === 2 &&
+      this.runtimeCapabilities?.calendarQueryVersion === 2
+      ? { calendarQueryVersion: 2 as const }
+      : {}
+  }
 
   async initialize(): Promise<EidosFileSnapshot> {
     const negotiation = await this.runtime.negotiate(
@@ -265,6 +275,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       const page = await this.runtime.getSchemaPage(
         {
           revision: snapshot.revision,
+          ...this.calendarConsumer(),
           limit: 1_000,
           ...(cursor ? { cursor } : {}),
         },
@@ -277,6 +288,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     this.schema = objects
     this.indexSchema()
     this.cursorCache.clear()
+    this.queryReferences.clear()
     return this.hydrateRowCounts(this.editorSnapshot(snapshot))
   }
 
@@ -305,10 +317,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const queryKey = canonicalizeEidosFileJson({
       tableId,
       query: runtimeQuery,
+      calendar: query.calendar ?? null,
       projection: runtimeProjection,
       limit,
     })
-    const cursors = this.cursorCache.get(queryKey) ?? new Map([[0, undefined]])
+    const freshRoot = offset === 0 && !cursor
+    if (freshRoot)
+      this.queryReferences.delete(this.executionKey(tableId, query))
+    const cursors =
+      (!freshRoot ? this.cursorCache.get(queryKey) : undefined) ??
+      new Map([[0, undefined]])
     this.cursorCache.set(queryKey, cursors)
     if (cursor) cursors.set(offset, cursor)
     const pageCursor = cursor ?? cursors.get(offset)
@@ -316,18 +334,24 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       {
         tableId,
         query: runtimeQuery,
+        ...this.queryExecution(tableId, query),
         projection: runtimeProjection,
         limit,
         ...(pageCursor ? { cursor: pageCursor } : offset > 0 ? { offset } : {}),
       },
       this.context("rows")
     )
+    if (page.referenceInstant)
+      this.queryReferences.set(
+        this.executionKey(tableId, query),
+        page.referenceInstant
+      )
     if (page.nextCursor) cursors.set(offset + page.rows.length, page.nextCursor)
     const hasCalendar = (
       node: EidosFileFilterGroup | EidosFileFilterRule
     ): boolean =>
       node.type === "rule"
-        ? node.operator === "is-on-calendar-day"
+        ? node.operator === "is-in-calendar-period"
         : node.children.some(hasCalendar)
     if (query.filter && hasCalendar(query.filter) && page.total === undefined)
       throw new Error(
@@ -336,7 +360,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const total =
       page.total !== undefined
         ? Number(page.total)
-        : (totalHint ?? (await this.countRows(tableId, runtimeQuery)))
+        : (totalHint ??
+          (await this.countRows(
+            tableId,
+            runtimeQuery,
+            this.queryExecution(tableId, query)
+          )))
     const rows = await this.editorRows(
       page,
       selected,
@@ -348,6 +377,9 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       limit,
       total,
       rows,
+      ...(page.referenceInstant
+        ? { referenceInstant: page.referenceInstant }
+        : {}),
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
     }
   }
@@ -363,17 +395,29 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     // from a single scan shared by the batch, without retaining stale file data.
     if (
       !this.runtime.queryRowPages ||
+      !this.runtimeCapabilities?.batchRowPages ||
       (table.settings?.tableType !== "virtual" &&
         typeof table.settings?.vtabModule !== "string")
     )
       return null
     const fields = this.fieldsByTable.get(tableId) ?? []
+    const execution = queries.map((query) =>
+      canonicalizeEidosFileJson({
+        calendar: query.calendar ?? null,
+        referenceInstant: query.referenceInstant ?? null,
+      })
+    )
+    if (execution.some((value) => value !== execution[0]))
+      throw new TypeError(
+        "Batch queries must share one calendar execution context"
+      )
     const selected = this.projectionFields(fields, projection)
     const pages = await this.runtime
       .queryRowPages(
         {
           tableId,
           queries: queries.map((query) => this.runtimeQuery(tableId, query)),
+          ...(queries[0] ? this.queryExecution(tableId, queries[0]) : {}),
           projection: {
             fields: selected.map((field) => field.id),
             resolveRelations:
@@ -398,12 +442,22 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         throw error
       })
     if (!pages) return null
+    pages.forEach((page, index) => {
+      if (page.referenceInstant)
+        this.queryReferences.set(
+          this.executionKey(tableId, queries[index]!),
+          page.referenceInstant
+        )
+    })
     return Promise.all(
       pages.map(async (page) => ({
         tableId,
         offset: 0,
         limit,
         total: Number(page.total),
+        ...(page.referenceInstant
+          ? { referenceInstant: page.referenceInstant }
+          : {}),
         rows: await this.editorRows(
           page,
           selected,
@@ -421,7 +475,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): Promise<RecordNeighbors> {
     this.assertTable(tableId)
     return this.runtime.getRecordNeighbors(
-      { tableId, rowId, query: this.runtimeQuery(tableId, query) },
+      {
+        tableId,
+        rowId,
+        query: this.runtimeQuery(tableId, query),
+        ...this.queryExecution(tableId, query),
+      },
       this.context("record-neighbors")
     )
   }
@@ -480,10 +539,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       value: rowId,
     })
     if (
-      (await this.countRows(tableId, {
-        ...baseQuery,
-        ...(membershipFilter ? { filter: membershipFilter } : {}),
-      })) === 0
+      (await this.countRows(
+        tableId,
+        {
+          ...baseQuery,
+          ...(membershipFilter ? { filter: membershipFilter } : {}),
+        },
+        this.queryExecution(tableId, query)
+      )) === 0
     ) {
       return null
     }
@@ -499,10 +562,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             : (values.get(term.fieldId) ?? null),
       }))
     )
-    return this.countRows(tableId, {
-      ...baseQuery,
-      filter: andRuntimeFilters(runtimeQuery.filter, before),
-    })
+    return this.countRows(
+      tableId,
+      {
+        ...baseQuery,
+        filter: andRuntimeFilters(runtimeQuery.filter, before),
+      },
+      this.queryExecution(tableId, query)
+    )
   }
 
   async getRow(tableId: string, rowId: string): Promise<EidosFileRow | null> {
@@ -532,6 +599,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         {
           tableId,
           query: this.runtimeQuery(tableId, query),
+          ...this.queryExecution(tableId, query),
           groupBy: [fieldId],
           aggregates: [],
           projection: { fields: [label.id], resolveRelations: [] },
@@ -608,7 +676,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     if (items.length > 0) {
       const response = await this.runtime.aggregate(
-        { tableId, query: this.runtimeQuery(tableId, query), items },
+        {
+          tableId,
+          query: this.runtimeQuery(tableId, query),
+          items,
+          ...this.queryExecution(tableId, query),
+        },
         this.context("aggregate")
       )
       const values = new Map(
@@ -1470,6 +1543,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         {
           tableId,
           query: runtimeQuery,
+          ...this.queryExecution(tableId, query),
           projection: { fields: [rowIdField.id], resolveRelations: [] },
           limit: 1000,
           ...(cursor ? { cursor } : {}),
@@ -1526,6 +1600,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       const page = await this.runtime.getSchemaPage(
         {
           revision: snapshot.revision,
+          ...this.calendarConsumer(),
           limit: 1000,
           ...(cursor ? { cursor } : {}),
         },
@@ -1706,6 +1781,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       const page = await this.runtime.getSchemaPage(
         {
           revision: snapshot.revision,
+          ...this.calendarConsumer(),
           limit: 1000,
           ...(cursor ? { cursor } : {}),
         },
@@ -1782,6 +1858,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     )
     const result = await this.runtime.mutateView(
       {
+        ...this.calendarConsumer(),
         expectedRevision: this.revision(),
         changes: [
           {
@@ -1811,7 +1888,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     name?: string
   ): Promise<EidosFileSnapshot> {
     const view = this.assertView(viewId)
-    if (view.queryStatus === "unsupported") {
+    if (
+      view.queryStatus === "unsupported" ||
+      hasRetiredEidosFileDateQuery(view.query)
+    ) {
       throw new Error(
         "This View uses a saved query from a newer Eidos version and cannot be duplicated safely"
       )
@@ -1832,6 +1912,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   async deleteView(viewId: string): Promise<EidosFileSnapshot> {
     const result = await this.runtime.mutateView(
       {
+        ...this.calendarConsumer(),
         expectedRevision: this.revision(),
         changes: [{ kind: "delete-view", viewId }],
       },
@@ -1847,6 +1928,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): Promise<EidosFileSnapshot> {
     const result = await this.runtime.mutateView(
       {
+        ...this.calendarConsumer(),
         expectedRevision: this.revision(),
         changes: viewIds.map((viewId, index) => ({
           kind: "update-view" as const,
@@ -1865,14 +1947,57 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     changes: UpdateEidosFileViewInput
   ): Promise<EidosFileSnapshot> {
     const view = this.assertView(viewId)
+    if (changes.upgradeDateQuery || changes.restoreDateQuery) {
+      if (
+        this.runtimeCapabilities?.calendarQueryVersion !== 2 ||
+        !this.runtimeCapabilities.calendarPeriodTimeZoneData?.length
+      )
+        throw new TypeError("Update this Runtime before updating date filters")
+      if (
+        Object.keys(changes).some(
+          (key) => key !== "upgradeDateQuery" && key !== "restoreDateQuery"
+        ) ||
+        (changes.upgradeDateQuery && changes.restoreDateQuery)
+      )
+        throw new TypeError(
+          "Date query upgrade/restore must be a separate View change"
+        )
+      const result = await this.runtime.mutateView(
+        {
+          ...this.calendarConsumer(),
+          expectedRevision: this.revision(),
+          changes: [
+            {
+              kind: changes.upgradeDateQuery
+                ? "upgrade-date-query"
+                : "restore-date-query",
+              viewId,
+            },
+          ],
+        },
+        this.context("upgrade-date-query")
+      )
+      this.acceptRevision(result.revision)
+      return this.getSnapshot()
+    }
     const queryChanged =
       changes.filter !== undefined || changes.sorts !== undefined
+    if (
+      queryChanged &&
+      (view.queryStatus === "unsupported" ||
+        hasRetiredEidosFileDateQuery(view.query))
+    )
+      throw new TypeError(
+        "Unsupported View query must be upgraded explicitly before editing"
+      )
+    const currentQuery = view.queryStatus === "unsupported" ? {} : view.query
     const layoutChanged =
       changes.properties !== undefined ||
       changes.orderMap !== undefined ||
       changes.hiddenFields !== undefined
     const result = await this.runtime.mutateView(
       {
+        ...this.calendarConsumer(),
         expectedRevision: this.revision(),
         changes: [
           {
@@ -1888,10 +2013,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                 ? {
                     query: this.savedViewQuery(
                       changes.filter === undefined
-                        ? this.editorFilter(view.query.filter)
+                        ? this.editorFilter(currentQuery.filter)
                         : changes.filter,
                       changes.sorts === undefined
-                        ? (view.query.sort ?? []).map((sort) => ({
+                        ? (currentQuery.sort ?? []).map((sort) => ({
                             field: sort.fieldId,
                             direction: sort.direction,
                             nulls: sort.nulls,
@@ -2128,8 +2253,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return {
       path: this.path,
       queryCapabilities: {
-        calendarDayTimeZoneData:
-          this.runtimeCapabilities?.calendarDayTimeZoneData,
+        calendarQueryVersion: this.runtimeCapabilities?.calendarQueryVersion,
+        calendarPeriodTimeZoneData:
+          this.runtimeCapabilities?.calendarQueryVersion === 2
+            ? this.runtimeCapabilities.calendarPeriodTimeZoneData
+            : undefined,
       },
       metadata,
       tables: tableDescriptors.map((table) => {
@@ -2233,20 +2361,27 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   }
 
   private editorView(view: ViewDescriptor): EidosFileViewInfo {
+    const retired = hasRetiredEidosFileDateQuery(view.query)
     return {
       id: view.id,
       name: view.name,
       type: view.type,
       tableId: view.tableId,
-      queryStatus: view.queryStatus,
+      queryStatus: retired ? "unsupported" : view.queryStatus,
       query: canonicalizeEidosFileJson(view.query),
       properties: { ...view.layout },
-      filter: this.editorFilter(view.query.filter),
-      sorts: (view.query.sort ?? []).map((sort) => ({
-        field: sort.fieldId,
-        direction: sort.direction,
-        nulls: sort.nulls,
-      })),
+      filter:
+        view.queryStatus === "unsupported" || retired
+          ? null
+          : this.editorFilter(view.query.filter),
+      sorts:
+        view.queryStatus === "unsupported" || retired
+          ? []
+          : (view.query.sort ?? []).map((sort) => ({
+              field: sort.fieldId,
+              direction: sort.direction,
+              nulls: sort.nulls,
+            })),
       orderMap: this.editorOrderMap(view.layout),
       hiddenFields: this.editorHiddenFields(view.layout),
       position: Number(view.position),
@@ -2666,28 +2801,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                     : field.valueType,
         }
       : undefined
+    if (operator === "is-in-calendar-period") {
+      if (!isEidosFileCalendarPeriodValue(raw))
+        throw new TypeError("Calendar period is invalid")
+      return { op: "calendar-period", fieldId, ...raw }
+    }
     if (operator === "is-on-calendar-day") {
-      if (!isEidosFileCalendarDayValue(raw))
-        throw new Error("Calendar day filter value is invalid")
-      return { op: "calendar-day", fieldId, ...raw }
+      throw new TypeError("Retired date filters require an explicit upgrade")
     }
     if (operator === "is-relative-to-today") {
-      const relative = raw as EidosFileRelativeDateValue | null
-      if (
-        !relative ||
-        !["past", "next", "this"].includes(relative.direction) ||
-        !["day", "week", "month", "year"].includes(relative.unit)
-      ) {
-        throw new TypeError(
-          "Relative date filter requires a direction and unit"
-        )
-      }
-      return {
-        op: "relative-date",
-        fieldId,
-        direction: relative.direction,
-        unit: relative.unit,
-      }
+      throw new TypeError("Retired date filters require an explicit upgrade")
     }
     if (operator === "is-between") {
       if (!Array.isArray(raw) || raw.length !== 2) {
@@ -2830,6 +2953,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         field: node.fieldId,
         operator: "is-between",
         value: [node.lower, node.upper] as never,
+      }
+    }
+    if (node.op === "calendar-period") {
+      return {
+        type: "rule",
+        field: node.fieldId,
+        operator: "is-in-calendar-period",
+        value: { unit: node.unit, offset: node.offset },
       }
     }
     if (node.op === "calendar-day") {
@@ -3082,9 +3213,42 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return typeof type === "object" ? type.element : type
   }
 
-  private async countRows(tableId: string, query: RowQuery): Promise<number> {
+  private executionKey(tableId: string, query: EidosFileRowQuery): string {
+    return canonicalizeEidosFileJson({
+      tableId,
+      query: this.runtimeQuery(tableId, query),
+      calendar: query.calendar ?? null,
+    })
+  }
+
+  private queryExecution(
+    tableId: string,
+    query: EidosFileRowQuery
+  ): { calendar?: EidosFileCalendarContext; referenceInstant?: string } {
+    const reference =
+      query.referenceInstant ??
+      this.queryReferences.get(this.executionKey(tableId, query))
+    return {
+      ...(query.calendar ? { calendar: query.calendar } : {}),
+      ...(reference ? { referenceInstant: reference } : {}),
+    }
+  }
+
+  private async countRows(
+    tableId: string,
+    query: RowQuery,
+    execution: {
+      calendar?: EidosFileCalendarContext
+      referenceInstant?: string
+    } = {}
+  ): Promise<number> {
     const result = await this.runtime.aggregate(
-      { tableId, query, items: [{ key: "count", op: "count-all" }] },
+      {
+        tableId,
+        query,
+        items: [{ key: "count", op: "count-all" }],
+        ...execution,
+      },
       this.context("count")
     )
     const count = result.results[0]
@@ -3126,6 +3290,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         {
           tableId,
           query: this.runtimeQuery(tableId, query),
+          ...this.queryExecution(tableId, query),
           projection: { fields: selected, resolveRelations: [] },
           limit: DEFAULT_PAGE_SIZE,
           ...(cursor ? { cursor } : {}),
@@ -3245,6 +3410,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     if (this.runtimeSnapshot)
       this.runtimeSnapshot = { ...this.runtimeSnapshot, revision }
     this.cursorCache.clear()
+    this.queryReferences.clear()
   }
 
   private revision(): string {

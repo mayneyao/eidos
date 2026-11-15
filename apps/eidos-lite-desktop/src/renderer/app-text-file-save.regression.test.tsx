@@ -887,8 +887,10 @@ it.each(["root", "folder", "restore", "recent"])(
     const plugins = vi.fn(async () => {
       throw new Error("The .eidos implementation directory is protected")
     })
+    const callRuntime = vi.fn(async () => snapshot)
     installHost({
       openFileMetadata: open,
+      callRuntime,
       openPluginEditor: plugins,
       inspectEidosFileIssue: async () => null,
     })
@@ -976,6 +978,9 @@ it.each(["root", "folder", "restore", "recent"])(
         .getAttribute("data-test-metadata-scope")
     ).toBe(mode === "root" || mode === "recent" ? "" : "business")
     expect(open).toHaveBeenCalledOnce()
+    expect(callRuntime).toHaveBeenCalledWith("catalog", "getSnapshot", [], {
+      calendarQueryVersion: 2,
+    })
     expect(open).toHaveBeenCalledWith(
       mode === "root" || mode === "recent" ? null : "business"
     )

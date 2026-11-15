@@ -117,15 +117,17 @@ describe("shared EidosFileQueryToolbar", () => {
     root = createRoot(container)
     act(() => {
       root.render(
-        <EidosFileQueryToolbar
-          fields={fields}
-          filter={null}
-          sorts={[]}
-          search=""
-          onSearchChange={onSearchChange}
-          onFilterChange={onFilterChange}
-          onSortsChange={onSortsChange}
-        />
+        <EidosFileUIProvider calendarPeriodTimeZoneData={["2026f"]}>
+          <EidosFileQueryToolbar
+            fields={fields}
+            filter={null}
+            sorts={[]}
+            search=""
+            onSearchChange={onSearchChange}
+            onFilterChange={onFilterChange}
+            onSortsChange={onSortsChange}
+          />
+        </EidosFileUIProvider>
       )
     })
   })
@@ -756,7 +758,7 @@ describe("shared EidosFileQueryToolbar", () => {
     ).toBe(true)
   })
 
-  it("saves rolling date shortcuts without freezing an absolute date", async () => {
+  it("saves relative calendar periods without freezing a date or time zone", async () => {
     await act(async () => button("Filter")?.click())
     await act(async () =>
       document.querySelector<HTMLElement>("[cmdk-item]")?.click()
@@ -774,7 +776,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => operator?.click())
     const relative = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
-    ).find((option) => option.textContent?.trim() === "Date range (UTC)")
+    ).find((option) => option.textContent?.trim() === "Relative date")
     await act(async () => relative?.click())
     expect(
       document.body.querySelector('input[type="datetime-local"]')
@@ -792,8 +794,8 @@ describe("shared EidosFileQueryToolbar", () => {
         {
           type: "rule",
           field: fields[3].id,
-          operator: "is-relative-to-today",
-          value: { direction: "this", unit: "week" },
+          operator: "is-in-calendar-period",
+          value: { unit: "day", offset: 0 },
         },
       ],
     })

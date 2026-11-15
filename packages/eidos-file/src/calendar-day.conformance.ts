@@ -198,17 +198,17 @@ export async function expectCalendarDayQueryConformance(
       const selected = await runtime.queryRows(
         {
           tableId,
+          calendar: { timeZone, timeZoneData: "2026f", weekStartsOn: 1 },
           query: {
             filter: {
               op: "and",
               args: [
                 { op: "starts-with", fieldId: label, value: prefix },
                 {
-                  op: "calendar-day",
+                  op: "calendar-period",
                   fieldId,
-                  day,
-                  timeZone,
-                  timeZoneData: "2026f",
+                  unit: "day",
+                  offset: day === "yesterday" ? -1 : day === "tomorrow" ? 1 : 0,
                 },
               ],
             },
@@ -241,13 +241,17 @@ export async function expectCalendarDayQueryConformance(
     const selected = await runtime.queryRows(
       {
         tableId,
+        calendar: {
+          timeZone: "Pacific/Apia",
+          timeZoneData: "2026f",
+          weekStartsOn: 1,
+        },
         query: {
           filter: {
-            op: "calendar-day",
+            op: "calendar-period",
             fieldId,
-            day: "tomorrow",
-            timeZone: "Pacific/Apia",
-            timeZoneData: "2026f",
+            unit: "day",
+            offset: 1,
           },
         },
         projection: { fields: [label], resolveRelations: [] },
@@ -257,5 +261,76 @@ export async function expectCalendarDayQueryConformance(
     )
     expect(selected.rows.length).toBe(fieldId === date ? 1 : 0)
     expect(selected.revision).toBe(skipped.revision)
+  }
+  revision = skipped.revision
+  const periods = [
+    ["day", -1, "2025-12-31", "2026-01-01"],
+    ["day", 0, "2026-01-01", "2026-01-02"],
+    ["day", 1, "2026-01-02", "2026-01-03"],
+    ["week", -1, "2025-12-22", "2025-12-29"],
+    ["week", 0, "2025-12-29", "2026-01-05"],
+    ["week", 1, "2026-01-05", "2026-01-12"],
+    ["month", -1, "2025-12-01", "2026-01-01"],
+    ["month", 0, "2026-01-01", "2026-02-01"],
+    ["month", 1, "2026-02-01", "2026-03-01"],
+    ["year", -1, "2025-01-01", "2026-01-01"],
+    ["year", 0, "2026-01-01", "2027-01-01"],
+    ["year", 1, "2027-01-01", "2028-01-01"],
+  ] as const
+  setReference("2026-01-01T12:30:00.000Z")
+  for (const [index, [unit, offset, start, end]] of periods.entries()) {
+    const prefix = `period-${index}-`
+    const lower = `${start}T00:00:00.000Z`,
+      upper = `${end}T00:00:00.000Z`
+    const samples = [
+      new Date(Date.parse(lower) - 1).toISOString(),
+      lower,
+      new Date(Date.parse(upper) - 1).toISOString(),
+      upper,
+    ]
+    const created = await runtime.mutateRows(
+      {
+        tableId,
+        expectedRevision: revision,
+        changes: samples.map((value, sample) => ({
+          kind: "create",
+          clientKey: `period-${sample}`,
+          values: {
+            [label]: prefix + sample,
+            [date]: value.slice(0, 10),
+            [instant]: value,
+          },
+        })),
+      },
+      context()
+    )
+    revision = created.revision
+    for (const fieldId of [date, instant]) {
+      const page = await runtime.queryRows(
+        {
+          tableId,
+          calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
+          query: {
+            filter: {
+              op: "and",
+              args: [
+                { op: "starts-with", fieldId: label, value: prefix },
+                { op: "calendar-period", fieldId, unit, offset },
+              ],
+            },
+            sort: [{ fieldId: label, direction: "asc" }],
+          },
+          projection: { fields: [label], resolveRelations: [] },
+          limit: 10,
+        },
+        context()
+      )
+      expect(page.rows.map((row) => row.values[0])).toEqual([
+        prefix + "1",
+        prefix + "2",
+      ])
+      expect(page.total).toBe("2")
+      expect(page.referenceInstant).toBe("2026-01-01T12:30:00.000Z")
+    }
   }
 }
