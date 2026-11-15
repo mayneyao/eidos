@@ -1189,8 +1189,10 @@ implicit option inference。
 含 `calendar-day` 的 View 从已存查询的每个日历 leaf（包括嵌套 AND/OR/NOT）
 推导展示／输入 profile。一致且支持的 profile 传递到 Grid、card、从该 View 打开的
 record/inspector、created/updated time、日期输入，以及 Calendar 的分组、范围查询、
-创建和拖动。保留现有展示区 preference；条件区独立，若不同须显示差异并提供明确
-对齐动作。同区／同 profile 下，即使宿主规则不同，可见日历日期与筛选成员也必须一致。
+创建和拖动。新日历条件将用户现有的展示区 preference 解析成固定 IANA 区域，包含
+既有的 system 区域解析。筛选控件不提供逐条件改时区或对齐的入口。打开或原样保存
+既有条件时保留已存区域，仅用一处简短只读提示说明实际使用的区域。同区／同 profile
+下，即使宿主规则不同，可见日历日期与筛选成员也必须一致。
 投影与 wall-clock 反解消费 canonical Runtime 规则，不能使用宿主 offset。
 不新增另一份持久化 profile 或全局设置。没有日历 leaf 的旧 View 保持现有展示行为。
 上下文切换保留草稿、焦点和组件 identity；未改值保存保留原 instant 精度。
@@ -1502,21 +1504,29 @@ custom filter editor 可以保留专用控件。
 这些语义。
 
 Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**、**不晚于**、
-**不早于**、**介于**、**相对今天**、**为空**与**不为空**。**介于**接收有顺序且包含
+**不早于**、**介于**、**日历日**、**日期范围（UTC）**、**为空**与**不为空**。**介于**接收有顺序且包含
 首尾的 lower/upper value，并发送 `between`。
 
-**位于日历日**提供昨天／今天／明天、固定 IANA 区域和明确声明支持的 profile
-（默认 2026f），保存为独立 `calendar-day` leaf。创建时把展示区解析为固定区域；
-区域不可用时须明确选择支持的区域，不能默用 UTC，也不能由普通控件创建混合 profile。
-旧 `relative-date` 条件清楚标为**相对时间窗口（UTC）**；当前指 UTC 日历周期，过去／
+**日历日**提供昨天／今天／明天，保存为独立 `calendar-day` leaf。创建时解析用户配置
+的展示时区；已有明确 preference 时不能改用浏览器系统区。该条件的已存区域在这里
+只读，新条件的默认时区由 Host 既有的时区设置提供。打开筛选或提交无关修改 MUST NOT 改写
+既有条件的区域／profile。支持的默认 profile（2026f）是内部能力选择，不作为普通
+用户的版本控件或常驻提示。配置区域不可用时不得默退 UTC 或其他区域；普通控件
+不能创建混合 profile。旧 `relative-date` 条件清楚标为**日期范围（UTC）**；当前指 UTC 日历周期，过去／
 未来仍为包含端点并按 Date 精度投影的滚动窗口。选择明天是明确的新条件，不重解释
 已有 Future/day。
 
-**相对时间窗口（UTC）**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
+**日期范围（UTC）**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
 **月**或**年**），并发送一个 `relative-date` leaf。控件必须把 direction 与 unit 持久
 保存在 View 中，绝不能把条件冻结为 absolute date。重新打开时必须保留两个选择；
 reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
-应说明结果会随当前日期更新，也可以用日历预览计算区间，但预览不能成为 canonical state。
+过去／未来的 day、week 单位清楚标为 **24 小时**、**7 天**，不得称为上一／下一
+日历日或周。帮助按需展示，用当前 UI 语言说明所选范围，不常驻实现细节。范围预览
+可复用 canonical 结果，但不在 UI 新建日期计算器。
+
+筛选行的 Field、operator、value、Delete 在文字可容纳时保持紧凑一致的高度与对齐。
+长 operator 不得溢出固定高度，可自然增高以保留含义。窄容器把 value 放到第二行，
+避免横向溢出；辅助帮助和时区提示不撑大弹层或造成大块空白。
 
 Eidos 标准视图 1.0 的通用 Fields 控件以及适用的 Grid、Card、Kanban、Calendar、
 Form 控件是 Editor required surface，不是 optional authoring convenience。每个控件通过一次 revision-checked

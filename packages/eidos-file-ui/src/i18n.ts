@@ -4,16 +4,27 @@ export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
 const zh: EidosFileUIMessageOverrides = {
-  "is on calendar day": "位于日历日",
-  "Relative window (UTC)": "相对时间窗口（UTC）",
+  "Calendar day": "日历日",
+  "Date range (UTC)": "日期范围（UTC）",
   Yesterday: "昨天",
   Tomorrow: "明天",
-  "Calendar time zone": "日历时区",
-  "Calendar rules: {profile}": "日历规则：{profile}",
-  "Display zone is {timeZone}. Use it for this condition.":
-    "显示时区为 {timeZone}，点击将此条件改为该时区。",
-  "UTC calendar for Current; Past/Future are inclusive rolling windows. A Date window can include two dates.":
-    "当前周期采用 UTC 日历；过去和未来为包含端点的滚动窗口。Date 字段的窗口可能包含两个日期。",
+  "Date range direction": "日期范围方向",
+  "Date range unit": "日期范围单位",
+  "About date ranges": "日期范围说明",
+  "24 hours": "24 小时",
+  "7 days": "7 天",
+  "1 month": "1 个月",
+  "1 year": "1 年",
+  "Today starts and ends at midnight in UTC.":
+    "今天从 UTC 零点开始，到下一个零点结束。",
+  "This week runs from Monday to Sunday in UTC.":
+    "本周为 UTC 时间的周一至周日。",
+  "This month uses the calendar month in UTC.": "本月按 UTC 时间的自然月计算。",
+  "This year uses the calendar year in UTC.": "本年按 UTC 时间的自然年计算。",
+  "Measured from now. Dates without a time include both end dates.":
+    "从现在往前或往后计算；没有时间的日期会包含首尾日期。",
+  "Measured from now, including the start and end times.":
+    "从现在往前或往后计算，包含开始和结束时刻。",
   "This view uses calendar rules this editor cannot display. Edit its calendar conditions to use one supported profile.":
     "此视图的日历规则暂不受编辑器支持。请明确修改条件，使用同一种支持的规则。",
   "Outside calendar profile years 1970–2499. Use a view without calendar conditions to edit this value.":

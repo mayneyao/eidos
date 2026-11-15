@@ -20,7 +20,6 @@ import type {
 import {
   eidosFileFieldQueryCapabilities,
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
-  eidosFileCalendarTimeZones,
   isEidosFileCalendarDayValue,
 } from "@eidos.space/eidos-file"
 import {
@@ -32,6 +31,7 @@ import {
   ChevronUp,
   ChevronRight,
   Filter,
+  CircleHelp,
   LoaderCircle,
   Plus,
   Search,
@@ -63,6 +63,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Popover as HelpPopover,
+  PopoverContent as HelpPopoverContent,
+  PopoverTrigger as HelpPopoverTrigger,
 } from "./ui/primitives"
 
 import type { EidosFileEditorDataSource } from "./data-source"
@@ -129,8 +132,8 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-all-of": "has all of",
   "is-none-of": "has none of",
   "is-between": "is between",
-  "is-relative-to-today": "Relative window (UTC)",
-  "is-on-calendar-day": "is on calendar day",
+  "is-relative-to-today": "Date range (UTC)",
+  "is-on-calendar-day": "Calendar day",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
@@ -270,6 +273,63 @@ function CheckboxConditionSelect({
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+const rollingUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
+  day: "24 hours",
+  week: "7 days",
+  month: "1 month",
+  year: "1 year",
+}
+
+function configuredCalendarTimeZone(timeZone?: string): string {
+  return eidosFileResolvedTimeZone(timeZone === "system" ? undefined : timeZone)
+}
+
+function RelativeDateHelp({
+  direction,
+  unit,
+  dateOnly,
+}: {
+  direction: EidosFileRelativeDateDirection
+  unit: EidosFileRelativeDateUnit
+  dateOnly: boolean
+}) {
+  const { translate: t } = useEidosFileUI()
+  const calendarHelp: Record<EidosFileRelativeDateUnit, string> = {
+    day: "Today starts and ends at midnight in UTC.",
+    week: "This week runs from Monday to Sunday in UTC.",
+    month: "This month uses the calendar month in UTC.",
+    year: "This year uses the calendar year in UTC.",
+  }
+  const message =
+    direction === "this"
+      ? calendarHelp[unit]
+      : dateOnly
+        ? "Measured from now. Dates without a time include both end dates."
+        : "Measured from now, including the start and end times."
+  return (
+    <HelpPopover>
+      <HelpPopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label={t("About date ranges")}
+          title={t("About date ranges")}
+        >
+          <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </HelpPopoverTrigger>
+      <HelpPopoverContent
+        align="end"
+        sideOffset={6}
+        className="w-64 max-w-[calc(100vw-32px)] p-2 text-xs leading-relaxed"
+        data-eidos-file-date-range-help
+      >
+        {t(message)}
+      </HelpPopoverContent>
+    </HelpPopover>
   )
 }
 
@@ -458,23 +518,20 @@ function FilterValueEditor({
       ? rule.value
       : {
           day: "today" as const,
-          timeZone: eidosFileResolvedTimeZone(timeZone),
+          timeZone: configuredCalendarTimeZone(timeZone),
           timeZoneData:
             calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
         }
-    let zones: string[] = []
-    try {
-      zones = eidosFileCalendarTimeZones(value.timeZoneData)
-    } catch {
-      /* preserve unsupported saved values for explicit editing */
-    }
     return (
       <div className="grid min-w-0 gap-1.5">
         <Select
           value={value.day}
           onValueChange={(day: typeof value.day) => onChange({ ...value, day })}
         >
-          <SelectTrigger className="h-7 text-xs">
+          <SelectTrigger
+            className="h-7 min-w-0 gap-1 px-2 text-xs [&>svg]:shrink-0"
+            aria-label={t("Calendar day")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -491,46 +548,12 @@ function FilterValueEditor({
             ))}
           </SelectContent>
         </Select>
-        <label className="text-[11px] text-muted-foreground">
+        <p
+          className="break-words text-[11px] leading-4 text-muted-foreground"
+          data-eidos-file-calendar-time-zone
+        >
           {t("Time zone: {timeZone}", { timeZone: value.timeZone })}
-          <select
-            aria-label={t("Calendar time zone")}
-            className="h-7 w-full rounded border bg-background text-xs"
-            value={value.timeZone}
-            onChange={(event) =>
-              onChange({ ...value, timeZone: event.target.value })
-            }
-          >
-            {!zones.includes(value.timeZone) && (
-              <option value={value.timeZone}>{value.timeZone}</option>
-            )}
-            {zones.map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="text-[11px] text-muted-foreground">
-          {t("Calendar rules: {profile}", { profile: value.timeZoneData })}
-        </span>
-        {value.timeZone !== eidosFileResolvedTimeZone(timeZone) && (
-          <button
-            type="button"
-            className="text-left text-[11px] underline"
-            disabled={!zones.includes(eidosFileResolvedTimeZone(timeZone))}
-            onClick={() =>
-              onChange({
-                ...value,
-                timeZone: eidosFileResolvedTimeZone(timeZone),
-              })
-            }
-          >
-            {t("Display zone is {timeZone}. Use it for this condition.", {
-              timeZone: eidosFileResolvedTimeZone(timeZone),
-            })}
-          </button>
-        )}
+        </p>
       </div>
     )
   }
@@ -557,14 +580,17 @@ function FilterValueEditor({
         ? candidate.unit
         : "week"
     return (
-      <div className="grid min-w-0 grid-cols-2 gap-1.5">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] items-start gap-1.5">
         <Select
           value={direction}
           onValueChange={(next: EidosFileRelativeDateDirection) =>
             onChange({ direction: next, unit })
           }
         >
-          <SelectTrigger className="h-7 min-w-0 text-xs">
+          <SelectTrigger
+            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
+            aria-label={t("Date range direction")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -585,7 +611,10 @@ function FilterValueEditor({
             onChange({ direction, unit: next })
           }
         >
-          <SelectTrigger className="h-7 min-w-0 text-xs">
+          <SelectTrigger
+            className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
+            aria-label={t("Date range unit")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -593,16 +622,20 @@ function FilterValueEditor({
               Object.keys(relativeUnitLabels) as EidosFileRelativeDateUnit[]
             ).map((entry) => (
               <SelectItem key={entry} value={entry}>
-                {t(relativeUnitLabels[entry])}
+                {t(
+                  (direction === "this"
+                    ? relativeUnitLabels
+                    : rollingUnitLabels)[entry]
+                )}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <span className="col-span-2 text-[11px] text-muted-foreground">
-          {t(
-            "UTC calendar for Current; Past/Future are inclusive rolling windows. A Date window can include two dates."
-          )}
-        </span>
+        <RelativeDateHelp
+          direction={direction}
+          unit={unit}
+          dateOnly={displayType === "date"}
+        />
       </div>
     )
   }
@@ -731,7 +764,7 @@ function FilterValueEditor({
     const timezoneHint =
       datetimeError ??
       t("Time zone: {timeZone}", {
-        timeZone: eidosFileResolvedTimeZone(timeZone),
+        timeZone: configuredCalendarTimeZone(timeZone),
       })
     if (rule.operator === "is-between") {
       const range = Array.isArray(rule.value) ? rule.value : ["", ""]
@@ -965,8 +998,8 @@ function EidosFileFilterRuleEditor({
         fixedField
           ? "grid-cols-1"
           : checkboxCondition
-            ? "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(180px,2.5fr)_28px]"
-            : "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_28px]"
+            ? "eidos-filter-rule eidos-filter-checkbox-rule"
+            : "eidos-filter-rule"
       )}
     >
       {!fixedField && (
@@ -982,6 +1015,7 @@ function EidosFileFilterRuleEditor({
           <SelectTrigger
             className="h-7 min-w-0 gap-1 text-xs [&>span]:min-w-0 [&>span]:truncate"
             aria-label={t("Field")}
+            data-eidos-file-filter-field
           >
             <SelectValue />
           </SelectTrigger>
@@ -1051,7 +1085,7 @@ function EidosFileFilterRuleEditor({
                   : operator === "is-on-calendar-day"
                     ? {
                         day: "today",
-                        timeZone: eidosFileResolvedTimeZone(timeZone),
+                        timeZone: configuredCalendarTimeZone(timeZone),
                         timeZoneData:
                           calendarTimeZoneData ??
                           EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
@@ -1081,7 +1115,7 @@ function EidosFileFilterRuleEditor({
             }}
           >
             <SelectTrigger
-              className="h-7 min-w-0 text-xs"
+              className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:min-w-0 [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
               aria-label={t("Filter operator")}
             >
               <SelectValue />

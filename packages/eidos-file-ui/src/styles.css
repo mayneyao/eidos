@@ -789,6 +789,18 @@
   max-height: none;
   overflow: visible;
 }
+[data-eidos-file-filter-popover] {
+  container: eidos-filters / inline-size;
+}
+.eidos-filter-rule {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1.65fr) 28px;
+}
+.eidos-filter-checkbox-rule {
+  grid-template-columns: minmax(100px, 1fr) minmax(180px, 2.5fr) 28px;
+}
+.eidos-filter-value {
+  min-width: 0;
+}
 .eidos-mobile-settings-body .eidos-filter-rule {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
   gap: 8px;
@@ -802,8 +814,14 @@
 .eidos-mobile-settings-body .eidos-filter-value:empty {
   display: none;
 }
+.eidos-mobile-settings-body
+  .eidos-filter-rule
+  > [data-eidos-file-filter-field] {
+  align-self: stretch;
+  height: auto;
+}
 
-@media (max-width: 520px) {
+@container eidos-filters (max-width: 420px) {
   [data-eidos-file-filter-popover] .eidos-filter-rule {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
   }
@@ -811,9 +829,16 @@
     grid-column: 1 / 3;
     grid-row: 2;
   }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule
+    > [data-eidos-file-filter-field] {
+    align-self: stretch;
+    height: auto;
+  }
   [data-eidos-file-filter-popover] .eidos-filter-remove {
     grid-column: 3;
     grid-row: 1;
+    align-self: center;
   }
 }
 .eidos-mobile-settings-body .eidos-filter-remove {

@@ -1299,9 +1299,12 @@ Views containing `calendar-day` derive their display/input profile from every
 calendar leaf in the saved query, including nested AND/OR/NOT. One supported
 profile applies to Grid, cards, record/inspector panels opened from the View,
 created/updated times, date inputs and Calendar grouping/range queries/creation/
-movement. The existing display-zone preference remains selected; a condition's
-zone is independent and must be shown with an explicit alignment action when
-different. For the same zone/profile, displayed calendar dates and filter
+movement. New calendar conditions resolve the user's existing display-zone
+preference to a fixed IANA zone, including the existing system-zone resolver.
+Filter controls do not offer per-condition zone selection or alignment actions.
+An existing condition retains its saved zone when opened or saved unchanged;
+one concise read-only zone hint identifies the zone actually used. For the same
+zone/profile, displayed calendar dates and filter
 membership must agree even when host rules differ. Projection and inverse
 wall-clock binding consume canonical Runtime rules, never host offsets.
 There is no extra persisted profile setting and no global profile preference.
@@ -1702,28 +1705,40 @@ without changing their membership. A Host-supplied custom filter editor MAY
 retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
-after**, **is on or before**, **is on or after**, **is between**, **is on
-calendar day**, **Relative window (UTC)**, **is empty**, and **is not empty**. **Is between** accepts an
+after**, **is on or before**, **is on or after**, **is between**, **Calendar
+day**, **Date range (UTC)**, **is empty**, and **is not empty**. **Is between** accepts an
 ordered inclusive lower and upper value and emits `between`.
 
-**Is on calendar day** exposes Yesterday/Today/Tomorrow, a fixed IANA zone and
-an explicit advertised profile (default 2026f). It persists one `calendar-day`
-leaf. The selected display zone is resolved to a fixed zone at creation; an
-unavailable zone requires a supported explicit selection. The UI cannot silently
-use UTC or create mixed profiles through ordinary controls. Existing
-`relative-date` conditions remain visibly labelled **Relative window (UTC)**;
+**Calendar day** exposes Yesterday/Today/Tomorrow and persists one `calendar-day`
+leaf. Creation resolves the user's configured display zone, rather than the
+browser's system zone when an explicit preference exists. The saved zone is
+read-only here; the Host's existing time-zone setting supplies defaults for new conditions.
+Opening the filter or applying unrelated edits MUST NOT rewrite an existing
+condition's zone/profile. The supported default profile (2026f) remains an
+internal capability choice, not a user-facing version control or permanent tip.
+An unavailable configured zone must not silently fall back to UTC or another
+zone. Ordinary controls cannot create mixed profiles. Existing
+`relative-date` conditions remain visibly labelled **Date range (UTC)**;
 Current means a UTC period, and Past/Future retain inclusive rolling boundaries
 with Date precision projection. Choosing Tomorrow is an explicit new condition,
 not a reinterpretation of an existing Future/day filter.
 
-**Relative window (UTC)** exposes a direction (**past**, **next**, or **this**)
+**Date range (UTC)** exposes a direction (**past**, **next**, or **this**)
 and a unit (**day**, **week**, **month**, or **year**) and emits one
 `relative-date` leaf. The control persists direction and unit in the View and
 MUST NOT freeze the condition into absolute dates. Reopening it preserves both
 selections while Runtime remains authoritative for the reference instant,
-calendar-period rules, and inclusive boundaries. UI SHOULD explain that the
-result updates with the current date and MAY preview the computed interval in
-a calendar without making that preview canonical state.
+calendar-period rules, and inclusive boundaries. Past/Future day and week units
+are labelled **24 hours** and **7 days**, not the previous/next calendar day or
+week. Help is available on demand in plain, localized language about the chosen
+range. No permanent implementation explanation is shown. A range preview MAY
+reuse canonical results, without a separate UI date evaluator.
+
+Filter rows keep Field, operator, value and Delete aligned at a compact common
+height when their text fits. Long operator text remains readable and can grow
+vertically rather than overflowing a fixed-height trigger. Narrow filter
+containers place values on a second row without horizontal overflow. Secondary
+help and zone hints do not create large empty columns or expand the popover.
 
 The common Fields control and the applicable Grid, Card, Kanban, Calendar, and
 Form controls from Eidos Standard Views 1.0 are required Editor surfaces, not
