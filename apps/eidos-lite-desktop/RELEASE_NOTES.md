@@ -6,9 +6,11 @@ When a file is open in the sidebar, clicking a record in a table view updates th
 
 ### Attach files to Markdown notes
 
-Type `/` and choose **Attach file** to copy a file into the note's `assets/` folder and insert a relative link. Drag files from the Space Explorer into a note to reference them at the drop position; images appear inline. This works in Rich text and Source, in the main editor and file sidebar.
+In Rich text, type `/` and choose **Attach file** to copy a file into the note's `assets/` folder and insert a relative link.
 
-Type `[[` to find existing Space files and choose a link or an image where supported. Candidate paths remain readable for Chinese and other non-ASCII filenames.
+In Rich text, type `[[` to find existing Space files and choose a link or an image where supported. Candidate paths remain readable for Chinese and other non-ASCII filenames.
+
+Drag files from the Space Explorer into a note to reference them at the drop position; images appear inline. File drops work in Rich text and Source, in the main editor and file sidebar.
 
 ### Two-state checkboxes for new fields
 

@@ -342,7 +342,7 @@ local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
 `RepositorySession` for that Space. Normal status, diff, history, checkpoint,
 restore, push, and clone paths use only the SDK; Lite contains no Graft CLI
-adapter, subprocess fallback, or bundled CLI binary.
+adapter, subprocess fallback, or bundled Graft CLI binary.
 
 ## Local development
 

@@ -467,7 +467,7 @@ EIDOS_LITE_LARGE_REPOSITORY_ROOT=/path/to/large-space \
   pnpm test:eidos-lite:performance:large
 ```
 
-Packaged execution contains no CLI binary, does not spawn a Graft subprocess,
+Packaged execution contains no Graft CLI binary, does not spawn a Graft subprocess,
 and does not search the user's `PATH`.
 
 ## Official staging gate
