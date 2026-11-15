@@ -22,7 +22,7 @@ serve = [
 [dependencies]
 eidos-publish = { workspace = true, optional = true }
 rquickjs = "0.12"
-rusqlite = { workspace = true, features = ["serialize", "functions", "limits"] }
+rusqlite = { workspace = true, features = ["serialize", "functions", "limits", "backup"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22"

@@ -635,6 +635,24 @@ pub fn open_host_state_read_only(db_path: &std::path::Path) -> anyhow::Result<Ho
     open_host_state_with_mode(db_path, true)
 }
 
+/// A consistent private copy for canonical Runtime mutation previews.
+/// The caller never obtains a write connection to the source file.
+pub fn open_host_state_snapshot(db_path: &std::path::Path) -> anyhow::Result<HostState> {
+    let source = open_host_state_read_only(db_path)?;
+    let mut conn = Connection::open_in_memory()?;
+    {
+        let backup = rusqlite::backup::Backup::new(&source.conn, &mut conn)?;
+        backup.run_to_completion(64, std::time::Duration::from_millis(0), None)?;
+    }
+    conn.execute_batch(
+        "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA busy_timeout = 5000;",
+    )?;
+    Ok(HostState {
+        conn,
+        read_only: false,
+    })
+}
+
 fn open_host_state_with_mode(
     db_path: &std::path::Path,
     read_only: bool,
@@ -755,6 +773,40 @@ pub fn run_open(db_path: &std::path::Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{host_exec, host_query, host_run, open_host_state_read_only, run_self_test};
+
+    #[test]
+    fn preview_snapshot_has_runtime_pragmas_and_cannot_modify_the_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("preview.sqlite");
+        let original = rusqlite::Connection::open(&path).unwrap();
+        original
+            .execute_batch(
+                "CREATE TABLE example(value TEXT); INSERT INTO example VALUES('original');",
+            )
+            .unwrap();
+        drop(original);
+        let before = std::fs::read(&path).unwrap();
+        let copy = super::open_host_state_snapshot(&path).unwrap();
+        assert_eq!(
+            copy.conn
+                .query_row("PRAGMA trusted_schema", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            copy.conn
+                .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert!(
+            host_run(&copy, "UPDATE example SET value='preview'", "[]", false)
+                .contains("\"ok\":true")
+        );
+        assert!(host_query(&copy, "SELECT value FROM example", "[]", false).contains("preview"));
+        drop(copy);
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
 
     #[test]
     fn merge_connections_keep_scalar_dispatch_and_read_only_guards_isolated() {

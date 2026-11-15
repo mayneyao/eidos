@@ -728,16 +728,6 @@ export function validateEidosFile(
     }
   }
 
-  if (LEVELS[level] === LEVELS.identity) {
-    return {
-      valid: errors.length === 0,
-      metadata,
-      tables: [],
-      errors,
-      warnings,
-    }
-  }
-
   // Check capabilities before inspecting virtual table schemas: SQLite may call
   // xConnect during PRAGMA table_list/table_info and throw for an absent module.
   if (sqliteTables.has(EIDOS_FILE_FEATURES_TABLE)) {
@@ -778,7 +768,10 @@ export function validateEidosFile(
     }
   }
 
-  if (errors.some((issue) => issue.code === "unsupported-feature")) {
+  if (
+    errors.some((issue) => issue.code === "unsupported-feature") ||
+    LEVELS[level] === LEVELS.identity
+  ) {
     return {
       valid: errors.length === 0,
       metadata,

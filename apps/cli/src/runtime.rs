@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use eidos_runtime_host::{
     QjsHost, clear_active_context, open_host_state, open_host_state_read_only,
+    open_host_state_snapshot,
 };
 use serde_json::{Value, json};
 
@@ -61,7 +62,25 @@ pub fn with_session<T>(
     writable: bool,
     action: impl FnOnce(&RuntimeSession) -> Result<T>,
 ) -> Result<T> {
-    let state = if writable {
+    with_session_mode(file, writable, false, action)
+}
+
+pub fn with_preview_session<T>(
+    file: &Path,
+    action: impl FnOnce(&RuntimeSession) -> Result<T>,
+) -> Result<T> {
+    with_session_mode(file, true, true, action)
+}
+
+fn with_session_mode<T>(
+    file: &Path,
+    writable: bool,
+    preview: bool,
+    action: impl FnOnce(&RuntimeSession) -> Result<T>,
+) -> Result<T> {
+    let state = if preview {
+        open_host_state_snapshot(file)
+    } else if writable {
         open_host_state(file)
     } else {
         open_host_state_read_only(file)

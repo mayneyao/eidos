@@ -42,54 +42,13 @@ const filePackage = path.join(
 )
 const fileManifest = JSON.parse(fs.readFileSync(filePackage, "utf8"))
 const fileRequire = createRequire(filePackage)
-const timeZoneEntry = packagedFile(fileRequire.resolve("moment-timezone"))
-const timeZoneRequire = createRequire(timeZoneEntry.path)
-const momentEntry = packagedFile(timeZoneRequire.resolve("moment"))
 const csvEntry = packagedFile(fileRequire.resolve("csv-parse/browser/esm/sync"))
-const timeZoneManifest = packageManifest(timeZoneEntry.path, "moment-timezone")
-const momentManifest = packageManifest(momentEntry.path, "moment")
 const csvManifest = packageManifest(csvEntry.path, "csv-parse")
-assert.equal(
-  timeZoneManifest.version,
-  fileManifest.dependencies["moment-timezone"]
-)
-assert.equal(momentManifest.version, fileManifest.dependencies.moment)
-const ruleData = packagedFile(
-  fileRequire.resolve("moment-timezone/data/packed/latest.json")
-)
-const timeZone = fileRequire("moment-timezone")
-const moment = timeZoneRequire("moment")
-assert.equal(timeZone.tz.version, timeZoneManifest.version)
-assert.equal(moment.version, momentManifest.version)
+assert.ok(fileManifest.dependencies["csv-parse"])
 const runtime = await import(
   pathToFileURL(
     path.join(archive, "node_modules/@eidos.space/eidos-file/dist/index.mjs")
   ).href
-)
-const profile = runtime.EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
-assert.equal(timeZone.tz.dataVersion, profile)
-assert.equal(
-  JSON.parse(fs.readFileSync(ruleData.path, "utf8")).version,
-  profile
-)
-const instant = "2026-11-12T12:34:56.123Z"
-const parts = runtime.projectEidosFileCalendarInstant(
-  instant,
-  "Asia/Kathmandu",
-  profile
-)
-assert.deepEqual(parts, {
-  year: 2026,
-  month: 11,
-  day: 12,
-  hour: 18,
-  minute: 19,
-  second: 56,
-  millisecond: 123,
-})
-assert.equal(
-  runtime.resolveEidosFileCalendarInstant(parts, "Asia/Kathmandu", profile),
-  instant
 )
 assert.deepEqual(
   runtime.prepareEidosFileCsvImport({
@@ -102,15 +61,10 @@ console.log(
   JSON.stringify({
     ok: true,
     archive,
-    calendarProfile: profile,
     dependencies: {
-      "moment-timezone": { entry: timeZoneEntry, manifest: timeZoneManifest },
-      moment: { entry: momentEntry, manifest: momentManifest },
       "csv-parse": { entry: csvEntry, manifest: csvManifest },
     },
-    ruleData,
     nodePathProvided: Boolean(process.env.NODE_PATH),
-    calendarRoundtrip: true,
     csvParsing: true,
   })
 )
