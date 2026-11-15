@@ -91,7 +91,7 @@ must complete before enabling named resources across supported platforms.
 > architecture and verification contract.
 
 Local Spaces, editing, and version history require no account. Eidos Lite uses
-Graft SDK 0.3.38 for durable merge state,
+Graft SDK 0.3.40 for durable merge state,
 policy-governed SQLite resolution, sparse large-database merge execution,
 cooperative cancellation, and safe retry/reopen behavior.
 Eidos Sync remains an invite-only private preview: users
@@ -333,7 +333,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the `@eidos.space/graft@0.3.38` Node-API SDK contract.
+Graft runs through the `@eidos.space/graft@0.3.40` Node-API SDK contract.
 The SDK and its five native packages use exact registry versions recorded in
 the lockfile. Production and release builds reject local dependency overrides
 and require the installed native addon to provide the encrypted-session API.
@@ -342,7 +342,7 @@ local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
 `RepositorySession` for that Space. Normal status, diff, history, checkpoint,
 restore, push, and clone paths use only the SDK; Lite contains no Graft CLI
-adapter, subprocess fallback, or bundled CLI binary.
+adapter, subprocess fallback, or bundled Graft CLI binary.
 
 ## Local development
 
