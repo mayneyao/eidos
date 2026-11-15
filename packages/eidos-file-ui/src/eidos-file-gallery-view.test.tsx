@@ -16,6 +16,7 @@ import { EidosFileGalleryView } from "./eidos-file-gallery-view"
 import { EidosFileEditorView } from "./eidos-file-editor-view"
 import type { EidosFileEditorDataSource } from "./data-source"
 import type { EidosFileUIHost } from "./context"
+import type * as EidosFileUIContext from "./context"
 import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import {
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
@@ -33,7 +34,7 @@ const contextMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("./context", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./context")>()),
+  ...(await importOriginal<typeof EidosFileUIContext>()),
   useEidosFileUI: () => ({
     themeName: "light",
     translate: contextMocks.translate,
