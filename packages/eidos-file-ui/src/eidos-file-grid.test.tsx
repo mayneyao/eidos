@@ -4660,6 +4660,303 @@ describe("EidosFileGrid", () => {
     })
   })
 
+  it("does not let neighbor prefetch after slow page reads block the latest visible window", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 18_952 }
+    const pending = new Map<number, (page: EidosFileRowPage) => void>()
+    const page = (offset: number): EidosFileRowPage => ({
+      tableId: largeTable.table.id,
+      offset,
+      limit: 100,
+      total: largeTable.rowCount,
+      rows: Array.from(
+        { length: Math.min(100, largeTable.rowCount - offset) },
+        (_, index) => rowAt(offset + index)
+      ),
+    })
+    const loadPage = vi.fn(
+      (offset: number) =>
+        new Promise<EidosFileRowPage>((resolve) => pending.set(offset, resolve))
+    )
+    const show = async (y: number) =>
+      act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 10 },
+          0,
+          0,
+          {}
+        )
+      })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(257)
+      pending.get(0)?.(page(0))
+    })
+    await show(18_400)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(521)
+      pending.get(18_400)?.(page(18_400))
+    })
+    expect(mocks.props?.getCellContent([0, 18_400])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18400",
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 18_400])
+
+    await show(18_941)
+    expect(loadPage).toHaveBeenLastCalledWith(18_900, 100)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(257)
+      pending.get(18_900)?.(page(18_900))
+    })
+    expect(mocks.props?.getCellContent([0, 18_951])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18951",
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 18_400, 18_900,
+    ])
+  })
+
+  it("keeps neighbor prefetch behind visible pages and a settled latest window", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const loadPage = createLoadPage(largeTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    const show = async (y: number) =>
+      act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+      })
+    await show(195)
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 100, 200])
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    await show(1_000)
+    expect(loadPage).toHaveBeenLastCalledWith(1_000, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage).not.toHaveBeenCalledWith(300, 100)
+    expect(loadPage).not.toHaveBeenCalledWith(900, 100)
+    await show(195)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage).not.toHaveBeenCalledWith(900, 100)
+    expect(loadPage).not.toHaveBeenCalledWith(1_100, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 100, 200, 1_000, 300,
+    ])
+    await show(1_000)
+    await act(async () => vi.advanceTimersByTimeAsync(200))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 100, 200, 1_000, 300, 900, 1_100,
+    ])
+  })
+
+  it("cancels pending neighbor prefetch when the Grid unmounts", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const loadPage = createLoadPage(largeTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 200, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+    })
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200])
+    await act(async () => root.render(null))
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200])
+  })
+
+  it("requires sustained fast reads before restoring neighbor prefetch after a slow source", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 5_000 }
+    const page = createLoadPage(largeTable)
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      await new Promise((resolve) =>
+        setTimeout(resolve, offset === 0 ? 257 : 20)
+      )
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(257))
+    for (const y of [200, 1_000]) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+    }
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 200, 1_000,
+    ])
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 2_000, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await vi.advanceTimersByTimeAsync(30)
+    })
+    expect(loadPage).toHaveBeenLastCalledWith(2_000, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(200))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 200, 1_000, 2_000, 1_900, 2_100,
+    ])
+  })
+
+  it("retries a required page after failure without starting speculative neighbors", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const page = createLoadPage(largeTable)
+    let fail = true
+    const onError = vi.fn()
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      if (offset === 200 && fail) {
+        fail = false
+        throw new Error("Source read failed")
+      }
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+          onError={onError}
+        />
+      )
+    })
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y: 200, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+    }
+    expect(onError).toHaveBeenCalledOnce()
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200, 200])
+    expect(mocks.props?.getCellContent([0, 200])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 200",
+    })
+  })
+
+  it("replays measured page costs without placing slow neighbors ahead of the final viewport", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 18_952 }
+    const page = createLoadPage(largeTable)
+    // Source costs and the final-scroll interval come from a body-free manual
+    // trace. This deterministic scheduler replay is not a native timing result.
+    const costs = new Map([
+      [0, 257],
+      [18_400, 521],
+      [18_300, 273],
+      [18_500, 2_207],
+      [18_900, 257],
+    ])
+    const starts = new Map<number, number>()
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      starts.set(offset, performance.now())
+      await new Promise((resolve) =>
+        setTimeout(resolve, costs.get(offset) ?? 257)
+      )
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    const show = (y: number) =>
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y, width: 2, height: 10 },
+        0,
+        0,
+        {}
+      )
+    await act(async () => vi.advanceTimersByTimeAsync(257))
+    await act(async () => {
+      show(18_400)
+      await vi.advanceTimersByTimeAsync(521 + 273 + 531)
+    })
+    const finalScrollAt = performance.now()
+    await act(async () => {
+      show(18_941)
+      await vi.advanceTimersByTimeAsync(2_500)
+    })
+    const startDelay = (starts.get(18_900) ?? Infinity) - finalScrollAt
+    console.info(
+      "GRID_SCHEDULER_REPLAY",
+      JSON.stringify({
+        notice: "Deterministic fixture; not native latency",
+        targetStartDelayMs: startDelay,
+        targetSourceMs: costs.get(18_900),
+        modeledTargetResponseMs: startDelay + 257,
+        offsets: loadPage.mock.calls.map(([offset]) => offset),
+      })
+    )
+    expect(startDelay).toBe(0)
+    expect(mocks.props?.getCellContent([0, 18_951])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18951",
+    })
+  })
+
   it("lets the latest visible Grid region replace queued page loads", async () => {
     const largeTable = { ...table, rowCount: 2_500 }
     let resolvePage200: ((page: EidosFileRowPage) => void) | undefined
@@ -4730,6 +5027,7 @@ describe("EidosFileGrid", () => {
   })
 
   it("bounds a million-row Grid cache and reloads an evicted page", async () => {
+    vi.useFakeTimers()
     const largeTable = { ...table, rowCount: 1_000_000 }
     const loadPage = createLoadPage(largeTable)
     await act(async () => {
@@ -4752,8 +5050,7 @@ describe("EidosFileGrid", () => {
           0,
           {}
         )
-        await Promise.resolve()
-        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(200)
       })
     }
 
@@ -4906,6 +5203,7 @@ describe("EidosFileGrid", () => {
   it.each(["search", "record"])(
     "scrolls to and highlights a filtered %s target",
     async (mode) => {
+      vi.useFakeTimers()
       const loadPage = createLoadPage()
       await act(async () => {
         root.render(
@@ -4934,6 +5232,7 @@ describe("EidosFileGrid", () => {
         expect(mocks.props?.gridSelection?.rows.length ?? 0).toBe(0)
       }
       expect(loadPage).toHaveBeenCalledWith(100, 100)
+      await act(async () => vi.advanceTimersByTimeAsync(200))
       expect(loadPage).toHaveBeenCalledWith(200, 100)
       expect(mocks.props?.highlightRegions).toMatchObject([
         {

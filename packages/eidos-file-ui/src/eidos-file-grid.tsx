@@ -123,6 +123,10 @@ import "@glideapps/glide-data-grid/dist/index.css"
 
 const PAGE_SIZE = 100
 const PAGE_OVERSCAN = 1
+// Speculative reads must not occupy a slow source while the user changes rows.
+const PAGE_PREFETCH_SETTLE_MS = 150
+const PAGE_PREFETCH_READ_BUDGET_MS = 100
+const PAGE_PREFETCH_RECOVERY_READS = 3
 const MAX_CACHED_PAGES = 8
 const MAX_UNDO_HISTORY_BATCHES = 50
 
@@ -625,6 +629,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const visiblePagesRef = useRef(new Set<number>())
   const latestPageRequestRef = useRef<EidosFileGridPageRequest | null>(null)
   const pageLoadRunnerActiveRef = useRef(false)
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pageRequestTimeRef = useRef(0)
+  const prefetchReadStateRef = useRef({
+    measured: false,
+    paused: false,
+    fastReads: 0,
+  })
   const loadPageIndexRef = useRef<(pageIndex: number) => Promise<boolean>>(
     async () => false
   )
@@ -1188,9 +1199,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       }
       const generation = generationRef.current
       loadingPagesRef.current.set(pageIndex, generation)
+      const started = performance.now()
       try {
         const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
         if (generation !== generationRef.current) return false
+        const prefetch = prefetchReadStateRef.current
+        prefetch.measured = true
+        if (performance.now() - started > PAGE_PREFETCH_READ_BUDGET_MS) {
+          prefetch.paused = true
+          prefetch.fastReads = 0
+        } else if (prefetch.paused) {
+          // A single warm page must not reopen speculation on an expensive
+          // source. Only consecutive successful reads restore the budget.
+          prefetch.fastReads += 1
+          if (prefetch.fastReads >= PAGE_PREFETCH_RECOVERY_READS)
+            prefetch.paused = false
+        }
         const pinnedRows = new Map<string, number>()
         for (const [pinnedIndex, pin] of draftRowPinsRef.current) {
           const rowId = canonicalEidosFileRowId(
@@ -1257,7 +1281,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         setCacheRevision((current) => current + 1)
         return true
       } catch (error) {
-        if (generation === generationRef.current) onErrorRef.current?.(error)
+        if (generation === generationRef.current) {
+          prefetchReadStateRef.current.paused = true
+          prefetchReadStateRef.current.fastReads = 0
+          onErrorRef.current?.(error)
+        }
         return false
       } finally {
         if (loadingPagesRef.current.get(pageIndex) === generation) {
@@ -1272,37 +1300,70 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const scheduleLatestPageRequest = useCallback(
     (request: EidosFileGridPageRequest) => {
       latestPageRequestRef.current = request
-      if (pageLoadRunnerActiveRef.current) return
+      pageRequestTimeRef.current = performance.now()
+      if (prefetchTimerRef.current !== null) {
+        clearTimeout(prefetchTimerRef.current)
+        prefetchTimerRef.current = null
+      }
+      const run = () => {
+        if (pageLoadRunnerActiveRef.current) return
 
-      pageLoadRunnerActiveRef.current = true
-      void (async () => {
-        try {
-          while (latestPageRequestRef.current) {
-            const latest = latestPageRequestRef.current
-            const pageIndex = [
-              ...latest.visiblePages,
-              ...latest.prefetchPages,
-            ].find(
-              (candidate) =>
+        pageLoadRunnerActiveRef.current = true
+        void (async () => {
+          try {
+            while (latestPageRequestRef.current) {
+              const latest = latestPageRequestRef.current
+              const missing = (candidate: number) =>
                 !loadedPagesRef.current.has(candidate) &&
                 !loadingPagesRef.current.has(candidate)
-            )
-            if (pageIndex === undefined) {
-              if (latestPageRequestRef.current === latest) {
+              let pageIndex = latest.visiblePages.find(missing)
+              if (pageIndex === undefined) {
+                const prefetch = prefetchReadStateRef.current
+                const neighbor = latest.prefetchPages.find(missing)
+                if (
+                  !prefetch.measured ||
+                  prefetch.paused ||
+                  neighbor === undefined
+                ) {
+                  latestPageRequestRef.current = null
+                  continue
+                }
+                // Only neighbors wait. Required visible pages always start as
+                // soon as the existing in-flight read settles. That synchronous
+                // host read cannot be safely preempted from the Grid.
+                const remaining =
+                  PAGE_PREFETCH_SETTLE_MS -
+                  (performance.now() - pageRequestTimeRef.current)
+                if (remaining > 0) {
+                  prefetchTimerRef.current = setTimeout(() => {
+                    prefetchTimerRef.current = null
+                    run()
+                  }, remaining)
+                  break
+                }
+                pageIndex = neighbor
+              }
+
+              const loaded = await loadPageIndexRef.current(pageIndex)
+              if (!loaded && latestPageRequestRef.current === latest) {
                 latestPageRequestRef.current = null
               }
-              continue
             }
-
-            const loaded = await loadPageIndexRef.current(pageIndex)
-            if (!loaded && latestPageRequestRef.current === latest) {
-              latestPageRequestRef.current = null
-            }
+          } finally {
+            pageLoadRunnerActiveRef.current = false
           }
-        } finally {
-          pageLoadRunnerActiveRef.current = false
-        }
-      })()
+        })()
+      }
+      run()
+    },
+    []
+  )
+
+  useEffect(
+    () => () => {
+      latestPageRequestRef.current = null
+      if (prefetchTimerRef.current !== null)
+        clearTimeout(prefetchTimerRef.current)
     },
     []
   )
@@ -1336,6 +1397,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       urlImageThumbnails.clear()
     }
     generationRef.current += 1
+    prefetchReadStateRef.current = {
+      measured: false,
+      paused: false,
+      fastReads: 0,
+    }
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
     pageAccessRef.current.clear()
