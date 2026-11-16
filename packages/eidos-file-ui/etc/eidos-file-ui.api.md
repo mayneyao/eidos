@@ -506,7 +506,8 @@ type FieldEditorProps = {
   isNewRecord?: boolean;
   placeholder?: string;
   appearance?: "field" | "record-title" | "record-property" | "compact";
-  disabled: boolean;
+  disabled: boolean; /** Serialize commits without dimming the record or removing input focus. */
+  readOnly?: boolean;
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>; /** The host creates the catalog option and selects it for this record. */
   onCreateOption?: (name: string) => Promise<void>;
   onEnter?: () => void;
@@ -545,6 +546,7 @@ declare function EidosFileRendererFieldPropertyPanel({
 declare function EidosFileRecordAttachmentEditor({
   value,
   disabled,
+  readOnly,
   onChange,
   onImportFiles,
   onImportDroppedFiles,
@@ -552,6 +554,7 @@ declare function EidosFileRecordAttachmentEditor({
 }: {
   value: EidosFileRow[string];
   disabled: boolean;
+  readOnly?: boolean;
   onChange: (value: string | null) => Promise<void>;
   onImportFiles?: (options?: {
     imagesOnly?: boolean;
