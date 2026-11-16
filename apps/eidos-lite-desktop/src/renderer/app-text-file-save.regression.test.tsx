@@ -1479,17 +1479,17 @@ it.each(["root", "folder", "restore", "recent"])(
             button.textContent?.trim()
           )
         ).toEqual([
+          "Show this folder",
+          "New File",
+          "New folder",
           "Cut⌘X",
           "Copy⌘C",
           "Paste⌘V",
-          "New File",
-          "New folder",
-          "Show this folder",
-          "Manage files",
           "Rename",
           "Reveal in Finder",
           "Copy Relative Path",
           "Copy Path",
+          "Manage files",
           "Move to Trash",
         ])
         expect(

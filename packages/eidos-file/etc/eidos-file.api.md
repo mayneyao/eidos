@@ -123,6 +123,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     getRecordNeighbors(request: Parameters<RuntimeClient["getRecordNeighbors"]>[0], context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]): ReturnType<RuntimeClient["getRecordNeighbors"]>;
     // (undocumented)
+    getRowIndex: RuntimeClient["getRowIndex"];
+    // (undocumented)
     getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
     // (undocumented)
     getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
@@ -608,7 +610,8 @@ export function compileEidosFileFormulaSource(source: string, fields: EidosFileF
 // @public (undocumented)
 export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: EidosFileRowQuery, context?: {
     referenceInstant?: string;
-    calendar?: EidosFileCalendarContext;
+    calendar?: EidosFileCalendarContext; /** External virtual sources may retain fractional precision beyond storage values. */
+    externalInstants?: boolean;
 }): CompiledEidosFileRowQuery;
 
 // @public (undocumented)
@@ -2308,6 +2311,8 @@ export class EidosFileRuntime {
     // (undocumented)
     getRow(tableId: string, rowId: string): EidosFileRow | null;
     getRowIndex(tableId: string, rowId: string, query?: EidosFileRowQuery): number | null;
+    // @internal
+    getRowIndexValue(tableId: string, rowId: string, query?: EidosFileRowQuery): string | null;
     // (undocumented)
     getRowPage(tableId: string, offset: number, limit: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
     // (undocumented)
@@ -2834,6 +2839,8 @@ export class EidosRuntimeService implements RuntimeClient {
     // (undocumented)
     getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
     // (undocumented)
+    getRowIndex(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
+    // (undocumented)
     getRowsById(request: {
         tableId: string;
         rowIds: string[];
@@ -2882,6 +2889,7 @@ export class EidosRuntimeService implements RuntimeClient {
             calendarPeriodTimeZoneData?: string[];
             readRows: boolean;
             batchRowPages?: boolean;
+            rowIndex?: boolean;
             schemaPaging: boolean;
             cursorPaging: boolean;
             aggregate: boolean;
@@ -4229,6 +4237,8 @@ export interface RuntimeCapabilities {
     // (undocumented)
     readRows: boolean;
     // (undocumented)
+    rowIndex?: boolean;
+    // (undocumented)
     schemaPaging: boolean;
     // (undocumented)
     schemaPreflight: boolean;
@@ -4250,6 +4260,8 @@ export interface RuntimeClient {
     exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
     // (undocumented)
     getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
+    // (undocumented)
+    getRowIndex?(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;

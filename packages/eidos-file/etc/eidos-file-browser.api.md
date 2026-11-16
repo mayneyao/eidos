@@ -123,6 +123,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     getRecordNeighbors(request: Parameters<RuntimeClient["getRecordNeighbors"]>[0], context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]): ReturnType<RuntimeClient["getRecordNeighbors"]>;
     // (undocumented)
+    getRowIndex: RuntimeClient["getRowIndex"];
+    // (undocumented)
     getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
     // (undocumented)
     getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
@@ -2737,6 +2739,8 @@ export interface RuntimeCapabilities {
     // (undocumented)
     readRows: boolean;
     // (undocumented)
+    rowIndex?: boolean;
+    // (undocumented)
     schemaPaging: boolean;
     // (undocumented)
     schemaPreflight: boolean;
@@ -2758,6 +2762,8 @@ export interface RuntimeClient {
     exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
     // (undocumented)
     getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
+    // (undocumented)
+    getRowIndex?(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;
