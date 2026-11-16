@@ -114,6 +114,7 @@ export function EidosFileFieldCreatePopover({
 }: EidosFileFieldCreatePopoverProps) {
   const { translate: t } = useEidosFileUI()
   const [name, setName] = useState("")
+  const [nameIsAutomatic, setNameIsAutomatic] = useState(false)
   const [fieldType, setFieldType] =
     useState<EidosFileCreatableFieldType>("text")
   const [options, setOptions] = useState<EidosFileSelectOption[]>([])
@@ -157,6 +158,7 @@ export function EidosFileFieldCreatePopover({
   useEffect(() => {
     if (!open) return
     setName("")
+    setNameIsAutomatic(false)
     setFieldType(
       availableTypes?.includes("text")
         ? "text"
@@ -325,14 +327,28 @@ export function EidosFileFieldCreatePopover({
               autoFocus
               disabled={busy}
               placeholder={t("Status")}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameIsAutomatic(false)
+              }}
             />
           </label>
           <label className="grid gap-1.5 text-xs font-medium">
             {t("Type")}
             <EidosFileFieldTypePicker
               value={fieldType}
-              onChange={setFieldType}
+              onChange={(type) => {
+                setFieldType(type)
+                if (!name.trim() || nameIsAutomatic) {
+                  const option = EIDOS_FILE_FIELD_TYPE_OPTIONS.find(
+                    (option) => option.value === type
+                  )
+                  if (option) {
+                    setName(t(option.label))
+                    setNameIsAutomatic(true)
+                  }
+                }
+              }}
               allowedTypes={availableTypes}
               disabled={busy}
             />
