@@ -650,10 +650,12 @@ export function EidosFileRecordInspector({
     setCurrentRow(latestRowRef.current)
   }
 
-  const editorDisabled = disabled || loading
-  const propertyReadOnly = savingField !== null || failedEdit !== null
+  const editorDisabled =
+    disabled || (isMobile && (loading || Boolean(loadError)))
+  const propertyReadOnly =
+    loading || Boolean(loadError) || savingField !== null || failedEdit !== null
   const recordNavigationDisabled =
-    loading || savingField !== null || failedEdit !== null
+    loading || Boolean(loadError) || savingField !== null || failedEdit !== null
   const editable = Boolean(onCellEdit) && !disabled
   const Root = variant === "page" ? "section" : "aside"
   const recordLabelField = fields.find(isEidosFileRecordLabelField) ?? null
@@ -725,7 +727,7 @@ export function EidosFileRecordInspector({
   }, [contentMode, contentValue, directWysiwygContent])
 
   const startContentEdit = () => {
-    if (!contentField || editorDisabled) return
+    if (!contentField || editorDisabled || propertyReadOnly) return
     setContentDraft(contentValue)
     setContentMode("edit")
   }
@@ -736,7 +738,7 @@ export function EidosFileRecordInspector({
   }
 
   const saveContent = async () => {
-    if (!contentField || editorDisabled) return false
+    if (!contentField || editorDisabled || propertyReadOnly) return false
     if (contentDraft !== contentValue) {
       await editField(contentField, contentDraft)
       if (failedEditRef.current) return false
@@ -800,6 +802,14 @@ export function EidosFileRecordInspector({
     >
       <Save className="h-3 w-3" />
       {t("Saving…")}
+    </span>
+  ) : loading && preserveContentWhileLoading ? (
+    <span
+      role="status"
+      aria-label={t("Loading record details…")}
+      className="shrink-0 text-muted-foreground"
+    >
+      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
     </span>
   ) : null
 
@@ -1225,6 +1235,25 @@ export function EidosFileRecordInspector({
           </div>
         </div>
       ) : null}
+      {loadError && preserveContentWhileLoading ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-destructive"
+        >
+          <p className="min-w-0 flex-1 break-words">{loadError}</p>
+          {onRetryLoad ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onRetryLoad}
+            >
+              {t("Retry")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {loading && !preserveContentWhileLoading ? (
         <div
           className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"
@@ -1233,7 +1262,7 @@ export function EidosFileRecordInspector({
           <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
           {t("Loading record details…")}
         </div>
-      ) : loadError ? (
+      ) : loadError && !preserveContentWhileLoading ? (
         <div
           className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-xs text-muted-foreground"
           role="alert"
@@ -1347,7 +1376,7 @@ export function EidosFileRecordInspector({
                   }
                   mode={contentDisplayMode}
                   editable={editable}
-                  disabled={disabled || loading}
+                  disabled={disabled || loading || Boolean(loadError)}
                   cacheKey={`${currentRowId}:${contentField.id}`}
                   onDraftChange={setContentDraft}
                   onEdit={startContentEdit}

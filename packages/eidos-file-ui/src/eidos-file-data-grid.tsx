@@ -446,6 +446,7 @@ export function EidosFileDataGrid({
         loadPage={loadPage}
         locateRow={locateRow}
         loadInspectorRow={loadInspectorRow}
+        recordScope={source}
         inspectedRowId={inspectedRowId}
         onInspectedRowChange={onInspectedRowChange}
         onOpenRecord={onOpenRecord}

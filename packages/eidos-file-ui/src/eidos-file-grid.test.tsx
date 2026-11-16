@@ -181,6 +181,32 @@ function createCellEdit(snapshot: EidosFileTableSnapshot = table) {
   }))
 }
 
+function deferredRecord<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
+
+async function editInspectorTitle(container: HTMLElement, value: string) {
+  const title = container.querySelector<HTMLTextAreaElement>(
+    'textarea[aria-label="Title"]'
+  )!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value"
+    )!.set!.call(title, value)
+    title.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+  await act(async () =>
+    title.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+  )
+}
+
 describe("EidosFileGrid", () => {
   let container: HTMLDivElement
   let root: Root
@@ -3912,6 +3938,482 @@ describe("EidosFileGrid", () => {
       container.querySelector('[aria-label="Record details for Row 1"]')
     ).toBeTruthy()
     expect(onInspectedRowChange).not.toHaveBeenCalled()
+  })
+
+  it("retains the inspected record identity while a filtered refresh relocates its row", async () => {
+    let rows = [rowAt(0), rowAt(1)]
+    let refreshing = false
+    let finishLocate!: (index: number | null) => void
+    const locateRow = vi.fn(() =>
+      refreshing
+        ? new Promise<number | null>((resolve) => {
+            finishLocate = resolve
+          })
+        : Promise.resolve(0)
+    )
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const loadInspectorRow = vi.fn(async () => rowAt(0))
+    const save = createCellEdit()
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={locateRow}
+            loadInspectorRow={loadInspectorRow}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={save}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+      '[aria-label="Record details for Write RFC"]'
+    )
+    expect(inspector).not.toBeNull()
+    refreshing = true
+    rows = [rowAt(1)]
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBeNull()
+    await act(async () => finishLocate(null))
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    await editInspectorTitle(container, "Detached original")
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_0", title: "Write RFC" }),
+      table.fields[0],
+      "Detached original"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "Row 1" })
+  })
+
+  it("keeps the record and editor mounted through a sort reorder and edits its new index", async () => {
+    let rows = [rowAt(0), rowAt(1)]
+    const save = createCellEdit()
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: 2,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={save}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+      '[aria-label="Record details for Write RFC"]'
+    )
+    const input = container.querySelector('textarea[aria-label="Title"]')
+    rows = [rowAt(1), rowAt(0)]
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(container.querySelector('textarea[aria-label="Title"]')).toBe(input)
+    await editInspectorTitle(container, "Sorted original")
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_0" }),
+      table.fields[0],
+      "Sorted original"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "Row 1" })
+    expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+      data: "Sorted original",
+    })
+  })
+
+  it.each(["success", "failure"] as const)(
+    "rejects a late inspector save %s after selecting another record",
+    async (outcome) => {
+      const pending = deferredRecord<EidosFileRowMutationResult>()
+      const save = vi.fn(() => pending.promise)
+      const loadPage = createLoadPage()
+      const render = (id: string) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              loadPage={loadPage}
+              inspectedRowId={id}
+              onCellEdit={save}
+            />
+          )
+        )
+      await render("row_0")
+      await editInspectorTitle(container, "Old save")
+      await render("row_1")
+      await act(async () => {
+        if (outcome === "success")
+          pending.resolve({
+            tableId: table.table.id,
+            row: { ...rowAt(0), title: "Old save" },
+            rowCount: table.rowCount,
+          })
+        else pending.reject(new Error("Old failure"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Row 1"]')
+      ).not.toBeNull()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+        data: "Row 1",
+      })
+    }
+  )
+
+  it.each(["success", "failure"] as const)(
+    "scopes same-ID records to their source and rejects late save %s",
+    async (outcome) => {
+      const ownerA = {},
+        ownerB = {}
+      const oldSave = deferredRecord<EidosFileRowMutationResult>()
+      const newRead = deferredRecord<EidosFileRow | null>()
+      const newPage = deferredRecord<EidosFileRowPage>()
+      const rowA = { ...rowAt(0), title: "Source A" },
+        rowB = { ...rowAt(0), title: "Source B" }
+      const pageA = vi.fn(async (offset: number, limit: number) => ({
+        tableId: table.table.id,
+        offset,
+        limit,
+        total: 1,
+        rows: [rowA],
+      }))
+      const pageB = vi.fn(() => newPage.promise)
+      const readB = vi.fn(() => newRead.promise)
+      const saveA = vi.fn(() => oldSave.promise),
+        saveB = createCellEdit()
+      const render = (second: boolean) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              recordScope={second ? ownerB : ownerA}
+              loadPage={second ? pageB : pageA}
+              loadInspectorRow={second ? readB : undefined}
+              inspectedRowId="row_0"
+              onCellEdit={second ? saveB : saveA}
+            />
+          )
+        )
+      await render(false)
+      await editInspectorTitle(container, "Old source save")
+      await render(true)
+      expect(container.textContent).not.toContain("Source A")
+      expect(container.textContent).not.toContain("Old source save")
+      await act(async () => newRead.resolve(rowB))
+      expect(readB).toHaveBeenCalledOnce()
+      expect(
+        container.querySelector('[aria-label="Record details for Source B"]')
+      ).not.toBeNull()
+      expect(
+        container.querySelector<HTMLButtonElement>(
+          '[aria-label="Next record"]'
+        )!.disabled
+      ).toBe(true)
+      await act(async () => {
+        if (outcome === "success")
+          oldSave.resolve({
+            tableId: table.table.id,
+            row: { ...rowA, title: "Old source save" },
+            rowCount: 1,
+          })
+        else oldSave.reject(new Error("Old source failure"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Source B"]')
+      ).not.toBeNull()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      await editInspectorTitle(container, "New source edit")
+      expect(saveB).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: "row_0", title: "Source B" }),
+        table.fields[0],
+        "New source edit"
+      )
+    }
+  )
+
+  it.each(["locate", "load"] as const)(
+    "rejects an old %s after rapid A → B → C navigation",
+    async (phase) => {
+      const old = deferredRecord<number | null>(),
+        oldRow = deferredRecord<EidosFileRow | null>(),
+        next = deferredRecord<EidosFileRow | null>()
+      const locate = vi.fn((id: string) =>
+        id === "B" && phase === "locate" ? old.promise : Promise.resolve(null)
+      )
+      const load = vi.fn((id: string) =>
+        id === "B" ? oldRow.promise : next.promise
+      )
+      const page = createLoadPage()
+      const onError = vi.fn()
+      const render = (id: string) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              loadPage={page}
+              locateRow={locate}
+              loadInspectorRow={load}
+              inspectedRowId={id}
+              onCellEdit={createCellEdit()}
+              onError={onError}
+            />
+          )
+        )
+      await render("row_0")
+      const inspector = container.querySelector(
+        '[aria-label="Record details for Write RFC"]'
+      )
+      await render("B")
+      await render("C")
+      expect(
+        container.querySelector('[aria-label="Record details for Write RFC"]')
+      ).toBe(inspector)
+      await act(async () =>
+        next.resolve({ _id: "C", title: "Latest C", done: 0 })
+      )
+      await act(async () => {
+        old.resolve(null)
+        if (phase === "load") oldRow.reject(new Error("Old row failed"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Latest C"]')
+      ).toBe(inspector)
+      expect(onError).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(["success", "failure"] as const)(
+    "rejects a same-ID old source read %s after the new source is ready",
+    async (outcome) => {
+      const ownerA = {},
+        ownerB = {}
+      const old = deferredRecord<EidosFileRow | null>(),
+        fresh = deferredRecord<EidosFileRow | null>()
+      const page = vi.fn(async (offset: number, limit: number) => ({
+        tableId: table.table.id,
+        offset,
+        limit,
+        total: 0,
+        rows: [],
+      }))
+      const locate = vi.fn(async () => null)
+      const readA = vi.fn(() => old.promise),
+        readB = vi.fn(() => fresh.promise),
+        onError = vi.fn()
+      const render = (second: boolean) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              recordScope={second ? ownerB : ownerA}
+              loadPage={page}
+              locateRow={locate}
+              loadInspectorRow={second ? readB : readA}
+              inspectedRowId="same"
+              onCellEdit={createCellEdit()}
+              onError={onError}
+            />
+          )
+        )
+      await render(false)
+      await render(true)
+      await act(async () =>
+        fresh.resolve({ _id: "same", title: "Fresh source", done: 0 })
+      )
+      await act(async () => {
+        if (outcome === "success")
+          old.resolve({ _id: "same", title: "Old source", done: 0 })
+        else old.reject(new Error("Old source failed"))
+      })
+      expect(
+        container.querySelector(
+          '[aria-label="Record details for Fresh source"]'
+        )
+      ).not.toBeNull()
+      expect(container.textContent).not.toContain("Old source")
+      expect(onError).not.toHaveBeenCalled()
+      expect(readA).toHaveBeenCalledOnce()
+      expect(readB).toHaveBeenCalledOnce()
+    }
+  )
+
+  it("invalidates a record snapshot on table changes even when the source and row ID match", async () => {
+    const owner = {}
+    const first = table,
+      second = { ...table, table: { ...table.table, id: "another-table" } }
+    const newRead = deferredRecord<EidosFileRow | null>()
+    const oldPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: first.table.id,
+      offset,
+      limit,
+      total: 1,
+      rows: [rowAt(0)],
+    }))
+    const pendingPage = deferredRecord<EidosFileRowPage>(),
+      pageB = vi.fn(() => pendingPage.promise),
+      readB = vi.fn(() => newRead.promise)
+    const render = (next: boolean) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={next ? second : first}
+            view={table.views[0]}
+            recordScope={owner}
+            loadPage={next ? pageB : oldPage}
+            loadInspectorRow={next ? readB : undefined}
+            inspectedRowId="row_0"
+            onCellEdit={createCellEdit()}
+          />
+        )
+      )
+    await render(false)
+    expect(container.textContent).toContain("Write RFC")
+    await render(true)
+    expect(container.textContent).not.toContain("Write RFC")
+    await act(async () =>
+      newRead.resolve({ ...rowAt(0), title: "Other table" })
+    )
+    expect(
+      container.querySelector('[aria-label="Record details for Other table"]')
+    ).not.toBeNull()
+    expect(readB).toHaveBeenCalledOnce()
+  })
+
+  it("keeps ready content and exposes Retry for a detached read failure", async () => {
+    let rows = [rowAt(0)]
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const locate = vi.fn(async () => (rows.length ? 0 : null)),
+      onError = vi.fn()
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Read failed"))
+      .mockResolvedValueOnce({ ...rowAt(0), title: "Recovered original" })
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={() => locate()}
+            historyScopeKey="same-query"
+            loadInspectorRow={read}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+        '[aria-label="Record details for Write RFC"]'
+      ),
+      title = container.querySelector('textarea[aria-label="Title"]')
+    rows = []
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(container.querySelector('textarea[aria-label="Title"]')).toBe(title)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Read failed"
+    )
+    await render(1)
+    expect(read).toHaveBeenCalledOnce()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Read failed"
+    )
+    await act(async () =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Retry")!
+        .click()
+    )
+    expect(
+      container.querySelector(
+        '[aria-label="Record details for Recovered original"]'
+      )
+    ).toBe(inspector)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(read).toHaveBeenCalledTimes(2)
+  })
+
+  it("closes a genuinely unavailable record rather than retaining its snapshot indefinitely", async () => {
+    let rows = [rowAt(0)]
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const locate = vi.fn(async () => (rows.length ? 0 : null)),
+      read = vi.fn(async () => null),
+      onError = vi.fn(),
+      onClose = vi.fn()
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={locate}
+            loadInspectorRow={read}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onInspectedRowChange={onClose}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        )
+      )
+    await render(0)
+    rows = []
+    await render(1)
+    expect(
+      container.querySelector('[data-eidos-file-detail-panel="record"]')
+    ).toBeNull()
+    expect(onClose).toHaveBeenCalledWith(null)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(read).toHaveBeenCalledOnce()
   })
 
   it("restores a record on cold load when initial paging is already in flight", async () => {
