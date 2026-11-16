@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { readTraceKey, runtimeReadTrace } from "../../runtime/read-trace"
 import {
   detectRasterMediaType,
   EIDOS_LITE_ASSET_PREVIEW_BYTES_MAX,
@@ -56,11 +57,18 @@ export class FileThumbnailCache {
       identity.modifiedAtMs,
       size,
     ])
+    const traceMeta = runtimeReadTrace.enabled
+      ? { thumbnailKey: readTraceKey(key), thumbnailSize: size }
+      : {}
     const cached = this.cache.get(key)
     if (cached) {
       if (cached.bytes || (cached.failedUntil ?? 0) > Date.now()) {
         this.cache.delete(key)
         this.cache.set(key, cached)
+        runtimeReadTrace.point("thumbnail-cache", {
+          ...traceMeta,
+          cacheState: cached.bytes ? "hit" : "negative-hit",
+        })
         if (cached.bytes) return cached.bytes
         throw new Error("System thumbnail is temporarily unavailable")
       }
@@ -69,41 +77,71 @@ export class FileThumbnailCache {
     let work = this.pending.get(key)
     if (!work) {
       if (this.queue.length >= this.options.queueMax) {
+        runtimeReadTrace.point("thumbnail-cache", {
+          ...traceMeta,
+          cacheState: "queue-full",
+        })
         throw new Error("System thumbnail queue is full")
       }
       const queuedAt = Date.now()
+      runtimeReadTrace.point("thumbnail-cache", {
+        ...traceMeta,
+        cacheState: "miss",
+        queued: this.queue.length,
+        active: this.active,
+      })
       work = new Promise<Uint8Array>((resolve, reject) => {
-        this.queue.push(() => {
-          if (Date.now() - queuedAt >= REQUEST_TIMEOUT_MS) {
-            this.pending.delete(key)
-            reject(new Error("System thumbnail request timed out in queue"))
-            return
-          }
-          this.active += 1
-          void (async () => this.generate(absolutePath, size))()
-            .then((bytes) => {
-              if (
-                bytes.byteLength === 0 ||
-                bytes.byteLength > this.options.bytesMax
-              )
-                throw new Error("System thumbnail exceeds the output limit")
-              this.remember(key, { bytes })
-              resolve(bytes)
-            })
-            .catch(() => {
-              this.remember(key, { failedUntil: Date.now() + FAILURE_TTL_MS })
-              reject(new Error("System thumbnail could not be generated"))
-            })
-            .finally(() => {
+        this.queue.push(
+          runtimeReadTrace.bind(() => {
+            if (Date.now() - queuedAt >= REQUEST_TIMEOUT_MS) {
+              runtimeReadTrace.point("thumbnail-queue-expired", {
+                ...traceMeta,
+                queueMs: Date.now() - queuedAt,
+              })
               this.pending.delete(key)
-              this.active -= 1
-              this.drain()
-            })
-        })
+              reject(new Error("System thumbnail request timed out in queue"))
+              return
+            }
+            this.active += 1
+            void runtimeReadTrace
+              .span(
+                "thumbnail-generate",
+                {
+                  ...traceMeta,
+                  queueMs: Date.now() - queuedAt,
+                  queued: this.queue.length,
+                  active: this.active,
+                },
+                async () => this.generate(absolutePath, size)
+              )
+              .then((bytes) => {
+                if (
+                  bytes.byteLength === 0 ||
+                  bytes.byteLength > this.options.bytesMax
+                )
+                  throw new Error("System thumbnail exceeds the output limit")
+                this.remember(key, { bytes })
+                resolve(bytes)
+              })
+              .catch(() => {
+                this.remember(key, { failedUntil: Date.now() + FAILURE_TTL_MS })
+                reject(new Error("System thumbnail could not be generated"))
+              })
+              .finally(() => {
+                this.pending.delete(key)
+                this.active -= 1
+                this.drain()
+              })
+          })
+        )
       })
       this.pending.set(key, work)
       this.drain()
-    }
+    } else
+      runtimeReadTrace.point("thumbnail-cache", {
+        ...traceMeta,
+        cacheState: "join",
+      })
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       return await Promise.race([

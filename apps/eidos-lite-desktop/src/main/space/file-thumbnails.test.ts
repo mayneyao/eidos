@@ -1,6 +1,8 @@
 import fs from "node:fs/promises"
+import fsSync from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { RuntimeReadTrace, runtimeReadTrace } from "../../runtime/read-trace"
 import {
   FileThumbnailCache,
   generateSystemFileThumbnail,
@@ -55,6 +57,105 @@ describe("file thumbnail image decoding", () => {
 })
 
 describe("system file thumbnail scheduling", () => {
+  it("correlates queued generation with its issuing asset, logs cache joins and stops without cancelling work", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-thumb-trace-")
+    )
+    const trace = new RuntimeReadTrace({
+      directory,
+      deadline: Date.now() + 30_000,
+    })
+    const spies = [
+      vi
+        .spyOn(runtimeReadTrace, "enabled", "get")
+        .mockImplementation(() => trace.enabled),
+      vi
+        .spyOn(runtimeReadTrace, "point")
+        .mockImplementation(trace.point.bind(trace)),
+      vi
+        .spyOn(runtimeReadTrace, "span")
+        .mockImplementation(trace.span.bind(trace)),
+      vi
+        .spyOn(runtimeReadTrace, "bind")
+        .mockImplementation(trace.bind.bind(trace)),
+    ]
+    const events = () =>
+      fsSync.readdirSync(directory).flatMap((file) =>
+        fsSync
+          .readFileSync(path.join(directory, file), "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+      )
+    try {
+      const completions: ((bytes: Uint8Array) => void)[] = []
+      const generate = vi.fn(
+        () => new Promise<Uint8Array>((resolve) => completions.push(resolve))
+      )
+      const cache = new FileThumbnailCache(generate, {
+        concurrency: 1,
+        queueMax: 4,
+        entriesMax: 8,
+        bytesMax: 1024,
+      })
+      const first = trace.span("asset-ipc", { assetKey: "first" }, () =>
+        cache.get("/PRIVATE-a", identity)
+      )
+      const second = trace.span("asset-ipc", { assetKey: "second" }, () =>
+        cache.get("/PRIVATE-b", identity)
+      )
+      const duplicate = trace.span("asset-ipc", { assetKey: "duplicate" }, () =>
+        cache.get("/PRIVATE-a", identity)
+      )
+      expect(generate).toHaveBeenCalledTimes(1)
+      const bytes = new Uint8Array([1])
+      completions[0]!(bytes)
+      expect(await first).toBe(bytes)
+      expect(await duplicate).toBe(bytes)
+      await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2))
+      completions[1]!(bytes)
+      expect(await second).toBe(bytes)
+      expect(await cache.get("/PRIVATE-a", identity)).toBe(bytes)
+      const recorded = events()
+      const secondSpan = recorded.find(
+        (event) =>
+          event.phase === "asset-ipc-start" && event.assetKey === "second"
+      )
+      const generated = recorded.filter(
+        (event) => event.phase === "thumbnail-generate-start"
+      )
+      expect(generated).toHaveLength(2)
+      expect(generated[1]?.parentSpanId).toBe(secondSpan?.spanId)
+      expect(generated[1]).toMatchObject({ active: 1, queued: 0 })
+      expect(typeof generated[1]?.queueMs).toBe("number")
+      expect(
+        recorded.filter((event) => event.phase === "thumbnail-generate-end")
+      ).toHaveLength(2)
+      expect(
+        recorded.filter((event) => event.cacheState === "join")
+      ).toHaveLength(1)
+      expect(
+        recorded.filter((event) => event.cacheState === "hit")
+      ).toHaveLength(1)
+      expect(JSON.stringify(recorded)).not.toContain("PRIVATE")
+      const remaining = trace.span("asset-ipc", {}, () =>
+        cache.get("/PRIVATE-c", identity)
+      )
+      trace.stop("stop-file")
+      const count = events().length
+      completions[2]!(bytes)
+      expect(await remaining).toBe(bytes)
+      expect(events()).toHaveLength(count)
+      expect(events().at(-1)).toMatchObject({
+        phase: "trace-stop",
+        restoreFailures: 0,
+      })
+    } finally {
+      trace.stop()
+      for (const spy of spies.reverse()) spy.mockRestore()
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
   it("caches Grid, Gallery and preview sizes independently", async () => {
     const generate = vi.fn(
       async (_path: string, size: number) => new Uint8Array([size / 128])

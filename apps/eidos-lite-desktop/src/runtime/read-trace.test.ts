@@ -121,6 +121,36 @@ describe("bounded Runtime read diagnostics", () => {
     }
   })
 
+  it("keeps queued work under its issuing span and is silent after STOP", () => {
+    const trace = open()
+    const returned = { privateValue: "PRIVATE BODY" }
+    const callback = trace.span("issuing-asset", {}, () =>
+      trace.bind(() => {
+        trace.point("queued-start")
+        return returned
+      })
+    )
+    const unassociated = trace.bind(() => trace.point("unassociated"))
+    trace.span("other-asset", {}, () => {
+      expect(callback()).toBe(returned)
+      unassociated()
+    })
+    const events = entries()
+    expect(events.find((event) => event.phase === "queued-start")?.spanId).toBe(
+      events.find((event) => event.phase === "issuing-asset-start")?.spanId
+    )
+    expect(
+      events.find((event) => event.phase === "unassociated")?.spanId
+    ).toBeUndefined()
+    trace.stop("stop-file")
+    const count = entries().length
+    expect(callback()).toBe(returned)
+    expect(entries()).toHaveLength(count)
+    expect(JSON.stringify(entries())).not.toContain("PRIVATE BODY")
+    const disabled = new RuntimeReadTrace({})
+    expect(disabled.bind(callback)).toBe(callback)
+  })
+
   it("stops on its absolute deadline and restores wrappers before later reads", async () => {
     vi.useFakeTimers()
     const original = DatabaseSync.prototype.prepare

@@ -16,6 +16,14 @@ interface ReadTraceMeta {
   readOnly?: boolean
   sessionKey?: string
   queryKey?: string
+  assetKey?: string
+  purpose?: "thumbnail" | "preview" | "download"
+  thumbnailSize?: number
+  thumbnailKey?: string
+  cacheState?: "hit" | "negative-hit" | "miss" | "join" | "queue-full"
+  queueMs?: number
+  queued?: number
+  active?: number
 }
 
 interface TraceContext {
@@ -96,6 +104,16 @@ export class RuntimeReadTrace {
 
   point(phase: string, meta: ReadTraceMeta = {}): void {
     this.write({ phase, ...meta })
+  }
+
+  /** Preserve the issuing asset's context when another request drains a queue. */
+  bind<T>(operation: () => T): () => T {
+    if (!this.enabled) return operation
+    const context = this.context.getStore()
+    return () =>
+      context
+        ? this.context.run(context, operation)
+        : this.context.exit(operation)
   }
 
   span<T>(phase: string, meta: ReadTraceMeta, operation: () => T): T {

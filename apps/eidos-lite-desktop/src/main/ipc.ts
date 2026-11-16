@@ -2380,88 +2380,103 @@ export function registerIpc(
         thumbnailSize !== 1024
       )
         throw new Error("Invalid thumbnail size")
-      const activeCount = [
-        ...assetLeases.values(),
-        ...urlImageLeases.values(),
-      ].filter(
-        (record) =>
-          record.ownerId === event.sender.id &&
-          record.sessionId === sessionId &&
-          record.expiresAtMs > Date.now()
-      ).length
-      if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
-        throw new Error("Concurrent attachment preview limit reached")
-      }
-      const { entry, resolved } = await controller
-        .requireSession(event.sender)
-        .resolveEidosFileAsset(
-          sessionId,
-          entryId,
+      return runtimeReadTrace.span(
+        "asset-ipc",
+        {
+          sessionKey: runtimeReadTrace.enabled
+            ? readTraceKey(sessionId)
+            : undefined,
+          assetKey: runtimeReadTrace.enabled
+            ? readTraceKey(entryId)
+            : undefined,
           purpose,
-          systemFileThumbnail
-            ? (absolutePath, identity) =>
-                systemFileThumbnail!(absolutePath, identity, thumbnailSize)
-            : undefined
-        )
-      const leaseId = `eidos-lite-asset-${randomUUID()}`
-      const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
-      const lease: AssetLease = {
-        leaseId,
-        entryId: entry.id,
-        purpose,
-        mediaType: entry.mediaType,
-        name: entry.name,
-        size: entry.size,
-        expiresAt: new Date(expiresAtMs).toISOString(),
-        resourceToken: `eidos-lite-resource-${randomUUID()}`,
-      }
-      assetLeases.set(
-        leaseId,
-        resolved.kind === "local"
-          ? {
-              kind: "local",
-              ownerId: event.sender.id,
+          thumbnailSize,
+        },
+        async () => {
+          const activeCount = [
+            ...assetLeases.values(),
+            ...urlImageLeases.values(),
+          ].filter(
+            (record) =>
+              record.ownerId === event.sender.id &&
+              record.sessionId === sessionId &&
+              record.expiresAtMs > Date.now()
+          ).length
+          if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
+            throw new Error("Concurrent attachment preview limit reached")
+          }
+          const { entry, resolved } = await controller
+            .requireSession(event.sender)
+            .resolveEidosFileAsset(
               sessionId,
-              absolutePath: resolved.absolutePath,
-              identity: resolved.identity,
-              lease,
-              expiresAtMs,
-            }
-          : {
-              kind: "network",
-              ownerId: event.sender.id,
-              sessionId,
-              bytes: resolved.bytes,
-              lease,
-              expiresAtMs,
-            }
-      )
-      attachAssetLeaseCleanup(event.sender)
-      const mediaUrl =
-        purpose === "preview" &&
-        resolved.kind === "local" &&
-        entry.mediaType.startsWith("video/") &&
-        detectMediaFileType(resolved.absolutePath)?.mediaKind === "video"
-          ? issueMediaPreviewUrl(
-              path.dirname(resolved.absolutePath),
-              path.basename(resolved.absolutePath),
-              entry.mediaType,
-              {
-                identity: resolved.identity,
-                authorize: () =>
-                  assetLeases.get(leaseId)?.lease === lease &&
-                  expiresAtMs > Date.now(),
-              }
+              entryId,
+              purpose,
+              systemFileThumbnail
+                ? (absolutePath, identity) =>
+                    systemFileThumbnail!(absolutePath, identity, thumbnailSize)
+                : undefined
             )
-          : undefined
-      return {
-        lease,
-        ...(mediaUrl ? { mediaUrl } : {}),
-        ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
-        ...(resolved.kind === "local" && resolved.bytesMediaType
-          ? { bytesMediaType: resolved.bytesMediaType }
-          : {}),
-      }
+          const leaseId = `eidos-lite-asset-${randomUUID()}`
+          const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
+          const lease: AssetLease = {
+            leaseId,
+            entryId: entry.id,
+            purpose,
+            mediaType: entry.mediaType,
+            name: entry.name,
+            size: entry.size,
+            expiresAt: new Date(expiresAtMs).toISOString(),
+            resourceToken: `eidos-lite-resource-${randomUUID()}`,
+          }
+          assetLeases.set(
+            leaseId,
+            resolved.kind === "local"
+              ? {
+                  kind: "local",
+                  ownerId: event.sender.id,
+                  sessionId,
+                  absolutePath: resolved.absolutePath,
+                  identity: resolved.identity,
+                  lease,
+                  expiresAtMs,
+                }
+              : {
+                  kind: "network",
+                  ownerId: event.sender.id,
+                  sessionId,
+                  bytes: resolved.bytes,
+                  lease,
+                  expiresAtMs,
+                }
+          )
+          attachAssetLeaseCleanup(event.sender)
+          const mediaUrl =
+            purpose === "preview" &&
+            resolved.kind === "local" &&
+            entry.mediaType.startsWith("video/") &&
+            detectMediaFileType(resolved.absolutePath)?.mediaKind === "video"
+              ? issueMediaPreviewUrl(
+                  path.dirname(resolved.absolutePath),
+                  path.basename(resolved.absolutePath),
+                  entry.mediaType,
+                  {
+                    identity: resolved.identity,
+                    authorize: () =>
+                      assetLeases.get(leaseId)?.lease === lease &&
+                      expiresAtMs > Date.now(),
+                  }
+                )
+              : undefined
+          return {
+            lease,
+            ...(mediaUrl ? { mediaUrl } : {}),
+            ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
+            ...(resolved.kind === "local" && resolved.bytesMediaType
+              ? { bytesMediaType: resolved.bytesMediaType }
+              : {}),
+          }
+        }
+      )
     }
   )
   ipcMain.handle(
