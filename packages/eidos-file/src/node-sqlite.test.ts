@@ -274,9 +274,19 @@ describe.runIf(supportsElectron43NodeSqlite)(
         expect(connection.get("PRAGMA encoding").row).toEqual([
           { tag: "text", value: "UTF-8" },
         ])
-        expect(() =>
-          connection.get("PRAGMA encoding = 'UTF-16le'")
-        ).toThrowError(expect.objectContaining({ code: "read-only" }))
+        expect(connection.get("PRAGMA main.encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+        for (const sql of [
+          "PRAGMA encoding = 'UTF-16le'",
+          "PRAGMA main.encoding = 'UTF-16be'",
+          "PRAGMA main.encoding('UTF-16le')",
+          "PRAGMA query_only = OFF",
+          "PRAGMA journal_mode",
+        ])
+          expect(() => connection.get(sql)).toThrowError(
+            expect.objectContaining({ code: "read-only" })
+          )
         expect(connection.get("PRAGMA encoding").row).toEqual([
           { tag: "text", value: "UTF-8" },
         ])
@@ -671,6 +681,9 @@ describe.runIf(supportsElectron43NodeSqlite)(
           { readOnly: true }
         )
         try {
+          expect(readonly.get("PRAGMA encoding").row).toEqual([
+            { tag: "text", value: "UTF-8" },
+          ])
           const opened = await Runtime.open(
             readonly,
             runtimeEnvironment(),
