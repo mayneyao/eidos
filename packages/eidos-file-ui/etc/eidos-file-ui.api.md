@@ -1667,7 +1667,7 @@ export { EidosFileFormulaComposer, EidosFileFormulaComposerProps, EidosFileFormu
 
 ```ts
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
+import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowsDeleteResult, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
 
@@ -1688,6 +1688,7 @@ declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
   onImportDroppedFiles?: (files: File[], source?: "drop" | "paste") => Promise<FileEntry[]>;
   onSearchRelation?: (field: EidosFileFieldInfo, query: string) => Promise<EidosFileRelationValue[]>;
   onDeleteRow?: (row: EidosFileRow) => Promise<void>;
+  onDeleteRowIds?: (rowIds: readonly string[]) => Promise<EidosFileRowsDeleteResult>;
   onOpenRecordInTab?: (row: EidosFileRow) => void;
   onOpenRecord?: (row: EidosFileRow) => void; /** Host-owned file preview replaces the Gallery lightbox for this record. */
   onPreviewRecord?: (row: EidosFileRow) => void;
@@ -1942,7 +1943,10 @@ declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
   cardWidth?: number;
   onOpen: (row: EidosFileRow) => void;
   onPreviewFile?: (row: EidosFileRow, entry: FileEntry) => void;
-  onDelete?: (row: EidosFileRow) => void;
+  onDelete?: (row: EidosFileRow) => void; /** Resolve current selection only when an action menu opens. */
+  getActionRowIds?: (row: EidosFileRow) => readonly string[];
+  onDeleteRowIds?: (row: EidosFileRow, rowIds: readonly string[]) => void;
+  actionScope?: object;
   moveOptions?: Array<{
     id: string;
     label: string;
@@ -1978,6 +1982,7 @@ import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 declare function EidosFileRecordDeleteDialog({
   row,
   fields,
+  count,
   disabled,
   onOpenChange,
   onDelete,
@@ -1985,6 +1990,7 @@ declare function EidosFileRecordDeleteDialog({
 }: {
   row: EidosFileRow | null;
   fields?: EidosFileFieldInfo[];
+  count?: number;
   disabled?: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: (row: EidosFileRow) => Promise<void>;

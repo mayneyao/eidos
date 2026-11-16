@@ -663,6 +663,12 @@ export function EidosFileWorkbench({
     setReloadToken((current) => current + 1)
   }
 
+  const deleteRowIds = async (rowIds: readonly string[]) => {
+    const result = await source.deleteRows(activeTable.table.id, [...rowIds])
+    setReloadToken((current) => current + 1)
+    return result
+  }
+
   const exportTableCsv = async (
     table: EidosFileTableSnapshot,
     view?: EidosFileViewInfo,
@@ -995,6 +1001,7 @@ export function EidosFileWorkbench({
               }}
               onSnapshot={onSnapshot}
               onDeleteRow={deleteRow}
+              onDeleteRowIds={deleteRowIds}
               onDeleteRows={deleteRows}
               onFieldOpen={setPropertyField}
               onFieldClose={() => setPropertyField(null)}

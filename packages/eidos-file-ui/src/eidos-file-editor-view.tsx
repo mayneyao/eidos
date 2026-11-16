@@ -62,6 +62,10 @@ export interface EidosFileViewRendererProps {
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  /** Delete exact stable identities through the Host's atomic record mutation path. */
+  onDeleteRowIds?: (
+    rowIds: readonly string[]
+  ) => Promise<EidosFileRowsDeleteResult>
   onDeleteRows?: (
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery

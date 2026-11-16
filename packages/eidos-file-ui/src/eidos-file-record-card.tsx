@@ -305,6 +305,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   onOpen,
   onPreviewFile,
   onDelete,
+  getActionRowIds,
+  onDeleteRowIds,
+  actionScope,
   moveOptions,
   disabledMoveOptionId,
   moveDisabled = false,
@@ -325,6 +328,10 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   onOpen: (row: EidosFileRow) => void
   onPreviewFile?: (row: EidosFileRow, entry: FileEntry) => void
   onDelete?: (row: EidosFileRow) => void
+  /** Resolve current selection only when an action menu opens. */
+  getActionRowIds?: (row: EidosFileRow) => readonly string[]
+  onDeleteRowIds?: (row: EidosFileRow, rowIds: readonly string[]) => void
+  actionScope?: object
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
   disabledMoveOptionId?: string
   moveDisabled?: boolean
@@ -346,6 +353,16 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     calendarTimeZoneData,
   } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
+  const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
+  const capturedActionScope = useRef(actionScope)
+  const multipleActions = actionRowIds.length > 1
+  const captureActionTarget = () => {
+    capturedActionScope.current = actionScope
+    const ids = getActionRowIds?.(row)
+    setActionRowIds(
+      ids?.includes(String(row._id)) ? [...new Set(ids)] : [String(row._id)]
+    )
+  }
   const mobileGallery = mobile && view.type === "gallery"
   const quietKanbanSurface = view.type === "kanban"
   const uniformFields =
@@ -362,6 +379,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     [cardWidth, compact, title, mobileGallery]
   )
   const [actionsOpen, setActionsOpen] = useState(false)
+  useEffect(() => setActionsOpen(false), [actionScope])
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const suppressPointerOpenRef = useRef(false)
   const openFromCard = useCallback(
@@ -412,6 +430,11 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
       row={row}
       onOpen={onOpen}
       onDelete={onDelete}
+      getActionRowIds={getActionRowIds}
+      actionScope={actionScope}
+      onDeleteRowIds={
+        onDeleteRowIds ? (ids) => onDeleteRowIds(row, ids) : undefined
+      }
       extraActions={() => [
         ...(entry && onPreviewFile
           ? [
@@ -588,8 +611,14 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
               >
                 <Eye className="h-3.5 w-3.5" />
               </Button>
-              {onDelete || (onMove && moveOptions?.length) ? (
-                <DropdownMenu onOpenChange={setActionsOpen}>
+              {onDelete || onDeleteRowIds || (onMove && moveOptions?.length) ? (
+                <DropdownMenu
+                  open={actionsOpen}
+                  onOpenChange={(open) => {
+                    if (open) captureActionTarget()
+                    setActionsOpen(open)
+                  }}
+                >
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
@@ -602,11 +631,13 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onSelect={() => onOpen(row)}>
-                      <Eye className="mr-2 h-3.5 w-3.5" />
-                      {t("Open details")}
-                    </DropdownMenuItem>
-                    {onMove && moveOptions?.length ? (
+                    {!multipleActions ? (
+                      <DropdownMenuItem onSelect={() => onOpen(row)}>
+                        <Eye className="mr-2 h-3.5 w-3.5" />
+                        {t("Open details")}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {!multipleActions && onMove && moveOptions?.length ? (
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                           <MoveRight className="mr-2 h-3.5 w-3.5" />
@@ -623,17 +654,30 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
                     ) : null}
-                    {onDelete ? (
+                    {onDelete || onDeleteRowIds ? (
                       <>
-                        {onMove && moveOptions?.length ? (
+                        {!multipleActions && onMove && moveOptions?.length ? (
                           <DropdownMenuSeparator />
                         ) : null}
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
-                          onSelect={() => onDelete(row)}
+                          disabled={
+                            multipleActions ? !onDeleteRowIds : !onDelete
+                          }
+                          onSelect={() => {
+                            if (capturedActionScope.current !== actionScope)
+                              return
+                            if (multipleActions)
+                              onDeleteRowIds?.(row, actionRowIds)
+                            else onDelete?.(row)
+                          }}
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5" />
-                          {t("Delete record")}
+                          {multipleActions
+                            ? t("Delete {count} records", {
+                                count: actionRowIds.length,
+                              })
+                            : t("Delete record")}
                         </DropdownMenuItem>
                       </>
                     ) : null}

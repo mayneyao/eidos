@@ -137,8 +137,16 @@ destination, session, conflict, recovery and asset tokens are opaque. Host owns
 permission, publication, CAS/conflict checks, recovery, assets and replacement
 Runtime epochs. Dirty close requires an explicit save/discard/cancel decision.
 
-React renderers are trusted application code, not an extension sandbox. Asset
-content is obtained only through bounded Host leases and every lease is
+React renderers are trusted application code, not an extension sandbox.
+
+Gallery bulk deletion uses the optional `onDeleteRowIds` Host callback with
+the exact stable IDs captured when the menu opens. Hosts must commit these IDs
+atomically through their record mutation path and refresh their snapshot,
+dirty state and caches. The Runtime accepts at most 500 IDs per operation;
+failure preserves the selection. Without this callback, bulk deletion is
+disabled. Filesystem metadata clearing is not a file trash operation.
+
+Asset content is obtained only through bounded Host leases and every lease is
 released on expiry, surface removal, or close. Relative, `https:`, and
 canonical inline image Data URLs all use `HostServices.resolveAsset`; reusable
 UI never joins/fetches/navigates `FileEntry.uri` and has no package-global

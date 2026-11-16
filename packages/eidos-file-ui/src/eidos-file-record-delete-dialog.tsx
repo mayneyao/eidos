@@ -14,10 +14,12 @@ import {
 
 import { useEidosFileUI } from "./context"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
+import { eidosFileErrorMessage } from "./eidos-file-error-message"
 
 export function EidosFileRecordDeleteDialog({
   row,
   fields = [],
+  count = 1,
   disabled = false,
   onOpenChange,
   onDelete,
@@ -25,6 +27,7 @@ export function EidosFileRecordDeleteDialog({
 }: {
   row: EidosFileRow | null
   fields?: EidosFileFieldInfo[]
+  count?: number
   disabled?: boolean
   onOpenChange: (open: boolean) => void
   onDelete: (row: EidosFileRow) => Promise<void>
@@ -32,18 +35,27 @@ export function EidosFileRecordDeleteDialog({
 }) {
   const { translate: t } = useEidosFileUI()
   const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!row) setDeleting(false)
-  }, [row])
+    setError("")
+  }, [row, count])
 
   const confirm = async () => {
     if (!row || disabled || deleting) return
     setDeleting(true)
+    setError("")
     try {
       await onDelete(row)
       onOpenChange(false)
     } catch (error) {
+      setError(
+        eidosFileErrorMessage(
+          error,
+          t("Could not delete the selected records.")
+        )
+      )
       onError?.(error)
     } finally {
       setDeleting(false)
@@ -51,20 +63,34 @@ export function EidosFileRecordDeleteDialog({
   }
 
   return (
-    <AlertDialog open={Boolean(row)} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={Boolean(row)}
+      onOpenChange={(open) => {
+        if (!deleting || open) onOpenChange(open)
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t("Delete “{title}”?", {
-              title: eidosFileRecordTitle(row ?? {}, fields),
-            })}
+            {count > 1
+              ? t("Delete {count} records?", { count })
+              : t("Delete “{title}”?", {
+                  title: eidosFileRecordTitle(row ?? {}, fields),
+                })}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t(
-              "This removes the record from the Eidos File. This action cannot be undone from the current view."
+              count > 1
+                ? "This removes the selected records from the Eidos File. This action cannot be undone from the current view."
+                : "This removes the record from the Eidos File. This action cannot be undone from the current view."
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t(error)}
+          </p>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>
             {t("Cancel")}
@@ -77,7 +103,11 @@ export function EidosFileRecordDeleteDialog({
               void confirm()
             }}
           >
-            {deleting ? t("Deleting…") : t("Delete record")}
+            {deleting
+              ? t("Deleting…")
+              : count > 1
+                ? t("Delete {count} records", { count })
+                : t("Delete record")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

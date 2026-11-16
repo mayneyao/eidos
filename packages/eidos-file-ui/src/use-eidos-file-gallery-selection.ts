@@ -62,6 +62,14 @@ export function useEidosFileGallerySelection({
   geometryRef.current = getGeometry
   const cancelRef = useRef<(clear?: boolean) => void>(() => {})
   const clear = () => cancelRef.current(true)
+  const remove = (rowIds: readonly string[]) => {
+    cancelRef.current()
+    const next = new Set(selectedRef.current)
+    for (const rowId of rowIds) next.delete(rowId)
+    if (gallerySelectionEqual(selectedRef.current, next)) return
+    selectedRef.current = next
+    setSelectedIds(next)
+  }
 
   useLayoutEffect(() => {
     cancelRef.current(true)
@@ -302,5 +310,5 @@ export function useEidosFileGallerySelection({
     }
   }, [enabled, scrollRef])
 
-  return { selectedIds, marquee, clear }
+  return { selectedIds, marquee, clear, remove }
 }

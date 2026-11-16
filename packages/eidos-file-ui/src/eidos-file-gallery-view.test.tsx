@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, useState, type ComponentProps } from "react"
 import { flushSync } from "react-dom"
 import { createRoot, type Root } from "react-dom/client"
 import {
@@ -74,24 +74,38 @@ vi.mock("./eidos-file-record-inspector", () => ({
 vi.mock("./eidos-file-record-delete-dialog", () => ({
   EidosFileRecordDeleteDialog: ({
     row,
+    count = 1,
     disabled,
     onDelete,
     onOpenChange,
   }: {
     row: { _id?: string; title?: string } | null
+    count?: number
     disabled?: boolean
     onDelete: (row: { _id?: string; title?: string }) => Promise<void>
     onOpenChange: (open: boolean) => void
-  }) =>
-    row ? (
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => void onDelete(row).then(() => onOpenChange(false))}
-      >
-        Confirm delete {row.title}
-      </button>
-    ) : null,
+  }) => {
+    const [error, setError] = useState("")
+    return row ? (
+      <div data-confirm-count={count}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            void onDelete(row)
+              .then(() => onOpenChange(false))
+              .catch((cause: Error) => setError(cause.message))
+          }
+        >
+          Confirm delete {row.title}
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cancel delete
+        </button>
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+    ) : null
+  },
 }))
 
 ;(
@@ -279,6 +293,419 @@ describe("EidosFileGalleryView", () => {
         .querySelector("[data-eidos-file-selection-count]")
         ?.getAttribute("data-eidos-file-selection-count")
     ).toBe("0")
+  })
+
+  it("targets all three selected records from a selected card context menu", async () => {
+    const rows = [
+      { _id: "row_a", title: "A" },
+      { _id: "row_b", title: "B" },
+      { _id: "row_c", title: "C" },
+    ]
+    const onDeleteRow = vi.fn(async () => undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileGalleryView
+          table={{ ...table, rowCount: 3 }}
+          view={view}
+          loadPage={async (offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 3,
+            rows,
+          })}
+          onDeleteRow={onDeleteRow}
+        />
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    for (const row of rows)
+      act(() => {
+        container
+          .querySelector(`[data-eidos-file-row-id="${row._id}"] h3`)!
+          .dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              shiftKey: true,
+            })
+          )
+      })
+    expect(
+      container
+        .querySelector("[data-eidos-file-selection-count]")
+        ?.getAttribute("data-eidos-file-selection-count")
+    ).toBe("3")
+    await act(async () => {
+      container
+        .querySelector('[data-eidos-file-row-id="row_b"]')!
+        .dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: 50,
+            clientY: 50,
+          })
+        )
+    })
+    const items = Array.from(
+      document.body.querySelectorAll(
+        '[data-eidos-file-record-menu] [role="menuitem"]'
+      ),
+      (item) => item.textContent?.trim()
+    )
+    expect(items).toContain("Delete 3 records")
+    expect(items).toContain("Copy 3 record IDs")
+    expect(items).not.toContain("Open record")
+    expect(items).not.toContain("Delete record")
+    expect(
+      Array.from(
+        document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+      ).find((item) => item.textContent === "Delete 3 records")?.disabled
+    ).toBe(true)
+    expect(onDeleteRow).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: "delete=false",
+      settings: { capabilities: { delete: false } },
+      disabled: false,
+      multi: true,
+    },
+    {
+      name: "metadata-only deletion",
+      settings: { capabilities: { delete: "clear_meta" } },
+      disabled: false,
+      multi: true,
+    },
+    {
+      name: "filesystem metadata",
+      settings: { vtabModule: "fs_meta" },
+      disabled: false,
+      multi: true,
+    },
+    { name: "read-only source", settings: {}, disabled: true, multi: false },
+  ])(
+    "does not bypass $name through the Gallery host callback",
+    async ({ settings, disabled, multi }) => {
+      const rows = ["a", "b", "c"].map((id) => ({ _id: id, title: id }))
+      const source = {
+        getPage: vi.fn(async (_tableId, offset, limit) => ({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 3,
+          rows,
+        })),
+      } as unknown as EidosFileEditorDataSource
+      const onDeleteRowIds = vi.fn()
+      const onDeleteRow = vi.fn()
+      await act(async () => {
+        root.render(
+          <EidosFileEditorView
+            source={source}
+            table={{ ...table, table: { ...table.table, settings } }}
+            view={view}
+            plugins={[eidosFileGalleryPlugin]}
+            disabled={disabled}
+            onDeleteRow={onDeleteRow}
+            onDeleteRowIds={onDeleteRowIds}
+          />
+        )
+        for (let i = 0; i < 10; i++) await Promise.resolve()
+      })
+      if (multi)
+        for (const row of rows)
+          act(() =>
+            container
+              .querySelector(`[data-eidos-file-row-id="${row._id}"] h3`)!
+              .dispatchEvent(
+                new MouseEvent("click", {
+                  bubbles: true,
+                  cancelable: true,
+                  shiftKey: true,
+                })
+              )
+          )
+      await act(async () =>
+        container
+          .querySelector('[data-eidos-file-row-id="b"]')!
+          .dispatchEvent(
+            new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+          )
+      )
+      const item = Array.from(
+        document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+      ).find((item) => item.textContent?.startsWith("Delete"))!
+      expect(item.disabled).toBe(true)
+      await act(async () => item.click())
+      expect(onDeleteRowIds).not.toHaveBeenCalled()
+      expect(onDeleteRow).not.toHaveBeenCalled()
+    }
+  )
+
+  describe("selected record actions", () => {
+    const rows = ["a", "b", "c", "d"].map((id) => ({
+      _id: `row_${id}`,
+      title: id.toUpperCase(),
+    }))
+    const loadPage = async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 4,
+      rows,
+    })
+    const count = () =>
+      container
+        .querySelector("[data-eidos-file-selection-count]")
+        ?.getAttribute("data-eidos-file-selection-count")
+    const select = (id: string) =>
+      act(() => {
+        container
+          .querySelector(`[data-eidos-file-row-id="row_${id}"] h3`)!
+          .dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              shiftKey: true,
+            })
+          )
+      })
+    const context = async (id: string) =>
+      act(async () => {
+        container
+          .querySelector(`[data-eidos-file-row-id="row_${id}"]`)!
+          .dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: 50,
+              clientY: 50,
+            })
+          )
+      })
+    const click = async (text: string) =>
+      act(async () => {
+        const item = Array.from(
+          document.body.querySelectorAll<HTMLElement>(
+            'button, [role="menuitem"]'
+          )
+        ).find((item) => item.textContent === text)
+        expect(item, text).toBeDefined()
+        item!.click()
+        await Promise.resolve()
+      })
+    const render = async (
+      extra: Partial<ComponentProps<typeof EidosFileGalleryView>> = {}
+    ) =>
+      act(async () => {
+        root.render(
+          <EidosFileGalleryView
+            table={{ ...table, rowCount: 4 }}
+            view={view}
+            loadPage={loadPage}
+            {...extra}
+          />
+        )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+    it("confirms the frozen selection once, preserves cancel, and removes only successful IDs", async () => {
+      const onDeleteRow = vi.fn(async () => undefined)
+      const onDeleteRowIds = vi.fn(async (ids: readonly string[]) => ({
+        tableId: "tasks",
+        deletedCount: ids.length,
+        rowCount: 1,
+      }))
+      const onRowCountChange = vi.fn()
+      await render({ onDeleteRow, onDeleteRowIds, onRowCountChange })
+      for (const id of ["a", "b", "c"]) select(id)
+      await context("b")
+      await click("Delete 3 records")
+      expect(
+        container
+          .querySelector("[data-confirm-count]")
+          ?.getAttribute("data-confirm-count")
+      ).toBe("3")
+      await click("Cancel delete")
+      expect(onDeleteRowIds).not.toHaveBeenCalled()
+      expect(count()).toBe("3")
+      await context("b")
+      await click("Delete 3 records")
+      // A later selection is not added to a confirmation already opened.
+      select("d")
+      await click("Confirm delete B")
+      expect(onDeleteRowIds).toHaveBeenCalledExactlyOnceWith([
+        "row_a",
+        "row_b",
+        "row_c",
+      ])
+      expect(onDeleteRow).not.toHaveBeenCalled()
+      expect(count()).toBe("1")
+      expect(
+        container.querySelectorAll("[data-eidos-file-row-id]")
+      ).toHaveLength(1)
+      expect(
+        container.querySelector('[data-eidos-file-row-id="row_d"]')
+      ).not.toBeNull()
+      expect(onRowCountChange).toHaveBeenLastCalledWith(1)
+    })
+
+    it("keeps a failed selection and confirmation recoverable", async () => {
+      const onDeleteRowIds = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Atomic deletion failed"))
+        .mockResolvedValue({ tableId: "tasks", deletedCount: 3, rowCount: 1 })
+      await render({ onDeleteRowIds })
+      for (const id of ["a", "b", "c"]) select(id)
+      await context("a")
+      await click("Delete 3 records")
+      await click("Confirm delete A")
+      expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+        "Atomic deletion failed"
+      )
+      expect(count()).toBe("3")
+      expect(
+        container.querySelectorAll("[data-eidos-file-row-id]")
+      ).toHaveLength(4)
+      await click("Confirm delete A")
+      expect(onDeleteRowIds).toHaveBeenCalledTimes(2)
+      expect(count()).toBe("0")
+    })
+
+    it("uses the selected IDs from the More menu and resets selection on an unselected context target", async () => {
+      const onDeleteRow = vi.fn(async () => undefined)
+      const onDeleteRowIds = vi.fn(async (ids: readonly string[]) => ({
+        tableId: "tasks",
+        deletedCount: ids.length,
+        rowCount: 1,
+      }))
+      await render({ onDeleteRow, onDeleteRowIds })
+      for (const id of ["a", "b", "c"]) select(id)
+      await act(async () =>
+        container
+          .querySelector('[aria-label="More actions for B"]')!
+          .dispatchEvent(
+            new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+          )
+      )
+      expect(document.body.textContent).toContain("Delete 3 records")
+      expect(
+        document.querySelector('[role="menu"]')?.textContent
+      ).not.toContain("Open details")
+      await click("Delete 3 records")
+      await click("Cancel delete")
+      await context("d")
+      expect(count()).toBe("0")
+      await click("Delete record")
+      expect(
+        container
+          .querySelector("[data-confirm-count]")
+          ?.getAttribute("data-confirm-count")
+      ).toBe("1")
+      await click("Confirm delete D")
+      expect(onDeleteRow).toHaveBeenCalledExactlyOnceWith(rows[3])
+      expect(onDeleteRowIds).not.toHaveBeenCalled()
+    })
+
+    it("dismisses stale menus and does not let an old completion close a new query's confirmation", async () => {
+      let complete = () => {}
+      const onDeleteRowIds = vi.fn(
+        () =>
+          new Promise<{
+            tableId: string
+            deletedCount: number
+            rowCount: number
+          }>((resolve) => {
+            complete = () =>
+              resolve({ tableId: "tasks", deletedCount: 3, rowCount: 1 })
+          })
+      )
+      const props = {
+        onDeleteRowIds,
+        onDeleteRow: vi.fn(async () => undefined),
+      }
+      await render(props)
+      for (const id of ["a", "b", "c"]) select(id)
+      await context("b")
+      await render({
+        ...props,
+        view: { ...view, query: "SELECT * FROM tb_tasks ORDER BY title DESC" },
+      })
+      expect(document.querySelector("[data-eidos-file-record-menu]")).toBeNull()
+      await render(props)
+      for (const id of ["a", "b", "c"]) select(id)
+      await context("a")
+      await click("Delete 3 records")
+      await click("Confirm delete A")
+      await render({ ...props, reloadToken: 1 })
+      expect(container.querySelector("[data-confirm-count]")).toBeNull()
+      select("d")
+      await context("d")
+      await click("Delete record")
+      await act(async () => {
+        complete()
+        await Promise.resolve()
+      })
+      expect(container.querySelector("[data-confirm-count]")).not.toBeNull()
+      expect(count()).toBe("1")
+      expect(
+        container.querySelectorAll("[data-eidos-file-row-id]")
+      ).toHaveLength(4)
+    })
+
+    it("includes selected identities that were evicted from the 300-row window", async () => {
+      const loadMany = async (offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: 1000,
+        rows: Array.from({ length: 100 }, (_, i) => ({
+          _id: `row_${offset + i}`,
+          title: `Task ${offset + i}`,
+        })),
+      })
+      const onDeleteRowIds = vi.fn(async (ids: readonly string[]) => ({
+        tableId: "tasks",
+        deletedCount: ids.length,
+        rowCount: 996,
+      }))
+      await render({ loadPage: loadMany, onDeleteRowIds })
+      for (const id of ["0", "1", "2"]) select(id)
+      await act(async () => {
+        const scroller = container.querySelector<HTMLElement>(
+          "[data-eidos-file-gallery-scroll]"
+        )!
+        scroller.scrollTop =
+          Number(
+            container.querySelector<HTMLElement>(
+              "[data-eidos-file-physical-size]"
+            )!.dataset.eidosFilePhysicalSize
+          ) - 640
+        scroller.dispatchEvent(new Event("scroll"))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(
+        container.querySelector('[data-eidos-file-row-id="row_0"]')
+      ).toBeNull()
+      expect(count()).toBe("3")
+      const last = container
+        .querySelector<HTMLElement>("[data-eidos-file-row-id]")!
+        .dataset.eidosFileRowId!.slice(4)
+      select(last)
+      await context(last)
+      await click("Delete 4 records")
+      await click(`Confirm delete Task ${last}`)
+      expect(onDeleteRowIds).toHaveBeenCalledExactlyOnceWith([
+        "row_0",
+        "row_1",
+        "row_2",
+        `row_${last}`,
+      ])
+      expect(count()).toBe("0")
+    })
   })
 
   it("does not select retained records while a replacement query is pending", async () => {

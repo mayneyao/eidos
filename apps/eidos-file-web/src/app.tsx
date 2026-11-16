@@ -1975,6 +1975,22 @@ export function App() {
     [activeTable, markCommitted]
   )
 
+  const deleteRowIds = useCallback(
+    async (rowIds: readonly string[]) => {
+      const client = clientRef.current
+      if (!client || !activeTable)
+        throw new Error("Record deletion is unavailable")
+      const result = await client.deleteRows(activeTable.table.id, [...rowIds])
+      setSnapshot((current) =>
+        current ? updateSnapshotRowCount(current, result) : current
+      )
+      setViewReloadToken((current) => current + 1)
+      markCommitted()
+      return result
+    },
+    [activeTable, markCommitted]
+  )
+
   const deleteRowRanges = useCallback(
     async (
       ranges: EidosFileRowRange[],
@@ -2521,6 +2537,7 @@ export function App() {
           onMutation={onRowMutation}
           onSnapshot={onStructureSnapshot}
           onDeleteRow={deleteSingleRow}
+          onDeleteRowIds={deleteRowIds}
           onDeleteRows={deleteRowRanges}
           onFieldOpen={setPropertyField}
           onFieldClose={() => setPropertyField(null)}
