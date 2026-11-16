@@ -63,10 +63,9 @@ export function useViewLayoutUpdates(
   const current = model.current
   current.incoming = view
   const [draft, setDraft] = useState<EidosFileViewInfo | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [pendingSaves, setPendingSaves] = useState(0)
   const [error, setError] = useState<string | null>(null)
   useLayoutEffect(() => {
-    setBusy(false)
     setError(null)
   }, [current])
   useLayoutEffect(() => {
@@ -85,9 +84,9 @@ export function useViewLayoutUpdates(
   const enqueue = (change: Change) => {
     current.queue.push({ change, save: onUpdate })
     setError(null)
-    setBusy(true)
     setDraft(project(current))
     if (current.queue.length > 1) return
+    setPendingSaves((count) => count + 1)
     current.settled = (async () => {
       let succeeded = true
       while (current.queue.length) {
@@ -110,8 +109,8 @@ export function useViewLayoutUpdates(
       )
       if (model.current === current) {
         if (!current.awaitingSnapshot) setDraft(null)
-        setBusy(false)
       }
+      setPendingSaves((count) => count - 1)
       return succeeded
     })()
   }
@@ -123,7 +122,7 @@ export function useViewLayoutUpdates(
       properties: projected.properties,
       orderMap: projected.orderMap,
     },
-    busy,
+    busy: pendingSaves > 0,
     error,
     enqueue,
     settle: () =>

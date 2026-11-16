@@ -7,6 +7,7 @@ import {
 } from "@eidos.space/eidos-file"
 
 import { EidosFileViewFieldsPopover } from "./eidos-file-view-fields-popover"
+import { useViewLayoutUpdates } from "./use-view-layout-updates"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -493,4 +494,49 @@ describe("EidosFileViewFieldsPopover", () => {
     await act(async () => finish())
     expect(onFieldOpen).toHaveBeenCalledExactlyOnceWith(fields[0])
   })
+})
+
+it("retains pending layout protection across View switches until both saves settle", async () => {
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  let state!: ReturnType<typeof useViewLayoutUpdates>
+  let first!: () => void
+  let second!: () => void
+  const saveFirst = () =>
+    new Promise<void>((resolve) => {
+      first = resolve
+    })
+  const saveSecond = () =>
+    new Promise<void>((resolve) => {
+      second = resolve
+    })
+  function Probe({
+    next,
+    save,
+  }: {
+    next: EidosFileViewInfo
+    save: () => Promise<void>
+  }) {
+    state = useViewLayoutUpdates(next, save, "Save failed")
+    return null
+  }
+  try {
+    await act(async () => root.render(<Probe next={view} save={saveFirst} />))
+    await act(async () => state.enqueue(() => ({ hiddenFields: [] })))
+    await act(async () =>
+      root.render(
+        <Probe next={{ ...view, id: "another-view" }} save={saveSecond} />
+      )
+    )
+    expect(state.busy).toBe(true)
+    await act(async () => state.enqueue(() => ({ hiddenFields: [] })))
+    await act(async () => first())
+    expect(state.busy).toBe(true)
+    await act(async () => second())
+    expect(state.busy).toBe(false)
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+  }
 })
