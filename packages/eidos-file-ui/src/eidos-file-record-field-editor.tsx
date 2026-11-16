@@ -82,36 +82,8 @@ export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
       }
       data-field-type={props.field.type}
       aria-disabled={props.readOnly || undefined}
-      onPointerDownCapture={(event) => {
-        if (
-          props.readOnly &&
-          !(
-            event.target instanceof HTMLInputElement ||
-            event.target instanceof HTMLTextAreaElement
-          )
-        ) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-      }}
-      onKeyDownCapture={(event) => {
-        if (
-          props.readOnly &&
-          event.key !== "Tab" &&
-          !(
-            event.target instanceof HTMLInputElement ||
-            event.target instanceof HTMLTextAreaElement
-          )
-        ) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-      }}
     >
-      <FieldEditorControl
-        {...props}
-        onChange={props.readOnly ? async () => {} : props.onChange}
-      />
+      <FieldEditorControl {...props} />
     </div>
   )
 }
@@ -172,6 +144,7 @@ function FieldEditorControl({
     calendarTimeZoneData,
   })
   const optionSaving = useRef(false)
+  const writeLocked = disabled || readOnly
   const optionInput = useRef<HTMLInputElement>(null)
   const discardNextBlur = useRef(false)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
@@ -338,7 +311,10 @@ function FieldEditorControl({
             }
             disabled={disabled}
             className="eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
-            onClick={() => void onChange(checkboxValue === "checked" ? 0 : 1)}
+            onClick={() => {
+              if (!writeLocked)
+                void onChange(checkboxValue === "checked" ? 0 : 1)
+            }}
           >
             <span className="flex h-5 w-5 items-center justify-center rounded border border-input">
               {checkboxValue === "checked" ? (
@@ -356,7 +332,9 @@ function FieldEditorControl({
                 disabled={disabled}
                 className="eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
                 aria-label={t("Clear")}
-                onClick={() => void onChange(null)}
+                onClick={() => {
+                  if (!writeLocked) void onChange(null)
+                }}
               >
                 <X size={16} />
               </button>
@@ -367,9 +345,10 @@ function FieldEditorControl({
       <Select
         value={omittedDefault ? "" : checkboxValue}
         disabled={disabled}
-        onValueChange={(next) =>
-          void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
-        }
+        onValueChange={(next) => {
+          if (!writeLocked)
+            void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
+        }}
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
           <SelectValue
@@ -396,9 +375,9 @@ function FieldEditorControl({
       <Select
         value={typeof value === "string" && value ? value : "__empty__"}
         disabled={disabled}
-        onValueChange={(next) =>
-          void onChange(next === "__empty__" ? null : next)
-        }
+        onValueChange={(next) => {
+          if (!writeLocked) void onChange(next === "__empty__" ? null : next)
+        }}
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
           <SelectValue placeholder={placeholder ?? t("Empty")} />
@@ -437,7 +416,8 @@ function FieldEditorControl({
     )
     const existing = options.find((option) => option.name === query)
     const createOption = async () => {
-      if (!onCreateOption || !query || disabled || optionSaving.current) return
+      if (!onCreateOption || !query || writeLocked || optionSaving.current)
+        return
       optionSaving.current = true
       setOptionBusy(true)
       setOptionError(null)
@@ -512,7 +492,7 @@ function FieldEditorControl({
                 placeholder={t("Search or create an option…")}
                 className="h-7 text-xs"
                 disabled={disabled}
-                readOnly={optionBusy}
+                readOnly={optionBusy || readOnly}
                 aria-busy={optionBusy}
                 onChange={(event) => {
                   setOptionQuery(event.target.value)
@@ -526,7 +506,7 @@ function FieldEditorControl({
                   )
                     return
                   event.preventDefault()
-                  if (disabled || optionSaving.current) return
+                  if (writeLocked || optionSaving.current) return
                   if (existing) {
                     if (!selectedSet.has(existing.value))
                       void onChange(
@@ -557,6 +537,7 @@ function FieldEditorControl({
                 className="flex min-h-7 items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 disabled={disabled || optionBusy}
                 onClick={() => {
+                  if (writeLocked) return
                   void onChange(null)
                   setOptionOpen(false)
                 }}
@@ -583,6 +564,7 @@ function FieldEditorControl({
                 aria-checked={selectedSet.has(option.value)}
                 disabled={disabled || optionBusy}
                 onClick={() => {
+                  if (writeLocked) return
                   if (single) {
                     void onChange(option.value)
                     setOptionOpen(false)
@@ -732,7 +714,8 @@ function FieldEditorControl({
                 disabled={disabled}
                 aria-label={t("Rate {value}", { value: rating })}
                 aria-pressed={Number(value) === rating && value != null}
-                onClick={() =>
+                onClick={() => {
+                  if (writeLocked) return
                   void onChange(
                     value != null && Number(value) === rating
                       ? field.nullable === false
@@ -740,7 +723,7 @@ function FieldEditorControl({
                         : null
                       : rating
                   )
-                }
+                }}
               >
                 <Star
                   size={22}
@@ -756,7 +739,9 @@ function FieldEditorControl({
               className="h-11 min-w-8 text-sm text-muted-foreground"
               aria-label={t("Rate {value}", { value: 0 })}
               aria-pressed={value === 0}
-              onClick={() => void onChange(0)}
+              onClick={() => {
+                if (!writeLocked) void onChange(0)
+              }}
             >
               0
             </button>
@@ -769,7 +754,9 @@ function FieldEditorControl({
                 disabled={disabled}
                 className="eidos-field-clear flex h-11 min-w-8 items-center justify-center text-muted-foreground"
                 aria-label={t("Clear")}
-                onClick={() => void onChange(null)}
+                onClick={() => {
+                  if (!writeLocked) void onChange(null)
+                }}
               >
                 <X size={16} />
               </button>

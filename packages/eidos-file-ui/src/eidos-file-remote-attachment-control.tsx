@@ -36,11 +36,13 @@ export function eidosFileRemoteAssetAcquisitionAllowed(
 
 export function EidosFileRemoteAttachmentControl({
   disabled = false,
+  readOnly = false,
   onAcquired,
   onError,
   className,
 }: {
   disabled?: boolean
+  readOnly?: boolean
   onAcquired: (entry: FileEntry) => Promise<void> | void
   onError?: (error: unknown) => void
   className?: string
@@ -57,7 +59,7 @@ export function EidosFileRemoteAttachmentControl({
 
   const acquire = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (disabled || busy) return
+    if (disabled || readOnly || busy) return
     const normalizedUri = uri.trim()
     const normalizedName = name.trim()
     if (!validRemoteAssetUrl(normalizedUri)) {
@@ -127,6 +129,7 @@ export function EidosFileRemoteAttachmentControl({
         placeholder="https://example.com/file.png"
         aria-label={t("File URL")}
         disabled={disabled || busy}
+        readOnly={readOnly}
         onChange={(event) => setUri(event.target.value)}
       />
       <Input
@@ -134,6 +137,7 @@ export function EidosFileRemoteAttachmentControl({
         placeholder={t("File name (optional)")}
         aria-label={t("File name (optional)")}
         disabled={disabled || busy}
+        readOnly={readOnly}
         onChange={(event) => setName(event.target.value)}
       />
       {error ? <p className="text-xs text-destructive">{error}</p> : null}

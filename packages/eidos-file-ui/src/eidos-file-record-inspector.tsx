@@ -903,7 +903,8 @@ export function EidosFileRecordInspector({
           ) : fieldWritable && field.type === "file" ? (
             <EidosFileRecordAttachmentEditor
               value={currentRow[field.tableColumnName]}
-              disabled={editorDisabled || propertyReadOnly}
+              disabled={editorDisabled}
+              readOnly={propertyReadOnly}
               onChange={(value) => editField(field, value)}
               onImportFiles={onImportFiles}
               onImportDroppedFiles={onImportDroppedFiles}
@@ -913,7 +914,8 @@ export function EidosFileRecordInspector({
             <EidosFileRecordRelationEditor
               row={currentRow}
               field={field}
-              disabled={editorDisabled || propertyReadOnly}
+              disabled={editorDisabled}
+              readOnly={propertyReadOnly}
               onChange={(value) => editField(field, value)}
               onSearch={onSearchRelation}
               onError={onError}
