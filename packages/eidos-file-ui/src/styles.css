@@ -1027,11 +1027,7 @@
 }
 .eidos-date-filter-value {
   min-width: 0;
-}
-.eidos-date-filter-input-row {
-  display: flex;
-  align-items: start;
-  gap: 4px;
+  container: eidos-date-value / inline-size;
 }
 .eidos-date-filter-inputs {
   display: grid;
@@ -1042,22 +1038,11 @@
 .eidos-date-filter-inputs[data-range="true"] {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
-.eidos-date-filter-value[data-type="datetime"]
-  .eidos-date-filter-inputs[data-range="true"] {
+.eidos-date-filter-inputs[data-type="datetime"][data-range="true"] {
   grid-template-columns: minmax(0, 1fr);
 }
 .eidos-filter-rule:where(:has(> .eidos-filter-value .eidos-date-filter-value)) {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
-}
-.eidos-filter-rule:where(:has(> .eidos-filter-value .eidos-date-filter-value))
-  > .eidos-filter-value {
-  grid-column: 1 / 3;
-  grid-row: 2;
-}
-.eidos-filter-rule:where(:has(> .eidos-filter-value .eidos-date-filter-value))
-  > .eidos-filter-remove {
-  grid-column: 3;
-  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 2.3fr) 28px;
 }
 .eidos-date-filter-inputs input {
   width: 100%;
@@ -1072,13 +1057,49 @@
 .eidos-date-filter-inputs input[data-active] {
   border-color: var(--ring);
 }
-.eidos-date-filter-value input::-webkit-calendar-picker-indicator {
+.eidos-date-filter-inputs input::-webkit-calendar-picker-indicator {
   display: none;
 }
-.eidos-date-filter-input-row > button {
-  flex: none;
-  width: 28px;
+.eidos-date-filter-trigger {
+  width: 100%;
+  min-width: 0;
   height: 28px;
+  gap: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  text-align: left;
+}
+.eidos-date-filter-trigger > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-summary {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 5px;
+}
+.eidos-date-filter-summary-endpoint {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 5px;
+}
+.eidos-date-filter-summary-endpoint > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eidos-date-filter-label-compact {
+  display: none;
+}
+@container eidos-date-value (max-width: 200px) {
+  .eidos-date-filter-label-full {
+    display: none;
+  }
+  .eidos-date-filter-label-compact {
+    display: inline;
+  }
 }
 .eidos-date-filter-calendar {
   margin: 8px auto 0;
@@ -1158,14 +1179,17 @@
   content: "";
 }
 .eidos-date-filter-popover {
-  width: 276px;
+  width: 260px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 12px;
+}
+.eidos-date-filter-popover[data-type="datetime"] {
+  width: 320px;
 }
 .eidos-date-filter-popover .eidos-date-filter-calendar {
-  margin-top: 0;
+  margin-top: 8px;
 }
 .eidos-date-filter-time {
   display: flex;
@@ -1260,10 +1284,34 @@
 }
 
 @container eidos-filters (max-width: 420px) {
-  [data-eidos-file-filter-popover] .eidos-filter-rule {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > [data-eidos-file-filter-field] {
+    gap: 2px;
+    padding-inline: 6px;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > [data-eidos-file-filter-field]
+    > span
+    svg {
+    display: none;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > button[role="combobox"]
+    > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value)) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
   }
-  [data-eidos-file-filter-popover] .eidos-filter-value {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value))
+    > .eidos-filter-value {
     grid-column: 1 / 3;
     grid-row: 2;
   }
@@ -1273,7 +1321,9 @@
     align-self: stretch;
     height: auto;
   }
-  [data-eidos-file-filter-popover] .eidos-filter-remove {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value))
+    > .eidos-filter-remove {
     grid-column: 3;
     grid-row: 1;
     align-self: center;

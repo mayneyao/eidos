@@ -823,6 +823,12 @@ describe("shared EidosFileQueryToolbar", () => {
     ).find((option) => option.textContent?.trim() === "Created at")
     await act(async () => createdAt?.click())
 
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>('[aria-label="Choose date & time"]')
+        ?.click()
+    )
+
     const valueInput = document.body.querySelector<HTMLInputElement>(
       'input[type="datetime-local"]'
     )
@@ -883,6 +889,11 @@ describe("shared EidosFileQueryToolbar", () => {
         .querySelector<HTMLButtonElement>(
           '[aria-label="Filter Eidos File rows"]'
         )
+        ?.click()
+    )
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>('[aria-label="Choose date & time"]')
         ?.click()
     )
 

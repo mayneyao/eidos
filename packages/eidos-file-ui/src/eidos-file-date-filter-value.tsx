@@ -138,7 +138,7 @@ export function EidosFileDateFilterValue({
     update(active, datetime ? `${day}T${clock}` : day)
     if (range && active === 0) {
       setActive(1)
-      if (inline) inputs.current[1]?.focus({ preventScroll: true })
+      inputs.current[1]?.focus({ preventScroll: true })
     }
   }
   const clockPart = (index: number) =>
@@ -229,79 +229,43 @@ export function EidosFileDateFilterValue({
       )}
     </div>
   )
-  return (
-    <div
-      className="eidos-date-filter-value"
-      data-inline={inline}
-      data-type={type}
-    >
-      <div className="eidos-date-filter-input-row">
-        <div
-          className="eidos-date-filter-inputs"
-          data-range={range}
-          role={range ? "group" : undefined}
-          aria-label={range ? t("Date range") : undefined}
-        >
-          {draft.map((text, index) => (
-            <Input
-              key={index}
-              ref={(input) => {
-                inputs.current[index] = input
-                input?.setCustomValidity(
-                  !canonical(text) ||
-                    (range &&
-                      draft.every((value) => !!canonical(value)) &&
-                      error)
-                    ? (error ?? t("Choose date"))
-                    : ""
-                )
-              }}
-              required
-              type={datetime ? "datetime-local" : "date"}
-              step={datetime ? 0.001 : undefined}
-              aria-label={t(
-                range
-                  ? index === 0
-                    ? "Starting date"
-                    : "Ending date"
-                  : "Value"
-              )}
-              aria-invalid={(touched && !!error) || undefined}
-              data-active={(range && active === index) || undefined}
-              value={text}
-              onFocus={() => setActive(index)}
-              onChange={(event) => update(index, event.target.value)}
-            />
-          ))}
-        </div>
-        {!inline && (
-          <Popover
-            open={open}
-            onOpenChange={(next) => {
-              setOpen(next)
-              if (!next) {
-                setDraft(incoming)
-                setTouched(false)
-              }
+  const editor = (
+    <>
+      <div
+        className="eidos-date-filter-inputs"
+        data-range={range}
+        data-type={type}
+        role={range ? "group" : undefined}
+        aria-label={range ? t("Date range") : undefined}
+      >
+        {draft.map((text, index) => (
+          <Input
+            key={index}
+            ref={(input) => {
+              inputs.current[index] = input
+              input?.setCustomValidity(
+                !canonical(text) ||
+                  (range && draft.every((value) => !!canonical(value)) && error)
+                  ? (error ?? t("Choose date"))
+                  : ""
+              )
             }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t(datetime ? "Choose date & time" : "Choose date")}
-              >
-                <CalendarDays className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="eidos-date-filter-popover" align="start">
-              {calendar}
-            </PopoverContent>
-          </Popover>
-        )}
+            required
+            type={datetime ? "datetime-local" : "date"}
+            step={datetime ? 0.001 : undefined}
+            aria-label={t(
+              range ? (index === 0 ? "Starting date" : "Ending date") : "Value"
+            )}
+            aria-invalid={(touched && !!error) || undefined}
+            data-active={(range && active === index) || undefined}
+            value={text}
+            onFocus={() => setActive(index)}
+            onInvalid={() => setTouched(true)}
+            onChange={(event) => update(index, event.target.value)}
+          />
+        ))}
       </div>
-      {inline && calendar}
+      {calendar}
       {(datetime || (touched && error)) && (
         <p
           className={
@@ -317,11 +281,120 @@ export function EidosFileDateFilterValue({
             })}
         </p>
       )}
+    </>
+  )
+  const label = (text: string, index: number) => {
+    if (!text)
+      return t(
+        range ? (index === 0 ? "Starting date" : "Ending date") : "Choose date"
+      )
+    const [day, clock] = text.split("T")
+    return datetime && clock
+      ? `${day!.slice(5).replaceAll("-", "/")} ${clock.slice(0, 5)}`
+      : day!.replaceAll("-", "/")
+  }
+  const compactLabel = (text: string, index: number) => {
+    if (!text) return label(text, index)
+    const year = eidosFileWallDate(
+      new Date(),
+      timeZone,
+      calendarTimeZoneData
+    ).getFullYear()
+    return text.startsWith(`${year}-`)
+      ? text.slice(5, 10).replaceAll("-", "/")
+      : label(text, index)
+  }
+  const description = draft.some(Boolean)
+    ? draft.join(" – ") +
+      (datetime ? ` · ${eidosFileResolvedTimeZone(timeZone)}` : "")
+    : undefined
+  return (
+    <div
+      className="eidos-date-filter-value"
+      data-inline={inline}
+      data-type={type}
+      data-invalid={!!error || undefined}
+    >
+      {inline ? (
+        editor
+      ) : (
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next)
+            if (!next) {
+              setDraft(incoming)
+              setTouched(false)
+            }
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="eidos-date-filter-trigger"
+              aria-label={t(datetime ? "Choose date & time" : "Choose date")}
+              aria-description={description}
+              aria-invalid={(touched && !!error) || undefined}
+              title={description}
+            >
+              <CalendarDays className="h-4 w-4" />
+              <span className="eidos-date-filter-summary" data-range={range}>
+                {draft.map((text, index) => (
+                  <span
+                    key={index}
+                    className="eidos-date-filter-summary-endpoint"
+                  >
+                    {index > 0 && <span aria-hidden="true">–</span>}
+                    <span>
+                      <span className="eidos-date-filter-label-full">
+                        {label(text, index)}
+                      </span>
+                      <span
+                        className="eidos-date-filter-label-compact"
+                        aria-hidden="true"
+                      >
+                        {compactLabel(text, index)}
+                      </span>
+                    </span>
+                  </span>
+                ))}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="eidos-date-filter-popover"
+            align="start"
+            data-type={type}
+          >
+            {editor}
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   )
 }
 
 export function focusInvalidDateFilter(root: HTMLElement | null): boolean {
+  const invalid = root?.querySelector<HTMLElement>(
+    '.eidos-date-filter-value[data-invalid="true"]'
+  )
+  const trigger = invalid?.querySelector<HTMLButtonElement>(
+    ".eidos-date-filter-trigger"
+  )
+  if (trigger) {
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click()
+    const focus = () => {
+      const content = document.getElementById(
+        trigger.getAttribute("aria-controls") ?? ""
+      )
+      const input = content?.querySelector<HTMLInputElement>("input:invalid")
+      input?.focus()
+      input?.reportValidity()
+    }
+    requestAnimationFrame(focus)
+    return true
+  }
   const input = root?.querySelector<HTMLInputElement>(
     ".eidos-date-filter-value input:invalid"
   )

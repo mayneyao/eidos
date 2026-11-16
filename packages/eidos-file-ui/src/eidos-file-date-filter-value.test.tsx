@@ -190,6 +190,10 @@ it("keeps the calendar popover open while choosing both range endpoints", async 
       changed={changed}
     />
   )
+  expect(host.querySelector("input")).toBeNull()
+  expect(
+    host.querySelectorAll(".eidos-date-filter-summary-endpoint")
+  ).toHaveLength(2)
   await act(async () =>
     host
       .querySelector<HTMLButtonElement>('button[aria-label="Choose date"]')!
@@ -197,9 +201,71 @@ it("keeps the calendar popover open while choosing both range endpoints", async 
   )
   await clickDay("17")
   expect(document.querySelector(".eidos-date-filter-popover")).not.toBeNull()
+  expect(document.activeElement).toBe(
+    document.querySelector('input[aria-label="Ending date"]')
+  )
   await clickDay("19")
   expect(changed).toHaveBeenLastCalledWith(["2026-11-17", "2026-11-19"])
   expect(document.querySelector(".eidos-date-filter-popover")).not.toBeNull()
+})
+
+it("opens an incomplete compact value on validation and blocks invalid portalled drafts", async () => {
+  const changed = vi.fn()
+  const host = mount(
+    <Harness
+      initial={["", ""]}
+      type="date"
+      range
+      inline={false}
+      changed={changed}
+    />
+  )
+  await act(async () => expect(focusInvalidDateFilter(host)).toBe(true))
+  expect(
+    document.querySelectorAll(".eidos-date-filter-popover input")
+  ).toHaveLength(2)
+  await clickDay("17")
+  await clickDay("19")
+  expect(changed).toHaveBeenLastCalledWith(["2026-11-17", "2026-11-19"])
+  expect(focusInvalidDateFilter(host)).toBe(false)
+  const ending = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Ending date"]'
+  )!
+  await fill(ending, "2026-11-16")
+  await act(async () => expect(focusInvalidDateFilter(host)).toBe(true))
+  expect(changed).toHaveBeenCalledTimes(1)
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "ending date"
+  )
+})
+
+it("keeps datetime precision and zone in the compact calendar popover", async () => {
+  const host = mount(
+    <Harness
+      initial={["2026-11-16T04:15:37.123Z", "2026-11-20T10:45:23.456Z"]}
+      range
+      inline={false}
+      changed={() => {}}
+    />
+  )
+  expect(host.querySelector("input")).toBeNull()
+  expect(host.querySelector("button")!.title).toContain("Asia/Shanghai")
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Choose date & time"]'
+      )!
+      .click()
+  )
+  expect(
+    Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        ".eidos-date-filter-popover input"
+      ),
+      (i) => i.value
+    )
+  ).toEqual(["2026-11-16T12:15:37.123", "2026-11-20T18:45:23.456"])
+  expect(document.querySelector('button[aria-label="Hour"]')).not.toBeNull()
 })
 
 it.each(["2026-03-08T02:30:00", "2026-11-01T01:30:00"])(
