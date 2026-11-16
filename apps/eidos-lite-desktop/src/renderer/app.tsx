@@ -2681,16 +2681,19 @@ function WorkspaceApp({
           (file) => file.sessionId === opened.sessionId
         )
         if (existing) {
+          // Host open results validate the file without assuming a UI consumer.
+          // Refresh through the cached source to retain its query capabilities.
+          const snapshot = await existing.source.getSnapshot()
           setCachedFiles((current) => {
             const next = current.find(
               (file) => file.sessionId === opened.sessionId
             )
-            if (!next) return current
+            if (!next || next.source !== existing.source) return current
             return [
               ...current.filter((file) => file.sessionId !== opened.sessionId),
               {
                 ...next,
-                snapshot: opened.snapshot,
+                snapshot,
                 tableId,
               },
             ]

@@ -41,6 +41,7 @@ const treeSurface = vi.hoisted(() =>
     (props: {
       entries: SpaceTreeEntry[]
       onMove(paths: string[], directory: string | null): Promise<void>
+      onOpen(entry: SpaceTreeEntry): void
     }) => void
   >()
 )
@@ -51,14 +52,16 @@ vi.mock("./space-file-tree", () => ({
     visible,
     entries,
     onMove,
+    onOpen,
   }: {
     onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
     nameQuery?: string
     visible?: boolean
     entries: SpaceTreeEntry[]
     onMove(paths: string[], directory: string | null): Promise<void>
+    onOpen(entry: SpaceTreeEntry): void
   }) => {
-    treeSurface({ entries, onMove })
+    treeSurface({ entries, onMove, onOpen })
     return (
       <button
         data-test-folder-menu
@@ -83,12 +86,27 @@ vi.mock("./space-file-tree", () => ({
     )
   },
 }))
+const workbenchSurface = vi.hoisted(() =>
+  vi.fn<
+    (props: {
+      metadataDirectory?: string
+      relativePath: string
+      snapshot: EidosFileSnapshot
+    }) => void
+  >()
+)
 vi.mock("./eidos-file-workbench", () => ({
-  EidosFileWorkbench: ({
-    metadataDirectory,
-  }: {
-    metadataDirectory?: string
-  }) => <div data-test-metadata-scope={metadataDirectory}>Managed files</div>,
+  EidosFileWorkbench: (props: Parameters<typeof workbenchSurface>[0]) => {
+    workbenchSurface(props)
+    return (
+      <div
+        data-test-metadata-scope={props.metadataDirectory}
+        data-test-file-path={props.relativePath}
+      >
+        Managed files
+      </div>
+    )
+  },
 }))
 
 import { App } from "./app"
@@ -151,6 +169,7 @@ beforeEach(() => {
   )
   surface.mockClear()
   treeSurface.mockClear()
+  workbenchSurface.mockClear()
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
@@ -310,6 +329,154 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+it.each([
+  {
+    name: "calendar period",
+    query: {
+      filter: {
+        op: "and",
+        args: [
+          { op: "calendar-period", fieldId: "when", unit: "day", offset: 0 },
+        ],
+      },
+    },
+    supported: true,
+  },
+  {
+    name: "calendar window",
+    query: {
+      filter: {
+        op: "calendar-window",
+        fieldId: "when",
+        direction: "next",
+        unit: "day",
+        count: 2,
+      },
+    },
+    supported: true,
+  },
+  {
+    name: "unknown future query",
+    query: { filter: { op: "future-date-query", fieldId: "when", version: 3 } },
+    supported: false,
+  },
+])(
+  "keeps consumer-projected snapshots when reopening a cached $name file",
+  async ({ query, supported }) => {
+    const entry: SpaceTreeEntry = {
+      kind: "eidos",
+      name: "dates.eidos",
+      relativePath: "dates.eidos",
+      size: 1000,
+      modifiedAtMs: 1,
+    }
+    const document = JSON.stringify(query)
+    const negotiated = {
+      path: entry.relativePath,
+      metadata: { fileId: "dates", title: "Dates", revision: 13 },
+      queryCapabilities: {
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+        calendarPeriodTimeZoneData: ["2026f"],
+      },
+      tables: [
+        {
+          table: { id: "dates", name: "Dates", settings: {} },
+          fields: [],
+          views: [
+            {
+              id: "grid",
+              name: "Grid",
+              type: "grid",
+              query: document,
+              queryStatus: supported ? "supported" : "unsupported",
+              filter: null,
+              sorts: [],
+            },
+          ],
+          rowCount: 5,
+        },
+      ],
+    } as unknown as EidosFileSnapshot
+    const opening = structuredClone(negotiated)
+    delete opening.queryCapabilities!.calendarWindowVersion
+    opening.tables[0]!.views[0]!.queryStatus = "unsupported"
+    const open = vi.fn(async () => ({
+      sessionId: "dates",
+      relativePath: entry.relativePath,
+      readOnly: false,
+      snapshot: structuredClone(opening),
+    }))
+    const callRuntime = vi.fn(async (_session, method, _args, consumer) => {
+      expect(method).toBe("getSnapshot")
+      expect(consumer).toEqual({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
+      return structuredClone(negotiated)
+    })
+    installHost({
+      getSpace: async () => ({
+        ...staleSpace,
+        entries: [...staleSpace.entries, entry],
+        eidosFileCount: 1,
+      }),
+      openEidosFile: open,
+      callRuntime,
+      previewTextFile: async () => initial,
+      inspectEidosFileIssue: async () => null,
+    })
+    window.history.replaceState(
+      null,
+      "",
+      navigationHash("s", entry.relativePath)
+    )
+    await act(async () => root!.render(<App />))
+    const latest = () => workbenchSurface.mock.lastCall![0].snapshot
+    const expectedStatus = supported ? "supported" : "unsupported"
+    await vi.waitFor(() =>
+      expect(latest().tables[0]!.views[0]!.queryStatus).toBe(expectedStatus)
+    )
+    expect(callRuntime).toHaveBeenCalledOnce()
+    await act(async () => treeSurface.mock.lastCall![0].onOpen(entry))
+    await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(latest().queryCapabilities?.calendarWindowVersion).toBe(1)
+    )
+    expect(latest().tables[0]!.views[0]!.queryStatus).toBe(expectedStatus)
+    expect(latest().tables[0]!.views[0]!.query).toBe(document)
+    await act(async () =>
+      treeSurface.mock.lastCall![0].onOpen(staleSpace.entries[0]!)
+    )
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-test-markdown]")).not.toBeNull()
+    )
+    await act(async () => treeSurface.mock.lastCall![0].onOpen(entry))
+    await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() =>
+      expect(latest().queryCapabilities?.calendarWindowVersion).toBe(1)
+    )
+    expect(latest().tables[0]!.views[0]!.queryStatus).toBe(expectedStatus)
+    expect(latest().tables[0]!.views[0]!.query).toBe(document)
+    expect(callRuntime).toHaveBeenCalledTimes(3)
+    await act(async () => navigateCurrentWindow(oldPath))
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-test-markdown]")).not.toBeNull()
+    )
+    await act(async () => navigateCurrentWindow(entry.relativePath))
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[data-test-file-path="dates.eidos"]')
+      ).not.toBeNull()
+    )
+    expect(latest().queryCapabilities?.calendarWindowVersion).toBe(1)
+    expect(latest().tables[0]!.views[0]!.queryStatus).toBe(expectedStatus)
+    expect(latest().tables[0]!.views[0]!.query).toBe(document)
+    expect(open).toHaveBeenCalledTimes(3)
+    expect(callRuntime).toHaveBeenCalledTimes(3)
+  }
+)
 
 it("retains the main plugin iframe for route-free navigation and reopens explicit routes or different pages", async () => {
   const pageKey = "test.agent/chat"
