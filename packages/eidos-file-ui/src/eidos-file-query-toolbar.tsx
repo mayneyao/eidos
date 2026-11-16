@@ -733,6 +733,13 @@ function EidosFileFilterRuleEditor({
   return (
     <div
       data-relative-rule={relative || legacyPeriod || undefined}
+      data-absolute-date-rule={
+        (fixedField &&
+          !relative &&
+          !legacyPeriod &&
+          ["date", "datetime"].includes(fieldDisplayType(field))) ||
+        undefined
+      }
       className={cn(
         "grid items-start gap-1.5",
         fixedField
@@ -858,7 +865,10 @@ function EidosFileFilterRuleEditor({
               <SelectValue>
                 {fixedField && relative
                   ? `${eidosFileFieldDisplayName(field)} ${t("is relative to today")}`
-                  : undefined}
+                  : fixedField &&
+                      ["date", "datetime"].includes(fieldDisplayType(field))
+                    ? `${eidosFileFieldDisplayName(field)} ${t(operatorLabel(field, rule.operator))}`
+                    : undefined}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -963,6 +973,9 @@ export function EidosFileFieldFilterEditor({
   const relative =
     draft.operator === "is-in-calendar-period" ||
     draft.operator === "is-in-calendar-window"
+  const dateKind = fieldDisplayType(field)
+  const absoluteDate =
+    !relative && (dateKind === "date" || dateKind === "datetime")
   const draftRef = useRef(draft)
   const valueRef = useRef(value)
   valueRef.current = value
@@ -1050,8 +1063,11 @@ export function EidosFileFieldFilterEditor({
         draft.operator === "is-in-calendar-period" ||
           draft.operator === "is-in-calendar-window"
           ? "eidos-relative-date-panel"
-          : "w-80"
+          : absoluteDate
+            ? "eidos-absolute-date-panel"
+            : "w-80"
       )}
+      data-date-kind={absoluteDate ? dateKind : undefined}
       aria-busy={pending || undefined}
     >
       <fieldset
@@ -1110,7 +1126,19 @@ export function EidosFileFieldFilterEditor({
             </PopoverContent>
           </Popover>
         )}
-        {!relative && (
+        {absoluteDate && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="eidos-absolute-date-back"
+            aria-label={t("Back")}
+            onClick={onBack}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {!relative && !absoluteDate && (
           <div className="mb-3 flex min-w-0 items-center gap-2">
             <Button
               type="button"
@@ -1154,7 +1182,7 @@ export function EidosFileFieldFilterEditor({
           </p>
         ) : null}
         {!relative && (
-          <div className="mt-3 flex justify-end gap-1.5 border-t pt-3">
+          <div className="eidos-field-filter-footer mt-3 flex justify-end gap-1.5 border-t pt-3">
             <Button
               type="button"
               variant="ghost"

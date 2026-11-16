@@ -75,11 +75,13 @@ function Harness({
   type = "datetime",
   initial = "2026-11-16T04:15:37.123Z",
   range = false,
+  inline = true,
   changed,
 }: {
   type?: "date" | "datetime"
   initial?: EidosFileFilterRuleValue
   range?: boolean
+  inline?: boolean
   changed(value: EidosFileFilterRuleValue): void
 }) {
   const [value, setValue] = useState(initial)
@@ -88,7 +90,7 @@ function Harness({
       type={type}
       value={value}
       range={range}
-      inline
+      inline={inline}
       onChange={(value) => {
         changed(value)
         setValue(value)
@@ -144,6 +146,60 @@ it("edits both range endpoints without changing their clock precision", async ()
     "2026-11-17T04:15:37.123Z",
     "2026-11-19T10:45:23.456Z",
   ])
+})
+
+it("marks only the interval as selected and advances naturally to the ending input", async () => {
+  const changed = vi.fn()
+  const host = mount(
+    <Harness
+      initial={["2026-11-16", "2026-11-20"]}
+      type="date"
+      range
+      changed={changed}
+    />
+  )
+  const selectedDays = () =>
+    Array.from(
+      host.querySelectorAll('button[name="day"][aria-selected="true"]')
+    ).map((button) => button.textContent)
+  expect(selectedDays()).toEqual(["16", "17", "18", "19", "20"])
+  expect(host.querySelector(".eidos-date-filter-endpoints")).toBeNull()
+  await clickDay("17")
+  expect(document.activeElement).toBe(
+    host.querySelector('input[aria-label="Ending date"]')
+  )
+  expect(selectedDays()).toEqual(["17", "18", "19", "20"])
+  await act(async () =>
+    host
+      .querySelector<HTMLInputElement>('input[aria-label="Starting date"]')!
+      .focus()
+  )
+  await clickDay("18")
+  expect(changed).toHaveBeenLastCalledWith(["2026-11-18", "2026-11-20"])
+  expect(selectedDays()).toEqual(["18", "19", "20"])
+})
+
+it("keeps the calendar popover open while choosing both range endpoints", async () => {
+  const changed = vi.fn()
+  const host = mount(
+    <Harness
+      initial={["2026-11-16", "2026-11-20"]}
+      type="date"
+      range
+      inline={false}
+      changed={changed}
+    />
+  )
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label="Choose date"]')!
+      .click()
+  )
+  await clickDay("17")
+  expect(document.querySelector(".eidos-date-filter-popover")).not.toBeNull()
+  await clickDay("19")
+  expect(changed).toHaveBeenLastCalledWith(["2026-11-17", "2026-11-19"])
+  expect(document.querySelector(".eidos-date-filter-popover")).not.toBeNull()
 })
 
 it.each(["2026-03-08T02:30:00", "2026-11-01T01:30:00"])(

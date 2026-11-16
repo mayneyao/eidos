@@ -129,12 +129,17 @@ export function EidosFileDateFilterValue({
       eidosFileWallDate(new Date(), timeZone, calendarTimeZoneData)
   )
   const selected = wallDate(draft[active] ?? "")
+  const rangeStart = wallDate(draft[0] ?? "")
+  const rangeEnd = wallDate(draft[1] ?? "")
   const chooseDay = (date: Date | undefined) => {
     if (!date) return
     const day = `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
     const clock = draft[active]?.split("T")[1] || "00:00:00"
     update(active, datetime ? `${day}T${clock}` : day)
-    if (range && active === 0) setActive(1)
+    if (range && active === 0) {
+      setActive(1)
+      if (inline) inputs.current[1]?.focus({ preventScroll: true })
+    }
   }
   const clockPart = (index: number) =>
     draft[active]?.split("T")[1]?.split(":")[index] ?? "00"
@@ -146,35 +151,24 @@ export function EidosFileDateFilterValue({
     parts[index] = next
     update(active, `${day}T${parts.join(":")}`)
   }
-  const endpoints = range ? (
-    <div
-      className="eidos-date-filter-endpoints"
-      role="group"
-      aria-label={t("Date range")}
-    >
-      {[0, 1].map((index) => (
-        <Button
-          key={index}
-          type="button"
-          variant={active === index ? "secondary" : "ghost"}
-          size="sm"
-          aria-pressed={active === index}
-          onClick={() => setActive(index)}
-        >
-          {t(index === 0 ? "Starting date" : "Ending date")}
-        </Button>
-      ))}
-    </div>
-  ) : null
+  const selection = range
+    ? {
+        mode: "range" as const,
+        selected: rangeStart
+          ? {
+              from: rangeStart,
+              to: rangeEnd && rangeEnd >= rangeStart ? rangeEnd : undefined,
+            }
+          : undefined,
+        onDayClick: chooseDay,
+      }
+    : { mode: "single" as const, selected, onSelect: chooseDay }
   const calendar = (
-    <div className="eidos-date-filter-calendar">
-      {endpoints}
+    <div className="eidos-date-filter-calendar" data-range={range}>
       <Calendar
-        mode="single"
-        selected={selected}
+        {...selection}
         month={month}
         onMonthChange={setMonth}
-        onSelect={chooseDay}
         today={eidosFileWallDate(new Date(), timeZone, calendarTimeZoneData)}
         weekStartsOn={weekStartsOnMonday ? 1 : 0}
         formatters={{
@@ -188,23 +182,20 @@ export function EidosFileDateFilterValue({
               weekday: "narrow",
             }).format(date),
         }}
-        modifiers={
-          range
-            ? {
-                rangeStart: wallDate(draft[0] ?? "") ?? [],
-                rangeEnd: wallDate(draft[1] ?? "") ?? [],
-                rangeMiddle: (date) => {
-                  const from = wallDate(draft[0] ?? ""),
-                    to = wallDate(draft[1] ?? "")
-                  return !!from && !!to && date > from && date < to
-                },
-              }
-            : undefined
-        }
-        modifiersClassNames={{
-          rangeStart: "eidos-date-filter-range-endpoint",
-          rangeEnd: "eidos-date-filter-range-endpoint",
-          rangeMiddle: "eidos-date-filter-range-middle",
+        classNames={{
+          month: "eidos-date-filter-month",
+          caption: "eidos-date-filter-caption",
+          caption_label: "eidos-date-filter-caption-label",
+          nav: "eidos-date-filter-nav",
+          nav_button_previous: "",
+          nav_button_next: "",
+          row: "eidos-date-filter-week",
+          day_selected: range
+            ? "eidos-date-filter-range-middle"
+            : "eidos-date-filter-selected",
+          day_range_start: "eidos-date-filter-range-endpoint",
+          day_range_end: "eidos-date-filter-range-endpoint",
+          day_today: "eidos-date-filter-today",
         }}
       />
       {datetime && (
@@ -239,9 +230,18 @@ export function EidosFileDateFilterValue({
     </div>
   )
   return (
-    <div className="eidos-date-filter-value" data-inline={inline}>
+    <div
+      className="eidos-date-filter-value"
+      data-inline={inline}
+      data-type={type}
+    >
       <div className="eidos-date-filter-input-row">
-        <div className="eidos-date-filter-inputs" data-range={range}>
+        <div
+          className="eidos-date-filter-inputs"
+          data-range={range}
+          role={range ? "group" : undefined}
+          aria-label={range ? t("Date range") : undefined}
+        >
           {draft.map((text, index) => (
             <Input
               key={index}
@@ -267,6 +267,7 @@ export function EidosFileDateFilterValue({
                   : "Value"
               )}
               aria-invalid={(touched && !!error) || undefined}
+              data-active={(range && active === index) || undefined}
               value={text}
               onFocus={() => setActive(index)}
               onChange={(event) => update(index, event.target.value)}
