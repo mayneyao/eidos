@@ -1,4 +1,5 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import { sourceInstantComparisonKey } from "./source-instant"
 import { hasEidosFileCalendarQuery } from "./calendar-period"
 import {
   hasEidosFileCalendarWindowQuery,
@@ -1424,6 +1425,11 @@ export class EidosFileRuntime {
     connection.exec("PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF;")
     connection.registerFunction("eidos_casefold", (value) =>
       value === null ? null : String(value).toUpperCase().toLowerCase()
+    )
+    connection.registerFunction(
+      "eidos_source_instant_key",
+      sourceInstantComparisonKey,
+      1
     )
     connection.registerFunction(
       "eidos_canonical_number",
@@ -4323,6 +4329,7 @@ export class EidosFileRuntime {
     sql: string
     fields: EidosFileFieldInfo[]
     schema: RuntimeSchema
+    externalInstants: boolean
   } {
     const schema = this.allSchema()
     const table = schema.tables.get(tableId)
@@ -4378,7 +4385,19 @@ export class EidosFileRuntime {
               FROM ${quoteIdentifier(table.physical_name)} base`,
       fields,
       schema,
+      externalInstants: this.isVirtualTable(tableId),
     }
+  }
+
+  private compileRowQuery(
+    source: { fields: EidosFileFieldInfo[]; externalInstants: boolean },
+    query: EidosFileRowQuery,
+    context: { referenceInstant?: string }
+  ) {
+    return compileEidosFileRowQuery(source.fields, query, {
+      ...context,
+      externalInstants: source.externalInstants,
+    })
   }
 
   private compatibilityQuery(
@@ -4535,7 +4554,7 @@ export class EidosFileRuntime {
         )
       }
     }
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant,
     })
     const whereSql = cursorWhere
@@ -4623,6 +4642,16 @@ export class EidosFileRuntime {
     rowId: string,
     query: EidosFileRowQuery = {}
   ): number | null {
+    const index = this.getRowIndexValue(tableId, rowId, query)
+    return index === null ? null : Number(index)
+  }
+
+  /** @internal Exact scalar index for the asynchronous Runtime boundary. */
+  getRowIndexValue(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery = {}
+  ): string | null {
     const id = this.assertRowId(tableId, rowId, "Row ID")
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
@@ -4633,7 +4662,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
@@ -4660,7 +4689,7 @@ export class EidosFileRuntime {
        SELECT COUNT(*) AS count FROM logical ${beforeWhere}`,
       [...compiled.params, ...before.params]
     )
-    return Number(result?.count ?? 0)
+    return String(result?.count ?? 0)
   }
 
   getRecordNeighbors(
@@ -4678,7 +4707,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const targetWhere = compiled.whereSql
@@ -4804,7 +4833,7 @@ export class EidosFileRuntime {
     )
     const referenceInstant = queries[0]?.referenceInstant ?? this.nowInstant()
     const compiled = compatible.map((query) =>
-      compileEidosFileRowQuery(source.fields, query, { referenceInstant })
+      this.compileRowQuery(source, query, { referenceInstant })
     )
     // A fresh internal alias avoids collisions with user-defined physical names.
     // SQL-local aliases need no UUID allocation or second read of the ClockPort.
@@ -5000,7 +5029,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const selectedFields = fieldIds.map((fieldId) =>
@@ -5174,7 +5203,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant,
     })
     return (
@@ -5200,7 +5229,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     const column = quoteIdentifier(field.tableColumnName)
@@ -5250,7 +5279,7 @@ export class EidosFileRuntime {
       false,
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
     return configs.map((config) => {
@@ -5348,7 +5377,7 @@ export class EidosFileRuntime {
       this.querySearchFragmentFieldIds(fields, compatibleQuery)
     )
 
-    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery, {
+    const compiled = this.compileRowQuery(source, compatibleQuery, {
       referenceInstant: query.referenceInstant ?? this.nowInstant(),
     })
 

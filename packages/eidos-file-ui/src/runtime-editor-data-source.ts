@@ -508,6 +508,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     query: EidosFileRowQuery
   ): Promise<number | null> {
     this.assertTable(tableId)
+    if (this.runtimeCapabilities?.rowIndex && this.runtime.getRowIndex) {
+      const index = await this.runtime.getRowIndex(
+        {
+          tableId,
+          rowId,
+          query: this.runtimeQuery(tableId, query),
+          ...this.queryExecution(tableId, query),
+        },
+        this.context("locate-row")
+      )
+      return index === null ? null : Number(index)
+    }
     const fields = this.fieldsByTable.get(tableId) ?? []
     const rowIdField = fields.find((field) => field.systemRole === "row-id")
     if (!rowIdField) throw new Error(`Row ID field not found: ${tableId}`)
@@ -2327,7 +2339,21 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         typeof table.settings.contentFieldId === "string"
           ? table.settings.contentFieldId
           : null,
-      settings: table.settings,
+      settings:
+        this.runtimeCapabilities?.mutateRows === false
+          ? {
+              ...table.settings,
+              capabilities: {
+                ...(table.settings.capabilities as
+                  | Record<string, unknown>
+                  | undefined),
+                insert: false,
+                update: false,
+                delete: false,
+                alterSchema: false,
+              },
+            }
+          : table.settings,
       createdAt: "",
       updatedAt: "",
     }

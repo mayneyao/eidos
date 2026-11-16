@@ -377,6 +377,7 @@ interface RuntimeCapabilities {
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
+  rowIndex?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -1449,6 +1450,23 @@ null 表示序列边界，不循环切换。Runtime MUST 在一次一致性读�
 调用者传入包含临时筛选和搜索的有效视图查询。此操作沿查询顺序遍历，不根据已保存的
 View ID 推断视觉分组顺序或日历范围。
 
+协商的可选 `rowIndex` 能力为 true 时，
+`getRowIndex({ tableId, rowId, query }, context)` 返回从零开始的位置，编码为规范的
+无符号十进制字符串；记录不存在或被查询排除时返回 null。它接受相同的日历执行上下文，
+MUST 与 `queryRows` 使用相同的筛选、搜索、排序、空值位置、Row ID 决胜规则及一致性读取。
+位置由 Runtime 按源排序解析，消费者 MUST NOT 将投影值作为 API 筛选操作数来重建
+keyset 谓词。未声明该能力的 Runtime 可以不暴露此可选方法。
+
+从源读取的游标、位置和邻居边界是内部比较键。它们 MUST 保留源精度，并与对应排序
+使用相同的 SQL 表达式和 collation，包括同一毫秒内的多个原生时间戳。它们不是外部
+Datetime API 输入。此要求不放宽显式筛选/写入的精度校验，也不授权有损的源投影。
+
+外部虚拟源的 Datetime 值保留 RFC 3339 小数精度时，筛选归属 MUST 按精确瞬时比较。
+Runtime 只规范化整秒，并在内部比较键中保留完整小数。等价 UTC 偏移 MUST 得到相同
+归属；相等、集合归属、有序范围和日历区间边界 MUST 使用同一比较方式。这不改变 File
+存储格式，也不允许外部操作数携带亚毫秒精度：显式筛选输入仍先通过既有 Datetime
+精度校验。源值及源排序键 MUST NOT 被截断或改写。
+
 ```ts
 interface QueryRowsRequest extends CalendarQueryExecution {
   tableId: string
@@ -2256,6 +2274,10 @@ interface RuntimeClient {
     },
     context: RequestContext
   ): Promise<Array<RowPage & { total: string }>>
+  getRowIndex?(
+    request: { tableId: string; rowId: string; query: RowQuery },
+    context: RequestContext
+  ): Promise<string | null>
   getRecordNeighbors(
     request: { tableId: string; rowId: string; query: RowQuery },
     context: RequestContext

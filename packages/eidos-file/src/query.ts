@@ -17,6 +17,7 @@ import {
   eidosFileFieldValueType,
 } from "./field-query-capabilities"
 import { quoteIdentifier } from "./identifiers"
+import { sourceInstantComparisonKey } from "./source-instant"
 import {
   currentEidosFileInstant,
   isCanonicalEidosFileInstant,
@@ -740,10 +741,19 @@ function compileRule(
   fields: Map<string, EidosFileFieldInfo>,
   params: EidosFileSqlPrimitive[],
   referenceInstant: string,
-  calendar?: EidosFileCalendarContext
+  calendar?: EidosFileCalendarContext,
+  externalInstants = false
 ): string {
   const field = requireField(fields, rule.field)
-  const column = quoteIdentifier(field.tableColumnName)
+  const sourceInstant =
+    externalInstants && temporalFieldType(field) === "datetime"
+  const column = sourceInstant
+    ? `eidos_source_instant_key(${quoteIdentifier(field.tableColumnName)})`
+    : quoteIdentifier(field.tableColumnName)
+  const fieldValue = (value: EidosFileFilterValue) => {
+    const normalized = sqlFieldValue(field, value)
+    return sourceInstant ? sourceInstantComparisonKey(normalized) : normalized
+  }
   const arrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
   const empty = arrayCodec
@@ -794,7 +804,10 @@ function compileRule(
       return `COALESCE(${column} >= ? AND ${column} < ?, 0)`
     }
     const spans = bounds.intervals.map(([lower, upper]) => {
-      params.push(lower, upper)
+      params.push(
+        sourceInstant ? sourceInstantComparisonKey(lower) : lower,
+        sourceInstant ? sourceInstantComparisonKey(upper) : upper
+      )
       return `(${column} >= ? AND ${column} < ?)`
     })
     return spans.length ? `COALESCE((${spans.join(" OR ")}), 0)` : "0"
@@ -813,7 +826,7 @@ function compileRule(
         `${field.name} between filter values cannot be null`
       )
     }
-    params.push(sqlFieldValue(field, lower), sqlFieldValue(field, upper))
+    params.push(fieldValue(lower), fieldValue(upper))
     return `COALESCE(${column} >= ? AND ${column} <= ?, 0)`
   }
 
@@ -855,7 +868,7 @@ function compileRule(
       )})`
       return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
     }
-    params.push(...values.map((entry) => sqlFieldValue(field, entry)))
+    params.push(...values.map(fieldValue))
     if (rule.operator === "is-all-of") return "0"
     const expression = `COALESCE(${column} IN (${values.map(() => "?").join(", ")}), 0)`
     return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
@@ -878,7 +891,7 @@ function compileRule(
     if (value === null || value === undefined) {
       return `${column} IS ${rule.operator === "not-equals" ? "NOT " : ""}NULL`
     }
-    params.push(sqlFieldValue(field, value))
+    params.push(fieldValue(value))
     return rule.operator === "not-equals"
       ? `${column} IS NOT ?`
       : `${column} IS ?`
@@ -902,7 +915,7 @@ function compileRule(
   }
   const comparison = comparisons[rule.operator]
   if (!comparison) return "0"
-  params.push(sqlFieldValue(field, value))
+  params.push(fieldValue(value))
   return `COALESCE(${column} ${comparison} ?, 0)`
 }
 
@@ -911,12 +924,27 @@ function compileGroup(
   fields: Map<string, EidosFileFieldInfo>,
   params: EidosFileSqlPrimitive[],
   referenceInstant: string,
-  calendar?: EidosFileCalendarContext
+  calendar?: EidosFileCalendarContext,
+  externalInstants = false
 ): string {
   const children = group.children.map((child) =>
     child.type === "group"
-      ? compileGroup(child, fields, params, referenceInstant, calendar)
-      : compileRule(child, fields, params, referenceInstant, calendar)
+      ? compileGroup(
+          child,
+          fields,
+          params,
+          referenceInstant,
+          calendar,
+          externalInstants
+        )
+      : compileRule(
+          child,
+          fields,
+          params,
+          referenceInstant,
+          calendar,
+          externalInstants
+        )
   )
   const expression =
     children.length === 0
@@ -977,6 +1005,8 @@ export function compileEidosFileRowQuery(
   context: {
     referenceInstant?: string
     calendar?: EidosFileCalendarContext
+    /** External virtual sources may retain fractional precision beyond storage values. */
+    externalInstants?: boolean
   } = {}
 ): CompiledEidosFileRowQuery {
   assertEidosFileRowQuery(query)
@@ -1001,7 +1031,8 @@ export function compileEidosFileRowQuery(
         byColumn,
         params,
         context.referenceInstant ?? currentEidosFileInstant(),
-        context.calendar ?? query.calendar
+        context.calendar ?? query.calendar,
+        context.externalInstants
       )
     )
   }

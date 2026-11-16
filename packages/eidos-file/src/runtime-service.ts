@@ -194,6 +194,7 @@ const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
   calendarPeriodTimeZoneData: [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA],
   readRows: true,
   batchRowPages: true,
+  rowIndex: true,
   schemaPaging: true,
   cursorPaging: true,
   aggregate: true,
@@ -890,6 +891,27 @@ export class EidosRuntimeService implements RuntimeClient {
             })
           )
         }),
+      false,
+      request,
+      true,
+      true
+    )
+  }
+
+  getRowIndex(
+    request: GetRecordNeighborsRequest,
+    context: RequestContext
+  ): Promise<string | null> {
+    return this.invoke(
+      context,
+      async () =>
+        this.read(async () =>
+          this.core.getRowIndexValue(
+            request.tableId,
+            request.rowId,
+            this.compatibilityQuery(request.tableId, request.query)
+          )
+        ),
       false,
       request,
       true,
@@ -2573,7 +2595,10 @@ export class EidosRuntimeService implements RuntimeClient {
       }
     })
     const fieldDescriptors = tables.flatMap((table) =>
-      this.core.listFields(table.id).map((field) => fieldDescriptor(field))
+      this.core.listFields(table.id).map((field) => ({
+        ...fieldDescriptor(field),
+        writable: this.writable && fieldWritable(field),
+      }))
     )
     const views = tables.flatMap((table) =>
       this.core.listViews(table.id).map((view) => ({
@@ -2666,7 +2691,7 @@ export class EidosRuntimeService implements RuntimeClient {
               : field.type === "relation" && relation?.direction === "inverse"
                 ? "inverse-relation"
                 : "stored",
-        writable: fieldWritable(field),
+        writable: this.writable && fieldWritable(field),
       }
     })
   }

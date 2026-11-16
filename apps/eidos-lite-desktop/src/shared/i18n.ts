@@ -1068,6 +1068,8 @@ const zh: Record<string, string> = {
   Page: "页面",
   Command: "命令",
   "Read only": "只读",
+  "Filters and sorting apply only to this browsing session.":
+    "筛选和排序仅用于本次浏览，不保存到文件。",
   "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device.":
     "随 Eidos Lite 提供，可禁用但不能卸载。设置作用于本机。",
   "This plugin has no configurable settings.": "此插件暂无可配置项。",

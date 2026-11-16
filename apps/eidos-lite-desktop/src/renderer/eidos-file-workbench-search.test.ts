@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from "react"
+import { act, createElement, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+import type { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui"
 
 import {
   RUNTIME_MUTATION_METHODS,
@@ -10,6 +11,10 @@ import {
 } from "../shared/contracts"
 const observeAssetSession = vi.hoisted(() =>
   vi.fn<(session: unknown) => void>()
+)
+type QueryToolbarProps = ComponentProps<typeof EidosFileQueryToolbar>
+const observeQueryToolbar = vi.hoisted(() =>
+  vi.fn<(props: QueryToolbarProps) => void>()
 )
 
 vi.mock("@eidos.space/eidos-file-ui/plugins/csv-import", () => ({
@@ -145,6 +150,10 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   }
   return {
     ...actual,
+    EidosFileQueryToolbar: (props: QueryToolbarProps) => {
+      observeQueryToolbar(props)
+      return React.createElement(actual.EidosFileQueryToolbar, props)
+    },
     EidosFileEditorView: SearchResultReporter,
     EidosFileFieldCreatePopover: Empty,
     EidosFileFormulaEditorPopover: Empty,
@@ -266,6 +275,68 @@ describe("Eidos Lite Eidos File search navigation", () => {
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
   })
+
+  it.each([true, false])(
+    "keeps browsing query edits local exactly when the source is read-only (%s)",
+    async (readOnly) => {
+      const source = new IpcEidosFileDataSource(
+        "readonly-query",
+        snapshot,
+        undefined,
+        {},
+        readOnly
+      )
+      const persist = vi.spyOn(source, "updateView").mockResolvedValue(snapshot)
+      await act(async () =>
+        root.render(
+          createElement(EidosFileWorkbench, {
+            relativePath: "sample.eidos",
+            snapshot,
+            source,
+            activeTableId: "tasks",
+            disabled: false,
+            theme: "light",
+            onTableSelect: vi.fn(),
+            onSnapshot: vi.fn(),
+            onError: vi.fn(),
+          })
+        )
+      )
+      const filter: QueryToolbarProps["filter"] = {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: "title",
+            operator: "equals",
+            value: "中文路径",
+          },
+        ],
+      }
+      const sorts: QueryToolbarProps["sorts"] = [
+        { field: "title", direction: "desc" },
+      ]
+      await act(async () => {
+        await observeQueryToolbar.mock.lastCall![0].onFilterChange(filter)
+      })
+      await act(async () => {
+        await observeQueryToolbar.mock.lastCall![0].onSortsChange(sorts)
+      })
+      if (readOnly) {
+        expect(persist).not.toHaveBeenCalled()
+        expect(observeQueryToolbar.mock.lastCall![0]).toMatchObject({
+          filter,
+          sorts,
+        })
+        expect(snapshot.tables[0]!.views[0]!.filter).toBeNull()
+        expect(snapshot.tables[0]!.views[0]!.sorts).toEqual([])
+      } else {
+        expect(persist).toHaveBeenCalledWith("grid", { filter })
+        expect(persist).toHaveBeenCalledWith("grid", { sorts })
+      }
+    }
+  )
 
   it("reuses the file sidebar without navigating the main view, then restores record inspection on close", async () => {
     const firstTable = snapshot.tables[0]!

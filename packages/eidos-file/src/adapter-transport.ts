@@ -162,6 +162,7 @@ const RUNTIME_OPERATIONS = new Set([
   "queryRows",
   "queryRowPages",
   "getRecordNeighbors",
+  "getRowIndex",
   "getRowsById",
   "aggregate",
   "groupRows",
@@ -859,6 +860,7 @@ export interface AdapterTransportRuntimeClientOptions {
 
 export class AdapterTransportRuntimeClient implements RuntimeClient {
   declare queryRowPages: RuntimeClient["queryRowPages"]
+  declare getRowIndex: RuntimeClient["getRowIndex"]
   declare revertMutation: RuntimeClient["revertMutation"]
   declare exportCsv: RuntimeClient["exportCsv"]
   declare importCsv: RuntimeClient["importCsv"]
@@ -1229,6 +1231,14 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
   }
 
   private installOptionalMethods(capabilities: RuntimeCapabilities): void {
+    if (capabilities.rowIndex) {
+      this.getRowIndex = (request, context) =>
+        this.call("getRowIndex", request, context) as ReturnType<
+          NonNullable<RuntimeClient["getRowIndex"]>
+        >
+    } else {
+      delete this.getRowIndex
+    }
     if (capabilities.batchRowPages) {
       this.queryRowPages = (request, context) =>
         this.call("queryRowPages", request, context) as ReturnType<

@@ -20,7 +20,8 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     private readonly consumer: {
       calendarQueryVersion?: 2
       calendarWindowVersion?: 1
-    } = {}
+    } = {},
+    readonly readOnly = false
   ) {}
 
   private callRuntime: typeof window.eidosLite.callRuntime = (

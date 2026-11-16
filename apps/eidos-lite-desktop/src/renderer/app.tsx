@@ -2738,7 +2738,8 @@ function WorkspaceApp({
                 return { ...file, snapshot, tableId }
               })
             ),
-          { calendarQueryVersion: 2, calendarWindowVersion: 1 }
+          { calendarQueryVersion: 2, calendarWindowVersion: 1 },
+          opened.readOnly
         )
         const file: CachedFile = {
           sessionId: opened.sessionId,
@@ -4160,6 +4161,7 @@ function WorkspaceApp({
         spaceSwitcher={
           <SpaceSwitcher
             name={space.name}
+            readOnly={space.readOnly}
             currentId={space.id}
             recents={recentSpaces}
             disabled={openingSpace || localInteractionBlocked}

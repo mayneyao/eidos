@@ -89,6 +89,7 @@ const SERIALIZABLE_METHODS = new Set([
   "queryRows",
   "queryRowPages",
   "getRecordNeighbors",
+  "getRowIndex",
   "getRowsById",
   "aggregate",
   "groupRows",

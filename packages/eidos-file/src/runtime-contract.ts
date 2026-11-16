@@ -119,6 +119,7 @@ export interface RuntimeCapabilities {
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
+  rowIndex?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -1060,6 +1061,10 @@ export interface RuntimeClient {
     request: GetRecordNeighborsRequest,
     context: RequestContext
   ): Promise<RecordNeighbors>
+  getRowIndex?(
+    request: GetRecordNeighborsRequest,
+    context: RequestContext
+  ): Promise<string | null>
   getRowsById(
     request: { tableId: string; rowIds: string[]; projection: ProjectionSpec },
     context: RequestContext

@@ -760,6 +760,8 @@ export interface SpaceIgnoreRules {
 
 export interface SpaceSnapshot {
   id: string
+  /** Host-enforced read-only access to this Space. */
+  readOnly?: boolean
   /** Process-local ordering across events and request responses. */
   sequence?: number
   /** Local connection or enrollment exists, even if the cloud is unavailable. */
@@ -821,7 +823,7 @@ export interface OpenEidosFileResult {
   sessionId: string
   relativePath: string
   snapshot: EidosFileSnapshot
-  readOnly: false
+  readOnly: boolean
 }
 
 export interface SpacePathMutationResult {

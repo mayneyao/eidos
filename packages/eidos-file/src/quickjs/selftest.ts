@@ -323,6 +323,23 @@ export async function runSelfTest(): Promise<string> {
       throw new Error("Record neighbors must cross unloaded page boundaries")
     }
     checks.push("record-neighbors")
+    expect(
+      await runtime.getRowIndex!(
+        { tableId, rowId: firstItemId, query: {} },
+        context("row-index")
+      )
+    ).toBe("0")
+    checks.push("row-index")
+    expect(
+      port.get(`SELECT
+      eidos_source_instant_key('2023-11-14T22:13:20.124001+00:00') > eidos_source_instant_key('2023-11-14T22:13:20.124Z'),
+      eidos_source_instant_key('2023-11-15T06:13:20.124001+08:00') = eidos_source_instant_key('2023-11-14T22:13:20.124001Z')
+    `).row
+    ).toEqual([
+      { tag: "integer", value: "1" },
+      { tag: "integer", value: "1" },
+    ])
+    checks.push("exact-source-instant-comparison")
 
     const fileSearch = await runtime.queryRows(
       {

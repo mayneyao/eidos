@@ -1029,6 +1029,8 @@ export async function openEidosLiteFileRuntime(
     readOnly,
     timeout: 5_000,
   })
+  // Adapter probes use TEMP tables; keep those outside the protected source.
+  if (readOnly) database.exec("PRAGMA temp_store = MEMORY")
 
   const connection =
     filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH

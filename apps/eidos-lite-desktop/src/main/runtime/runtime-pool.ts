@@ -19,6 +19,7 @@ import type {
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
+import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
 import { resolveSpacePath } from "../space/space-paths"
 import type { ExplorerEidosSummary } from "../../shared/explorer-summary"
 import {
@@ -135,7 +136,8 @@ export class RuntimePool {
   constructor(
     private readonly spaceRoot: string,
     private readonly workerPath = defaultRuntimeWorkerPath(),
-    private readonly maxResidentRuntimes = DEFAULT_MAX_RESIDENT_RUNTIMES
+    private readonly maxResidentRuntimes = DEFAULT_MAX_RESIDENT_RUNTIMES,
+    readonly readOnly = false
   ) {
     if (!Number.isInteger(maxResidentRuntimes) || maxResidentRuntimes < 1) {
       throw new Error("Runtime LRU capacity must be a positive integer")
@@ -179,7 +181,7 @@ export class RuntimePool {
         snapshot:
           reopenedSnapshot ??
           (await this.call(entry.sessionId, "getSnapshot", [])),
-        readOnly: false,
+        readOnly: this.readOnly,
       }
     }
 
@@ -204,7 +206,7 @@ export class RuntimePool {
         sessionId: entry.sessionId,
         relativePath,
         snapshot,
-        readOnly: false,
+        readOnly: this.readOnly,
       }
     } catch (error) {
       this.entriesBySession.delete(entry.sessionId)
@@ -222,6 +224,7 @@ export class RuntimePool {
       contentFieldName?: string
     }
   ): Promise<OpenEidosFileResult> {
+    if (this.readOnly) throw new Error("Space is read-only")
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     if (path.extname(filePath).toLowerCase() !== ".eidos") {
       throw new Error("New Eidos Files must use the .eidos extension")
@@ -284,6 +287,11 @@ export class RuntimePool {
     args: RuntimeCalls[M]["args"],
     consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
+    if (
+      this.readOnly &&
+      (RUNTIME_MUTATION_METHODS as readonly string[]).includes(method)
+    )
+      throw new Error("Space is read-only")
     const entry = this.requireEntry(sessionId)
     if (entry.closed || this.closingEntries.has(entry)) {
       throw new Error("Unknown or closed Eidos File session")
@@ -414,6 +422,8 @@ export class RuntimePool {
     namespace: string,
     patch?: FileMetaPatch
   ): Promise<FileMetaValues> {
+    if (this.readOnly && patch !== undefined)
+      throw new Error("Space is read-only")
     const entry = (this.propertyEntry ??= {
       sessionId: randomUUID(),
       relativePath: "",
@@ -997,7 +1007,7 @@ export class RuntimePool {
     return this.spawnAndOpen(
       entry,
       createTitle,
-      false,
+      this.readOnly,
       createTemplate,
       metadataSchema,
       contentFieldName

@@ -1,4 +1,5 @@
 import { installHtmlPreviewGuestGuard } from "./html-preview-view"
+import { isDevelopmentReadonlyRoot } from "./development-readonly"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -114,7 +115,15 @@ async function createSpaceSession(
   ...args: Parameters<(typeof SpaceSession)["createCanonical"]>
 ): Promise<SpaceSession> {
   const { SpaceSession } = await import("./space/space-session")
-  return SpaceSession.createCanonical(...args)
+  const [canonical, userData, options] = args
+  const readOnly = await isDevelopmentReadonlyRoot(
+    canonical.root,
+    app.isPackaged
+  )
+  return SpaceSession.createCanonical(canonical, userData, {
+    ...options,
+    readOnly,
+  })
 }
 
 export class WindowController {

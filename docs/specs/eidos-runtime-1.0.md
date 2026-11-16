@@ -402,6 +402,7 @@ interface RuntimeCapabilities {
   calendarPeriodTimeZoneData?: string[]
   readRows: boolean
   batchRowPages?: boolean
+  rowIndex?: boolean
   schemaPaging: boolean
   cursorPaging: boolean
   aggregate: boolean
@@ -1552,6 +1553,31 @@ client-side scan. Callers supply the effective view query including transient
 filters and search. This operation traverses query order; it does not infer
 visual group order or a calendar range from a saved View ID.
 
+When the negotiated optional `rowIndex` capability is true,
+`getRowIndex({ tableId, rowId, query }, context)` returns the zero-based position
+as a canonical unsigned decimal string, or null when the Record is missing or
+excluded. It accepts the same calendar execution context and MUST use the same
+filter, search, sort, null placement, Row ID tie-break and consistent read as
+`queryRows`. Runtime resolves the position against its source ordering; consumers
+MUST NOT reconstruct a keyset predicate from projected values as API filter
+operands. A Runtime without this capability need not expose this optional method.
+
+Cursor, position and neighbor boundaries read from a source are internal comparison
+keys. They MUST retain the source precision and use the same SQL expressions and
+collation as the corresponding ordering, including multiple native timestamps in
+one millisecond. They are not external Datetime API input. This requirement does
+not relax explicit filter/mutation precision validation or authorize lossy source
+projection.
+
+For an external virtual source whose Datetime values retain RFC 3339 fractional
+precision, filter membership MUST compare exact instants. Runtime normalizes the
+whole second and retains the complete fractional decimal in an internal comparison
+key. Equivalent UTC offsets MUST yield identical membership; equality, inclusion,
+ordered ranges and calendar interval bounds MUST use that same comparison. This
+does not change File storage or allow sub-millisecond public operands: explicit
+filter inputs still pass the normal Datetime precision validation first. Source
+values and source ordering keys MUST NOT be truncated or rewritten.
+
 ```ts
 interface QueryRowsRequest extends CalendarQueryExecution {
   tableId: string
@@ -2406,6 +2432,10 @@ interface RuntimeClient {
     },
     context: RequestContext
   ): Promise<Array<RowPage & { total: string }>>
+  getRowIndex?(
+    request: { tableId: string; rowId: string; query: RowQuery },
+    context: RequestContext
+  ): Promise<string | null>
   getRecordNeighbors(
     request: { tableId: string; rowId: string; query: RowQuery },
     context: RequestContext

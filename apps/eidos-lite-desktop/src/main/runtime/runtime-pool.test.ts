@@ -67,6 +67,46 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("preserves read-only mode when workers reopen and rejects mutations before dispatch", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-readonly-pool-"))
+    const workers: FakeRuntimeUtilityProcess[] = []
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockImplementation(() => {
+        const child = new FakeRuntimeUtilityProcess()
+        workers.push(child)
+        return child as unknown as UtilityProcess
+      })
+    const pool = new RuntimePool(await realpath(root), "/worker.js", 1, true)
+    try {
+      await writeFile(path.join(root, "中文.eidos"), "fixture")
+      const opened = await pool.open("中文.eidos")
+      expect(opened.readOnly).toBe(true)
+      await pool.closeHandles()
+      await pool.reopenHandles()
+      expect(workers).toHaveLength(2)
+      expect(
+        workers
+          .flatMap((child) => child.requests)
+          .filter((request) => request.type === "open")
+      ).toEqual([
+        expect.objectContaining({ type: "open", readOnly: true }),
+        expect.objectContaining({ type: "open", readOnly: true }),
+      ])
+      const count = workers.flatMap((child) => child.requests).length
+      await expect(
+        pool.call(opened.sessionId, "insertRow", ["table", {}])
+      ).rejects.toThrow(/read-only/)
+      await expect(pool.create("new.eidos", "New")).rejects.toThrow(/read-only/)
+      await expect(pool.filemeta("中文.eidos", "test", {})).rejects.toThrow(
+        /read-only/
+      )
+      expect(workers.flatMap((child) => child.requests)).toHaveLength(count)
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it("copies consistent snapshots in a private worker without replacing editor sessions", async () => {
     const worker = new FakeRuntimeUtilityProcess()
     const killed = vi.spyOn(worker, "kill")

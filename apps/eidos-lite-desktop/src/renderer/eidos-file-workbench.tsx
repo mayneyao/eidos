@@ -160,6 +160,9 @@ export function EidosFileWorkbench({
     [tablePlugins]
   )
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
+  const [browsingQueries, setBrowsingQueries] = useState<
+    Record<string, Pick<UpdateEidosFileViewInput, "filter" | "sorts">>
+  >({})
   const [formModes, setFormModes] = useState<
     Record<string, EidosFileFormEditorMode>
   >({})
@@ -395,11 +398,13 @@ export function EidosFileWorkbench({
     const requested = onViewSelect
       ? activeViewId
       : activeViews[activeTable.table.id]
-    return (
+    const view =
       activeTable.views.find((view) => view.id === requested) ??
       activeTable.views[0]
-    )
-  }, [activeTable, activeViews, activeViewId, onViewSelect])
+    return view && browsingQueries[view.id]
+      ? { ...view, ...browsingQueries[view.id] }
+      : view
+  }, [activeTable, activeViews, activeViewId, onViewSelect, browsingQueries])
   const scopedView = useMemo(
     () =>
       activeTable
@@ -521,6 +526,18 @@ export function EidosFileWorkbench({
 
   const updateActiveView = async (changes: UpdateEidosFileViewInput) => {
     if (!activeView) return
+    if (
+      source.readOnly &&
+      Object.keys(changes).every((key) => key === "filter" || key === "sorts")
+    ) {
+      // Query editing is local browsing state in a protected Space. Runtime
+      // still validates and executes the query; no saved View is mutated.
+      setBrowsingQueries((current) => ({
+        ...current,
+        [activeView.id]: { ...current[activeView.id], ...changes },
+      }))
+      return
+    }
     await source.updateView(activeView.id, changes)
   }
 

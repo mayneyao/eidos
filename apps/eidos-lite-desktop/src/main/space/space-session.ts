@@ -563,9 +563,15 @@ export class SpaceSession {
     workerPath?: string,
     private readonly requireSparkFeature?: (
       feature: SparkFeature
-    ) => Promise<void>
+    ) => Promise<void>,
+    readonly readOnly = false
   ) {
-    this.runtimePool = new RuntimePool(canonical.root, workerPath)
+    this.runtimePool = new RuntimePool(
+      canonical.root,
+      workerPath,
+      undefined,
+      readOnly
+    )
     this.pathIndex = new SpacePathIndex(canonical.root)
     this.repository = new SpaceRepositoryCoordinator()
     this.syncState = new SpaceSyncStateStore(
@@ -577,6 +583,10 @@ export class SpaceSession {
       new SpaceOperationJournal(stateDirectory),
       {
         assertRootIdentity: () => assertSpaceRootIdentity(this.canonical),
+        assertWritable: () => this.assertWritable(),
+        // Graft may perform maintenance even for a repository inspection. A
+        // protected browsing session never opens a source repository.
+        assertRepositoryAccess: () => this.assertWritable(),
         closeRuntimes: () => this.runtimePool.closeHandles(),
         validateWorktree: (relativePaths) =>
           this.validateMaterializedWorktree(relativePaths),
@@ -620,6 +630,7 @@ export class SpaceSession {
       graft: GraftClient
       workerPath?: string
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
+      readOnly?: boolean
     }
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root, userDataDirectory)
@@ -633,6 +644,7 @@ export class SpaceSession {
       graft: GraftClient
       workerPath?: string
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
+      readOnly?: boolean
     }
   ): Promise<SpaceSession> {
     await assertSpaceRootIdentity(canonical)
@@ -641,9 +653,15 @@ export class SpaceSession {
       options.graft,
       path.join(userDataDirectory, "spaces", canonical.id),
       options.workerPath,
-      options.requireSparkFeature
+      options.requireSparkFeature,
+      options.readOnly
     )
     try {
+      if (session.readOnly) {
+        session.watcher.start()
+        void session.pathIndex.ensureScanned().catch(() => undefined)
+        return session
+      }
       await session.gate.recoverInterruptedOperation()
       await session.recoverSyncSwitch().catch((error) => {
         console.warn(
@@ -969,12 +987,23 @@ export class SpaceSession {
   }
 
   private async openSpaceFileMetadata(): Promise<OpenEidosFileResult> {
-    const opened = await this.gate.withMutation(async () => {
+    const open = async () => {
       const privateDirectory = path.join(this.canonical.root, ".eidos")
-      await fs.mkdir(privateDirectory).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "EEXIST") throw error
-      })
-      const stats = await fs.lstat(privateDirectory)
+      if (!this.readOnly)
+        await fs
+          .mkdir(privateDirectory)
+          .catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== "EEXIST") throw error
+          })
+      const stats = await fs
+        .lstat(privateDirectory)
+        .catch((error: NodeJS.ErrnoException) => {
+          if (this.readOnly && error.code === "ENOENT")
+            throw new Error(
+              "File metadata is unavailable: this read-only Space has no existing catalog."
+            )
+          throw error
+        })
       if (
         !stats.isDirectory() ||
         stats.isSymbolicLink() ||
@@ -997,6 +1026,10 @@ export class SpaceSession {
           )
         return this.runtimePool.open(SPACE_FILE_METADATA_PATH)
       }
+      if (this.readOnly)
+        throw new Error(
+          "File metadata is unavailable: this read-only Space has no existing catalog."
+        )
       await this.requireSparkFeature?.("file-metadata")
       const created = await this.runtimePool.create(
         SPACE_FILE_METADATA_PATH,
@@ -1005,7 +1038,10 @@ export class SpaceSession {
       )
       this.noteLocalChange()
       return created
-    })
+    }
+    const opened = this.readOnly
+      ? await this.gate.withRuntimeRead(open)
+      : await this.gate.withMutation(open)
     const tables = opened.snapshot.tables.filter(
       ({ table }) => table.settings?.vtabModule === "fs_meta"
     )
@@ -2498,6 +2534,7 @@ export class SpaceSession {
     consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const isMutation = mutationMethods.has(method)
+    if (isMutation) this.assertWritable()
     const isCsvOperationControl = csvOperationControlMethods.has(method)
     if (isMutation) this.prioritizeLocalWork()
     // Authorization may need a network refresh when an offline lease expired.
@@ -2773,6 +2810,7 @@ export class SpaceSession {
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {
+    this.assertWritable()
     const status = await this.repository.runForeground((signal) =>
       this.graft.inspectSpace(
         this.canonical.root,
@@ -2900,6 +2938,7 @@ export class SpaceSession {
 
   /** Includes a connection whose origin was removed manually. Never contacts the server. */
   async hasHostedSyncConnection(): Promise<boolean> {
+    if (this.readOnly) return false
     return Boolean(await this.syncState.read()) || this.cloudSyncConnection
   }
 
@@ -3122,6 +3161,7 @@ export class SpaceSession {
   private syncTask: Promise<unknown> = Promise.resolve()
   private withSyncTask<T>(action: () => Promise<T>): Promise<T> {
     const run = async () => {
+      this.assertWritable()
       await assertSpaceRootIdentity(this.canonical)
       return action()
     }
@@ -5452,6 +5492,7 @@ export class SpaceSession {
   }
 
   hasEncryptedSync(automatic?: { signal: AbortSignal }): Promise<boolean> {
+    if (this.readOnly) return Promise.resolve(false)
     return automatic
       ? this.repository.runBackground(
           "automatic-sync-encryption",
@@ -5464,6 +5505,7 @@ export class SpaceSession {
       : this.graft.isEncryptedRemote(this.canonical.root)
   }
   encryptedSyncStatus(automatic?: { signal: AbortSignal }) {
+    this.assertWritable()
     return automatic
       ? this.repository.runBackground(
           "automatic-sync-encryption-status",
@@ -5476,6 +5518,7 @@ export class SpaceSession {
       : this.graft.encryptedSyncStatus(this.canonical.root)
   }
   lockEncryptedSync() {
+    this.assertWritable()
     return this.graft.lockEncryptedSync(this.canonical.root)
   }
 
@@ -5784,6 +5827,7 @@ export class SpaceSession {
   private async readGraftStatus(
     authoritative: boolean
   ): Promise<GraftSpaceStatus> {
+    if (this.readOnly) return this.pendingGraftStatus()
     const epoch = this.graftStatusEpoch
     const activeRefresh = this.graftStatusRefresh
     if (activeRefresh) {
@@ -5833,6 +5877,7 @@ export class SpaceSession {
   private scheduleGraftStatusRefresh(
     delayMs = BACKGROUND_GRAFT_STATUS_DELAY_MS
   ): void {
+    if (this.readOnly) return
     if (this.graftStatusTimer) {
       if (delayMs > 0) return
       clearTimeout(this.graftStatusTimer)
@@ -6054,6 +6099,7 @@ export class SpaceSession {
       : undefined
     return {
       id: this.canonical.id,
+      ...(this.readOnly ? { readOnly: true } : {}),
       sequence: ++snapshotSequence,
       cloudSyncConnection:
         this.cloudSyncConnection || Boolean(this.syncHistoryState),
@@ -6912,6 +6958,10 @@ export class SpaceSession {
     if (!["ready", "syncing"].includes(phase)) {
       throw new Error(`Space runtime is unavailable while ${phase}`)
     }
+  }
+
+  private assertWritable(): void {
+    if (this.readOnly) throw new Error("Space is read-only")
   }
 
   private async requireInitializedVersioning(): Promise<void> {
