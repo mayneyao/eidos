@@ -700,7 +700,7 @@ export interface EidosLiteFileRuntime {
   initialSnapshot: Awaited<
     ReturnType<EidosRuntimeEditorDataSource["initialize"]>
   >
-  findFileEntry(entryId: string): FileEntry | null
+  findFileEntry(entryId: string): Promise<FileEntry | null>
   allocateFileEntry(
     request: Parameters<RuntimeHostBridge["allocateFileEntry"]>[0]
   ): Promise<FileEntry>
@@ -737,13 +737,14 @@ async function bindRuntime(
     path.basename(filePath)
   )
   const csv = new EidosLiteCsvOperations(filePath, () => source.getSnapshot())
-  let closed = false
+  let closing: Promise<void> | undefined
   try {
     const initialSnapshot = await source.initialize()
+    const fileEntries = createFileEntryLookup(connection, hostBridge)
     return {
       source,
       initialSnapshot,
-      findFileEntry: (entryId) => findEidosFileEntry(connection, entryId),
+      findFileEntry: fileEntries.find,
       allocateFileEntry: (request) =>
         hostBridge.allocateFileEntry(
           request,
@@ -796,14 +797,23 @@ async function bindRuntime(
         }
       },
       async close() {
-        if (closed) return
-        closed = true
-        csv.close()
-        try {
-          await service.close(context("eidos-lite-runtime-close"))
-        } finally {
-          connection.close()
-        }
+        if (closing) return closing
+        closing = (async () => {
+          try {
+            await fileEntries.close()
+          } finally {
+            try {
+              csv.close()
+            } finally {
+              try {
+                await service.close(context("eidos-lite-runtime-close"))
+              } finally {
+                connection.close()
+              }
+            }
+          }
+        })()
+        return closing
       },
     }
   } catch (error) {
@@ -880,6 +890,166 @@ function findEidosFileEntry(
     }
   }
   return matched
+}
+
+type FileEntryLookupResult =
+  | { ok: true; entry: FileEntry | null }
+  | { ok: false; error: unknown }
+
+/** A single fresh scan per File column; result size limits still belong to the adapter. */
+function findEidosFileEntryBatch(
+  connection: NodeSqliteConnectionPort,
+  entryIds: readonly string[]
+): Map<string, FileEntryLookupResult> {
+  const database = new ConnectionPortEidosFileConnection(connection)
+  const fields = database.query<{ table_name: string; column_name: string }>(
+    `SELECT t.physical_name AS table_name, f.physical_name AS column_name
+       FROM eidos__fields f JOIN eidos__tables t ON t.id = f.table_id
+      WHERE f.type = 'file' AND f.physical_name IS NOT NULL
+      ORDER BY f.table_id COLLATE BINARY, f.id COLLATE BINARY`
+  )
+  const ids = new Set(entryIds)
+  const matched = new Map<string, FileEntry>()
+  for (const field of fields) {
+    const column = quoteIdentifier(field.column_name)
+    const table = quoteIdentifier(field.table_name)
+    const values = database.query<{ value: unknown }>(
+      `SELECT ${column} AS value FROM ${table}
+        WHERE ${column} IS NOT NULL
+          AND (json_valid(${column}) = 0 OR EXISTS (
+            SELECT 1 FROM json_each(${column}) item
+            WHERE json_extract(item.value, '$.id') IN (${entryIds.map(() => "?").join(", ")})
+          ))`,
+      entryIds
+    )
+    for (const row of values) {
+      if (typeof row.value !== "string")
+        throw new Error("Stored File value is not TEXT")
+      for (const entry of decodeEidosFileValues(row.value)) {
+        if (!ids.has(entry.id)) continue
+        const prior = matched.get(entry.id)
+        if (
+          prior &&
+          encodeEidosFileValues([prior]) !== encodeEidosFileValues([entry])
+        )
+          throw new Error("File entry ID resolves to conflicting metadata")
+        matched.set(entry.id, entry)
+      }
+    }
+  }
+  return new Map(
+    entryIds.map((id) => [id, { ok: true, entry: matched.get(id) ?? null }])
+  )
+}
+
+function createFileEntryLookup(
+  connection: NodeSqliteConnectionPort,
+  hostBridge: RuntimeHostBridge
+) {
+  const pending: Array<{
+    entryId: string
+    resolve(entry: FileEntry | null): void
+    reject(error: unknown): void
+  }> = []
+  let accepting = true
+  let scheduled: ReturnType<typeof setImmediate> | undefined
+  let active = Promise.resolve()
+  let closing: Promise<void> | undefined
+  let sequence = 0
+  const queuedRead = hostBridge.queuedRead?.bind(hostBridge)
+  const drain = () => {
+    const batch = pending.splice(0, 64)
+    if (batch.length === 0) return active
+    const entryIds = [...new Set(batch.map((request) => request.entryId))]
+    const operation = () => {
+      if (entryIds.length > 1) {
+        try {
+          return findEidosFileEntryBatch(connection, entryIds)
+        } catch {
+          // A combined result may hit a limit, invalid value or an ID conflict
+          // that affects only one lookup. Retain each original request's result.
+        }
+      }
+      return new Map(
+        entryIds.map((entryId) => {
+          try {
+            return [
+              entryId,
+              {
+                ok: true,
+                entry: findEidosFileEntry(connection, entryId),
+              } as FileEntryLookupResult,
+            ] as const
+          } catch (error) {
+            return [
+              entryId,
+              { ok: false, error } as FileEntryLookupResult,
+            ] as const
+          }
+        })
+      )
+    }
+    const run = async () => {
+      try {
+        const result = await queuedRead!(
+          operation,
+          context(`eidos-lite-asset-lookup-${++sequence}`)
+        )
+        for (const request of batch) {
+          const value = result.get(request.entryId)!
+          if (value.ok) request.resolve(value.entry)
+          else request.reject(value.error)
+        }
+      } catch (error) {
+        for (const request of batch) request.reject(error)
+      }
+    }
+    active = active.then(run, run)
+    return active
+  }
+  const schedule = () => {
+    if (scheduled) return
+    scheduled = setImmediate(() => {
+      scheduled = undefined
+      void drain().then(() => {
+        if (pending.length && accepting) schedule()
+      })
+    })
+  }
+  return {
+    find(entryId: string): Promise<FileEntry | null> {
+      if (!accepting)
+        return Promise.reject(
+          Object.assign(new Error("Eidos File runtime is closed"), {
+            code: "closed",
+          })
+        )
+      if (!queuedRead) {
+        // Alternative Runtime bindings without the optional host bridge keep
+        // the prior synchronous lookup, wrapped only for the async host API.
+        try {
+          return Promise.resolve(findEidosFileEntry(connection, entryId))
+        } catch (error) {
+          return Promise.reject(error)
+        }
+      }
+      return new Promise((resolve, reject) => {
+        pending.push({ entryId, resolve, reject })
+        schedule()
+      })
+    },
+    close(): Promise<void> {
+      if (closing) return closing
+      accepting = false
+      if (scheduled) clearImmediate(scheduled)
+      scheduled = undefined
+      closing = (async () => {
+        await active
+        while (pending.length) await drain()
+      })()
+      return closing
+    },
+  }
 }
 
 export async function createEidosLiteFileRuntime(

@@ -520,7 +520,7 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
       expect(entry.id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
       )
-      expect(opened.findFileEntry(entry.id)).toBeNull()
+      expect(await opened.findFileEntry(entry.id)).toBeNull()
     } finally {
       await opened.close()
       await rm(root, { recursive: true, force: true })
@@ -552,8 +552,8 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
         [field.id!]: encodeEidosFileValues([entry]),
       })
 
-      expect(opened.findFileEntry(entry.id)).toEqual(entry)
-      expect(opened.findFileEntry(createEidosFileUuid())).toBeNull()
+      expect(await opened.findFileEntry(entry.id)).toEqual(entry)
+      expect(await opened.findFileEntry(createEidosFileUuid())).toBeNull()
     } finally {
       await opened.close()
       await rm(root, { recursive: true, force: true })

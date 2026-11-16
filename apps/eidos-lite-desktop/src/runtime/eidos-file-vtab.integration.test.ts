@@ -363,7 +363,7 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       "assets/proof.txt"
     )
     const entry = decodeEidosFileValues(proof[fileField.id!] as string)[0]!
-    expect(runtime.findFileEntry(entry.id)).toEqual(entry)
+    expect(await runtime.findFileEntry(entry.id)).toEqual(entry)
     const resolved = await resolveEidosFileAttachment(
       root,
       ".eidos/files.eidos",
@@ -934,7 +934,7 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     )
 
     // 3c. Verify runtime.findFileEntry resolves this attachment ID
-    const foundEntry = runtime.findFileEntry(entry.id)
+    const foundEntry = await runtime.findFileEntry(entry.id)
     expect(foundEntry).toEqual(entry)
 
     // 4. Update custom tags and rating columns on hello.txt
