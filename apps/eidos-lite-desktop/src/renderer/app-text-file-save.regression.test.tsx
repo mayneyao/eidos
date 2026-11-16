@@ -265,7 +265,8 @@ it("uses one batch move request and refuses a late pre-move snapshot", async () 
   )
   expect(movePaths).toHaveBeenCalledExactlyOnceWith(
     [oldPath, "other.md"],
-    "archive"
+    "archive",
+    undefined
   )
   expect(treeSurface.mock.lastCall![0].entries).toEqual(moved.entries)
   await act(async () => changed({ ...staleSpace, sequence: 2 }))
@@ -953,6 +954,9 @@ it.each(["root", "folder", "restore", "recent"])(
             button.textContent?.trim()
           )
         ).toEqual([
+          "Cut⌘X",
+          "Copy⌘C",
+          "Paste⌘V",
           "New File",
           "New folder",
           "Show this folder",
@@ -965,7 +969,7 @@ it.each(["root", "folder", "restore", "recent"])(
         ])
         expect(
           host.querySelectorAll('.space-context-menu > [role="separator"]')
-        ).toHaveLength(3)
+        ).toHaveLength(4)
         await act(async () => item.click())
       }
     }
