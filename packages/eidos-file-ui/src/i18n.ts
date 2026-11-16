@@ -636,6 +636,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Unavailable record": "记录不可用",
   "Selected records, {count}": "已选记录，{count} 条",
   "Selected · {count}": "已选 · {count}",
+  Selected: "已选中",
   Results: "结果",
   Records: "记录",
   "All loaded records are linked": "已加载的记录均已关联",

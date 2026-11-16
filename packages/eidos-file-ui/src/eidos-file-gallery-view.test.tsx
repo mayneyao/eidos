@@ -220,6 +220,125 @@ describe("EidosFileGalleryView", () => {
     vi.unstubAllGlobals()
   })
 
+  it("selects stable IDs without opening records and clears on an effective query change", async () => {
+    const onOpenRecord = vi.fn()
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 2,
+      rows: [
+        { _id: "row_a", title: "A" },
+        { _id: "row_b", title: "B" },
+      ],
+    }))
+    const render = async (nextView = view) => {
+      await act(async () => {
+        root.render(
+          <EidosFileGalleryView
+            table={table}
+            view={nextView}
+            loadPage={loadPage}
+            onOpenRecord={onOpenRecord}
+          />
+        )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+    await render()
+    const click = (selector: string, extra: MouseEventInit) =>
+      act(() => {
+        container.querySelector(selector)!.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            ...extra,
+          })
+        )
+      })
+    click('[data-eidos-file-row-id="row_a"] h3', { shiftKey: true })
+    click('[data-eidos-file-row-id="row_b"] h3', { metaKey: true })
+    expect(
+      container.querySelectorAll('[data-eidos-file-selected="true"]')
+    ).toHaveLength(2)
+    expect(container.textContent).toContain("Selected · 2")
+    expect(onOpenRecord).not.toHaveBeenCalled()
+    // Ordinary open and explicit action buttons retain their existing behavior.
+    click('[data-eidos-file-row-id="row_a"] h3', {})
+    click('[data-eidos-file-row-id="row_b"] button', { shiftKey: true })
+    expect(onOpenRecord.mock.calls.map(([row]) => row._id)).toEqual([
+      "row_a",
+      "row_b",
+    ])
+    await render({ ...view, query: "SELECT * FROM tb_tasks WHERE title = 'B'" })
+    expect(
+      container.querySelectorAll('[data-eidos-file-selected="true"]')
+    ).toHaveLength(0)
+    expect(
+      container
+        .querySelector("[data-eidos-file-selection-count]")
+        ?.getAttribute("data-eidos-file-selection-count")
+    ).toBe("0")
+  })
+
+  it("does not select retained records while a replacement query is pending", async () => {
+    const page = (id: string): EidosFileRowPage => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [{ _id: id, title: id }],
+    })
+    const first = async () => page("original")
+    let resolveNext: (result: EidosFileRowPage) => void = () => {}
+    const pending = new Promise<EidosFileRowPage>((resolve) => {
+      resolveNext = resolve
+    })
+    const second = () => pending
+    const render = async (loadPage: typeof first) => {
+      await act(async () => {
+        root.render(
+          <EidosFileGalleryView
+            table={table}
+            view={view}
+            loadPage={loadPage}
+            onOpenRecord={() => {}}
+          />
+        )
+        await Promise.resolve()
+      })
+    }
+    const selectCard = () =>
+      act(() => {
+        container
+          .querySelector("article h3")
+          ?.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, shiftKey: true })
+          )
+      })
+    await render(first)
+    selectCard()
+    expect(
+      container.querySelectorAll('[data-eidos-file-selected="true"]')
+    ).toHaveLength(1)
+    await render(second)
+    expect(container.textContent).toContain("original")
+    selectCard()
+    expect(
+      container.querySelectorAll('[data-eidos-file-selected="true"]')
+    ).toHaveLength(0)
+    await act(async () => {
+      resolveNext(page("replacement"))
+      await pending
+    })
+    selectCard()
+    expect(
+      container
+        .querySelector('[data-eidos-file-selected="true"]')
+        ?.getAttribute("data-eidos-file-row-id")
+    ).toBe("replacement")
+  })
+
   it("loads paged cards and opens the record inspector", async () => {
     const onOpenRecordInTab = vi.fn()
     const loadPage = vi.fn(

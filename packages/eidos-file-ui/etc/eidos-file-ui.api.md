@@ -1954,7 +1954,8 @@ declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
   role?: AriaRole;
   positionInSet?: number;
   setSize?: number;
-  focused?: boolean;
+  focused?: boolean; /** Gallery multi-selection, independent of the record opened in the sidebar. */
+  selected?: boolean;
 }>;
 //#endregion
 export { EidosFileRecordCard };

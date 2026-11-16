@@ -313,6 +313,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   positionInSet,
   setSize,
   focused = false,
+  selected = false,
 }: {
   row: EidosFileRow
   fields: EidosFileFieldInfo[]
@@ -332,6 +333,8 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   positionInSet?: number
   setSize?: number
   focused?: boolean
+  /** Gallery multi-selection, independent of the record opened in the sidebar. */
+  selected?: boolean
 }) {
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
@@ -456,10 +459,13 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
         aria-posinset={role === "listitem" ? positionInSet : undefined}
         aria-setsize={role === "listitem" ? setSize : undefined}
         aria-current={focused ? "true" : undefined}
+        data-eidos-file-selected={selected ? "true" : undefined}
+        aria-description={selected ? t("Selected") : undefined}
         data-eidos-file-row-id={String(row._id)}
         data-eidos-file-card-surface="cover-only"
         className={cn(
-          "min-w-0 overflow-hidden rounded-sm",
+          "relative min-w-0 overflow-hidden rounded-sm",
+          selected && "ring-2 ring-ring ring-offset-2 ring-offset-background",
           focused && "ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
         )}
       >
@@ -497,6 +503,12 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
             )}
           </button>
         )}
+        {selected ? (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-ring/15"
+          />
+        ) : null}
       </article>
     )
   }
@@ -510,10 +522,13 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
           : "rounded-lg shadow-xs hover:shadow-sm",
         role === "listitem" && "cursor-pointer",
         focused &&
-          "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
+          "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background",
+        selected && "border-ring bg-accent/50 ring-2 ring-ring"
       )}
       style={fixedHeight !== undefined ? { height: fixedHeight } : undefined}
       aria-current={focused ? "true" : undefined}
+      data-eidos-file-selected={selected ? "true" : undefined}
+      aria-description={selected ? t("Selected") : undefined}
       aria-posinset={role === "listitem" ? positionInSet : undefined}
       aria-setsize={role === "listitem" ? setSize : undefined}
       data-eidos-file-row-id={String(row._id)}

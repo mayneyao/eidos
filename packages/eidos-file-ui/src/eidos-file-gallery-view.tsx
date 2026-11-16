@@ -43,7 +43,12 @@ import {
   type EidosFileRowWindow,
   type EidosFileRowWindowMergeMode,
 } from "./eidos-file-row-window"
-import { useEidosFileBoundedVirtualizer } from "./eidos-file-virtual-scroll"
+import {
+  eidosFileVirtualLogicalOffset,
+  useEidosFileBoundedVirtualizer,
+} from "./eidos-file-virtual-scroll"
+import type { GalleryRect } from "./eidos-file-gallery-selection"
+import { useEidosFileGallerySelection } from "./use-eidos-file-gallery-selection"
 import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
@@ -88,6 +93,7 @@ interface EidosFileGalleryVirtualRowProps {
   view: EidosFileViewInfo
   layout: EidosFileRecordCardLayout
   focusedRowId: string | null
+  selectedRowIds: ReadonlySet<string>
   canDelete: boolean
   measureElement: (node: HTMLDivElement | null | undefined) => void
   onOpen: (row: EidosFileRow) => void
@@ -119,7 +125,8 @@ function galleryVirtualRowPropsEqual(
   }
   if (
     previous.rowWindow === next.rowWindow &&
-    previous.focusedRowId === next.focusedRowId
+    previous.focusedRowId === next.focusedRowId &&
+    previous.selectedRowIds === next.selectedRowIds
   ) {
     return true
   }
@@ -136,6 +143,8 @@ function galleryVirtualRowPropsEqual(
     if ((previous.focusedRowId === rowId) !== (next.focusedRowId === rowId)) {
       return false
     }
+    if (previous.selectedRowIds.has(rowId) !== next.selectedRowIds.has(rowId))
+      return false
   }
   return true
 }
@@ -152,6 +161,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
   view,
   layout,
   focusedRowId,
+  selectedRowIds,
   canDelete,
   measureElement,
   onOpen,
@@ -189,6 +199,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               positionInSet={absoluteIndex + 1}
               setSize={total}
               focused={focusedRowId === String(row._id)}
+              selected={selectedRowIds.has(String(row._id))}
               onOpen={onOpen}
               onPreviewFile={onPreviewFile}
               onDelete={canDelete ? onDelete : undefined}
@@ -276,6 +287,14 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
+  const selectionScopeKey = JSON.stringify([
+    table.table.id,
+    view.id,
+    reloadToken,
+    view.query,
+    view.filter,
+    view.sorts,
+  ])
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const [preview, setPreview] = useState<{
@@ -284,6 +303,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   } | null>(null)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const cardListRef = useRef<HTMLDivElement>(null)
   useEidosFileScrollKeys(scrollContainerRef)
   const previousColumnCountRef = useRef<number | null>(null)
   const previousLayoutFieldsRef = useRef<EidosFileFieldInfo[] | null>(null)
@@ -302,6 +322,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     total: table.rowCount,
   })
   const [loading, setLoading] = useState(true)
+  const [loadedGeneration, setLoadedGeneration] = useState(-1)
   const [loadingMore, setLoadingMore] = useState(false)
   const [failedRequest, setFailedRequest] = useState<{
     offset: number
@@ -378,6 +399,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         setRowWindow((current) =>
           mergeRowWindowPage(current, page, mode, GALLERY_MAX_WINDOW_ROWS)
         )
+        setLoadedGeneration(generation)
         onRowCountChange?.(
           page.rows.length === 0 && page.offset > 0
             ? Math.min(page.total, page.offset)
@@ -431,6 +453,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     onRowCountChange,
     reloadToken,
     requestPage,
+    selectionScopeKey,
     table.table.id,
     view.id,
   ])
@@ -476,6 +499,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     virtualItems: virtualRows,
     logicalSize: logicalVirtualSize,
     physicalSize: physicalVirtualSize,
+    logicalScrollOffset,
     localScrollOffset,
     measurementCount,
     globalIndex: globalVirtualRowIndex,
@@ -494,6 +518,71 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,
     useAnimationFrameWithResizeObserver: true,
+  })
+
+  const selection = useEidosFileGallerySelection({
+    scrollRef: scrollContainerRef,
+    enabled: !mobile && !disabled && loadedGeneration === generationRef.current,
+    scopeKey: selectionScopeKey,
+    // The renderer changes loadPage when its effective query/source changes.
+    queryIdentity: loadPage,
+    layoutKey: `${columnCount}:${renderedCardWidth}:${uniformGalleryCardHeight(cardLayout, renderedCardWidth)}`,
+    getGeometry: () => {
+      const container = scrollContainerRef.current
+      const list = cardListRef.current
+      const cards = new Map<string, GalleryRect>()
+      if (!container || !list) return { logicalScrollOffset, cards }
+      const viewport = container.getBoundingClientRect()
+      const listBounds = list.getBoundingClientRect()
+      const currentLogicalOffset = eidosFileVirtualLogicalOffset(
+        container.scrollTop,
+        logicalVirtualSize,
+        container.clientHeight
+      )
+      const left = listBounds.left - viewport.left
+      const actualCardWidth =
+        (listBounds.width - GALLERY_GAP * (columnCount - 1)) / columnCount
+      const top =
+        listBounds.top -
+        viewport.top +
+        container.scrollTop +
+        logicalScrollOffset -
+        localScrollOffset
+      const firstVirtualRow = globalVirtualRowIndex(0)
+      // The virtualizer already maintains bounded measurements/estimates. Only
+      // loaded records acquire identities; placeholders never become selections.
+      rows.forEach((row, index) => {
+        const absoluteIndex = rowWindow.startOffset + index
+        const virtualRowIndex = Math.floor(absoluteIndex / columnCount)
+        const measurement =
+          rowVirtualizer.measurementsCache[virtualRowIndex - firstVirtualRow]
+        if (!measurement) return
+        const cardLeft =
+          left + (absoluteIndex % columnCount) * (actualCardWidth + GALLERY_GAP)
+        cards.set(String(row._id), {
+          left: cardLeft,
+          right: cardLeft + actualCardWidth,
+          top: top + measurement.start,
+          bottom: top + measurement.end,
+        })
+      })
+      // The viewport's actual CSS geometry owns hit testing. In particular,
+      // ResizeObserver content widths exclude the scroller's horizontal padding.
+      list
+        .querySelectorAll<HTMLElement>("[data-eidos-file-row-id]")
+        .forEach((card) => {
+          const id = card.dataset.eidosFileRowId
+          if (id === undefined) return
+          const bounds = card.getBoundingClientRect()
+          cards.set(id, {
+            left: bounds.left - viewport.left,
+            right: bounds.right - viewport.left,
+            top: currentLogicalOffset + bounds.top - viewport.top,
+            bottom: currentLogicalOffset + bounds.bottom - viewport.top,
+          })
+        })
+      return { logicalScrollOffset: currentLogicalOffset, cards }
+    },
   })
 
   useLayoutEffect(() => {
@@ -681,6 +770,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   const deleteRecord = async (row: EidosFileRow) => {
     if (disabled || !onDeleteRow) return
     await onDeleteRow(row)
+    selection.clear()
     const rowId = String(row._id)
     setRowWindow((current) => ({
       ...current,
@@ -710,8 +800,12 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         data-eidos-file-column-count={columnCount}
         data-eidos-file-window-size={rows.length}
         data-eidos-file-window-start={rowWindow.startOffset}
+        data-eidos-file-selection-count={selection.selectedIds.size}
+        tabIndex={0}
+        aria-label={t("{view} records", { view: view.name })}
         aria-busy={loading || loadingMore}
-        className="relative min-w-0 flex-1 overflow-y-auto p-4"
+        className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+        style={selection.marquee ? { userSelect: "none" } : undefined}
       >
         {loading && rows.length === 0 ? (
           <div
@@ -753,6 +847,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           </div>
         ) : (
           <div
+            ref={cardListRef}
             className="relative"
             role="list"
             aria-label={t("{view} records", { view: view.name })}
@@ -781,6 +876,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   view={view}
                   layout={cardLayout}
                   focusedRowId={focusedRowId}
+                  selectedRowIds={selection.selectedIds}
                   canDelete={!disabled && onDeleteRow !== undefined}
                   measureElement={rowVirtualizer.measureElement}
                   onOpen={openInspectorRow}
@@ -790,6 +886,43 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             })}
           </div>
         )}
+        {selection.marquee ? (
+          <div
+            data-eidos-file-gallery-marquee
+            aria-hidden="true"
+            className="pointer-events-none absolute z-20 border border-ring bg-ring/15"
+            style={{
+              left: selection.marquee.left,
+              top: selection.marquee.top,
+              width: selection.marquee.right - selection.marquee.left,
+              height: selection.marquee.bottom - selection.marquee.top,
+            }}
+          />
+        ) : null}
+        {selection.selectedIds.size > 0 ? (
+          <div className="pointer-events-none sticky bottom-3 z-20 flex h-0 items-end justify-center">
+            <div className="pointer-events-auto flex h-8 items-center gap-2 rounded-md border bg-background px-2 text-xs shadow-sm">
+              <span
+                role="status"
+                aria-live={selection.marquee ? "off" : "polite"}
+              >
+                {t("Selected · {count}", { count: selection.selectedIds.size })}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-foreground"
+                onClick={() => {
+                  selection.clear()
+                  scrollContainerRef.current?.focus({ preventScroll: true })
+                }}
+              >
+                {t("Clear")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {loadingMore ? (
           <div
             data-eidos-file-gallery-progress
