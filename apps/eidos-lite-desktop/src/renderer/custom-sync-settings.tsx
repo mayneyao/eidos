@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { EidosCustomSyncServer } from "../shared/contracts"
 import { hasSparkFeature } from "../shared/spark"
 import { useEidosLiteI18n } from "./i18n"
+import { SETTINGS, settingTarget } from "./settings-catalog"
 
 /** Server profiles are device-wide; connecting a Space remains in Sync. */
 export function CustomSyncSettings() {
@@ -92,10 +93,14 @@ export function CustomSyncSettings() {
     }
   }
   return (
-    <div className="settings-custom-servers" data-settings-custom-servers>
+    <div
+      className="settings-custom-servers"
+      data-settings-custom-servers
+      {...settingTarget(SETTINGS.customServers.id)}
+    >
       <div className="settings-row">
         <div className="settings-row-copy">
-          <strong>{t("Custom servers")}</strong>
+          <strong>{t(SETTINGS.customServers.title)}</strong>
           <small>
             {t(
               "Saved on this computer. Choose a server for each Space in Sync. Custom servers require Spark."

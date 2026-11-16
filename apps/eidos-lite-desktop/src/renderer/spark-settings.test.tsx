@@ -195,3 +195,39 @@ it("offers a collapsed, meaningful choice only when activation needs one", async
   expect(activateSpark).toHaveBeenCalledWith(3)
   expect(host.querySelector("details")).toBeNull()
 })
+
+it("keeps confirmation while hidden and does not start a competing read during release", async () => {
+  const released: SparkStatus = {
+    state: "inactive",
+    source: "online",
+    features: [],
+    licenses: [],
+  }
+  let finishRelease!: (status: SparkStatus) => void
+  const pending = new Promise<SparkStatus>((resolve) => {
+    finishRelease = resolve
+  })
+  const getSparkStatus = vi.fn().mockResolvedValue(active)
+  const deactivateSpark = vi.fn(() => pending)
+  Object.assign(window, { eidosLite: { getSparkStatus, deactivateSpark } })
+  const render = (visible: boolean) =>
+    act(async () =>
+      root.render(
+        <SparkSettings signedIn subject="recipient" active={visible} />
+      )
+    )
+  await render(true)
+  await act(async () => button("Release this Spark device").click())
+  await render(false)
+  expect(getSparkStatus).toHaveBeenCalledTimes(1)
+  await render(true)
+  expect(button("Confirm release")).toBeDefined()
+  expect(getSparkStatus).toHaveBeenCalledTimes(2)
+  await act(async () => button("Confirm release").click())
+  await render(false)
+  await render(true)
+  expect(getSparkStatus).toHaveBeenCalledTimes(2)
+  await act(async () => finishRelease(released))
+  expect(host.textContent).toContain("Activate Spark")
+  expect(host.textContent).not.toContain("Spark is active on this device")
+})

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { SETTINGS, settingTarget } from "./settings-catalog"
 import { ChevronDown, Wifi } from "lucide-react"
 import type { EidosLiteApi } from "../shared/contracts"
 import { useEidosLiteI18n } from "./i18n"
@@ -30,7 +31,7 @@ function transferSize(bytes: number, locale: string) {
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: unit ? 1 : 0 }).format(bytes / 1024 ** unit)} ${["B", "KiB", "MiB", "GiB"][unit]}`
 }
 
-function usePeerStatus(global: boolean) {
+function usePeerStatus(global: boolean, enabled = true) {
   const revision = useRef(0)
   const acting = useRef(false)
   const [status, setStatus] = useState<Status>({ running: false, devices: [] })
@@ -39,7 +40,7 @@ function usePeerStatus(global: boolean) {
   const [error, setError] = useState("")
   const [pollError, setPollError] = useState("")
   useEffect(() => {
-    if (typeof window.eidosLite.peerSync !== "function") return
+    if (!enabled || typeof window.eidosLite.peerSync !== "function") return
     let active = true
     let pending = false
     const poll = async () => {
@@ -67,7 +68,7 @@ function usePeerStatus(global: boolean) {
       active = false
       clearInterval(timer)
     }
-  }, [global])
+  }, [global, enabled])
   const run = async (action: Action, id?: string) => {
     if (acting.current) return false
     acting.current = true
@@ -485,12 +486,12 @@ function LegacyPeerSyncPanel() {
   )
 }
 
-export function DevicesSettings() {
+export function DevicesSettings({ active = true }: { active?: boolean }) {
   const { t, locale } = useEidosLiteI18n()
-  const { status, code, busy, error, run } = usePeerStatus(true)
+  const { status, code, busy, error, run } = usePeerStatus(true, active)
   const [removing, setRemoving] = useState<string | null>(null)
   return (
-    <section aria-labelledby="settings-devices">
+    <section aria-labelledby="settings-devices" hidden={!active}>
       <h2 id="settings-devices">{t("Devices")}</h2>
       {status.deviceName && (
         <p className="mb-2 text-sm">
@@ -503,7 +504,7 @@ export function DevicesSettings() {
         )}
       </p>
       <div className="settings-group">
-        <div className="settings-row">
+        <div className="settings-row" {...settingTarget(SETTINGS.lan.id)}>
           <div className="settings-row-copy">
             <strong>{t("LAN sync")}</strong>
             <p>
@@ -526,7 +527,11 @@ export function DevicesSettings() {
             <span />
           </button>
         </div>
-        <div className="settings-row flex-wrap" data-device-pairing>
+        <div
+          className="settings-row flex-wrap"
+          data-device-pairing
+          {...settingTarget(SETTINGS.pairing.id)}
+        >
           <div className="settings-row-copy">
             <strong>{t("Connect a new device")}</strong>
             <p>{t("Scan the code on your phone, then approve it here.")}</p>
@@ -588,7 +593,9 @@ export function DevicesSettings() {
           )}
         </div>
       </div>
-      <h3 className="mb-3 mt-8">{t("Paired devices")}</h3>
+      <h3 className="mb-3 mt-8" {...settingTarget(SETTINGS.pairedDevices.id)}>
+        {t(SETTINGS.pairedDevices.title)}
+      </h3>
       {status.devices.length === 0 ? (
         <p className="text-muted-foreground">
           {t("No devices connected yet.")}
@@ -633,7 +640,9 @@ export function DevicesSettings() {
           ))}
         </div>
       )}
-      <h3 className="mb-3 mt-8">{t("Spaces shared over LAN")}</h3>
+      <h3 className="mb-3 mt-8" {...settingTarget(SETTINGS.sharedSpaces.id)}>
+        {t(SETTINGS.sharedSpaces.title)}
+      </h3>
       <p className="mb-3 text-muted-foreground">
         {t(
           "Choose which Spaces to share in their Sync panels. Turning off LAN sync here stops sharing for all Spaces."

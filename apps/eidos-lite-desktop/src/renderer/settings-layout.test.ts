@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
+import { SETTINGS_SECTIONS } from "./settings-catalog"
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
 const settings = readFileSync(
@@ -35,10 +36,16 @@ describe("Settings responsive layout", () => {
       /\.settings-shortcut-row\s*\{[^}]*flex-direction/
     )
     expect(settings).toContain('className="settings-sidebar"')
-    expect(settings).toContain('id: "shortcuts"')
-    expect(settings).toContain('id: "preferences"')
+    expect(SETTINGS_SECTIONS.map((page) => page.id)).toEqual([
+      "preferences",
+      "devices",
+      "account-sync",
+      "files",
+      "shortcuts",
+      "updates",
+      "about",
+    ])
     expect(settings).toContain('t("Preferences")')
-    expect(settings).toContain('t("Default location for new Spaces")')
     expect(settings).not.toContain('id: "spaces"')
     expect(settings).not.toContain("Automatic versions")
     expect(settings).not.toContain("automaticCheckpoints")
@@ -46,7 +53,10 @@ describe("Settings responsive layout", () => {
     expect(settings).not.toContain('label: "Plugins"')
     expect(settings).not.toContain('id="settings-plugins"')
     expect(settings).not.toContain("PluginManager")
-    expect(settings).toContain('label: "Account & Services"')
+    expect(SETTINGS_SECTIONS).toContainEqual({
+      id: "account-sync",
+      label: "Account & Services",
+    })
     expect(settings).toContain('t("Account & Services")')
     expect(settings).toContain('t("Eidos account")')
     expect(settings).toContain("Sign in to use Eidos Sync and Publish.")
@@ -68,10 +78,8 @@ describe("Settings responsive layout", () => {
     expect(settings).not.toContain('"Account & Sync"')
     expect(settings).toContain("<KeyboardShortcutSettings")
     expect(settings).toContain("builtInPlugins={preferences.builtInPlugins}")
-    expect(settings).toContain('t("Start week on Monday")')
     expect(settings).not.toContain("data-terminal-layout")
     expect(settings).not.toContain(".listTerminalShells()")
-    expect(settings).toContain('t("Time zone")')
     expect(settings).toContain("<TimeZonePicker")
     expect(settings).toContain("timeZone })")
     expect(settings).toContain(

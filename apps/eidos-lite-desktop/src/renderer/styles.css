@@ -547,9 +547,11 @@ body {
   min-width: 0;
   min-height: 0;
   grid-template-columns: 12.5rem minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .settings-sidebar {
+  grid-row: 1 / span 2;
   min-width: 0;
   padding: 1rem 0.65rem;
   border-right: 1px solid var(--hairline);
@@ -608,6 +610,8 @@ body {
 }
 
 .settings-content {
+  grid-column: 2;
+  grid-row: 2;
   container-type: inline-size;
   position: relative;
   min-width: 0;
@@ -615,6 +619,159 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+}
+
+.settings-search {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  z-index: 2;
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: 1rem 1.5rem 0;
+  -webkit-app-region: no-drag;
+}
+
+.settings-search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+.settings-search-field:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.settings-search-field > svg,
+.settings-search-field button svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+}
+
+.settings-search-field input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.settings-search-field input::placeholder {
+  color: var(--ink-muted);
+}
+
+.settings-search-field button {
+  display: grid;
+  place-items: center;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 0.2rem;
+  color: var(--ink-muted);
+  background: transparent;
+}
+
+.settings-search-field button:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.settings-search-field button:focus-visible,
+.settings-search-status button:focus-visible {
+  outline: 2px solid var(--focus);
+}
+
+.settings-search-results {
+  position: absolute;
+  top: 100%;
+  right: 1.5rem;
+  left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  max-height: min(24rem, calc(100vh - var(--window-titlebar-height) - 5rem));
+  margin-top: 0.25rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+
+.settings-search-results ul {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0.2rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.settings-search-results li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.2rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.settings-search-results li[aria-selected="true"] {
+  background: var(--surface-selected);
+}
+
+.settings-search-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.2rem 0.75rem;
+}
+
+.settings-search-result-heading strong {
+  font-size: 0.75rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.settings-search-result-heading > span,
+.settings-search-results small,
+.settings-search-status {
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  overflow-wrap: anywhere;
+}
+
+.settings-search-status {
+  flex: none;
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.settings-search-status button {
+  margin-left: 0.5rem;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.settings-content [data-setting-id]:focus,
+.settings-content [data-setting-ids]:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 
 .settings-page {
@@ -15345,6 +15502,16 @@ body:has(.file-properties-window)
   .settings-page {
     padding-right: 1rem;
     padding-left: 1rem;
+  }
+
+  .settings-search {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .settings-search-results {
+    right: 1rem;
+    left: 1rem;
   }
 
   .settings-row-stacked {

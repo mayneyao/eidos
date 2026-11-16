@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { useEidosLiteI18n } from "./i18n"
+import { SETTINGS, settingTarget } from "./settings-catalog"
 
-export function SyncPasswordSettings() {
+export function SyncPasswordSettings({ active = true }: { active?: boolean }) {
   const { t } = useEidosLiteI18n()
   const [status, setStatus] = useState<{
     available: boolean
@@ -20,18 +21,40 @@ export function SyncPasswordSettings() {
   const requestRevision = useRef(0)
   const saving = useRef(false)
   const confirmationErrorId = useId()
+  const surface = useRef<HTMLDivElement>(null)
+  const ownsFocus = useRef(false)
+  const windowFocused = useRef(true)
   const mismatched = confirmation.length > 0 && password !== confirmation
   useEffect(() => {
-    const refresh = () => setReloadKey((key) => key + 1)
+    const refresh = () => {
+      windowFocused.current = true
+      if (active) setReloadKey((key) => key + 1)
+    }
+    const blur = () => {
+      windowFocused.current = false
+    }
     window.addEventListener("focus", refresh)
-    return () => window.removeEventListener("focus", refresh)
+    window.addEventListener("blur", blur)
+    return () => {
+      window.removeEventListener("focus", refresh)
+      window.removeEventListener("blur", blur)
+    }
+  }, [active])
+  useEffect(() => {
+    const release = (event: FocusEvent) => {
+      if (!surface.current?.contains(event.target as Node))
+        ownsFocus.current = false
+    }
+    document.addEventListener("focusin", release)
+    return () => document.removeEventListener("focusin", release)
   }, [])
   useEffect(() => {
     if (!editing && !busy && returnFocus.current) {
-      trigger.current?.focus()
+      if (active && ownsFocus.current && windowFocused.current)
+        trigger.current?.focus()
       returnFocus.current = false
     }
-  }, [editing, busy])
+  }, [editing, busy, active])
   useEffect(() => {
     let active = true
     const revision = ++requestRevision.current
@@ -52,7 +75,7 @@ export function SyncPasswordSettings() {
     form.current?.reset()
     setPassword("")
     setConfirmation("")
-    returnFocus.current = true
+    returnFocus.current = ownsFocus.current
     setEditing(false)
   }
   const save = async () => {
@@ -78,10 +101,17 @@ export function SyncPasswordSettings() {
     }
   }
   return (
-    <div className="sync-password-settings">
+    <div
+      className="sync-password-settings"
+      {...settingTarget(SETTINGS.password.id)}
+      ref={surface}
+      onFocusCapture={() => {
+        ownsFocus.current = true
+      }}
+    >
       <div className="settings-row">
         <div className="settings-row-copy">
-          <strong>{t("Sync password")}</strong>
+          <strong>{t(SETTINGS.password.title)}</strong>
           <small>
             {t(
               !status
