@@ -7,11 +7,11 @@ vi.mock("./i18n", () => ({
   useEidosLiteI18n: () => ({ t: (text: string) => text }),
 }))
 
-it("shows whole-tree actions only in the Space context menu", async () => {
+it("delegates Space context to the shared root menu and closes the separate plus menu", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement("div")
   const root = createRoot(host)
-  const expandAll = vi.fn()
+  const context = vi.fn()
   try {
     await act(async () =>
       root.render(
@@ -27,32 +27,25 @@ it("shows whole-tree actions only in the Space context menu", async () => {
           onQueryChange={vi.fn()}
           focusToken={0}
           actions={[]}
-          treeExpansionActions={{
-            scope: "all",
-            isExpanded: () => false,
-            toggle: expandAll,
-          }}
+          onRootContextMenu={context}
         />
       )
     )
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[aria-label="Create"]')!.click()
     )
-    expect(host.textContent).not.toContain("Expand all folders")
+    expect(host.querySelector('[role="group"]')).not.toBeNull()
     await act(async () => {
-      host
-        .querySelector(".space-heading")!
-        .dispatchEvent(
-          new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
-        )
+      host.querySelector(".space-heading")!.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 42,
+          clientY: 85,
+        })
+      )
     })
-    expect(host.textContent).toContain("Expand all folders")
-    expect(host.textContent).not.toContain("Collapse all folders")
-    expect(host.textContent).not.toContain("Expand subfolders")
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click()
-    )
-    expect(expandAll).toHaveBeenCalledOnce()
+    expect(context).toHaveBeenCalledExactlyOnceWith(42, 85)
     expect(host.querySelector('[role="group"]')).toBeNull()
   } finally {
     await act(async () => root.unmount())
@@ -98,12 +91,13 @@ it("navigates each folder breadcrumb and marks the current location", async () =
   }
 })
 
-it("opens root file management from its heading action and context menu", async () => {
+it("keeps the heading management action distinct from the shared root context entry", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement("div")
   document.body.append(host)
   const root = createRoot(host)
   const manage = vi.fn()
+  const context = vi.fn()
   const props = {
     name: "Space",
     path: "/Space",
@@ -117,6 +111,7 @@ it("opens root file management from its heading action and context menu", async 
     focusToken: 0,
     actions: [],
     onManageFiles: manage,
+    onRootContextMenu: context,
   }
   try {
     await act(async () => root.render(<WorkspaceHeading {...props} />))
@@ -139,10 +134,8 @@ it("opens root file management from its heading action and context menu", async 
           new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
         )
     )
-    const item = host.querySelector<HTMLButtonElement>('[role="group"] button')!
-    expect(item.textContent).toBe("Manage files")
-    await act(async () => item.click())
-    expect(manage).toHaveBeenCalledTimes(2)
+    expect(context).toHaveBeenCalledOnce()
+    expect(manage).toHaveBeenCalledOnce()
     expect(host.querySelector('[role="group"]')).toBeNull()
     await act(async () =>
       root.render(<WorkspaceHeading {...props} navigationDisabled />)

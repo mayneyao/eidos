@@ -1,4 +1,10 @@
-import { Fragment, type ReactNode } from "react"
+import {
+  Fragment,
+  useLayoutEffect,
+  useRef,
+  type ComponentProps,
+  type ReactNode,
+} from "react"
 import {
   ClipboardCopy,
   Copy,
@@ -10,6 +16,7 @@ import {
   Pencil,
   SquareTerminal,
   Trash2,
+  Upload,
 } from "lucide-react"
 import type {
   EidosLiteMarkdownEditingMode,
@@ -270,8 +277,10 @@ export function ExplorerRootContextMenuItems({
   disabled,
   navigationDisabled,
   clipboard,
+  expansionActions,
   terminalOpen,
   onCreate,
+  onImport,
   onManageFiles,
   onToggleTerminal,
   onReveal,
@@ -282,8 +291,10 @@ export function ExplorerRootContextMenuItems({
   disabled: boolean
   navigationDisabled: boolean
   clipboard: ExplorerClipboardActions
+  expansionActions?: TreeExpansionActions
   terminalOpen: boolean
   onCreate(action: ExplorerCreateAction): void
+  onImport(): void
   onManageFiles(): void
   onToggleTerminal?(): void
   onReveal(): void
@@ -297,10 +308,20 @@ export function ExplorerRootContextMenuItems({
   return (
     <MenuGroups
       groups={[
-        <CreateItems
-          disabled={disabled}
-          onCreate={(action) => run(() => onCreate(action))}
-        />,
+        <>
+          <CreateItems
+            disabled={disabled}
+            onCreate={(action) => run(() => onCreate(action))}
+          />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={disabled}
+            onClick={() => run(onImport)}
+          >
+            <Upload /> {t("Import files")}
+          </button>
+        </>,
         <ExplorerClipboardMenu
           macos={macos}
           canCapture={false}
@@ -312,6 +333,13 @@ export function ExplorerRootContextMenuItems({
             })
           }
         />,
+        expansionActions && (
+          <TreeExpansionMenu
+            actions={expansionActions}
+            disabled={navigationDisabled}
+            onClose={onClose}
+          />
+        ),
         <>
           <button
             type="button"
@@ -338,5 +366,92 @@ export function ExplorerRootContextMenuItems({
         </>,
       ]}
     />
+  )
+}
+
+export function ExplorerRootContextMenu({
+  position,
+  onClose,
+  ...items
+}: ComponentProps<typeof ExplorerRootContextMenuItems> & {
+  position: { x: number; y: number }
+}) {
+  const menu = useRef<HTMLDivElement>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const place = () => {
+      const element = menu.current
+      if (!element) return
+      const bounds = element.getBoundingClientRect()
+      element.style.left = `${Math.max(8, Math.min(position.x, window.innerWidth - bounds.width - 8))}px`
+      element.style.top = `${Math.max(8, Math.min(position.y, window.innerHeight - bounds.height - 8))}px`
+    }
+    place()
+    window.addEventListener("resize", place)
+    return () => window.removeEventListener("resize", place)
+  })
+  useLayoutEffect(() => {
+    // Moving focus before paint also dismisses an open SpaceSwitcher through
+    // its existing outside-focus handler, so the two popups never overlap.
+    returnFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    menu.current
+      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+      ?.focus({ preventScroll: true })
+  }, [position])
+  const close = () => {
+    onClose()
+    if (returnFocus.current?.isConnected)
+      returnFocus.current.focus({ preventScroll: true })
+  }
+  return (
+    <div
+      ref={menu}
+      className="space-context-menu space-root-context-menu"
+      role="menu"
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+      onBlur={(event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          onClose()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault()
+          event.stopPropagation()
+          close()
+          return
+        }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+        event.preventDefault()
+        event.stopPropagation()
+        const buttons = [
+          ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+            'button[role="menuitem"]:not(:disabled)'
+          ),
+        ]
+        const index = buttons.indexOf(
+          document.activeElement as HTMLButtonElement
+        )
+        const next =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (index +
+                  (event.key === "ArrowDown" ? 1 : -1) +
+                  buttons.length) %
+                buttons.length
+        buttons[next]?.focus({ preventScroll: true })
+      }}
+    >
+      <ExplorerRootContextMenuItems {...items} onClose={close} />
+    </div>
   )
 }

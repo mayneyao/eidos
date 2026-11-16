@@ -13829,6 +13829,13 @@ body:has(.file-properties-window)
   background: var(--hairline);
 }
 
+.space-root-context-menu {
+  min-width: min(10.5rem, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
+
 .space-context-menu-selection {
   margin: 0;
   padding: 0.375rem 0.5rem;

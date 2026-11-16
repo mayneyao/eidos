@@ -66,7 +66,7 @@ import { SpaceFileGroups } from "./space-file-groups"
 import { useExplorerClipboard } from "./use-explorer-clipboard"
 import {
   ExplorerEntryContextMenuItems,
-  ExplorerRootContextMenuItems,
+  ExplorerRootContextMenu,
 } from "./explorer-context-menu"
 import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 import {
@@ -1171,16 +1171,13 @@ function WorkspaceApp({
   const [treeExpansionActions, setTreeExpansionActions] =
     useState<TreeExpansionActions | null>(null)
   const entryContextMenuRef = useRef<HTMLDivElement>(null)
-  const rootContextMenuRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    for (const ref of [entryContextMenuRef, rootContextMenuRef]) {
-      const menu = ref.current
-      if (!menu) continue
-      const bounds = menu.getBoundingClientRect()
-      menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
-      menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
-    }
-  }, [contextMenu, rootClipboardMenu])
+    const menu = entryContextMenuRef.current
+    if (!menu) return
+    const bounds = menu.getBoundingClientRect()
+    menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
+    menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
+  }, [contextMenu])
   useEffect(() => {
     setContextMenu(null)
     setRootClipboardMenu(null)
@@ -3822,18 +3819,22 @@ function WorkspaceApp({
     ]
   )
 
-  const importFiles = useCallback(async () => {
-    setPathMutationBusy(true)
-    setError(null)
-    try {
-      const result = await window.eidosLite.importFiles(explorerDirectory)
-      if (result) applyPathMutation(result)
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setPathMutationBusy(false)
-    }
-  }, [applyPathMutation, explorerDirectory])
+  const importFiles = useCallback(
+    async (targetDirectory: string | null) => {
+      if (space?.readOnly) return
+      setPathMutationBusy(true)
+      setError(null)
+      try {
+        const result = await window.eidosLite.importFiles(targetDirectory)
+        if (result) applyPathMutation(result)
+      } catch (cause) {
+        setError(errorMessage(cause))
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    [applyPathMutation, space?.readOnly]
+  )
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   const pluginManager = (
@@ -4039,6 +4040,10 @@ function WorkspaceApp({
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
   }
+  const openRootContextMenu = (x: number, y: number) => {
+    setContextMenu(null)
+    setRootClipboardMenu({ x, y })
+  }
   const navigateExplorerDirectory = async (path: string | null) => {
     const request = ++folderNavigationRef.current
     if (!path) {
@@ -4152,9 +4157,7 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
-        treeExpansionActions={
-          explorerLayout === "tree" ? treeExpansionActions : null
-        }
+        onRootContextMenu={openRootContextMenu}
         sort={explorerSort}
         onSortChange={setExplorerSort}
         fileFilter={explorerFileFilter}
@@ -4202,7 +4205,8 @@ function WorkspaceApp({
           {
             label: t("New File"),
             icon: <FilePlus2 />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             shortcut: workspaceShortcutLabel(
               "new-file",
               macos,
@@ -4222,7 +4226,8 @@ function WorkspaceApp({
           {
             label: t("New folder"),
             icon: <FolderPlus />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             run: () =>
               setPathDialog({
                 action: "create-folder",
@@ -4232,9 +4237,10 @@ function WorkspaceApp({
           {
             label: t("Import files"),
             icon: <Upload />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             run: () => {
-              void importFiles()
+              void importFiles(explorerDirectory)
             },
           },
         ]}
@@ -4387,13 +4393,7 @@ function WorkspaceApp({
                 <SpaceFileTree
                   clipboard={explorerClipboard}
                   macos={macos}
-                  onRootContextMenu={(x, y) => {
-                    setContextMenu(null)
-                    setRootClipboardMenu({
-                      x: Math.max(8, Math.min(x, window.innerWidth - 200)),
-                      y: Math.max(8, Math.min(y, window.innerHeight - 60)),
-                    })
-                  }}
+                  onRootContextMenu={openRootContextMenu}
                   spaceId={space.id}
                   sort={explorerSort}
                   nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
@@ -5935,33 +5935,38 @@ function WorkspaceApp({
         </>
       ) : null}
       {rootClipboardMenu ? (
-        <div
-          ref={rootContextMenuRef}
-          className="space-context-menu"
-          role="menu"
-          style={{ left: rootClipboardMenu.x, top: rootClipboardMenu.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <ExplorerRootContextMenuItems
-            platform={platform}
-            macos={macos}
-            disabled={pathMutationBusy || localInteractionBlocked}
-            navigationDisabled={
-              pathMutationBusy || localInteractionBlocked || busyFile !== null
-            }
-            clipboard={explorerClipboard}
-            terminalOpen={terminalPanelVisible}
-            onCreate={(action) => setPathDialog({ action, entry: null })}
-            onManageFiles={() => void openFileMetadata(null)}
-            onToggleTerminal={
-              terminalPluginEnabled ? toggleTerminalPanel : undefined
-            }
-            onReveal={() => {
-              void window.eidosLite.revealPath(".")
-            }}
-            onClose={() => setRootClipboardMenu(null)}
-          />
-        </div>
+        <ExplorerRootContextMenu
+          position={rootClipboardMenu}
+          platform={platform}
+          macos={macos}
+          disabled={
+            pathMutationBusy ||
+            localInteractionBlocked ||
+            Boolean(space.readOnly)
+          }
+          navigationDisabled={
+            pathMutationBusy || localInteractionBlocked || busyFile !== null
+          }
+          clipboard={explorerClipboard}
+          expansionActions={
+            explorerLayout === "tree" &&
+            (!pluginExplorer.selected || pluginExplorer.error) &&
+            filteredExplorer.entries.some((entry) => entry.kind === "directory")
+              ? (treeExpansionActions ?? undefined)
+              : undefined
+          }
+          terminalOpen={terminalPanelVisible}
+          onCreate={(action) => setPathDialog({ action, entry: null })}
+          onImport={() => void importFiles(null)}
+          onManageFiles={() => void openFileMetadata(null)}
+          onToggleTerminal={
+            terminalPluginEnabled ? toggleTerminalPanel : undefined
+          }
+          onReveal={() => {
+            void window.eidosLite.revealPath(".")
+          }}
+          onClose={() => setRootClipboardMenu(null)}
+        />
       ) : null}
       {contextMenu ? (
         <div

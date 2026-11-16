@@ -48,6 +48,7 @@ async function setup(language = "en") {
     open: vi.fn(),
     selectPluginEditor: vi.fn(),
     create: vi.fn(),
+    import: vi.fn(),
     rename: vi.fn(),
     showFolder: vi.fn(),
     manageFiles: vi.fn(),
@@ -172,6 +173,7 @@ async function setup(language = "en") {
         clipboard,
         terminalOpen: false,
         onCreate: actions.create,
+        onImport: actions.import,
         onManageFiles: actions.manageFiles,
         onToggleTerminal: actions.open,
         onReveal: actions.reveal,
@@ -368,6 +370,7 @@ it("offers useful root creation and utilities when Paste is unavailable and rout
     expect(f.labels()).toEqual([
       "New File",
       "New folder",
+      "Import files",
       "|",
       "Paste",
       "|",
@@ -381,6 +384,7 @@ it("offers useful root creation and utilities when Paste is unavailable and rout
     for (const name of [
       "New File",
       "New folder",
+      "Import files",
       "Manage files",
       "Show terminal",
       "Reveal in Finder",
@@ -391,6 +395,7 @@ it("offers useful root creation and utilities when Paste is unavailable and rout
       ["create-folder"],
     ])
     expect(f.actions.manageFiles).toHaveBeenCalledOnce()
+    expect(f.actions.import).toHaveBeenCalledOnce()
     expect(f.actions.open).toHaveBeenCalledOnce()
     expect(f.actions.reveal).toHaveBeenCalledOnce()
     f.clipboard.canPaste.mockReturnValue(true)
@@ -399,6 +404,54 @@ it("offers useful root creation and utilities when Paste is unavailable and rout
     expect(f.clipboard.canPaste).toHaveBeenLastCalledWith(null)
     expect(f.clipboard.paste).toHaveBeenCalledWith(null)
     expect(f.labels()).not.toContain("Show terminal")
+    f.checkSeparators()
+  } finally {
+    await f.cleanup()
+  }
+})
+
+it("places whole-tree expansion between root Paste and utilities with the same navigation guard", async () => {
+  const f = await setup()
+  const toggle = vi.fn()
+  try {
+    const expansionActions = {
+      scope: "all" as const,
+      isExpanded: () => true,
+      toggle,
+    }
+    await f.rootMenu({ expansionActions })
+    expect(f.labels()).toEqual([
+      "New File",
+      "New folder",
+      "Import files",
+      "|",
+      "Paste",
+      "|",
+      "Collapse all folders",
+      "|",
+      "Manage files",
+      "Show terminal",
+      "Reveal in Finder",
+    ])
+    await act(async () => f.button("Collapse all folders").click())
+    expect(toggle).toHaveBeenCalledOnce()
+    expect(f.close).toHaveBeenCalledOnce()
+    await f.rootMenu({
+      expansionActions,
+      disabled: true,
+      navigationDisabled: true,
+    })
+    for (const label of [
+      "New File",
+      "New folder",
+      "Import files",
+      "Paste",
+      "Collapse all folders",
+      "Manage files",
+      "Show terminal",
+    ])
+      expect(f.button(label).disabled).toBe(true)
+    expect(f.button("Reveal in Finder").disabled).toBe(false)
     f.checkSeparators()
   } finally {
     await f.cleanup()
@@ -428,6 +481,7 @@ it("preserves the same Chinese groups and shortcut labels", async () => {
     expect(f.labels()).toEqual([
       "新建文件",
       "新建文件夹",
+      "导入文件",
       "|",
       "粘贴",
       "|",
