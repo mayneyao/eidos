@@ -2396,6 +2396,15 @@ export class EidosFileRuntime {
         total: number;
     }>;
     // @internal
+    runtimeQueryRows(tableId: string, options: {
+        fields: string[];
+        query: EidosFileRowQuery;
+        limit: number;
+        offset?: number;
+        cursor?: string;
+        resolveRelations: boolean;
+    }): EidosFileLogicalRow[];
+    // @internal
     runtimeScanLogicalRows(tableId: string, fieldIds: string[], query: EidosFileRowQuery): EidosFileLogicalRow[];
     // (undocumented)
     schema(tableId?: string): {
@@ -4441,6 +4450,10 @@ export interface RuntimeHostBridge {
     createPublicationSnapshot(request: {
         maxBytes: string;
     }, context: RequestContext): Promise<RuntimePublicationSnapshot>;
+    // @internal
+    queuedRead?<T>(operation: (() => T) & ([Extract<T, {
+        then: (...args: never[]) => unknown;
+    }>] extends [never] ? unknown : never), context: RequestContext): Promise<T>;
 }
 
 // @public (undocumented)

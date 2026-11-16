@@ -2949,6 +2949,10 @@ export interface RuntimeHostBridge {
     createPublicationSnapshot(request: {
         maxBytes: string;
     }, context: RequestContext): Promise<RuntimePublicationSnapshot>;
+    // @internal
+    queuedRead?<T>(operation: (() => T) & ([Extract<T, {
+        then: (...args: never[]) => unknown;
+    }>] extends [never] ? unknown : never), context: RequestContext): Promise<T>;
 }
 
 // @public (undocumented)
