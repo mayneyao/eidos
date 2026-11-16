@@ -167,6 +167,28 @@ describe("TerminalSessionManager", () => {
     expect(ptys[0]?.write).toHaveBeenCalledWith("'C:\\My Space\\$draft.md'")
   })
 
+  it("inserts a quoted dropped path without submitting it to the shell", () => {
+    const { manager, ptys } = setup()
+    const session = manager.start({
+      ownerId: 9,
+      cwd: "/synthetic/My Space",
+      cols: 80,
+      rows: 24,
+      platform: "darwin",
+      shellExecutable: "/bin/zsh",
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    })
+    manager.writePath(
+      9,
+      session.id,
+      '/synthetic/My Space/中文 "movie\'s" $(touch nope).mov'
+    )
+    expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith(
+      "'/synthetic/My Space/中文 \"movie'\\''s\" $(touch nope).mov'"
+    )
+  })
+
   it("keeps multiple sessions per owner and rejects unsafe dimensions", () => {
     const { manager, ptys } = setup()
     const options = {

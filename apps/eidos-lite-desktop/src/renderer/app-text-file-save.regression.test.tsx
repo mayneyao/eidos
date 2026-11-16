@@ -19,6 +19,35 @@ import { textDraftLifecycle } from "./text-draft-lifecycle"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { loadRecentFiles, storeRecentFiles } from "./recent-files"
 import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
+import {
+  EIDOS_LITE_SPACE_ID_DRAG_TYPE,
+  spacePathDragData,
+  spacePathDragPaths,
+} from "./space-path-drag"
+
+// Keep the real TerminalPanel drop handler while replacing its display/PTY UI.
+vi.mock("@xterm/xterm", () => ({
+  Terminal: class {
+    options = {}
+    loadAddon() {}
+    open() {}
+    attachCustomKeyEventHandler() {}
+    onData() {
+      return { dispose() {} }
+    }
+    onResize() {
+      return { dispose() {} }
+    }
+    focus() {}
+    dispose() {}
+  },
+}))
+vi.mock("@xterm/addon-fit", () => ({
+  FitAddon: class {
+    fit() {}
+  },
+}))
+vi.mock("@xterm/addon-web-links", () => ({ WebLinksAddon: class {} }))
 
 const surface = vi.hoisted(() =>
   vi.fn<
@@ -329,6 +358,335 @@ function installHost(overrides: Record<string, unknown>) {
     },
   }) as unknown as EidosLiteApi
 }
+
+function fileTitleDrag(target: Element, data = new Map<string, string>()) {
+  const dataTransfer = {
+    effectAllowed: "none",
+    get types() {
+      return [...data.keys()]
+    },
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? "",
+  } as unknown as DataTransfer
+  const event = new Event("dragstart", { bubbles: true, cancelable: true })
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer })
+  target.dispatchEvent(event)
+  return { event, dataTransfer }
+}
+
+it.each([
+  ".hidden 中文's note.md",
+  "data.eidos",
+  '中文 "movie\'s" clip.mov',
+  "plain.txt",
+])(
+  "drags only the active %s title into Terminal with Explorer collapsed",
+  async (path) => {
+    const spaceId = "space-标题"
+    const entry: SpaceTreeEntry = {
+      name: path,
+      relativePath: path,
+      kind: path.endsWith(".eidos") ? "eidos" : "file",
+      size: 5,
+      modifiedAtMs: 1,
+    }
+    const snapshot = {
+      path,
+      metadata: { fileId: "title-drag", title: "Title", revision: 1 },
+      tables: [
+        {
+          table: { id: "t", name: "t", settings: {} },
+          fields: [],
+          views: [],
+          rowCount: 0,
+        },
+      ],
+    } as unknown as EidosFileSnapshot
+    const writeTerminalPath = vi.fn(async () => undefined)
+    const writeTerminal = vi.fn()
+    installHost({
+      getPreferences: async () => ({
+        ...DEFAULT_RENDERER_PREFERENCES,
+        builtInPlugins: { terminal: true },
+      }),
+      getSpace: async () => ({ ...staleSpace, id: spaceId, entries: [entry] }),
+      previewTextFile: async () =>
+        path.endsWith(".mov")
+          ? {
+              type: "media",
+              relativePath: path,
+              mediaKind: "video",
+              mimeType: "video/quicktime",
+              previewUrl: "eidos-test://movie.mov",
+              size: 5,
+              modifiedAtMs: 1,
+            }
+          : { ...initial, relativePath: path },
+      openEidosFile: async () => ({
+        sessionId: "title-drag",
+        relativePath: path,
+        readOnly: false,
+        snapshot,
+      }),
+      callRuntime: async () => snapshot,
+      startTerminal: async () => ({ id: "terminal-title-drag", shell: "zsh" }),
+      closeTerminal: async () => undefined,
+      writeTerminalPath,
+      writeTerminal,
+    })
+    window.localStorage.setItem("eidos-lite:space-sidebar-collapsed", "true")
+    window.history.replaceState(null, "", navigationHash(spaceId, path))
+    await act(async () => root!.render(<App />))
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector<HTMLButtonElement>(".file-titlebar-document")
+          ?.draggable
+      ).toBe(true)
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Toggle terminal"]'
+        )!
+        .click()
+    )
+    await vi.waitFor(() =>
+      expect(host.querySelector(".terminal-panel-status")?.textContent).toBe(
+        "zsh"
+      )
+    )
+    const title = host.querySelector<HTMLButtonElement>(
+      ".file-titlebar-document"
+    )!
+    const { event, dataTransfer } = fileTitleDrag(title)
+    expect(event.defaultPrevented).toBe(false)
+    expect(dataTransfer.effectAllowed).toBe("copyMove")
+    expect(spacePathDragData(dataTransfer)).toBe(path)
+    expect(spacePathDragPaths(dataTransfer)).toEqual([path])
+    expect(dataTransfer.getData(EIDOS_LITE_SPACE_ID_DRAG_TYPE)).toBe(spaceId)
+    expect(dataTransfer.types).toHaveLength(3)
+    const drop = new Event("drop", { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, "dataTransfer", { value: dataTransfer })
+    host.querySelector(".terminal-viewport")!.dispatchEvent(drop)
+    expect(drop.defaultPrevented).toBe(true)
+    expect(writeTerminalPath).toHaveBeenCalledExactlyOnceWith(
+      "terminal-title-drag",
+      path
+    )
+    expect(writeTerminal).not.toHaveBeenCalled()
+    await act(async () => {
+      title.dispatchEvent(new Event("dragend", { bubbles: true }))
+      title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    })
+    expect(
+      host.querySelector(".workbench")?.getAttribute("data-sidebar-collapsed")
+    ).toBe("true")
+    if (path.endsWith(".mov")) {
+      expect(
+        title.querySelector(".media-file-metadata")?.textContent
+      ).toContain("Video")
+      expect(host.querySelector("video")?.controls).toBe(true)
+    }
+  }
+)
+
+it("preserves title hover/Alt, context menu, click and keyboard Reveal after a drag", async () => {
+  installHost({
+    previewTextFile: async () => initial,
+    pluginEditors: async () => [],
+  })
+  window.localStorage.setItem("eidos-lite:space-sidebar-collapsed", "true")
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector(".file-titlebar-document")).not.toBeNull()
+  )
+  const title = host.querySelector<HTMLButtonElement>(
+    ".file-titlebar-document"
+  )!
+  await act(async () => surface.mock.lastCall![0].onChange("# Edited"))
+  expect(host.querySelector(".file-titlebar-dirty")).not.toBeNull()
+  await act(async () => {
+    title.dispatchEvent(
+      new MouseEvent("mouseover", { bubbles: true, altKey: true })
+    )
+  })
+  expect(title.querySelector(".file-titlebar-path")?.textContent).toBe(oldPath)
+  await act(async () =>
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }))
+  )
+  expect(title.querySelector(".file-titlebar-path")).toBeNull()
+  await act(async () => {
+    title.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Alt", altKey: true, bubbles: true })
+    )
+    title.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }))
+  })
+  expect(title.querySelector(".file-titlebar-path")).toBeNull()
+  const context = new MouseEvent("contextmenu", {
+    bubbles: true,
+    cancelable: true,
+    clientX: 10,
+    clientY: 20,
+  })
+  await act(async () => title.dispatchEvent(context))
+  expect(context.defaultPrevented).toBe(true)
+  expect(host.querySelector(".space-context-menu")).not.toBeNull()
+  expect(
+    host.querySelector(".workbench")?.getAttribute("data-sidebar-collapsed")
+  ).toBe("true")
+  fileTitleDrag(title)
+  // Native keyboard activation has detail 0 and remains available after drag.
+  await act(async () => title.click())
+  expect(
+    host.querySelector(".workbench")?.getAttribute("data-sidebar-collapsed")
+  ).toBe("false")
+  expect(host.querySelector(".file-titlebar-dirty")).not.toBeNull()
+  expect(surface.mock.lastCall![0].content).toBe("# Edited")
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[data-sidebar-toggle="close"]')!
+      .click()
+  )
+  fileTitleDrag(title)
+  await act(async () => {
+    title.dispatchEvent(new Event("pointerdown", { bubbles: true }))
+    title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+  })
+  expect(
+    host.querySelector(".workbench")?.getAttribute("data-sidebar-collapsed")
+  ).toBe("false")
+})
+
+it("uses the newly ready document, never the Explorer context selection or pending title", async () => {
+  let complete!: (preview: TextFilePreviewResult) => void
+  installHost({
+    previewTextFile: (path: string) =>
+      path === oldPath
+        ? Promise.resolve(initial)
+        : new Promise<TextFilePreviewResult>((resolve) => {
+            complete = resolve
+          }),
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector(".file-titlebar-document")).not.toBeNull()
+  )
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>("[data-test-folder-menu]")!.click()
+  )
+  expect(
+    spacePathDragPaths(
+      fileTitleDrag(host.querySelector(".file-titlebar-document")!).dataTransfer
+    )
+  ).toEqual([oldPath])
+  const previousTitle = host.querySelector(".file-titlebar-document")!
+  await act(async () => navigateCurrentWindow("other.md"))
+  await vi.waitFor(() => expect(complete).toBeTypeOf("function"))
+  expect(host.querySelector(".file-titlebar-document")).toBeNull()
+  expect(host.querySelector(".file-titlebar")?.textContent).toContain(
+    "other.md"
+  )
+  expect(spacePathDragPaths(fileTitleDrag(previousTitle).dataTransfer)).toEqual(
+    []
+  )
+  await act(async () =>
+    complete({ ...initial, relativePath: "other.md", content: "# Other" })
+  )
+  const title = host.querySelector(".file-titlebar-document")!
+  expect(spacePathDragPaths(fileTitleDrag(title).dataTransfer)).toEqual([
+    "other.md",
+  ])
+  await act(async () => navigateCurrentWindow(oldPath))
+  await vi.waitFor(() =>
+    expect(
+      host.querySelector(".file-titlebar-document")?.textContent
+    ).toContain("old.md")
+  )
+  expect(
+    spacePathDragPaths(
+      fileTitleDrag(host.querySelector(".file-titlebar-document")!).dataTransfer
+    )
+  ).toEqual([oldPath])
+  const previousCompletion = complete
+  await act(async () => navigateCurrentWindow("other.md"))
+  await vi.waitFor(() => expect(complete).not.toBe(previousCompletion))
+  await act(async () => navigateCurrentWindow(oldPath))
+  expect(host.querySelector(".file-titlebar-document")).toBeNull()
+  await act(async () =>
+    complete({ ...initial, relativePath: "other.md", content: "# Other" })
+  )
+  await vi.waitFor(() =>
+    expect(
+      host.querySelector(".file-titlebar-document")?.textContent
+    ).toContain("old.md")
+  )
+  expect(
+    spacePathDragPaths(
+      fileTitleDrag(host.querySelector(".file-titlebar-document")!).dataTransfer
+    )
+  ).toEqual([oldPath])
+})
+
+it("cancels a title drag when the current Space snapshot no longer has its file or blocks interaction", async () => {
+  let changed!: (space: SpaceSnapshot) => void
+  installHost({
+    previewTextFile: async () => initial,
+    onSpaceChanged: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(
+      host.querySelector<HTMLButtonElement>(".file-titlebar-document")
+        ?.draggable
+    ).toBe(true)
+  )
+  for (const snapshot of [
+    { ...staleSpace, entries: [] },
+    {
+      ...staleSpace,
+      operation: { phase: "materializing", recoverable: false },
+    },
+  ] satisfies SpaceSnapshot[]) {
+    await act(async () => changed(snapshot))
+    const title = host.querySelector<HTMLButtonElement>(
+      ".file-titlebar-document"
+    )!
+    expect(title.draggable).toBe(false)
+    const { event, dataTransfer } = fileTitleDrag(title)
+    expect(event.defaultPrevented).toBe(true)
+    expect(spacePathDragPaths(dataTransfer)).toEqual([])
+  }
+})
+
+it("keeps Space and plugin-list titles free of file drag payloads", async () => {
+  installHost({
+    previewTextFile: async () => initial,
+    getPluginInstallTasks: async () => ({}),
+    getPluginPackagePreviews: async () => [],
+    pluginMarketplace: async () => ({
+      plugins: [],
+      cached: true,
+      fetchedAt: "2026-11-16T05:00:00.000Z",
+    }),
+  })
+  await act(async () => root!.render(<App />))
+  await vi.waitFor(() =>
+    expect(host.querySelector(".file-titlebar-document")).not.toBeNull()
+  )
+  for (const location of [null, { type: "plugins" as const }]) {
+    await act(async () => navigateCurrentWindow(location))
+    expect(host.querySelector(".file-titlebar-document")).toBeNull()
+    expect(host.querySelector('.file-titlebar [draggable="true"]')).toBeNull()
+    expect(
+      spacePathDragPaths(
+        fileTitleDrag(host.querySelector(".file-titlebar strong")!).dataTransfer
+      )
+    ).toEqual([])
+  }
+})
 
 it.each([
   {

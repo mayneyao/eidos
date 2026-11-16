@@ -124,6 +124,7 @@ import {
 import { useAppTheme } from "./use-app-theme"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
+import { setSpacePathDragData } from "./space-path-drag"
 import { isMarkdownTextFile } from "./text-editor-options"
 import type { EidosFileWorkbench as EidosFileWorkbenchImplementation } from "./eidos-file-workbench"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
@@ -1148,6 +1149,7 @@ function WorkspaceApp({
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
+  const titleDragStartedRef = useRef(false)
   useEffect(() => {
     if (!titleHovered) return
     const update = (event: KeyboardEvent) => setTitleAltPressed(event.altKey)
@@ -1803,6 +1805,13 @@ function WorkspaceApp({
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  const activeDocumentEntry = useMemo(
+    () =>
+      activeDocumentPath && space
+        ? findSpaceEntry(space.entries, activeDocumentPath)
+        : null,
+    [activeDocumentPath, space?.entries]
+  )
   useEffect(() => {
     const path =
       activeDocumentPath === SPACE_FILE_METADATA_PATH
@@ -4012,6 +4021,11 @@ function WorkspaceApp({
             }
           : null
   )
+  const titlebarDocumentDraggable =
+    !localInteractionBlocked &&
+    !titlebarPresentation.pending &&
+    activeDocumentEntry !== null &&
+    activeDocumentEntry.kind !== "directory"
   const openEntryContextMenu = (
     entry: SpaceTreeEntry,
     x: number,
@@ -4698,6 +4712,23 @@ function WorkspaceApp({
                   title={`${activeDocumentPath} — ${t("Reveal in Explorer")}`}
                   aria-label={t("Reveal in Explorer")}
                   disabled={localInteractionBlocked}
+                  draggable={titlebarDocumentDraggable}
+                  onPointerDown={() => {
+                    titleDragStartedRef.current = false
+                  }}
+                  onDragStart={(event) => {
+                    if (!titlebarDocumentDraggable) {
+                      event.preventDefault()
+                      return
+                    }
+                    titleDragStartedRef.current = true
+                    setSpacePathDragData(
+                      event.dataTransfer,
+                      activeDocumentPath,
+                      [activeDocumentPath],
+                      space.id
+                    )
+                  }}
                   onMouseEnter={(event) => {
                     setTitleHovered(true)
                     setTitleAltPressed(event.altKey)
@@ -4706,7 +4737,15 @@ function WorkspaceApp({
                     setTitleHovered(false)
                     setTitleAltPressed(false)
                   }}
-                  onClick={() => void activateDocumentTitle()}
+                  onClick={(event) => {
+                    // A drag must not reveal the file when the pointer lands
+                    // back on its title. The next press starts a normal click.
+                    if (titleDragStartedRef.current && event.detail > 0) {
+                      event.preventDefault()
+                      return
+                    }
+                    void activateDocumentTitle()
+                  }}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     void activateDocumentTitle({
