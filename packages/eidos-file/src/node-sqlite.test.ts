@@ -265,6 +265,26 @@ describe.runIf(supportsElectron43NodeSqlite)(
       }
     })
 
+    it("allows reading the database encoding while rejecting changes in read-only mode", () => {
+      const connection = new NodeSqliteConnectionPort(
+        new DatabaseSync(":memory:"),
+        { readOnly: true }
+      )
+      try {
+        expect(connection.get("PRAGMA encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+        expect(() =>
+          connection.get("PRAGMA encoding = 'UTF-16le'")
+        ).toThrowError(expect.objectContaining({ code: "read-only" }))
+        expect(connection.get("PRAGMA encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+      } finally {
+        connection.close()
+      }
+    })
+
     it("keeps the synchronous EidosFileRuntime compatibility surface native-free", async () => {
       const directory = await mkdtemp(path.join(tmpdir(), "eidos-node-sqlite-"))
       const filePath = path.join(directory, "compatibility.eidos")
