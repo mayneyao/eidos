@@ -24,6 +24,9 @@ export function EidosFileCommandCombobox({
   filter,
   contentClassName,
   listClassName,
+  side,
+  sideOffset,
+  collisionPadding,
   children,
 }: {
   open: boolean
@@ -35,6 +38,11 @@ export function EidosFileCommandCombobox({
   filter?: ComponentPropsWithoutRef<typeof Command>["filter"]
   contentClassName?: string
   listClassName?: string
+  side?: ComponentPropsWithoutRef<typeof PopoverContent>["side"]
+  sideOffset?: number
+  collisionPadding?: ComponentPropsWithoutRef<
+    typeof PopoverContent
+  >["collisionPadding"]
   children: ReactNode
 }) {
   return (
@@ -44,8 +52,11 @@ export function EidosFileCommandCombobox({
         aria-label={title}
         className={cn("p-0", contentClassName)}
         align="start"
+        side={side}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
       >
-        <Command filter={filter}>
+        <Command filter={filter} className="h-auto">
           <CommandInput
             autoFocus
             placeholder={searchPlaceholder}

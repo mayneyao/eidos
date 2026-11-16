@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react"
+import { useLayoutEffect, useRef, useState, type ComponentType } from "react"
 import type { CreateEidosFileFieldInput } from "@eidos.space/eidos-file"
 import {
   Baseline,
@@ -7,6 +7,7 @@ import {
   Check,
   CheckSquare,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Fingerprint,
   Hash,
@@ -237,8 +238,24 @@ export function EidosFileFieldTypePicker({
   allowedTypes?: readonly EidosFileCreatableFieldType[]
   disabled?: boolean
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const [open, setOpen] = useState(false)
+  const [below, setBelow] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  useLayoutEffect(() => {
+    if (!open || interactionMode === "mobile") return
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      // Use the existing vertical layout when neither side can fit the menu,
+      // the parent form's inset and the viewport collision padding.
+      setBelow(Math.max(rect.left, window.innerWidth - rect.right) < 372)
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [open, interactionMode])
+  const Indicator = below ? ChevronDown : ChevronRight
   const allowed = allowedTypes ? new Set(allowedTypes) : null
   const availableGroups = EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => ({
     ...group,
@@ -261,6 +278,10 @@ export function EidosFileFieldTypePicker({
       searchPlaceholder={t("Search field types…")}
       title={t("Field type")}
       emptyText={t("No matching field type.")}
+      side={below ? "bottom" : "right"}
+      // Clear the parent form's 16px inset and keep a 4px surface gap.
+      sideOffset={below ? 4 : 20}
+      collisionPadding={12}
       filter={(value, search, keywords) =>
         [value, ...(keywords ?? [])]
           .join(" ")
@@ -273,6 +294,7 @@ export function EidosFileFieldTypePicker({
       listClassName="max-h-80"
       trigger={
         <button
+          ref={triggerRef}
           type="button"
           role="combobox"
           aria-expanded={open}
@@ -293,7 +315,7 @@ export function EidosFileFieldTypePicker({
               {t(selected.description)}
             </span>
           </span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          <Indicator className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       }
     >
