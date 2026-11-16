@@ -2,7 +2,11 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
+import {
+  encodeEidosFileValues,
+  type EidosFileFieldInfo,
+  type FileEntry,
+} from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider } from "./context"
@@ -375,6 +379,78 @@ describe("EidosFileRecordInspector", () => {
       await act(async () => copy().click())
       expect(onError).toHaveBeenCalledWith(failure)
       expect(onCellEdit).not.toHaveBeenCalled()
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor)
+      else Reflect.deleteProperty(navigator, "clipboard")
+    }
+  })
+
+  it("keeps one whole-field copy action in the first attachment row without asset capabilities", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    })
+    const attachments: FileEntry[] = [
+      {
+        id: "0198c72d-82b5-7000-8000-000000000021",
+        uri: "assets/first.png",
+        name: "First image.png",
+        mediaType: "image/png",
+        size: "1024",
+      },
+      {
+        id: "0198c72d-82b5-7000-8000-000000000022",
+        uri: "assets/second.pdf",
+        name: "Second document.pdf",
+        mediaType: "application/pdf",
+        size: "2048",
+      },
+    ]
+    const attachmentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "attachments",
+      name: "Attachments",
+      type: "file",
+      tableColumnName: "attachments",
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    const onError = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <EidosFileRecordInspector
+            row={{
+              _id: "attachments",
+              attachments: encodeEidosFileValues(attachments),
+            }}
+            fields={[attachmentField]}
+            onError={onError}
+          />
+        )
+      )
+      const copy = container.querySelector<HTMLButtonElement>(
+        '[aria-label="Copy Attachments"]'
+      )!
+      const entries = container.querySelectorAll(".group\\/file")
+      expect(entries).toHaveLength(2)
+      expect(entries[0].contains(copy)).toBe(true)
+      expect(entries[1].querySelector("button")).toBeNull()
+      expect(
+        container.querySelectorAll('[aria-label="Copy Attachments"]')
+      ).toHaveLength(1)
+      await act(async () => copy.click())
+      expect(writeText).toHaveBeenLastCalledWith(
+        "First image.png, Second document.pdf"
+      )
+      expect(copy.title).toBe("Copied")
+      expect(copy.querySelector('[role="status"]')?.textContent).toBe("Copied")
+      const failure = new Error("Clipboard denied")
+      writeText.mockRejectedValueOnce(failure)
+      await act(async () => copy.click())
+      expect(onError).toHaveBeenCalledWith(failure)
     } finally {
       if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor)
       else Reflect.deleteProperty(navigator, "clipboard")

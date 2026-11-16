@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
@@ -174,6 +182,8 @@ function CopyableFieldValue({
   const { timeZone, translate: t, calendarTimeZoneData } = useEidosFileUI()
   const [copied, setCopied] = useState(false)
   const value = row[field.tableColumnName]
+  const inlineFileActions =
+    field.type === "file" && decodeEidosFileValues(value).length > 0
   const text = eidosFileRecordFieldText(
     row,
     field,
@@ -188,38 +198,50 @@ function CopyableFieldValue({
     const timer = setTimeout(() => setCopied(false), 1500)
     return () => clearTimeout(timer)
   }, [copied])
+  const copyAction =
+    value !== null && value !== undefined && value !== "" ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "text-muted-foreground",
+          inlineFileActions
+            ? "h-7 w-7 shrink-0"
+            : "absolute right-0 -top-0.5 h-6 w-6 opacity-0 group-hover/readonly:opacity-100 group-focus-within/readonly:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        )}
+        aria-label={t("Copy {field}", {
+          field: eidosFileFieldDisplayName(field),
+        })}
+        title={copied ? t("Copied") : t("Copy")}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopied(true)
+          } catch (error) {
+            onError?.(error)
+          }
+        }}
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+        <span className="sr-only" role="status">
+          {copied ? t("Copied") : ""}
+        </span>
+      </Button>
+    ) : null
   return (
-    <div className="relative min-w-0 pr-8">
-      <FieldValue field={field} row={row} onError={onError} />
-      {value !== null && value !== undefined && value !== "" ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-0 -top-0.5 h-6 w-6 text-muted-foreground opacity-0 group-hover/readonly:opacity-100 group-focus-within/readonly:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-          aria-label={t("Copy {field}", {
-            field: eidosFileFieldDisplayName(field),
-          })}
-          title={copied ? t("Copied") : t("Copy")}
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(text)
-              setCopied(true)
-            } catch (error) {
-              onError?.(error)
-            }
-          }}
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-          <span className="sr-only" role="status">
-            {copied ? t("Copied") : ""}
-          </span>
-        </Button>
-      ) : null}
+    <div className={cn("relative min-w-0", !inlineFileActions && "pr-8")}>
+      <FieldValue
+        field={field}
+        row={row}
+        onError={onError}
+        fileActions={inlineFileActions ? copyAction : undefined}
+      />
+      {!inlineFileActions ? copyAction : null}
     </div>
   )
 }
@@ -228,10 +250,12 @@ function FieldValue({
   field,
   row,
   onError,
+  fileActions,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
   onError?: (error: unknown) => void
+  fileActions?: ReactNode
 }) {
   const {
     activateUrl,
@@ -263,8 +287,13 @@ function FieldValue({
     }
     return (
       <div className="grid gap-1">
-        {entries.map((entry) => (
-          <EidosFileEntrySurface key={entry.id} entry={entry} compact />
+        {entries.map((entry, index) => (
+          <EidosFileEntrySurface
+            key={entry.id}
+            entry={entry}
+            compact
+            trailingActions={index === 0 ? fileActions : undefined}
+          />
         ))}
       </div>
     )

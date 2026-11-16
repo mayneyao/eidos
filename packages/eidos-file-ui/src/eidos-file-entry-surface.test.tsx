@@ -101,6 +101,40 @@ describe("EidosFileEntrySurface", () => {
     container.remove()
   })
 
+  it("keeps caller actions usable without Host activation and respects showActions", async () => {
+    const file = entry(
+      "metadata",
+      "assets/readme.txt",
+      "readme.txt",
+      "text/plain"
+    )
+    const action = vi.fn()
+    const render = (showActions = true) =>
+      act(async () =>
+        root.render(
+          <EidosFileEntrySurface
+            entry={file}
+            compact
+            showActions={showActions}
+            trailingActions={
+              <button type="button" onClick={action}>
+                Copy field
+              </button>
+            }
+          />
+        )
+      )
+    await render()
+    const button = container.querySelector<HTMLButtonElement>("button")!
+    expect(button.textContent).toBe("Copy field")
+    await act(async () => button.click())
+    expect(action).toHaveBeenCalledOnce()
+    expect(container.querySelector('[aria-label^="Open "]')).toBeNull()
+    expect(container.querySelector('[aria-label^="Download "]')).toBeNull()
+    await render(false)
+    expect(container.querySelector("button")).toBeNull()
+  })
+
   it("handles preview arrow keys, leaves text inputs alone and closes with Escape", async () => {
     const file = entry("keyboard", "assets/key.png", "key.png")
     const previous = vi.fn(),

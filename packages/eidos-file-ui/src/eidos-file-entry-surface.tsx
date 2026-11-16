@@ -543,6 +543,8 @@ export interface EidosFileEntrySurfaceProps {
   className?: string
   compact?: boolean
   showActions?: boolean
+  /** Extra file-row actions that do not require Host asset capabilities. */
+  trailingActions?: ReactNode
   presentation?: "file" | "cover" | "preview"
   fitContent?: boolean
   onPreview?: (entry: FileEntry) => void
@@ -764,6 +766,7 @@ export function EidosFileEntrySurface({
   className,
   compact = false,
   showActions = true,
+  trailingActions,
   presentation = "file",
   fitContent = false,
   onPreview,
@@ -989,12 +992,12 @@ export function EidosFileEntrySurface({
     </>
   )
   const actions =
-    showActions && (canOpen || canDownload) ? (
+    showActions && (canOpen || canDownload || trailingActions) ? (
       <div
         className={cn(
           "flex shrink-0 items-center",
           compact &&
-            "opacity-0 transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100"
+            "opacity-0 transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100 [@media(hover:none)]:opacity-100"
         )}
       >
         {canOpen ? (
@@ -1023,6 +1026,7 @@ export function EidosFileEntrySurface({
             <Download className="h-3.5 w-3.5" />
           </Button>
         ) : null}
+        {trailingActions}
       </div>
     ) : null
 
