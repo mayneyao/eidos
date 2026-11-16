@@ -1,4 +1,9 @@
 import { createPublicKey, randomUUID } from "node:crypto"
+import {
+  readTraceKey,
+  readTraceValueKey,
+  runtimeReadTrace,
+} from "../runtime/read-trace"
 import { createRememberedSyncUnlocks } from "./sync/create-remembered-sync-unlocks"
 import { canRememberSyncUnlock } from "./sync/remembered-sync-unlocks"
 import { CustomSyncServers } from "./sync/custom-sync-servers"
@@ -2674,14 +2679,33 @@ export function registerIpc(
         runtimeMethod === "previewCsvFile" || runtimeMethod === "importCsvFile"
           ? [requireCsvSource(event.sender, args[0]), ...args.slice(1)]
           : args
-      const result = await controller
-        .requireSession(event.sender)
-        .callRuntime(
-          sessionId,
-          runtimeMethod,
-          runtimeArgs as RuntimeCalls[RuntimeMethod]["args"],
-          consumer
-        )
+      const session = controller.requireSession(event.sender)
+      const result = await runtimeReadTrace.span(
+        "ipc-call",
+        {
+          method: runtimeMethod,
+          sessionKey: runtimeReadTrace.enabled
+            ? readTraceKey(sessionId)
+            : undefined,
+          readOnly: session.readOnly,
+          ...(runtimeMethod === "getPage"
+            ? {
+                offset: typeof args[1] === "number" ? args[1] : undefined,
+                limit: typeof args[2] === "number" ? args[2] : undefined,
+                queryKey: runtimeReadTrace.enabled
+                  ? readTraceValueKey(args[3])
+                  : undefined,
+              }
+            : {}),
+        },
+        () =>
+          session.callRuntime(
+            sessionId,
+            runtimeMethod,
+            runtimeArgs as RuntimeCalls[RuntimeMethod]["args"],
+            consumer
+          )
+      )
       if (
         (RUNTIME_MUTATION_METHODS as readonly string[]).includes(runtimeMethod)
       )

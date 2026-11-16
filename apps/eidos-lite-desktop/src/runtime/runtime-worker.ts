@@ -1,4 +1,6 @@
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
+import { runtimeReadTrace } from "./read-trace"
 import {
   normalizeEidosSchemaMergeFiles,
   planEidosSchemaMergeFiles,
@@ -515,20 +517,51 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
   }
 }
 
+runtimeReadTrace.installSql(DatabaseSync.prototype)
+
 parentPort.on("message", (event) => {
   const request = event.data as RuntimeWorkerRequest
-  void handle(request).then(
-    (result) => {
-      parentPort.postMessage({ requestId: request.requestId, ok: true, result })
-      if (request.type === "close") setTimeout(() => process.exit(0), 10)
-    },
-    (error) => {
-      parentPort.postMessage({
-        requestId: request.requestId,
-        ok: false,
-        error: serializeRuntimeWorkerError(error),
-      })
-      if (request.type === "close") setTimeout(() => process.exit(0), 10)
-    }
-  )
+  const meta = {
+    requestId: request.requestId,
+    type: request.type,
+    ...(request.type === "call"
+      ? {
+          method: request.method,
+          ...(request.method === "getPage" && Array.isArray(request.args)
+            ? {
+                offset:
+                  typeof request.args[1] === "number"
+                    ? request.args[1]
+                    : undefined,
+                limit:
+                  typeof request.args[2] === "number"
+                    ? request.args[2]
+                    : undefined,
+              }
+            : {}),
+        }
+      : {}),
+  }
+  void runtimeReadTrace
+    .span("worker-request", meta, () => handle(request))
+    .then(
+      (result) => {
+        runtimeReadTrace.point("worker-reply", meta)
+        parentPort.postMessage({
+          requestId: request.requestId,
+          ok: true,
+          result,
+        })
+        if (request.type === "close") setTimeout(() => process.exit(0), 10)
+      },
+      (error) => {
+        runtimeReadTrace.point("worker-error", meta)
+        parentPort.postMessage({
+          requestId: request.requestId,
+          ok: false,
+          error: serializeRuntimeWorkerError(error),
+        })
+        if (request.type === "close") setTimeout(() => process.exit(0), 10)
+      }
+    )
 })

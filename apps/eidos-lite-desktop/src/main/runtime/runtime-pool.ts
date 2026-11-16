@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { readTraceKey, runtimeReadTrace } from "../../runtime/read-trace"
 import type { FileMetaValues, FileMetaPatch } from "@eidos.space/plugin-sdk"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -296,15 +297,25 @@ export class RuntimePool {
     if (entry.closed || this.closingEntries.has(entry)) {
       throw new Error("Unknown or closed Eidos File session")
     }
-    const issue = await this.entryIssue(entry)
+    const issue = await runtimeReadTrace.span(
+      "main-file-check",
+      {
+        sessionKey: runtimeReadTrace.enabled
+          ? readTraceKey(sessionId)
+          : undefined,
+      },
+      () => this.entryIssue(entry)
+    )
     if (issue) {
       await this.invalidateSession(sessionId)
       throw new EidosFileRuntimeError(issue)
     }
     this.touch(entry)
     let call: Promise<RuntimeCalls[M]["result"]> | null = null
+    runtimeReadTrace.point("main-residency-wait", { method })
     await this.withResidencyLock(async () => {
       await this.ensureResidentLocked(entry)
+      runtimeReadTrace.point("main-residency-ready", { method })
       call = this.request(entry, {
         type: "call",
         requestId: entry.nextRequestId++,
@@ -1166,6 +1177,28 @@ export class RuntimePool {
         reject,
       })
       try {
+        runtimeReadTrace.point("main-worker-send", {
+          utilityPid: child.pid,
+          requestId: request.requestId,
+          type: request.type,
+          ...(request.type === "call"
+            ? {
+                method: request.method,
+                ...(request.method === "getPage"
+                  ? {
+                      offset:
+                        typeof request.args[1] === "number"
+                          ? request.args[1]
+                          : undefined,
+                      limit:
+                        typeof request.args[2] === "number"
+                          ? request.args[2]
+                          : undefined,
+                    }
+                  : {}),
+              }
+            : {}),
+        })
         child.postMessage(request)
       } catch (error) {
         entry.pending.delete(request.requestId)
@@ -1179,6 +1212,10 @@ export class RuntimePool {
     if (!isWorkerResponse(message)) return
     const pending = entry.pending.get(message.requestId)
     if (!pending) return
+    runtimeReadTrace.point("main-worker-receive", {
+      utilityPid: pending.child.pid,
+      requestId: message.requestId,
+    })
     entry.pending.delete(message.requestId)
     this.notifyPendingChange()
     if (message.ok) {
