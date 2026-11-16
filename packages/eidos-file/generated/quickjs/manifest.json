@@ -73,7 +73,7 @@
       "packages/eidos-file/src/lookup-functions.ts": "40a47707c0e8c1994dcbed681d3f20fdd6830880d013b1d22394e52f2cc339a7",
       "packages/eidos-file/src/lookup.test.ts": "0ff0168c10832ca326c49cc3b4bab1c9c331247c1c2e6a0a98021c85a0a0a2fe",
       "packages/eidos-file/src/lookup.ts": "8fc34998c8d6fb97ab25bb5567aef03bdcc2fc9a728f2af4a706c8ec45e65578",
-      "packages/eidos-file/src/node-sqlite.test.ts": "ee53eb253bef0730049fb2be5ba50c3bd868b7e9ec7a5f65d562d48910769c1e",
+      "packages/eidos-file/src/node-sqlite.test.ts": "f3e35c2c8ce3ca5c8bb2c868c94e2e528ada9942ce5767783302d9a103a9c3c4",
       "packages/eidos-file/src/node-sqlite.ts": "17e1e2840d8e34f716931c2106acd2fe902b23018eb041b9128e08cf0ae54d62",
       "packages/eidos-file/src/plugin-config.test.ts": "f4a22b6e199809b3e4d50829ca3d4dea8513632cab98ec56576ffcd65ab639e2",
       "packages/eidos-file/src/plugin-config.ts": "6ea7ea451f90881177cb7acf4a3376b6e66a39818651c4967eab214066bd6337",

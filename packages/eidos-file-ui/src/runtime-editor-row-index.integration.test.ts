@@ -67,6 +67,46 @@ it("delegates canonical Datetime positions to Runtime and preserves explicit pre
           ).toBe(String(index))
         }
       }
+    for (const filter of [
+      { op: "calendar-period", fieldId: when.id, unit: "day", offset: 0 },
+      {
+        op: "calendar-window",
+        fieldId: when.id,
+        unit: "week",
+        direction: "past",
+        count: 1,
+      },
+    ] as const) {
+      const request = {
+        tableId: table.table.id,
+        calendar: {
+          timeZone: "UTC",
+          timeZoneData: "2026f",
+          weekStartsOn: 1 as const,
+        },
+        referenceInstant: "2026-11-16T00:00:00.000Z",
+        query: {
+          filter,
+          sort: [{ fieldId: when.id, direction: "asc" as const }],
+        },
+      }
+      const page = await service.queryRows(
+        {
+          ...request,
+          projection: { fields: [when.id], resolveRelations: [] },
+          limit: 20,
+        },
+        { requestId: `calendar-rank-rows-${filter.op}` }
+      )
+      expect(page.rows).toHaveLength(3)
+      for (const [index, row] of page.rows.entries())
+        expect(
+          await service.getRowIndex!(
+            { ...request, rowId: row.id },
+            { requestId: `calendar-rank-${filter.op}-${index}` }
+          )
+        ).toBe(String(index))
+    }
     await expect(
       source.insertRow(table.table.id, {
         [when.id]: "2026-11-16T00:00:00.123456Z",

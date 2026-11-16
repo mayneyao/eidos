@@ -65,7 +65,16 @@ from the repository root keeps an isolated plugin store and never touches the
 shared Eidos home. The first launch after upgrading migrates an existing
 `userData/plugins` store into the home.
 
-Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned sqlite-fs-meta v0.3.0 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
+For development verification, an unpackaged app accepts
+`EIDOS_LITE_DEV_READONLY_ROOT=/absolute/protected/folder`. It matches the canonical
+Space root exactly; other Spaces retain normal access. The protected Space opens
+existing files and its existing metadata catalog without initialization or Graft
+maintenance, rejects mutations, and keeps filter/sort edits in window memory.
+For verification requiring zero source writes, run the whole development process
+under an OS write-denial policy for that root. Keep the profile and `EIDOS_HOME`
+outside it. Packaged apps ignore this development setting.
+
+Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned xmeta v0.6.2 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
 
 ```bash
 SQLITE_FS_META_PATH=/absolute/sqlite-fs-meta/target/debug/libfs_meta.dylib pnpm dev:eidos-lite
