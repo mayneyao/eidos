@@ -1,4 +1,5 @@
 import { randomUUID, createHash } from "node:crypto"
+import { runtimeReadTrace } from "../../runtime/read-trace"
 import { copySpacePath } from "./copy-space-path"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import {
@@ -2541,6 +2542,8 @@ export class SpaceSession {
     // Resolve it before taking the Space mutation gate so other edits are not
     // blocked behind a Spark timeout.
     if (isMutation) await this.requireSparkRuntimeAccess(sessionId)
+    if (!isMutation && !isCsvOperationControl)
+      runtimeReadTrace.point("space-read-gate-wait", { method })
     let result: RuntimeCalls[M]["result"]
     try {
       result = isMutation
@@ -2562,9 +2565,10 @@ export class SpaceSession {
           })
         : isCsvOperationControl
           ? await this.runtimePool.call(sessionId, method, args, consumer)
-          : await this.gate.withRuntimeRead(() =>
-              this.runtimePool.call(sessionId, method, args, consumer)
-            )
+          : await this.gate.withRuntimeRead(() => {
+              runtimeReadTrace.point("space-read-gate-ready", { method })
+              return this.runtimePool.call(sessionId, method, args, consumer)
+            })
     } catch (error) {
       if (error instanceof EidosFileRuntimeError) {
         this.fileIssuesByPath.set(error.issue.relativePath, error.issue)
