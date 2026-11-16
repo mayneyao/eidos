@@ -42,15 +42,15 @@ import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspecto
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, AlertDialogPortal, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog.mjs";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu.mjs";
 import { DragEndEvent, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, Status } from "./ui/kanban.mjs";
+import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as React$2 from "react";
+import { ComponentProps, ComponentPropsWithoutRef, Dispatch, ForwardRefExoticComponent, KeyboardEvent, MutableRefObject, ReactNode, SetStateAction } from "react";
 import * as _$_eidos_space_eidos_file0 from "@eidos.space/eidos-file";
 import { AtomicType, CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileActionRow, EidosFileCalendarContext, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileDataSource as EidosFileDataSource$1, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileRowsUndoResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableAggregateOptions, EidosFileTableAggregateResult, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, JsonObject, LogicalValue, RecordNeighbors, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
-import * as React$2 from "react";
-import { ComponentPropsWithoutRef, Dispatch, KeyboardEvent, MutableRefObject, ReactNode, SetStateAction } from "react";
-import * as _$react_jsx_runtime0 from "react/jsx-runtime";
-import { Popover as Popover$1, ScrollArea, Select as Select$1, Switch } from "radix-ui";
+import * as _$class_variance_authority_dist_types0 from "class-variance-authority/dist/types";
+import { Popover as Popover$1, Select as Select$1 } from "radix-ui";
 import { VariantProps } from "class-variance-authority";
 import { BaseDrawArgs, BaseGridCell, CustomCell, CustomRenderer, DataEditorProps, DataEditorRef, EditableGridCell, GridCell, GridColumn, GridSelection, Item, ProvideEditorComponent, Rectangle, SelectionRange, SpriteMap, Theme } from "@glideapps/glide-data-grid";
-import * as _$class_variance_authority_dist_types0 from "class-variance-authority/dist/types";
 import { NumberFormatValues } from "react-number-format/types/types.js";
 
 //#region src/ui/primitives.d.ts
@@ -149,6 +149,12 @@ declare function EidosFileFieldPropertyPanel({
   onEditLookup?: (field: EidosFileFieldInfo) => void;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
+//#region src/ui/adaptive-popover.d.ts
+type ContentProps = ComponentProps<typeof PopoverContent> & {
+  mobileHeader?: ReactNode;
+};
+declare const PopoverContent$1: ForwardRefExoticComponent<ContentProps>;
+//#endregion
 //#region src/eidos-file-command-combobox.d.ts
 /**
  * Shared searchable dropdown shell: a Popover hosting a cmdk Command list
@@ -165,6 +171,9 @@ declare function EidosFileCommandCombobox({
   filter,
   contentClassName,
   listClassName,
+  side,
+  sideOffset,
+  collisionPadding,
   children
 }: {
   open: boolean;
@@ -176,6 +185,9 @@ declare function EidosFileCommandCombobox({
   filter?: ComponentPropsWithoutRef<typeof Command>["filter"];
   contentClassName?: string;
   listClassName?: string;
+  side?: ComponentPropsWithoutRef<typeof PopoverContent$1>["side"];
+  sideOffset?: number;
+  collisionPadding?: ComponentPropsWithoutRef<typeof PopoverContent$1>["collisionPadding"];
   children: ReactNode;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
@@ -218,6 +230,8 @@ interface EidosFileEntrySurfaceProps {
   className?: string;
   compact?: boolean;
   showActions?: boolean;
+  /** Extra file-row actions that do not require Host asset capabilities. */
+  trailingActions?: ReactNode;
   presentation?: "file" | "cover" | "preview";
   fitContent?: boolean;
   onPreview?: (entry: FileEntry) => void;
@@ -243,6 +257,7 @@ declare function EidosFileEntrySurface({
   className,
   compact,
   showActions,
+  trailingActions,
   presentation,
   fitContent,
   onPreview,
@@ -1180,9 +1195,9 @@ export { AssetPresenter, EidosFileImagePresentationLease, EidosFileMarkdownEdito
 
 ```ts
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
-import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-calendar-view.d.ts
 interface EidosFileCalendarRange {
@@ -1262,8 +1277,8 @@ export { EidosFileCalendarCreateMode, EidosFileCalendarFieldType, EidosFileCalen
 
 ```ts
 import { t as EidosFileCsvOperationProgress } from "./eidos-file-csv-operation-progress-HASH.mjs";
-import { EidosFileCsvImportOptions, EidosFileCsvImportPlan } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { EidosFileCsvImportOptions, EidosFileCsvImportPlan } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-csv-import-popover.d.ts
 type CsvSelection = {
@@ -1317,8 +1332,8 @@ export { EidosFileCsvOperationProgress, EidosFileCsvOperationProgressBar, EidosF
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { n as EidosFileEditorDataSource } from "./data-source-HASH.mjs";
 import { t as EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRowMutationResult, EidosFileRowQuery, EidosFileRowRange, EidosFileRowsDeleteResult, EidosFileSnapshot, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { EidosFileFieldInfo, EidosFileRowMutationResult, EidosFileRowQuery, EidosFileRowRange, EidosFileRowsDeleteResult, EidosFileSnapshot, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-data-grid.d.ts
 interface EidosFileDataGridProps {
@@ -1414,9 +1429,9 @@ export { EidosFileEditorContent, EidosFileEditorRoot, EidosFileEditorWorkbar, Ei
 ## ./eidos-file-editor-shell
 
 ```ts
-import { EidosFileViewInfo } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { HTMLAttributes, ReactNode } from "react";
+import { EidosFileViewInfo } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-editor-shell.d.ts
 interface EidosFileEditorShellProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
@@ -1458,8 +1473,8 @@ export { EidosFileCommandContext, EidosFileEditorView, EidosFileEditorViewProps,
 ## ./eidos-file-empty-state
 
 ```ts
-import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ReactNode } from "react";
 
 //#region src/eidos-file-empty-state.d.ts
 type EidosFileEmptyStateTemplate = "blank" | "tasks";
@@ -1497,9 +1512,9 @@ export { eidosFileErrorMessage };
 
 ```ts
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRow, EidosFileRowPage, EidosFileRowPageProjection, EidosFileTableSnapshot, EidosFileViewInfo } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileRow, EidosFileRowPage, EidosFileRowPageProjection, EidosFileTableSnapshot, EidosFileViewInfo } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-feed-view.d.ts
 /** Feed orders by the Record's created-time system Field. */
@@ -1527,8 +1542,8 @@ export { EidosFileFeedView, eidosFileFeedCreatedField, eidosFileFeedProjection }
 
 ```ts
 import { EidosFileCreatableFieldType } from "./eidos-file-field-type-picker.mjs";
-import { CreateEidosFileFieldInput, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileTableSnapshot } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { CreateEidosFileFieldInput, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileTableSnapshot } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-field-create-popover.d.ts
 interface EidosFileFieldCreatePopoverProps {
@@ -1564,9 +1579,9 @@ export { EidosFileFieldCreatePopover, EidosFileFieldCreatePopoverProps };
 ## ./eidos-file-field-type-picker
 
 ```ts
-import { CreateEidosFileFieldInput } from "@eidos.space/eidos-file";
-import { ComponentType } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ComponentType } from "react";
+import { CreateEidosFileFieldInput } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-field-type-picker.d.ts
 type EidosFileCreatableFieldType = CreateEidosFileFieldInput["type"];
@@ -1652,9 +1667,9 @@ export { EidosFileFormulaComposer, EidosFileFormulaComposerProps, EidosFileFormu
 
 ```ts
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-gallery-view.d.ts
 declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
@@ -1688,9 +1703,9 @@ export { EidosFileGalleryView };
 
 ```ts
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-kanban-view.d.ts
 declare const EidosFileKanbanView: _$react.NamedExoticComponent<{
@@ -1753,9 +1768,9 @@ export { EIDOS_FILE_MARKDOWN_PROSE_CLASS, EidosFileMarkdownPreview };
 
 ```ts
 import { n as EidosFileEditorDataSource } from "./data-source-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileFilterGroup, EidosFileFilterOperator, EidosFileFilterRule, EidosFileFilterRuleValue, EidosFileSort } from "@eidos.space/eidos-file";
-import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileFilterGroup, EidosFileFilterOperator, EidosFileFilterRule, EidosFileFilterRuleValue, EidosFileSort } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-query-toolbar.d.ts
 interface EidosFileFilterEditorOptions {
@@ -1912,9 +1927,9 @@ export { EidosFileFieldFilterEditor, EidosFileFilterEditorOptions, EidosFileFilt
 
 ```ts
 import { n as EidosFileRecordCardLayout } from "./eidos-file-record-card-layout-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react from "react";
 import { AriaRole } from "react";
+import { EidosFileFieldInfo, EidosFileRow, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-record-card.d.ts
 declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
@@ -1955,8 +1970,8 @@ export { EidosFileRecordCardFieldLayout, EidosFileRecordCardLayout, createEidosF
 ## ./eidos-file-record-delete-dialog
 
 ```ts
-import { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-record-delete-dialog.d.ts
 declare function EidosFileRecordDeleteDialog({
@@ -2007,9 +2022,9 @@ export { EidosFileRowWindow, EidosFileRowWindowMergeMode, EidosFileRowWindowRequ
 
 ```ts
 import { EidosFileCsvImportPopoverProps } from "./eidos-file-csv-import-popover.mjs";
-import { CreateEidosFileTableInput } from "@eidos.space/eidos-file";
-import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ReactNode } from "react";
+import { CreateEidosFileTableInput } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-sheet-create-popover.d.ts
 type SheetCsvImportProps = Omit<EidosFileCsvImportPopoverProps, "onImported" | "triggerVariant">;
@@ -2031,9 +2046,9 @@ export { EidosFileSheetCreatePopover };
 ## ./eidos-file-sheet-tabs
 
 ```ts
-import { EidosFileFieldInfo, EidosFileTableInfo, EidosFileTableSnapshot } from "@eidos.space/eidos-file";
-import { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileTableInfo, EidosFileTableSnapshot } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-sheet-tabs.d.ts
 interface EidosFileSheetTabActions {
@@ -2092,8 +2107,8 @@ export { EidosFileSheetTabActions, EidosFileSheetTabRenderer, EidosFileSheetTabs
 ## ./eidos-file-view-fields-popover
 
 ```ts
-import { CreateEidosFileFieldInput, EidosFileFieldInfo, EidosFileViewInfo, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { CreateEidosFileFieldInput, EidosFileFieldInfo, EidosFileViewInfo, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-view-fields-popover.d.ts
 /**
@@ -2103,7 +2118,7 @@ import * as _$react_jsx_runtime0 from "react/jsx-runtime";
  */
 declare function EidosFileViewFieldsPopover({
   fields,
-  view,
+  view: savedView,
   disabled,
   className,
   onUpdate,
@@ -2129,9 +2144,9 @@ export { EidosFileViewFieldsPopover };
 ## ./eidos-file-view-selector
 
 ```ts
-import { EidosFileFieldInfo, EidosFileViewInfo, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
-import { ComponentType, ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ComponentType, ReactNode } from "react";
+import { EidosFileFieldInfo, EidosFileViewInfo, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-view-selector.d.ts
 interface EidosFilePluginViewContribution {
@@ -2216,9 +2231,9 @@ export { EIDOS_FILE_EXTENSION_VIEW_PREFIX, EIDOS_FILE_PLUGIN_VIEW_PREFIX, EidosF
 ```ts
 import { n as EidosFilePlugin } from "./plugin-HASH.mjs";
 import { EidosFileViewSelector } from "./eidos-file-view-HASH.mjs";
-import { EidosFileViewInfo } from "@eidos.space/eidos-file";
-import { ComponentProps, ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { ComponentProps, ReactNode } from "react";
+import { EidosFileViewInfo } from "@eidos.space/eidos-file";
 
 //#region src/eidos-file-view-tabs.d.ts
 interface EidosFileViewTabActions {
@@ -2428,9 +2443,9 @@ export { EIDOS_UI_PROTOCOL, EidosUIKernel, EidosUIKernelOptions, EidosUIKernelPh
 ```ts
 import { l as EidosFileUIHost } from "./context-HASH.mjs";
 import { S as EidosFileViewState, _ as EidosFileViewCommand, f as EidosFileEditorViewProps, x as EidosFileViewSelection } from "./plugin-HASH.mjs";
-import { EidosFileDataSource, EidosFileSession, EidosFileSessionState, EidosFileSnapshot } from "@eidos.space/eidos-file";
-import { CSSProperties, ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { CSSProperties, ReactNode } from "react";
+import { EidosFileDataSource, EidosFileSession, EidosFileSessionState, EidosFileSnapshot } from "@eidos.space/eidos-file";
 
 //#region src/platform.d.ts
 type EidosFileReactTrust = "trusted-react-view";
@@ -2509,10 +2524,10 @@ export { EidosFileActionPluginContribution, EidosFilePlugin, EidosFilePluginCont
 ```ts
 import { EidosFileCalendarRange } from "../eidos-file-calendar-view.mjs";
 import { y as EidosFileViewRendererProps } from "../plugin-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileFilterGroup } from "@eidos.space/eidos-file";
-import * as _$react from "react";
-import * as _$lucide_react0 from "lucide-react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as _$react from "react";
+import { EidosFileFieldInfo, EidosFileFilterGroup } from "@eidos.space/eidos-file";
+import * as _$lucide_react0 from "lucide-react";
 
 //#region src/plugins/calendar.d.ts
 declare function eidosFileCalendarRangeFilter(current: EidosFileFilterGroup | null | undefined, field: EidosFileFieldInfo, range: EidosFileCalendarRange, timeZone?: string, calendarTimeZoneData?: string | null): EidosFileFilterGroup;
@@ -2544,8 +2559,8 @@ export { eidosFileCalendarPlugin, eidosFileCalendarRangeFilter };
 ```ts
 import { t as EidosFileCsvOperationProgress } from "../eidos-file-csv-operation-progress-HASH.mjs";
 import { r as EidosFilePluginContext } from "../plugin-HASH.mjs";
-import { EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileSnapshot } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileSnapshot } from "@eidos.space/eidos-file";
 
 //#region src/plugins/csv-import.d.ts
 interface EidosFileCsvImportSource {
@@ -2612,9 +2627,9 @@ export { EidosFileCsvImportAdapter, EidosFileCsvImportCopy, EidosFileCsvImportPl
 
 ```ts
 import { y as EidosFileViewRendererProps } from "../plugin-HASH.mjs";
+import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 import * as _$react from "react";
 import * as _$lucide_react0 from "lucide-react";
-import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 
 //#region src/plugins/feed.d.ts
 declare function EidosFileFeedRenderer(props: EidosFileViewRendererProps): _$react_jsx_runtime0.JSX.Element | null;
@@ -2639,8 +2654,8 @@ export { eidosFileFeedPlugin };
 
 ```ts
 import { EidosFileFormView } from "../eidos-file-form-view.mjs";
-import * as _$_eidos_space_eidos_file0 from "@eidos.space/eidos-file";
 import * as _$react from "react";
+import * as _$_eidos_space_eidos_file0 from "@eidos.space/eidos-file";
 import * as _$lucide_react0 from "lucide-react";
 
 //#region src/plugins/form.d.ts
@@ -2667,10 +2682,10 @@ export { eidosFileFormPlugin };
 
 ```ts
 import { y as EidosFileViewRendererProps } from "../plugin-HASH.mjs";
-import { EidosFileFieldInfo } from "@eidos.space/eidos-file";
-import * as _$react from "react";
-import * as _$lucide_react0 from "lucide-react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as _$react from "react";
+import { EidosFileFieldInfo } from "@eidos.space/eidos-file";
+import * as _$lucide_react0 from "lucide-react";
 
 //#region src/plugins/gallery.d.ts
 declare function EidosFileGalleryRenderer(props: EidosFileViewRendererProps): _$react_jsx_runtime0.JSX.Element | null;
@@ -2701,10 +2716,10 @@ export { eidosFileGalleryPlugin };
 
 ```ts
 import { y as EidosFileViewRendererProps } from "../plugin-HASH.mjs";
-import { EidosFileFieldInfo } from "@eidos.space/eidos-file";
-import * as _$react from "react";
-import * as _$lucide_react0 from "lucide-react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as _$react from "react";
+import { EidosFileFieldInfo } from "@eidos.space/eidos-file";
+import * as _$lucide_react0 from "lucide-react";
 
 //#region src/plugins/kanban.d.ts
 declare function EidosFileKanbanRenderer(props: EidosFileViewRendererProps): _$react_jsx_runtime0.JSX.Element | null;
@@ -2738,8 +2753,8 @@ export { eidosFileKanbanPlugin };
 ```ts
 import { t as AssetPresenter } from "./context-HASH.mjs";
 import { EidosUIKernel, EidosUIKernelState } from "./kernel.mjs";
-import { CSSProperties, ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { CSSProperties, ReactNode } from "react";
 
 //#region src/runtime-platform.d.ts
 interface EidosUIRuntimeContextValue {
@@ -2794,8 +2809,8 @@ export { EidosStandardView, EidosStandardViewProps, EidosUIRuntimeContextValue, 
 ## ./ui/alert-dialog
 
 ```ts
-import * as React$1 from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as React$1 from "react";
 import { AlertDialog as AlertDialog$1 } from "radix-ui";
 
 //#region src/ui/alert-dialog.d.ts
@@ -2829,8 +2844,8 @@ export { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 ## ./ui/dropdown-menu
 
 ```ts
-import * as React$1 from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import * as React$1 from "react";
 import { DropdownMenu as DropdownMenu$1 } from "radix-ui";
 
 //#region src/ui/dropdown-menu.d.ts
@@ -2870,8 +2885,8 @@ export { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 ## ./ui/kanban
 
 ```ts
-import React, { ReactNode } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import React, { ReactNode } from "react";
 import { DragCancelEvent, DragEndEvent, DragEndEvent as DragEndEvent$1, DragStartEvent } from "@dnd-kit/core";
 
 //#region src/ui/kanban.d.ts
