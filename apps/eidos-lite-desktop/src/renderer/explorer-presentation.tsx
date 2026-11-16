@@ -71,6 +71,10 @@ export const EXPLORER_TREE_CSS = `
     opacity: 0.45;
   }
 
+  button[data-type="item"][data-clipboard-cut] {
+    opacity: 0.45;
+  }
+
   button[data-type="item"][data-item-drag-target] {
     background: var(--surface-selected);
     box-shadow: inset 0 0 0 1px var(--focus);

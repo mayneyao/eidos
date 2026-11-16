@@ -173,6 +173,10 @@ export const IPC_CHANNELS = {
   movePath: "eidos-lite:path-move",
   movePaths: "eidos-lite:paths-move",
   copyPath: "eidos-lite:path-copy",
+  preparePathClipboard: "eidos-lite:path-clipboard-prepare",
+  clipboardCommand: "eidos-lite:clipboard-command",
+  textClipboardCommand: "eidos-lite:text-clipboard-command",
+  clipboardCommandState: "eidos-lite:clipboard-command-state",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
   importDroppedFiles: "eidos-lite:path-import-dropped",
@@ -274,6 +278,11 @@ export const IPC_CHANNELS = {
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
 export type EidosLiteNavigationDirection = "back" | "forward"
 export type EidosLitePathClipboardMode = "absolute" | "relative"
+export type EidosLiteClipboardCommand = "cut" | "copy" | "paste"
+export type EidosLiteClipboardCommandState = Record<
+  EidosLiteClipboardCommand,
+  boolean
+> | null
 export const EIDOS_LITE_TERMINAL_SESSIONS_PER_WINDOW_MAX = 16
 
 export type EidosPublishAccessMode = "public" | "password" | "private"
@@ -816,6 +825,8 @@ export interface OpenEidosFileResult {
 }
 
 export interface SpacePathMutationResult {
+  /** IO completed, but the tree refresh failed; preserve existing visible contents. */
+  refreshError?: string
   /** View selected by the template that created this file. */
   pluginEditor?: string
   /** Best-effort source-local reference maintenance; skipped paths require user review. */
@@ -828,8 +839,13 @@ export interface SpacePathMutationResult {
 export interface SpacePathsMutationResult extends SpacePathMutationResult {
   moves: { source: string; relativePath: string }[]
   failure?: { relativePath: string; message: string }
-  refreshError?: string
   unattemptedPaths: string[]
+}
+
+/** Host-issued source identities; valid only for the owning Space session. */
+export interface SpacePathClipboardSources {
+  spaceId: string
+  sources: { relativePath: string; token: string }[]
 }
 
 export interface EidosLiteAppInfo {
@@ -1853,6 +1869,12 @@ export function isEidosLiteSchemaImpactRequiredResult(
 
 export type RuntimeWorkerRequest =
   | {
+      type: "copySnapshot"
+      requestId: number
+      sourcePath: string
+      destinationPath: string
+    }
+  | {
       type: "mergeSchema"
       requestId: number
       options: RuntimeSystemMetadataMergeOptions
@@ -2070,6 +2092,10 @@ export interface EidosLiteApi extends PluginApi {
   onWorkspaceShortcutCommand(
     listener: (command: EidosLiteShortcutCommand) => void
   ): () => void
+  onClipboardCommand(
+    listener: (command: EidosLiteClipboardCommand) => boolean
+  ): () => void
+  setClipboardCommandState(state: EidosLiteClipboardCommandState): void
   listTerminalShells(): Promise<EidosLiteTerminalShell[]>
   startTerminal(cols: number, rows: number): Promise<EidosLiteTerminalSession>
   writeTerminal(sessionId: string, data: string): void
@@ -2137,12 +2163,17 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<SpacePathMutationResult>
   movePaths(
     relativePaths: string[],
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathsMutationResult>
   copyPath(
     relativePath: string,
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathMutationResult>
+  preparePathClipboard(
+    relativePaths: string[]
+  ): Promise<SpacePathClipboardSources>
   deletePath(relativePath: string): Promise<SpacePathMutationResult>
   importFiles(
     targetDirectory: string | null

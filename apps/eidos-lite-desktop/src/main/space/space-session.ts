@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto"
+import { randomUUID, createHash } from "node:crypto"
+import { copySpacePath } from "./copy-space-path"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import {
   resolvePluginFile,
@@ -76,6 +77,7 @@ import type {
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
   SpacePathsMutationResult,
+  SpacePathClipboardSources,
   SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
@@ -425,6 +427,7 @@ interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
 }
 
 export class SpaceSession {
+  private readonly clipboardIdentitySalt = randomUUID()
   private readonly sparkRuntimePolicies = new Map<
     string,
     { connectionId: string; dataVersion: string; metadata: boolean }
@@ -469,7 +472,7 @@ export class SpaceSession {
     string,
     { epoch: number; promise: Promise<void> }
   >()
-  private pathMoveInFlight: Promise<SpacePathsMutationResult> | null = null
+  private pathMoveInFlight: Promise<SpacePathMutationResult> | null = null
   private readonly moveWatcherPaths = new Set<string>()
   private readonly pendingEidosFileAssets = new Map<
     string,
@@ -2037,11 +2040,22 @@ export class SpaceSession {
 
   movePaths(
     relativePaths: string[],
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathsMutationResult> {
+    return this.runPathMutation(() =>
+      this.performPathMoves(relativePaths, targetDirectory, clipboard)
+    )
+  }
+
+  private runPathMutation<T extends SpacePathMutationResult>(
+    start: () => Promise<T>
+  ): Promise<T> {
     if (this.pathMoveInFlight)
-      return Promise.reject(new Error("A file move is already in progress"))
-    const operation = this.performPathMoves(relativePaths, targetDirectory)
+      return Promise.reject(
+        new Error("A file operation is already in progress")
+      )
+    const operation = start()
     this.pathMoveInFlight = operation
     void operation
       .finally(() => {
@@ -2065,7 +2079,8 @@ export class SpaceSession {
 
   private async performPathMoves(
     relativePaths: string[],
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathsMutationResult> {
     this.prioritizeLocalWork()
     // Install the batch fence before the first async work. Do not wait for a
@@ -2083,6 +2098,12 @@ export class SpaceSession {
         attempted += 1
         try {
           const source = normalizeMutableRelativePath(relativePath)
+          await this.validateClipboardSource(clipboard, source)
+          const parent = path.posix.dirname(source)
+          await resolveSpaceDirectory(
+            this.canonical.root,
+            parent === "." ? null : parent
+          )
           await fs.lstat(this.resolveUserPath(source))
           await resolveSpaceDirectory(this.canonical.root, targetDirectory)
           const target = joinSpaceRelativePath(
@@ -2212,15 +2233,89 @@ export class SpaceSession {
     }
   }
 
-  async copyPath(
+  async preparePathClipboard(
+    relativePaths: string[]
+  ): Promise<SpacePathClipboardSources> {
+    if (!relativePaths.length || relativePaths.length > 10000)
+      throw new Error("Choose between 1 and 10000 items")
+    return this.gate.withRuntimeRead(async () => ({
+      spaceId: this.canonical.id,
+      sources: await Promise.all(
+        [...new Set(relativePaths)].map(async (value) => {
+          const relativePath = normalizeMutableRelativePath(value)
+          return {
+            relativePath,
+            token: await this.clipboardSourceToken(relativePath),
+          }
+        })
+      ),
+    }))
+  }
+
+  private async clipboardSourceToken(relativePath: string): Promise<string> {
+    const sourcePath = this.resolveUserPath(relativePath)
+    if ((await fs.realpath(sourcePath)) !== sourcePath)
+      throw new Error("Space symlinks cannot be placed on the file clipboard")
+    const stats = await fs.lstat(sourcePath, { bigint: true })
+    if (!stats.isFile() && !stats.isDirectory())
+      throw new Error(
+        "Only ordinary files and folders can be placed on the file clipboard"
+      )
+    return createHash("sha256")
+      .update(
+        [
+          this.clipboardIdentitySalt,
+          relativePath,
+          stats.dev,
+          stats.ino,
+          stats.birthtimeNs,
+        ].join("\0")
+      )
+      .digest("hex")
+  }
+
+  private async validateClipboardSource(
+    clipboard: SpacePathClipboardSources | undefined,
+    relativePath: string
+  ): Promise<void> {
+    if (!clipboard) return
+    if (clipboard.spaceId !== this.canonical.id)
+      throw new Error("The Space changed; select the source items again")
+    const source = clipboard.sources.find(
+      (entry) => entry.relativePath === relativePath
+    )
+    if (
+      !source ||
+      source.token !== (await this.clipboardSourceToken(relativePath))
+    )
+      throw new Error(
+        `The clipboard source changed; select it again: ${relativePath}`
+      )
+  }
+
+  copyPath(
     relativePath: string,
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathMutationResult> {
+    return this.runPathMutation(() =>
+      this.performPathCopy(relativePath, targetDirectory, clipboard)
+    )
+  }
+
+  private async performPathCopy(
+    relativePath: string,
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
+  ): Promise<SpacePathMutationResult> {
+    await Promise.resolve()
     this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
-    const stats = await fs.lstat(this.resolveUserPath(source))
-    if (stats.isSymbolicLink())
-      throw new Error("Space symlinks cannot be copied")
+    const parent = path.posix.dirname(source)
+    await resolveSpaceDirectory(
+      this.canonical.root,
+      parent === "." ? null : parent
+    )
     await this.assertCopyTreeIsPortable(this.resolveUserPath(source))
     await resolveSpaceDirectory(this.canonical.root, targetDirectory)
     const target = joinSpaceRelativePath(
@@ -2232,33 +2327,33 @@ export class SpaceSession {
       throw new Error("A folder cannot be copied inside itself")
     }
     await this.requireMissingPath(target)
-    await this.gate.withMutation(() =>
-      fs.cp(this.resolveUserPath(source), this.resolveUserPath(target), {
-        recursive: stats.isDirectory(),
-        errorOnExist: true,
-        force: false,
-        filter: async (sourcePath) => {
-          const sourceStats = await fs.lstat(sourcePath)
-          if (sourceStats.isSymbolicLink()) {
-            throw new Error("Space symlinks cannot be copied")
-          }
-          if (
-            sourcePath !== this.resolveUserPath(source) &&
-            path.basename(sourcePath).toLowerCase() === ".graft"
-          ) {
-            throw new Error("Nested .graft directories cannot be copied")
-          }
-          if (!sourceStats.isDirectory() && !sourceStats.isFile()) {
-            throw new Error("Only ordinary files and folders can be copied")
-          }
-          return true
-        },
-      })
-    )
+    await this.gate.withMutation(async () => {
+      await this.validateClipboardSource(clipboard, source)
+      await copySpacePath(this.canonical.root, source, target, (from, to) =>
+        this.runtimePool.copyFileSnapshot(from, to)
+      )
+    })
     this.noteLocalChange()
     this.notifyMarkdownWatchers([target])
+    const cachedDirectories = new Map(this.directoryEntriesCache)
+    let snapshot: SpaceSnapshot
+    let refreshError: string | undefined
+    try {
+      snapshot = await this.freshSnapshotAndEmit(false, undefined, true)
+    } catch (cause) {
+      for (const [key, entries] of cachedDirectories) {
+        if (!this.directoryEntriesCache.has(key))
+          this.directoryEntriesCache.set(key, entries)
+      }
+      snapshot = this.buildSnapshot(
+        this.buildCachedTree(),
+        this.graftStatusCache ?? this.pendingGraftStatus()
+      )
+      refreshError = cause instanceof Error ? cause.message : String(cause)
+    }
     return {
-      snapshot: await this.freshSnapshotAndEmit(),
+      snapshot,
+      refreshError,
       relativePath: target,
       invalidatedSessionIds: [],
     }
@@ -6098,6 +6193,9 @@ export class SpaceSession {
     while (pending.length > 0) {
       const current = pending.pop()
       if (!current) continue
+      normalizeMutableRelativePath(
+        path.relative(this.canonical.root, current).split(path.sep).join("/")
+      )
       const stats = await fs.lstat(current)
       if (stats.isSymbolicLink()) {
         throw new Error("Space symlinks cannot be copied")
@@ -6344,7 +6442,8 @@ export class SpaceSession {
 
   private async freshSnapshotAndEmit(
     authoritativeGraft = false,
-    materializedPaths?: readonly string[] | null
+    materializedPaths?: readonly string[] | null,
+    completingPathMutation = false
   ): Promise<SpaceSnapshot> {
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.invalidateSnapshotCaches()
@@ -6354,7 +6453,8 @@ export class SpaceSession {
     await this.reloadDirectoryEntries(loadedDirectories, authoritativeGraft)
     const snapshot = await this.readSnapshot(
       !authoritativeGraft,
-      authoritativeGraftStatus
+      authoritativeGraftStatus,
+      completingPathMutation
     )
     const emittedSnapshot =
       materializedPaths !== undefined

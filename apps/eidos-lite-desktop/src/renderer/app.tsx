@@ -70,6 +70,9 @@ import {
   readExplorerLayout,
 } from "./explorer-layout"
 import { SpaceFileGroups } from "./space-file-groups"
+import { useExplorerClipboard } from "./use-explorer-clipboard"
+import { ExplorerClipboardMenu } from "./explorer-clipboard-menu"
+import { explorerPasteTarget } from "./explorer-clipboard"
 import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 import {
   EXPLORER_IGNORE_OPTIONS_STORAGE_KEY,
@@ -101,6 +104,7 @@ import type {
   EidosSyncQueueStatus,
   RecentSpaceEntry,
   SpacePathMutationResult,
+  SpacePathClipboardSources,
   SpaceSnapshot,
   SpaceTreeEntry,
   TextFilePreviewResult,
@@ -1165,6 +1169,10 @@ function WorkspaceApp({
     y: number
     expansionActions?: TreeExpansionActions
   } | null>(null)
+  const [rootClipboardMenu, setRootClipboardMenu] = useState<{
+    x: number
+    y: number
+  } | null>(null)
   const [treeExpansionActions, setTreeExpansionActions] =
     useState<TreeExpansionActions | null>(null)
   const entryContextMenuRef = useRef<HTMLDivElement>(null)
@@ -1179,6 +1187,7 @@ function WorkspaceApp({
   }, [contextMenu])
   useEffect(() => {
     setContextMenu(null)
+    setRootClipboardMenu(null)
   }, [space?.id, explorerDirectory])
   const [publishPanel, setPublishPanel] = useState<{
     entry: SpaceTreeEntry
@@ -1886,9 +1895,10 @@ function WorkspaceApp({
   }, [space?.id])
 
   useEffect(() => {
-    if (!contextMenu) return
+    if (!contextMenu && !rootClipboardMenu) return
     const close = () => {
       setContextMenu(null)
+      setRootClipboardMenu(null)
     }
     const unsubscribePreviewPointer =
       window.eidosLite.onHtmlPreviewPointerDown(close)
@@ -1902,7 +1912,7 @@ function WorkspaceApp({
       window.removeEventListener("keydown", closeOnEscape)
       unsubscribePreviewPointer()
     }
-  }, [contextMenu])
+  }, [contextMenu, rootClipboardMenu])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
@@ -3544,7 +3554,12 @@ function WorkspaceApp({
   }, [activeFile, closeFile, recordNavigationLocation])
 
   const moveTreeEntries = useCallback(
-    async (relativePaths: string[], targetDirectory: string | null) => {
+    async (
+      relativePaths: string[],
+      targetDirectory: string | null,
+      completed?: (sources: string[]) => void,
+      clipboard?: SpacePathClipboardSources
+    ) => {
       if (Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before moving files so Markdown references can be updated safely."
@@ -3555,8 +3570,10 @@ function WorkspaceApp({
       try {
         const result = await window.eidosLite.movePaths(
           relativePaths,
-          targetDirectory
+          targetDirectory,
+          clipboard
         )
+        completed?.(result.moves.map((move) => move.source))
         await applyPathMutation(result)
         for (const move of result.moves) {
           updateRecentFilePaths(move.source, move.relativePath)
@@ -3593,6 +3610,34 @@ function WorkspaceApp({
       textFileDrafts,
     ]
   )
+
+  const explorerClipboard = useExplorerClipboard({
+    spaceId: space?.id,
+    entries: space?.entries,
+    disabled:
+      pathMutationBusy ||
+      !space ||
+      blocksLocalInteraction(space.operation.phase) ||
+      busyFile !== null,
+    move: moveTreeEntries,
+    prepare: (paths) => window.eidosLite.preparePathClipboard(paths),
+    copy: async (relativePath, targetDirectory, clipboard) => {
+      setPathMutationBusy(true)
+      setError(null)
+      try {
+        const result = await window.eidosLite.copyPath(
+          relativePath,
+          targetDirectory,
+          clipboard
+        )
+        if (!result.refreshError) await applyPathMutation(result)
+        return { refreshError: result.refreshError }
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  })
 
   const renameTreeEntry = useCallback(
     async (entry: SpaceTreeEntry, name: string) => {
@@ -3970,6 +4015,7 @@ function WorkspaceApp({
     entries: SpaceTreeEntry[] = [entry],
     expansionActions?: TreeExpansionActions
   ) => {
+    setRootClipboardMenu(null)
     setSelectedEntry(entries.length === 1 ? entry : null)
     void refreshPublicationBindings()
     void refreshPublishAccountState()
@@ -4326,6 +4372,15 @@ function WorkspaceApp({
                 }}
               >
                 <SpaceFileTree
+                  clipboard={explorerClipboard}
+                  macos={macos}
+                  onRootContextMenu={(x, y) => {
+                    setContextMenu(null)
+                    setRootClipboardMenu({
+                      x: Math.max(8, Math.min(x, window.innerWidth - 200)),
+                      y: Math.max(8, Math.min(y, window.innerHeight - 60)),
+                    })
+                  }}
                   spaceId={space.id}
                   sort={explorerSort}
                   nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
@@ -4338,7 +4393,7 @@ function WorkspaceApp({
                   entries={filteredExplorer.entries}
                   activePath={activeDocumentPath}
                   revealToken={treeRevealToken}
-                  disabled={localInteractionBlocked}
+                  disabled={localInteractionBlocked || pathMutationBusy}
                   opening={busyFile !== null}
                   visible={
                     explorerLayout === "tree" &&
@@ -5841,6 +5896,25 @@ function WorkspaceApp({
           </Suspense>
         </>
       ) : null}
+      {rootClipboardMenu ? (
+        <div
+          className="space-context-menu"
+          role="menu"
+          style={{ left: rootClipboardMenu.x, top: rootClipboardMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <ExplorerClipboardMenu
+            macos={macos}
+            canCapture={false}
+            canPaste={explorerClipboard.canPaste(explorerDirectory)}
+            pasteOnly
+            onCommand={() => {
+              void explorerClipboard.paste(explorerDirectory)
+              setRootClipboardMenu(null)
+            }}
+          />
+        </div>
+      ) : null}
       {contextMenu ? (
         <div
           ref={entryContextMenuRef}
@@ -5852,6 +5926,22 @@ function WorkspaceApp({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
+          <ExplorerClipboardMenu
+            macos={macos}
+            canCapture={explorerClipboard.canCapture(contextMenu.entries)}
+            canPaste={explorerClipboard.canPaste(
+              explorerPasteTarget(contextMenu.entry, explorerDirectory)
+            )}
+            onCommand={(command) => {
+              if (command === "paste")
+                void explorerClipboard.paste(
+                  explorerPasteTarget(contextMenu.entry, explorerDirectory)
+                )
+              else explorerClipboard.capture(command, contextMenu.entries)
+              setContextMenu(null)
+            }}
+          />
+          <div role="separator" className="space-context-menu-separator" />
           {contextMenu.entries.length > 1 ? (
             <>
               <p className="space-context-menu-selection">

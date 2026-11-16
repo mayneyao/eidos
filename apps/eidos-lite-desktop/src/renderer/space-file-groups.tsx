@@ -15,6 +15,7 @@ import {
   Video,
 } from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
+import { explorerRenameSelectionEnd } from "./explorer-rename"
 import {
   groupExplorerFiles,
   explorerGroupDateLabel,
@@ -377,7 +378,10 @@ export function SpaceFileGroups(props: Props) {
   useLayoutEffect(() => {
     if (editing && input.current && document.activeElement !== input.current) {
       input.current.focus({ preventScroll: true })
-      input.current.select()
+      input.current.setSelectionRange(
+        0,
+        explorerRenameSelectionEnd(editing.entry.name, editing.entry.kind)
+      )
     }
   }, [editing?.entry.relativePath, virtualRows])
   useLayoutEffect(() => {

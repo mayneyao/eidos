@@ -25,6 +25,7 @@ import {
 } from "../shared/contracts"
 import {
   createEidosLiteFileRuntime,
+  copyEidosFileSnapshot,
   openEidosLiteFileRuntime,
   type EidosLiteCsvFileSource,
   type EidosLiteFileRuntime,
@@ -389,6 +390,16 @@ async function runtimeCall(
 
 async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
   switch (request.type) {
+    case "copySnapshot":
+      if (openedRuntime) throw new Error("File copy requires a private worker")
+      if (
+        ![request.sourcePath, request.destinationPath].every((value) =>
+          path.isAbsolute(value)
+        )
+      )
+        throw new Error("Runtime snapshot paths must be absolute")
+      await copyEidosFileSnapshot(request.sourcePath, request.destinationPath)
+      return null
     case "explorerSummary":
       if (openedRuntime)
         throw Error("Explorer inspection requires a private worker")

@@ -38,6 +38,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   nativeImage,
   powerMonitor,
   safeStorage,
@@ -55,6 +56,8 @@ import {
   type EidosLiteCsvSelection,
   type EidosLiteMarkdownImageImportRequest,
   type EidosLitePathClipboardMode,
+  type SpacePathClipboardSources,
+  type EidosLiteClipboardCommandState,
   type EidosLiteSettingsDestination,
   type HtmlPreviewOpenRequest,
   type TextFileSaveRequest,
@@ -171,6 +174,37 @@ interface RegisteredUrlImageLease {
   sessionId: string
   lease: UrlImageLease
   expiresAtMs: number
+}
+
+function pathClipboardSources(
+  value: unknown
+): SpacePathClipboardSources | undefined {
+  if (value === undefined) return undefined
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("spaceId" in value) ||
+    !("sources" in value) ||
+    !Array.isArray(value.sources) ||
+    value.sources.length > 10000
+  )
+    throw new Error("Invalid file clipboard sources")
+  return {
+    spaceId: requiredString(value.spaceId, "Space identity"),
+    sources: value.sources.map((source: unknown) => {
+      if (
+        !source ||
+        typeof source !== "object" ||
+        !("relativePath" in source) ||
+        !("token" in source)
+      )
+        throw new Error("Invalid file clipboard source")
+      return {
+        relativePath: requiredString(source.relativePath, "Space path"),
+        token: requiredString(source.token, "Source identity"),
+      }
+    }),
+  }
 }
 
 function optionalRelativePath(value: unknown): string | null {
@@ -2135,7 +2169,12 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.movePaths,
-    async (event, relativePaths: unknown, targetDirectory: unknown) => {
+    async (
+      event,
+      relativePaths: unknown,
+      targetDirectory: unknown,
+      clipboard: unknown
+    ) => {
       const session = controller.requireSession(event.sender)
       if (!Array.isArray(relativePaths) || relativePaths.length === 0)
         throw new Error("Expected Space paths")
@@ -2143,7 +2182,8 @@ export function registerIpc(
         relativePaths.map((value: unknown) =>
           requiredString(value, "Space path")
         ),
-        optionalRelativePath(targetDirectory)
+        optionalRelativePath(targetDirectory),
+        pathClipboardSources(clipboard)
       )
       for (const move of result.moves) {
         try {
@@ -2157,13 +2197,83 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.copyPath,
-    (event, relativePath: unknown, targetDirectory: unknown) =>
+    (
+      event,
+      relativePath: unknown,
+      targetDirectory: unknown,
+      clipboard: unknown
+    ) =>
       controller
         .requireSession(event.sender)
         .copyPath(
           requiredString(relativePath, "Space path"),
-          optionalRelativePath(targetDirectory)
+          optionalRelativePath(targetDirectory),
+          pathClipboardSources(clipboard)
         )
+  )
+  const clipboardCommandStates = new WeakMap<
+    Electron.WebContents,
+    EidosLiteClipboardCommandState
+  >()
+  const applyClipboardCommandState = (
+    state: EidosLiteClipboardCommandState
+  ) => {
+    for (const command of ["cut", "copy", "paste"] as const) {
+      const item = Menu.getApplicationMenu()?.getMenuItemById(
+        `clipboard-${command}`
+      )
+      if (item) item.enabled = state?.[command] ?? true
+    }
+  }
+  const clipboardWindowFocus = (
+    _event: Electron.Event,
+    window: Electron.BrowserWindow
+  ) =>
+    applyClipboardCommandState(
+      clipboardCommandStates.get(window.webContents) ?? null
+    )
+  app.on("browser-window-focus", clipboardWindowFocus)
+  const clipboardStateListener = (
+    event: Electron.IpcMainEvent,
+    value: unknown
+  ) => {
+    if (
+      value !== null &&
+      (!value ||
+        typeof value !== "object" ||
+        !["cut", "copy", "paste"].every(
+          (key) =>
+            key in value &&
+            typeof (value as Record<string, unknown>)[key] === "boolean"
+        ))
+    )
+      return
+    const state = value as EidosLiteClipboardCommandState
+    clipboardCommandStates.set(event.sender, state)
+    if (BrowserWindow.getFocusedWindow()?.webContents === event.sender)
+      applyClipboardCommandState(state)
+  }
+  ipcMain.on(IPC_CHANNELS.clipboardCommandState, clipboardStateListener)
+  ipcMain.handle(
+    IPC_CHANNELS.textClipboardCommand,
+    (event, command: unknown) => {
+      if (command !== "cut" && command !== "copy" && command !== "paste")
+        throw new Error("Invalid clipboard command")
+      event.sender[command]()
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.preparePathClipboard,
+    (event, relativePaths: unknown) => {
+      if (!Array.isArray(relativePaths)) throw new Error("Expected Space paths")
+      return controller
+        .requireSession(event.sender)
+        .preparePathClipboard(
+          relativePaths.map((value: unknown) =>
+            requiredString(value, "Space path")
+          )
+        )
+    }
   )
   ipcMain.handle(IPC_CHANNELS.deletePath, (event, relativePath: unknown) =>
     controller.deletePath(
@@ -4239,6 +4349,11 @@ export function registerIpc(
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
+      app.removeListener("browser-window-focus", clipboardWindowFocus)
+      ipcMain.removeListener(
+        IPC_CHANNELS.clipboardCommandState,
+        clipboardStateListener
+      )
       clearInterval(automaticTimer)
       unsubscribeAutomaticPreferences()
       app.removeListener("browser-window-created", watchAutomaticActivity)

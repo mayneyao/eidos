@@ -4,6 +4,8 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  Cut: "剪切",
+  Paste: "粘贴",
   "Could not open {name}. {value2}": "无法打开 {name}。{value2}",
   "Filter tree by name": "按名称过滤目录树",
   "Matching files": "匹配文件",

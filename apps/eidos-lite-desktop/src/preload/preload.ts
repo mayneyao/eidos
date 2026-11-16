@@ -6,6 +6,7 @@ import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
   IPC_CHANNELS,
   type EidosLiteApi,
+  type EidosLiteClipboardCommand,
   type EidosLiteAssetDataSource,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
@@ -22,7 +23,25 @@ import {
 import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
+const clipboardCommandListeners = new Set<
+  (command: EidosLiteClipboardCommand) => boolean
+>()
+ipcRenderer.on(IPC_CHANNELS.clipboardCommand, (_event, command: unknown) => {
+  if (command !== "cut" && command !== "copy" && command !== "paste") return
+  for (const listener of clipboardCommandListeners)
+    if (listener(command)) return
+  void ipcRenderer.invoke(IPC_CHANNELS.textClipboardCommand, command)
+})
+
 const api: EidosLiteApi = {
+  setClipboardCommandState: (state) =>
+    ipcRenderer.send(IPC_CHANNELS.clipboardCommandState, state),
+  onClipboardCommand: (listener) => {
+    clipboardCommandListeners.add(listener)
+    return () => {
+      clipboardCommandListeners.delete(listener)
+    }
+  },
   onBluetoothPicker: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -471,10 +490,22 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.renamePath, relativePath, name),
   movePath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.movePath, relativePath, targetDirectory),
-  movePaths: (relativePaths, targetDirectory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.movePaths, relativePaths, targetDirectory),
-  copyPath: (relativePath, targetDirectory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.copyPath, relativePath, targetDirectory),
+  movePaths: (relativePaths, targetDirectory, clipboard) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.movePaths,
+      relativePaths,
+      targetDirectory,
+      clipboard
+    ),
+  copyPath: (relativePath, targetDirectory, clipboard) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.copyPath,
+      relativePath,
+      targetDirectory,
+      clipboard
+    ),
+  preparePathClipboard: (relativePaths) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preparePathClipboard, relativePaths),
   deletePath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>

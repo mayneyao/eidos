@@ -1,6 +1,13 @@
 import fs from "node:fs"
 import path from "node:path"
-import { app, BrowserWindow, dialog, Menu, protocol } from "electron"
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  protocol,
+  webContents,
+} from "electron"
 
 import {
   EIDOS_SPACE_DOCUMENT_SCHEME,
@@ -384,6 +391,14 @@ async function installApplicationMenu(): Promise<void> {
         app.getName(),
         {
           openSettings: () => controller.showSettingsWindow(),
+          clipboardCommand: (command) => {
+            const focused = webContents.getFocusedWebContents()
+            const window = BrowserWindow.getFocusedWindow()
+            if (!focused) return
+            if (window?.webContents === focused)
+              focused.send(IPC_CHANNELS.clipboardCommand, command)
+            else focused[command]()
+          },
           openDocumentation: () => {
             void controller
               .openSettingsDestination("documentation")

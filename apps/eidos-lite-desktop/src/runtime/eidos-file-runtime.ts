@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { createReadStream } from "node:fs"
-import { stat } from "node:fs/promises"
+import { stat, open, unlink } from "node:fs/promises"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import {
@@ -722,6 +722,7 @@ export interface EidosLiteFileRuntime {
   ): EidosLiteCsvOperationProgress | null
   cancelCsvOperation(operationId: string): boolean
   externalDataVersion(): string
+  writeSnapshot(destinationPath: string): Promise<void>
   close(): Promise<void>
 }
 
@@ -759,6 +760,41 @@ async function bindRuntime(
         const separator = version.indexOf(":")
         return separator < 0 ? version : version.slice(separator + 1)
       },
+      async writeSnapshot(destinationPath) {
+        const snapshot = await hostBridge.createPublicationSnapshot(
+          { maxBytes: "1073741824" },
+          context("eidos-lite-copy-snapshot")
+        )
+        try {
+          const file = await open(destinationPath, "wx")
+          let complete = false
+          try {
+            const size = Number(snapshot.bytes.size)
+            for (let offset = 0; offset < size; offset += 1024 * 1024) {
+              const bytes = await snapshot.bytes.read(
+                String(offset),
+                Math.min(1024 * 1024, size - offset),
+                {
+                  cancellation: {
+                    cancelled: () => false,
+                    onCancel: () => () => undefined,
+                  },
+                }
+              )
+              await file.writeFile(bytes)
+            }
+            await file.close()
+            complete = true
+          } finally {
+            if (!complete) {
+              await file.close().catch(() => undefined)
+              await unlink(destinationPath)
+            }
+          }
+        } finally {
+          await snapshot.release()
+        }
+      },
       async close() {
         if (closed) return
         closed = true
@@ -777,6 +813,26 @@ async function bindRuntime(
       connection.close()
     }
     throw error
+  }
+}
+
+/** Host-only consistent SQLite copy, including committed WAL pages. */
+export async function copyEidosFileSnapshot(
+  sourcePath: string,
+  destinationPath: string
+): Promise<void> {
+  const runtime = await openEidosLiteFileRuntime(sourcePath, { readOnly: true })
+  let copied = false
+  try {
+    await runtime.writeSnapshot(destinationPath)
+    copied = true
+  } finally {
+    try {
+      await runtime.close()
+    } catch (cause) {
+      if (copied) await unlink(destinationPath)
+      throw cause
+    }
   }
 }
 

@@ -379,6 +379,36 @@ export class RuntimePool {
     }
   }
 
+  /** Paths are resolved and authorized by SpaceSession, never by the renderer. */
+  async copyFileSnapshot(
+    sourcePath: string,
+    destinationPath: string
+  ): Promise<void> {
+    const entry: RuntimeEntry = {
+      sessionId: randomUUID(),
+      relativePath: "",
+      filePath: sourcePath,
+      canonicalPath: sourcePath,
+      fileIdentity: null,
+      child: null,
+      pending: new Map(),
+      nextRequestId: 1,
+      crashed: false,
+      lastAccess: 0,
+    }
+    this.spawnChild(entry)
+    try {
+      await this.request(entry, {
+        type: "copySnapshot",
+        requestId: 1,
+        sourcePath,
+        destinationPath,
+      })
+    } finally {
+      entry.child?.kill()
+    }
+  }
+
   async filemeta(
     relativePath: string,
     namespace: string,

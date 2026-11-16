@@ -67,6 +67,29 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("copies consistent snapshots in a private worker without replacing editor sessions", async () => {
+    const worker = new FakeRuntimeUtilityProcess()
+    const killed = vi.spyOn(worker, "kill")
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValue(worker as unknown as UtilityProcess)
+    const pool = new RuntimePool("/space", "/worker.js")
+    await pool.copyFileSnapshot(
+      "/space/source.eidos",
+      "/space/target/source.eidos"
+    )
+    expect(worker.requests).toEqual([
+      {
+        type: "copySnapshot",
+        requestId: 1,
+        sourcePath: "/space/source.eidos",
+        destinationPath: "/space/target/source.eidos",
+      },
+    ])
+    expect(pool.openRelativePaths()).toEqual([])
+    expect(killed).toHaveBeenCalledOnce()
+    await pool.destroy()
+  })
   it("reuses a private summary worker and releases it with Space handles", async () => {
     const worker = new FakeRuntimeUtilityProcess()
     vi.mocked(utilityProcess.fork)

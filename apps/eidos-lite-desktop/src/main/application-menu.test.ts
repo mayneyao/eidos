@@ -5,6 +5,7 @@ describe("Eidos Lite application menu", () => {
     openSettings: vi.fn(),
     openDocumentation: vi.fn(),
     openWebsite: vi.fn(),
+    clipboardCommand: vi.fn(),
   }
 
   it("puts Settings in the macOS app menu with the standard shortcut", () => {
@@ -36,4 +37,30 @@ describe("Eidos Lite application menu", () => {
     expect(fileMenu.label).toBe("File")
     expect(settings?.accelerator).toBe("CmdOrCtrl+,")
   })
+
+  it.each(["darwin", "win32", "linux"] as const)(
+    "routes Edit clipboard commands independently of system clipboard formats on %s",
+    (platform) => {
+      const template = eidosLiteApplicationMenuTemplate(
+        platform,
+        "Eidos Lite",
+        handlers
+      )
+      const menu = template.find((entry) => entry.label === "Edit")!
+      const items = Array.isArray(menu.submenu) ? menu.submenu : []
+      for (const [label, key] of [
+        ["Cut", "X"],
+        ["Copy", "C"],
+        ["Paste", "V"],
+      ] as const) {
+        const item = items.find((item) => item.label === label)!
+        expect(item.accelerator).toBe(`CmdOrCtrl+${key}`)
+        expect(item.enabled).not.toBe(false)
+        item.click?.({} as never, undefined, {} as never)
+        expect(handlers.clipboardCommand).toHaveBeenLastCalledWith(
+          label.toLowerCase()
+        )
+      }
+    }
+  )
 })
