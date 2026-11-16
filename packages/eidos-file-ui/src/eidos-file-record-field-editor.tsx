@@ -64,6 +64,8 @@ type FieldEditorProps = {
   placeholder?: string
   appearance?: "field" | "record-title" | "record-property" | "compact"
   disabled: boolean
+  /** Serialize commits without dimming the record or removing input focus. */
+  readOnly?: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
   /** The host creates the catalog option and selects it for this record. */
   onCreateOption?: (name: string) => Promise<void>
@@ -73,12 +75,44 @@ type FieldEditorProps = {
 
 /** Compact is a shared form presentation, independent of host or feature. */
 export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
-  return props.appearance === "compact" ? (
-    <div className="eidos-field-compact" data-field-type={props.field.type}>
-      <FieldEditorControl {...props} />
+  return (
+    <div
+      className={
+        props.appearance === "compact" ? "eidos-field-compact" : "contents"
+      }
+      data-field-type={props.field.type}
+      aria-disabled={props.readOnly || undefined}
+      onPointerDownCapture={(event) => {
+        if (
+          props.readOnly &&
+          !(
+            event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement
+          )
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        if (
+          props.readOnly &&
+          event.key !== "Tab" &&
+          !(
+            event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement
+          )
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      }}
+    >
+      <FieldEditorControl
+        {...props}
+        onChange={props.readOnly ? async () => {} : props.onChange}
+      />
     </div>
-  ) : (
-    <FieldEditorControl {...props} />
   )
 }
 
@@ -89,6 +123,7 @@ function FieldEditorControl({
   placeholder,
   appearance = "field",
   disabled,
+  readOnly = false,
   onChange,
   onCreateOption,
   onEnter,
@@ -130,6 +165,7 @@ function FieldEditorControl({
       optionBusy
   )
   const draftOrigin = useRef({
+    rowId: row._id,
     value,
     display: savedDraft,
     timeZone,
@@ -154,11 +190,13 @@ function FieldEditorControl({
 
   useEffect(() => {
     if (
+      row._id === draftOrigin.current.rowId &&
       draft !== draftOrigin.current.display &&
       value === draftOrigin.current.value
     )
       return
     draftOrigin.current = {
+      rowId: row._id,
       value,
       display: savedDraft,
       timeZone,
@@ -174,9 +212,10 @@ function FieldEditorControl({
     setDatetimeError(null)
     setNumberError(null)
     setUrlError(false)
-  }, [field.type, timeZone, value, calendarTimeZoneData])
+  }, [row._id, field.type, timeZone, value, calendarTimeZoneData])
 
   const commitDraft = () => {
+    if (disabled || readOnly) return false
     if (draft === draftOrigin.current.display) return true
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
     if (field.type === "number") {
@@ -607,6 +646,7 @@ function FieldEditorControl({
         value={draft}
         rows={1}
         wrap="soft"
+        readOnly={readOnly}
         aria-label={field.name}
         placeholder={placeholder}
         disabled={disabled}
@@ -777,6 +817,7 @@ function FieldEditorControl({
               ? "decimal"
               : undefined
         }
+        readOnly={readOnly}
         className={[
           appearance === "record-property"
             ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
@@ -796,6 +837,7 @@ function FieldEditorControl({
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
             draftOrigin.current = {
+              rowId: row._id,
               value,
               display: savedDraft,
               timeZone,

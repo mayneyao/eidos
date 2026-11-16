@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -132,6 +133,9 @@ interface FailedRecordEdit {
   previousRow: EidosFileRow
   message: string
 }
+
+// Window-local presentation preference; never part of an Eidos File or View.
+const collapsedRecordProperties = new Map<string, boolean>()
 
 function recordEditErrorMessage(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : fallback
@@ -522,6 +526,18 @@ export function EidosFileRecordInspector({
   } = useEidosFileUI()
   const variant = interactionMode === "mobile" ? "page" : requestedVariant
   const isMobile = interactionMode === "mobile"
+  const propertyScope = fields[0]?.tableId ?? ""
+  const [propertyPreference, setPropertyPreference] = useState(() => ({
+    scope: propertyScope,
+    collapsed: collapsedRecordProperties.get(propertyScope) ?? false,
+  }))
+  const propertiesCollapsed =
+    !isMobile &&
+    (propertyPreference.scope === propertyScope
+      ? propertyPreference.collapsed
+      : (collapsedRecordProperties.get(propertyScope) ?? false))
+  const propertiesId = useId()
+  const propertiesRef = useRef<HTMLDivElement>(null)
   const [expandedProperties, setExpandedProperties] = useState(false)
   const [mobileField, setMobileField] = useState<EidosFileFieldInfo | null>(
     null
@@ -533,6 +549,7 @@ export function EidosFileRecordInspector({
   const savingRef = useRef(false)
   const rowId = String(row._id ?? "")
   const sessionRowIdRef = useRef(rowId)
+  const editGenerationRef = useRef(0)
   const latestRowRef = useRef(row)
   latestRowRef.current = row
 
@@ -543,6 +560,7 @@ export function EidosFileRecordInspector({
 
   useEffect(() => {
     if (sessionRowIdRef.current !== rowId) {
+      editGenerationRef.current += 1
       sessionRowIdRef.current = rowId
       savingRef.current = false
       setSavingField(null)
@@ -573,16 +591,20 @@ export function EidosFileRecordInspector({
   ) => {
     if (!onCellEdit || disabled || savingRef.current) return
     const editRowId = String(previousRow._id ?? "")
+    const editGeneration = editGenerationRef.current
+    const isCurrentEdit = () =>
+      editGenerationRef.current === editGeneration &&
+      String(latestRowRef.current._id ?? "") === editRowId
     savingRef.current = true
     setSavingField(field.tableColumnName)
     if (!retrying) updateFailedEdit(null)
     try {
       const result = await onCellEdit(previousRow, field, value)
-      if (String(latestRowRef.current._id ?? "") !== editRowId) return
+      if (!isCurrentEdit()) return
       setCurrentRow(result.row)
       updateFailedEdit(null)
     } catch (error) {
-      if (String(latestRowRef.current._id ?? "") !== editRowId) return
+      if (!isCurrentEdit()) return
       const optimisticRow = {
         ...previousRow,
         [field.tableColumnName]: value,
@@ -595,7 +617,7 @@ export function EidosFileRecordInspector({
         message: recordEditErrorMessage(error, t("Unable to save record")),
       })
     } finally {
-      if (String(latestRowRef.current._id ?? "") === editRowId) {
+      if (isCurrentEdit()) {
         savingRef.current = false
         setSavingField(null)
       }
@@ -629,8 +651,8 @@ export function EidosFileRecordInspector({
     setCurrentRow(latestRowRef.current)
   }
 
-  const editorDisabled =
-    disabled || loading || savingField !== null || failedEdit !== null
+  const editorDisabled = disabled || loading
+  const propertyReadOnly = savingField !== null || failedEdit !== null
   const recordNavigationDisabled =
     loading || savingField !== null || failedEdit !== null
   const editable = Boolean(onCellEdit) && !disabled
@@ -861,6 +883,7 @@ export function EidosFileRecordInspector({
                 appearance="record-property"
                 placeholder={t("Empty")}
                 disabled={editorDisabled}
+                readOnly={propertyReadOnly}
                 onChange={(value) => editField(field, value)}
               />
             ) : fieldWritable ? (
@@ -880,7 +903,7 @@ export function EidosFileRecordInspector({
           ) : fieldWritable && field.type === "file" ? (
             <EidosFileRecordAttachmentEditor
               value={currentRow[field.tableColumnName]}
-              disabled={editorDisabled}
+              disabled={editorDisabled || propertyReadOnly}
               onChange={(value) => editField(field, value)}
               onImportFiles={onImportFiles}
               onImportDroppedFiles={onImportDroppedFiles}
@@ -890,7 +913,7 @@ export function EidosFileRecordInspector({
             <EidosFileRecordRelationEditor
               row={currentRow}
               field={field}
-              disabled={editorDisabled}
+              disabled={editorDisabled || propertyReadOnly}
               onChange={(value) => editField(field, value)}
               onSearch={onSearchRelation}
               onError={onError}
@@ -904,6 +927,7 @@ export function EidosFileRecordInspector({
               row={currentRow}
               isNewRecord={isNewRecord && !loading}
               disabled={editorDisabled}
+              readOnly={propertyReadOnly}
               onChange={(value) => editField(field, value)}
             />
           ) : (
@@ -917,6 +941,37 @@ export function EidosFileRecordInspector({
         </div>
       )
     })
+
+  const propertiesDisclosure =
+    !isMobile && metadataFields.length > 0 ? (
+      <button
+        type="button"
+        data-eidos-file-record-properties-toggle=""
+        aria-expanded={!propertiesCollapsed}
+        aria-controls={propertiesId}
+        className="flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={() => {
+          const invalid = propertiesRef.current?.querySelector<HTMLElement>(
+            '[aria-invalid="true"], [role="alert"]'
+          )
+          if (!propertiesCollapsed && invalid) {
+            invalid.focus()
+            return
+          }
+          const collapsed = !propertiesCollapsed
+          collapsedRecordProperties.set(propertyScope, collapsed)
+          setPropertyPreference({ scope: propertyScope, collapsed })
+        }}
+      >
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            !propertiesCollapsed && "rotate-90"
+          )}
+        />
+        {t("Properties ({count})", { count: metadataFields.length })}
+      </button>
+    ) : null
 
   return (
     <Root
@@ -1001,6 +1056,7 @@ export function EidosFileRecordInspector({
                         setContentFocusToken((token) => token + 1)
                       }}
                       disabled={editorDisabled}
+                      readOnly={propertyReadOnly}
                       onChange={(value) => editField(pageTitleField, value)}
                     />
                   </div>
@@ -1206,6 +1262,7 @@ export function EidosFileRecordInspector({
                       placeholder={t("Untitled")}
                       appearance="record-title"
                       disabled={editorDisabled}
+                      readOnly={propertyReadOnly}
                       onChange={(value) => editField(pageTitleField, value)}
                     />
                   </h1>
@@ -1220,7 +1277,14 @@ export function EidosFileRecordInspector({
                 data-eidos-file-record-properties=""
                 data-markdown-selection-ignore=""
               >
-                {metadataRows}
+                {propertiesDisclosure}
+                <div
+                  ref={propertiesRef}
+                  id={propertiesId}
+                  hidden={propertiesCollapsed}
+                >
+                  {metadataRows}
+                </div>
                 {isMobile && hiddenPropertyCount > 0 ? (
                   <button
                     type="button"
@@ -1279,7 +1343,15 @@ export function EidosFileRecordInspector({
         </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="divide-y">{metadataRows}</div>
+          <div className="px-4 py-1">{propertiesDisclosure}</div>
+          <div
+            ref={propertiesRef}
+            id={propertiesId}
+            hidden={propertiesCollapsed}
+            className="divide-y"
+          >
+            {metadataRows}
+          </div>
           {contentField ? (
             <div
               className="border-t px-4 py-3"
