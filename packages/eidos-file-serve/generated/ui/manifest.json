@@ -211,7 +211,7 @@
       "packages/eidos-file-ui/src/eidos-file-gallery-preview.tsx": "062710c23dc6fd3ce61a3b501c9883b680e87142c343bd9af95e45c098202b03",
       "packages/eidos-file-ui/src/eidos-file-gallery-selection.test.ts": "23232b09f00a5404f58bdc7231f7c1587e959e9aaef507fae96297967be9d679",
       "packages/eidos-file-ui/src/eidos-file-gallery-selection.ts": "d92577b68651c3f4b9ed295e12258d0d5a35a29b45147d2ee70a72a8f592f8aa",
-      "packages/eidos-file-ui/src/eidos-file-gallery-view.test.tsx": "4222ab13395643e4ed84ed0f4fdef5dafee72602b04785d28a746cabec24921a",
+      "packages/eidos-file-ui/src/eidos-file-gallery-view.test.tsx": "af020bb028e6d00ae04d49fa64b79d24e9a35e0c5e841141d982504ba0da1af4",
       "packages/eidos-file-ui/src/eidos-file-gallery-view.tsx": "08c865ee0b2a401f3f3d2f7b3808032e41f0227874db6beaad4fd746051dad0b",
       "packages/eidos-file-ui/src/eidos-file-grid-adapter.test.ts": "fb64e7892830481c05380d4547fa41834f8a01947e14e7ba975f2466876a5145",
       "packages/eidos-file-ui/src/eidos-file-grid-adapter.ts": "f9fdca42039a3023a49229689f327a2447730f3ce3352a0930f062308c74e53b",

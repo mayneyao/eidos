@@ -597,6 +597,13 @@ describe("EidosFileGalleryView", () => {
       ).not.toContain("Open details")
       await click("Delete 3 records")
       await click("Cancel delete")
+      // This test mocks the confirmation; let the real DropdownMenu finish its
+      // deferred focus restoration before opening the next context menu.
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(
+          container.querySelector('[aria-label="More actions for B"]')
+        )
+      )
       await context("d")
       expect(count()).toBe("0")
       await click("Delete record")
