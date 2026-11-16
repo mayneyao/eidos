@@ -913,9 +913,9 @@
 .eidos-filter-rule[data-relative-rule] > button[role="combobox"],
 .eidos-filter-rule[data-relative-rule] .eidos-relative-date-select,
 .eidos-filter-rule[data-relative-rule] .eidos-relative-date-count {
-  height: 32px;
-  font-size: 14px;
-  line-height: 20px;
+  height: 28px;
+  font-size: 12px;
+  line-height: 16px;
 }
 .eidos-relative-date-calendar {
   padding: 0;
