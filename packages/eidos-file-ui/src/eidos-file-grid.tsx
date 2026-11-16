@@ -38,7 +38,6 @@ import {
 import DataEditor, {
   CompactSelection,
   GridCellKind,
-  AllCellRenderers,
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
@@ -51,11 +50,11 @@ import DataEditor, {
   type Theme,
 } from "@glideapps/glide-data-grid"
 import { Plus } from "lucide-react"
-import MultiSelectCell from "./cells/multi-select-cell"
-import SelectCell from "./cells/select-cell"
-import DatePickerCell from "./cells/date-picker-cell"
-import RatingCell from "./cells/rating-cell"
-import RangeCell from "./cells/range-cell"
+import {
+  eidosFileValueEditor,
+  eidosFileValueRenderers,
+} from "./eidos-file-value-editor"
+import { eidosFileSelectOptionsProperty as selectOptionsProperty } from "./eidos-file-field-properties"
 import { defaultConfig } from "./grid-default-config"
 import { EIDOS_FILE_EMPTY_STAT_ICON } from "./header-icons"
 import {
@@ -84,22 +83,13 @@ import {
   gridCellToEidosFileValue,
   type EidosFileGridSelectOption,
 } from "./eidos-file-grid-adapter"
-import {
-  EidosFileAttachmentCellRenderer,
-  type EidosFileAttachmentCell,
-} from "./eidos-file-attachment-cell"
+import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
 import { sharedEidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
-import {
-  EidosFileUrlImageCellRenderer,
-  type EidosFileUrlImageCell,
-} from "./eidos-file-url-image-cell"
+import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
 import { EidosFileUrlImageThumbnailManager } from "./eidos-file-url-image-thumbnails"
 import { sharedEidosFileUrlImageSourceCache } from "./eidos-file-url-image-source-cache"
-import {
-  EidosFileRelationCellRenderer,
-  type EidosFileRelationCell,
-} from "./eidos-file-relation-cell"
+import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { encodeEidosFileValues } from "@eidos.space/eidos-file"
@@ -136,28 +126,12 @@ const PAGE_OVERSCAN = 1
 const MAX_CACHED_PAGES = 8
 const MAX_UNDO_HISTORY_BATCHES = 50
 
-const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
-  RatingCell,
-  RangeCell,
-  SelectCell,
-  MultiSelectCell,
-  DatePickerCell,
-  EidosFileAttachmentCellRenderer,
-  EidosFileUrlImageCellRenderer,
-  EidosFileRelationCellRenderer,
-]
+const EIDOS_FILE_GRID_CUSTOM_RENDERERS = eidosFileValueRenderers
 
 const providePendingEditor: NonNullable<DataEditorProps["provideEditor"]> = (
   cell
 ) => {
-  const renderer =
-    cell.kind === GridCellKind.Custom
-      ? EIDOS_FILE_GRID_CUSTOM_RENDERERS.find((candidate) =>
-          candidate.isMatch(cell)
-        )
-      : AllCellRenderers.find((candidate) => candidate.kind === cell.kind)
-  const provide = renderer?.provideEditor as DataEditorProps["provideEditor"]
-  const editor = provide?.(cell)
+  const editor = eidosFileValueEditor(cell)
   return editor ? pendingEditEditor(editor) : undefined
 }
 
@@ -377,36 +351,6 @@ function gridMutationErrorMessage(error: unknown): string {
       ? error.message
       : "Unable to save the Grid change"
   return /[.!?]$/.test(message) ? message : `${message}.`
-}
-
-function selectOptionsProperty(
-  field: EidosFileFieldInfo,
-  options: readonly Pick<EidosFileGridSelectOption, "name" | "color">[]
-): Record<string, unknown> {
-  const existing = Array.isArray(field.property?.options)
-    ? field.property.options
-    : []
-  const existingByName = new Map(
-    existing.flatMap((entry) => {
-      if (
-        typeof entry !== "object" ||
-        entry === null ||
-        Array.isArray(entry) ||
-        typeof (entry as { name?: unknown }).name !== "string"
-      ) {
-        return []
-      }
-      return [[(entry as { name: string }).name, entry] as const]
-    })
-  )
-  return {
-    ...(field.property ?? {}),
-    options: options.map((option) => ({
-      ...(existingByName.get(option.name) ?? {}),
-      name: option.name,
-      color: option.color,
-    })),
-  }
 }
 
 function sameFields(

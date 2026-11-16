@@ -26,7 +26,7 @@ import {
   CommandItem,
   CommandList,
 } from "../ui/primitives"
-import { Popover, PopoverTrigger } from "../ui/primitives"
+import { Popover } from "../ui/primitives"
 import { SelectOptionItem } from "../ui/select-option-item"
 
 import {
@@ -35,6 +35,9 @@ import {
   EidosFileGridEditorHeader,
   EidosFileGridEditorPopoverContent,
   EidosFileGridEditorSurface,
+  EidosFileValueEditorTrigger,
+  useEidosFileValueEditorReadOnly,
+  useEidosFileValueEditorTab,
   eidosFileGridPopupEditor,
 } from "./grid-editor-surface"
 import { roundedRect } from "./grid-cell-helper"
@@ -55,6 +58,7 @@ const tagHeight = 20
 const innerPad = 6
 
 export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { translate: t } = useEidosFileUI()
   const { value: cell, onChange, theme, onFinishedEditing } = p
   const {
@@ -88,6 +92,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
     newValues: string[],
     nextAllowedValues: readonly SelectOption[] = allowedValues
   ) => {
+    if (readOnly) return
     onChange({
       ...cell,
       data: {
@@ -105,7 +110,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
     setNewValues(Array.from(set))
   }
   const handleSelect = (value?: string) => {
-    if (!value) return
+    if (readOnly || !value) return
     setInputValue("")
     const set = new Set<string>(selectedValues)
     if (set.has(value)) {
@@ -124,6 +129,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
   const handleCreate = async (rawName: string) => {
     const name = rawName.trim()
     if (
+      readOnly ||
       !name ||
       creating ||
       !onCreateOption ||
@@ -155,16 +161,19 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
   const [open, setOpen] = React.useState(true)
 
   const handleSave = React.useCallback(() => {
+    if (readOnly) return
     setOpen(false)
     onFinishedEditing(cell, [0, 1])
-  }, [cell, onFinishedEditing])
+  }, [cell, onFinishedEditing, readOnly])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
     onFinishedEditing(undefined, [0, 0])
   }, [onFinishedEditing])
+  const finishByTab = useEidosFileValueEditorTab(handleSave)
 
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === "Backspace" && !inputValue?.length) {
       const _values: string[] = Array.from(selectedValues)
       _values.pop()
@@ -193,11 +202,12 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
 
   return (
     <Popover open={open}>
-      <PopoverTrigger>
-        <div />
-      </PopoverTrigger>
+      <EidosFileValueEditorTrigger />
       <EidosFileGridEditorPopoverContent onPointerDownOutside={handleSave}>
-        <EidosFileGridEditorSurface className="max-h-[390px]">
+        <EidosFileGridEditorSurface
+          className="max-h-[390px]"
+          onKeyDown={finishByTab}
+        >
           <EidosFileGridEditorHeader
             icon={<Tags />}
             title={t("Select options")}

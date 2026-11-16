@@ -378,7 +378,17 @@ export function eidosFileValueToGridCell(
       },
     }
   }
-  if (field.type === "number" || field.type === "integer") {
+  if (field.type === "integer") {
+    const text = scalarText(value)
+    return {
+      kind: GridCellKind.Text,
+      allowOverlay: !readonly,
+      readonly,
+      data: text,
+      displayData: text,
+    }
+  }
+  if (field.type === "number") {
     const number =
       value === null ||
       value === undefined ||
@@ -533,6 +543,13 @@ export function gridCellToEidosFileValue(
     cell.kind === GridCellKind.Uri ||
     cell.kind === GridCellKind.Markdown
   ) {
+    if (field.type === "integer" && cell.data.trim() !== "") {
+      const text = cell.data.trim()
+      // Runtime owns range/field validation; never round an Int64 through Number.
+      return /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(text)
+        ? BigInt(text)
+        : cell.data
+    }
     return cell.data === "" ? null : cell.data
   }
   const raw = "data" in cell ? cell.data : null

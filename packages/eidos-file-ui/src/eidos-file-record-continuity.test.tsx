@@ -141,14 +141,14 @@ describe("record continuity", () => {
         <EidosFileRecordInspector
           row={next}
           fields={fields}
-          variant="page"
+          variant="panel"
           contentField={fields[2]}
           onCellEdit={vi.fn()}
         />
       )
     await act(async () => render(row))
     const input = container.querySelector<HTMLTextAreaElement>(
-      '[aria-label="Description"]'
+      'textarea[aria-label="Title"]'
     )!
     await act(async () => type(input, "Unsubmitted draft"))
     const disclosure = container.querySelector<HTMLButtonElement>(
@@ -157,11 +157,11 @@ describe("record continuity", () => {
     expect(disclosure).not.toBeNull()
     await act(async () => disclosure!.click())
     expect(disclosure!.getAttribute("aria-expanded")).toBe("false")
-    expect(container.querySelector('[aria-label="Description"]')).toBe(input)
+    expect(container.querySelector('textarea[aria-label="Title"]')).toBe(input)
     expect(input.value).toBe("Unsubmitted draft")
     await act(async () => render({ ...row, _id: "B", Title: "Title B" }))
     expect(disclosure!.getAttribute("aria-expanded")).toBe("false")
     await act(async () => disclosure!.click())
-    expect(input.value).toBe("Details")
+    expect(input.value).toBe("Title B")
   })
 })

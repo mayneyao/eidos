@@ -45,8 +45,7 @@ import { cn } from "./lib/cn"
 import { Button, ScrollArea } from "./ui/primitives"
 
 import { EidosFileRecordFieldEditor } from "./eidos-file-record-field-editor"
-import { EidosFileRecordAttachmentEditor } from "./eidos-file-record-attachment-editor"
-import { EidosFileRecordRelationEditor } from "./eidos-file-record-relation-editor"
+import { EidosFileRecordPropertyEditor } from "./eidos-file-record-property-editor"
 import {
   eidosFileFieldDisplayName,
   isEidosFileFieldWritable,
@@ -900,30 +899,7 @@ export function EidosFileRecordInspector({
                 <MobileRecordValue field={field} row={currentRow} />
               </div>
             )
-          ) : fieldWritable && field.type === "file" ? (
-            <EidosFileRecordAttachmentEditor
-              value={currentRow[field.tableColumnName]}
-              disabled={editorDisabled}
-              readOnly={propertyReadOnly}
-              onChange={(value) => editField(field, value)}
-              onImportFiles={onImportFiles}
-              onImportDroppedFiles={onImportDroppedFiles}
-              onError={onError}
-            />
-          ) : fieldWritable && field.type === "relation" && onSearchRelation ? (
-            <EidosFileRecordRelationEditor
-              row={currentRow}
-              field={field}
-              disabled={editorDisabled}
-              readOnly={propertyReadOnly}
-              onChange={(value) => editField(field, value)}
-              onSearch={onSearchRelation}
-              onError={onError}
-            />
-          ) : fieldWritable &&
-            field.valueKind === "source" &&
-            field.type !== "file" &&
-            field.type !== "relation" ? (
+          ) : fieldWritable && field.type === "text" && field.isRecordLabel ? (
             <EidosFileRecordFieldEditor
               field={field}
               row={currentRow}
@@ -931,6 +907,48 @@ export function EidosFileRecordInspector({
               disabled={editorDisabled}
               readOnly={propertyReadOnly}
               onChange={(value) => editField(field, value)}
+            />
+          ) : fieldWritable && field.type === "file" ? (
+            <div className="min-w-0">
+              <CopyableFieldValue
+                field={field}
+                row={currentRow}
+                onError={onError}
+              />
+              <EidosFileRecordPropertyEditor
+                field={field}
+                row={currentRow}
+                display={t("Edit files")}
+                disabled={editorDisabled}
+                readOnly={propertyReadOnly}
+                onChange={(value) => editField(field, value)}
+                onImportFiles={onImportFiles}
+                onImportDroppedFiles={onImportDroppedFiles}
+                onError={onError}
+              />
+            </div>
+          ) : fieldWritable && field.type === "relation" && onSearchRelation ? (
+            <EidosFileRecordPropertyEditor
+              row={currentRow}
+              field={field}
+              disabled={editorDisabled}
+              readOnly={propertyReadOnly}
+              onChange={(value) => editField(field, value)}
+              onSearchRelation={onSearchRelation}
+              onError={onError}
+            />
+          ) : fieldWritable &&
+            field.valueKind === "source" &&
+            field.type !== "file" &&
+            field.type !== "relation" ? (
+            <EidosFileRecordPropertyEditor
+              field={field}
+              row={currentRow}
+              disabled={editorDisabled}
+              readOnly={propertyReadOnly}
+              onChange={(value) => editField(field, value)}
+              onFieldUpdate={onFieldUpdate}
+              onError={onError}
             />
           ) : (
             <CopyableFieldValue
@@ -954,7 +972,7 @@ export function EidosFileRecordInspector({
         className="flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onClick={() => {
           const invalid = propertiesRef.current?.querySelector<HTMLElement>(
-            '[aria-invalid="true"], [role="alert"]'
+            '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
           )
           if (!propertiesCollapsed && invalid) {
             invalid.focus()

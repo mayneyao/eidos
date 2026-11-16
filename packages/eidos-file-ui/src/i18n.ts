@@ -12,6 +12,8 @@ const en: EidosFileUIMessageOverrides = {
 
 const zh: EidosFileUIMessageOverrides = {
   "Properties ({count})": "属性（{count}）",
+  "Edit files": "编辑文件",
+  "Clear {field}": "清空{field}",
   "Past (relative date)": "过去",
   "Next (relative date)": "接下来",
   "This (relative date)": "当前",

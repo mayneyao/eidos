@@ -19,7 +19,7 @@ import {
 } from "../eidos-file-date-time"
 import { formatEidosFileGridDate } from "../eidos-file-grid-date-format"
 import { Button, Calendar } from "../ui/primitives"
-import { Popover, PopoverTrigger } from "../ui/primitives"
+import { Popover } from "../ui/primitives"
 
 import {
   EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
@@ -27,6 +27,9 @@ import {
   EidosFileGridEditorHeader,
   EidosFileGridEditorPopoverContent,
   EidosFileGridEditorSurface,
+  EidosFileValueEditorTrigger,
+  useEidosFileValueEditorReadOnly,
+  useEidosFileValueEditorTab,
   eidosFileGridPopupEditor,
 } from "./grid-editor-surface"
 
@@ -58,6 +61,7 @@ interface DatePickerEditorProps {
 }
 
 function DatePickerEditor(props: DatePickerEditorProps) {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { locale, translate: t } = useEidosFileUI()
   const {
     format,
@@ -92,6 +96,7 @@ function DatePickerEditor(props: DatePickerEditorProps) {
 
   const commitDate = React.useCallback(
     (d: Date | undefined) => {
+      if (readOnly) return
       setSelectedDate(d)
       setInputError(null)
       if (d) {
@@ -114,21 +119,24 @@ function DatePickerEditor(props: DatePickerEditorProps) {
         setInputValue("")
       }
     },
-    [format, timeZone, calendarTimeZoneData]
+    [format, timeZone, calendarTimeZoneData, readOnly]
   )
 
   const handleSave = React.useCallback(() => {
-    if (inputError) return
+    if (readOnly || inputError) return
     setOpen(false)
     onFinishedEditing(selectedDate)
-  }, [inputError, selectedDate, onFinishedEditing])
+  }, [inputError, selectedDate, onFinishedEditing, readOnly])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
     onCancelEditing()
   }, [onCancelEditing])
 
+  const finishByTab = useEidosFileValueEditorTab(handleSave)
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (finishByTab(e)) return
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     // Escape to cancel editing
     if (e.key === "Escape") {
       e.preventDefault()
@@ -148,9 +156,7 @@ function DatePickerEditor(props: DatePickerEditorProps) {
 
   return (
     <Popover open={open}>
-      <PopoverTrigger>
-        <div />
-      </PopoverTrigger>
+      <EidosFileValueEditorTrigger />
       <EidosFileGridEditorPopoverContent
         onPointerDownOutside={() => {
           // 点击外部视为 Enter 保存，使用当前选中的值
@@ -169,7 +175,9 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               type={format === "date" ? "date" : "datetime-local"}
               value={inputValue}
               autoFocus
+              readOnly={readOnly}
               onChange={(e) => {
+                if (readOnly) return
                 const v = e.target.value
                 setInputValue(v)
                 if (!v) {
@@ -228,6 +236,7 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               month={month}
               onMonthChange={setMonth}
               onSelect={(nextDate) => {
+                if (readOnly) return
                 if (!nextDate || format === "date") {
                   commitDate(nextDate)
                   return

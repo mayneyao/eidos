@@ -1221,10 +1221,10 @@ describe("EidosFileRecordInspector", () => {
     })
 
     const combobox = document.body.querySelector<HTMLInputElement>(
-      '[role="combobox"][aria-label="Search records for Owners"]'
+      '[role="combobox"][aria-label="Search relation records"]'
     )
     const listbox = document.body.querySelector<HTMLElement>(
-      '[role="listbox"][aria-label="Owners relation records"]'
+      '[role="listbox"][aria-label="Relation records"]'
     )
     expect(combobox?.getAttribute("aria-controls")).toBe(listbox?.id)
     expect(listbox?.querySelectorAll('[role="option"]')).toHaveLength(2)
@@ -1244,6 +1244,12 @@ describe("EidosFileRecordInspector", () => {
       await Promise.resolve()
     })
 
+    expect(onCellEdit).not.toHaveBeenCalled()
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Done")
+        ?.click()
+    })
     expect(onCellEdit).toHaveBeenCalledWith(
       row,
       ownersField,

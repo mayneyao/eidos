@@ -19,6 +19,11 @@ import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
+import {
+  eidosFileValueToGridCell,
+  gridCellToEidosFileValue,
+} from "./eidos-file-grid-adapter"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 import { Button, Input } from "./ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 import {
@@ -191,6 +196,16 @@ function FieldEditorControl({
     if (disabled || readOnly) return false
     if (draft === draftOrigin.current.display) return true
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
+    if (
+      field.type === "text" ||
+      field.type === "url" ||
+      field.type === "integer"
+    ) {
+      const cell = eidosFileValueToGridCell(field, draft)
+      if (cell.kind === GridCellKind.Text || cell.kind === GridCellKind.Uri) {
+        next = gridCellToEidosFileValue(field, cell)
+      }
+    }
     if (field.type === "number") {
       const number = Number(draft)
       if (draft.trim().length > 0 && !Number.isFinite(number)) {
@@ -212,10 +227,6 @@ function FieldEditorControl({
         return false
       }
       next = draft.trim().length > 0 ? number : null
-    } else if (field.type === "integer" && draft.trim().length > 0) {
-      next = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(draft.trim())
-        ? BigInt(draft.trim())
-        : draft
     } else if (field.type === "datetime" && draft) {
       const date = eidosFileInstantFromInputValue(
         draft,

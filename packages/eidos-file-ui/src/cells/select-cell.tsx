@@ -26,7 +26,7 @@ import {
   CommandList,
   Button,
 } from "../ui/primitives"
-import { Popover, PopoverTrigger } from "../ui/primitives"
+import { Popover } from "../ui/primitives"
 import { SelectOptionItem } from "../ui/select-option-item"
 
 import {
@@ -35,6 +35,9 @@ import {
   EidosFileGridEditorHeader,
   EidosFileGridEditorPopoverContent,
   EidosFileGridEditorSurface,
+  EidosFileValueEditorTrigger,
+  useEidosFileValueEditorReadOnly,
+  useEidosFileValueEditorTab,
   eidosFileGridPopupEditor,
 } from "./grid-editor-surface"
 import { roundedRect } from "./grid-cell-helper"
@@ -64,6 +67,7 @@ interface SelectEditorProps {
 }
 
 function SelectEditor(props: SelectEditorProps) {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { translate: t } = useEidosFileUI()
   const {
     value: valueIn,
@@ -87,16 +91,20 @@ function SelectEditor(props: SelectEditorProps) {
   const nextColorName = nextEidosFileOptionColor([...allowedValues])
 
   const handleSave = React.useCallback(() => {
+    if (readOnly) return
     setOpen(false)
     onFinishedEditing(selectedValue)
-  }, [selectedValue, onFinishedEditing])
+  }, [selectedValue, onFinishedEditing, readOnly])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
     onCancelEditing()
   }, [onCancelEditing])
 
+  const finishByTab = useEidosFileValueEditorTab(handleSave)
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (finishByTab(e)) return
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     // Escape to cancel editing
     if (e.key === "Escape") {
       e.preventDefault()
@@ -112,6 +120,7 @@ function SelectEditor(props: SelectEditorProps) {
   }
 
   const handleSelect = (optionId: string) => {
+    if (readOnly) return
     setSelectedValue(optionId)
     // 选择后立即保存（单选的常规交互）
     setOpen(false)
@@ -121,6 +130,7 @@ function SelectEditor(props: SelectEditorProps) {
   const handleCreate = async (rawName: string) => {
     const name = rawName.trim()
     if (
+      readOnly ||
       !name ||
       creating ||
       !onCreateOption ||
@@ -146,9 +156,7 @@ function SelectEditor(props: SelectEditorProps) {
 
   return (
     <Popover open={open}>
-      <PopoverTrigger>
-        <div />
-      </PopoverTrigger>
+      <EidosFileValueEditorTrigger />
       <EidosFileGridEditorPopoverContent
         onPointerDownOutside={() => {
           handleSave()
