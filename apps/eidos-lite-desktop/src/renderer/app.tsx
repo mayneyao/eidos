@@ -14,10 +14,7 @@ import {
 } from "react"
 import { flushSync } from "react-dom"
 import { AutomaticMaterializationFence } from "./automatic-materialization"
-import {
-  TreeExpansionMenu,
-  type TreeExpansionActions,
-} from "./tree-expansion-menu"
+import type { TreeExpansionActions } from "./tree-expansion-menu"
 import {
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   type EidosFileSnapshot,
@@ -29,7 +26,6 @@ import {
   ArrowRight,
   Blocks,
   CircleAlert,
-  ClipboardCopy,
   Cloud,
   CloudDownload,
   Copy,
@@ -39,14 +35,11 @@ import {
   FolderPlus,
   GitMerge,
   History,
-  Info,
   LoaderCircle,
   PanelLeft,
-  Pencil,
   RefreshCw,
   Settings,
   SquareTerminal,
-  Trash2,
   Upload,
   X,
 } from "lucide-react"
@@ -71,8 +64,10 @@ import {
 } from "./explorer-layout"
 import { SpaceFileGroups } from "./space-file-groups"
 import { useExplorerClipboard } from "./use-explorer-clipboard"
-import { ExplorerClipboardMenu } from "./explorer-clipboard-menu"
-import { explorerPasteTarget } from "./explorer-clipboard"
+import {
+  ExplorerEntryContextMenuItems,
+  ExplorerRootContextMenuItems,
+} from "./explorer-context-menu"
 import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 import {
   EXPLORER_IGNORE_OPTIONS_STORAGE_KEY,
@@ -110,7 +105,6 @@ import type {
   TextFilePreviewResult,
 } from "../shared/contracts"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
-import { fileManagerMessage } from "../shared/platform-copy"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
@@ -171,7 +165,6 @@ import {
   SidebarUpdateAction,
 } from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
-import { SpaceEntryOpenActions } from "./space-entry-open-menu"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -1178,15 +1171,16 @@ function WorkspaceApp({
   const [treeExpansionActions, setTreeExpansionActions] =
     useState<TreeExpansionActions | null>(null)
   const entryContextMenuRef = useRef<HTMLDivElement>(null)
+  const rootContextMenuRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    for (const ref of [entryContextMenuRef]) {
+    for (const ref of [entryContextMenuRef, rootContextMenuRef]) {
       const menu = ref.current
       if (!menu) continue
       const bounds = menu.getBoundingClientRect()
       menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
       menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
     }
-  }, [contextMenu])
+  }, [contextMenu, rootClipboardMenu])
   useEffect(() => {
     setContextMenu(null)
     setRootClipboardMenu(null)
@@ -5942,20 +5936,30 @@ function WorkspaceApp({
       ) : null}
       {rootClipboardMenu ? (
         <div
+          ref={rootContextMenuRef}
           className="space-context-menu"
           role="menu"
           style={{ left: rootClipboardMenu.x, top: rootClipboardMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <ExplorerClipboardMenu
+          <ExplorerRootContextMenuItems
+            platform={platform}
             macos={macos}
-            canCapture={false}
-            canPaste={explorerClipboard.canPaste(explorerDirectory)}
-            pasteOnly
-            onCommand={() => {
-              void explorerClipboard.paste(explorerDirectory)
-              setRootClipboardMenu(null)
+            disabled={pathMutationBusy || localInteractionBlocked}
+            navigationDisabled={
+              pathMutationBusy || localInteractionBlocked || busyFile !== null
+            }
+            clipboard={explorerClipboard}
+            terminalOpen={terminalPanelVisible}
+            onCreate={(action) => setPathDialog({ action, entry: null })}
+            onManageFiles={() => void openFileMetadata(null)}
+            onToggleTerminal={
+              terminalPluginEnabled ? toggleTerminalPanel : undefined
+            }
+            onReveal={() => {
+              void window.eidosLite.revealPath(".")
             }}
+            onClose={() => setRootClipboardMenu(null)}
           />
         </div>
       ) : null}
@@ -5970,297 +5974,119 @@ function WorkspaceApp({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <ExplorerClipboardMenu
+          <ExplorerEntryContextMenuItems
+            entry={contextMenu.entry}
+            entries={contextMenu.entries}
+            platform={platform}
             macos={macos}
-            canCapture={explorerClipboard.canCapture(contextMenu.entries)}
-            canPaste={explorerClipboard.canPaste(
-              explorerPasteTarget(contextMenu.entry, explorerDirectory)
+            disabled={pathMutationBusy || localInteractionBlocked}
+            navigationDisabled={
+              pathMutationBusy || localInteractionBlocked || busyFile !== null
+            }
+            clipboard={explorerClipboard}
+            expansionActions={contextMenu.expansionActions}
+            selectedEditor={
+              pluginEditor?.relativePath === contextMenu.entry.relativePath
+                ? pluginEditor.editor.key
+                : "builtin"
+            }
+            editingModeShortcut={workspaceShortcutLabel(
+              "toggle-markdown-editing-mode",
+              macos,
+              keyboardShortcuts
             )}
-            onCommand={(command) => {
-              if (command === "paste")
-                void explorerClipboard.paste(
-                  explorerPasteTarget(contextMenu.entry, explorerDirectory)
-                )
-              else explorerClipboard.capture(command, contextMenu.entries)
-              setContextMenu(null)
-            }}
-          />
-          <div role="separator" className="space-context-menu-separator" />
-          {contextMenu.entries.length > 1 ? (
-            <>
-              <p className="space-context-menu-selection">
-                {t("{count} items selected", {
-                  count: contextMenu.entries.length,
-                })}
-              </p>
-              {contextMenu.expansionActions && (
-                <>
-                  <TreeExpansionMenu
-                    actions={contextMenu.expansionActions}
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClose={() => setContextMenu(null)}
-                  />
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                </>
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                className="danger-menu-item"
-                disabled={pathMutationBusy || localInteractionBlocked}
-                onClick={() => {
-                  setPathDialog({
-                    action: "delete",
-                    entry: contextMenu.entry,
-                    entries: contextMenu.entries,
-                  })
-                  setContextMenu(null)
-                }}
-              >
-                <Trash2 /> {t("Move to Trash")}
-              </button>
-            </>
-          ) : (
-            <>
-              <SpaceEntryOpenActions
-                key={contextMenu.entry.relativePath}
-                entry={contextMenu.entry}
-                selectedEditor={
-                  pluginEditor?.relativePath === contextMenu.entry.relativePath
-                    ? pluginEditor.editor.key
-                    : "builtin"
-                }
-                editingModeShortcut={workspaceShortcutLabel(
-                  "toggle-markdown-editing-mode",
-                  macos,
-                  keyboardShortcuts
-                )}
-                onOpen={(fileOpenMode) => {
-                  void openEntry(contextMenu.entry, { fileOpenMode })
-                  setContextMenu(null)
-                }}
-                onSelectPluginEditor={(editor) => {
-                  void openEntry(contextMenu.entry, { pluginEditor: editor })
-                  setContextMenu(null)
-                }}
-              />
-              {contextMenu.entry.kind !== "directory" ? (
+            publishAction={
+              isPublishableEntry(contextMenu.entry) ? (
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={pathMutationBusy || localInteractionBlocked}
+                  disabled={publishMenu.disabled}
                   onClick={() => {
-                    openFileProperties(contextMenu.entry.relativePath)
+                    if (publishMenu.disabled) return
+                    if (publishTask?.status === "running")
+                      setPublishTaskExpanded(true)
+                    else {
+                      setPublishTask(null)
+                      setPublishPanel({
+                        entry: contextMenu.entry,
+                        x: contextMenu.x,
+                        y: contextMenu.y,
+                      })
+                    }
                     setContextMenu(null)
                   }}
                 >
-                  <Info /> {t("File properties")}
+                  {publishTask?.status === "running" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <Upload />
+                  )}{" "}
+                  {publishMenu.label
+                    ? t(publishMenu.label)
+                    : publishTask?.status === "running"
+                      ? t("View Publish progress")
+                      : publicationBindings.some(
+                            (binding) =>
+                              binding.relativePath ===
+                              contextMenu.entry.relativePath
+                          )
+                        ? t("Manage Publish…")
+                        : t("Publish…")}
                 </button>
-              ) : null}
-              {isPublishableEntry(contextMenu.entry) ? (
-                <>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={publishMenu.disabled}
-                    onClick={() => {
-                      if (publishMenu.disabled) return
-                      if (publishTask?.status === "running") {
-                        setPublishTaskExpanded(true)
-                      } else {
-                        setPublishTask(null)
-                        setPublishPanel({
-                          entry: contextMenu.entry,
-                          x: contextMenu.x,
-                          y: contextMenu.y,
-                        })
-                      }
-                      setContextMenu(null)
-                    }}
-                  >
-                    {publishTask?.status === "running" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <Upload />
-                    )}{" "}
-                    {publishMenu.label
-                      ? t(publishMenu.label)
-                      : publishTask?.status === "running"
-                        ? t("View Publish progress")
-                        : publicationBindings.some(
-                              (binding) =>
-                                binding.relativePath ===
-                                contextMenu.entry.relativePath
-                            )
-                          ? t("Manage Publish…")
-                          : t("Publish…")}
-                  </button>
-                </>
-              ) : null}
-              {contextMenu.entry.kind === "directory" ? (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={pathMutationBusy || localInteractionBlocked}
-                    onClick={() => {
-                      setPathDialog({
-                        action: "create-file",
+              ) : undefined
+            }
+            actions={{
+              open: (fileOpenMode) => {
+                void openEntry(contextMenu.entry, { fileOpenMode })
+              },
+              selectPluginEditor: (editor) => {
+                void openEntry(contextMenu.entry, { pluginEditor: editor })
+              },
+              create: (action) =>
+                setPathDialog({ action, entry: contextMenu.entry }),
+              rename: () => {
+                setTreeRenameRequest({
+                  treePath:
+                    contextMenu.entry.kind === "directory"
+                      ? `${contextMenu.entry.relativePath}/`
+                      : contextMenu.entry.relativePath,
+                  nonce: Date.now(),
+                })
+                setSidebarCollapsed(false)
+                setExplorerSearchVisible(false)
+                if (contextMenu.entry.relativePath === activeDocumentPath)
+                  setTreeRevealToken((value) => value + 1)
+              },
+              showFolder: () => {
+                void navigateExplorerDirectory(contextMenu.entry.relativePath)
+              },
+              manageFiles: () => {
+                void openFileMetadata(contextMenu.entry.relativePath)
+              },
+              properties: () =>
+                openFileProperties(contextMenu.entry.relativePath),
+              reveal: () => {
+                void window.eidosLite.revealPath(contextMenu.entry.relativePath)
+              },
+              copyPath: (mode) => {
+                void window.eidosLite.copyPathText(
+                  contextMenu.entry.relativePath,
+                  mode
+                )
+              },
+              trash: () =>
+                setPathDialog(
+                  contextMenu.entries.length > 1
+                    ? {
+                        action: "delete",
                         entry: contextMenu.entry,
-                      })
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FilePlus2 /> {t("New File")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={pathMutationBusy || localInteractionBlocked}
-                    onClick={() => {
-                      setPathDialog({
-                        action: "create-folder",
-                        entry: contextMenu.entry,
-                      })
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderPlus /> {t("New folder")}
-                  </button>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void navigateExplorerDirectory(
-                        contextMenu.entry.relativePath
-                      )
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderOpen /> {t("Show this folder")}
-                  </button>
-                  {contextMenu.expansionActions && (
-                    <TreeExpansionMenu
-                      actions={contextMenu.expansionActions}
-                      disabled={
-                        pathMutationBusy ||
-                        localInteractionBlocked ||
-                        busyFile !== null
+                        entries: contextMenu.entries,
                       }
-                      onClose={() => setContextMenu(null)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void openFileMetadata(contextMenu.entry.relativePath)
-                      setContextMenu(null)
-                    }}
-                  >
-                    <Database /> {t("Manage files")}
-                  </button>
-                </>
-              ) : null}
-              <div role="separator" className="space-context-menu-separator" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setTreeRenameRequest({
-                    treePath:
-                      contextMenu.entry.kind === "directory"
-                        ? `${contextMenu.entry.relativePath}/`
-                        : contextMenu.entry.relativePath,
-                    nonce: Date.now(),
-                  })
-                  setSidebarCollapsed(false)
-                  setExplorerSearchVisible(false)
-                  if (contextMenu.entry.relativePath === activeDocumentPath) {
-                    setTreeRevealToken((value) => value + 1)
-                  }
-                  setContextMenu(null)
-                }}
-              >
-                <Pencil /> {t("Rename")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.revealPath(
-                    contextMenu.entry.relativePath
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <FolderOpen /> {t(fileManagerMessage(platform))}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.copyPathText(
-                    contextMenu.entry.relativePath,
-                    "relative"
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <ClipboardCopy /> {t("Copy Relative Path")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.copyPathText(
-                    contextMenu.entry.relativePath,
-                    "absolute"
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <Copy /> {t("Copy Path")}
-              </button>
-              <div role="separator" className="space-context-menu-separator" />
-              <button
-                type="button"
-                role="menuitem"
-                className="danger-menu-item"
-                onClick={() => {
-                  setPathDialog({ action: "delete", entry: contextMenu.entry })
-                  setContextMenu(null)
-                }}
-              >
-                <Trash2 /> {t("Move to Trash")}
-              </button>
-            </>
-          )}
+                    : { action: "delete", entry: contextMenu.entry }
+                ),
+            }}
+            onClose={() => setContextMenu(null)}
+          />
         </div>
       ) : null}
       {publishPanel ? (

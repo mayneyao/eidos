@@ -409,6 +409,12 @@ export function SpaceFileTree({
   const mutationInFlightRef = useRef(false)
   const initializedRenameInputs = useRef(new WeakSet<HTMLInputElement>())
   const shellRef = useRef<HTMLDivElement>(null)
+  const rootCommandContextRef = useRef(false)
+  const [rootCommandContext, setRootCommandContext] = useState(false)
+  const setRootContext = useCallback((root: boolean) => {
+    rootCommandContextRef.current = root
+    setRootCommandContext(root)
+  }, [])
   const nativeClipboardStateSignature = useRef("")
   const [pendingMove, setPendingMove] = useState<PendingTreeMove | null>(null)
   const onOpenRef = useRef(onOpen)
@@ -609,6 +615,12 @@ export function SpaceFileTree({
     if (!shadow) return
     const initializeRenameSelection = (event: Event) => {
       const path = event.composedPath()
+      if (
+        path.some(
+          (node) => node instanceof HTMLElement && node.dataset.itemPath
+        )
+      )
+        setRootContext(false)
       const input = path.find(
         (node): node is HTMLInputElement =>
           node instanceof HTMLInputElement &&
@@ -635,7 +647,7 @@ export function SpaceFileTree({
     shadow.addEventListener("focusin", initializeRenameSelection, true)
     return () =>
       shadow.removeEventListener("focusin", initializeRenameSelection, true)
-  }, [model])
+  }, [model, setRootContext])
   useEffect(() => {
     if (!visible || !clipboard) return
     return window.eidosLite?.onClipboardCommand?.((command) => {
@@ -673,12 +685,15 @@ export function SpaceFileTree({
                   (node) => node instanceof HTMLElement && node.dataset.itemPath
                 )
                 ?.getAttribute("data-item-path") ?? model.getFocusedPath())
-        const target = explorerPasteTarget(
-          focusedPath
-            ? (treeRef.current.entryByTreePath.get(focusedPath) ?? null)
-            : null,
-          rootDirectory ?? null
-        )
+        const target =
+          rootCommandContextRef.current || focusPath?.[0] === shellRef.current
+            ? null
+            : explorerPasteTarget(
+                focusedPath
+                  ? (treeRef.current.entryByTreePath.get(focusedPath) ?? null)
+                  : null,
+                rootDirectory ?? null
+              )
         const state = focusPath
           ? {
               cut: !disabled && clipboard.canCapture(entries),
@@ -715,6 +730,7 @@ export function SpaceFileTree({
     model,
     selectedPathsSignature,
     rootDirectory,
+    rootCommandContext,
     disabled,
   ])
   useEffect(
@@ -769,6 +785,7 @@ export function SpaceFileTree({
   ): boolean => {
     if (
       !clipboard ||
+      !visible ||
       disabled ||
       mutationInFlightRef.current ||
       explorerClipboardEventIsEditable(event.nativeEvent)
@@ -782,12 +799,15 @@ export function SpaceFileTree({
       event.target === shellRef.current
         ? null
         : (eventTreePath(event) ?? model.getFocusedPath())
-    const target = explorerPasteTarget(
-      targetPath
-        ? (treeRef.current.entryByTreePath.get(targetPath) ?? null)
-        : null,
-      rootDirectory ?? null
-    )
+    const target =
+      rootCommandContextRef.current || event.target === shellRef.current
+        ? null
+        : explorerPasteTarget(
+            targetPath
+              ? (treeRef.current.entryByTreePath.get(targetPath) ?? null)
+              : null,
+            rootDirectory ?? null
+          )
     if (command === "paste") {
       if (!clipboard.canPaste(target)) return false
       void clipboard.paste(target)
@@ -1178,6 +1198,16 @@ export function SpaceFileTree({
     return createExpansionActions(roots, "folder")
   }
 
+  const activateRootContext = () => {
+    setRootContext(true)
+    restoreSelectionRef.current = null
+    if (nameFilterSnapshotRef.current)
+      nameFilterSnapshotRef.current.selected = []
+    for (const path of model.getSelectedPaths()) model.getItem(path)?.deselect()
+    onSelectRef.current(null)
+    shellRef.current?.focus({ preventScroll: true })
+  }
+
   return (
     <div
       className="space-file-tree-shell"
@@ -1200,23 +1230,58 @@ export function SpaceFileTree({
       onPasteCapture={(event) => {
         runClipboardCommand("paste", event)
       }}
-      onPointerDown={(event) => {
+      onPointerDownCapture={(event) => {
         if (
-          !eventTreePath(event) &&
-          !explorerClipboardEventIsEditable(event.nativeEvent)
+          !visible ||
+          disabled ||
+          mutationInFlightRef.current ||
+          explorerClipboardEventIsEditable(event.nativeEvent)
         )
-          shellRef.current?.focus({ preventScroll: true })
+          return
+        if (eventTreePath(event)) {
+          setRootContext(false)
+          return
+        }
+        if (
+          event.button !== 0 ||
+          event.nativeEvent
+            .composedPath()
+            .some(
+              (node) =>
+                node instanceof HTMLElement &&
+                node.matches("button, a, [role=button]")
+            )
+        )
+          return
+        // Keep native scrollbar gestures intact; they are not a blank-area click.
+        const scrollbar = event.nativeEvent.composedPath().some((node) => {
+          if (!(node instanceof HTMLElement)) return false
+          const bounds = node.getBoundingClientRect()
+          return (
+            (node.offsetWidth > node.clientWidth &&
+              event.clientX >= bounds.left + node.clientWidth &&
+              event.clientX < bounds.right) ||
+            (node.offsetHeight > node.clientHeight &&
+              event.clientY >= bounds.top + node.clientHeight &&
+              event.clientY < bounds.bottom)
+          )
+        })
+        if (scrollbar) return
+        // Prevent the shadow scrollport from reclaiming its historical row focus.
+        event.preventDefault()
+        activateRootContext()
       }}
       onContextMenu={(event) => {
         if (
           !onRootContextMenu ||
+          !visible ||
           disabled ||
           eventTreePath(event) ||
           explorerClipboardEventIsEditable(event.nativeEvent)
         )
           return
         event.preventDefault()
-        shellRef.current?.focus({ preventScroll: true })
+        activateRootContext()
         onRootContextMenu?.(event.clientX, event.clientY)
       }}
     >
@@ -1440,6 +1505,7 @@ export function SpaceFileTree({
           if (!treePath || disabled) return
           const entry = treeRef.current.entryByTreePath.get(treePath)
           if (!entry) return
+          setRootContext(false)
           event.preventDefault()
           event.stopPropagation()
           const selectedPaths = model.getSelectedPaths()

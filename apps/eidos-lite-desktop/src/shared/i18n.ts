@@ -1586,6 +1586,8 @@ const zh: Record<string, string> = {
   "Toggle version history": "切换版本历史",
   "Toggle Sync": "切换同步面板",
   "Toggle terminal": "切换终端",
+  "Show terminal": "显示终端",
+  "Hide terminal": "隐藏终端",
   "Toggle terminal position": "切换终端位置",
   "Move terminal beside file content": "将终端移到文件内容左侧",
   "Move terminal below file content": "将终端移到文件内容下方",
