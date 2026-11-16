@@ -42,6 +42,14 @@ export class SpaceMetadataConnectionPort extends NodeSqliteConnectionPort {
     for (const row of result.rows)
       for (const index of indexes) {
         const cell = row[index]
+        // fs_meta exposes directories with SQL NULL in its attachment column.
+        // The canonical File value for an entry without attachments is [].
+        // Adapt at this native boundary, including catalogs created before
+        // directory rows were supported, without rewriting their schema.
+        if (cell?.tag === "null") {
+          row[index] = { tag: "text", value: "[]" }
+          continue
+        }
         if (cell?.tag !== "text") continue
         const entries: unknown = JSON.parse(cell.value)
         if (!Array.isArray(entries))

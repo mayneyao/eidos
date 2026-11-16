@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const DEFAULT_VERSION = "v0.3.0"
+const DEFAULT_VERSION = "v0.6.0"
 const version = process.env.SQLITE_FS_META_VERSION || DEFAULT_VERSION
 
 function getCliArg(prefix) {
@@ -91,7 +91,7 @@ async function main() {
   }
 
   // 3. Download from GitHub Release
-  const downloadUrl = `https://github.com/mayneyao/sqlite-fs-meta/releases/download/${version}/${assetName}`
+  const downloadUrl = `https://github.com/mayneyao/xmeta/releases/download/${version}/${assetName}`
   console.log(
     `Downloading sqlite-fs-meta (${version}) for ${platform}-${arch} from:`
   )
@@ -107,7 +107,7 @@ async function main() {
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
   const checksumsResponse = await fetch(
-    `https://github.com/mayneyao/sqlite-fs-meta/releases/download/${version}/SHA256SUMS`
+    `https://github.com/mayneyao/xmeta/releases/download/${version}/SHA256SUMS`
   )
   if (!checksumsResponse.ok)
     throw new Error(

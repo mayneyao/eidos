@@ -279,6 +279,11 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       false
     )
     expect(page.rows.map((row) => row._id)).toContain("root.txt")
+    const fileField = table.fields.find((field) => field.name === "file")!
+    const directory = page.rows.find((row) => row._id === "assets")!
+    expect(decodeEidosFileValues(directory[fileField.id!] as string)).toEqual(
+      []
+    )
     const scopedView = fileMetadataScopedView(table, view, "assets")!
     const scoped = await runtime.source.getPage(
       table.table.id,
@@ -287,6 +292,7 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       eidosFileViewRowQuery(scopedView)
     )
     expect(scoped.rows.map((row) => row._id).sort()).toEqual([
+      "assets/nested",
       "assets/nested/deep.txt",
       "assets/proof.txt",
     ])
@@ -304,7 +310,6 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     expect(fileMetadataRowPath(table, proof, ".eidos/files.eidos")).toBe(
       "assets/proof.txt"
     )
-    const fileField = table.fields.find((field) => field.name === "file")!
     const entry = decodeEidosFileValues(proof[fileField.id!] as string)[0]!
     expect(runtime.findFileEntry(entry.id)).toEqual(entry)
     const resolved = await resolveEidosFileAttachment(
