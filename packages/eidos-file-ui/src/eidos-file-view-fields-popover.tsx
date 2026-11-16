@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities"
 
 import { useEidosFileUI } from "./context"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
+import { useViewLayoutUpdates } from "./use-view-layout-updates"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import {
   eidosFileFieldDisplayName,
@@ -143,7 +144,7 @@ function SortableFieldRow({
  */
 export function EidosFileViewFieldsPopover({
   fields,
-  view,
+  view: savedView,
   disabled = false,
   className,
   onUpdate,
@@ -168,8 +169,12 @@ export function EidosFileViewFieldsPopover({
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { view, busy, error, enqueue, settle, clearError } =
+    useViewLayoutUpdates(
+      savedView,
+      onUpdate,
+      t("Unable to update visible fields")
+    )
   useEidosFilePendingEdit(open || embedded || busy)
   const handingOffFocusRef = useRef(false)
   const orderedFields = useMemo(
@@ -198,40 +203,25 @@ export function EidosFileViewFieldsPopover({
   const allHidden = visibleCount === 0
   const allVisible = visibleCount === orderedFields.length
 
-  const run = async (changes: UpdateEidosFileViewInput) => {
-    setBusy(true)
-    setError(null)
-    try {
-      await onUpdate(changes)
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("Unable to update visible fields")
-      )
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const toggleField = (field: EidosFileFieldInfo, visible: boolean) => {
     const fieldId = eidosFileFieldKey(field)
-    if (isOptionalEidosFileSystemField(field)) {
-      const next = new Set(visibleSystemFields)
-      if (visible) next.add(fieldId)
-      else next.delete(fieldId)
-      void run({
-        properties: {
-          ...(view.properties ?? {}),
-          visibleSystemFields: [...next],
-        },
-      })
-      return
-    }
-    const next = new Set(hiddenFields)
-    if (visible) next.delete(fieldId)
-    else next.add(fieldId)
-    void run({ hiddenFields: [...next] })
+    enqueue((current) => {
+      if (isOptionalEidosFileSystemField(field)) {
+        const next = new Set(eidosFileViewVisibleSystemFields(current))
+        if (visible) next.add(fieldId)
+        else next.delete(fieldId)
+        return {
+          properties: {
+            ...(current.properties ?? {}),
+            visibleSystemFields: [...next],
+          },
+        }
+      }
+      const next = new Set(current.hiddenFields)
+      if (visible) next.delete(fieldId)
+      else next.add(fieldId)
+      return { hiddenFields: [...next] }
+    })
   }
 
   const showAll = () => {
@@ -241,17 +231,20 @@ export function EidosFileViewFieldsPopover({
     const systemIds = orderedFields
       .filter(isOptionalEidosFileSystemField)
       .map((field) => eidosFileFieldKey(field))
-    void run({
-      hiddenFields: view.hiddenFields.filter(
+    enqueue((current) => ({
+      hiddenFields: current.hiddenFields.filter(
         (fieldId) => !configurableIds.has(fieldId)
       ),
       properties: {
-        ...(view.properties ?? {}),
+        ...(current.properties ?? {}),
         visibleSystemFields: [
-          ...new Set([...eidosFileViewVisibleSystemFields(view), ...systemIds]),
+          ...new Set([
+            ...eidosFileViewVisibleSystemFields(current),
+            ...systemIds,
+          ]),
         ],
       },
-    })
+    }))
   }
 
   const hideAll = () => {
@@ -263,30 +256,32 @@ export function EidosFileViewFieldsPopover({
         .filter(isOptionalEidosFileSystemField)
         .map((field) => eidosFileFieldKey(field))
     )
-    void run({
-      hiddenFields: [...new Set([...view.hiddenFields, ...ordinaryIds])],
+    enqueue((current) => ({
+      hiddenFields: [...new Set([...current.hiddenFields, ...ordinaryIds])],
       properties: {
-        ...(view.properties ?? {}),
-        visibleSystemFields: eidosFileViewVisibleSystemFields(view).filter(
+        ...(current.properties ?? {}),
+        visibleSystemFields: eidosFileViewVisibleSystemFields(current).filter(
           (fieldId) => !systemIds.has(fieldId)
         ),
       },
-    })
+    }))
   }
 
   const reorderFields = (next: EidosFileFieldInfo[]) => {
     const knownIds = new Set(
       next.map((candidate) => eidosFileFieldKey(candidate))
     )
-    const orderMap = Object.fromEntries(
-      Object.entries(view.orderMap ?? {}).filter(
-        ([fieldId]) => !knownIds.has(fieldId)
+    enqueue((current) => {
+      const orderMap = Object.fromEntries(
+        Object.entries(current.orderMap ?? {}).filter(
+          ([fieldId]) => !knownIds.has(fieldId)
+        )
       )
-    )
-    next.forEach((candidate, position) => {
-      orderMap[eidosFileFieldKey(candidate)] = position
+      next.forEach((candidate, position) => {
+        orderMap[eidosFileFieldKey(candidate)] = position
+      })
+      return { orderMap }
     })
-    void run({ orderMap })
   }
 
   const content = (
@@ -314,7 +309,7 @@ export function EidosFileViewFieldsPopover({
             variant="ghost"
             size="xs"
             className="h-7 px-2 text-[11px]"
-            disabled={busy || allHidden}
+            disabled={allHidden}
             onClick={hideAll}
           >
             {t("Hide all")}
@@ -324,7 +319,7 @@ export function EidosFileViewFieldsPopover({
             variant="ghost"
             size="xs"
             className="h-7 px-2 text-[11px]"
-            disabled={busy || allVisible}
+            disabled={allVisible}
             onClick={showAll}
           >
             {t("Show all")}
@@ -354,7 +349,7 @@ export function EidosFileViewFieldsPopover({
               field,
             }))}
             optimistic={false}
-            disabled={busy || Boolean(normalizedSearch)}
+            disabled={Boolean(normalizedSearch)}
             onReorder={(next) =>
               reorderFields(next.map((candidate) => candidate.field))
             }
@@ -389,7 +384,7 @@ export function EidosFileViewFieldsPopover({
                   label={t("Reorder {field}", {
                     field: eidosFileFieldDisplayName(field),
                   })}
-                  disabled={busy || Boolean(normalizedSearch)}
+                  disabled={Boolean(normalizedSearch)}
                 >
                   <label className="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center">
                     <span
@@ -406,7 +401,6 @@ export function EidosFileViewFieldsPopover({
                       type="checkbox"
                       className="sr-only"
                       checked={visible}
-                      disabled={busy}
                       aria-label={t("Show {field}", {
                         field: fieldName,
                       })}
@@ -422,14 +416,14 @@ export function EidosFileViewFieldsPopover({
                       aria-label={t("Edit {field} properties", {
                         field: fieldName,
                       })}
-                      disabled={busy}
                       data-eidos-file-field-properties={fieldId}
-                      onClick={() => {
+                      onClick={async () => {
+                        if (!(await settle())) return
                         if (!embedded) {
                           setOpen(false)
                           setSearch("")
                         }
-                        setError(null)
+                        clearError()
                         onFieldOpen(field)
                       }}
                     >
@@ -469,14 +463,14 @@ export function EidosFileViewFieldsPopover({
             variant="ghost"
             size="sm"
             className="h-8 w-full justify-start gap-2 px-2 text-xs"
-            disabled={busy}
-            onClick={() => {
+            onClick={async () => {
+              if (!(await settle())) return
               if (!embedded) {
                 handingOffFocusRef.current = true
                 setOpen(false)
                 setSearch("")
               }
-              setError(null)
+              clearError()
               onFieldAdd(
                 view.type === "form"
                   ? EIDOS_FILE_FORM_INPUT_FIELD_TYPES
@@ -508,7 +502,7 @@ export function EidosFileViewFieldsPopover({
         setOpen(nextOpen)
         if (!nextOpen) {
           setSearch("")
-          setError(null)
+          clearError()
         }
       }}
     >

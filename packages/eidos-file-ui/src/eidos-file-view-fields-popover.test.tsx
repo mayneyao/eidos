@@ -346,4 +346,151 @@ describe("EidosFileViewFieldsPopover", () => {
       },
     })
   })
+
+  it("keeps focus and immediate intent through queued saves and an intermediate snapshot", async () => {
+    let first!: () => void
+    let second!: () => void
+    onUpdate
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            first = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            second = resolve
+          })
+      )
+    const assets = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Show Assets"]'
+    )!
+    const experiment = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Show Experiment"]'
+    )!
+    const list = document.querySelector("[data-eidos-file-view-fields-list]")!
+    await act(async () => {
+      assets.focus()
+      assets.click()
+    })
+    expect(assets.checked).toBe(true)
+    expect(assets.disabled).toBe(false)
+    expect(document.activeElement).toBe(assets)
+    await act(async () => experiment.click())
+    expect(experiment.checked).toBe(false)
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    await act(async () => first())
+    expect(onUpdate).toHaveBeenNthCalledWith(2, {
+      hiddenFields: [fields[0]!.id],
+    })
+    await act(async () =>
+      root.render(
+        <EidosFileViewFieldsPopover
+          fields={fields}
+          view={{ ...view, hiddenFields: [] }}
+          onUpdate={onUpdate}
+        />
+      )
+    )
+    expect(experiment.checked).toBe(false)
+    expect(assets.checked).toBe(true)
+    await act(async () => second())
+    expect(document.querySelector("[data-eidos-file-view-fields-list]")).toBe(
+      list
+    )
+    expect(document.querySelector('input[aria-label="Show Assets"]')).toBe(
+      assets
+    )
+    expect(experiment.checked).toBe(false)
+  })
+
+  it("rebases later intents after a failed save and allows recovery without losing unknown layout data", async () => {
+    let reject!: (error: Error) => void
+    onUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, fail) => {
+          reject = fail
+        })
+    )
+    const assets = () =>
+      document.querySelector<HTMLInputElement>(
+        'input[aria-label="Show Assets"]'
+      )!
+    const experiment = () =>
+      document.querySelector<HTMLInputElement>(
+        'input[aria-label="Show Experiment"]'
+      )!
+    await act(async () => assets().click())
+    await act(async () => experiment().click())
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    await act(async () => reject(new Error("save failed")))
+    expect(onUpdate).toHaveBeenNthCalledWith(2, {
+      hiddenFields: [fields[1]!.id, fields[0]!.id],
+    })
+    expect(assets().checked).toBe(false)
+    expect(experiment().checked).toBe(false)
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "save failed"
+    )
+    await act(async () => assets().click())
+    expect(onUpdate).toHaveBeenNthCalledWith(3, {
+      hiddenFields: [fields[0]!.id],
+    })
+    expect(assets().checked).toBe(true)
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it("serializes ordinary and system toggles with hide-all and show-all", async () => {
+    let finish!: () => void
+    onUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    await act(async () =>
+      document
+        .querySelector<HTMLInputElement>('input[aria-label="Show Assets"]')!
+        .click()
+    )
+    await act(async () =>
+      document
+        .querySelector<HTMLInputElement>('input[aria-label="Show Created at"]')!
+        .click()
+    )
+    await clickButton("Hide all")
+    await clickButton("Show all")
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    await act(async () => finish())
+    expect(onUpdate).toHaveBeenCalledTimes(4)
+    expect(onUpdate).toHaveBeenLastCalledWith({
+      hiddenFields: [],
+      properties: { visibleSystemFields: [fields[2]!.id] },
+    })
+    expect(
+      Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+      ).every((input) => input.checked)
+    ).toBe(true)
+  })
+
+  it("waits for visibility writes before handing off to field properties", async () => {
+    let finish!: () => void
+    onUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    await act(async () =>
+      document
+        .querySelector<HTMLInputElement>('input[aria-label="Show Assets"]')!
+        .click()
+    )
+    await clickButton("Edit Experiment properties")
+    expect(onFieldOpen).not.toHaveBeenCalled()
+    await act(async () => finish())
+    expect(onFieldOpen).toHaveBeenCalledExactlyOnceWith(fields[0])
+  })
 })
