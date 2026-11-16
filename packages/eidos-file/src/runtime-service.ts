@@ -398,6 +398,41 @@ export class EidosRuntimeService implements RuntimeClient {
       )
     }
     this.hostBridge = {
+      queuedRead: (operation, context) =>
+        this.invoke(
+          context,
+          () => {
+            if (
+              Object.prototype.toString.call(operation) ===
+              "[object AsyncFunction]"
+            ) {
+              throw runtimeError(
+                "invalid-request",
+                "Host read callbacks must complete synchronously"
+              )
+            }
+            return this.read(() => {
+              const value = operation()
+              if (
+                value !== null &&
+                (typeof value === "object" || typeof value === "function") &&
+                "then" in value &&
+                typeof value.then === "function"
+              ) {
+                throw runtimeError(
+                  "invalid-request",
+                  "Host read callbacks must not return thenables"
+                )
+              }
+              return value
+            })
+          },
+          false,
+          undefined,
+          false,
+          false,
+          true
+        ),
       allocateFileEntry: (request, context) =>
         this.invoke(
           context,
@@ -717,7 +752,7 @@ export class EidosRuntimeService implements RuntimeClient {
           const fields = Array.from(
             new Set([...request.projection.fields, ...extraFields])
           )
-          const result = this.core.queryRows(request.tableId, {
+          const resultRows = this.core.runtimeQueryRows(request.tableId, {
             fields,
             query: traversal,
             limit: request.limit + 1,
@@ -725,8 +760,8 @@ export class EidosRuntimeService implements RuntimeClient {
             cursor: coreCursor,
             resolveRelations: request.projection.resolveRelations.length > 0,
           })
-          const hasMoreInTraversal = result.rows.length > request.limit
-          const traversalRows = result.rows.slice(0, request.limit)
+          const hasMoreInTraversal = resultRows.length > request.limit
+          const traversalRows = resultRows.slice(0, request.limit)
           const logicalRows =
             direction === "forward" ? traversalRows : traversalRows.reverse()
           const columns = this.columns(request.tableId, request.projection)
@@ -4743,7 +4778,8 @@ export class EidosRuntimeService implements RuntimeClient {
     allowClosing = false,
     requestPayload?: unknown,
     accountResponse = true,
-    acceptCalendarExecution = false
+    acceptCalendarExecution = false,
+    checkReadCompletion = false
   ): Promise<T> {
     try {
       assertRequestContext(context)
@@ -4814,6 +4850,7 @@ export class EidosRuntimeService implements RuntimeClient {
         this.requestInstant = reference ?? checkedNowInstant(this.environment)
         this.core.setRequestInstant(this.requestInstant)
         const result = await operation()
+        if (checkReadCompletion) this.checkControl(context, control, acceptedAt)
         if (result !== undefined && accountResponse) {
           assertJcsBytes(
             result,

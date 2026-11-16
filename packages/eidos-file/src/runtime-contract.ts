@@ -90,6 +90,14 @@ export interface RuntimeBinding {
 }
 
 export interface RuntimeHostBridge {
+  /** @internal Same-session host reads; callbacks must complete synchronously. */
+  queuedRead?<T>(
+    operation: (() => T) &
+      ([Extract<T, { then: (...args: never[]) => unknown }>] extends [never]
+        ? unknown
+        : never),
+    context: RequestContext
+  ): Promise<T>
   allocateFileEntry(
     request: {
       name: string

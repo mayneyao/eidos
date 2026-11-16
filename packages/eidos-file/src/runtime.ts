@@ -4478,6 +4478,54 @@ export class EidosFileRuntime {
     cursor?: string,
     projection?: EidosFileRowPageProjection
   ): EidosFileRowPage {
+    const page = this.readRowPage(
+      tableId,
+      offset,
+      limit,
+      query,
+      cursor,
+      projection
+    )
+    const total =
+      totalHint ?? this.countRows(tableId, query, page.referenceInstant)
+    const nextOffset = page.effectiveOffset + page.rawRows.length
+    const lastRawRow = page.rawRows.at(-1)
+    const nextCursor =
+      lastRawRow && page.rawRows.length === limit && nextOffset < total
+        ? encodeURIComponent(
+            JSON.stringify({
+              version: 1,
+              revision: page.revision,
+              tableId,
+              query: page.querySignature,
+              offset: nextOffset,
+              values: page.sorts.map(({ field }) =>
+                encodeCursorSqlValue(cursorSortValue(lastRawRow, field))
+              ),
+              lastId: String(lastRawRow.__base_rowid),
+              direction: "forward",
+              referenceInstant: page.referenceInstant,
+            })
+          )
+        : undefined
+    return {
+      tableId,
+      offset: page.effectiveOffset,
+      limit,
+      total,
+      rows: page.rows,
+      ...(nextCursor ? { nextCursor } : {}),
+    }
+  }
+
+  private readRowPage(
+    tableId: string,
+    offset: number,
+    limit: number,
+    query: EidosFileRowQuery,
+    cursor?: string,
+    projection?: EidosFileRowPageProjection
+  ) {
     if (
       !Number.isSafeInteger(offset) ||
       offset < 0 ||
@@ -4605,34 +4653,14 @@ export class EidosFileRuntime {
         Object.entries(mapped).filter(([key]) => selected.has(key))
       )
     })
-    const total = totalHint ?? this.countRows(tableId, query, referenceInstant)
-    const nextOffset = effectiveOffset + rawRows.length
-    const lastRawRow = rawRows.at(-1)
-    const nextCursor =
-      lastRawRow && rawRows.length === limit && nextOffset < total
-        ? encodeURIComponent(
-            JSON.stringify({
-              version: 1,
-              revision,
-              tableId,
-              query: querySignature,
-              offset: nextOffset,
-              values: sorts.map(({ field }) =>
-                encodeCursorSqlValue(cursorSortValue(lastRawRow, field))
-              ),
-              lastId: String(lastRawRow.__base_rowid),
-              direction: "forward",
-              referenceInstant,
-            })
-          )
-        : undefined
     return {
-      tableId,
-      offset: effectiveOffset,
-      limit,
-      total,
       rows,
-      ...(nextCursor ? { nextCursor } : {}),
+      rawRows,
+      effectiveOffset,
+      referenceInstant,
+      revision,
+      querySignature,
+      sorts,
     }
   }
 
@@ -4797,6 +4825,43 @@ export class EidosFileRuntime {
       options.resolveRelations === true
     )
     return { rows, ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) }
+  }
+
+  /** @internal Bounded logical rows; the service owns sentinel paging and totals. */
+  runtimeQueryRows(
+    tableId: string,
+    options: {
+      fields: string[]
+      query: EidosFileRowQuery
+      limit: number
+      offset?: number
+      cursor?: string
+      resolveRelations: boolean
+    }
+  ): EidosFileLogicalRow[] {
+    const fields = this.listFields(tableId)
+    const requested = options.fields.map((id) => this.fieldByKey(tableId, id))
+    const rowIdField = fields.find((field) => field.type === "row-id")!
+    const page = this.readRowPage(
+      tableId,
+      options.offset ?? 0,
+      options.limit,
+      options.query,
+      options.cursor,
+      {
+        columns: requested.map((field) => field.tableColumnName),
+        preservedColumns: [rowIdField.tableColumnName],
+        fieldLimit: requested.length,
+        includeRecordLabel: false,
+        includeRelationDisplays: options.resolveRelations,
+      }
+    )
+    return this.logicalRows(
+      rowIdField,
+      requested,
+      page.rows,
+      options.resolveRelations
+    )
   }
 
   /** @internal Bounded first pages sharing one materialized source scan. */
