@@ -218,6 +218,11 @@ const zh: EidosFileUIMessageOverrides = {
   year: "年",
   "Starting date": "开始日期",
   "Ending date": "结束日期",
+  "Date range": "日期范围",
+  Hour: "小时",
+  Minute: "分钟",
+  "The ending date must be on or after the starting date.":
+    "结束日期不能早于开始日期。",
   "Filter updates with the current date.": "筛选会随当前日期自动更新。",
   Clear: "清除",
   "Clearing…": "正在清除…",

@@ -801,37 +801,6 @@
 .eidos-filter-value {
   min-width: 0;
 }
-.eidos-relative-date-controls,
-.eidos-relative-date-calendar,
-.eidos-relative-date-panel,
-.eidos-relative-date-menu,
-.eidos-relative-date-chip {
-  --date-filter-blue: #2783de;
-  --date-filter-selection: #d3e2fa;
-  --date-filter-end: #8db7f2;
-  --date-filter-muted: #929da3;
-  --date-filter-quiet: #a19e99;
-  --date-filter-input: #faf9f8;
-  --date-filter-border: #e6e4e1;
-  --date-filter-text: #2c2c2b;
-}
-.dark
-  :is(
-    .eidos-relative-date-controls,
-    .eidos-relative-date-calendar,
-    .eidos-relative-date-panel,
-    .eidos-relative-date-menu,
-    .eidos-relative-date-chip
-  ) {
-  --date-filter-blue: #529cca;
-  --date-filter-selection: #254b6e;
-  --date-filter-end: #3373a4;
-  --date-filter-muted: #89929a;
-  --date-filter-quiet: #a4a4a0;
-  --date-filter-input: #272725;
-  --date-filter-border: #414140;
-  --date-filter-text: #e6e6e4;
-}
 .eidos-relative-date-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
@@ -851,10 +820,10 @@
   min-width: 0;
   height: 28px;
   padding: 3px 10px;
-  border: 1px solid var(--date-filter-border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--popover, var(--background));
-  color: var(--date-filter-text);
+  color: var(--popover-foreground);
   font: inherit;
   font-size: 14px;
   line-height: 20px;
@@ -876,7 +845,7 @@
   opacity: 0.55;
 }
 .eidos-relative-date-count {
-  background: var(--date-filter-input);
+  background: var(--muted);
   font-variant-numeric: tabular-nums;
   appearance: textfield;
 }
@@ -888,20 +857,18 @@
   border-color: var(--destructive);
 }
 .eidos-relative-date-count:focus-visible {
-  outline: 2px solid var(--date-filter-blue);
+  outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
 .eidos-relative-date-menu {
   min-width: 180px;
   padding: 4px;
   border-radius: 10px;
-  box-shadow:
-    0 14px 30px -10px #0003,
-    0 0 0 1px #00000008;
+  box-shadow: var(--floating-surface-shadow);
 }
 .eidos-relative-date-menu [role="option"] {
   min-height: 28px;
-  padding: 3px 8px;
+  padding-block: 3px;
   border-radius: 6px;
   font-size: 14px;
   line-height: 20px;
@@ -915,12 +882,9 @@
 }
 [role="dialog"]:has(> .eidos-relative-date-panel) {
   width: 260px;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow:
-    0 20px 24px #1919190d,
-    0 5px 8px #19191907,
-    0 0 0 1px #2a1c0012;
+  box-shadow: var(--floating-surface-shadow);
 }
 .eidos-relative-date-panel [data-relative-rule] {
   gap: 8px;
@@ -931,7 +895,7 @@
   min-height: 18px;
   border: 0;
   padding: 0 2px;
-  color: var(--date-filter-quiet);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 18px;
   box-shadow: none;
@@ -981,7 +945,7 @@
   background: var(--accent);
 }
 .eidos-relative-date-month button:focus-visible {
-  outline: 2px solid var(--date-filter-blue);
+  outline: 2px solid var(--ring);
 }
 .eidos-relative-date-month button svg {
   width: 16px;
@@ -998,7 +962,7 @@
 .eidos-relative-date-calendar th {
   height: 18px;
   padding: 0;
-  color: var(--date-filter-muted);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 18px;
   font-weight: 500;
@@ -1019,14 +983,14 @@
 }
 .eidos-relative-date-calendar td[data-outside],
 .eidos-relative-date-calendar td[data-future] {
-  color: var(--date-filter-muted);
+  color: var(--muted-foreground);
 }
 .eidos-relative-date-calendar td[data-selected] {
-  background: var(--date-filter-selection);
-  color: var(--foreground);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 .eidos-relative-date-calendar td[data-selected][data-outside] {
-  color: var(--date-filter-muted);
+  color: var(--muted-foreground);
 }
 .eidos-relative-date-calendar td[data-range-start] {
   border-top-left-radius: 6px;
@@ -1036,19 +1000,16 @@
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
 }
-.eidos-relative-date-calendar td[data-boundary="start"] > span {
-  background: var(--date-filter-blue);
-  color: white;
-}
+.eidos-relative-date-calendar td[data-boundary="start"] > span,
 .eidos-relative-date-calendar td[data-boundary="end"] > span {
-  background: var(--date-filter-end);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 .eidos-relative-date-hint {
   margin: 12px 0 0;
   padding-top: 8px;
   border-top: 1px solid var(--border);
-  color: var(--date-filter-quiet);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 16px;
 }
@@ -1062,6 +1023,95 @@
   width: 20px;
   height: 18px;
   color: var(--muted-foreground);
+}
+.eidos-date-filter-value {
+  min-width: 0;
+}
+.eidos-date-filter-input-row {
+  display: flex;
+  align-items: start;
+  gap: 4px;
+}
+.eidos-date-filter-inputs {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+.eidos-date-filter-inputs[data-range="true"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.eidos-date-filter-value[data-inline="true"]
+  .eidos-date-filter-inputs[data-range="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.eidos-date-filter-inputs input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  font-size: 12px;
+}
+.eidos-date-filter-inputs input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.eidos-date-filter-input-row > button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.eidos-date-filter-calendar {
+  margin: 8px auto 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.eidos-date-filter-calendar .rdp {
+  padding: 8px;
+  margin: 0;
+}
+.eidos-date-filter-popover {
+  width: 276px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 8px;
+}
+.eidos-date-filter-popover .eidos-date-filter-calendar {
+  margin-top: 0;
+}
+.eidos-date-filter-endpoints,
+.eidos-date-filter-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.eidos-date-filter-endpoints button {
+  flex: 1;
+  font-size: 12px;
+}
+.eidos-date-filter-time > button {
+  width: 80px;
+  height: 28px;
+}
+.eidos-date-filter-calendar .eidos-date-filter-range-middle {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.eidos-date-filter-calendar .eidos-date-filter-range-endpoint {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.eidos-date-filter-zone,
+.eidos-date-filter-error {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-error {
+  color: var(--destructive);
 }
 .eidos-mobile-settings-body .eidos-filter-rule {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
