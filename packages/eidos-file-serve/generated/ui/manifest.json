@@ -224,11 +224,11 @@
       "packages/eidos-file-ui/src/eidos-file-grid-adapter.test.ts": "fb64e7892830481c05380d4547fa41834f8a01947e14e7ba975f2466876a5145",
       "packages/eidos-file-ui/src/eidos-file-grid-adapter.ts": "041a03fb5d722728e55ee07f16d753560e6554c2108042ae7af92f8b6d684562",
       "packages/eidos-file-ui/src/eidos-file-grid-date-format.ts": "de9956377885832f40e5b8f35f225560c0f42cf3d0376b37e84c292a59ee34bb",
-      "packages/eidos-file-ui/src/eidos-file-grid-menus.tsx": "ec7d5b64bcee7b6ccf563602e64810c6bb70aca5af092344fc0f078b41cda10b",
+      "packages/eidos-file-ui/src/eidos-file-grid-menus.tsx": "596fc385e7b29caf5ec25530a25631ddcabeee48ff1bc50c927ef88035e3bf31",
       "packages/eidos-file-ui/src/eidos-file-grid-scrollbar.test.ts": "452eceaf2e91c290b2059a16887b3ec93d497cedf8f097c00df5f3f1874f0f16",
       "packages/eidos-file-ui/src/eidos-file-grid-scrollbar.ts": "3d5e0a92c2a3cd8d7a6e0cab2b9a6da30a18edcb0b87920f70a5542b2604bf94",
-      "packages/eidos-file-ui/src/eidos-file-grid.test.tsx": "ba84a864acfee615ab38f04aae9ebfa7c53c88f6dbcba4f4c3891e9c6ab7a855",
-      "packages/eidos-file-ui/src/eidos-file-grid.tsx": "fc59a02c06cadbcccd8575381989f834ebef772450590f826a48d5abe3876b96",
+      "packages/eidos-file-ui/src/eidos-file-grid.test.tsx": "47f4868d75d6f9ef1e53cf41a0be6f1d59693d70913ddf9fb6946ab779c61244",
+      "packages/eidos-file-ui/src/eidos-file-grid.tsx": "cbcb14f598e27f72ca6e0e6a6c7c81cbb08e2ce714ab39a5e8e7ef11cd177c42",
       "packages/eidos-file-ui/src/eidos-file-kanban-view.test.tsx": "45dbdb8d0045e40a09dae1b95f89818e9cb249345a40942fb0e559204eae6ef6",
       "packages/eidos-file-ui/src/eidos-file-kanban-view.tsx": "0c5a78feef44a86f53b5e261ef02642a7d9f94dfad39beaa765c2a66dc893419",
       "packages/eidos-file-ui/src/eidos-file-markdown-preview.test.tsx": "0f5ecf8f28f26e8fbb884d2ee8756fc8e53cded768422d148a130cb62e051ff0",
@@ -408,7 +408,7 @@
       "packages/eidos-file-ui/src/use-glide-data-grid-portal.ts": "34b23061f8ab93e95b28ec1ff5fdd2d2c87e740d7d83912df30546fb11e905cf",
       "packages/eidos-file-ui/src/use-pending-edit.tsx": "6fba58af77c4a70dbc4dbcd5d29b9d5ee3f49213acfa7e5c2efcc3d444e82ca0",
       "packages/eidos-file-ui/src/use-undo-redo.test.tsx": "1c4eb20dd9b65c1d15d724b42cab5617ba9b4af3cc7e8d0ee0940da31ec009dd",
-      "packages/eidos-file-ui/src/use-undo-redo.ts": "cc1ed4f2defaf4bc6ec2541e0a4793c7d129854563a38a4769d57c8d96b6a75e",
+      "packages/eidos-file-ui/src/use-undo-redo.ts": "9311b6535e0ac8917f13cd2355fcff160e181fc1c67aa4aa28cc21b7c5ac74e1",
       "packages/eidos-file-ui/src/use-view-layout-updates.ts": "c3fdf950f8be5b4d3688c3e062c5061ebbdb69f3cf3cd9512387fce7ff3899b6",
       "packages/eidos-file-ui/vite-source-aliases.ts": "ac2bc0047458593a39b4b079b5c94f510004c3a665ab50e105e67357d3d45ee3",
       "packages/eidos-file-ui/package.json": "53c539de08db4eb0c611b50fa58dedb97f7f3616edf1a7f944f0b90ce4ec4448",
@@ -722,16 +722,16 @@
     ],
     "files": {
       "packages/eidos-file-serve/generated/ui/assets/click-outside-container-BIMzAQd-.js": "10cf7f743c82793b3550526051b17a5dec503a0bfa6ad3145d9caa1a26c1a210",
-      "packages/eidos-file-serve/generated/ui/assets/data-grid-overlay-editor-URpI4VJf.js": "3c3292dabfc7f78e00acb5775774a28ec3f29f8c05cc126f46fd6aa560007561",
-      "packages/eidos-file-serve/generated/ui/assets/eidos-file-markdown-source-editor-Da9d5Twh.js": "4b674edadd06e07a837352ad9f44f39363d751cdde600df3f3aa0dcae16e06ed",
-      "packages/eidos-file-serve/generated/ui/assets/index-BaXOgpsv.js": "cbe2b753d786579ee6d8b56e35da31264da63dd4c246e684502bb75ae1608c2b",
+      "packages/eidos-file-serve/generated/ui/assets/data-grid-overlay-editor-uxv32Geo.js": "6b89e3b751f81058615210aeb37ce89c199d30c23ec7822b38b245989134138d",
+      "packages/eidos-file-serve/generated/ui/assets/eidos-file-markdown-source-editor-DK6tqPxY.js": "95884dae2d38e2bc93e6fa8e5bd6f6ae801e668d7639f0b9360fb101fb27de1b",
+      "packages/eidos-file-serve/generated/ui/assets/index-CaMIXdLB.js": "3c931b242692b377b7368c26536a4c3a477f649c6ab7235bf5215b832533f8f9",
       "packages/eidos-file-serve/generated/ui/assets/index-bn85mnax.css": "a06662a926925937a82c472c4f3fc1de64a9f9e857a56d19ad8b108565ed177e",
-      "packages/eidos-file-serve/generated/ui/assets/number-overlay-editor-DGFsZU22.js": "5db06d85c373006291ec33032ab89cf25beb86e644d764ffbb7f088c72afd605",
+      "packages/eidos-file-serve/generated/ui/assets/number-overlay-editor-BoSl8JTN.js": "b01e53b3dbbdf0cd6d45e2451280a21e1c483f364578d35ba5094603050278d2",
       "packages/eidos-file-serve/generated/ui/assets/react-BXwhMTuc.js": "27a394464f0eb9dabaa8eb27532a21fb31fd6f44c4eedcc7dc8a6f4fb15378ee",
       "packages/eidos-file-serve/generated/ui/assets/react-dom-Cv4OgEMO.js": "12466ebd670194061f6b8cc02ba574ac11fa76d5fcf3d8dcc308af11222318f5",
-      "packages/eidos-file-serve/generated/ui/assets/record-view-DLungqaj.js": "652a9c0df3f424dad5e2b54553ccd5c2dbb44284fdc76fd7b30a53339baf2976",
+      "packages/eidos-file-serve/generated/ui/assets/record-view-B-ETA_HW.js": "c1630af1e5aac4b9df76e2bf38e7ab5369db453c31be33aacf5d9ab90ea8e6e8",
       "packages/eidos-file-serve/generated/ui/assets/record-view-nthEL3fk.css": "99fe454b571701fc87db33e1dd7c3643fa66352e4ebae04dde475f2a0dc2a299",
-      "packages/eidos-file-serve/generated/ui/index.html": "3a3b7bd49486ef545023197fdbc7eb952a71fc3cf4d78d9f36648e590dc20a7d"
+      "packages/eidos-file-serve/generated/ui/index.html": "a68834c0128f591f4b3a12f6b26a5dce016869cab0cfdf476947ad4466b15aa1"
     }
   }
 }

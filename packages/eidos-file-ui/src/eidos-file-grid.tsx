@@ -677,7 +677,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const [columnStatMenu, setColumnStatMenu] =
     useState<EidosFileFieldMenuState | null>(null)
   const [cellMenu, setCellMenu] = useState<EidosFileCellMenuState | null>(null)
-  const cellMenuOpenedFromKeyboardRef = useRef(false)
+  const cellMenuRestoreFocusRef = useRef(false)
   const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
     null
   )
@@ -2412,10 +2412,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [onSelectedRowsChange]
   )
 
-  const isGridActive = useCallback(
-    () => containerRef.current?.contains(document.activeElement) === true,
-    []
-  )
+  const isGridActive = useCallback(() => {
+    const active = document.activeElement
+    return (
+      containerRef.current?.contains(active) === true &&
+      !(
+        active instanceof HTMLElement &&
+        active.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"]'
+        )
+      )
+    )
+  }, [])
 
   const history = useUndoRedo(
     gridRef,
@@ -2470,6 +2478,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const requestDeleteRows = useCallback(
     (ranges: EidosFileRowRange[]) => {
       if (!onRequestDeleteRows || !beginRowCommand()) return
+      // The pointer action is about to unmount the focused menu item. Return
+      // ownership in the menu's close phase, never when this async write ends.
+      cellMenuRestoreFocusRef.current = true
       void Promise.resolve(onRequestDeleteRows(ranges))
         .then((result) => {
           if (!result) return
@@ -3078,7 +3089,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const field = fields[fieldIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
-      cellMenuOpenedFromKeyboardRef.current = openedFromKeyboard
+      cellMenuRestoreFocusRef.current = openedFromKeyboard
       setMobileCell(null)
       setFieldMenu(null)
       setColumnStatMenu(null)
@@ -3595,15 +3606,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           onOpenChange={(open) => {
             if (open) return
-            const shouldRestoreFocus = cellMenuOpenedFromKeyboardRef.current
-            cellMenuOpenedFromKeyboardRef.current = false
             setCellMenu(null)
-            if (shouldRestoreFocus) {
-              // The menu has no DOM trigger for Radix to return to. Restore
-              // immediately for the next keypress, then once more after its
-              // deferred close-focus phase has completed.
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!cellMenuRestoreFocusRef.current) return
+            cellMenuRestoreFocusRef.current = false
+            event.preventDefault()
+            const active = document.activeElement
+            // A dialog, input, or another explicit destination owns its focus.
+            // This menu has only a virtual anchor, so Radix cannot return to a
+            // DOM trigger when its action leaves focus on the document body.
+            if (
+              active === document.body ||
+              active === null ||
+              (event.target instanceof Node && event.target.contains(active))
+            ) {
               restoreGridFocus()
-              requestAnimationFrame(restoreGridFocus)
             }
           }}
           onOpenRecord={(state) => {

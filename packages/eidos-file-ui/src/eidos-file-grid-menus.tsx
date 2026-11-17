@@ -492,6 +492,7 @@ export function EidosFileCellMenu({
   onOpenUrl,
   onOpenFile,
   onDeleteRows,
+  onCloseAutoFocus,
 }: {
   state: EidosFileCellMenuState | null
   open: boolean
@@ -505,6 +506,7 @@ export function EidosFileCellMenu({
   onOpenUrl?: (url: string) => void
   onOpenFile?: () => void
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
+  onCloseAutoFocus?: (event: Event) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const dragging = useRef(false)
@@ -622,6 +624,7 @@ export function EidosFileCellMenu({
         className="w-56 p-1 has-[[data-menu-reordering=true]]:w-[15.25rem]"
         role="menu"
         aria-label={t("Record actions")}
+        onCloseAutoFocus={onCloseAutoFocus}
         onKeyDown={eidosFileMenuKeyDown}
         onEscapeKeyDown={(event) => {
           if (dragging.current) event.preventDefault()

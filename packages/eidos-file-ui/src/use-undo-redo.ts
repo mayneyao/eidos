@@ -479,8 +479,10 @@ export function useUndoRedo(
   // Attach the keyboard shortcuts. CMD+Z and CMD+SHIFT+Z on mac, CTRL+Z and CTRL+Y on windows.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return
       if (isActive && !isActive()) return
-      if (e.key === "z" && (e.metaKey || e.ctrlKey)) {
+      const key = e.key.toLowerCase()
+      if (key === "z" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         if (e.shiftKey) {
           redo()
@@ -489,7 +491,7 @@ export function useUndoRedo(
         }
       }
 
-      if (e.key === "y" && (e.metaKey || e.ctrlKey)) {
+      if (key === "y" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         redo()
       }

@@ -446,7 +446,8 @@ declare function EidosFileCellMenu({
   onCopyRecordId,
   onOpenUrl,
   onOpenFile,
-  onDeleteRows
+  onDeleteRows,
+  onCloseAutoFocus
 }: {
   state: EidosFileCellMenuState | null;
   open: boolean;
@@ -460,6 +461,7 @@ declare function EidosFileCellMenu({
   onOpenUrl?: (url: string) => void;
   onOpenFile?: () => void;
   onDeleteRows: (ranges: EidosFileRowRange[]) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
 //#region src/eidos-file-grid-scrollbar.d.ts

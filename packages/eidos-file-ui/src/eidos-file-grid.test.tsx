@@ -31,6 +31,7 @@ import { EidosFileUIProvider } from "./context"
 import {
   EidosFileGrid,
   type EidosFileGridAppendResult,
+  type EidosFileGridDeleteResult,
   type EidosFileGridRowEdit,
 } from "./eidos-file-grid"
 import { EidosFileEditorShell } from "./eidos-file-editor-shell"
@@ -2581,128 +2582,315 @@ describe("EidosFileGrid", () => {
     ).toBe(true)
   })
 
-  it("undoes and redoes a deleted record through the asynchronous row command", async () => {
-    let authoritativeRowCount = 250
-    const loadPage = vi.fn((offset: number, limit: number) =>
-      createLoadPage({ ...table, rowCount: authoritativeRowCount })(
-        offset,
-        limit
+  it.each([
+    { entry: "pointer", modifier: "metaKey", rowSelection: false },
+    { entry: "pointer", modifier: "ctrlKey", rowSelection: true },
+    { entry: "keyboard", modifier: "metaKey", rowSelection: true },
+    { entry: "keyboard", modifier: "ctrlKey", rowSelection: false },
+  ] as const)(
+    "undoes row deletion without another click ($entry/$modifier/rows=$rowSelection)",
+    async ({ entry, modifier, rowSelection }) => {
+      let authoritativeRowCount = 250
+      const loadPage = vi.fn((offset: number, limit: number) =>
+        createLoadPage({ ...table, rowCount: authoritativeRowCount })(
+          offset,
+          limit
+        )
       )
-    )
-    const undoApply = vi.fn()
-    const redoApply = vi.fn()
-    undoApply.mockImplementation(async () => {
-      authoritativeRowCount = 250
-      return { rowCountDelta: -1, apply: redoApply }
-    })
-    redoApply.mockImplementation(async () => {
-      authoritativeRowCount = 249
-      return { rowCountDelta: 1, apply: undoApply }
-    })
-    const onRequestDeleteRows = vi.fn(async () => {
-      authoritativeRowCount = 249
-      return {
-        rowCount: 249,
-        undo: { rowCountDelta: 1, apply: undoApply },
-      }
-    })
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          view={table.views[0]}
-          loadPage={loadPage}
-          onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
-          onRequestDeleteRows={onRequestDeleteRows}
-        />
-      )
-      await Promise.resolve()
-    })
-
-    act(() => {
-      mocks.props?.onGridSelectionChange?.({
-        columns: CompactSelection.empty(),
-        rows: CompactSelection.empty(),
-        current: {
-          cell: [0, 0],
-          range: { x: 0, y: 0, width: 1, height: 1 },
-          rangeStack: [],
-        },
+      const undoApply = vi.fn()
+      const redoApply = vi.fn()
+      undoApply.mockImplementation(async () => {
+        authoritativeRowCount = 250
+        return { rowCountDelta: -1, apply: redoApply }
       })
-      mocks.props?.onCellContextMenu?.([0, 0], {
-        bounds: { x: 40, y: 56, width: 180, height: 36 },
-        localEventX: 30,
-        localEventY: 18,
-        preventDefault: vi.fn(),
-      } as never)
-    })
-    const deleteRecord = [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.includes("Delete record")
-    )
-    await act(async () => {
-      deleteRecord?.click()
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(onRequestDeleteRows).toHaveBeenCalledWith([
-      { startIndex: 0, endIndex: 1 },
-    ])
-    expect(mocks.props?.rows).toBe(249)
+      redoApply.mockImplementation(async () => {
+        authoritativeRowCount = 249
+        return { rowCountDelta: 1, apply: undoApply }
+      })
+      const onRequestDeleteRows = vi.fn(async () => {
+        authoritativeRowCount = 249
+        return {
+          rowCount: 249,
+          undo: { rowCountDelta: 1, apply: undoApply },
+        }
+      })
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onRequestDeleteRows={onRequestDeleteRows}
+          />
+        )
+        await Promise.resolve()
+      })
 
-    const gridElement = container.querySelector<HTMLElement>(
-      '[data-testid="glide-grid"]'
-    )!
-    gridElement.focus()
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "z", metaKey: true })
-      )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(undoApply).toHaveBeenCalledOnce()
-    expect(mocks.props?.rows).toBe(250)
-
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "z",
-          metaKey: true,
-          shiftKey: true,
+      // Let the one-time view-open focus complete before the gesture. It must
+      // not accidentally repair the missing menu-close handoff in this test.
+      await act(async () => {
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        )
+      })
+      const gridElement = container.querySelector<HTMLElement>(
+        '[data-testid="glide-grid"]'
+      )!
+      act(() => {
+        gridElement.focus()
+        mocks.props?.onGridSelectionChange?.({
+          columns: CompactSelection.empty(),
+          rows: rowSelection
+            ? CompactSelection.fromSingleSelection(0)
+            : CompactSelection.empty(),
+          current: rowSelection
+            ? undefined
+            : {
+                cell: [0, 0],
+                range: { x: 0, y: 0, width: 1, height: 1 },
+                rangeStack: [],
+              },
         })
+      })
+      act(() => {
+        if (entry === "keyboard") {
+          gridElement.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "F10",
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true,
+            })
+          )
+        } else
+          mocks.props?.onCellContextMenu?.([0, 0], {
+            bounds: { x: 40, y: 56, width: 180, height: 36 },
+            localEventX: 30,
+            localEventY: 18,
+            preventDefault: vi.fn(),
+          } as never)
+      })
+      const deleteRecord = [...document.body.querySelectorAll("button")].find(
+        (button) => button.textContent?.includes("Delete record")
       )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(redoApply).toHaveBeenCalledOnce()
-    expect(mocks.props?.rows).toBe(249)
+      act(() => {
+        // Native pointer activation focuses the action before it is unmounted.
+        // HTMLElement.click() alone does not reproduce that browser behavior.
+        deleteRecord?.focus()
+        deleteRecord?.click()
+      })
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(onRequestDeleteRows).toHaveBeenCalledWith([
+        { startIndex: 0, endIndex: 1 },
+      ])
+      expect(mocks.props?.rows).toBe(249)
 
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          view={table.views[0]}
-          historyScopeKey="filtered-query"
-          loadPage={loadPage}
-          onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
-          onRequestDeleteRows={onRequestDeleteRows}
-        />
+      expect(document.activeElement).toBe(gridElement)
+
+      // Inputs, menus/dialogs and composition retain keyboard ownership even
+      // with row history available. This includes editable descendants of Grid.
+      for (const kind of [
+        "input",
+        "textarea",
+        "select",
+        "contenteditable",
+        "dialog",
+        "menu",
+      ]) {
+        const owner = document.createElement("div")
+        const input = document.createElement(
+          kind === "dialog" || kind === "menu"
+            ? "button"
+            : kind === "contenteditable"
+              ? "div"
+              : kind
+        )
+        if (kind === "dialog" || kind === "menu")
+          owner.setAttribute("role", kind)
+        if (kind === "contenteditable") {
+          input.setAttribute("contenteditable", "true")
+          input.tabIndex = 0
+        }
+        owner.append(input)
+        gridElement.parentElement!.append(owner)
+        input.focus()
+        expect(document.activeElement).toBe(input)
+        const inputUndo = new KeyboardEvent("keydown", {
+          key: "z",
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        })
+        act(() => input.dispatchEvent(inputUndo))
+        expect(inputUndo.defaultPrevented).toBe(false)
+        expect(undoApply).not.toHaveBeenCalled()
+        owner.remove()
+      }
+      gridElement.focus()
+      for (const options of [{ isComposing: true }, { keyCode: 229 }]) {
+        const composingUndo = new KeyboardEvent("keydown", {
+          key: "z",
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+          ...options,
+        })
+        act(() => gridElement.dispatchEvent(composingUndo))
+        expect(composingUndo.defaultPrevented).toBe(false)
+        expect(undoApply).not.toHaveBeenCalled()
+      }
+      const consumedUndo = new KeyboardEvent("keydown", {
+        key: "z",
+        [modifier]: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      consumedUndo.preventDefault()
+      act(() => gridElement.dispatchEvent(consumedUndo))
+      expect(undoApply).not.toHaveBeenCalled()
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "z",
+            [modifier]: true,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(undoApply).toHaveBeenCalledOnce()
+      expect(mocks.props?.rows).toBe(250)
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: modifier === "metaKey" ? "Z" : "y",
+            [modifier]: true,
+            shiftKey: modifier === "metaKey",
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(redoApply).toHaveBeenCalledOnce()
+      expect(mocks.props?.rows).toBe(249)
+
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            historyScopeKey="filtered-query"
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onRequestDeleteRows={onRequestDeleteRows}
+          />
+        )
+        await Promise.resolve()
+      })
+      await act(async () => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "z", metaKey: true })
+        )
+        await Promise.resolve()
+      })
+      expect(undoApply).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each(["success", "cancel", "failure", "dialog"] as const)(
+    "does not reclaim focus when a pending deletion settles (%s)",
+    async (outcome) => {
+      const request = deferredRecord<EidosFileGridDeleteResult | void>()
+      const destination = document.createElement(
+        outcome === "dialog" ? "button" : "input"
       )
-      await Promise.resolve()
-    })
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      const outside = document.createElement("div")
+      if (outcome === "dialog") outside.setAttribute("role", "dialog")
+      outside.append(destination)
+      const onError = vi.fn()
+      const undoApply = vi.fn()
+      await act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={createLoadPage()}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+            onRequestDeleteRows={() => {
+              if (outcome === "dialog") destination.focus()
+              return request.promise
+            }}
+          />
+        )
       )
-      await Promise.resolve()
-    })
-    expect(undoApply).toHaveBeenCalledOnce()
-  })
+      container.append(outside)
+      await act(async () => {
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        )
+      })
+      act(() =>
+        mocks.props?.onCellContextMenu?.([0, 0], {
+          bounds: { x: 40, y: 56, width: 180, height: 36 },
+          localEventX: 30,
+          localEventY: 18,
+          preventDefault: vi.fn(),
+        } as never)
+      )
+      const action = [
+        ...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+      ].find((button) => button.textContent?.includes("Delete record"))!
+      act(() => {
+        action.focus()
+        action.click()
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      if (outcome !== "dialog") destination.focus()
+      expect(document.activeElement).toBe(destination)
+      const focusCalls = mocks.focus.mock.calls.length
+      await act(async () => {
+        if (outcome === "failure") request.reject(new Error("Delete failed"))
+        else
+          request.resolve(
+            outcome === "success"
+              ? { rowCount: 249, undo: { rowCountDelta: 1, apply: undoApply } }
+              : undefined
+          )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(document.activeElement).toBe(destination)
+      expect(mocks.focus).toHaveBeenCalledTimes(focusCalls)
+      const key = new KeyboardEvent("keydown", {
+        key: "z",
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      act(() => destination.dispatchEvent(key))
+      expect(key.defaultPrevented).toBe(false)
+      expect(undoApply).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(outcome === "failure" ? 1 : 0)
+    }
+  )
 
   it("restores Grid focus so the cell actions shortcut can be used repeatedly", async () => {
     await act(async () => {
