@@ -23,6 +23,12 @@ const zh: EidosFileUIMessageOverrides = {
   "Field changes affect every record in this table.":
     "字段更改会影响此表的所有记录。",
   "Hide in records on this device": "在此设备的记录页中隐藏",
+  "Show in records on this device": "在此设备的记录页中显示",
+  "Add a property": "添加属性",
+  "{count} more property": "另外 {count} 个属性",
+  "{count} more properties": "另外 {count} 个属性",
+  "Hide {count} property": "收起 {count} 个属性",
+  "Hide {count} properties": "收起 {count} 个属性",
   "Hidden properties on this device ({count})": "此设备中隐藏的属性（{count}）",
   "Delete field from table": "从表中删除字段",
   "Manage record properties": "管理记录属性",

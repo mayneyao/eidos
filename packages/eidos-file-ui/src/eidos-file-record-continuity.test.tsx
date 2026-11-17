@@ -7,6 +7,7 @@ import type {
   EidosFileRowMutationResult,
 } from "@eidos.space/eidos-file"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { EidosFileUIProvider } from "./context"
 
 const field = (name: string): EidosFileFieldInfo => ({
   id: name,
@@ -146,32 +147,67 @@ describe("record continuity", () => {
       expect(container.querySelector('[role="alert"]')).toBeNull()
     }
   )
-  it("keeps collapsed properties mounted and remembers the choice across rows", async () => {
+  it("reveals hidden properties without replacing Content or an unrelated draft", async () => {
+    const scope = crypto.randomUUID()
+    const preferences = JSON.stringify({
+      hiddenFields: [fields[1].id],
+      fieldOrder: [],
+    })
+    const storage = new Map([
+      [
+        "eidos-record-properties-v1:" +
+          JSON.stringify([scope, fields[0].tableId]),
+        preferences,
+      ],
+    ])
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: vi.fn(),
+    })
     const render = (next: EidosFileRow) =>
       root.render(
-        <EidosFileRecordInspector
-          row={next}
-          fields={fields}
-          variant="panel"
-          contentField={fields[2]}
-          onCellEdit={vi.fn()}
-        />
+        <EidosFileUIProvider recordPropertyScope={scope}>
+          <EidosFileRecordInspector
+            row={next}
+            fields={fields}
+            variant="panel"
+            contentField={fields[2]}
+            onCellEdit={vi.fn()}
+          />
+        </EidosFileUIProvider>
       )
     await act(async () => render(row))
     const input = container.querySelector<HTMLTextAreaElement>(
       'textarea[aria-label="Title"]'
     )!
+    const body = container.querySelector("[data-eidos-file-record-content]")
     await act(async () => type(input, "Unsubmitted draft"))
     const disclosure = container.querySelector<HTMLButtonElement>(
-      "[data-eidos-file-record-properties-toggle]"
+      "[data-eidos-file-record-hidden-properties-toggle]"
     )
     expect(disclosure).not.toBeNull()
+    expect(
+      container.querySelector('[data-eidos-record-property="Description"]')
+    ).toBeNull()
     await act(async () => disclosure!.click())
-    expect(disclosure!.getAttribute("aria-expanded")).toBe("false")
+    expect(disclosure!.getAttribute("aria-expanded")).toBe("true")
+    expect(
+      container.querySelector('[data-eidos-record-property="Description"]')
+    ).not.toBeNull()
     expect(container.querySelector('textarea[aria-label="Title"]')).toBe(input)
     expect(input.value).toBe("Unsubmitted draft")
-    await act(async () => render({ ...row, _id: "B", Title: "Title B" }))
+    expect(container.querySelector("[data-eidos-file-record-content]")).toBe(
+      body
+    )
+    await act(async () => disclosure!.click())
     expect(disclosure!.getAttribute("aria-expanded")).toBe("false")
+    expect(input.value).toBe("Unsubmitted draft")
+    expect(container.querySelector("[data-eidos-file-record-content]")).toBe(
+      body
+    )
+    await act(async () => disclosure!.click())
+    await act(async () => render({ ...row, _id: "B", Title: "Title B" }))
+    expect(disclosure!.getAttribute("aria-expanded")).toBe("true")
     await act(async () => disclosure!.click())
     expect(input.value).toBe("Title B")
   })

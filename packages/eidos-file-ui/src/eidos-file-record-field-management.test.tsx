@@ -186,14 +186,18 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     await act(async () => root.render(<Fixture />))
     expect(systemRows()).toHaveLength(3)
     expect(byLabel("Manage record properties")).toBeNull()
-    const disclosure = container.querySelector(
-      "[data-eidos-file-record-properties-toggle]"
+    expect(
+      container.querySelector("[data-eidos-file-record-properties-toggle]")
+    ).toBeNull()
+    const label = byLabel("Edit Status properties")!.closest(
+      "[data-eidos-file-record-property-label]"
     )!
-    expect(disclosure.firstElementChild?.tagName).toBe("SPAN")
-    expect(disclosure.lastElementChild?.tagName.toLowerCase()).toBe("svg")
-    expect(disclosure.firstElementChild?.textContent).toMatch(
-      /^Properties \(\d+\)$/
-    )
+    expect(
+      label.querySelector('[data-eidos-file-field-type-icon="text"]')
+    ).not.toBeNull()
+    expect(
+      label.querySelector("[data-eidos-file-record-property-handle]")
+    ).toBe(byLabel("Reorder Status"))
     await click(byLabel("Edit Status properties"))
     expect(
       dialog().querySelector('[data-eidos-file-detail-panel="field"]')
@@ -221,14 +225,38 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     await click(byLabel("Edit Stage properties"))
     await click(buttonText("Hide in records on this device", dialog()))
     expect(property(stage.id)).toBeNull()
-    expect(container.textContent).toContain("Hidden properties on this device")
+    expect(buttonText("1 more property", container)).not.toBeNull()
+    expect(buttonText("Add a property", container)).toBeNull()
     await act(async () => setScope("another-file"))
     expect(property(stage.id)).not.toBeNull()
     await act(async () => setScope(savedScope))
     expect(property(stage.id)).toBeNull()
-    await click(buttonText("Show Stage", container))
+    const preferencesBeforePeek = storage.get(
+      "eidos-record-properties-v1:" +
+        JSON.stringify([savedScope, table.table.id])
+    )
+    await click(buttonText("1 more property", container))
     expect(property(stage.id)).not.toBeNull()
-    await click(buttonText("New field", container))
+    expect(buttonText("Hide 1 property", container)).not.toBeNull()
+    expect(buttonText("Add a property", container)).not.toBeNull()
+    expect(
+      storage.get(
+        "eidos-record-properties-v1:" +
+          JSON.stringify([savedScope, table.table.id])
+      )
+    ).toBe(preferencesBeforePeek)
+    await click(buttonText("Hide 1 property", container))
+    expect(property(stage.id)).toBeNull()
+    await click(buttonText("1 more property", container))
+    await click(byLabel("Edit Stage properties"))
+    await click(buttonText("Show in records on this device", dialog()))
+    expect(property(stage.id)).not.toBeNull()
+    expect(
+      container.querySelector(
+        "[data-eidos-file-record-hidden-properties-toggle]"
+      )
+    ).toBeNull()
+    await click(buttonText("Add a property", container))
     const createName = dialog().querySelector<HTMLInputElement>("input[id]")!
     await input(createName, "Priority")
     await act(async () =>
@@ -276,9 +304,16 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     expect(systemRows()).toHaveLength(3)
     await act(async () => setTableIndex(0))
     expect(systemRows()).toHaveLength(3)
+    await click(byLabel("Edit Stage properties"))
+    await click(buttonText("Hide in records on this device", dialog()))
     await act(async () => setReadOnly(true))
     expect(byLabel("Edit Stage properties")).toBeNull()
-    expect(buttonText("New field", container)).toBeNull()
+    expect(buttonText("Add a property", container)).toBeNull()
+    await click(buttonText("1 more property", container))
+    expect(property(stage.id)).not.toBeNull()
+    expect(systemRows()).toHaveLength(3)
+    await click(buttonText("Hide 1 property", container))
+    expect(property(stage.id)).toBeNull()
     expect(JSON.stringify((await source.getSnapshot()).tables[0]!.views)).toBe(
       beforeViews
     )

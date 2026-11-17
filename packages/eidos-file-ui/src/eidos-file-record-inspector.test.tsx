@@ -819,7 +819,7 @@ describe("EidosFileRecordInspector", () => {
     expect(pageHeaderRow?.className).toContain("py-2")
     expect(pageHeaderRow?.className).toContain("max-w-[760px]")
     expect(pageHeaderRow?.className).toContain("mx-auto")
-    expect(pageHeaderRow?.parentElement?.className).toContain("pt-4")
+    expect(pageHeaderRow?.parentElement?.className).toContain("pt-8")
     expect(pageHeaderRow?.parentElement?.className).not.toContain("border-b")
     const pageScroll = container.querySelector<HTMLElement>(
       '[data-eidos-file-record-page-scroll=""]'
@@ -845,7 +845,7 @@ describe("EidosFileRecordInspector", () => {
     expect(
       properties?.querySelector<HTMLElement>(".eidos-file-record-field")
         ?.className
-    ).toContain("py-1")
+    ).toContain("py-0.5")
     expect(
       properties?.querySelector('[data-eidos-file-field-type-icon="checkbox"]')
     ).not.toBeNull()
@@ -868,7 +868,7 @@ describe("EidosFileRecordInspector", () => {
       '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
     )
     expect(pageTitle?.className).toContain("border-0")
-    expect(pageTitle?.className).toContain("text-xl")
+    expect(pageTitle?.className).toContain("text-[40px]")
     expect(container.textContent).toContain("Design")
     expect(container.textContent).toContain("Local first.")
     expect(container.querySelector("script")).toBeNull()

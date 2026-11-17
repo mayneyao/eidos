@@ -647,7 +647,7 @@ function FieldEditorControl({
           appearance === "record-property"
             ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
             : appearance === "record-title"
-              ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl ${mobileTitle ? "overflow-x-hidden [overflow-wrap:anywhere]" : ""}`
+              ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 ${mobileTitle ? "text-xl font-semibold sm:text-2xl overflow-x-hidden [overflow-wrap:anywhere]" : "text-[40px] font-bold"}`
               : "min-h-8 resize-none text-xs leading-5"
         }
         style={

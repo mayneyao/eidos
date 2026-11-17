@@ -293,7 +293,7 @@ export function EidosFileRecordPropertyEditor({
 
   if (!cell.allowOverlay && cell.kind !== GridCellKind.Boolean)
     return (
-      <div className="min-h-8 px-2 py-1 text-xs">
+      <div className="min-h-[34px] px-2 py-[7px] text-sm leading-5">
         {display ??
           eidosFileRecordFieldText(row, field, timeZone, calendarTimeZoneData)}
         {field.type === "datetime" &&
@@ -311,7 +311,7 @@ export function EidosFileRecordPropertyEditor({
 
   if (cell.kind === GridCellKind.Boolean)
     return (
-      <div className="flex min-h-8 items-center gap-1">
+      <div className="flex min-h-[34px] items-center gap-1">
         <button
           type="button"
           role="checkbox"
@@ -319,7 +319,7 @@ export function EidosFileRecordPropertyEditor({
           aria-checked={cell.data == null ? "mixed" : cell.data === true}
           disabled={disabled}
           aria-disabled={readOnly || undefined}
-          className="flex min-h-8 flex-1 items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex min-h-[34px] flex-1 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           onClick={() => {
             if (!lockedRef.current)
               void onChange(
@@ -391,7 +391,7 @@ export function EidosFileRecordPropertyEditor({
       aria-haspopup="dialog"
       disabled={disabled}
       aria-disabled={readOnly || undefined}
-      className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs font-normal"
+      className="h-auto min-h-[34px] w-full justify-start whitespace-normal px-2 py-1 text-left text-sm font-normal leading-5"
       onClick={begin}
     >
       {selected.length > 0 ? (
@@ -399,6 +399,7 @@ export function EidosFileRecordPropertyEditor({
           {selected.map((v) => (
             <SelectOptionItem
               key={v}
+              className="py-0 text-sm font-normal"
               option={
                 options.find((o) => o.value === v) ?? {
                   name: v,

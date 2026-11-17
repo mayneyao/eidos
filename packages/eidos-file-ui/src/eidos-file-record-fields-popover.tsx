@@ -1,4 +1,11 @@
-import { useRef, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileSnapshot,
@@ -7,7 +14,10 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
+  Eye,
   EyeOff,
   GripVertical,
   Plus,
@@ -26,10 +36,7 @@ import {
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
 } from "./eidos-file-derived-field-editor"
-import {
-  eidosFileFieldDisplayName,
-  isEidosFileRecordLabelField,
-} from "./eidos-file-field-visibility"
+import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
@@ -40,18 +47,18 @@ export interface RecordFieldMenuState {
   fieldId: string | null
 }
 
+const RecordPropertyDragContext = createContext<ReturnType<
+  typeof useSortable
+> | null>(null)
+
 function SortableRecordProperty({
   id,
   disabled,
-  label,
   children,
-  variant,
 }: {
   id: string
   disabled: boolean
-  label: string
   children: ReactNode
-  variant: "page" | "panel"
 }) {
   const sortable = useSortable({ id, disabled })
   return (
@@ -65,24 +72,74 @@ function SortableRecordProperty({
         transition: sortable.transition,
       }}
     >
+      <RecordPropertyDragContext.Provider value={sortable}>
+        {children}
+      </RecordPropertyDragContext.Provider>
+    </div>
+  )
+}
+
+export function EidosFileRecordPropertyLabel({
+  label,
+  icon,
+  onManage,
+}: {
+  label: string
+  icon: ReactNode
+  onManage?: (event: MouseEvent<HTMLElement>) => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  const sortable = useContext(RecordPropertyDragContext)
+  const draggable = Boolean(sortable?.listeners)
+  return (
+    <div
+      data-eidos-file-record-property-label=""
+      className={cn(
+        "group/property-label -ml-1.5 mr-1.5 flex min-h-[34px] min-w-0 items-start gap-2 rounded-md pl-1.5 pr-2 text-sm leading-5 text-muted-foreground",
+        (draggable || onManage) && "hover:bg-muted focus-within:bg-muted"
+      )}
+      onPointerDown={(event) => sortable?.listeners?.onPointerDown?.(event)}
+      title={label}
+    >
       <button
         type="button"
-        ref={sortable.setActivatorNodeRef}
-        disabled={disabled}
-        aria-label={label}
+        ref={sortable?.setActivatorNodeRef}
+        disabled={!draggable}
+        aria-label={t("Reorder {field}", { field: label })}
         data-eidos-file-record-property-handle=""
-        className={cn(
-          "absolute z-10 flex h-6 w-4 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-hidden hover:bg-accent focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring group-hover/record-property:opacity-100 group-focus-within/record-property:opacity-100 disabled:cursor-default disabled:opacity-0 [@media(hover:none)]:opacity-100",
-          variant === "panel"
-            ? "left-0 top-2 @min-[480px]/eidos-file-record-panel:top-3"
-            : "-left-4 top-1.5"
-        )}
-        {...sortable.attributes}
-        {...sortable.listeners}
+        className="relative mt-[9px] flex h-4 w-4 shrink-0 cursor-grab items-center justify-center rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
+        {...sortable?.attributes}
+        onKeyDown={(event) => sortable?.listeners?.onKeyDown?.(event)}
+        onClick={onManage}
       >
-        <GripVertical className="h-3.5 w-3.5" />
+        <span
+          className={cn(
+            "flex",
+            draggable &&
+              "group-hover/property-label:opacity-0 group-focus-within/property-label:opacity-0"
+          )}
+        >
+          {icon}
+        </span>
+        {draggable ? (
+          <GripVertical
+            aria-hidden="true"
+            className="absolute h-4 w-4 opacity-0 group-hover/property-label:opacity-100 group-focus-within/property-label:opacity-100"
+          />
+        ) : null}
       </button>
-      {children}
+      {onManage ? (
+        <button
+          type="button"
+          aria-label={t("Edit {field} properties", { field: label })}
+          className="min-h-[34px] min-w-0 flex-1 truncate py-[7px] text-left outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={onManage}
+        >
+          {label}
+        </button>
+      ) : (
+        <p className="min-w-0 truncate py-[7px]">{label}</p>
+      )}
     </div>
   )
 }
@@ -91,14 +148,11 @@ export function EidosFileRecordPropertyList({
   rows,
   disabled,
   onReorder,
-  variant,
 }: {
   rows: { id: string; label: string; content: ReactNode }[]
   disabled: boolean
   onReorder: (ids: string[]) => void
-  variant: "page" | "panel"
 }) {
-  const { translate: t } = useEidosFileUI()
   const [dragging, setDragging] = useState(false)
   useEidosFilePendingEdit(dragging)
   return (
@@ -109,12 +163,7 @@ export function EidosFileRecordPropertyList({
       onDragStateChange={setDragging}
       onReorder={(next) => onReorder(next.map((item) => item.id))}
       renderItem={(item) => (
-        <SortableRecordProperty
-          id={item.id}
-          label={t("Reorder {field}", { field: item.label })}
-          disabled={disabled}
-          variant={variant}
-        >
+        <SortableRecordProperty id={item.id} disabled={disabled}>
           {item.content}
         </SortableRecordProperty>
       )}
@@ -128,6 +177,7 @@ function FieldMenuControls({
   disabled,
   onUpdate,
   onHide,
+  hidden,
   onDelete,
   onDerived,
 }: {
@@ -136,6 +186,7 @@ function FieldMenuControls({
   disabled: boolean
   onUpdate: Parameters<typeof useEidosFileFieldPropertyControls>[0]["onUpdate"]
   onHide: () => void
+  hidden: boolean
   onDelete: () => void
   onDerived: (kind: "formula" | "lookup") => void
 }) {
@@ -206,8 +257,14 @@ function FieldMenuControls({
               disabled={controls.busy}
               onClick={onHide}
             >
-              <EyeOff className="h-3.5 w-3.5" />
-              {t("Hide in records on this device")}
+              {hidden ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
+              {hidden
+                ? t("Show in records on this device")
+                : t("Hide in records on this device")}
             </Button>
           ) : null}
           {!controls.isRecordLabel ? (
@@ -248,6 +305,8 @@ export function EidosFileRecordFieldMenu({
   state,
   onStateChange,
   onHide,
+  hiddenFields,
+  onShow,
 }: {
   management?: RecordFieldManagement
   fields: EidosFileFieldInfo[]
@@ -255,6 +314,8 @@ export function EidosFileRecordFieldMenu({
   state: RecordFieldMenuState
   onStateChange: (next: RecordFieldMenuState) => void
   onHide: (id: string) => void
+  hiddenFields: readonly string[]
+  onShow: (id: string) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
@@ -333,7 +394,7 @@ export function EidosFileRecordFieldMenu({
             else
               recordRoot.current
                 ?.querySelector<HTMLElement>(
-                  "[data-eidos-file-record-properties-toggle]"
+                  "[data-eidos-record-properties-footer] button"
                 )
                 ?.focus()
           }}
@@ -418,9 +479,11 @@ export function EidosFileRecordFieldMenu({
                     )
                   }
                   onHide={() => {
-                    onHide(selected.id)
+                    if (hiddenFields.includes(selected.id)) onShow(selected.id)
+                    else onHide(selected.id)
                     close()
                   }}
+                  hidden={hiddenFields.includes(selected.id)}
                   onDelete={() => setDeleteTarget(selected)}
                   onDerived={setDerived}
                 />
@@ -486,62 +549,78 @@ export function EidosFileRecordFieldMenu({
 }
 
 export function EidosFileRecordPropertiesFooter({
-  hiddenFields,
+  hiddenCount,
+  expanded,
+  controlsId,
   preferencesLocked,
   schemaLocked,
   canCreate,
   onCreate,
-  onRestore,
+  onToggleHidden,
   variant,
 }: {
-  hiddenFields: EidosFileFieldInfo[]
+  hiddenCount: number
+  expanded: boolean
+  controlsId: string
   preferencesLocked: boolean
   schemaLocked: boolean
   canCreate: boolean
   onCreate: (anchor: HTMLElement) => void
-  onRestore: (id: string) => void
+  onToggleHidden: () => void
   variant: "page" | "panel"
 }) {
   const { translate: t } = useEidosFileUI()
   return (
     <div
-      className={cn("grid gap-1 py-2", variant === "panel" && "px-4")}
+      className={cn(
+        "grid justify-items-start gap-0.5 py-0.5",
+        variant === "panel" && "px-4"
+      )}
       data-eidos-record-properties-footer
     >
-      {canCreate ? (
+      {canCreate && (!hiddenCount || expanded) ? (
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 justify-start gap-1.5 px-0 text-xs text-muted-foreground"
+          className="-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
           disabled={schemaLocked}
           onClick={(event) => onCreate(event.currentTarget)}
         >
-          <Plus className="h-3.5 w-3.5" />
-          {t("New field")}
+          <Plus className="h-4 w-4" />
+          {t("Add a property")}
         </Button>
       ) : null}
-      {hiddenFields.length ? (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer py-1">
-            {t("Hidden properties on this device ({count})", {
-              count: hiddenFields.length,
-            })}
-          </summary>
-          <div className="grid gap-0.5 py-1">
-            {hiddenFields.map((field) => (
-              <Button
-                key={field.id}
-                variant="ghost"
-                size="sm"
-                className="h-7 justify-start text-xs"
-                disabled={preferencesLocked}
-                onClick={() => onRestore(field.id)}
-              >
-                {t("Show {field}", { field: eidosFileFieldDisplayName(field) })}
-              </Button>
-            ))}
-          </div>
-        </details>
+      {hiddenCount ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
+          data-eidos-file-record-hidden-properties-toggle=""
+          aria-expanded={expanded}
+          aria-controls={controlsId}
+          disabled={preferencesLocked}
+          onClick={onToggleHidden}
+        >
+          {expanded ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+          {expanded
+            ? t(
+                hiddenCount === 1
+                  ? "Hide {count} property"
+                  : "Hide {count} properties",
+                { count: hiddenCount }
+              )
+            : t(
+                hiddenCount === 1
+                  ? "{count} more property"
+                  : "{count} more properties",
+                { count: hiddenCount }
+              )}
+        </Button>
       ) : null}
     </div>
   )
