@@ -21,6 +21,8 @@ import {
 const CARD = "[data-eidos-file-row-id]"
 const INTERACTIVE =
   'button, a, input, select, textarea, summary, video, audio, [role="button"], [role="menuitem"], [contenteditable]:not([contenteditable="false"])'
+const NATIVE_DRAG =
+  '[draggable]:not([draggable="false"]), img:not([draggable="false"])'
 const DRAG_DISTANCE = 6
 
 export interface GallerySelectionGeometry {
@@ -36,6 +38,7 @@ interface GalleryDrag {
   base: ReadonlySet<string>
   mode: GallerySelectionMode
   active: boolean
+  fromCard: boolean
   // Keep encountered identities after the bounded row window evicts their data.
   cards: Map<string, GalleryRect>
 }
@@ -73,12 +76,12 @@ export function useEidosFileGallerySelection({
 
   useLayoutEffect(() => {
     cancelRef.current(true)
-  }, [enabled, queryIdentity, scopeKey])
+  }, [queryIdentity, scopeKey])
 
   useLayoutEffect(() => {
     // A resize can change every card's coordinates; retain IDs, cancel the gesture.
     cancelRef.current()
-  }, [layoutKey])
+  }, [enabled, layoutKey])
 
   useEffect(() => {
     const container = scrollRef.current
@@ -88,7 +91,6 @@ export function useEidosFileGallerySelection({
     let frame: number | null = null
     let lastFrame = 0
     let suppressClick = false
-    let clickTimer: number | undefined
 
     const select = (next: ReadonlySet<string>) => {
       if (gallerySelectionEqual(selectedRef.current, next)) return
@@ -157,10 +159,6 @@ export function useEidosFileGallerySelection({
       }
       if (previous?.active) {
         suppressClick = true
-        win.clearTimeout(clickTimer)
-        clickTimer = win.setTimeout(() => {
-          suppressClick = false
-        }, 0)
       }
       if (clearSelection) select(new Set())
       else if (cancel && previous?.active) select(previous.base)
@@ -168,6 +166,7 @@ export function useEidosFileGallerySelection({
         !cancel &&
         previous &&
         !previous.active &&
+        !previous.fromCard &&
         previous.mode === "replace"
       )
         select(new Set())
@@ -214,14 +213,18 @@ export function useEidosFileGallerySelection({
       stop(true, true)
     }
     const down = (event: PointerEvent) => {
+      // A new press is deliberate; the click from the previous drag is not.
+      // Do not expire this guard on a timer before the browser sends that click.
+      if (event.button === 0) suppressClick = false
       if (
+        event.defaultPrevented ||
         !enabled ||
         drag ||
         event.button !== 0 ||
         event.pointerType !== "mouse" ||
         event.isPrimary === false ||
         !(event.target instanceof Element) ||
-        event.target.closest(`${CARD}, ${INTERACTIVE}`)
+        event.target.closest(`${INTERACTIVE}, ${NATIVE_DRAG}`)
       )
         return
       const bounds = container.getBoundingClientRect()
@@ -242,6 +245,7 @@ export function useEidosFileGallerySelection({
         base: selectedRef.current,
         mode: gallerySelectionMode(event),
         active: false,
+        fromCard: event.target.closest(CARD) !== null,
         cards: new Map(),
       }
       win.addEventListener("pointermove", move, {
@@ -254,7 +258,7 @@ export function useEidosFileGallerySelection({
       win.addEventListener("blur", blur)
     }
     const click = (event: MouseEvent) => {
-      if (suppressClick) {
+      if (suppressClick && event.detail !== 0) {
         suppressClick = false
         event.preventDefault()
         event.stopPropagation()
@@ -294,19 +298,21 @@ export function useEidosFileGallerySelection({
       event.stopPropagation()
       stop(true, true)
     }
+    const nativeDrag = () => stop(true)
     cancelRef.current = (clearSelection = false) => stop(true, clearSelection)
     container.addEventListener("pointerdown", down)
     container.addEventListener("lostpointercapture", cancelPointer)
     container.addEventListener("click", click, true)
     container.addEventListener("keydown", key)
+    container.addEventListener("dragstart", nativeDrag)
     return () => {
       stop(true)
-      win.clearTimeout(clickTimer)
       cancelRef.current = () => {}
       container.removeEventListener("pointerdown", down)
       container.removeEventListener("lostpointercapture", cancelPointer)
       container.removeEventListener("click", click, true)
       container.removeEventListener("keydown", key)
+      container.removeEventListener("dragstart", nativeDrag)
     }
   }, [enabled, scrollRef])
 

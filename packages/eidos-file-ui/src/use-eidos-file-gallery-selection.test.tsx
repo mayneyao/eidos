@@ -141,7 +141,7 @@ describe("Gallery pointer selection lifecycle", () => {
     act(() =>
       host
         .querySelector("article")!
-        .dispatchEvent(new MouseEvent("click", { bubbles: true }))
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
     )
     expect(open).not.toHaveBeenCalled()
     expect(selected()).toBe("a,b")
@@ -167,6 +167,50 @@ describe("Gallery pointer selection lifecycle", () => {
     down()
     up(5, 5)
     expect(selected()).toBe("")
+  })
+
+  it("starts a marquee from card content while an ordinary card click still opens", () => {
+    const title = host.querySelector("span")!
+    pointer("pointerdown", title, 30, 30)
+    move(250, 130)
+    expect(selected()).toBe("a,b")
+    up(250, 130)
+    act(() =>
+      title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    )
+    expect(open).not.toHaveBeenCalled()
+    pointer("pointerdown", title, 30, 30)
+    up(30, 30)
+    act(() =>
+      title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    )
+    expect(open).toHaveBeenCalledOnce()
+    expect(selected()).toBe("a,b")
+  })
+
+  it("suppresses a delayed trailing click until the next deliberate press", async () => {
+    down()
+    move()
+    up()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    act(() =>
+      host
+        .querySelector("article")!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    )
+    expect(open).not.toHaveBeenCalled()
+    expect(selected()).toBe("a,b")
+  })
+
+  it("keeps completed selection through a temporary loading gate", () => {
+    down()
+    move()
+    up()
+    enabled = false
+    render()
+    enabled = true
+    render()
+    expect(selected()).toBe("a,b")
   })
 
   it("keeps identities and hit geometry as virtual row data is evicted during one drag", () => {
@@ -239,7 +283,8 @@ describe("Gallery pointer selection lifecycle", () => {
     expect(selected()).toBe("")
   })
 
-  it("ignores cards, controls, touch, other pointers, native scrollbars and disabled mode", () => {
+  it("ignores controls, native drag targets, touch, other pointers, native scrollbars and disabled mode", () => {
+    host.querySelector("span")!.setAttribute("draggable", "true")
     for (const target of [
       host.querySelector("span")!,
       host.querySelector("button")!,

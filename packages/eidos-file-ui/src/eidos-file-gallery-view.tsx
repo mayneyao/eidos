@@ -307,7 +307,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   const selectionScopeKey = JSON.stringify([
     table.table.id,
     view.id,
-    reloadToken,
     view.query,
     view.filter,
     view.sorts,
@@ -348,7 +347,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     cursor?: string
     message: string
   } | null>(null)
-  const actionScope = useMemo(() => ({}), [selectionScopeKey, loadPage])
+  const actionScope = useMemo(
+    () => ({}),
+    [selectionScopeKey, loadPage, reloadToken]
+  )
   const actionScopeRef = useRef(actionScope)
   actionScopeRef.current = actionScope
   const mountedRef = useRef(true)

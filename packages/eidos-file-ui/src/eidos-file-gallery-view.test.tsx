@@ -553,6 +553,25 @@ describe("EidosFileGalleryView", () => {
       expect(onRowCountChange).toHaveBeenLastCalledWith(1)
     })
 
+    it("keeps the selected menu target through a same-query background reload", async () => {
+      const props = {
+        onDeleteRow: vi.fn(async () => undefined),
+        onDeleteRowIds: vi.fn(),
+      }
+      await render(props)
+      for (const id of ["a", "b", "c"]) select(id)
+      expect(count()).toBe("3")
+      await render({ ...props, reloadToken: 1 })
+      expect(count()).toBe("3")
+      await context("b")
+      expect(document.querySelector('[role="menu"]')?.textContent).toContain(
+        "Delete 3 records"
+      )
+      expect(
+        document.querySelector('[role="menu"]')?.textContent
+      ).not.toContain("Open record")
+    })
+
     it("keeps a failed selection and confirmation recoverable", async () => {
       const onDeleteRowIds = vi
         .fn()
@@ -649,6 +668,8 @@ describe("EidosFileGalleryView", () => {
       await click("Confirm delete A")
       await render({ ...props, reloadToken: 1 })
       expect(container.querySelector("[data-confirm-count]")).toBeNull()
+      expect(count()).toBe("3")
+      await click("Clear")
       select("d")
       await context("d")
       await click("Delete record")
