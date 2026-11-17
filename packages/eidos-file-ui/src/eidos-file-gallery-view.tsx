@@ -660,7 +660,11 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     previousColumnCountRef.current = columnCount
     previousLayoutFieldsRef.current = table.fields
     previousViewPropertiesRef.current = view.properties
-    if (!layoutChanged) return
+    if (!layoutChanged) {
+      // Replayed layout effects must also repair already-stale measurements.
+      resetEidosFileVirtualizerMeasurements(rowVirtualizer)
+      return
+    }
     const columnCountChanged =
       previousColumnCount !== null && previousColumnCount !== columnCount
     const targetWindow = scrollContainerRef.current?.ownerDocument.defaultView
