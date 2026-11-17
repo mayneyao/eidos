@@ -1312,12 +1312,9 @@ export class WindowController {
         this.systemFileClipboard.write(
           generation,
           files,
-          () => {
-            if (this.requireSession(webContents) !== session)
-              throw new Error(
-                "The Space changed; select the source items again"
-              )
-          },
+          // The captured session holds a read lease and validates its sources.
+          // Merely switching the visible Space must not cancel a file copy.
+          () => undefined,
           expected!
         )
     )

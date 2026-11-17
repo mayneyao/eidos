@@ -42,7 +42,6 @@ export function useExplorerClipboard(options: {
   const captureSequence = useRef(0)
   const checkingSequence = useRef(0)
   const [checking, setChecking] = useState(false)
-  const pendingCapture = useRef(false)
   const currentOptions = useRef(options)
   currentOptions.current = options
   const scope = useRef(options.spaceId)
@@ -50,16 +49,12 @@ export function useExplorerClipboard(options: {
   const clipboard = stored?.spaceId === options.spaceId ? stored : null
   useEffect(() => {
     const invalidate = () => {
-      pendingCapture.current = false
       captureSequence.current += 1
       checkingSequence.current += 1
       currentOptions.current.cancelPrepare?.()
       setStored(null)
       setChecking(false)
       setPreparing(false)
-    }
-    const blur = () => {
-      if (pendingCapture.current) invalidate()
     }
     const validate = async () => {
       const token = clipboard?.sources?.systemClipboardToken
@@ -76,14 +71,12 @@ export function useExplorerClipboard(options: {
     }
     document.addEventListener("copy", invalidate)
     document.addEventListener("cut", invalidate)
-    window.addEventListener("blur", blur)
     window.addEventListener("focus", validate)
     document.addEventListener("contextmenu", validate, true)
     return () => {
       checkingSequence.current += 1
       document.removeEventListener("copy", invalidate)
       document.removeEventListener("cut", invalidate)
-      window.removeEventListener("blur", blur)
       window.removeEventListener("focus", validate)
       document.removeEventListener("contextmenu", validate, true)
     }
@@ -122,7 +115,6 @@ export function useExplorerClipboard(options: {
       const selected = explorerClipboardEntries(entries)
       let sources: SpacePathClipboardSources | undefined
       setPreparing(true)
-      pendingCapture.current = true
       try {
         sources = await options.prepare?.(
           selected.map((entry) => entry.relativePath),
@@ -139,7 +131,6 @@ export function useExplorerClipboard(options: {
         return
       } finally {
         if (sequence === captureSequence.current) {
-          pendingCapture.current = false
           setPreparing(false)
         }
       }

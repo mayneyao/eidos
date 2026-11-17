@@ -5,6 +5,57 @@ import { useExplorerClipboard } from "./use-explorer-clipboard"
 import type { SpaceTreeEntry } from "../shared/contracts"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+it("finishes a pending Copy after switching to another application", async () => {
+  const root = createRoot(document.createElement("div"))
+  const entry: SpaceTreeEntry = {
+    name: "photo.png",
+    relativePath: "photo.png",
+    kind: "file",
+    size: 1,
+    modifiedAtMs: 1,
+  }
+  let finish!: () => void
+  const preparing = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  const cancel = vi.fn()
+  const copy = vi.fn(async () => undefined)
+  let clipboard!: ReturnType<typeof useExplorerClipboard>
+  function Harness() {
+    clipboard = useExplorerClipboard({
+      spaceId: "space",
+      disabled: false,
+      prepare: async () => {
+        await preparing
+        return { spaceId: "space", sources: [] }
+      },
+      cancelPrepare: cancel,
+      copy,
+      move: async () => undefined,
+      onError: vi.fn(),
+    })
+    return null
+  }
+  try {
+    await act(async () => root.render(<Harness />))
+    let capture!: Promise<void>
+    await act(async () => {
+      capture = clipboard.capture("copy", [entry])
+    })
+    await act(async () => window.dispatchEvent(new Event("blur")))
+    expect(cancel).not.toHaveBeenCalled()
+    await act(async () => {
+      finish()
+      await capture
+    })
+    expect(clipboard.canPaste("destination")).toBe(true)
+    await act(async () => clipboard.paste("destination"))
+    expect(copy).toHaveBeenCalledOnce()
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
 it("preserves internal Copy/Cut, gives external updates priority and leaves text Copy untouched", async () => {
   const host = document.createElement("div")
   const root = createRoot(host)
