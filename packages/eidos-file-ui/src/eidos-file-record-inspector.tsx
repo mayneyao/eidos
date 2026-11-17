@@ -542,10 +542,9 @@ export function EidosFileRecordInspector({
   const variant = interactionMode === "mobile" ? "page" : requestedVariant
   const isMobile = interactionMode === "mobile"
   const tableId = fieldManagement?.table.table.id ?? fields[0]?.tableId ?? ""
-  const propertyScope = JSON.stringify([
-    recordPropertyScope ?? "session",
-    tableId,
-  ])
+  // Keep the existing collapse and draft-default identity unchanged. Personal
+  // field presentation has its own file/table scope below.
+  const propertyScope = fields[0]?.tableId ?? ""
   const [recordPreferences, updateRecordPreferences] =
     useRecordPropertyPreferences(
       recordPropertyScope,
@@ -558,7 +557,7 @@ export function EidosFileRecordInspector({
   }>({ open: false, fieldId: null })
   useEffect(() => {
     setFieldManager({ open: false, fieldId: null })
-  }, [propertyScope])
+  }, [recordPropertyScope, tableId])
   const creationContext = useEidosFileCreationContext()
   const defaultSession = `${propertyScope}:${String(row._id ?? "")}`
   const newRecordDefaults = useRef<{
