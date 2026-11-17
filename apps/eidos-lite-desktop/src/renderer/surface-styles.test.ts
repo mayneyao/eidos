@@ -55,14 +55,16 @@ function ruleAfter(selector: string, after: string, source = styles): string {
 }
 
 describe("Eidos Lite surface hierarchy", () => {
-  it("reserves the tinted shell background for the file tree sidebar", () => {
+  it("distinguishes navigation sidebars from their content surfaces", () => {
     expect(rule(":root", themeStyles)).toContain(
       "--canvas: var(--theme-surface)"
     )
     expect(rule(":root", themeStyles)).toContain("--surface: var(--canvas)")
     expect(rule(".space-sidebar")).toContain("var(--lite-sidebar)")
     expect(rule(".editor-region")).toContain("background: var(--canvas)")
-    expect(rule(".settings-sidebar")).toContain("background: var(--canvas)")
+    expect(rule(".settings-sidebar")).toContain(
+      "background: color-mix(in oklab, var(--canvas) 96%, var(--ink))"
+    )
   })
 
   it("keeps title bars on the default surface with quiet separators", () => {

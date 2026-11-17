@@ -573,7 +573,7 @@ body {
   padding: calc(var(--window-titlebar-height) + 1rem)
     var(--settings-sidebar-padding) 1rem;
   border-right: 1px solid var(--hairline);
-  background: var(--canvas);
+  background: color-mix(in oklab, var(--canvas) 96%, var(--ink));
 }
 
 .settings-sidebar nav {
@@ -666,18 +666,25 @@ body {
 
 .settings-sidebar-resizer::after {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
   left: 3px;
-  width: 1px;
+  width: 2px;
+  height: 2rem;
+  border-radius: 1px;
   background: transparent;
+  transform: translateY(-50%);
   content: "";
 }
 
 .settings-sidebar-resizer:hover::after,
-.settings-sidebar-resizer:focus-visible::after,
 .settings-sidebar-resizer[data-resizing="true"]::after {
+  background: var(--ink-faint);
+}
+
+.settings-sidebar-resizer:focus-visible::after {
   background: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .settings-sidebar-resizer:focus-visible {
