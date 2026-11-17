@@ -51,6 +51,8 @@ import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/cale
 import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
 import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
+import { parseObsidianMarkdownLinkDestination } from "@eidos.space/markdown/source"
+import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
@@ -89,6 +91,10 @@ interface FormulaEditorTarget {
 export interface EidosFileWorkbenchProps {
   onPendingEditChange?(editorId: string, pending: boolean): void
   onOpenSpaceFile?(path: string): void | Promise<void>
+  onOpenMarkdownInternalLink?(
+    owner: string,
+    request: MarkdownEditorInternalLinkRequest
+  ): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
   fileSidebarOpen?: boolean
   relativePath: string
@@ -123,6 +129,7 @@ export interface EidosFileWorkbenchProps {
 }
 
 export function EidosFileWorkbench({
+  onOpenMarkdownInternalLink,
   onPendingEditChange,
   onOpenSpaceFile,
   onOpenFileInSidebar,
@@ -231,6 +238,24 @@ export function EidosFileWorkbench({
       ),
     [source.sessionId]
   )
+  const openContentLink = useCallback(
+    (request: MarkdownEditorInternalLinkRequest) =>
+      onOpenMarkdownInternalLink?.(relativePath, request),
+    [onOpenMarkdownInternalLink, relativePath]
+  )
+  const activateContentLink = useCallback(
+    async (href: string) => {
+      const target = parseObsidianMarkdownLinkDestination(href)
+      if (!target) return window.eidosLite.openExternalUrl(href)
+      await openContentLink({
+        ...target,
+        documentKey: relativePath,
+        embed: false,
+        syntax: "markdown",
+      })
+    },
+    [openContentLink, relativePath]
+  )
   const renderMarkdownEditor = useCallback(
     ({
       cacheKey,
@@ -245,6 +270,7 @@ export function EidosFileWorkbench({
           documentKey={`${source.sessionId}:${cacheKey}`}
           relativePath={contentEditorPath}
           assetDocumentPath={relativePath}
+          onOpenInternalLink={openContentLink}
           content={content}
           editingMode={CONTENT_FIELD_EDITING_MODE}
           theme={theme}
@@ -259,7 +285,7 @@ export function EidosFileWorkbench({
         />
       )
     },
-    [keyboardShortcuts, relativePath, source.sessionId, theme]
+    [keyboardShortcuts, relativePath, source.sessionId, theme, openContentLink]
   )
   const renderMarkdownHtml = useCallback(
     (markdown: string) => ({
@@ -698,6 +724,7 @@ export function EidosFileWorkbench({
       weekStartsOnMonday={weekStartsOnMonday}
       timeZone={timeZone}
       activateUrl={window.eidosLite?.openExternalUrl}
+      activateMarkdownLink={activateContentLink}
       openRelationRecord={openRelationRecord}
       assetSession={assetSession}
       recordPropertyScope={JSON.stringify([

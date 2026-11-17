@@ -49,11 +49,16 @@ export function parseObsidianMarkdownLinkDestination(
   }
 
   const hashOffset = target.indexOf("#")
-  const encodedPath = hashOffset < 0 ? target : target.slice(0, hashOffset)
+  const beforeFragment = hashOffset < 0 ? target : target.slice(0, hashOffset)
+  const queryOffset = beforeFragment.indexOf("?")
+  const encodedPath =
+    queryOffset < 0 ? beforeFragment : beforeFragment.slice(0, queryOffset)
   const encodedFragment = hashOffset < 0 ? "" : target.slice(hashOffset + 1)
+  if (/%(?:2f|5c|00)/iu.test(encodedPath)) return null
   const path = decoded(encodedPath)
   const fragment = decoded(encodedFragment)
-  if (path === null || fragment === null || path.includes("\\")) return null
+  if (path === null || fragment === null || /[\\\u0000]/u.test(path))
+    return null
 
   return {
     target,

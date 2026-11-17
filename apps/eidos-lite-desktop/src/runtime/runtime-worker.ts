@@ -2,6 +2,10 @@ import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { runtimeReadTrace } from "./read-trace"
 import {
+  readContentLinkDocuments,
+  writeContentLinkDocuments,
+} from "./content-link-updates"
+import {
   normalizeEidosSchemaMergeFiles,
   planEidosSchemaMergeFiles,
 } from "@eidos.space/eidos-file/node-sqlite"
@@ -182,6 +186,13 @@ async function runtimeCall(
         ? await calendarSource!
         : legacySource
   switch (method) {
+    case "readContentLinkDocuments":
+      return readContentLinkDocuments(dataSource)
+    case "writeContentLinkDocuments":
+      return writeContentLinkDocuments(
+        dataSource,
+        ...methodArgs<"writeContentLinkDocuments">(args)
+      )
     case "readTablePluginConfig":
       return dataSource.readTablePluginConfig(
         ...methodArgs<"readTablePluginConfig">(args)

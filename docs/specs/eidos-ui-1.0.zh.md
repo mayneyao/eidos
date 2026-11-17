@@ -1163,6 +1163,11 @@ scheme 必须保持 inert；remote image 不能触发 ambient network fetch。Ex
 通过 Host 的 explicit URL activation boundary 激活。编辑底层 Text value 时遵循普通
 atomic row mutation 与 optimistic-state 规则。
 
+Host 可以提供可选 UI Host callback `activateMarkdownLink`，用于 Content Markdown
+导航，与外部 `activateUrl` 分离。Content 所属文件的资源 base 与授权范围由 Host
+负责。正文相对引用不能扩大普通 File-entry 的授权，也不能让没有显式资源根的 Host
+自动获得父目录访问权限。
+
 每个面向用户的 Field 类型选择器，包括创建、转换、CSV mapping 以及 Formula
 结果/展示类型控件，必须在关闭状态的 trigger 和每个菜单行中，用同一个 canonical
 Field type icon 配合本地化类型名称。图标只是辅助信息：可见文字和 accessible name

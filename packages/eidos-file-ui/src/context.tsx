@@ -145,6 +145,8 @@ export interface EidosFileUIHost {
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
+  /** Optional Host navigation for Content Markdown links; grants no FileEntry access. */
+  activateMarkdownLink?: (uri: string) => void | Promise<void>
   /** Host-owned navigation to a record referenced by a relation field. */
   openRelationRecord?: (
     target: EidosFileRelationRecordTarget
@@ -213,6 +215,7 @@ export function EidosFileUIProvider({
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
+  activateMarkdownLink,
   openRelationRecord,
   assetSession,
   assetPresenter,
@@ -250,6 +253,8 @@ export function EidosFileUIProvider({
   const resolvedCalendarPeriodTimeZoneData =
     calendarPeriodTimeZoneData ?? parent.calendarPeriodTimeZoneData
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
+  const resolvedActivateMarkdownLink =
+    activateMarkdownLink ?? parent.activateMarkdownLink
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
   const resolvedAssetSession = assetSession ?? parent.assetSession
@@ -294,6 +299,9 @@ export function EidosFileUIProvider({
               translateEidosFileUI(resolvedLocale, message, values, messages)
           : parent.translate),
       ...(resolvedActivateUrl ? { activateUrl: resolvedActivateUrl } : {}),
+      ...(resolvedActivateMarkdownLink
+        ? { activateMarkdownLink: resolvedActivateMarkdownLink }
+        : {}),
       ...(resolvedOpenRelationRecord
         ? { openRelationRecord: resolvedOpenRelationRecord }
         : {}),
@@ -332,6 +340,7 @@ export function EidosFileUIProvider({
       messages,
       parent.translate,
       resolvedActivateUrl,
+      resolvedActivateMarkdownLink,
       resolvedOpenRelationRecord,
       resolvedAssetPresenter,
       resolvedAssetSession,
