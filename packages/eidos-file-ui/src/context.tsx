@@ -1,4 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react"
+import { useContext, useMemo, type ReactNode } from "react"
+import { EidosFileUIContext } from "./eidos-file-ui-context"
+// Keep the hook export stable while Fast Refresh replaces the provider.
+export { useEidosFileUI } from "./eidos-file-ui-context"
 import type { RecordFieldManagement } from "./eidos-file-record-field-context"
 import type {
   AssetLease,
@@ -184,14 +187,6 @@ export interface EidosFileUIHost {
   ) => ReactNode
 }
 
-const defaultHost: EidosFileUIHost = {
-  themeName: "light",
-  locale: "en",
-  weekStartsOnMonday: true,
-  translate: (message, values) => translateEidosFileUI("en", message, values),
-}
-
-const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
@@ -360,8 +355,4 @@ export function EidosFileUIProvider({
       {children}
     </EidosFileUIContext.Provider>
   )
-}
-
-export function useEidosFileUI(): EidosFileUIHost {
-  return useContext(EidosFileUIContext)
 }

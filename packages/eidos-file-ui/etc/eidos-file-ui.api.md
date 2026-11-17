@@ -3,8 +3,8 @@
 ## .
 
 ```ts
+import { _ as RecordFieldManagement, a as EidosFileMarkdownSourceEditorRequest, c as EidosFileUIAssetSession, d as EidosFileUIProvider, f as EidosFileUIThemeName, g as translateEidosFileUI, h as EidosFileUIMessageValues, i as EidosFileMarkdownHtml, l as EidosFileUIHost, m as EidosFileUIMessageOverrides, n as EidosFileImagePresentationLease, o as EidosFileRelationRecordTarget, p as EidosFileUILocale, r as EidosFileMarkdownEditorRequest, s as EidosFileThumbnailSize, t as AssetPresenter, u as EidosFileUIKeyboardShortcuts, v as useEidosFileUI } from "./context-HASH.mjs";
 import { n as EidosFileEditorDataSource, t as EidosFileDataSource } from "./data-source-HASH.mjs";
-import { _ as translateEidosFileUI, a as EidosFileMarkdownSourceEditorRequest, c as EidosFileUIAssetSession, d as EidosFileUIProvider, f as EidosFileUIThemeName, g as EidosFileUIMessageValues, h as EidosFileUIMessageOverrides, i as EidosFileMarkdownHtml, l as EidosFileUIHost, m as EidosFileUILocale, n as EidosFileImagePresentationLease, o as EidosFileRelationRecordTarget, p as useEidosFileUI, r as EidosFileMarkdownEditorRequest, s as EidosFileThumbnailSize, t as AssetPresenter, u as EidosFileUIKeyboardShortcuts, v as RecordFieldManagement } from "./context-HASH.mjs";
 import { t as EidosFileRecordFocus } from "./eidos-file-record-focus-HASH.mjs";
 import { EidosFileCalendarCreateMode, EidosFileCalendarFieldType, EidosFileCalendarLayout, EidosFileCalendarPage, EidosFileCalendarPageRequest, EidosFileCalendarRange, EidosFileCalendarView, eidosFileCalendarCreateMode, eidosFileCalendarCreateValue, eidosFileCalendarDateFields, eidosFileCalendarFieldType, eidosFileCalendarLayout, eidosFileCalendarRowDateKey } from "./eidos-file-calendar-view.mjs";
 import { n as EidosFileCsvOperationProgressBar, r as EidosFileCsvOperationProgressBarProps, t as EidosFileCsvOperationProgress } from "./eidos-file-csv-operation-progress-HASH.mjs";
@@ -1260,7 +1260,7 @@ export { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 ## ./context
 
 ```ts
-import { a as EidosFileMarkdownSourceEditorRequest, c as EidosFileUIAssetSession, d as EidosFileUIProvider, f as EidosFileUIThemeName, i as EidosFileMarkdownHtml, l as EidosFileUIHost, n as EidosFileImagePresentationLease, o as EidosFileRelationRecordTarget, p as useEidosFileUI, r as EidosFileMarkdownEditorRequest, s as EidosFileThumbnailSize, t as AssetPresenter, u as EidosFileUIKeyboardShortcuts } from "./context-HASH.mjs";
+import { a as EidosFileMarkdownSourceEditorRequest, c as EidosFileUIAssetSession, d as EidosFileUIProvider, f as EidosFileUIThemeName, i as EidosFileMarkdownHtml, l as EidosFileUIHost, n as EidosFileImagePresentationLease, o as EidosFileRelationRecordTarget, r as EidosFileMarkdownEditorRequest, s as EidosFileThumbnailSize, t as AssetPresenter, u as EidosFileUIKeyboardShortcuts, v as useEidosFileUI } from "./context-HASH.mjs";
 export { AssetPresenter, EidosFileImagePresentationLease, EidosFileMarkdownEditorRequest, EidosFileMarkdownHtml, EidosFileMarkdownSourceEditorRequest, EidosFileRelationRecordTarget, EidosFileThumbnailSize, EidosFileUIAssetSession, EidosFileUIHost, EidosFileUIKeyboardShortcuts, EidosFileUIProvider, EidosFileUIThemeName, useEidosFileUI };
 ```
 
