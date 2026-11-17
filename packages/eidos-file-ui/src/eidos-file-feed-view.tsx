@@ -232,6 +232,7 @@ function EidosFileFeedEntry({
 }
 
 export const EidosFileFeedView = memo(function EidosFileFeedView({
+  undoableDelete = false,
   table,
   view,
   disabled = false,
@@ -259,6 +260,7 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
   ) => Promise<EidosFileRowPage>
   onOpenRecord?: (row: EidosFileRow) => void
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -494,6 +496,7 @@ export const EidosFileFeedView = memo(function EidosFileFeedView({
       </div>
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
+          undoableDelete={undoableDelete}
           row={deleteRow}
           fields={table.fields}
           disabled={disabled}

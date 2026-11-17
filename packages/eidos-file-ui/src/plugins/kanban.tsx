@@ -149,6 +149,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       table={table}
+      undoableDelete={props.canUndoDelete}
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file"
 
 import {
@@ -22,6 +22,7 @@ export function EidosFileRecordDeleteDialog({
   fields = [],
   count = 1,
   disabled = false,
+  undoableDelete = false,
   onOpenChange,
   onDelete,
   onError,
@@ -30,6 +31,8 @@ export function EidosFileRecordDeleteDialog({
   fields?: EidosFileFieldInfo[]
   count?: number
   disabled?: boolean
+  /** Only set for a deletion wired to the surrounding shared receipt history. */
+  undoableDelete?: boolean
   onOpenChange: (open: boolean) => void
   onDelete: (row: EidosFileRow) => Promise<void>
   onError?: (error: unknown) => void
@@ -38,31 +41,91 @@ export function EidosFileRecordDeleteDialog({
   const undo = useEidosFileUndo()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
+  const direct = Boolean(undoableDelete && undo)
+  const mounted = useRef(true)
+  const inFlight = useRef(false)
+  const automaticTarget = useRef<EidosFileRow | null>(null)
+  const latest = useRef({
+    row,
+    disabled,
+    onDelete,
+    onOpenChange,
+    onError,
+    direct,
+    undo,
+  })
+  latest.current = {
+    row,
+    disabled,
+    onDelete,
+    onOpenChange,
+    onError,
+    direct,
+    undo,
+  }
 
   useEffect(() => {
-    if (!row) setDeleting(false)
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!row) automaticTarget.current = null
     setError("")
   }, [row, count])
 
-  const confirm = async () => {
-    if (!row || disabled || deleting) return
+  const confirm = useCallback(async () => {
+    const target = latest.current
+    if (!target.row || target.disabled || inFlight.current) return
+    inFlight.current = true
     setDeleting(true)
     setError("")
     try {
-      await onDelete(row)
-      onOpenChange(false)
-    } catch (error) {
-      setError(
-        eidosFileErrorMessage(
-          error,
-          t("Could not delete the selected records.")
+      if (target.direct)
+        target.undo?.onCloseAutoFocus(
+          new Event("record-delete", { cancelable: true })
         )
-      )
-      onError?.(error)
+      await target.onDelete(target.row)
+      if (mounted.current && latest.current.row === target.row) {
+        target.onOpenChange(false)
+        if (target.direct)
+          requestAnimationFrame(() =>
+            target.undo?.onCloseAutoFocus(
+              new Event("record-delete", { cancelable: true })
+            )
+          )
+      }
+    } catch (error) {
+      if (mounted.current && latest.current.row === target.row) {
+        setError(
+          eidosFileErrorMessage(error, "Could not delete the selected records.")
+        )
+        target.onError?.(error)
+        if (target.direct && target.onError) target.onOpenChange(false)
+      }
     } finally {
-      setDeleting(false)
+      inFlight.current = false
+      if (mounted.current) setDeleting(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (
+      !direct ||
+      !row ||
+      disabled ||
+      deleting ||
+      inFlight.current ||
+      automaticTarget.current === row
+    )
+      return
+    automaticTarget.current = row
+    void confirm()
+  }, [confirm, deleting, direct, disabled, row])
+
+  if (direct && !error) return null
 
   return (
     <AlertDialog
@@ -82,7 +145,7 @@ export function EidosFileRecordDeleteDialog({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t(
-              undo
+              undoableDelete && undo
                 ? count > 1
                   ? "This removes the selected records from the Eidos File."
                   : "This removes the record from the Eidos File."

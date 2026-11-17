@@ -16,6 +16,7 @@ import {
   type EidosFileCellAction,
 } from "./eidos-file-cell-actions"
 import { useEidosFileTableActions } from "./table-actions"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/adaptive-popover"
 
 /** Shared record operations; cells and individual views add their own actions. */
@@ -90,6 +91,7 @@ export function EidosFileRecordContextMenu({
   actionScope?: object
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
+  const undo = useEidosFileUndo()
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
   const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
   const multiple = actionRowIds.length > 1
@@ -141,8 +143,10 @@ export function EidosFileRecordContextMenu({
         .writeText(multiple ? actionRowIds.join("\n") : id)
         .catch((cause: unknown) => onError?.(cause))
     },
-    onDelete: () =>
-      multiple ? onDeleteRowIds?.(actionRowIds) : onDelete?.(row),
+    onDelete: () => {
+      fromKeyboard.current = false
+      return multiple ? onDeleteRowIds?.(actionRowIds) : onDelete?.(row)
+    },
     translate: t,
   })
   openRecord.disabled = !onOpen
@@ -240,6 +244,7 @@ export function EidosFileRecordContextMenu({
             event.preventDefault()
             if (fromKeyboard.current)
               triggerRef.current?.focus({ preventScroll: true })
+            else undo?.onCloseAutoFocus(event)
           }}
         >
           <EidosFileCellActions

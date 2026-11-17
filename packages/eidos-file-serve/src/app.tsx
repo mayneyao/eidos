@@ -22,7 +22,10 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
-import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
+import {
+  createEidosFileTableWithContent,
+  EidosFileCreateRecordButton,
+} from "@eidos.space/eidos-file-ui"
 import {
   EidosFileViewTabStrip,
   exportEidosFileViewCsv,
@@ -1210,6 +1213,22 @@ export function ServeApp() {
                       current.updateView(viewId, changes)
                     )
                   }}
+                />
+              )
+            }
+            recordCreator={
+              readOnly ? undefined : (
+                <EidosFileCreateRecordButton
+                  source={client}
+                  table={activeTable}
+                  view={renderedActiveView}
+                  search={search}
+                  disabled={mutationDisabled}
+                  onCreated={(result) => {
+                    onRowMutation(result)
+                    setViewReloadToken((current) => current + 1)
+                  }}
+                  onError={(error) => setNotice(errorMessage(error))}
                 />
               )
             }

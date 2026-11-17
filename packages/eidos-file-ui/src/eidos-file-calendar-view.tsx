@@ -358,6 +358,7 @@ function calendarPagesTotal(
 }
 
 export function EidosFileCalendarView({
+  undoableDelete = false,
   table,
   view,
   disabled = false,
@@ -410,6 +411,7 @@ export function EidosFileCalendarView({
     day: Date
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -1455,6 +1457,7 @@ export function EidosFileCalendarView({
         ) : null)}
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
+          undoableDelete={undoableDelete}
           row={deleteRow}
           fields={table.fields}
           disabled={disabled}

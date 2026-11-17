@@ -65,6 +65,7 @@ function EidosFileFeedRenderer(props: EidosFileViewRendererProps) {
       }
       onRowCountChange={props.onSearchResultCountChange}
       onDeleteRow={props.onDeleteRow}
+      undoableDelete={props.canUndoDelete}
       onError={onError}
       sidePanel={
         props.propertyField ? (

@@ -9,6 +9,7 @@ import {
 import { createTestWasmConnection } from "../../eidos-file/src/sqlite-wasm-test-helper"
 import { EidosRuntimeEditorDataSource } from "./runtime-editor-data-source"
 import { EidosFileEditorView } from "./eidos-file-editor-view"
+import { EidosFileCreateRecordButton } from "./eidos-file-create-record-button"
 import { EidosFileUIProvider } from "./context"
 import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import { eidosFileCalendarPlugin } from "./plugins/calendar"
@@ -176,16 +177,30 @@ it("Grid, Gallery, Calendar and Kanban create through captured View filters and 
             calendarPeriodTimeZoneData={["2026f"]}
             calendarWindowVersion={1}
           >
-            <EidosFileEditorView
-              source={source}
-              table={table}
-              view={view}
-              plugins={[
-                eidosFileGalleryPlugin,
-                eidosFileCalendarPlugin,
-                eidosFileKanbanPlugin,
-              ]}
-            />
+            {type === "gallery" ? (
+              <EidosFileCreateRecordButton
+                source={source}
+                table={table}
+                view={view}
+                onCreated={(result) => {
+                  capture.result = result
+                }}
+                onError={(error) => {
+                  throw error
+                }}
+              />
+            ) : (
+              <EidosFileEditorView
+                source={source}
+                table={table}
+                view={view}
+                plugins={[
+                  eidosFileGalleryPlugin,
+                  eidosFileCalendarPlugin,
+                  eidosFileKanbanPlugin,
+                ]}
+              />
+            )}
           </EidosFileUIProvider>
         )
       )

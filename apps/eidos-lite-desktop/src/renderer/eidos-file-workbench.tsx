@@ -17,6 +17,7 @@ import {
   createEidosFilePluginRegistry,
   createEidosFileTableWithContent,
   EidosFileEditorShell,
+  EidosFileCreateRecordButton,
   EidosFileEditorView,
   EidosFileFieldCreatePopover,
   EidosFileFormModeToolbar,
@@ -804,6 +805,23 @@ export function EidosFileWorkbench({
             onExportError={onError}
           />
         }
+        recordCreator={
+          <EidosFileCreateRecordButton
+            source={source}
+            table={activeTable}
+            view={scopedView}
+            search={search}
+            disabled={disabled}
+            onCreated={(result) => {
+              setReloadToken((current) => current + 1)
+              const rowId = String(result.row._id)
+              sidebarRecords.rememberRecord(rowId, result.row)
+              ;(sidebarRecords.openRecord ?? onInspectedRowChange)?.(rowId)
+              focusRecordView()
+            }}
+            onError={onError}
+          />
+        }
         queryToolbar={
           activeView?.type === "form" ? (
             <EidosFileFormModeToolbar
@@ -1032,6 +1050,7 @@ export function EidosFileWorkbench({
                 resolveAssets: true,
                 rawFile: false,
                 nativeFileSystem: false,
+                reversibleRowDeletion: true,
               }}
               onSnapshot={onSnapshot}
               onDeleteRow={deleteRow}

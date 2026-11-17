@@ -234,7 +234,7 @@ describe("EidosFileGalleryView", () => {
     vi.unstubAllGlobals()
   })
 
-  it("opens a created record after refresh and ignores a completion from a different View", async () => {
+  it("leaves record creation to the shared toolbar, including for legacy onAddRow callers", async () => {
     const loadPage = vi.fn(async () => ({
       tableId: "tasks",
       offset: 0,
@@ -248,13 +248,7 @@ describe("EidosFileGalleryView", () => {
       rowCount: 1,
     }
     const onOpenRecord = vi.fn()
-    let finish: ((value: typeof result) => void) | undefined
-    const onAddRow = vi.fn(
-      () =>
-        new Promise<typeof result>((resolve) => {
-          finish = resolve
-        })
-    )
+    const onAddRow = vi.fn(async () => result)
     const render = async (nextView = view, reloadToken = 0) =>
       act(async () =>
         root.render(
@@ -269,22 +263,14 @@ describe("EidosFileGalleryView", () => {
         )
       )
     await render()
-    await act(async () =>
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "New record")!
-        .click()
-    )
+    expect(
+      [...container.querySelectorAll("button")].some(
+        (button) => button.textContent === "New record"
+      )
+    ).toBe(false)
     await render(view, 1)
-    await act(async () => finish!(result))
-    expect(onOpenRecord).toHaveBeenCalledWith(result.row)
-    onOpenRecord.mockClear()
-    await act(async () =>
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "New record")!
-        .click()
-    )
     await render({ ...view, id: "another" }, 1)
-    await act(async () => finish!(result))
+    expect(onAddRow).not.toHaveBeenCalled()
     expect(onOpenRecord).not.toHaveBeenCalled()
   })
 

@@ -39,6 +39,7 @@ import {
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import { EidosFileRecordContextMenu } from "./eidos-file-record-actions"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -353,6 +354,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     calendarTimeZoneData,
   } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
+  const undo = useEidosFileUndo()
   const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
   const capturedActionScope = useRef(actionScope)
   const multipleActions = actionRowIds.length > 1
@@ -630,7 +632,11 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                       <MoreHorizontal className="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-44"
+                    onCloseAutoFocus={undo?.onCloseAutoFocus}
+                  >
                     {!multipleActions ? (
                       <DropdownMenuItem onSelect={() => onOpen(row)}>
                         <Eye className="mr-2 h-3.5 w-3.5" />

@@ -27,7 +27,10 @@ import {
   type EidosFileEditorShellProps,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
-import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
+import {
+  createEidosFileTableWithContent,
+  EidosFileCreateRecordButton,
+} from "@eidos.space/eidos-file-ui"
 import { RecordContentProvider } from "@eidos.space/eidos-file-serve/record-content"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
@@ -2344,6 +2347,20 @@ export function App() {
                 client.updateView(viewId, changes)
               )
             }}
+          />
+        }
+        recordCreator={
+          <EidosFileCreateRecordButton
+            source={editorSource}
+            table={activeTable}
+            view={activeView}
+            search={search}
+            disabled={saveState.phase === "saving"}
+            onCreated={(result) => {
+              onRowMutation(result)
+              setViewReloadToken((current) => current + 1)
+            }}
+            onError={(error) => setNotice(errorMessage(error))}
           />
         }
         queryToolbar={

@@ -22,6 +22,7 @@ export interface EidosFileEditorShellProps extends Omit<
   queryToolbar?: ReactNode
   fields?: ReactNode
   fieldCreator?: ReactNode
+  recordCreator?: ReactNode
   banner?: ReactNode
   children: ReactNode
   contentProps?: HTMLAttributes<HTMLDivElement>
@@ -48,6 +49,7 @@ export const EidosFileEditorShell = forwardRef<
     queryToolbar,
     fields,
     fieldCreator,
+    recordCreator,
     banner,
     children,
     contentProps,
@@ -84,6 +86,7 @@ export const EidosFileEditorShell = forwardRef<
               {fieldCreator}
             </div>
           ) : null}
+          {recordCreator}
         </div>
       </EidosFileEditorWorkbar>
       {banner}

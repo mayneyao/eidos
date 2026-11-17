@@ -894,6 +894,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
 })
 
 export const EidosFileKanbanView = memo(function EidosFileKanbanView({
+  undoableDelete = false,
   table,
   view,
   disabled = false,
@@ -950,6 +951,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     title: string
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -2021,6 +2023,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
         ) : null)}
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
+          undoableDelete={undoableDelete}
           row={deleteRow}
           fields={table.fields}
           disabled={disabled}

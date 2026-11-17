@@ -335,6 +335,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       table={table}
+      undoableDelete={props.canUndoDelete}
       recordFocus={props.recordFocus}
       view={view}
       disabled={disabled}

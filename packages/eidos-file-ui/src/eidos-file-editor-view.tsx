@@ -69,6 +69,8 @@ export interface EidosFileViewRendererProps {
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  /** Deletion callbacks register reversible receipts in this file's shared history. */
+  canUndoDelete?: boolean
   /** Delete exact stable identities through the Host's atomic record mutation path. */
   onDeleteRowIds?: (
     rowIds: readonly string[]
@@ -126,6 +128,8 @@ export interface EidosFileViewCapabilities {
   resolveAssets: boolean
   rawFile: false
   nativeFileSystem: false
+  /** Host guarantees receipt-producing ordinary-row deletes and restore transport. */
+  reversibleRowDeletion?: boolean
 }
 
 /** A host-registered React renderer for a persisted Eidos File view type. */
@@ -146,6 +150,7 @@ export interface EidosFileEditorViewProps extends Omit<
   | "selection"
   | "state"
   | "capabilities"
+  | "canUndoDelete"
 > {
   search?: string
   disabled?: boolean
@@ -334,6 +339,16 @@ export function EidosFileEditorView({
     ]
   )
   const searchNavigation = useEidosFileSearchNavigation()
+  const canUndoDelete = Boolean(
+    reversibleRecords &&
+    capabilities.reversibleRowDeletion &&
+    table.table.settings?.tableType !== "virtual" &&
+    !table.table.settings?.vtabModule &&
+    typeof source.revertRowMutation === "function" &&
+    callbacks.onDeleteRow &&
+    callbacks.onDeleteRowIds &&
+    !("readOnly" in source && source.readOnly === true)
+  )
   const resolvedSearchResultIndex =
     searchResultIndex === undefined
       ? (searchNavigation?.searchResultIndex ?? null)
@@ -365,6 +380,7 @@ export function EidosFileEditorView({
     capabilities,
     ...callbacks,
     ...deleteCallbacks,
+    canUndoDelete,
   }
   const type = view?.type || "grid"
   const pluginRegistry = useMemo(

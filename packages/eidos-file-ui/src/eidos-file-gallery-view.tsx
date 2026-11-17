@@ -247,12 +247,12 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   view,
   disabled = false,
   reloadToken = 0,
+  undoableDelete = false,
   searchResultIndex = null,
   recordFocus,
   loadPage,
   loadRow,
   onCellEdit,
-  onAddRow,
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
@@ -283,6 +283,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     field: EidosFileFieldInfo,
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
+  /** @deprecated Record creation belongs to the shared toolbar. */
   onAddRow?: () => Promise<EidosFileRowMutationResult>
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
@@ -294,6 +295,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
   onDeleteRowIds?: (
     rowIds: readonly string[]
   ) => Promise<EidosFileRowsDeleteResult>
@@ -307,7 +309,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
-  const [creating, setCreating] = useState(false)
   const selectionScopeKey = JSON.stringify([
     table.table.id,
     view.id,
@@ -315,8 +316,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     view.filter,
     view.sorts,
   ])
-  const creationScopeRef = useRef(selectionScopeKey)
-  creationScopeRef.current = selectionScopeKey
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const [preview, setPreview] = useState<{
@@ -905,28 +904,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
         style={selection.marquee ? { userSelect: "none" } : undefined}
       >
-        {onAddRow ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={disabled || creating}
-            onClick={async () => {
-              setCreating(true)
-              const scope = creationScopeRef.current
-              try {
-                const result = await onAddRow()
-                if (mountedRef.current && scope === creationScopeRef.current)
-                  openInspectorRow(result.row)
-              } catch (error) {
-                onError?.(error)
-              } finally {
-                if (mountedRef.current) setCreating(false)
-              }
-            }}
-          >
-            {t("New record")}
-          </Button>
-        ) : null}
         {loading && rows.length === 0 ? (
           <div
             className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground"
@@ -1134,6 +1111,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         ) : null)}
       {onDeleteRow || onDeleteRowIds ? (
         <EidosFileRecordDeleteDialog
+          undoableDelete={undoableDelete}
           key={deleteTarget?.requestId ?? "closed"}
           row={deleteTarget?.row ?? null}
           count={deleteTarget?.rowIds.length ?? 1}
