@@ -33,6 +33,7 @@ import {
 } from "./eidos-file-field-type-picker"
 import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
+import { EidosFileTemporalDefaultEditor } from "./eidos-file-temporal-default-editor"
 import { EidosFileOptionsEditor } from "./eidos-file-select-options-editor"
 import {
   Button,
@@ -118,6 +119,7 @@ export function EidosFileFieldCreatePopover({
   const [fieldType, setFieldType] =
     useState<EidosFileCreatableFieldType>("text")
   const [options, setOptions] = useState<EidosFileSelectOption[]>([])
+  const [temporalDefault, setTemporalDefault] = useState<"now" | null>(null)
   const [numberProperty, setNumberProperty] = useState<EidosFileNumberProperty>(
     () => ({ ...DEFAULT_BASE_NUMBER_PROPERTY })
   )
@@ -165,6 +167,7 @@ export function EidosFileFieldCreatePopover({
         : (availableTypes?.[0] ?? "text")
     )
     setOptions([])
+    setTemporalDefault(null)
     setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
     setTargetTableId(
       tables.find(
@@ -287,7 +290,11 @@ export function EidosFileFieldCreatePopover({
             }
           : fieldType === "number"
             ? { property: numberProperty }
-            : {}),
+            : (fieldType === "date" || fieldType === "datetime") &&
+                temporalDefault === "now" &&
+                table.temporalDefaultsVersion === 1
+              ? { property: { defaultValue: temporalDefault } }
+              : {}),
       }
     }
     setSubmitting(true)
@@ -359,6 +366,15 @@ export function EidosFileFieldCreatePopover({
               disabled={busy}
               onChange={setOptions}
               className="border-t-0 pt-0"
+            />
+          ) : null}
+          {(fieldType === "date" || fieldType === "datetime") &&
+          table.temporalDefaultsVersion === 1 ? (
+            <EidosFileTemporalDefaultEditor
+              type={fieldType}
+              value={temporalDefault}
+              disabled={busy}
+              onChange={setTemporalDefault}
             />
           ) : null}
           {fieldType === "number" ? (

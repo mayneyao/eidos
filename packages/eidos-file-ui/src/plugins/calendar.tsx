@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react"
+import { useEidosFileCreationContext } from "../eidos-file-temporal-defaults"
 import { eidosFileCalendarDateRangeIntervals } from "@eidos.space/eidos-file"
 import type {
   EidosFileFieldInfo,
@@ -114,6 +115,7 @@ export function eidosFileCalendarRangeFilter(
 }
 
 function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
+  const creationContext = useEidosFileCreationContext()
   const { timeZone, calendarTimeZoneData } = useEidosFileUI()
   const {
     source,
@@ -261,13 +263,24 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         timeZone,
         calendarTimeZoneData
       )
-      const result = await source.insertRow(table.table.id, {
-        ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
-      })
+      const result = await source.insertRow(
+        table.table.id,
+        {
+          ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
+        },
+        creationContext
+      )
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id, timeZone, calendarTimeZoneData]
+    [
+      onMutation,
+      source,
+      table.table.id,
+      timeZone,
+      calendarTimeZoneData,
+      creationContext,
+    ]
   )
   const searchRelation = useCallback(
     (field: EidosFileFieldInfo, relationQuery: string) =>

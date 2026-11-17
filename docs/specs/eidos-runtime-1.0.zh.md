@@ -372,6 +372,7 @@ unbounded foreground wait。
 
 ```ts
 interface RuntimeCapabilities {
+  temporalDefaultsVersion?: 1
   calendarQueryVersion?: 2
   calendarWindowVersion?: 1
   calendarPeriodTimeZoneData?: string[]
@@ -2365,6 +2366,7 @@ semantics。
 
 ```ts
 interface RowMutation {
+  creationContext?: { timeZone: string; timeZoneData: string }
   tableId: string
   expectedRevision: string
   returning?: ProjectionSpec
@@ -2470,7 +2472,19 @@ key。它在打开 write transaction 前验证完整 logical value。具有有�
 只用于 create，且只在 `values` 中没有该 Field ID 时运行；nullable Select 的显式
 null 会抑制 default。missing stored Checkbox Field 使用 false，包括 non-nullable
 Checkbox 和没有 physical `DEFAULT 0` 的旧 column。nullable Checkbox 的显式 null
-仍为 null。其他 missing nullable Field 成为 null。missing Multi-select、File 与
+仍为 null。当 `temporalDefaultsVersion:1` 时，省略且声明了 File Format
+`settings.defaultValue:"now"` 的可写普通 stored Date/Datetime 使用同一 canonical
+operation reference instant。Datetime 存储该精确 UTC 毫秒 instant；Date 按
+`creationContext.timeZone` 与受支持 portable `timeZoneData` profile 投影为
+`YYYY-MM-DD`。同一 batch 所有 create 共用该 instant/context。API/CLI 省略 context
+时使用 UTC / 2026f。context 必须恰好包含这两个 string；非法时区、不支持的 profile
+或超出日历范围的 Date 拒绝整次 operation。host 不得在 Field metadata 保存固定日期
+或另造 evaluator。显式 value、nullable null/清空优先。未保存 draft 可以只用一次
+canonical evaluator 预览并把结果作为普通 explicit value 提交；创建后仍可编辑。
+update、import/replay、undo/restore、schema edit/conversion、Sync 均不应用此规则，
+不得 backfill。转出 Date/Datetime 时清除规则，转换旧值不求 now。client 在配置规则
+或使用 creation context 前必须协商 `temporalDefaultsVersion:1`；required File
+feature 阻止旧 reader/writer 忽略此语义。其他 missing nullable Field 成为 null。missing Multi-select、File 与
 forward Relation Field 使用 `[]`。其他所有 missing non-null user Field 都是
 `invalid-value`；不存在其他 implicit scalar type default。Update 省略字段时不会
 应用 create default 或改变既有值。Runtime 填充 Row ID 与 created/updated
@@ -2827,7 +2841,8 @@ required `toNullable`；list/forward-Relation destination 固定 non-null。
 无论 nullable 还是 non-nullable，都通过 canonical `DEFAULT 0` 把每个新 cell
 初始化为 false。其他 nullable scalar Field 以 SQL NULL 填充每个 existing row。
 Checkbox 之外的 non-nullable scalar Field 仍只允许在零行 Table 上创建；Runtime
-1.0 中没有 general default/initial-value member。Select `settings.defaultOption` 只影响之后创建的 row，绝不 backfill
+1.0 中没有 general default/initial-value member。Select `settings.defaultOption` 与
+Date/Datetime `settings.defaultValue:"now"` 只影响之后 ordinary 创建的 row，绝不 backfill
 existing row。Multi-select、File 与 forward Relation Field 以 canonical `[]`
 填充每个 existing row。Formula、Lookup 与 inverse Relation Field 不添加
 user-table column。
@@ -3693,6 +3708,10 @@ ER-Reader 至少覆盖：
 ### 17.3 Required Writer family
 
 ER-Writer 还覆盖：
+
+日期默认值须覆盖关闭/启用/重开、本地午夜与 UTC 日期不同、时区切换、DST gap/fold、
+精确毫秒 Datetime、batch 多行/多字段单一参考时刻、显式 value/null、import/undo
+保义、非法配置/profile 与旧客户端 required-feature 拒绝。
 
 1. 使用 fixed clock/entropy 的 Runtime UUID allocation、同一/更早 millisecond
    monotonicity、普通 UI 省略 ID 与显式 trusted import check；

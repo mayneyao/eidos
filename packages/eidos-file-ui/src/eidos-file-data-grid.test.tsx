@@ -341,6 +341,14 @@ describe("EidosFileDataGrid", () => {
       resolveInsert?.(committed)
       await expect(optimistic.settled).resolves.toBe(committed)
     })
+    expect(insertRow).toHaveBeenCalledWith(
+      "tasks",
+      {},
+      expect.objectContaining({
+        timeZone: expect.any(String),
+        timeZoneData: "2026f",
+      })
+    )
     expect(onMutation).toHaveBeenCalledWith(committed)
   })
 

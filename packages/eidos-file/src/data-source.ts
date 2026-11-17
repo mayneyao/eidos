@@ -1,4 +1,5 @@
 import type { EidosFileRuntime } from "./runtime"
+import type { EidosFileCreationContext } from "./temporal-defaults"
 import type { EidosFilePluginConfig, EidosFileActionRow } from "./plugin-config"
 import type { LogicalValue } from "./runtime-contract"
 import type { JsonObject } from "./runtime-contract"
@@ -119,7 +120,8 @@ export interface EidosFileDataSource {
   ): Promise<EidosFileFormulaPreview>
   insertRow(
     tableId: string,
-    fields: Record<string, EidosFileLogicalValue>
+    fields: Record<string, EidosFileLogicalValue>,
+    creationContext?: EidosFileCreationContext
   ): Promise<EidosFileRowMutationResult>
   updateRow(
     tableId: string,
@@ -270,10 +272,12 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async insertRow(
     tableId: string,
-    fields: Record<string, EidosFileLogicalValue>
+    fields: Record<string, EidosFileLogicalValue>,
+    creationContext?: EidosFileCreationContext
   ): Promise<EidosFileRowMutationResult> {
     const mutation = this.runtime.mutateRows({
       tableId,
+      creationContext,
       insert: [{ fields }],
     })
     return this.mutationResult(

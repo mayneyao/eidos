@@ -16,6 +16,11 @@ import {
 } from "./calendar-window"
 import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import { scanStableRowPages } from "./stable-row-scan"
+import {
+  EIDOS_FILE_TEMPORAL_DEFAULTS_FEATURE,
+  assertEidosFileTemporalDefault,
+  hasTemporalDefaultsFeature,
+} from "./temporal-defaults"
 import { eidosFileFieldValueType } from "./field-query-capabilities"
 import {
   isEidosFileCalendarDayValue,
@@ -778,6 +783,20 @@ export function validateEidosFile(
       },
       (features) => {
         for (const feature of features) {
+          if (feature.name === EIDOS_FILE_TEMPORAL_DEFAULTS_FEATURE) {
+            try {
+              hasTemporalDefaultsFeature(connection)
+            } catch (error) {
+              add(
+                errors,
+                "unsupported-feature",
+                error instanceof Error
+                  ? error.message
+                  : "Unsupported temporal defaults feature"
+              )
+            }
+            continue
+          }
           if (!isCanonicalEidosFileJson(feature.config_json)) {
             add(
               errors,
@@ -1168,6 +1187,28 @@ export function validateEidosFile(
           errors,
           "invalid-schema",
           `Field ${row.name}: ${error instanceof Error ? error.message : "invalid settings"}`
+        )
+      }
+      try {
+        const rule = assertEidosFileTemporalDefault(
+          row.type,
+          settings,
+          row.system_role === null &&
+            row.physical_name !== null &&
+            settings.writable !== false &&
+            settings.readOnly !== true &&
+            settings.isSystem !== true
+        )
+        if (rule === "now" && !hasTemporalDefaultsFeature(connection)) {
+          throw new Error(
+            "Temporal defaults require the eidos:temporal-defaults feature"
+          )
+        }
+      } catch (error) {
+        add(
+          errors,
+          "invalid-schema",
+          error instanceof Error ? error.message : "Invalid temporal default"
         )
       }
       if (row.type === "select" || row.type === "multi-select") {

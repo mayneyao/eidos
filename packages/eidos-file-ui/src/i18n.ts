@@ -660,6 +660,10 @@ const zh: EidosFileUIMessageOverrides = {
   "Choose date": "选择日期",
   "Choose date & time": "选择日期与时间",
   "Time zone: {timeZone}": "时区：{timeZone}",
+  "Current date": "当前日期",
+  "Current time": "当前时间",
+  "Filled when a record is created. You can edit or clear it.":
+    "创建记录时填写，之后仍可编辑或清空。",
   "This time is ambiguous or unavailable in {timeZone}. Choose another time.":
     "这个时间在 {timeZone} 中重复或不存在，请选择其他时间。",
   "Manage files": "管理文件",

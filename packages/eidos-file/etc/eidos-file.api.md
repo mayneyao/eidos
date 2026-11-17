@@ -358,6 +358,9 @@ export function assertEidosFileTableId(tableId: string): string;
 // @public (undocumented)
 export function assertEidosFileTableName(name: string): string;
 
+// @public
+export function assertEidosFileTemporalDefault(type: string, settings: Record<string, unknown> | null | undefined, writable?: boolean): "now" | null;
+
 // @public (undocumented)
 export function assertEidosFileUuid(value: string, label?: string): string;
 
@@ -1297,6 +1300,14 @@ export function eidosFileConversionCanReusePhysicalColumn(from: StoredFieldType,
 // @public
 export function eidosFileConversionTargetNullable(from: StoredFieldType, to: StoredFieldType, sourceNullable: boolean): boolean;
 
+// @public
+export interface EidosFileCreationContext {
+    // (undocumented)
+    timeZone: string;
+    // (undocumented)
+    timeZoneData: string;
+}
+
 // @public (undocumented)
 export interface EidosFileCsvColumnOverride {
     // (undocumented)
@@ -1459,7 +1470,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     readTableActionRows?(tableId: string, rowIds: string[], fieldIds: string[]): Promise<EidosFileActionRow[]>;
@@ -2170,6 +2181,8 @@ export interface EidosFileRowsDeleteResult {
 // @public (undocumented)
 export interface EidosFileRowsMutation {
     // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    // (undocumented)
     delete?: string[];
     // (undocumented)
     expectedRevision?: number | bigint;
@@ -2328,7 +2341,7 @@ export class EidosFileRuntime {
     // (undocumented)
     insertImportedRows(tableId: string, rows: EidosFileRow[]): EidosFileRow[];
     // (undocumented)
-    insertRow(tableId: string, row: EidosFileRow): EidosFileRow;
+    insertRow(tableId: string, row: EidosFileRow, creationContext?: EidosFileCreationContext): EidosFileRow;
     // (undocumented)
     inspect(): EidosFileValidationResult;
     // (undocumented)
@@ -2478,7 +2491,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     readonly path: string;
     // (undocumented)
@@ -2723,9 +2736,13 @@ export interface EidosFileTableSnapshot {
     rowCount: number;
     // (undocumented)
     table: EidosFileTableInfo;
+    temporalDefaultsVersion?: 1;
     // (undocumented)
     views: EidosFileViewInfo[];
 }
+
+// @public
+export function eidosFileTemporalDefaultValue(type: string, settings: Record<string, unknown> | null | undefined, referenceInstant: string, context?: EidosFileCreationContext): string | null;
 
 // @public
 export function eidosFileTextMultiSelectChoices(text: string): string[];
@@ -2893,6 +2910,7 @@ export class EidosRuntimeService implements RuntimeClient {
     }, context: RequestContext): Promise<{
         version: "1.0";
         capabilities: {
+            temporalDefaultsVersion?: 1;
             calendarWindowVersion?: 1;
             calendarQueryVersion?: 2;
             calendarPeriodTimeZoneData?: string[];
@@ -4140,6 +4158,8 @@ export interface RowMutation {
     // (undocumented)
     changes: RowChange[];
     // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    // (undocumented)
     expectedRevision: string;
     // (undocumented)
     returning?: ProjectionSpec;
@@ -4251,6 +4271,8 @@ export interface RuntimeCapabilities {
     schemaPaging: boolean;
     // (undocumented)
     schemaPreflight: boolean;
+    // (undocumented)
+    temporalDefaultsVersion?: 1;
     // (undocumented)
     validate: boolean;
 }

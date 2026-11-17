@@ -1297,6 +1297,20 @@ metadata mutation. Multi-select MUST NOT expose this control. The UI does not
 pre-fill a draft cell to simulate the behavior: Runtime applies the default
 only when a create mutation omits the Field.
 
+Writable stored Date/Datetime Field settings MUST offer **No default** and
+**Current date** / **Current time** when Runtime advertises
+`temporalDefaultsVersion:1`. New-field and existing-field settings persist
+`defaultValue:"now"` or null through revision-checked schema operations.
+Created at, Updated at, derived and read-only Fields MUST NOT offer this control.
+Each ordinary create passes the current application time zone and portable
+profile as `creationContext`; explicitly selected Calendar dates take priority.
+An unsaved Form/record draft previews defaults using the canonical evaluator
+with one retained reference instant. A rerender, application time-zone change,
+or failed save/retry MUST NOT reset edited values or re-evaluate the draft.
+Explicit null/clear remains empty. Starting a new draft evaluates anew. Defaulted
+values are ordinary editable values after creation. Existing/loading records,
+imports, and updates MUST NOT be defaulted by the UI.
+
 An explicit Create option action in a Select or Multi-select editor first
 commits the complete updated Field option catalog. Only after that metadata
 mutation succeeds may UI submit the cell value against the returned revision.

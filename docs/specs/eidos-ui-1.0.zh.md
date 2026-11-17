@@ -1188,6 +1188,16 @@ rename 中 retarget default；删除当前 default catalog entry 时，必须在
 mutation 中清除 default。Multi-select 不得显示此控件。UI 不通过预填 draft cell
 模拟该行为：只有 create mutation 省略该 Field 时，Runtime 才应用 default。
 
+Runtime 广告 `temporalDefaultsVersion:1` 时，可写普通 stored Date/Datetime 的
+新建/已有 Field 设置必须提供**无默认值**与**当前日期 / 当前时间**，通过 revision-checked
+schema operation 保存 `defaultValue:"now"` 或 null。Created at、Updated at、derived
+及只读 Field 不得显示该控件。每次 ordinary create 通过 `creationContext` 传入当前
+应用时区和 portable profile；Calendar 显式指定的日期优先。未保存 Form/record draft
+用同一个保留的参考 instant 调用 canonical evaluator 预览；rerender、应用时区变化、
+保存失败/重试均不得重置用户编辑或重新求 draft 默认值。显式 null/清空保持空值，开始
+新 draft 才重新求值。默认填入值在创建后是普通可编辑值。existing/loading record、
+import 与 update 均不得由 UI 自动填值。
+
 Select 或 Multi-select editor 中显式的“新建选项”操作必须先提交完整、更新后的 Field
 option catalog。只有 metadata mutation 成功后，UI 才能使用其返回的 revision 提交 cell
 value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之后的 cell mutation

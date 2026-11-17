@@ -1,4 +1,5 @@
 import {
+  type EidosFileCreationContext,
   assertEidosFileValues,
   isEidosFileCalendarPeriodValue,
   isEidosFileCalendarWindowValue,
@@ -860,13 +861,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
 
   async insertRow(
     tableId: string,
-    fields: Record<string, EidosFileLogicalValue>
+    fields: Record<string, EidosFileLogicalValue>,
+    creationContext?: EidosFileCreationContext
   ): Promise<EidosFileRowMutationResult> {
     const clientKey = this.id("row")
     const projection = this.projection(this.fieldsByTable.get(tableId) ?? [])
     const result = await this.runtime.mutateRows(
       {
         tableId,
+        ...(creationContext &&
+        this.runtimeCapabilities?.temporalDefaultsVersion === 1
+          ? { creationContext }
+          : {}),
         expectedRevision: this.revision(),
         returning: projection,
         changes: [
@@ -1029,6 +1035,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     field: CreateEidosFileFieldInput,
     placement?: EidosFileFieldPlacement
   ): Promise<EidosFileSnapshot> {
+    this.assertTemporalDefaultsSupport(field.property)
     const clientKey = this.id("field")
     const current = this.fieldsByTable.get(tableId) ?? []
     const result = await this.commitSchema({
@@ -1216,6 +1223,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     fieldId: string,
     changes: UpdateEidosFileFieldInput
   ): Promise<EidosFileSnapshot> {
+    this.assertTemporalDefaultsSupport(changes.property)
     const field = this.assertField(fieldId, tableId)
     const leaves: SchemaLeafChange[] = []
     let convertedSettings: JsonObject | undefined
@@ -1332,6 +1340,13 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             }
           : {}),
       } as JsonObject
+      if (
+        changes.type !== undefined &&
+        kind !== "date" &&
+        kind !== "datetime" &&
+        field.settings.defaultValue !== undefined
+      )
+        settings.defaultValue = null
       leaves.push({ kind: "set-field-settings", fieldId, settings })
       if (kind === "formula") {
         leaves.push({
@@ -1455,6 +1470,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           } as CreateEidosFileFieldInput,
         ]
     const fieldKeys = supplied.map(() => this.id("field"))
+    for (const field of supplied)
+      this.assertTemporalDefaultsSupport(field.property)
     const labelIndex = supplied.findIndex(
       (field) => "isRecordLabel" in field && field.isRecordLabel === true
     )
@@ -2300,6 +2317,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           .map((view) => this.editorView(view))
         return {
           table: this.editorTable(table),
+          ...(this.runtimeCapabilities?.mutateSchema &&
+          this.runtimeCapabilities.temporalDefaultsVersion === 1
+            ? { temporalDefaultsVersion: 1 as const }
+            : {}),
           fields,
           views,
           rowCount: 0,
@@ -2356,6 +2377,17 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           : table.settings,
       createdAt: "",
       updatedAt: "",
+    }
+  }
+
+  private assertTemporalDefaultsSupport(
+    settings: Record<string, unknown> | null | undefined
+  ): void {
+    if (
+      settings?.defaultValue != null &&
+      this.runtimeCapabilities?.temporalDefaultsVersion !== 1
+    ) {
+      throw new Error("This Runtime does not support date defaults")
     }
   }
 

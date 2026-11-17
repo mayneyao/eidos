@@ -43,7 +43,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu.mjs";
 import { DragEndEvent, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, Status } from "./ui/kanban.mjs";
 import * as _$_eidos_space_eidos_file0 from "@eidos.space/eidos-file";
-import { AtomicType, CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileActionRow, EidosFileCalendarContext, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileDataSource as EidosFileDataSource$1, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileRowsUndoResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableAggregateOptions, EidosFileTableAggregateResult, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, JsonObject, LogicalValue, RecordNeighbors, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
+import { AtomicType, CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileActionRow, EidosFileCalendarContext, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCreationContext, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileDataSource as EidosFileDataSource$1, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileRowsUndoResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableAggregateOptions, EidosFileTableAggregateResult, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, JsonObject, LogicalValue, RecordNeighbors, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
 import * as React$2 from "react";
 import { ComponentProps, ComponentPropsWithoutRef, Dispatch, ForwardRefExoticComponent, KeyboardEvent, MutableRefObject, ReactNode, SetStateAction } from "react";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
@@ -838,7 +838,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
   aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
   previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
-  insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+  insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
   updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
   deleteRows(tableId: string, rowIds: string[]): Promise<EidosFileRowsDeleteResult>;
   revertRowMutation(tableId: string, undoToken: string): Promise<EidosFileRowsUndoResult>;
@@ -889,6 +889,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   private editorSnapshot;
   hydrateRowCounts(snapshot: EidosFileSnapshot): Promise<EidosFileSnapshot>;
   private editorTable;
+  private assertTemporalDefaultsSupport;
   private editorField;
   private editorView;
   private editorFieldProperty;

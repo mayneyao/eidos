@@ -1,4 +1,5 @@
 import type { EidosFileCalendarDayValue } from "./calendar-day"
+import type { EidosFileCreationContext } from "./temporal-defaults"
 import type { EidosFileCalendarWindowValue } from "./calendar-window"
 import type {
   EidosFileCalendarContext,
@@ -122,6 +123,7 @@ export interface RuntimePublicationSnapshot {
 }
 
 export interface RuntimeCapabilities {
+  temporalDefaultsVersion?: 1
   calendarWindowVersion?: 1
   calendarQueryVersion?: 2
   calendarPeriodTimeZoneData?: string[]
@@ -597,6 +599,7 @@ export interface LookupDefinition {
 }
 
 export interface RowMutation {
+  creationContext?: EidosFileCreationContext
   tableId: string
   expectedRevision: string
   returning?: ProjectionSpec

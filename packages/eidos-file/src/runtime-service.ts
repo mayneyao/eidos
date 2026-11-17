@@ -15,6 +15,13 @@ import {
   isEidosFileCalendarWindowValue,
 } from "./calendar-window"
 import {
+  assertEidosFileCreationContext,
+  assertEidosFileTemporalDefault,
+  eidosFileTemporalDefaultValue,
+  enableTemporalDefaultsFeature,
+  type EidosFileCreationContext,
+} from "./temporal-defaults"
+import {
   EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   assertEidosFileCalendarZone,
   isEidosFileCalendarDayValue,
@@ -190,6 +197,7 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
   calendarWindowVersion: 1,
+  temporalDefaultsVersion: 1,
   calendarQueryVersion: 2,
   calendarPeriodTimeZoneData: [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA],
   readRows: true,
@@ -1345,6 +1353,8 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       async () => {
         this.assertWritable("mutateRows")
+        if (request.creationContext !== undefined)
+          assertEidosFileCreationContext(request.creationContext)
         if (
           request.changes.length < 1 ||
           request.changes.length > EIDOS_RUNTIME_LIMITS.mutationRowsMax
@@ -1472,7 +1482,12 @@ export class EidosRuntimeService implements RuntimeClient {
         const inserts = request.changes
           .filter((change) => change.kind === "create")
           .map((change) => ({
-            fields: this.mutationValues(request.tableId, change.values, true),
+            fields: this.mutationValues(
+              request.tableId,
+              change.values,
+              true,
+              request.creationContext
+            ),
           }))
         const updates = request.changes
           .filter((change) => change.kind === "update")
@@ -1504,6 +1519,7 @@ export class EidosRuntimeService implements RuntimeClient {
               ? { ...reversibleDelete, rows: [] }
               : this.core.mutateRows({
                   tableId: request.tableId,
+                  creationContext: request.creationContext,
                   insert: inserts,
                   update: updates,
                   delete: deletes,
@@ -1619,7 +1635,8 @@ export class EidosRuntimeService implements RuntimeClient {
   private mutationValues(
     tableId: string,
     values: Record<string, LogicalValue>,
-    completeCreate = false
+    completeCreate = false,
+    creationContext?: EidosFileCreationContext
   ): Record<string, EidosFileLogicalRow["fields"][string]> {
     const tableFields = this.core.listFields(tableId)
     const fields = new Map(tableFields.map((field) => [field.id!, field]))
@@ -1690,6 +1707,18 @@ export class EidosRuntimeService implements RuntimeClient {
       for (const field of tableFields) {
         const fieldId = field.id!
         if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.type === "date" || field.type === "datetime") {
+          const value = eidosFileTemporalDefaultValue(
+            field.type,
+            field.settings,
+            this.requestInstant ?? checkedNowInstant(this.environment),
+            creationContext
+          )
+          if (value !== null) {
+            normalized[fieldId] = value
+            continue
+          }
+        }
         if (field.type === "checkbox") {
           normalized[fieldId] = false
           continue
@@ -3708,6 +3737,14 @@ export class EidosRuntimeService implements RuntimeClient {
       if ("position" in leaf) parseSignedInt64(leaf.position, "position")
       switch (leaf.kind) {
         case "create-table":
+          for (const field of leaf.fields)
+            assertEidosFileTemporalDefault(
+              field.kind,
+              field.settings,
+              field.settings?.readOnly !== true &&
+                field.settings?.writable !== false &&
+                field.settings?.isSystem !== true
+            )
           if (
             leaf.fields.some(
               (field) => field.kind === "relation" || field.kind === "lookup"
@@ -3796,6 +3833,13 @@ export class EidosRuntimeService implements RuntimeClient {
           }
           break
         case "create-field":
+          assertEidosFileTemporalDefault(
+            leaf.field.kind,
+            leaf.field.settings,
+            leaf.field.settings?.readOnly !== true &&
+              leaf.field.settings?.writable !== false &&
+              leaf.field.settings?.isSystem !== true
+          )
           if (!tableIds.has(leaf.tableId)) {
             forbid("dependency-blocked", "Owning Table does not exist", {
               tableId: leaf.tableId,
@@ -3869,8 +3913,21 @@ export class EidosRuntimeService implements RuntimeClient {
           }
           break
         }
+        case "set-field-settings": {
+          const field = proposedFields.get(leaf.fieldId)
+          if (field)
+            assertEidosFileTemporalDefault(
+              field.type,
+              { ...field.settings, ...leaf.settings },
+              fieldWritable(field)
+            )
+          if (!fieldsById.has(leaf.fieldId))
+            forbid("dependency-blocked", "Field does not exist", {
+              fieldId: leaf.fieldId,
+            })
+          break
+        }
         case "rename-field":
-        case "set-field-settings":
         case "set-field-position":
         case "set-formula":
         case "set-lookup":
@@ -4493,6 +4550,15 @@ export class EidosRuntimeService implements RuntimeClient {
           const settings = {
             ...(field.settings ?? {}),
             ...leaf.settings,
+          }
+          if (
+            assertEidosFileTemporalDefault(
+              field.type,
+              settings,
+              fieldWritable(field)
+            ) === "now"
+          ) {
+            enableTemporalDefaultsFeature(this.core.connection)
           }
           this.core.connection.run(
             "UPDATE eidos__fields SET settings_json=? WHERE id=? AND settings_json IS NOT ?",

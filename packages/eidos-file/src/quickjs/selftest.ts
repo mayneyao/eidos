@@ -888,6 +888,79 @@ export async function runSelfTest(): Promise<string> {
       calendarReference.instant = instant
     })
     checks.push("calendar-window-query-conformance-vectors")
+    const defaultsBase = await runtime.getSnapshot({}, context("defaults-base"))
+    const defaultsPlan = await runtime.preflightSchema(
+      {
+        expectedRevision: defaultsBase.revision,
+        change: {
+          kind: "create-table",
+          clientKey: "defaults",
+          name: "Temporal defaults",
+          position: "101",
+          labelFieldClientKey: "title",
+          fields: [
+            { clientKey: "title", name: "Title", kind: "text", position: "0" },
+            {
+              clientKey: "date",
+              name: "Date",
+              kind: "date",
+              nullable: true,
+              position: "1",
+              settings: { defaultValue: "now" },
+            },
+            {
+              clientKey: "instant",
+              name: "Instant",
+              kind: "datetime",
+              nullable: true,
+              position: "2",
+              settings: { defaultValue: "now" },
+            },
+          ],
+        },
+      },
+      context("defaults-plan")
+    )
+    const defaultsSchema = await runtime.mutateSchema(
+      {
+        expectedRevision: defaultsBase.revision,
+        planToken: defaultsPlan.planToken,
+        actionsHash: defaultsPlan.actionsHash,
+      },
+      context("defaults-schema")
+    )
+    const defaultId = (key: string) =>
+      defaultsSchema.createdObjects.find(
+        (object) => "clientKey" in object && object.clientKey === key
+      )!.id
+    calendarReference.instant = "2026-11-16T16:00:00.123Z"
+    const defaultsRows = await runtime.mutateRows(
+      {
+        tableId: defaultId("defaults"),
+        expectedRevision: defaultsSchema.revision,
+        creationContext: { timeZone: "Asia/Shanghai", timeZoneData: "2026f" },
+        changes: [
+          { kind: "create", clientKey: "first", values: {} },
+          { kind: "create", clientKey: "second", values: {} },
+          {
+            kind: "create",
+            clientKey: "null",
+            values: { [defaultId("date")]: null, [defaultId("instant")]: null },
+          },
+        ],
+        returning: {
+          fields: [defaultId("date"), defaultId("instant")],
+          resolveRelations: [],
+        },
+      },
+      context("defaults-rows")
+    )
+    expect(defaultsRows.returnedRows!.rows.map((row) => row.values)).toEqual([
+      ["2026-11-17", "2026-11-16T16:00:00.123Z"],
+      ["2026-11-17", "2026-11-16T16:00:00.123Z"],
+      [null, null],
+    ])
+    checks.push("temporal-defaults-create-context-and-null")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

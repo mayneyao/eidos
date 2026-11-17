@@ -28,6 +28,7 @@ import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { MobileFields } from "./mobile-fields"
 import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import { useEidosFileUI } from "./context"
+import { useEidosFileCreationContext } from "./eidos-file-temporal-defaults"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -203,6 +204,7 @@ export function EidosFileDataGrid({
   onImportDroppedFiles,
 }: EidosFileDataGridProps) {
   const { interactionMode } = useEidosFileUI()
+  const creationContext = useEidosFileCreationContext()
   const calendar = useEidosFileCalendarExecution()
   const rowWriteTail = useRef<Promise<void> | null>(null)
   const enqueueRowWrite = useCallback(<T,>(write: () => Promise<T>) => {
@@ -273,7 +275,7 @@ export function EidosFileDataGrid({
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
     const settled = enqueueRowWrite(async () => {
-      const result = await source.insertRow(table.table.id, {})
+      const result = await source.insertRow(table.table.id, {}, creationContext)
       onMutation?.(result)
       return result
     })
@@ -283,7 +285,14 @@ export function EidosFileDataGrid({
       rowCount: table.rowCount + 1,
       settled,
     }
-  }, [enqueueRowWrite, onMutation, source, table.rowCount, table.table.id])
+  }, [
+    enqueueRowWrite,
+    onMutation,
+    source,
+    table.rowCount,
+    table.table.id,
+    creationContext,
+  ])
 
   const editCell = useCallback(
     (

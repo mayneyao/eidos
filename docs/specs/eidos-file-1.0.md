@@ -1013,6 +1013,16 @@ declared. This member is canonical Field metadata; it does not populate or
 rewrite any existing cell. Its create-time mutation behavior is owned by Eidos
 Runtime 1.0.
 
+A writable stored Date or Datetime Field MAY declare `settings.defaultValue`
+as the string `"now"`. Absence or JSON null disables this rule. Other values,
+expressions, and non-null `defaultValue` settings on other Field types,
+system Fields, derived Fields, or read-only Fields are invalid. The rule is
+metadata for ordinary Runtime creation; it is not a physical SQLite DEFAULT,
+does not change nullability, and MUST NOT fill or rewrite existing cells.
+Files declaring this rule MUST carry the required temporal-defaults feature
+below. The reference instant and application calendar context belong to the
+Runtime creation operation, not to persisted Field metadata.
+
 A stored value not
 present in the catalog remains valid canonical data and MUST be preserved.
 Presentation of an unconfigured value is owned by Eidos UI 1.0. Removing
@@ -1607,6 +1617,18 @@ installed atomically with the View in one revision. Their open, validation,
 copy/merge preservation, unsupported-reader and no-downgrade requirements are
 identical. Transient windows never install required features. Calendar-period
 meaning is unchanged; a full previous/next period is not a rolling window.
+
+### Required temporal defaults feature
+
+The first-party feature `(name="eidos:temporal-defaults", version="1")` requires
+`required=1` and exactly `config_json='{}'`. Persisting the first `defaultValue:
+"now"` Field MUST install this declaration atomically in the same schema
+transaction. Missing declarations or unsupported version/config are invalid.
+An unsupported reader/writer MUST reject the file before exposing canonical
+data or writing. Disabling the final default does not remove the declaration;
+copy, restore, merge, and schema edits MUST preserve it. Merely opening or
+creating rows without configuring defaults MUST NOT install it. Existing
+atomic feature merge/conflict and final semantic validation rules apply.
 
 ## 21. Media Type Registration Template
 

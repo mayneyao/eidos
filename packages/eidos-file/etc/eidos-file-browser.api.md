@@ -327,6 +327,9 @@ export type AggregateResult = {
     statistics: ColumnStatistics;
 };
 
+// @public
+export function assertEidosFileTemporalDefault(type: string, settings: Record<string, unknown> | null | undefined, writable?: boolean): "now" | null;
+
 // @public (undocumented)
 export interface AssetLease {
     // (undocumented)
@@ -871,6 +874,14 @@ export interface EidosFileConnectionCapabilities {
     scalarFunctions: boolean;
 }
 
+// @public
+export interface EidosFileCreationContext {
+    // (undocumented)
+    timeZone: string;
+    // (undocumented)
+    timeZoneData: string;
+}
+
 // @public (undocumented)
 export interface EidosFileCsvColumnOverride {
     // (undocumented)
@@ -1009,7 +1020,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     readTableActionRows?(tableId: string, rowIds: string[], fieldIds: string[]): Promise<EidosFileActionRow[]>;
@@ -1530,6 +1541,8 @@ export interface EidosFileRowsDeleteResult {
 // @public (undocumented)
 export interface EidosFileRowsMutation {
     // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    // (undocumented)
     delete?: string[];
     // (undocumented)
     expectedRevision?: number | bigint;
@@ -1746,9 +1759,13 @@ export interface EidosFileTableSnapshot {
     rowCount: number;
     // (undocumented)
     table: EidosFileTableInfo;
+    temporalDefaultsVersion?: 1;
     // (undocumented)
     views: EidosFileViewInfo[];
 }
+
+// @public
+export function eidosFileTemporalDefaultValue(type: string, settings: Record<string, unknown> | null | undefined, referenceInstant: string, context?: EidosFileCreationContext): string | null;
 
 // @public (undocumented)
 export interface EidosFileValidationIssue {
@@ -2641,6 +2658,8 @@ export interface RowMutation {
     // (undocumented)
     changes: RowChange[];
     // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    // (undocumented)
     expectedRevision: string;
     // (undocumented)
     returning?: ProjectionSpec;
@@ -2744,6 +2763,8 @@ export interface RuntimeCapabilities {
     schemaPaging: boolean;
     // (undocumented)
     schemaPreflight: boolean;
+    // (undocumented)
+    temporalDefaultsVersion?: 1;
     // (undocumented)
     validate: boolean;
 }

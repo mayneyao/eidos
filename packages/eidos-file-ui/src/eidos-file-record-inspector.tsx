@@ -37,6 +37,10 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import {
+  eidosFileNewRecordDateDefaults,
+  useEidosFileCreationContext,
+} from "./eidos-file-temporal-defaults"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { useMobileBack } from "./mobile-back"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
@@ -526,6 +530,27 @@ export function EidosFileRecordInspector({
   const variant = interactionMode === "mobile" ? "page" : requestedVariant
   const isMobile = interactionMode === "mobile"
   const propertyScope = fields[0]?.tableId ?? ""
+  const creationContext = useEidosFileCreationContext()
+  const defaultSession = `${propertyScope}:${String(row._id ?? "")}`
+  const newRecordDefaults = useRef<{
+    session: string
+    values: EidosFileRow
+    pending: string[]
+  } | null>(null)
+  if (!isNewRecord) newRecordDefaults.current = null
+  else if (!loading && newRecordDefaults.current?.session !== defaultSession) {
+    const values = eidosFileNewRecordDateDefaults(
+      fields,
+      row,
+      new Date().toISOString(),
+      creationContext
+    )
+    newRecordDefaults.current = {
+      session: defaultSession,
+      values,
+      pending: Object.keys(values),
+    }
+  }
   const [propertyPreference, setPropertyPreference] = useState(() => ({
     scope: propertyScope,
     collapsed: collapsedRecordProperties.get(propertyScope) ?? false,
@@ -541,7 +566,10 @@ export function EidosFileRecordInspector({
   const [mobileField, setMobileField] = useState<EidosFileFieldInfo | null>(
     null
   )
-  const [currentRow, setCurrentRow] = useState(row)
+  const [currentRow, setCurrentRow] = useState(() => ({
+    ...newRecordDefaults.current?.values,
+    ...row,
+  }))
   const [savingField, setSavingField] = useState<string | null>(null)
   const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
   const failedEditRef = useRef<FailedRecordEdit | null>(null)
@@ -643,6 +671,34 @@ export function EidosFileRecordInspector({
     if (!failed) return
     await persistFieldEdit(failed.previousRow, failed.field, failed.value, true)
   }
+
+  // A new-record host owns an unsaved draft. Seed it through its normal edit
+  // boundary, serially; failed writes use the same retained value on retry.
+  useEffect(() => {
+    if (
+      !isNewRecord ||
+      loading ||
+      disabled ||
+      !onCellEdit ||
+      savingRef.current ||
+      failedEditRef.current
+    )
+      return
+    const defaults = newRecordDefaults.current
+    if (!defaults || defaults.session !== defaultSession) return
+    let key: string | undefined
+    while ((key = defaults.pending.shift()) !== undefined) {
+      if (Object.hasOwn(row, key)) continue
+      const field = fields.find(
+        (candidate) => candidate.tableColumnName === key
+      )
+      const value = defaults.values[key]
+      if (field && typeof value === "string") {
+        void editField(field, value)
+        break
+      }
+    }
+  })
 
   const discardFailedEdit = () => {
     if (savingRef.current) return

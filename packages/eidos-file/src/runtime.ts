@@ -1,5 +1,12 @@
 import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { sourceInstantComparisonKey } from "./source-instant"
+import {
+  assertEidosFileCreationContext,
+  assertEidosFileTemporalDefault,
+  eidosFileTemporalDefaultValue,
+  enableTemporalDefaultsFeature,
+  type EidosFileCreationContext,
+} from "./temporal-defaults"
 import { hasEidosFileCalendarQuery } from "./calendar-period"
 import {
   hasEidosFileCalendarWindowQuery,
@@ -460,6 +467,7 @@ function presentationSettings(
   const property = presentationSettingsObject(
     "property" in input ? input.property : undefined
   )
+  assertEidosFileTemporalDefault(input.type, property)
   if (input.type === "select" || input.type === "multi-select") {
     property.options = assertedRawSelectOptions(
       "property" in input ? input.property : undefined
@@ -2202,6 +2210,15 @@ export class EidosFileRuntime {
     position: number,
     now: string
   ): void {
+    if (
+      assertEidosFileTemporalDefault(
+        field.type,
+        field.settings,
+        !field.systemRole
+      ) === "now"
+    ) {
+      enableTemporalDefaultsFeature(this.connection)
+    }
     this.connection.run(
       `INSERT INTO ${EIDOS_FILE_FIELDS_TABLE}
         (id, table_id, name, physical_name, type, system_role, nullable, position,
@@ -3019,6 +3036,19 @@ export class EidosFileRuntime {
           WHERE id = ?`,
         [name, physicalName, canonicalizeEidosFileJson(settings), now, fieldId]
       )
+      if (
+        assertEidosFileTemporalDefault(
+          field.type,
+          settings,
+          !field.systemRole &&
+            !!field.physicalName &&
+            settings.readOnly !== true &&
+            settings.writable !== false &&
+            settings.isSystem !== true
+        ) === "now"
+      ) {
+        enableTemporalDefaultsFeature(this.connection)
+      }
       if (changes.isRecordLabel === true) {
         if (field.type === "lookup") {
           throw new EidosFileError(
@@ -3187,6 +3217,18 @@ export class EidosFileRuntime {
         `DELETE FROM ${EIDOS_FILE_RELATION_FIELDS_TABLE} WHERE field_id = ?`,
         [fieldId]
       )
+      if (
+        targetType !== "date" &&
+        targetType !== "datetime" &&
+        field.settings?.defaultValue !== undefined
+      ) {
+        const settings = { ...field.settings }
+        delete settings.defaultValue
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_FIELDS_TABLE} SET settings_json = ? WHERE id = ?`,
+          [canonicalizeEidosFileJson(settings), fieldId]
+        )
+      }
       this.connection.run(
         `UPDATE ${EIDOS_FILE_FIELDS_TABLE}
             SET type = ?, nullable = ? WHERE id = ?`,
@@ -5765,7 +5807,8 @@ export class EidosFileRuntime {
     tableId: string,
     row: EidosFileRow,
     allowUnresolvedRelations: boolean,
-    createMode?: "ordinary" | "import"
+    createMode?: "ordinary" | "import",
+    creationContext?: EidosFileCreationContext
   ): Array<{ field: EidosFileFieldInfo; value: EidosFileSqlPrimitive }> {
     const changes: Array<{
       field: EidosFileFieldInfo
@@ -5800,7 +5843,8 @@ export class EidosFileRuntime {
       for (const field of this.listFields(tableId)) {
         if (
           (field.type !== "checkbox" &&
-            (createMode !== "ordinary" || field.type !== "select")) ||
+            (createMode !== "ordinary" ||
+              !["select", "date", "datetime"].includes(field.type))) ||
           !field.id ||
           !field.physicalName ||
           field.valueKind === "system" ||
@@ -5814,7 +5858,14 @@ export class EidosFileRuntime {
         const defaultValue =
           field.type === "checkbox"
             ? false
-            : parseEidosFileSelectDefaultOption(field.settings)
+            : field.type === "select"
+              ? parseEidosFileSelectDefaultOption(field.settings)
+              : eidosFileTemporalDefaultValue(
+                  field.type,
+                  field.settings,
+                  this.operationInstant(),
+                  creationContext
+                )
         if (defaultValue === null) continue
         changes.push({
           field,
@@ -5833,7 +5884,8 @@ export class EidosFileRuntime {
     tableId: string,
     row: EidosFileRow,
     allowUnresolvedRelations: boolean,
-    applyCreateDefaults: boolean
+    applyCreateDefaults: boolean,
+    creationContext?: EidosFileCreationContext
   ): string {
     const caps = this.tableCapabilities(tableId)
     if (!caps.insert) {
@@ -5853,7 +5905,8 @@ export class EidosFileRuntime {
       tableId,
       row,
       allowUnresolvedRelations,
-      applyCreateDefaults ? "ordinary" : "import"
+      applyCreateDefaults ? "ordinary" : "import",
+      creationContext
     )
     const columns = [
       "_id",
@@ -6003,9 +6056,15 @@ export class EidosFileRuntime {
     return ids
   }
 
-  insertRow(tableId: string, row: EidosFileRow): EidosFileRow {
+  insertRow(
+    tableId: string,
+    row: EidosFileRow,
+    creationContext?: EidosFileCreationContext
+  ): EidosFileRow {
+    if (creationContext !== undefined)
+      assertEidosFileCreationContext(creationContext)
     const id = this.mutate(() =>
-      this.insertRowInTransaction(tableId, row, true, true)
+      this.insertRowInTransaction(tableId, row, true, true, creationContext)
     )
     return this.getRow(tableId, id)!
   }
@@ -6787,6 +6846,8 @@ export class EidosFileRuntime {
     /** @internal Exact Runtime affected-row composition, including detach. */
     affected?: Array<{ tableId: string; rowId: string }>
   } {
+    if (input.creationContext !== undefined)
+      assertEidosFileCreationContext(input.creationContext)
     const operationCount =
       (input.insert?.length ?? 0) +
       (input.update?.length ?? 0) +
@@ -6962,7 +7023,8 @@ export class EidosFileRuntime {
           input.tableId,
           this.logicalMutationFields(input.tableId, row.fields, row.id),
           false,
-          true
+          true,
+          input.creationContext
         )
       )
       const changedUpdates: string[] = []

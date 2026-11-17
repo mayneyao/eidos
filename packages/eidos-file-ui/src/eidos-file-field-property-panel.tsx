@@ -42,6 +42,7 @@ import {
 } from "./eidos-file-field-properties"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
+import { EidosFileTemporalDefaultEditor } from "./eidos-file-temporal-default-editor"
 import { EidosFileSelectOptionsEditor } from "./eidos-file-select-options-editor"
 import {
   EidosFileSchemaImpactRequiredError,
@@ -576,6 +577,26 @@ export function EidosFileFieldPropertyPanel({
                 </div>
               ) : null}
             </>
+          ) : null}
+          {(field.type === "date" || field.type === "datetime") &&
+          mutable &&
+          field.settings?.writable !== false &&
+          tables.some(
+            (table) =>
+              table.table.id === field.tableId &&
+              table.temporalDefaultsVersion === 1
+          ) ? (
+            <EidosFileTemporalDefaultEditor
+              type={field.type}
+              value={field.property?.defaultValue === "now" ? "now" : null}
+              disabled={busy}
+              onChange={(value) => {
+                void saveProperty({
+                  ...(field.property ?? {}),
+                  defaultValue: value,
+                }).catch(() => undefined)
+              }}
+            />
           ) : null}
           {field.type === "number" ? (
             <EidosFileNumberPropertiesEditor

@@ -1,4 +1,5 @@
 import type { EidosFileSqlPrimitive } from "./connection"
+import type { EidosFileCreationContext } from "./temporal-defaults"
 import type { EidosFileCalendarDayValue } from "./calendar-day"
 import type { EidosFileCalendarWindowValue } from "./calendar-window"
 import type {
@@ -450,6 +451,7 @@ export interface EidosFileLogicalRowUpdate {
 }
 
 export interface EidosFileRowsMutation {
+  creationContext?: EidosFileCreationContext
   tableId: string
   insert?: EidosFileLogicalRowDraft[]
   update?: EidosFileLogicalRowUpdate[]
@@ -605,6 +607,8 @@ export interface EidosFileValidationResult {
 }
 
 export interface EidosFileTableSnapshot {
+  /** Negotiated Runtime capability, never persisted in Table settings. */
+  temporalDefaultsVersion?: 1
   table: EidosFileTableInfo
   fields: EidosFileFieldInfo[]
   views: EidosFileViewInfo[]

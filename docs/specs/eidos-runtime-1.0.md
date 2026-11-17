@@ -397,6 +397,7 @@ capability means false.
 
 ```ts
 interface RuntimeCapabilities {
+  temporalDefaultsVersion?: 1
   calendarQueryVersion?: 2
   calendarWindowVersion?: 1
   calendarPeriodTimeZoneData?: string[]
@@ -2524,6 +2525,7 @@ neither may define alternate semantics.
 
 ```ts
 interface RowMutation {
+  creationContext?: { timeZone: string; timeZoneData: string }
   tableId: string
   expectedRevision: string
   returning?: ProjectionSpec
@@ -2632,7 +2634,25 @@ transaction. Missing Select Fields with a valid File Format
 create and only when the Field ID is absent from `values`; an explicit null on
 a nullable Select suppresses the default. A missing stored Checkbox Field uses
 false, including a non-nullable Checkbox or a legacy column without a physical
-`DEFAULT 0`. An explicit null remains null when that Field is nullable. Other
+`DEFAULT 0`. An explicit null remains null when that Field is nullable.
+With `temporalDefaultsVersion:1`, an omitted writable stored Date/Datetime
+declaring File Format `settings.defaultValue:"now"` uses the single canonical
+operation reference instant. Datetime stores that exact UTC millisecond instant;
+Date projects it through `creationContext.timeZone` and the supported portable
+`timeZoneData` profile to `YYYY-MM-DD`. All creates in one batch share this
+instant and context. Without `creationContext`, API/CLI creation uses UTC and
+profile 2026f. Context contains exactly these two strings; invalid zones,
+unsupported profiles, or an unrepresentable local Date reject the whole
+operation. Hosts MUST NOT supply a fixed value as Field metadata or implement
+another evaluator. Explicit values, including nullable null/clear, suppress
+defaults. A preview may evaluate the same canonical rule once for an unsaved
+draft and submit the resulting ordinary explicit values. They remain editable.
+Updates, import/replay, undo/restore, schema edits/conversion, and Sync MUST NOT
+apply this rule or backfill cells. Converting away from Date/Datetime clears
+the temporal rule; converting values never evaluates now. Clients MUST negotiate
+`temporalDefaultsVersion:1` before configuring the setting or using creation
+context. The required File feature protects persisted semantics from older
+readers/writers. Other
 missing nullable Fields become null. Missing Multi-select, File, and forward
 Relation Fields use `[]`. Every other missing non-null user Field is
 `invalid-value`; no other implicit scalar type default exists. Update omission
@@ -3023,7 +3043,7 @@ whether nullable or non-nullable. Other nullable scalar Fields fill every
 existing row with SQL NULL. A non-nullable scalar Field other than Checkbox is
 permitted only when the Table has zero rows; there is no general
 default/initial-value member in Runtime 1.0. A Select
-`settings.defaultOption` affects only later row creates and never backfills
+`settings.defaultOption` and Date/Datetime `settings.defaultValue:"now"` affect only later ordinary row creates and never backfill
 existing rows. Multi-select, File, and forward Relation Fields fill every
 existing row with canonical `[]`.
 Formula, Lookup, and inverse Relation Fields add no user-table column.
@@ -3975,6 +3995,10 @@ ER-Writer additionally covers:
 1. Runtime UUID allocation with fixed clock/entropy, same/backward millisecond
    monotonicity, normal UI omission of IDs, and explicit trusted import checks;
 2. create/update/delete success, Table-scoped missing and duplicate-change failures,
+   temporal defaults disabled/enabled/reopened, Date local midnight/UTC mismatch,
+   time-zone changes and DST gaps/folds, exact millisecond Datetime, one reference
+   instant across batch rows/fields, explicit value/null, import/undo preservation,
+   invalid configuration/profile and old-client required-feature rejection;
    equal-value no-op, one operation timestamp, one revision increment, overflow
    refusal, full rollback, and unknown-commit reconciliation;
    omitted Checkbox false on ordinary create/import and legacy columns,

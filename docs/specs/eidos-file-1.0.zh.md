@@ -886,6 +886,19 @@ default semantics 的 unknown preserved settings data。缺少该 member 表示�
 Select create-time default。它是 canonical Field metadata，不会填充或改写任何
 existing cell；create-time mutation 行为由 Eidos Runtime 1.0 定义。
 
+可写的普通 stored Date / Datetime Field 可以声明 `settings.defaultValue` 为
+string `"now"`；缺省或 JSON null 关闭规则。其他值、表达式，以及其他 Field type、
+system、derived 或只读 Field 上的非 null `defaultValue` 均无效。它是 ordinary
+Runtime creation 的 metadata，不是 physical SQLite DEFAULT，不改变 nullable，
+不得填充或改写 existing cell。声明此规则的文件必须携带 required feature
+`(name="eidos:temporal-defaults", version="1", required=1, config_json='{}')`。
+首次配置必须在同一 schema transaction 原子安装；缺少声明或不支持的 version/config
+无效。不支持此特性的 reader/writer 必须在暴露 canonical data 或写入前拒绝整个文件。
+关闭最后一个 default 后仍保留声明，copy、restore、merge、schema edit 均须保留；
+仅打开文件或创建未配置 default 的 row 不得安装声明。沿用现有 atomic feature
+merge/conflict 和最终 semantic validation 规则。参考时刻和应用时区属于 Runtime
+creation operation，不保存在 Field metadata 中。
+
 cell value 即使不在 catalog 里仍然是有效 canonical data，必须原样保留；如何呈现
 unconfigured value 归 UI 规范。删除 catalog metadata 不能静默删除 cell data。
 
