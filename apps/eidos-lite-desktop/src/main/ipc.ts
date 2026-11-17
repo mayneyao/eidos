@@ -2269,17 +2269,30 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.preparePathClipboard,
-    (event, relativePaths: unknown) => {
+    (event, relativePaths: unknown, mode?: unknown) => {
       if (!Array.isArray(relativePaths)) throw new Error("Expected Space paths")
-      return controller
-        .requireSession(event.sender)
-        .preparePathClipboard(
-          relativePaths.map((value: unknown) =>
-            requiredString(value, "Space path")
-          )
-        )
+      if (mode !== undefined && mode !== "cut" && mode !== "copy")
+        throw new Error("Invalid clipboard mode")
+      return controller.preparePathClipboard(
+        event.sender,
+        relativePaths.map((value: unknown) =>
+          requiredString(value, "Space path")
+        ),
+        mode
+      )
     }
   )
+  ipcMain.handle(
+    IPC_CHANNELS.isPathClipboardCurrent,
+    (event, token: unknown) => {
+      controller.requireSession(event.sender)
+      return controller.isPathClipboardCurrent(
+        requiredString(token, "Clipboard token")
+      )
+    }
+  )
+  const cancelPathClipboard = () => controller.cancelPathClipboard()
+  ipcMain.on(IPC_CHANNELS.cancelPathClipboard, cancelPathClipboard)
   ipcMain.handle(IPC_CHANNELS.deletePath, (event, relativePath: unknown) =>
     controller.deletePath(
       event.sender,
@@ -4388,6 +4401,10 @@ export function registerIpc(
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
+      ipcMain.removeListener(
+        IPC_CHANNELS.cancelPathClipboard,
+        cancelPathClipboard
+      )
       app.removeListener("browser-window-focus", clipboardWindowFocus)
       ipcMain.removeListener(
         IPC_CHANNELS.clipboardCommandState,

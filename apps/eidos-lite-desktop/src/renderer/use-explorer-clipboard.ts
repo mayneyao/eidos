@@ -28,16 +28,66 @@ export function useExplorerClipboard(options: {
     target: string | null,
     sources?: SpacePathClipboardSources
   ): Promise<{ refreshError?: string } | void>
-  prepare?(paths: string[]): Promise<SpacePathClipboardSources>
+  prepare?(
+    paths: string[],
+    mode: "cut" | "copy"
+  ): Promise<SpacePathClipboardSources>
+  isCurrent?(token: string): Promise<boolean>
+  cancelPrepare?(): void
   onError(error: unknown): void
 }) {
   const [stored, setStored] = useState<ExplorerClipboard | null>(null)
   const [preparing, setPreparing] = useState(false)
   const inFlight = useRef(false)
   const captureSequence = useRef(0)
+  const checkingSequence = useRef(0)
+  const [checking, setChecking] = useState(false)
+  const pendingCapture = useRef(false)
+  const currentOptions = useRef(options)
+  currentOptions.current = options
   const scope = useRef(options.spaceId)
   scope.current = options.spaceId
   const clipboard = stored?.spaceId === options.spaceId ? stored : null
+  useEffect(() => {
+    const invalidate = () => {
+      pendingCapture.current = false
+      captureSequence.current += 1
+      checkingSequence.current += 1
+      currentOptions.current.cancelPrepare?.()
+      setStored(null)
+      setChecking(false)
+      setPreparing(false)
+    }
+    const blur = () => {
+      if (pendingCapture.current) invalidate()
+    }
+    const validate = async () => {
+      const token = clipboard?.sources?.systemClipboardToken
+      if (!token || !currentOptions.current.isCurrent) return
+      const sequence = ++checkingSequence.current
+      setChecking(true)
+      let valid = false
+      try {
+        valid = await currentOptions.current.isCurrent(token)
+      } catch {}
+      if (sequence !== checkingSequence.current) return
+      if (!valid) setStored((value) => (value === clipboard ? null : value))
+      setChecking(false)
+    }
+    document.addEventListener("copy", invalidate)
+    document.addEventListener("cut", invalidate)
+    window.addEventListener("blur", blur)
+    window.addEventListener("focus", validate)
+    document.addEventListener("contextmenu", validate, true)
+    return () => {
+      checkingSequence.current += 1
+      document.removeEventListener("copy", invalidate)
+      document.removeEventListener("cut", invalidate)
+      window.removeEventListener("blur", blur)
+      window.removeEventListener("focus", validate)
+      document.removeEventListener("contextmenu", validate, true)
+    }
+  }, [clipboard])
   useEffect(() => {
     captureSequence.current += 1
     setStored(null)
@@ -57,6 +107,7 @@ export function useExplorerClipboard(options: {
     !options.disabled &&
     !inFlight.current &&
     !preparing &&
+    !checking &&
     sourcesAvailable &&
     canPasteExplorerClipboard(clipboard, options.spaceId, target)
   return {
@@ -66,12 +117,16 @@ export function useExplorerClipboard(options: {
     async capture(mode: "cut" | "copy", entries: SpaceTreeEntry[]) {
       if (!options.spaceId || !canCapture(entries)) return
       const sequence = ++captureSequence.current
+      checkingSequence.current += 1
+      setChecking(false)
       const selected = explorerClipboardEntries(entries)
       let sources: SpacePathClipboardSources | undefined
       setPreparing(true)
+      pendingCapture.current = true
       try {
         sources = await options.prepare?.(
-          selected.map((entry) => entry.relativePath)
+          selected.map((entry) => entry.relativePath),
+          mode
         )
         if (sources && sources.spaceId !== options.spaceId)
           throw new Error("The Space changed; select the source items again")
@@ -83,7 +138,10 @@ export function useExplorerClipboard(options: {
           options.onError(cause)
         return
       } finally {
-        if (sequence === captureSequence.current) setPreparing(false)
+        if (sequence === captureSequence.current) {
+          pendingCapture.current = false
+          setPreparing(false)
+        }
       }
       if (
         scope.current !== options.spaceId ||
@@ -96,11 +154,24 @@ export function useExplorerClipboard(options: {
         entries: selected,
         sources,
       })
+      if (sources?.systemClipboardWarning)
+        options.onError(new Error(sources.systemClipboardWarning))
     },
     async paste(target: string | null) {
       if (!clipboard || !canPaste(target)) return
       inFlight.current = true
+      const sequence = captureSequence.current
       try {
+        const token = clipboard.sources?.systemClipboardToken
+        if (token && options.isCurrent && !(await options.isCurrent(token))) {
+          setStored((current) => (current === clipboard ? null : current))
+          return
+        }
+        if (
+          scope.current !== clipboard.spaceId ||
+          sequence !== captureSequence.current
+        )
+          return
         if (clipboard.mode === "cut") {
           await options.move(
             clipboard.entries.map((entry) => entry.relativePath),

@@ -504,8 +504,11 @@ const api: EidosLiteApi = {
       targetDirectory,
       clipboard
     ),
-  preparePathClipboard: (relativePaths) =>
-    ipcRenderer.invoke(IPC_CHANNELS.preparePathClipboard, relativePaths),
+  preparePathClipboard: (relativePaths, mode) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preparePathClipboard, relativePaths, mode),
+  isPathClipboardCurrent: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.isPathClipboardCurrent, token),
+  cancelPathClipboard: () => ipcRenderer.send(IPC_CHANNELS.cancelPathClipboard),
   deletePath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>

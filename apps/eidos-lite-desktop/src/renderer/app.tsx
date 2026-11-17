@@ -3624,7 +3624,10 @@ function WorkspaceApp({
       blocksLocalInteraction(space.operation.phase) ||
       busyFile !== null,
     move: moveTreeEntries,
-    prepare: (paths) => window.eidosLite.preparePathClipboard(paths),
+    prepare: (paths, mode) =>
+      window.eidosLite.preparePathClipboard(paths, mode),
+    isCurrent: (token) => window.eidosLite.isPathClipboardCurrent(token),
+    cancelPrepare: () => window.eidosLite.cancelPathClipboard(),
     copy: async (relativePath, targetDirectory, clipboard) => {
       setPathMutationBusy(true)
       setError(null)

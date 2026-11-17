@@ -1,4 +1,5 @@
 import { installHtmlPreviewGuestGuard } from "./html-preview-view"
+import { SystemFileClipboard } from "./system-file-clipboard"
 import { isDevelopmentReadonlyRoot } from "./development-readonly"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
@@ -1280,6 +1281,54 @@ export class WindowController {
     const session = this.sessionFor(webContents)
     if (!session) throw new Error("Open a Space first")
     return session
+  }
+
+  private readonly systemFileClipboard = new SystemFileClipboard(
+    path.join(
+      app.isPackaged ? process.resourcesPath : app.getAppPath(),
+      ...(app.isPackaged ? [] : ["resources"]),
+      "file-clipboard",
+      "eidos-file-clipboard"
+    )
+  )
+
+  async preparePathClipboard(
+    webContents: WebContents,
+    paths: string[],
+    mode?: "cut" | "copy"
+  ) {
+    const session = this.requireSession(webContents)
+    const generation = this.systemFileClipboard.reserve()
+    const expected =
+      mode && this.systemFileClipboard.supported
+        ? await this.systemFileClipboard.changeCount()
+        : undefined
+    const sources = await session.preparePathClipboard(paths)
+    if (!mode || !this.systemFileClipboard.supported) return sources
+    const system = await session.withSystemClipboardFiles(
+      sources,
+      mode,
+      (files) =>
+        this.systemFileClipboard.write(
+          generation,
+          files,
+          () => {
+            if (this.requireSession(webContents) !== session)
+              throw new Error(
+                "The Space changed; select the source items again"
+              )
+          },
+          expected!
+        )
+    )
+    return { ...sources, ...system }
+  }
+
+  isPathClipboardCurrent(token: string): Promise<boolean> {
+    return this.systemFileClipboard.isCurrent(token)
+  }
+  cancelPathClipboard(): void {
+    this.systemFileClipboard.reserve()
   }
 
   async diagnostics(webContents: WebContents): Promise<EidosLiteDiagnostics> {

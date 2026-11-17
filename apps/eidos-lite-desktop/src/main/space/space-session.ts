@@ -27,7 +27,8 @@ import type {
   TextSearchProgress,
   TextSearchOptions,
 } from "../../shared/text-search"
-import { constants as fsConstants } from "node:fs"
+import { constants as fsConstants, type BigIntStats } from "node:fs"
+import type { SystemClipboardFiles } from "../system-file-clipboard"
 import fs from "node:fs/promises"
 import type {
   ExplorerCalendarExecution,
@@ -2289,6 +2290,76 @@ export class SpaceSession {
     }))
   }
 
+  async withSystemClipboardFiles<T>(
+    sources: SpacePathClipboardSources,
+    mode: "cut" | "copy",
+    publish: (files: SystemClipboardFiles) => Promise<T>
+  ): Promise<T> {
+    return this.gate.withRuntimeRead(async () => {
+      if (!sources.sources.length || sources.sources.length > 10000)
+        throw new Error("Choose between 1 and 10000 items")
+      const paths: string[] = []
+      let internalOnly = false
+      for (const source of sources.sources) {
+        const relative = normalizeMutableRelativePath(source.relativePath)
+        await this.validateClipboardSource(sources, relative)
+        const absolute = this.resolveUserPath(relative)
+        // Directory exports need a separate consistent snapshot lifecycle.
+        // Do not walk the selected directory or Space on each ordinary Cmd+C.
+        if (
+          (await fs.lstat(absolute)).isDirectory() ||
+          eidosDatabasePath(relative)
+        )
+          internalOnly = true
+        paths.push(absolute)
+      }
+      let image: string | undefined
+      if (
+        mode === "copy" &&
+        !internalOnly &&
+        paths.length === 1 &&
+        /\.(png|jpe?g|gif|webp|tiff?|bmp|heic|avif)$/i.test(paths[0]!)
+      ) {
+        const source = sources.sources[0]!
+        const file = await fs.open(
+          paths[0]!,
+          fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
+        )
+        try {
+          const stats = await file.stat({ bigint: true })
+          if (
+            this.clipboardStatToken(source.relativePath, stats) !== source.token
+          )
+            throw new Error("The clipboard source changed; select it again")
+          if (stats.size <= 32n * 1024n * 1024n) {
+            const bytes = Buffer.alloc(Number(stats.size))
+            let offset = 0
+            while (offset < bytes.length) {
+              const read = await file.read(
+                bytes,
+                offset,
+                bytes.length - offset,
+                offset
+              )
+              if (!read.bytesRead) break
+              offset += read.bytesRead
+            }
+            if (offset === bytes.length) image = bytes.toString("base64")
+          }
+        } finally {
+          await file.close()
+        }
+      }
+      for (const source of sources.sources)
+        await this.validateClipboardSource(sources, source.relativePath)
+      return publish({
+        paths: mode === "copy" && !internalOnly ? paths : [],
+        image,
+        internalOnly: mode === "copy" && internalOnly,
+      })
+    })
+  }
+
   private async clipboardSourceToken(relativePath: string): Promise<string> {
     const sourcePath = this.resolveUserPath(relativePath)
     if ((await fs.realpath(sourcePath)) !== sourcePath)
@@ -2298,6 +2369,10 @@ export class SpaceSession {
       throw new Error(
         "Only ordinary files and folders can be placed on the file clipboard"
       )
+    return this.clipboardStatToken(relativePath, stats)
+  }
+
+  private clipboardStatToken(relativePath: string, stats: BigIntStats): string {
     return createHash("sha256")
       .update(
         [

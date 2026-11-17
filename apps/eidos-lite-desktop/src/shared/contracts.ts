@@ -174,6 +174,8 @@ export const IPC_CHANNELS = {
   movePaths: "eidos-lite:paths-move",
   copyPath: "eidos-lite:path-copy",
   preparePathClipboard: "eidos-lite:path-clipboard-prepare",
+  isPathClipboardCurrent: "eidos-lite:path-clipboard-current",
+  cancelPathClipboard: "eidos-lite:path-clipboard-cancel",
   clipboardCommand: "eidos-lite:clipboard-command",
   textClipboardCommand: "eidos-lite:text-clipboard-command",
   clipboardCommandState: "eidos-lite:clipboard-command-state",
@@ -848,6 +850,8 @@ export interface SpacePathsMutationResult extends SpacePathMutationResult {
 export interface SpacePathClipboardSources {
   spaceId: string
   sources: { relativePath: string; token: string }[]
+  systemClipboardToken?: string
+  systemClipboardWarning?: string
 }
 
 export interface EidosLiteAppInfo {
@@ -2174,8 +2178,11 @@ export interface EidosLiteApi extends PluginApi {
     clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathMutationResult>
   preparePathClipboard(
-    relativePaths: string[]
+    relativePaths: string[],
+    mode?: "cut" | "copy"
   ): Promise<SpacePathClipboardSources>
+  isPathClipboardCurrent(token: string): Promise<boolean>
+  cancelPathClipboard(): void
   deletePath(relativePath: string): Promise<SpacePathMutationResult>
   importFiles(
     targetDirectory: string | null

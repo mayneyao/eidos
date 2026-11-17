@@ -88,7 +88,14 @@
       "NSBluetoothPeripheralUsageDescription": "Allow Eidos Lite to connect to BLE devices selected for plugins."
     },
     "gatekeeperAssess": false,
-    "notarize": true
+    "notarize": true,
+    "extraResources": [
+      {
+        "from": "resources/file-clipboard",
+        "to": "file-clipboard",
+        "filter": ["eidos-file-clipboard"]
+      }
+    ]
   },
   "win": {
     "target": ["nsis"],

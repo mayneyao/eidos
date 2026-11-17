@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock("electron", () => ({
   app: {
+    getAppPath: () => "/tmp/eidos-window-controller-tests",
     getPath: () => "/tmp/eidos-window-controller-tests",
     getLocale: () => "en",
   },
