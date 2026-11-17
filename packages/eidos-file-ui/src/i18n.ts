@@ -184,6 +184,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Default option": "默认选项",
   "Default option for new records": "新记录的默认选项",
   "No default": "无默认值",
+  "Default value": "默认值",
   "Applied when a new record omits this field.":
     "新建记录未填写此字段时自动使用。",
   "Search options…": "搜索选项…",
