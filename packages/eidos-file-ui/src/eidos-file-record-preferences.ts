@@ -1,12 +1,10 @@
 import { useCallback, useId, useSyncExternalStore } from "react"
 
 export interface RecordPropertyPreferences {
-  hideSystemFields: boolean
   hiddenFields: string[]
   fieldOrder: string[]
 }
 const defaults: RecordPropertyPreferences = {
-  hideSystemFields: false,
   hiddenFields: [],
   fieldOrder: [],
 }
@@ -36,7 +34,6 @@ function read(key: string, persistent: boolean): RecordPropertyPreferences {
               ]
             : []
         result = {
-          hideSystemFields: value.hideSystemFields === true,
           hiddenFields: ids(value.hiddenFields),
           fieldOrder: ids(value.fieldOrder),
         }

@@ -857,6 +857,32 @@ export function SettingsPage() {
                 </div>
                 <div
                   className="settings-row"
+                  {...settingTarget(SETTINGS.recordSystemFields.id)}
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t(SETTINGS.recordSystemFields.title)}</strong>
+                    <small>{t(SETTINGS.recordSystemFields.summary)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    className="settings-switch"
+                    aria-label={t(SETTINGS.recordSystemFields.title)}
+                    aria-checked={
+                      preferences.hideSystemFieldsInRecords === true
+                    }
+                    onClick={() =>
+                      void updatePreferences({
+                        hideSystemFieldsInRecords:
+                          !preferences.hideSystemFieldsInRecords,
+                      })
+                    }
+                  >
+                    <span />
+                  </button>
+                </div>
+                <div
+                  className="settings-row"
                   {...settingTarget(SETTINGS.weekStart.id)}
                 >
                   <div className="settings-row-copy">

@@ -1,4 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react"
+import { useContext, useMemo, type ReactNode } from "react"
+import { EidosFileUIContext } from "./eidos-file-ui-context"
+// Keep the hook export stable while Fast Refresh replaces the provider.
+export { useEidosFileUI } from "./eidos-file-ui-context"
 import type { RecordFieldManagement } from "./eidos-file-record-field-context"
 import type {
   AssetLease,
@@ -117,6 +120,8 @@ export interface EidosFileMarkdownHtml {
 export interface EidosFileUIHost {
   /** Stable, host-local file location/identity for personal record property preferences. */
   recordPropertyScope?: string
+  /** Personal Host default; an explicit Table record setting takes precedence. */
+  defaultHideSystemFieldsInRecords?: boolean
   /** Existing Runtime-backed schema boundary for records rendered by this editor. */
   recordFieldManagement?: RecordFieldManagement
   /** Unsubmitted, saving or failed editor state. Hosts may defer external refreshes. */
@@ -184,18 +189,11 @@ export interface EidosFileUIHost {
   ) => ReactNode
 }
 
-const defaultHost: EidosFileUIHost = {
-  themeName: "light",
-  locale: "en",
-  weekStartsOnMonday: true,
-  translate: (message, values) => translateEidosFileUI("en", message, values),
-}
-
-const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
   recordPropertyScope,
+  defaultHideSystemFieldsInRecords,
   recordFieldManagement,
   onPendingEditChange,
   menuOrders,
@@ -228,6 +226,10 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedDefaultHideSystemFieldsInRecords =
+    defaultHideSystemFieldsInRecords ??
+    parent.defaultHideSystemFieldsInRecords ??
+    false
   const resolvedRecordPropertyScope =
     recordPropertyScope ?? parent.recordPropertyScope
   const resolvedRecordFieldManagement =
@@ -271,6 +273,8 @@ export function EidosFileUIProvider({
   const value = useMemo<EidosFileUIHost>(
     () => ({
       recordPropertyScope: resolvedRecordPropertyScope,
+      defaultHideSystemFieldsInRecords:
+        resolvedDefaultHideSystemFieldsInRecords,
       recordFieldManagement: resolvedRecordFieldManagement,
       onPendingEditChange: resolvedOnPendingEditChange,
       ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
@@ -323,6 +327,7 @@ export function EidosFileUIProvider({
     }),
     [
       resolvedRecordPropertyScope,
+      resolvedDefaultHideSystemFieldsInRecords,
       resolvedRecordFieldManagement,
       resolvedOnPendingEditChange,
       resolvedMenuOrders,
@@ -360,8 +365,4 @@ export function EidosFileUIProvider({
       {children}
     </EidosFileUIContext.Provider>
   )
-}
-
-export function useEidosFileUI(): EidosFileUIHost {
-  return useContext(EidosFileUIContext)
 }

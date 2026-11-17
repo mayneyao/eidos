@@ -93,6 +93,12 @@ export function eidosLitePreferencesPatch(
     }
     patch.timeZone = normalized
   }
+  if ("hideSystemFieldsInRecords" in candidate) {
+    if (typeof candidate.hideSystemFieldsInRecords !== "boolean") {
+      throw new Error("Invalid record system fields preference")
+    }
+    patch.hideSystemFieldsInRecords = candidate.hideSystemFieldsInRecords
+  }
   if ("weekStartsOnMonday" in candidate) {
     if (typeof candidate.weekStartsOnMonday !== "boolean") {
       throw new Error("Invalid first day of week preference")

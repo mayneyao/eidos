@@ -224,6 +224,8 @@ export interface EidosFileCsvExportResult {
 }
 
 export interface UpdateEidosFileTableInput {
+  /** Record presentation override. Null removes it and follows the Host default. */
+  hideSystemFieldsInRecords?: boolean | null
   name?: string
   icon?: string | null
   description?: string | null

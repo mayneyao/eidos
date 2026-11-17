@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileSnapshot,
@@ -8,53 +8,53 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   ArrowLeft,
   ChevronRight,
-  Columns3,
+  EyeOff,
   GripVertical,
   Plus,
-  Search,
-  Settings2,
+  Trash2,
 } from "lucide-react"
-
 import { useEidosFileUI } from "./context"
 import type { RecordFieldManagement } from "./eidos-file-record-field-context"
-import type { RecordPropertyPreferences } from "./eidos-file-record-preferences"
-import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
+import { useEidosFileFieldPropertyControls } from "./eidos-file-field-property-panel"
+import {
+  eidosFileFieldTypeIcon,
+  EIDOS_FILE_FIELD_TYPE_OPTIONS,
+} from "./eidos-file-field-type-picker"
 import { EidosFileFieldCreatePopover } from "./eidos-file-field-create-popover"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import {
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
 } from "./eidos-file-derived-field-editor"
-import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import {
   eidosFileFieldDisplayName,
   isEidosFileRecordLabelField,
 } from "./eidos-file-field-visibility"
-import {
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/primitives"
+import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 
-function PropertyRow({
-  field,
+export interface RecordFieldMenuState {
+  anchor: HTMLElement | null
+  fieldId: string | null
+}
+
+function SortableRecordProperty({
+  id,
   disabled,
+  label,
   children,
 }: {
-  field: EidosFileFieldInfo
+  id: string
   disabled: boolean
+  label: string
   children: ReactNode
 }) {
-  const { translate: t } = useEidosFileUI()
-  const sortable = useSortable({ id: field.id, disabled })
+  const sortable = useSortable({ id, disabled })
   return (
     <div
       ref={sortable.setNodeRef}
-      className="flex min-h-8 items-center gap-1 rounded px-1 hover:bg-accent"
+      className="group/record-property relative min-w-0 pl-5"
       style={{
         transform: CSS.Transform.toString(
           sortable.transform ? { ...sortable.transform, x: 0 } : null
@@ -65,11 +65,9 @@ function PropertyRow({
       <button
         type="button"
         ref={sortable.setActivatorNodeRef}
-        className="flex h-7 w-5 shrink-0 items-center justify-center text-muted-foreground disabled:opacity-30"
-        aria-label={t("Reorder {field}", {
-          field: eidosFileFieldDisplayName(field),
-        })}
         disabled={disabled}
+        aria-label={label}
+        className="absolute left-0 top-1.5 z-10 flex h-6 w-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-hidden hover:bg-accent focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover/record-property:opacity-100 group-focus-within/record-property:opacity-100 disabled:cursor-default disabled:opacity-0 [@media(hover:none)]:opacity-100"
         {...sortable.attributes}
         {...sortable.listeners}
       >
@@ -80,48 +78,189 @@ function PropertyRow({
   )
 }
 
-export function EidosFileRecordFieldsPopover({
+export function EidosFileRecordPropertyList({
+  rows,
+  disabled,
+  onReorder,
+}: {
+  rows: { id: string; label: string; content: ReactNode }[]
+  disabled: boolean
+  onReorder: (ids: string[]) => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  const [dragging, setDragging] = useState(false)
+  useEidosFilePendingEdit(dragging)
+  return (
+    <SortableContainer
+      items={rows}
+      disabled={disabled}
+      optimistic={false}
+      onDragStateChange={setDragging}
+      onReorder={(next) => onReorder(next.map((item) => item.id))}
+      renderItem={(item) => (
+        <SortableRecordProperty
+          id={item.id}
+          label={t("Reorder {field}", { field: item.label })}
+          disabled={disabled}
+        >
+          {item.content}
+        </SortableRecordProperty>
+      )}
+    />
+  )
+}
+
+function FieldMenuControls({
+  field,
+  management,
+  disabled,
+  onUpdate,
+  onHide,
+  onDelete,
+  onDerived,
+}: {
+  field: EidosFileFieldInfo
+  management: RecordFieldManagement
+  disabled: boolean
+  onUpdate: Parameters<typeof useEidosFileFieldPropertyControls>[0]["onUpdate"]
+  onHide: () => void
+  onDelete: () => void
+  onDerived: (kind: "formula" | "lookup") => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  const [step, setStep] = useState<"menu" | "type" | "settings">("menu")
+  const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
+  const controls = useEidosFileFieldPropertyControls({
+    field,
+    tables: management.tables ?? [management.table],
+    disabled,
+    onUpdate,
+    onEditFormula: () => onDerived("formula"),
+    onEditLookup: () => onDerived("lookup"),
+  })
+  return (
+    <div className="grid gap-2 p-2">
+      {step !== "menu" ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 justify-start gap-1 text-xs"
+          disabled={controls.busy}
+          onClick={() => setStep("menu")}
+        >
+          <ArrowLeft className="h-3 w-3" />
+          {field.name}
+        </Button>
+      ) : null}
+      {step === "menu" ? (
+        <>
+          {controls.nameControl}
+          <p className="px-1 text-[11px] leading-4 text-muted-foreground">
+            {t("Field changes affect every record in this table.")}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 justify-between text-xs"
+            disabled={controls.busy}
+            onClick={() => setStep("type")}
+          >
+            {t("Type")}
+            <span className="flex items-center gap-1 text-muted-foreground">
+              {FieldTypeIcon ? <FieldTypeIcon className="h-3.5 w-3.5" /> : null}
+              {t(
+                EIDOS_FILE_FIELD_TYPE_OPTIONS.find(
+                  (option) => option.value === field.type
+                )?.label ?? field.type
+              )}
+              <ChevronRight className="h-3 w-3" />
+            </span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 justify-between text-xs"
+            disabled={controls.busy}
+            onClick={() => setStep("settings")}
+          >
+            {t("Edit property")}
+            <ChevronRight className="h-3 w-3" />
+          </Button>
+          {!isEidosFileRecordLabelField(field) ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 justify-start gap-2 text-xs"
+              disabled={controls.busy}
+              onClick={onHide}
+            >
+              <EyeOff className="h-3.5 w-3.5" />
+              {t("Hide in records on this device")}
+            </Button>
+          ) : null}
+          {!controls.isRecordLabel ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 justify-start gap-2 text-xs text-destructive hover:text-destructive"
+              disabled={controls.busy}
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {t("Delete field from table")}
+            </Button>
+          ) : null}
+        </>
+      ) : step === "type" ? (
+        controls.typeControl
+      ) : (
+        <>
+          {controls.optionsControl}
+          {controls.settingsControl}
+        </>
+      )}
+      {controls.error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {controls.error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** Anchored to the selected property name or the inline New field action. */
+export function EidosFileRecordFieldMenu({
   management,
   fields,
-  contentFieldId,
-  preferences,
-  onPreferencesChange,
-  presentationLocked,
   schemaLocked,
   state,
   onStateChange,
+  onHide,
 }: {
   management?: RecordFieldManagement
   fields: EidosFileFieldInfo[]
-  contentFieldId?: string
-  preferences: RecordPropertyPreferences
-  onPreferencesChange: (
-    edit: (current: RecordPropertyPreferences) => RecordPropertyPreferences
-  ) => void
-  presentationLocked: boolean
   schemaLocked: boolean
-  state: { open: boolean; fieldId: string | null }
-  onStateChange: (next: { open: boolean; fieldId: string | null }) => void
+  state: RecordFieldMenuState
+  onStateChange: (next: RecordFieldMenuState) => void
+  onHide: (id: string) => void
 }) {
   const { translate: t } = useEidosFileUI()
-  const [search, setSearch] = useState("")
-  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const locked = useRef(false)
+  const lastAnchor = useRef<HTMLElement | null>(null)
+  const recordRoot = useRef<HTMLElement | null>(null)
+  if (state.anchor) {
+    lastAnchor.current = state.anchor
+    recordRoot.current = state.anchor.closest<HTMLElement>(
+      '[data-eidos-file-detail-panel="record"]'
+    )
+  }
   const [derived, setDerived] = useState<"formula" | "lookup" | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EidosFileFieldInfo | null>(
     null
   )
-  const [busy, setBusy] = useState(false)
-  const locked = useRef(false)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    if (state.open) return
-    setSearch("")
-    setCreating(false)
-    setDerived(null)
-    setDeleteTarget(null)
-    setError(null)
-  }, [state.open])
-  useEidosFilePendingEdit(state.open || busy)
+  useEidosFilePendingEdit(Boolean(state.anchor) || busy)
   const selected = fields.find(
     (field) =>
       field.id === state.fieldId &&
@@ -138,31 +277,14 @@ export function EidosFileRecordFieldsPopover({
         | undefined
     )?.alterSchema !== false
   )
-  const scopeFields = fields.filter((field) => !field.isHidden)
-  const order = new Map(preferences.fieldOrder.map((id, index) => [id, index]))
-  const ordered = [...scopeFields].sort(
-    (a, b) =>
-      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-      (order.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-  )
-  const normalized = search.trim().toLocaleLowerCase()
-  const filtered = ordered.filter((field) =>
-    eidosFileFieldDisplayName(field).toLocaleLowerCase().includes(normalized)
-  )
-  const systemCount = fields.filter((field) => field.systemRole != null).length
-  const change = (
-    edit: (current: RecordPropertyPreferences) => RecordPropertyPreferences
-  ) => {
-    if (presentationLocked) return
-    try {
-      onPreferencesChange(edit)
-      setError(null)
-    } catch {
-      setError(t("Unable to save record property preferences"))
-    }
+  const close = () => {
+    if (locked.current || deleteTarget) return
+    onStateChange({ anchor: null, fieldId: null })
+    setDerived(null)
+    setError(null)
   }
   const mutate = async (operation: () => Promise<EidosFileSnapshot>) => {
-    if (!canAlter || !management || locked.current)
+    if (!management || !canAlter || locked.current)
       throw new Error(t("Field changes are unavailable"))
     locked.current = true
     setBusy(true)
@@ -173,271 +295,107 @@ export function EidosFileRecordFieldsPopover({
       setBusy(false)
     }
   }
-  const back = () => {
-    onStateChange({ open: true, fieldId: null })
-    setCreating(false)
-    setDerived(null)
-    setError(null)
-  }
-  const close = () => {
-    if (locked.current || deleteTarget) return
-    onStateChange({ open: false, fieldId: null })
-    setSearch("")
-    setCreating(false)
-    setDerived(null)
-    setError(null)
-  }
-  const list = (
-    <>
-      <div className="border-b px-3 py-2">
-        <p className="text-xs font-medium">{t("Properties in records")}</p>
-        <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-          {t(
-            "Display settings apply to records in this table, not view columns."
-          )}
-        </p>
-      </div>
-      <label className="flex min-h-10 cursor-pointer items-center gap-2 border-b px-3 py-2 text-xs">
-        <input
-          type="checkbox"
-          checked={preferences.hideSystemFields}
-          aria-label={t("Always hide system fields")}
-          disabled={presentationLocked}
-          onChange={(event) => {
-            const value = event.currentTarget.checked
-            change((current) => ({ ...current, hideSystemFields: value }))
-          }}
-        />
-        <span className="min-w-0 flex-1">{t("Always hide system fields")}</span>
-        <span className="text-[10px] text-muted-foreground">{systemCount}</span>
-      </label>
-      <div className="relative border-b p-2">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="h-7 pl-7 text-xs"
-          aria-label={t("Search fields")}
-          placeholder={t("Search fields")}
-        />
-      </div>
-      <div
-        className="max-h-72 overflow-y-auto p-1.5"
-        data-eidos-record-fields-list
-      >
-        {filtered.length ? (
-          <SortableContainer
-            items={filtered.map((field) => ({ id: field.id, field }))}
-            optimistic={false}
-            disabled={presentationLocked || Boolean(normalized)}
-            onReorder={(next) =>
-              change((current) => ({
-                ...current,
-                fieldOrder: next.map((item) => item.id),
-              }))
-            }
-            renderItem={({ field }) => {
-              const system = field.systemRole != null
-              const pinned =
-                field.id === contentFieldId ||
-                isEidosFileRecordLabelField(field)
-              const TypeIcon = eidosFileFieldTypeIcon(field.type) ?? Columns3
-              return (
-                <PropertyRow
-                  field={field}
-                  disabled={
-                    presentationLocked ||
-                    Boolean(normalized) ||
-                    system ||
-                    pinned
-                  }
-                >
-                  {system || pinned ? (
-                    <span className="w-5 shrink-0" />
-                  ) : (
-                    <input
-                      type="checkbox"
-                      checked={!preferences.hiddenFields.includes(field.id)}
-                      disabled={presentationLocked}
-                      aria-label={t("Show {field}", {
-                        field: eidosFileFieldDisplayName(field),
-                      })}
-                      onChange={(event) => {
-                        const visible = event.currentTarget.checked
-                        change((current) => ({
-                          ...current,
-                          hiddenFields: visible
-                            ? current.hiddenFields.filter(
-                                (id) => id !== field.id
-                              )
-                            : [...new Set([...current.hiddenFields, field.id])],
-                        }))
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded px-1 text-left text-xs disabled:cursor-default"
-                    disabled={system || !canAlter || busy}
-                    aria-label={t("Edit {field} properties", {
-                      field: eidosFileFieldDisplayName(field),
-                    })}
-                    onClick={() =>
-                      onStateChange({ open: true, fieldId: field.id })
-                    }
-                  >
-                    <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">
-                      {eidosFileFieldDisplayName(field)}
-                    </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {system
-                        ? t("System")
-                        : field.id === contentFieldId
-                          ? t("Content")
-                          : t(field.type)}
-                    </span>
-                    {!system && canAlter ? (
-                      <ChevronRight className="h-3 w-3 shrink-0" />
-                    ) : null}
-                  </button>
-                </PropertyRow>
-              )
-            }}
-          />
-        ) : (
-          <p className="p-4 text-center text-xs text-muted-foreground">
-            {t("No matching fields")}
-          </p>
-        )}
-      </div>
-      {management ? (
-        <div className="border-t p-1.5">
-          <Button
-            variant="ghost"
-            className="h-8 w-full justify-start gap-2 text-xs"
-            disabled={!canAlter || busy}
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("New field")}
-          </Button>
-        </div>
-      ) : null}
-      {schemaLocked ? (
-        <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">
-          {t("Save record edits before changing fields.")}
-        </p>
-      ) : null}
-    </>
-  )
-
   return (
     <>
       <Popover
         modal
-        open={state.open}
+        open={Boolean(state.anchor)}
         onOpenChange={(open) => {
-          if (open) onStateChange({ open: true, fieldId: null })
-          else close()
+          if (!open) close()
         }}
       >
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            aria-label={t("Manage record properties")}
-            title={t("Manage record properties")}
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </Button>
-        </PopoverTrigger>
+        <PopoverAnchor virtualRef={lastAnchor} />
         <PopoverContent
-          align="end"
-          className="w-80 max-w-[calc(100vw-24px)] p-0"
+          align="start"
+          side="bottom"
+          className="w-72 max-w-[calc(100vw-24px)] overflow-y-auto p-0 max-h-[70vh]"
           onEscapeKeyDown={(event) => {
-            if (busy) event.preventDefault()
+            if (busy || deleteTarget) event.preventDefault()
           }}
           onInteractOutside={(event) => {
-            if (busy) event.preventDefault()
+            if (busy || deleteTarget) event.preventDefault()
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            if (lastAnchor.current?.isConnected) lastAnchor.current.focus()
+            else
+              recordRoot.current
+                ?.querySelector<HTMLElement>(
+                  "[data-eidos-file-record-properties-toggle]"
+                )
+                ?.focus()
           }}
         >
-          {selected || creating ? (
-            <div className="border-b p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 text-xs"
-                disabled={busy}
-                onClick={back}
-              >
-                <ArrowLeft className="h-3 w-3" />
-                {t("All properties")}
-              </Button>
-            </div>
-          ) : null}
-          {selected && management ? (
-            <div className="h-[min(65vh,520px)] [&>.eidos-file-detail-panel]:w-full [&>.eidos-file-detail-panel]:border-0">
-              {derived ? (
-                derived === "formula" ? (
-                  <EidosFileFormulaEditorPopover
-                    embedded
-                    open
-                    field={selected}
-                    fields={fields}
-                    onOpenChange={(open) => {
-                      if (!open) setDerived(null)
-                    }}
-                    onPreview={
-                      management.source.previewFormula
-                        ? (input) =>
-                            management.source.previewFormula!(
-                              management.table.table.id,
-                              input
-                            )
-                        : undefined
-                    }
-                    onSave={(property) =>
-                      mutate(() =>
-                        management.source.updateField(
-                          management.table.table.id,
-                          selected.id,
-                          { property }
+          {management && state.anchor ? (
+            selected ? (
+              derived ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="m-1 h-7 gap-1 text-xs"
+                    disabled={busy}
+                    onClick={() => setDerived(null)}
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    {selected.name}
+                  </Button>
+                  {derived === "formula" ? (
+                    <EidosFileFormulaEditorPopover
+                      embedded
+                      open
+                      field={selected}
+                      fields={fields}
+                      onOpenChange={(open) => {
+                        if (!open) setDerived(null)
+                      }}
+                      onPreview={
+                        management.source.previewFormula
+                          ? (input) =>
+                              management.source.previewFormula!(
+                                management.table.table.id,
+                                input
+                              )
+                          : undefined
+                      }
+                      onSave={(property) =>
+                        mutate(() =>
+                          management.source.updateField(
+                            management.table.table.id,
+                            selected.id,
+                            { property }
+                          )
                         )
-                      )
-                    }
-                  />
-                ) : (
-                  <EidosFileLookupEditorPopover
-                    embedded
-                    open
-                    field={selected}
-                    fields={fields}
-                    tables={[...(management.tables ?? [management.table])]}
-                    onOpenChange={(open) => {
-                      if (!open) setDerived(null)
-                    }}
-                    onSave={(property) =>
-                      mutate(() =>
-                        management.source.updateField(
-                          management.table.table.id,
-                          selected.id,
-                          { property }
+                      }
+                    />
+                  ) : (
+                    <EidosFileLookupEditorPopover
+                      embedded
+                      open
+                      field={selected}
+                      fields={fields}
+                      tables={[...(management.tables ?? [management.table])]}
+                      onOpenChange={(open) => {
+                        if (!open) setDerived(null)
+                      }}
+                      onSave={(property) =>
+                        mutate(() =>
+                          management.source.updateField(
+                            management.table.table.id,
+                            selected.id,
+                            { property }
+                          )
                         )
-                      )
-                    }
-                  />
-                )
+                      }
+                    />
+                  )}
+                </>
               ) : (
-                <EidosFileFieldPropertyPanel
+                <FieldMenuControls
                   key={selected.id}
                   field={selected}
-                  tables={management.tables ?? [management.table]}
-                  disabled={!canAlter}
-                  onClose={back}
+                  management={management}
+                  disabled={!canAlter || busy}
                   onUpdate={(field, changes) =>
                     mutate(() =>
                       management.source.updateField(
@@ -447,45 +405,46 @@ export function EidosFileRecordFieldsPopover({
                       )
                     )
                   }
-                  onDelete={setDeleteTarget}
-                  onEditFormula={() => setDerived("formula")}
-                  onEditLookup={() => setDerived("lookup")}
+                  onHide={() => {
+                    onHide(selected.id)
+                    close()
+                  }}
+                  onDelete={() => setDeleteTarget(selected)}
+                  onDerived={setDerived}
                 />
-              )}
-            </div>
-          ) : creating && management ? (
-            <EidosFileFieldCreatePopover
-              embedded
-              open
-              table={management.table}
-              tables={[...(management.tables ?? [management.table])]}
-              disabled={!canAlter || busy}
-              onOpenChange={(open) => {
-                if (!open) setCreating(false)
-              }}
-              onCreate={(input) =>
-                mutate(() =>
-                  management.source.addField(management.table.table.id, input)
-                )
-              }
-              onPreviewFormula={
-                management.source.previewFormula
-                  ? (input) =>
-                      management.source.previewFormula!(
-                        management.table.table.id,
-                        input
-                      )
-                  : undefined
-              }
-            />
-          ) : (
-            list
-          )}
+              )
+            ) : (
+              <EidosFileFieldCreatePopover
+                embedded
+                open
+                table={management.table}
+                tables={[...(management.tables ?? [management.table])]}
+                disabled={!canAlter || busy}
+                description={t(
+                  "Field changes affect every record in this table."
+                )}
+                onOpenChange={(open) => {
+                  if (!open) close()
+                }}
+                onCreate={(input) =>
+                  mutate(() =>
+                    management.source.addField(management.table.table.id, input)
+                  )
+                }
+                onPreviewFormula={
+                  management.source.previewFormula
+                    ? (input) =>
+                        management.source.previewFormula!(
+                          management.table.table.id,
+                          input
+                        )
+                    : undefined
+                }
+              />
+            )
+          ) : null}
           {error ? (
-            <p
-              role="alert"
-              className="border-t px-3 py-2 text-xs text-destructive"
-            >
+            <p role="alert" className="p-2 text-xs text-destructive">
               {error}
             </p>
           ) : null}
@@ -502,12 +461,94 @@ export function EidosFileRecordFieldsPopover({
           await mutate(() =>
             management.source.deleteField(management.table.table.id, field.id)
           )
-          back()
+          setDeleteTarget(null)
+          onStateChange({ anchor: null, fieldId: null })
+          setDerived(null)
         }}
         onError={(cause) =>
           setError(cause instanceof Error ? cause.message : String(cause))
         }
       />
     </>
+  )
+}
+
+export function EidosFileRecordPropertiesFooter({
+  hiddenFields,
+  preferencesLocked,
+  schemaLocked,
+  canCreate,
+  onCreate,
+  onRestore,
+  hideSystemFields,
+  systemCount,
+  peekSystemFields,
+  onPeek,
+}: {
+  hiddenFields: EidosFileFieldInfo[]
+  preferencesLocked: boolean
+  schemaLocked: boolean
+  canCreate: boolean
+  onCreate: (anchor: HTMLElement) => void
+  onRestore: (id: string) => void
+  hideSystemFields: boolean
+  systemCount: number
+  peekSystemFields: boolean
+  onPeek: () => void
+}) {
+  const { translate: t } = useEidosFileUI()
+  return (
+    <div className="grid gap-1 px-5 py-2" data-eidos-record-properties-footer>
+      {canCreate ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 justify-start gap-1.5 px-0 text-xs text-muted-foreground"
+          disabled={schemaLocked}
+          onClick={(event) => onCreate(event.currentTarget)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("New field")}
+        </Button>
+      ) : null}
+      {hiddenFields.length ? (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer py-1">
+            {t("Hidden properties on this device ({count})", {
+              count: hiddenFields.length,
+            })}
+          </summary>
+          <div className="grid gap-0.5 py-1">
+            {hiddenFields.map((field) => (
+              <Button
+                key={field.id}
+                variant="ghost"
+                size="sm"
+                className="h-7 justify-start text-xs"
+                disabled={preferencesLocked}
+                onClick={() => onRestore(field.id)}
+              >
+                {t("Show {field}", { field: eidosFileFieldDisplayName(field) })}
+              </Button>
+            ))}
+          </div>
+        </details>
+      ) : null}
+      {hideSystemFields && systemCount ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 justify-start px-0 text-xs text-muted-foreground"
+          disabled={preferencesLocked}
+          onClick={onPeek}
+        >
+          {peekSystemFields
+            ? t("Hide system fields")
+            : t("Show system fields temporarily ({count})", {
+                count: systemCount,
+              })}
+        </Button>
+      ) : null}
+    </div>
   )
 }

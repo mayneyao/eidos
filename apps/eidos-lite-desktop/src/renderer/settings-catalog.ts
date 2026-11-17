@@ -75,6 +75,21 @@ export const SETTINGS = {
     "Follow the system time zone or choose a fixed zone for date and time displays.",
     ["timezone", "时区"]
   ),
+  recordSystemFields: setting(
+    "preferences.record-system-fields",
+    "preferences",
+    "Hide system fields in records",
+    "Hide Record ID, Created, and Updated in open records by default. Tables can override this.",
+    [
+      "record",
+      "properties",
+      "system fields",
+      "记录",
+      "属性",
+      "系统字段",
+      "隐藏",
+    ]
+  ),
   weekStart: setting(
     "preferences.week-start",
     "preferences",

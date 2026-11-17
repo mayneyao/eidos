@@ -109,6 +109,7 @@ export interface EidosFileWorkbenchProps {
   disabled: boolean
   theme: "light" | "dark"
   weekStartsOnMonday?: boolean
+  hideSystemFieldsInRecords?: boolean
   timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
   menuOrders?: { "grid.cell"?: readonly string[] }
@@ -144,6 +145,7 @@ export function EidosFileWorkbench({
   disabled,
   theme,
   weekStartsOnMonday = true,
+  hideSystemFieldsInRecords = false,
   timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   menuOrders,
@@ -696,6 +698,7 @@ export function EidosFileWorkbench({
       locale={locale}
       themeName={theme}
       weekStartsOnMonday={weekStartsOnMonday}
+      defaultHideSystemFieldsInRecords={hideSystemFieldsInRecords}
       timeZone={timeZone}
       activateUrl={window.eidosLite?.openExternalUrl}
       openRelationRecord={openRelationRecord}

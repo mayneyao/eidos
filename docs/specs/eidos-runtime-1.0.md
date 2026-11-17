@@ -972,6 +972,15 @@ batch that deletes or converts the referenced Field MUST also clear or validly
 retarget the member; an editor-facing compatibility API MAY compose that clear
 into the same atomic batch automatically.
 
+`TableDescriptor.settings.hideSystemFieldsInRecords` is the optional Boolean
+record-presentation hint from File Format. Runtime MUST preserve and expose
+explicit `false` as well as `true`. `set-table-settings` MUST reject a present
+non-Boolean value. Removing the member restores Host-default inheritance and
+MUST preserve unrelated Table settings. The editor-facing `updateTable`
+compatibility input accepts Boolean assignment and `null` to remove the member;
+`undefined` leaves it unchanged. These writes use the existing schema mutation
+and permission boundary and do not modify row data or View layouts.
+
 If `minimumRevision` is greater than the current revision, Runtime waits until
 that revision, cancellation, deadline, or close. If events are unavailable it
 MAY poll Adapter `dataVersion` within the deadline. A smaller/equal value

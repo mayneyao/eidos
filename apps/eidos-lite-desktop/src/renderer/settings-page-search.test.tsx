@@ -229,6 +229,33 @@ describe("Settings search through original controls", () => {
     expect(content().scrollTop).toBe(137)
   })
 
+  it.each(["en", "zh"] as const)(
+    "finds and saves the original record default switch in %s",
+    async (language) => {
+      saved.language = language
+      await mount()
+      const selector =
+        '[data-setting-id="preferences.record-system-fields"] [role="switch"]'
+      const original = host.querySelector<HTMLButtonElement>(selector)!
+      expect(original).not.toBeNull()
+      await search(language === "zh" ? "系统字段" : "system fields")
+      await key("Enter")
+      expect(document.activeElement).toBe(original)
+      expect(api.updatePreferences).not.toHaveBeenCalled()
+      await act(async () => original.click())
+      expect(api.updatePreferences).toHaveBeenCalledWith({
+        hideSystemFieldsInRecords: true,
+      })
+      expect(original.getAttribute("aria-checked")).toBe("true")
+      await act(async () => root.unmount())
+      root = createRoot(host)
+      await mount()
+      expect(host.querySelector(selector)?.getAttribute("aria-checked")).toBe(
+        "true"
+      )
+    }
+  )
+
   it("focuses the existing Files select, saves through its handler and reads back on reopening", async () => {
     await mount()
     const original = host.querySelector<HTMLSelectElement>(
