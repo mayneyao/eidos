@@ -413,7 +413,8 @@ describe("EidosFileDataGrid", () => {
       expect.objectContaining({
         timeZone: expect.any(String),
         timeZoneData: "2026f",
-      })
+      }),
+      {}
     )
     expect(onMutation).toHaveBeenCalledWith(committed)
   })

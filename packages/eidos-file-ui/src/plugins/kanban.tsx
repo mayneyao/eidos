@@ -118,12 +118,13 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
           ...(labelField ? { [eidosFileFieldKey(labelField)]: title } : {}),
           [eidosFileFieldKey(field)]: value,
         },
-        creationContext
+        creationContext,
+        query
       )
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id, creationContext]
+    [onMutation, source, table.table.id, creationContext, query]
   )
 
   if (!view) return null

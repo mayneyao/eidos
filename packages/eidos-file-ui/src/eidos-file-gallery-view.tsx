@@ -252,6 +252,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   loadPage,
   loadRow,
   onCellEdit,
+  onAddRow,
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
@@ -282,6 +283,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     field: EidosFileFieldInfo,
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
+  onAddRow?: () => Promise<EidosFileRowMutationResult>
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -305,6 +307,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
+  const [creating, setCreating] = useState(false)
   const selectionScopeKey = JSON.stringify([
     table.table.id,
     view.id,
@@ -312,6 +315,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     view.filter,
     view.sorts,
   ])
+  const creationScopeRef = useRef(selectionScopeKey)
+  creationScopeRef.current = selectionScopeKey
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const [preview, setPreview] = useState<{
@@ -900,6 +905,28 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
         style={selection.marquee ? { userSelect: "none" } : undefined}
       >
+        {onAddRow ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={disabled || creating}
+            onClick={async () => {
+              setCreating(true)
+              const scope = creationScopeRef.current
+              try {
+                const result = await onAddRow()
+                if (mountedRef.current && scope === creationScopeRef.current)
+                  openInspectorRow(result.row)
+              } catch (error) {
+                onError?.(error)
+              } finally {
+                if (mountedRef.current) setCreating(false)
+              }
+            }}
+          >
+            {t("New record")}
+          </Button>
+        ) : null}
         {loading && rows.length === 0 ? (
           <div
             className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground"

@@ -1020,7 +1020,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext, creationQuery?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     readTableActionRows?(tableId: string, rowIds: string[], fieldIds: string[]): Promise<EidosFileActionRow[]>;
@@ -1542,6 +1542,7 @@ export interface EidosFileRowsDeleteResult {
 export interface EidosFileRowsMutation {
     // (undocumented)
     creationContext?: EidosFileCreationContext;
+    creationQuery?: EidosFileRowQuery;
     // (undocumented)
     delete?: string[];
     // (undocumented)
@@ -2656,9 +2657,12 @@ export type RowChange = {
 // @public (undocumented)
 export interface RowMutation {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     changes: RowChange[];
     // (undocumented)
     creationContext?: EidosFileCreationContext;
+    creationQuery?: RowQuery;
     // (undocumented)
     expectedRevision: string;
     // (undocumented)
@@ -2767,6 +2771,8 @@ export interface RuntimeCapabilities {
     temporalDefaultsVersion?: 1;
     // (undocumented)
     validate: boolean;
+    // (undocumented)
+    viewCreationDefaultsVersion?: 1;
 }
 
 // @public (undocumented)

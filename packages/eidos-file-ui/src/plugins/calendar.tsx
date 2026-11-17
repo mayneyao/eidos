@@ -268,7 +268,8 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         {
           ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
         },
-        creationContext
+        creationContext,
+        query
       )
       onMutation?.(result)
       return result
@@ -280,6 +281,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
       timeZone,
       calendarTimeZoneData,
       creationContext,
+      query,
     ]
   )
   const searchRelation = useCallback(

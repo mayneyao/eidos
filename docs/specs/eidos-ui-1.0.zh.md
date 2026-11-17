@@ -1198,6 +1198,15 @@ schema operation 保存 `defaultValue:"now"` 或 null。Created at、Updated at�
 新 draft 才重新求值。默认填入值在创建后是普通可编辑值。existing/loading record、
 import 与 update 均不得由 UI 自动填值。
 
+Grid、Gallery、Calendar、Kanban 的普通 View 新建须捕获当时已应用的 filter 和执行
+偏好，经 shared data source 传 `creationQuery`/`calendar` 给 Runtime；须协商
+`viewCreationDefaultsVersion:1`，UI 不另实现 filter 推导。旧 Runtime 缺少能力时，
+该边界拒绝 filtered create，不能静默丢掉默认请求。显式输入/清空和分组/日历入口值
+优先于 View 推导，View 推导优先于 Field 默认。创建后可编辑；切 View/filter/表/文件
+不改变进行中新建的目标或给已有行回填。无 filter 时保持普通创建行为。没有安全候选时
+行可能不在视图中，不添加查询例外。Form 本地未保存预览和未捕获 View 上下文的 host
+draft 不推导 View 值；undo/redo 恢复已保存值，不重新求推导或日期默认值。
+
 Select 或 Multi-select editor 中显式的“新建选项”操作必须先提交完整、更新后的 Field
 option catalog。只有 metadata mutation 成功后，UI 才能使用其返回的 revision 提交 cell
 value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之后的 cell mutation

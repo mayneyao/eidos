@@ -140,6 +140,7 @@ import {
   EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT_MAX_BYTES,
 } from "./calendar-query-upgrade"
 import { validateEidosFile } from "./validation"
+import { inferEidosFileCreationDefaults } from "./creation-defaults"
 
 interface TableRow {
   id: string
@@ -5885,7 +5886,8 @@ export class EidosFileRuntime {
     row: EidosFileRow,
     allowUnresolvedRelations: boolean,
     applyCreateDefaults: boolean,
-    creationContext?: EidosFileCreationContext
+    creationContext?: EidosFileCreationContext,
+    creationQuery?: EidosFileRowQuery
   ): string {
     const caps = this.tableCapabilities(tableId)
     if (!caps.insert) {
@@ -5901,13 +5903,70 @@ export class EidosFileRuntime {
         ? this.assertRowId(tableId, requestedId, "Row ID")
         : this.allocateId()
     const now = this.operationInstant()
-    const changes = this.rowChanges(
+    let changes = this.rowChanges(
       tableId,
       row,
       allowUnresolvedRelations,
       applyCreateDefaults ? "ordinary" : "import",
       creationContext
     )
+    if (applyCreateDefaults && creationQuery?.filter) {
+      const checkFields = (group: EidosFileFilterGroup): void => {
+        for (const child of group.children) {
+          if (child.type === "group") checkFields(child)
+          else this.fieldByKey(tableId, child.field)
+        }
+      }
+      assertEidosFileRowQuery(creationQuery)
+      checkFields(creationQuery.filter)
+      const fields = this.listFields(tableId)
+      const explicit = Object.fromEntries(
+        this.rowChanges(tableId, row, allowUnresolvedRelations).map(
+          ({ field, value }) => [field.tableColumnName, value]
+        )
+      )
+      const defaults = Object.fromEntries(
+        changes.map(({ field, value }) => [field.tableColumnName, value])
+      )
+      for (const field of fields) {
+        if (
+          !Object.hasOwn(defaults, field.tableColumnName) &&
+          field.nullable === false &&
+          ["json_array", "relation"].includes(field.storageCodec)
+        )
+          defaults[field.tableColumnName] = "[]"
+      }
+      const inferred = inferEidosFileCreationDefaults(
+        this.connection,
+        fields,
+        this.compatibilityQuery(tableId, creationQuery),
+        explicit,
+        defaults,
+        now,
+        (field, value) => this.normalizeStoredValue(field, value, false)
+      )
+      changes = this.rowChanges(
+        tableId,
+        { ...inferred, ...row },
+        allowUnresolvedRelations,
+        "ordinary",
+        creationContext
+      )
+      const supplied = new Set(changes.map(({ field }) => field.id))
+      for (const field of fields) {
+        if (
+          field.nullable === false &&
+          field.valueKind === "source" &&
+          field.writable !== false &&
+          !supplied.has(field.id) &&
+          !["file", "multi-select", "checkbox"].includes(field.type)
+        )
+          throw new EidosFileError(
+            "invalid-value",
+            `Required Field value is missing: ${field.name}`
+          )
+      }
+    }
     const columns = [
       "_id",
       "_created_at",
@@ -7024,7 +7083,8 @@ export class EidosFileRuntime {
           this.logicalMutationFields(input.tableId, row.fields, row.id),
           false,
           true,
-          input.creationContext
+          input.creationContext,
+          input.creationQuery
         )
       )
       const changedUpdates: string[] = []

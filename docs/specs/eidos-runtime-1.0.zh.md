@@ -372,6 +372,7 @@ unbounded foreground wait。
 
 ```ts
 interface RuntimeCapabilities {
+  viewCreationDefaultsVersion?: 1
   temporalDefaultsVersion?: 1
   calendarQueryVersion?: 2
   calendarWindowVersion?: 1
@@ -2366,6 +2367,8 @@ semantics。
 
 ```ts
 interface RowMutation {
+  creationQuery?: RowQuery // 仅 filter；须协商 viewCreationDefaultsVersion:1
+  calendar?: { timeZone: string; timeZoneData: string; weekStartsOn: 0 | 1 }
   creationContext?: { timeZone: string; timeZoneData: string }
   tableId: string
   expectedRevision: string
@@ -2464,6 +2467,24 @@ target 均属于这一个 Table；除非 schema plan 拥有该 transaction，否
 中的显式 change 需要另一个 operation 与 revision。deterministic incoming
 Relation-policy side effect 不是 caller 编写的 change，并可按下文规定影响其他
 Table。
+
+协商 `viewCreationDefaultsVersion:1` 后，普通 create 可传临时 `creationQuery`，仅含
+`filter`；它不是 Saved View 或 File feature，不作用于 update、import、Sync、恢复。
+没有 View 上下文的调用省略它，search/sort 不生成值。Calendar 条件使用 request 的
+`calendar` 和同一 operation instant，与日期默认值及系统创建时间一致，不冻结筛选时间。
+
+显式值、null/清空以及 Calendar/分组入口值优先；其次为可确定的 View 推导，最后为
+Field 默认值。候选须通过既有 canonical filter compiler 的 SQL 与存储校验。支持等值、
+Checkbox、文字片段、唯一 catalog option、多选正向 membership 并集、顺序边界及
+calendar period/window 起点。若 Field 默认值已匹配则保留。数字严格边界先取单位步长，
+再尝试相邻 binary64；Date/Datetime 分别按一天/一毫秒步进。同字段所有约束共同校验；
+冲突或歧义时保留该字段普通默认，独立 AND 字段仍可推导。否定不提供正向候选，纯负向
+条件及非空检查不制造内容；不创建关联目标或附件，不写系统、派生、只读字段。
+
+嵌套 AND/OR 最多展开 32 个分支；显式值可排除不兼容分支，只应用所有剩余分支一致的
+推导值，不任意选 OR 分支。超过 32 分支或 2048 次候选校验时不推导。非法/已退役
+query 原子拒绝。没有安全候选不代表证明无解，普通创建仍可执行，结果可能不在当前
+filter 中；不得修改 filter 或为新行添加查询例外来掩盖此结果。
 
 Create/update `values` 是 sparse Field-ID map。Runtime 拒绝 display name、
 physical name、unknown Field、system Field、Formula、Lookup 与 inverse Relation

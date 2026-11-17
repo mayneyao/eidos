@@ -121,7 +121,8 @@ export interface EidosFileDataSource {
   insertRow(
     tableId: string,
     fields: Record<string, EidosFileLogicalValue>,
-    creationContext?: EidosFileCreationContext
+    creationContext?: EidosFileCreationContext,
+    creationQuery?: EidosFileRowQuery
   ): Promise<EidosFileRowMutationResult>
   updateRow(
     tableId: string,
@@ -273,11 +274,13 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
   async insertRow(
     tableId: string,
     fields: Record<string, EidosFileLogicalValue>,
-    creationContext?: EidosFileCreationContext
+    creationContext?: EidosFileCreationContext,
+    creationQuery?: EidosFileRowQuery
   ): Promise<EidosFileRowMutationResult> {
     const mutation = this.runtime.mutateRows({
       tableId,
       creationContext,
+      creationQuery,
       insert: [{ fields }],
     })
     return this.mutationResult(

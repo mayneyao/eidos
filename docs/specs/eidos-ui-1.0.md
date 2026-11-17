@@ -1311,6 +1311,22 @@ Explicit null/clear remains empty. Starting a new draft evaluates anew. Defaulte
 values are ordinary editable values after creation. Existing/loading records,
 imports, and updates MUST NOT be defaulted by the UI.
 
+Ordinary View creation in Grid, Gallery, Calendar, and Kanban MUST capture the
+current applied filter and execution preferences for that creation. With
+`viewCreationDefaultsVersion:1`, it passes them through the shared data source
+to Runtime as `creationQuery` and `calendar`. The UI MUST NOT implement its own
+filter coercion. An older Runtime without the capability rejects filtered
+creation at this boundary instead of silently ignoring the requested defaults.
+Explicit user values/clears and group/Calendar values take priority over View
+inference, which takes priority over Field defaults. New values remain editable.
+Changing View, filter, Table, or File MUST NOT retarget an in-flight create or
+apply defaults to existing records. Ordinary creation without a filter retains
+its existing behavior. A View with no safe inferred values may create a record
+outside its filter; it MUST NOT gain an exception to normal query membership.
+Form's unsaved local preview and a host-owned draft without a captured View
+creation context do not infer View values. Undo/redo restores saved values,
+never reruns creation inference or a temporal default.
+
 An explicit Create option action in a Select or Multi-select editor first
 commits the complete updated Field option catalog. Only after that metadata
 mutation succeeds may UI submit the cell value against the returned revision.

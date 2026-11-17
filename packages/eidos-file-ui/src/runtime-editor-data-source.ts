@@ -862,13 +862,29 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   async insertRow(
     tableId: string,
     fields: Record<string, EidosFileLogicalValue>,
-    creationContext?: EidosFileCreationContext
+    creationContext?: EidosFileCreationContext,
+    creationQuery?: EidosFileRowQuery
   ): Promise<EidosFileRowMutationResult> {
     const clientKey = this.id("row")
     const projection = this.projection(this.fieldsByTable.get(tableId) ?? [])
+    if (
+      creationQuery?.filter &&
+      this.runtimeCapabilities?.viewCreationDefaultsVersion !== 1
+    )
+      throw new Error("This Runtime does not support view creation defaults")
     const result = await this.runtime.mutateRows(
       {
         tableId,
+        ...(creationQuery?.filter
+          ? {
+              creationQuery: this.runtimeQuery(tableId, {
+                filter: creationQuery.filter,
+              }),
+              ...(creationQuery.calendar
+                ? { calendar: creationQuery.calendar }
+                : {}),
+            }
+          : {}),
         ...(creationContext &&
         this.runtimeCapabilities?.temporalDefaultsVersion === 1
           ? { creationContext }

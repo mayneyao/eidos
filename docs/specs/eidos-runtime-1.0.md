@@ -397,6 +397,7 @@ capability means false.
 
 ```ts
 interface RuntimeCapabilities {
+  viewCreationDefaultsVersion?: 1
   temporalDefaultsVersion?: 1
   calendarQueryVersion?: 2
   calendarWindowVersion?: 1
@@ -2525,6 +2526,8 @@ neither may define alternate semantics.
 
 ```ts
 interface RowMutation {
+  creationQuery?: RowQuery // filter only; requires viewCreationDefaultsVersion:1
+  calendar?: { timeZone: string; timeZoneData: string; weekStartsOn: 0 | 1 }
   creationContext?: { timeZone: string; timeZoneData: string }
   tableId: string
   expectedRevision: string
@@ -2635,6 +2638,37 @@ create and only when the Field ID is absent from `values`; an explicit null on
 a nullable Select suppresses the default. A missing stored Checkbox Field uses
 false, including a non-nullable Checkbox or a legacy column without a physical
 `DEFAULT 0`. An explicit null remains null when that Field is nullable.
+With `viewCreationDefaultsVersion:1`, an ordinary create MAY supply a transient
+`creationQuery` containing only `filter`. It is not a Saved View or File feature
+and is never applied to updates, import, synchronization, or restoration. A
+caller without a View context omits it. Search and sorting do not supply values.
+Calendar predicates use the request's `calendar` and the same operation instant
+as temporal defaults and system creation times; they do not freeze query time.
+
+Explicit values, including null and values selected through Calendar or group
+entry points, MUST take precedence. For omitted writable stored Fields, the
+Runtime MAY infer values before applying Field defaults. Candidate values MUST
+pass the existing canonical filter compiler and storage validation. Equality,
+Checkbox constraints, literal text fragments, unique catalog options, positive
+Multi-select membership unions, ordered bounds, and calendar period/window
+starts supply candidates. An already matching Field default is retained.
+Numeric strict bounds prefer a unit step, then the adjacent binary64 value;
+Date and Datetime strict bounds step by one day and one millisecond respectively.
+Combined constraints on a Field are evaluated together. A conflicting or
+ambiguous Field retains its ordinary default; independent AND Fields may still
+be inferred. Negation supplies no positive seed. Negative-only conditions and
+nonempty checks never fabricate content. Relation targets and attachments are
+never invented; system, derived, and read-only Fields are never written.
+
+Nested AND/OR is expanded into at most 32 branches. Explicit supplied values
+may exclude incompatible branches. Only identical inferred values common to
+all remaining branches are applied; an arbitrary OR branch MUST NOT be chosen.
+More than 32 branches or 2048 candidate evaluations yields no inferred values.
+Invalid or retired query documents are rejected atomically. Failure to find a
+safe candidate is not a promise of unsatisfiability: ordinary creation remains
+available, and its resulting row may be outside the current filter. The filter
+and normal query membership MUST NOT be changed to conceal this outcome.
+
 With `temporalDefaultsVersion:1`, an omitted writable stored Date/Datetime
 declaring File Format `settings.defaultValue:"now"` uses the single canonical
 operation reference instant. Datetime stores that exact UTC millisecond instant;

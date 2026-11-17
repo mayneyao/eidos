@@ -897,7 +897,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query: EidosFileRowQuery): Promise<EidosFileColumnStatResult[]>;
   aggregateTable(tableId: string, options: EidosFileTableAggregateOptions, query: EidosFileRowQuery): Promise<EidosFileTableAggregateResult>;
   previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
-  insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext): Promise<EidosFileRowMutationResult>;
+  insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext, creationQuery?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
   updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
   deleteRows(tableId: string, rowIds: string[]): Promise<EidosFileRowsDeleteResult>;
   revertRowMutation(tableId: string, undoToken: string): Promise<EidosFileRowsUndoResult>;
@@ -1748,6 +1748,7 @@ declare const EidosFileGalleryView: _$react.NamedExoticComponent<{
   loadPage: (offset: number, limit: number, totalHint?: number, cursor?: string) => Promise<EidosFileRowPage>;
   loadRow?: (rowId: string) => Promise<EidosFileRow | null>;
   onCellEdit?: (row: EidosFileRow, field: EidosFileFieldInfo, value: EidosFileSqlPrimitive) => Promise<EidosFileRowMutationResult>;
+  onAddRow?: () => Promise<EidosFileRowMutationResult>;
   onImportFiles?: (options?: {
     imagesOnly?: boolean;
   }) => Promise<FileEntry[]>;

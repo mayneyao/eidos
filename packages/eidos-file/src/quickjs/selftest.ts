@@ -916,6 +916,13 @@ export async function runSelfTest(): Promise<string> {
               position: "2",
               settings: { defaultValue: "now" },
             },
+            {
+              clientKey: "number",
+              name: "Number",
+              kind: "number",
+              nullable: true,
+              position: "3",
+            },
           ],
         },
       },
@@ -961,6 +968,48 @@ export async function runSelfTest(): Promise<string> {
       [null, null],
     ])
     checks.push("temporal-defaults-create-context-and-null")
+    const inferred = await runtime.mutateRows(
+      {
+        tableId: defaultId("defaults"),
+        expectedRevision: defaultsRows.revision,
+        calendar: {
+          timeZone: "Asia/Shanghai",
+          timeZoneData: "2026f",
+          weekStartsOn: 1,
+        },
+        creationContext: { timeZone: "Asia/Shanghai", timeZoneData: "2026f" },
+        creationQuery: {
+          filter: {
+            op: "and",
+            args: [
+              { op: "contains", fieldId: defaultId("title"), value: "213" },
+              { op: "gt", fieldId: defaultId("number"), value: 1 },
+              {
+                op: "lt",
+                fieldId: defaultId("number"),
+                value: 1.0000000000000004,
+              },
+              {
+                op: "calendar-period",
+                fieldId: defaultId("date"),
+                unit: "year",
+                offset: 1,
+              },
+            ],
+          },
+        },
+        changes: [{ kind: "create", clientKey: "inferred", values: {} }],
+        returning: {
+          fields: [defaultId("title"), defaultId("number"), defaultId("date")],
+          resolveRelations: [],
+        },
+      },
+      context("filter-creation-defaults")
+    )
+    expect(inferred.returnedRows!.rows.map((row) => row.values)).toEqual([
+      ["213", 1.0000000000000002, "2027-01-01"],
+    ])
+    checks.push("view-filter-creation-defaults-and-adjacent-number")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

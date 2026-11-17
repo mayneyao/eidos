@@ -234,6 +234,60 @@ describe("EidosFileGalleryView", () => {
     vi.unstubAllGlobals()
   })
 
+  it("opens a created record after refresh and ignores a completion from a different View", async () => {
+    const loadPage = vi.fn(async () => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 0,
+      rows: [],
+    }))
+    const result = {
+      tableId: "tasks",
+      row: { _id: "new", title: "Prefilled" },
+      rowCount: 1,
+    }
+    const onOpenRecord = vi.fn()
+    let finish: ((value: typeof result) => void) | undefined
+    const onAddRow = vi.fn(
+      () =>
+        new Promise<typeof result>((resolve) => {
+          finish = resolve
+        })
+    )
+    const render = async (nextView = view, reloadToken = 0) =>
+      act(async () =>
+        root.render(
+          <EidosFileGalleryView
+            table={table}
+            view={nextView}
+            loadPage={loadPage}
+            onAddRow={onAddRow}
+            onOpenRecord={onOpenRecord}
+            reloadToken={reloadToken}
+          />
+        )
+      )
+    await render()
+    await act(async () =>
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "New record")!
+        .click()
+    )
+    await render(view, 1)
+    await act(async () => finish!(result))
+    expect(onOpenRecord).toHaveBeenCalledWith(result.row)
+    onOpenRecord.mockClear()
+    await act(async () =>
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "New record")!
+        .click()
+    )
+    await render({ ...view, id: "another" }, 1)
+    await act(async () => finish!(result))
+    expect(onOpenRecord).not.toHaveBeenCalled()
+  })
+
   it("selects stable IDs without opening records and clears on an effective query change", async () => {
     const onOpenRecord = vi.fn()
     const loadPage = vi.fn(async (offset: number, limit: number) => ({

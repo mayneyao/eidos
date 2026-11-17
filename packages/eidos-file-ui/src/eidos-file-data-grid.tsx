@@ -278,7 +278,12 @@ export function EidosFileDataGrid({
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
     const settled = enqueueRowWrite(async () => {
-      const result = await source.insertRow(table.table.id, {}, creationContext)
+      const result = await source.insertRow(
+        table.table.id,
+        {},
+        creationContext,
+        query
+      )
       onMutation?.(result)
       return result
     })
@@ -295,6 +300,7 @@ export function EidosFileDataGrid({
     table.rowCount,
     table.table.id,
     creationContext,
+    query,
   ])
 
   const editCell = useCallback(

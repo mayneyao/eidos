@@ -123,6 +123,7 @@ export interface RuntimePublicationSnapshot {
 }
 
 export interface RuntimeCapabilities {
+  viewCreationDefaultsVersion?: 1
   temporalDefaultsVersion?: 1
   calendarWindowVersion?: 1
   calendarQueryVersion?: 2
@@ -599,6 +600,9 @@ export interface LookupDefinition {
 }
 
 export interface RowMutation {
+  /** Optional negotiated ordinary-create filter; never used by updates or replay. */
+  creationQuery?: RowQuery
+  calendar?: EidosFileCalendarContext
   creationContext?: EidosFileCreationContext
   tableId: string
   expectedRevision: string

@@ -451,6 +451,8 @@ export interface EidosFileLogicalRowUpdate {
 }
 
 export interface EidosFileRowsMutation {
+  /** Transient filter for ordinary creates only; explicit values always win. */
+  creationQuery?: EidosFileRowQuery
   creationContext?: EidosFileCreationContext
   tableId: string
   insert?: EidosFileLogicalRowDraft[]

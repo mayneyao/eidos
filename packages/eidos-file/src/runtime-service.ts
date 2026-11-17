@@ -196,6 +196,7 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 })
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
+  viewCreationDefaultsVersion: 1,
   calendarWindowVersion: 1,
   temporalDefaultsVersion: 1,
   calendarQueryVersion: 2,
@@ -1353,6 +1354,21 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       async () => {
         this.assertWritable("mutateRows")
+        if (request.calendar !== undefined) {
+          assertEidosFileCalendarContext(request.calendar)
+          this.requestCalendar = request.calendar
+        }
+        if (
+          request.creationQuery !== undefined &&
+          (!request.creationQuery ||
+            typeof request.creationQuery !== "object" ||
+            Array.isArray(request.creationQuery) ||
+            Object.keys(request.creationQuery).some((key) => key !== "filter"))
+        )
+          throw runtimeError(
+            "invalid-query",
+            "Creation query accepts only a filter"
+          )
         if (request.creationContext !== undefined)
           assertEidosFileCreationContext(request.creationContext)
         if (
@@ -1485,7 +1501,7 @@ export class EidosRuntimeService implements RuntimeClient {
             fields: this.mutationValues(
               request.tableId,
               change.values,
-              true,
+              request.creationQuery?.filter === undefined,
               request.creationContext
             ),
           }))
@@ -1519,6 +1535,14 @@ export class EidosRuntimeService implements RuntimeClient {
               ? { ...reversibleDelete, rows: [] }
               : this.core.mutateRows({
                   tableId: request.tableId,
+                  ...(request.creationQuery
+                    ? {
+                        creationQuery: this.compatibilityQuery(
+                          request.tableId,
+                          request.creationQuery
+                        ),
+                      }
+                    : {}),
                   creationContext: request.creationContext,
                   insert: inserts,
                   update: updates,

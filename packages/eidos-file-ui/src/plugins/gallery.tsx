@@ -16,8 +16,10 @@ import { EidosFileGalleryView } from "../eidos-file-gallery-view"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
 import { searchEidosFileRelationRecords } from "../eidos-file-relation-search"
 import { defineEidosFilePlugin } from "../plugin"
+import { useEidosFileCreationContext } from "../eidos-file-temporal-defaults"
 
 function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
+  const creationContext = useEidosFileCreationContext()
   const {
     source,
     table,
@@ -70,7 +72,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
 
   if (!view) return null
   const tableCapabilities = table.table.settings?.capabilities as
-    | { delete?: boolean | "clear_meta" }
+    | { delete?: boolean | "clear_meta"; insert?: boolean }
     | undefined
   const canDelete =
     !disabled &&
@@ -109,6 +111,24 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       onCellEdit={editCell}
+      onAddRow={
+        !disabled &&
+        props.capabilities.mutate &&
+        tableCapabilities?.insert !== false &&
+        table.table.settings?.tableType !== "virtual" &&
+        !table.table.settings?.vtabModule
+          ? async () => {
+              const result = await source.insertRow(
+                table.table.id,
+                {},
+                creationContext,
+                query
+              )
+              onMutation?.(result)
+              return result
+            }
+          : undefined
+      }
       onImportFiles={props.onImportFiles}
       onImportDroppedFiles={props.onImportDroppedFiles}
       onDeleteRow={canDelete ? onDeleteRow : undefined}
