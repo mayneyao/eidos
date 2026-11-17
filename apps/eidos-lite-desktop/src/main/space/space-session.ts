@@ -29,6 +29,13 @@ import type {
 } from "../../shared/text-search"
 import { constants as fsConstants, type BigIntStats } from "node:fs"
 import type { SystemClipboardFiles } from "../system-file-clipboard"
+import type {
+  ClipboardExportLease,
+  ClipboardExportRequest,
+} from "../clipboard-export-store"
+import { createWriteStream } from "node:fs"
+import { Transform } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import fs from "node:fs/promises"
 import type {
   ExplorerCalendarExecution,
@@ -2293,7 +2300,10 @@ export class SpaceSession {
   async withSystemClipboardFiles<T>(
     sources: SpacePathClipboardSources,
     mode: "cut" | "copy",
-    publish: (files: SystemClipboardFiles) => Promise<T>
+    publish: (
+      files: SystemClipboardFiles,
+      exportFiles: ClipboardExportRequest
+    ) => Promise<T>
   ): Promise<T> {
     return this.gate.withRuntimeRead(async () => {
       if (!sources.sources.length || sources.sources.length > 10000)
@@ -2352,12 +2362,113 @@ export class SpaceSession {
       }
       for (const source of sources.sources)
         await this.validateClipboardSource(sources, source.relativePath)
-      return publish({
-        paths: mode === "copy" && !internalOnly ? paths : [],
-        image,
-        internalOnly: mode === "copy" && internalOnly,
-      })
+      return publish(
+        {
+          paths: mode === "copy" && !internalOnly ? paths : [],
+          image,
+          internalOnly: mode === "copy" && internalOnly,
+        },
+        (lease, signal, complete) =>
+          this.exportClipboardFiles(sources, lease, signal, complete)
+      )
     })
+  }
+
+  /** Materialize only explicitly selected folders/databases into a host lease. */
+  private async exportClipboardFiles<T>(
+    sources: SpacePathClipboardSources,
+    lease: ClipboardExportLease,
+    signal: AbortSignal,
+    publish: (paths: string[], bytes: number) => Promise<T>
+  ): Promise<T> {
+    // Invoked only by the callback holding withSystemClipboardFiles' read lease.
+    const prepare = async () => {
+      const paths: string[] = []
+      let bytes = 0
+      let entries = 0
+      const sizes = new Map<string, number>()
+      const check = () => {
+        signal.throwIfAborted()
+        if (bytes > lease.byteLimit)
+          throw new Error("This selection exceeds the system copy size limit")
+      }
+      for (const [index, source] of sources.sources.entries()) {
+        check()
+        const relative = normalizeMutableRelativePath(source.relativePath)
+        await this.validateClipboardSource(sources, relative)
+        const absolute = this.resolveUserPath(relative)
+        const stats = await fs.lstat(absolute)
+        if (stats.isFile() && !eidosDatabasePath(relative)) {
+          paths.push(absolute)
+          continue
+        }
+        await fs.mkdir(path.join(lease.root, String(index)), { mode: 0o700 })
+        const target = `${index}/${path.posix.basename(relative)}`
+        await copySpacePath(
+          this.canonical.root,
+          relative,
+          target,
+          async (from, to) => {
+            check()
+            await this.runtimePool.copyFileSnapshot(from, to, signal)
+            bytes += (await fs.stat(to)).size - (sizes.get(from) ?? 0)
+            check()
+          },
+          {
+            targetRoot: lease.root,
+            check: (from, stats) => {
+              if (++entries > 10000)
+                throw new Error(
+                  "This selection exceeds the system copy item limit"
+                )
+              if (stats.isFile()) {
+                sizes.set(from, stats.size)
+                bytes += stats.size
+              }
+              check()
+            },
+            copyFile: async (from, to) => {
+              let copied = 0
+              const expected = sizes.get(from) ?? 0
+              const input = await fs.open(
+                from,
+                fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
+              )
+              try {
+                await pipeline(
+                  input.createReadStream(),
+                  new Transform({
+                    transform(chunk: Buffer, _encoding, done) {
+                      copied += chunk.length
+                      if (bytes + copied - expected > lease.byteLimit)
+                        done(
+                          new Error(
+                            "This selection exceeds the system copy size limit"
+                          )
+                        )
+                      else done(null, chunk)
+                    },
+                  }),
+                  createWriteStream(to, { flags: "wx", mode: 0o600 }),
+                  { signal }
+                )
+              } finally {
+                await input.close()
+              }
+              bytes += copied - expected
+              check()
+            },
+          }
+        )
+        paths.push(path.join(lease.root, target))
+      }
+      for (const source of sources.sources)
+        await this.validateClipboardSource(sources, source.relativePath)
+      check()
+      await lease.retain(bytes)
+      return publish(paths, bytes)
+    }
+    return prepare()
   }
 
   private async clipboardSourceToken(relativePath: string): Promise<string> {

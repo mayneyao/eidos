@@ -65,7 +65,8 @@ int main(int argc, const char *argv[]) {
       for (NSPasteboardItem *item in board.pasteboardItems)
         [types addObject:[item.types valueForKey:@"description"]];
       response[@"types"] = types;
-      NSImage *image = [[NSImage alloc] initWithPasteboard:board];
+      NSImage *image = ([board.types containsObject:NSPasteboardTypePNG] || [board.types containsObject:NSPasteboardTypeTIFF])
+        ? [[NSImage alloc] initWithPasteboard:board] : nil;
       if (image) {
         NSBitmapImageRep *bitmap = [NSBitmapImageRep imageRepWithData:image.TIFFRepresentation];
         if (bitmap) response[@"imageSize"] = @[@(bitmap.pixelsWide), @(bitmap.pixelsHigh)];

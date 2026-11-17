@@ -6,6 +6,10 @@ export type EidosLiteMessageValues = Record<string, string | number>
 const zh: Record<string, string> = {
   Cut: "剪切",
   Paste: "粘贴",
+  "Preparing system copy…": "正在准备系统复制…",
+  "Files copied": "文件已复制",
+  "System copy was not completed": "系统复制未完成",
+  "Cancel copy": "取消复制",
   "Could not open {name}. {value2}": "无法打开 {name}。{value2}",
   "Filter tree by name": "按名称过滤目录树",
   "Matching files": "匹配文件",

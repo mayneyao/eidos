@@ -176,6 +176,7 @@ export const IPC_CHANNELS = {
   preparePathClipboard: "eidos-lite:path-clipboard-prepare",
   isPathClipboardCurrent: "eidos-lite:path-clipboard-current",
   cancelPathClipboard: "eidos-lite:path-clipboard-cancel",
+  fileClipboardStatus: "eidos-lite:file-clipboard-status",
   clipboardCommand: "eidos-lite:clipboard-command",
   textClipboardCommand: "eidos-lite:text-clipboard-command",
   clipboardCommandState: "eidos-lite:clipboard-command-state",
@@ -852,6 +853,10 @@ export interface SpacePathClipboardSources {
   sources: { relativePath: string; token: string }[]
   systemClipboardToken?: string
   systemClipboardWarning?: string
+}
+export interface EidosLiteFileClipboardStatus {
+  sequence: number
+  phase: "preparing" | "completed" | "failed"
 }
 
 export interface EidosLiteAppInfo {
@@ -2183,6 +2188,9 @@ export interface EidosLiteApi extends PluginApi {
   ): Promise<SpacePathClipboardSources>
   isPathClipboardCurrent(token: string): Promise<boolean>
   cancelPathClipboard(): void
+  onFileClipboardStatus(
+    listener: (status: EidosLiteFileClipboardStatus) => void
+  ): () => void
   deletePath(relativePath: string): Promise<SpacePathMutationResult>
   importFiles(
     targetDirectory: string | null

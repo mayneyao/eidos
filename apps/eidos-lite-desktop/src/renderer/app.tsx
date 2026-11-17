@@ -47,6 +47,7 @@ import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { WorkspaceHeading } from "./workspace-heading"
+import { FileClipboardStatus } from "./file-clipboard-status"
 import { ExplorerFilterBar } from "./explorer-filter-bar"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
@@ -4511,6 +4512,7 @@ function WorkspaceApp({
           </nav>
         </PluginExplorerPanel>
         <footer className="sidebar-footer">
+          <FileClipboardStatus />
           {whatsNew.unread && (
             <div className="whats-new-notice">
               <button type="button" onClick={whatsNew.show}>

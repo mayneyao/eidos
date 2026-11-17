@@ -4,6 +4,11 @@ import { createHash, randomUUID } from "node:crypto"
 interface PasteboardResponse {
   changeCount: number
 }
+export class ClipboardOwnershipChangedError extends Error {
+  constructor() {
+    super("The system clipboard changed; copy again")
+  }
+}
 export interface SystemClipboardFiles {
   paths: string[]
   image?: string
@@ -49,6 +54,7 @@ export function runFileClipboardHelper(
     child.stdin.on("error", () => undefined)
     child.on("close", (code) => {
       clearTimeout(timer)
+      if (code === 4) return reject(new ClipboardOwnershipChangedError())
       if (code !== 0) return failure()
       try {
         const value: unknown = JSON.parse(
@@ -74,6 +80,7 @@ export function runFileClipboardHelper(
 export class SystemFileClipboard {
   private readonly salt = randomUUID()
   private generation = 0
+  private cancellation = new AbortController()
   private pending: Promise<unknown> = Promise.resolve()
   constructor(
     private readonly executable: string,
@@ -81,9 +88,15 @@ export class SystemFileClipboard {
     private readonly run = runFileClipboardHelper
   ) {}
   reserve(): number {
+    this.cancellation.abort(new Error("File copy was superseded"))
+    this.cancellation = new AbortController()
     return ++this.generation
   }
+  signal(): AbortSignal {
+    return this.cancellation.signal
+  }
   async changeCount(): Promise<number> {
+    await this.pending.catch(() => undefined)
     return (await this.run(this.executable, { action: "state" })).changeCount
   }
   private token(count: number) {
@@ -93,22 +106,27 @@ export class SystemFileClipboard {
     generation: number,
     files: SystemClipboardFiles,
     assertCurrent: () => void,
-    expected: number
+    expected: number,
+    published?: (changeCount: number) => Promise<void>,
+    notPublished?: () => Promise<void>
   ): Promise<{
     systemClipboardToken: string
     systemClipboardWarning?: string
   }> {
+    let attempted = false
     const operation = this.pending
       .catch(() => undefined)
       .then(async () => {
         if (generation !== this.generation)
           throw new Error("File copy was superseded")
         assertCurrent()
+        attempted = true
         const result = await this.run(this.executable, {
           action: "write",
           ...files,
           expected,
         })
+        await published?.(result.changeCount)
         if (generation !== this.generation)
           throw new Error("File copy was superseded")
         assertCurrent()
@@ -121,6 +139,11 @@ export class SystemFileClipboard {
               }
             : {}),
         }
+      })
+      .catch(async (cause: unknown) => {
+        if (!attempted || cause instanceof ClipboardOwnershipChangedError)
+          await notPublished?.()
+        throw cause
       })
     this.pending = operation
     return operation

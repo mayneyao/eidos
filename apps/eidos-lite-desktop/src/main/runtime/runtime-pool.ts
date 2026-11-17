@@ -401,8 +401,10 @@ export class RuntimePool {
   /** Paths are resolved and authorized by SpaceSession, never by the renderer. */
   async copyFileSnapshot(
     sourcePath: string,
-    destinationPath: string
+    destinationPath: string,
+    signal?: AbortSignal
   ): Promise<void> {
+    signal?.throwIfAborted()
     const entry: RuntimeEntry = {
       sessionId: randomUUID(),
       relativePath: "",
@@ -416,7 +418,10 @@ export class RuntimePool {
       lastAccess: 0,
     }
     this.spawnChild(entry)
+    const abort = () => entry.child?.kill()
+    signal?.addEventListener("abort", abort, { once: true })
     try {
+      signal?.throwIfAborted()
       await this.request(entry, {
         type: "copySnapshot",
         requestId: 1,
@@ -424,6 +429,7 @@ export class RuntimePool {
         destinationPath,
       })
     } finally {
+      signal?.removeEventListener("abort", abort)
       entry.child?.kill()
     }
   }

@@ -1,5 +1,6 @@
 import { installHtmlPreviewGuestGuard } from "./html-preview-view"
 import { SystemFileClipboard } from "./system-file-clipboard"
+import { ClipboardExportStore } from "./clipboard-export-store"
 import { isDevelopmentReadonlyRoot } from "./development-readonly"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
@@ -26,6 +27,7 @@ import {
   IPC_CHANNELS,
   type EidosLiteAppearance,
   type EidosLiteDiagnostics,
+  type EidosLiteFileClipboardStatus,
   type EidosLitePathClipboardMode,
   type EidosLitePreferences,
   type EidosLiteSettingsDestination,
@@ -1291,14 +1293,76 @@ export class WindowController {
       "eidos-file-clipboard"
     )
   )
+  private readonly clipboardExports = new ClipboardExportStore(
+    path.resolve(app.getPath("userData"), "file-clipboard-exports")
+  )
 
+  private fileClipboardSequence = 0
+  private fileClipboardOwner: WebContents | null = null
+  private readonly fileClipboardStatuses = new WeakMap<
+    WebContents,
+    EidosLiteFileClipboardStatus
+  >()
+  fileClipboardStatus(
+    webContents: WebContents
+  ): EidosLiteFileClipboardStatus | null {
+    return this.fileClipboardStatuses.get(webContents) ?? null
+  }
+  private setFileClipboardStatus(
+    owner: WebContents,
+    phase: EidosLiteFileClipboardStatus["phase"]
+  ): void {
+    const status = { sequence: ++this.fileClipboardSequence, phase }
+    this.fileClipboardStatuses.set(owner, status)
+    if (!owner.isDestroyed())
+      owner.send(IPC_CHANNELS.fileClipboardStatus, status)
+  }
+  async initializeFileClipboardExports(): Promise<void> {
+    if (this.systemFileClipboard.supported)
+      await this.clipboardExports.reclaim(() =>
+        this.systemFileClipboard.changeCount()
+      )
+  }
   async preparePathClipboard(
+    webContents: WebContents,
+    paths: string[],
+    mode?: "cut" | "copy"
+  ) {
+    const operation = this.capturePathClipboard(webContents, paths, mode)
+    const active = this.systemFileClipboard.signal()
+    const report = mode === "copy" && this.systemFileClipboard.supported
+    if (report) {
+      if (
+        this.fileClipboardOwner &&
+        this.fileClipboardOwner !== webContents &&
+        this.fileClipboardStatus(this.fileClipboardOwner)?.phase === "preparing"
+      )
+        this.setFileClipboardStatus(this.fileClipboardOwner, "failed")
+      this.fileClipboardOwner = webContents
+      this.setFileClipboardStatus(webContents, "preparing")
+    }
+    try {
+      const result = await operation
+      if (report && !active.aborted)
+        this.setFileClipboardStatus(
+          webContents,
+          result.systemClipboardWarning ? "failed" : "completed"
+        )
+      return result
+    } catch (cause) {
+      if (report && !active.aborted)
+        this.setFileClipboardStatus(webContents, "failed")
+      throw cause
+    }
+  }
+  private async capturePathClipboard(
     webContents: WebContents,
     paths: string[],
     mode?: "cut" | "copy"
   ) {
     const session = this.requireSession(webContents)
     const generation = this.systemFileClipboard.reserve()
+    const active = this.systemFileClipboard.signal()
     const expected =
       mode && this.systemFileClipboard.supported
         ? await this.systemFileClipboard.changeCount()
@@ -1308,8 +1372,89 @@ export class WindowController {
     const system = await session.withSystemClipboardFiles(
       sources,
       mode,
-      (files) =>
-        this.systemFileClipboard.write(
+      async (files, exportFiles) => {
+        if (mode === "copy" && files.internalOnly) {
+          let ownership = expected!
+          const marker = await this.systemFileClipboard.write(
+            generation,
+            { paths: [] },
+            () => active.throwIfAborted(),
+            ownership,
+            async (count) => {
+              ownership = count
+            }
+          )
+          const changed = new AbortController()
+          const signal = AbortSignal.any([
+            active,
+            changed.signal,
+            AbortSignal.timeout(30000),
+          ])
+          let monitoring = true
+          let checking = false
+          const timer = setInterval(async () => {
+            if (checking || !monitoring) return
+            checking = true
+            try {
+              if (
+                !(await this.systemFileClipboard.isCurrent(
+                  marker.systemClipboardToken
+                )) &&
+                monitoring
+              )
+                changed.abort(new Error("The system clipboard changed"))
+            } catch {
+              if (monitoring)
+                changed.abort(new Error("The system clipboard is unavailable"))
+            } finally {
+              checking = false
+            }
+          }, 500)
+          timer.unref()
+          try {
+            return await this.clipboardExports.withExport(ownership, (lease) =>
+              exportFiles(lease, signal, async (paths) => {
+                monitoring = false
+                clearInterval(timer)
+                return this.systemFileClipboard.write(
+                  generation,
+                  { paths },
+                  () => signal.throwIfAborted(),
+                  ownership,
+                  (count) => lease.owned(count),
+                  () => lease.discard()
+                )
+              })
+            )
+          } catch (cause) {
+            if (
+              active.aborted ||
+              changed.signal.aborted ||
+              !(await this.systemFileClipboard.isCurrent(
+                marker.systemClipboardToken
+              ))
+            )
+              throw new Error("File copy was canceled or the clipboard changed")
+            const known = [
+              "This selection exceeds the system copy size limit",
+              "This selection exceeds the system copy item limit",
+              "The file clipboard cache is full",
+            ]
+            const reason = signal.aborted
+              ? "The system copy timed out."
+              : cause instanceof Error && known.includes(cause.message)
+                ? `${cause.message}.`
+                : "The system copy could not be prepared."
+            return {
+              ...marker,
+              systemClipboardWarning: `${reason} Internal copy is still available.`,
+            }
+          } finally {
+            monitoring = false
+            clearInterval(timer)
+          }
+        }
+        return this.systemFileClipboard.write(
           generation,
           files,
           // The captured session holds a read lease and validates its sources.
@@ -1317,6 +1462,7 @@ export class WindowController {
           () => undefined,
           expected!
         )
+      }
     )
     return { ...sources, ...system }
   }
@@ -1326,6 +1472,9 @@ export class WindowController {
   }
   cancelPathClipboard(): void {
     this.systemFileClipboard.reserve()
+    const owner = this.fileClipboardOwner
+    if (owner && this.fileClipboardStatus(owner)?.phase === "preparing")
+      this.setFileClipboardStatus(owner, "failed")
   }
 
   async diagnostics(webContents: WebContents): Promise<EidosLiteDiagnostics> {
@@ -1602,6 +1751,7 @@ export class WindowController {
   }
 
   async closeAll(): Promise<void> {
+    this.cancelPathClipboard()
     this.closing = true
     this.encryptedCloneGeneration += 1
     for (const operation of this.encryptedCloneAborts) operation.abort()

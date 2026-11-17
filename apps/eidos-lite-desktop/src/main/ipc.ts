@@ -2292,6 +2292,9 @@ export function registerIpc(
     }
   )
   const cancelPathClipboard = () => controller.cancelPathClipboard()
+  ipcMain.handle(IPC_CHANNELS.fileClipboardStatus, (event) =>
+    controller.fileClipboardStatus(event.sender)
+  )
   ipcMain.on(IPC_CHANNELS.cancelPathClipboard, cancelPathClipboard)
   ipcMain.handle(IPC_CHANNELS.deletePath, (event, relativePath: unknown) =>
     controller.deletePath(

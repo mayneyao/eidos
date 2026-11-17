@@ -1,4 +1,17 @@
 import { EventEmitter } from "node:events"
+import fs from "node:fs/promises"
+import path from "node:path"
+import os from "node:os"
+import {
+  SystemFileClipboard,
+  ClipboardOwnershipChangedError,
+  type SystemClipboardFiles,
+} from "./system-file-clipboard"
+import {
+  ClipboardExportStore,
+  type ClipboardExportRequest,
+} from "./clipboard-export-store"
+import type { SpacePathClipboardSources } from "../shared/contracts"
 import type { WebContents, BrowserWindow } from "electron"
 import type { SpaceSnapshot } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
@@ -105,6 +118,103 @@ function fixture() {
   kinds.set(window as unknown as BrowserWindow, "space")
   return { controller, contents, window, owner }
 }
+
+it.each(["complete", "cancel", "external"])(
+  "prepares system exports in background and reports %s without stale publication",
+  async (outcome) => {
+    const { controller, owner } = fixture()
+    const temporary = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "lite-export-controller-"))
+    )
+    let count = 1
+    const writes: string[][] = []
+    const board = new SystemFileClipboard(
+      "unused",
+      true,
+      async (_path, request) => {
+        if (request.action === "write") {
+          if (request.expected !== count)
+            throw new ClipboardOwnershipChangedError()
+          writes.push(request.paths as string[])
+          count += 1
+        }
+        return { changeCount: count }
+      }
+    )
+    Object.defineProperty(controller, "systemFileClipboard", { value: board })
+    Object.defineProperty(controller, "clipboardExports", {
+      value: new ClipboardExportStore(path.join(temporary, "cache")),
+    })
+    let started!: () => void
+    let finish!: () => void
+    const beginning = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const wait = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const sources: SpacePathClipboardSources = {
+      spaceId: "source",
+      sources: [{ relativePath: "folder", token: "identity" }],
+    }
+    const source = {
+      preparePathClipboard: async () => sources,
+      withSystemClipboardFiles: async <T>(
+        _sources: SpacePathClipboardSources,
+        _mode: "cut" | "copy",
+        publish: (
+          files: SystemClipboardFiles,
+          exportFiles: ClipboardExportRequest
+        ) => Promise<T>
+      ) =>
+        publish(
+          { paths: [], internalOnly: true },
+          async (lease, signal, complete) => {
+            started()
+            await wait
+            signal.throwIfAborted()
+            const file = path.join(lease.root, "原图 photo.txt")
+            await fs.writeFile(file, "original bytes")
+            await lease.retain(14)
+            return complete([file], 14)
+          }
+        ),
+    }
+    const session = vi
+      .spyOn(controller, "requireSession")
+      .mockReturnValue(source as never)
+    try {
+      const copying = controller.preparePathClipboard(owner, ["folder"], "copy")
+      const failure =
+        outcome === "complete"
+          ? undefined
+          : expect(copying).rejects.toThrow("canceled")
+      await beginning
+      expect(controller.fileClipboardStatus(owner)?.phase).toBe("preparing")
+      expect(writes).toEqual([[]]) // old system files cleared; no incomplete URL
+      session.mockReturnValue({} as never) // UI Space changes while captured source continues
+      if (outcome === "cancel") controller.cancelPathClipboard()
+      if (outcome === "external") count += 1
+      finish()
+      if (outcome === "complete") {
+        const result = await copying
+        expect(result.systemClipboardWarning).toBeUndefined()
+        expect(controller.fileClipboardStatus(owner)?.phase).toBe("completed")
+        expect(writes[1]).toHaveLength(1)
+        expect(path.basename(writes[1]![0]!)).toBe("原图 photo.txt")
+        expect(await fs.readFile(writes[1]![0]!, "utf8")).toBe("original bytes")
+      } else {
+        await failure
+        expect(controller.fileClipboardStatus(owner)?.phase).toBe("failed")
+        expect(writes).toEqual([[]])
+        expect(await fs.readdir(path.join(temporary, "cache"))).toEqual([])
+      }
+    } finally {
+      session.mockRestore()
+      await fs.rm(temporary, { recursive: true, force: true })
+    }
+  }
+)
 
 it("routes install links to a workbench instead of the focused Settings window", async () => {
   const { controller, window, owner } = fixture()

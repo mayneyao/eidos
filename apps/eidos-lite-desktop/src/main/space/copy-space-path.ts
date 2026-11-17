@@ -1,4 +1,4 @@
-import { constants } from "node:fs"
+import { constants, type Stats } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import {
@@ -12,21 +12,29 @@ export async function copySpacePath(
   root: string,
   source: string,
   target: string,
-  snapshot: (sourcePath: string, destinationPath: string) => Promise<void>
+  snapshot: (sourcePath: string, destinationPath: string) => Promise<void>,
+  options?: {
+    /** Host-owned export cache only; never supplied by renderer. */
+    targetRoot?: string
+    check?(source: string, stats: Stats): void
+    copyFile?(source: string, destination: string): Promise<void>
+  }
 ): Promise<void> {
   const created: { path: string; directory: boolean }[] = []
   const copy = async (from: string, to: string): Promise<void> => {
     normalizeMutableRelativePath(from)
     normalizeMutableRelativePath(to)
     const sourcePath = resolveSpacePath(root, from)
-    const destinationPath = resolveSpacePath(root, to)
+    const targetRoot = options?.targetRoot ?? root
+    const destinationPath = resolveSpacePath(targetRoot, to)
     if ((await fs.realpath(sourcePath)) !== sourcePath)
       throw new Error("Space symlinks cannot be copied")
     await resolveSpaceDirectory(
-      root,
+      targetRoot,
       path.posix.dirname(to) === "." ? null : path.posix.dirname(to)
     )
     const stats = await fs.lstat(sourcePath)
+    options?.check?.(from, stats)
     if (stats.isDirectory()) {
       await fs.mkdir(destinationPath)
       created.push({ path: destinationPath, directory: true })
@@ -43,6 +51,8 @@ export async function copySpacePath(
       if (/\.eidos-(wal|shm|journal)$/i.test(from))
         throw new Error("Copy the Eidos File instead of its SQLite sidecar")
       if (/\.eidos$/i.test(from)) await snapshot(sourcePath, destinationPath)
+      else if (options?.copyFile)
+        await options.copyFile(sourcePath, destinationPath)
       else
         await fs.copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL)
       created.push({ path: destinationPath, directory: false })

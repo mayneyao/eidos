@@ -7,6 +7,7 @@ import {
   IPC_CHANNELS,
   type EidosLiteApi,
   type EidosLiteClipboardCommand,
+  type EidosLiteFileClipboardStatus,
   type EidosLiteAssetDataSource,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
@@ -509,6 +510,29 @@ const api: EidosLiteApi = {
   isPathClipboardCurrent: (token) =>
     ipcRenderer.invoke(IPC_CHANNELS.isPathClipboardCurrent, token),
   cancelPathClipboard: () => ipcRenderer.send(IPC_CHANNELS.cancelPathClipboard),
+  onFileClipboardStatus: (listener) => {
+    let active = true
+    let sequence = -1
+    const receive = (value: EidosLiteFileClipboardStatus | null) => {
+      if (active && value && value.sequence > sequence) {
+        sequence = value.sequence
+        listener(value)
+      }
+    }
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: EidosLiteFileClipboardStatus
+    ) => receive(value)
+    ipcRenderer.on(IPC_CHANNELS.fileClipboardStatus, handler)
+    void ipcRenderer
+      .invoke(IPC_CHANNELS.fileClipboardStatus)
+      .then(receive)
+      .catch(() => undefined)
+    return () => {
+      active = false
+      ipcRenderer.removeListener(IPC_CHANNELS.fileClipboardStatus, handler)
+    }
+  },
   deletePath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>

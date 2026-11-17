@@ -552,6 +552,9 @@ void app.whenReady().then(async () => {
   }
   if (shutdownStarted) return
   await installApplicationMenu()
+  void controller
+    .initializeFileClipboardExports()
+    .catch(() => logger.warn("clipboard.cache.cleanup.failed"))
   controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true
   if (startupWindow) await controller.openDefaultWindow(startupWindow)

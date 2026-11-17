@@ -3035,6 +3035,30 @@ body {
   gap: 0.25rem;
   min-width: 0;
 }
+
+.file-clipboard-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.5rem;
+  padding: 0 0.375rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+}
+
+.file-clipboard-status > svg {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.file-clipboard-status > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sidebar-pages-target {
   flex: 1;
   min-width: 0;

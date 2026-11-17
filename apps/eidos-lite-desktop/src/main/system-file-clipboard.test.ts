@@ -215,7 +215,7 @@ it.skipIf(process.platform !== "darwin" || !existsSync(executable))(
           paths: [path.join(f.root, "active.eidos")],
           expected: oldCount,
         })
-      ).rejects.toThrow("unavailable")
+      ).rejects.toThrow("changed")
       expect((await inspect()).paths).toEqual(multiple.paths)
       const limited = await copy(["active.eidos"])
       expect(limited.systemClipboardWarning).toContain("only within Eidos Lite")
