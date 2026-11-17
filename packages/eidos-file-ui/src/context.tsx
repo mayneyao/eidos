@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react"
+import type { RecordFieldManagement } from "./eidos-file-record-field-context"
 import type {
   AssetLease,
   HostServiceCapabilities,
@@ -114,6 +115,10 @@ export interface EidosFileMarkdownHtml {
 }
 
 export interface EidosFileUIHost {
+  /** Stable, host-local file location/identity for personal record property preferences. */
+  recordPropertyScope?: string
+  /** Existing Runtime-backed schema boundary for records rendered by this editor. */
+  recordFieldManagement?: RecordFieldManagement
   /** Unsubmitted, saving or failed editor state. Hosts may defer external refreshes. */
   onPendingEditChange?: (editorId: string, pending: boolean) => void
   /** Host-owned personal menu preferences, independent of saved View layout. */
@@ -190,6 +195,8 @@ const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
+  recordPropertyScope,
+  recordFieldManagement,
   onPendingEditChange,
   menuOrders,
   onMenuOrderChange,
@@ -221,6 +228,10 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedRecordPropertyScope =
+    recordPropertyScope ?? parent.recordPropertyScope
+  const resolvedRecordFieldManagement =
+    recordFieldManagement ?? parent.recordFieldManagement
   const resolvedOnPendingEditChange =
     onPendingEditChange ?? parent.onPendingEditChange
   const resolvedMenuOrders = menuOrders ?? parent.menuOrders
@@ -259,6 +270,8 @@ export function EidosFileUIProvider({
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
+      recordPropertyScope: resolvedRecordPropertyScope,
+      recordFieldManagement: resolvedRecordFieldManagement,
       onPendingEditChange: resolvedOnPendingEditChange,
       ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
       ...(resolvedOnMenuOrderChange
@@ -309,6 +322,8 @@ export function EidosFileUIProvider({
         : {}),
     }),
     [
+      resolvedRecordPropertyScope,
+      resolvedRecordFieldManagement,
       resolvedOnPendingEditChange,
       resolvedMenuOrders,
       resolvedOnMenuOrderChange,

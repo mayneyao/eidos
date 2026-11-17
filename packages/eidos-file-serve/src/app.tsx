@@ -1140,6 +1140,10 @@ export function ServeApp() {
       interactionMode={mobileInteraction ? "mobile" : "desktop"}
       activateUrl={activateCliHostUrl}
       assetSession={assetSession}
+      recordPropertyScope={JSON.stringify([
+        snapshot.path,
+        snapshot.metadata.fileId,
+      ])}
       assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
       contentImageBaseUrl={contentImageBaseUrl}
     >

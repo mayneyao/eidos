@@ -154,10 +154,17 @@ type Theme = "light" | "dark"
 
 function ThemedEidosFileEditorShell({
   themeName,
+  recordPropertyScope,
   ...props
-}: EidosFileEditorShellProps & { themeName: Theme }) {
+}: EidosFileEditorShellProps & {
+  themeName: Theme
+  recordPropertyScope: string
+}) {
   return (
-    <EidosFileUIProvider themeName={themeName}>
+    <EidosFileUIProvider
+      themeName={themeName}
+      recordPropertyScope={recordPropertyScope}
+    >
       <RecordContentProvider>
         <EidosFileEditorShell {...props} />
       </RecordContentProvider>
@@ -2288,6 +2295,10 @@ export function App() {
       </div>
 
       <ThemedEidosFileEditorShell
+        recordPropertyScope={JSON.stringify([
+          snapshot.path,
+          snapshot.metadata.fileId,
+        ])}
         view={activeView}
         calendarWindowVersion={
           snapshot.queryCapabilities?.calendarWindowVersion

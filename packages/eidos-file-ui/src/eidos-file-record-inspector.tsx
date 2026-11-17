@@ -38,6 +38,12 @@ import {
 
 import { useEidosFileUI } from "./context"
 import {
+  useRecordFieldManagement,
+  type RecordFieldManagement,
+} from "./eidos-file-record-field-context"
+import { useRecordPropertyPreferences } from "./eidos-file-record-preferences"
+import { EidosFileRecordFieldsPopover } from "./eidos-file-record-fields-popover"
+import {
   eidosFileNewRecordDateDefaults,
   useEidosFileCreationContext,
 } from "./eidos-file-temporal-defaults"
@@ -458,6 +464,8 @@ function MarkdownContentEditor({
 }
 
 export interface EidosFileRecordInspectorProps {
+  /** Override the inherited editor boundary for a related record in another Table. */
+  recordFieldManagement?: RecordFieldManagement
   row: EidosFileRow
   fields: EidosFileFieldInfo[]
   /** A new unsaved record whose absent keys are omitted create inputs, not unloaded projections. */
@@ -500,6 +508,7 @@ export interface EidosFileRecordInspectorProps {
 }
 
 export function EidosFileRecordInspector({
+  recordFieldManagement,
   row,
   fields,
   isNewRecord = false,
@@ -526,10 +535,30 @@ export function EidosFileRecordInspector({
     markdownEditingMode = "source",
     translate: t,
     interactionMode,
+    recordPropertyScope,
   } = useEidosFileUI()
+  const inheritedFieldManagement = useRecordFieldManagement()
+  const fieldManagement = recordFieldManagement ?? inheritedFieldManagement
   const variant = interactionMode === "mobile" ? "page" : requestedVariant
   const isMobile = interactionMode === "mobile"
-  const propertyScope = fields[0]?.tableId ?? ""
+  const tableId = fieldManagement?.table.table.id ?? fields[0]?.tableId ?? ""
+  const propertyScope = JSON.stringify([
+    recordPropertyScope ?? "session",
+    tableId,
+  ])
+  const [recordPreferences, updateRecordPreferences] =
+    useRecordPropertyPreferences(
+      recordPropertyScope,
+      tableId,
+      fieldManagement?.source
+    )
+  const [fieldManager, setFieldManager] = useState<{
+    open: boolean
+    fieldId: string | null
+  }>({ open: false, fieldId: null })
+  useEffect(() => {
+    setFieldManager({ open: false, fieldId: null })
+  }, [propertyScope])
   const creationContext = useEidosFileCreationContext()
   const defaultSession = `${propertyScope}:${String(row._id ?? "")}`
   const newRecordDefaults = useRef<{
@@ -725,11 +754,41 @@ export function EidosFileRecordInspector({
     pageTitleField.valueKind === "source" &&
     isEidosFileFieldWritable(pageTitleField)
   )
-  const metadataFields = fields.filter(
+  const allMetadataFields = fields.filter(
     (field) =>
       field.id !== contentField?.id &&
       (variant !== "page" || field.id !== pageTitleField?.id)
   )
+  const fieldOrder = new Map(
+    recordPreferences.fieldOrder.map((id, index) => [id, index])
+  )
+  // Another mounted record can change this table's presentation. Keep any
+  // active editor/error owned by this record visible until its edit settles.
+  const retainedPropertyIds = new Set(
+    Array.from(propertiesRef.current?.children ?? []).flatMap((node) =>
+      node.contains(document.activeElement) ||
+      node.querySelector(
+        '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
+      )
+        ? [node.getAttribute("data-eidos-record-property")]
+        : []
+    )
+  )
+  const metadataFields = allMetadataFields
+    .filter(
+      (field) =>
+        retainedPropertyIds.has(field.id) ||
+        savingField === field.tableColumnName ||
+        failedEdit?.field.id === field.id ||
+        (!(recordPreferences.hideSystemFields && field.systemRole != null) &&
+          (isEidosFileRecordLabelField(field) ||
+            !recordPreferences.hiddenFields.includes(field.id)))
+    )
+    .sort(
+      (a, b) =>
+        (fieldOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (fieldOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+    )
   const compactProperties = metadataFields
     .filter((field) => field.valueKind !== "system" && field.systemRole == null)
     .slice(0, 3)
@@ -906,9 +965,27 @@ export function EidosFileRecordInspector({
     .map((field) => {
       const fieldWritable = editable && isEidosFileFieldWritable(field)
       const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
+      const canManageField =
+        !isMobile &&
+        Boolean(
+          fieldManagement &&
+          !fieldManagement.disabled &&
+          !propertyReadOnly &&
+          contentDraft === contentValue &&
+          field.systemRole == null &&
+          field.valueKind !== "system" &&
+          (
+            fieldManagement.table.table.settings?.capabilities as
+              | { alterSchema?: boolean }
+              | undefined
+          )?.alterSchema !== false
+        )
+      const PropertyLabel = canManageField ? "button" : "p"
       return (
         <div
           key={field.tableColumnName}
+          data-eidos-record-property={field.id}
+          data-eidos-record-system-role={field.systemRole ?? undefined}
           className={cn(
             "eidos-file-record-field group/readonly grid min-w-0",
             isMobile && "eidos-mobile-record-property",
@@ -917,9 +994,19 @@ export function EidosFileRecordInspector({
               : "gap-1.5 px-4 py-3"
           )}
         >
-          <p
+          <PropertyLabel
+            {...(canManageField
+              ? {
+                  type: "button" as const,
+                  "aria-label": t("Edit {field} properties", {
+                    field: eidosFileFieldDisplayName(field),
+                  }),
+                  onClick: () =>
+                    setFieldManager({ open: true, fieldId: field.id }),
+                }
+              : {})}
             className={cn(
-              "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 font-medium text-muted-foreground",
+              "eidos-file-record-field-label flex min-w-0 items-center gap-1.5 rounded-sm text-left font-medium text-muted-foreground outline-hidden enabled:hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default",
               variant === "page" ? "text-xs leading-5" : "text-[11px]",
               variant === "page" &&
                 fieldWritable &&
@@ -935,7 +1022,7 @@ export function EidosFileRecordInspector({
               />
             ) : null}
             <span className="truncate">{eidosFileFieldDisplayName(field)}</span>
-          </p>
+          </PropertyLabel>
           {isMobile ? (
             fieldWritable &&
             ["text", "number", "integer", "url", "checkbox", "rating"].includes(
@@ -1028,36 +1115,61 @@ export function EidosFileRecordInspector({
       )
     })
 
-  const propertiesDisclosure =
-    !isMobile && metadataFields.length > 0 ? (
-      <button
-        type="button"
-        data-eidos-file-record-properties-toggle=""
-        aria-expanded={!propertiesCollapsed}
-        aria-controls={propertiesId}
-        className="flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        onClick={() => {
-          const invalid = propertiesRef.current?.querySelector<HTMLElement>(
-            '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
-          )
-          if (!propertiesCollapsed && invalid) {
-            invalid.focus()
-            return
+  const propertiesDisclosure = !isMobile ? (
+    <button
+      type="button"
+      data-eidos-file-record-properties-toggle=""
+      aria-expanded={!propertiesCollapsed}
+      aria-controls={propertiesId}
+      className="flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      onClick={() => {
+        const invalid = propertiesRef.current?.querySelector<HTMLElement>(
+          '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
+        )
+        if (!propertiesCollapsed && invalid) {
+          invalid.focus()
+          return
+        }
+        const collapsed = !propertiesCollapsed
+        collapsedRecordProperties.set(propertyScope, collapsed)
+        setPropertyPreference({ scope: propertyScope, collapsed })
+      }}
+    >
+      <ChevronRight
+        className={cn(
+          "h-3.5 w-3.5 shrink-0",
+          !propertiesCollapsed && "rotate-90"
+        )}
+      />
+      {t("Properties ({count})", { count: metadataFields.length })}
+    </button>
+  ) : null
+
+  const propertiesHeader = (
+    <div className="flex min-w-0 items-center gap-1">
+      {propertiesDisclosure}
+      {!isMobile ? (
+        <EidosFileRecordFieldsPopover
+          management={fieldManagement}
+          fields={fields}
+          contentFieldId={contentField?.id}
+          preferences={recordPreferences}
+          onPreferencesChange={updateRecordPreferences}
+          presentationLocked={
+            propertyReadOnly ||
+            Boolean(
+              propertiesRef.current?.querySelector(
+                '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
+              )
+            )
           }
-          const collapsed = !propertiesCollapsed
-          collapsedRecordProperties.set(propertyScope, collapsed)
-          setPropertyPreference({ scope: propertyScope, collapsed })
-        }}
-      >
-        <ChevronRight
-          className={cn(
-            "h-3.5 w-3.5 shrink-0",
-            !propertiesCollapsed && "rotate-90"
-          )}
+          schemaLocked={propertyReadOnly || contentDraft !== contentValue}
+          state={fieldManager}
+          onStateChange={setFieldManager}
         />
-        {t("Properties ({count})", { count: metadataFields.length })}
-      </button>
-    ) : null
+      ) : null}
+    </div>
+  )
 
   return (
     <Root
@@ -1376,19 +1488,24 @@ export function EidosFileRecordInspector({
                 )}
               </div>
             ) : null}
-            {metadataRows.length > 0 ? (
+            {metadataRows.length > 0 || !isMobile ? (
               <div
                 className="mx-auto grid w-full max-w-[760px] gap-0 py-2"
                 data-eidos-file-record-properties=""
                 data-markdown-selection-ignore=""
               >
-                {propertiesDisclosure}
+                {propertiesHeader}
                 <div
                   ref={propertiesRef}
                   id={propertiesId}
                   hidden={propertiesCollapsed}
                 >
                   {metadataRows}
+                  {!isMobile && metadataRows.length === 0 ? (
+                    <p className="py-2 text-xs text-muted-foreground">
+                      {t("No visible properties")}
+                    </p>
+                  ) : null}
                 </div>
                 {isMobile && hiddenPropertyCount > 0 ? (
                   <button
@@ -1448,7 +1565,7 @@ export function EidosFileRecordInspector({
         </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="px-4 py-1">{propertiesDisclosure}</div>
+          <div className="px-4 py-1">{propertiesHeader}</div>
           <div
             ref={propertiesRef}
             id={propertiesId}
@@ -1456,6 +1573,11 @@ export function EidosFileRecordInspector({
             className="divide-y"
           >
             {metadataRows}
+            {metadataRows.length === 0 ? (
+              <p className="px-4 py-2 text-xs text-muted-foreground">
+                {t("No visible properties")}
+              </p>
+            ) : null}
           </div>
           {contentField ? (
             <div

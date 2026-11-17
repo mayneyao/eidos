@@ -11,6 +11,16 @@ const en: EidosFileUIMessageOverrides = {
 }
 
 const zh: EidosFileUIMessageOverrides = {
+  "Manage record properties": "管理记录属性",
+  "Properties in records": "记录中的属性",
+  "Display settings apply to records in this table, not view columns.":
+    "显示设置应用于此表的记录，不影响视图列。",
+  "Always hide system fields": "始终隐藏系统字段",
+  "No visible properties": "没有显示的属性",
+  "All properties": "所有属性",
+  "Save record edits before changing fields.": "更改字段前请先保存记录编辑。",
+  "Unable to save record property preferences": "无法保存记录属性偏好",
+  "Field changes are unavailable": "当前无法更改字段",
   "Properties ({count})": "属性（{count}）",
   "Edit files": "编辑文件",
   "Clear {field}": "清空{field}",

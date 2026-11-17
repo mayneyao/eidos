@@ -10,6 +10,7 @@ import {
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider, useEidosFileUI } from "./context"
 import { eidosFileResolvedTimeZone } from "./eidos-file-date-time"
+import type { RecordFieldManagement } from "./eidos-file-record-field-context"
 
 export type EidosFileCalendarViewContext =
   | { status: "legacy" }
@@ -70,12 +71,14 @@ export function EidosFileCalendarViewProvider({
   children,
   unsupported,
   calendarWindowVersion,
+  recordFieldManagement,
 }: {
   view?: EidosFileViewInfo
   supported?: readonly string[]
   children: ReactNode
   unsupported?: ReactNode
   calendarWindowVersion?: 1
+  recordFieldManagement?: RecordFieldManagement
 }) {
   const host = useEidosFileUI()
   const capabilities = supported ?? host.calendarPeriodTimeZoneData ?? []
@@ -106,6 +109,7 @@ export function EidosFileCalendarViewProvider({
   }
   return (
     <EidosFileUIProvider
+      recordFieldManagement={recordFieldManagement}
       timeZone={eidosFileResolvedTimeZone(host.timeZone)}
       queryEditingDisabled={
         view?.queryStatus === "unsupported" || host.queryEditingDisabled

@@ -398,7 +398,16 @@ export function EidosFileEditorView({
         focusRequestToken={focusRequestToken}
         grid={type === "grid"}
       >
-        <EidosFileCalendarViewProvider view={view}>
+        <EidosFileCalendarViewProvider
+          view={view}
+          recordFieldManagement={{
+            source: history.source,
+            table,
+            tables: callbacks.tables,
+            disabled: disabled || !capabilities.mutate,
+            onSnapshot: callbacks.onSnapshot,
+          }}
+        >
           <Renderer {...props} />
         </EidosFileCalendarViewProvider>
       </EidosFileUndoScope>

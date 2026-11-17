@@ -24,6 +24,7 @@ import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspecto
 export interface EidosFileRelatedRecordPanelProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
+  tables?: readonly EidosFileTableSnapshot[]
   target: EidosFileRelationRecordTarget
   /**
    * Host-selected presentation. Defaults to the right panel, or the full page
@@ -54,6 +55,7 @@ export interface EidosFileRelatedRecordPanelProps {
 export function EidosFileRelatedRecordPanel({
   source,
   table,
+  tables,
   target,
   presentation,
   onPresentationToggle,
@@ -188,6 +190,19 @@ export function EidosFileRelatedRecordPanel({
 
   return (
     <EidosFileRecordInspector
+      recordFieldManagement={{
+        source,
+        tables,
+        table: { ...table, fields: recordFields },
+        disabled: disabled || retainingPreviousRow,
+        onSnapshot: (snapshot) => {
+          const updated = snapshot.tables.find(
+            (value) => value.table.id === table.table.id
+          )
+          if (updated) setRecordFields(updated.fields)
+          onSnapshot?.(snapshot)
+        },
+      }}
       row={inspectedRow}
       fields={recordFields}
       variant={variant}

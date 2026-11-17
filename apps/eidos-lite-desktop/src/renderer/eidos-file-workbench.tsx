@@ -700,6 +700,10 @@ export function EidosFileWorkbench({
       activateUrl={window.eidosLite?.openExternalUrl}
       openRelationRecord={openRelationRecord}
       assetSession={assetSession}
+      recordPropertyScope={JSON.stringify([
+        snapshot.path,
+        snapshot.metadata.fileId,
+      ])}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
       menuOrders={menuOrders}
@@ -1026,6 +1030,7 @@ export function EidosFileWorkbench({
                   title: "",
                 }}
                 presentation={recordOpenMode}
+                tables={snapshot.tables}
                 onPresentationToggle={toggleRecordPresentation}
                 query={recordNavigationQuery}
                 reloadToken={reloadToken}
@@ -1040,6 +1045,7 @@ export function EidosFileWorkbench({
                 key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
                 source={source}
                 table={relatedRecordTable}
+                tables={snapshot.tables}
                 target={relatedRecordTarget}
                 presentation={recordOpenMode}
                 onPresentationToggle={toggleRecordPresentation}
