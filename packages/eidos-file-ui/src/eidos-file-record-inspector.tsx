@@ -32,7 +32,6 @@ import {
   Maximize2,
   Minimize2,
   Minus,
-  Save,
   X,
 } from "lucide-react"
 
@@ -930,24 +929,16 @@ export function EidosFileRecordInspector({
     }
   }
 
-  const saveStatus = savingField ? (
-    <span
-      role="status"
-      aria-live="polite"
-      className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
-    >
-      <Save className="h-3 w-3" />
-      {t("Saving…")}
-    </span>
-  ) : loading && preserveContentWhileLoading ? (
-    <span
-      role="status"
-      aria-label={t("Loading record details…")}
-      className="shrink-0 text-muted-foreground"
-    >
-      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-    </span>
-  ) : null
+  const loadStatus =
+    loading && preserveContentWhileLoading ? (
+      <span
+        role="status"
+        aria-label={t("Loading record details…")}
+        className="shrink-0 text-muted-foreground"
+      >
+        <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+      </span>
+    ) : null
 
   const recordNavigationButtons = (
     <>
@@ -1321,7 +1312,7 @@ export function EidosFileRecordInspector({
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
             {t("Record details")}
           </span>
-          {saveStatus}
+          {loadStatus}
           {recordNavigationButtons}
         </header>
       ) : variant === "page" ? (
@@ -1367,7 +1358,7 @@ export function EidosFileRecordInspector({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-0.5">
-                {saveStatus}
+                {loadStatus}
                 {recordNavigationButtons}
                 {onPresentationToggle ? (
                   <Button
@@ -1416,7 +1407,7 @@ export function EidosFileRecordInspector({
               >
                 {title}
               </h2>
-              {saveStatus}
+              {loadStatus}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">

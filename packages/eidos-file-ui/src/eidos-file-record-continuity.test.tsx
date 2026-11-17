@@ -91,50 +91,61 @@ describe("record continuity", () => {
     )
     expect(title.value).toBe("New session A")
   })
-  it("keeps inputs focusable and readable while a serialized save is pending", async () => {
-    let finish!: (result: EidosFileRowMutationResult) => void
-    const save = vi.fn(
-      () =>
-        new Promise<EidosFileRowMutationResult>((resolve) => {
-          finish = resolve
-        })
-    )
-    await act(async () =>
-      root.render(
-        <EidosFileRecordInspector
-          row={row}
-          fields={fields}
-          variant="page"
-          contentField={fields[2]}
-          onCellEdit={save}
-        />
+  it.each(["page", "panel"] as const)(
+    "keeps %s edits optimistic without a saving indicator",
+    async (variant) => {
+      let finish!: (result: EidosFileRowMutationResult) => void
+      const save = vi.fn(
+        () =>
+          new Promise<EidosFileRowMutationResult>((resolve) => {
+            finish = resolve
+          })
       )
-    )
-    const title = container.querySelector<HTMLTextAreaElement>(
-      '[aria-label="Title"]'
-    )!
-    const body = container.querySelector("[data-eidos-file-record-content]")
-    await act(async () => {
-      type(title, "Saved title")
-    })
-    await act(async () =>
-      title.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
-    )
-    expect(save).toHaveBeenCalledOnce()
-    expect(title.disabled).toBe(false)
-    expect(title.readOnly).toBe(true)
-    expect(container.querySelector("[data-eidos-file-record-content]")).toBe(
-      body
-    )
-    await act(async () =>
-      finish({
-        tableId: "continuity-test",
-        row: { ...row, Title: "Saved title" },
-        rowCount: 1,
+      await act(async () =>
+        root.render(
+          <EidosFileRecordInspector
+            row={row}
+            fields={fields}
+            variant={variant}
+            contentField={fields[2]}
+            onCellEdit={save}
+          />
+        )
+      )
+      const title = container.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Title"]'
+      )!
+      const body = container.querySelector("[data-eidos-file-record-content]")
+      await act(async () => {
+        type(title, "Saved title")
       })
-    )
-    expect(title.readOnly).toBe(false)
-  })
+      await act(async () =>
+        title.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+      )
+      expect(save).toHaveBeenCalledOnce()
+      expect(title.value).toBe("Saved title")
+      expect(title.disabled).toBe(false)
+      expect(title.readOnly).toBe(true)
+      expect(container.querySelector("header")?.textContent).not.toContain(
+        "Saving"
+      )
+      expect(container.querySelector('header [role="status"]')).toBeNull()
+      expect(container.querySelector("header .animate-spin")).toBeNull()
+      expect(container.querySelector("[data-eidos-file-record-content]")).toBe(
+        body
+      )
+      await act(async () =>
+        finish({
+          tableId: "continuity-test",
+          row: { ...row, Title: "Saved title" },
+          rowCount: 1,
+        })
+      )
+      expect(title.value).toBe("Saved title")
+      expect(title.readOnly).toBe(false)
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+    }
+  )
   it("keeps collapsed properties mounted and remembers the choice across rows", async () => {
     const render = (next: EidosFileRow) =>
       root.render(

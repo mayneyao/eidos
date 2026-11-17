@@ -569,82 +569,90 @@ describe("EidosFileRecordInspector", () => {
     expect(activateUrl).toHaveBeenCalledWith(uri)
   })
 
-  it("keeps a failed draft recoverable while persisted data refreshes", async () => {
-    const row = {
-      _id: "row_1",
-      title: "Write RFC",
-      done: 0,
-      formula: 2,
-    }
-    const savedRow = { ...row, title: "Ship Eidos File" }
-    const onCellEdit = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Record is read-only"))
-      .mockResolvedValueOnce({
-        tableId: "tasks",
-        row: savedRow,
-        rowCount: 1,
+  it.each(["page", "panel"] as const)(
+    "keeps a failed %s draft recoverable while persisted data refreshes",
+    async (variant) => {
+      const row = {
+        _id: "row_1",
+        title: "Write RFC",
+        done: 0,
+        formula: 2,
+      }
+      const savedRow = { ...row, title: "Ship Eidos File" }
+      const onCellEdit = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Record is read-only"))
+        .mockResolvedValueOnce({
+          tableId: "tasks",
+          row: savedRow,
+          rowCount: 1,
+        })
+      const onError = vi.fn()
+      const render = (nextRow = row) =>
+        root.render(
+          <EidosFileRecordInspector
+            row={nextRow}
+            fields={fields}
+            variant={variant}
+            onClose={vi.fn()}
+            onCellEdit={onCellEdit}
+            onError={onError}
+          />
+        )
+
+      await act(async () => render())
+      const title = container.querySelector<HTMLTextAreaElement>("textarea")
+      await act(async () => {
+        if (!title) return
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set
+        setter?.call(title, "Ship Eidos File")
+        title.dispatchEvent(new Event("input", { bubbles: true }))
       })
-    const onError = vi.fn()
-    const render = (nextRow = row) =>
-      root.render(
-        <EidosFileRecordInspector
-          row={nextRow}
-          fields={fields}
-          onClose={vi.fn()}
-          onCellEdit={onCellEdit}
-          onError={onError}
-        />
+      await act(async () => {
+        title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(onCellEdit).toHaveBeenCalledOnce()
+      expect(container.querySelector("header")?.textContent).not.toContain(
+        "Saving"
       )
+      expect(container.querySelector('header [role="status"]')).toBeNull()
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Record is read-only"
+      )
+      expect(title?.value).toBe("Ship Eidos File")
+      expect(onError).not.toHaveBeenCalled()
 
-    await act(async () => render())
-    const title = container.querySelector<HTMLTextAreaElement>("textarea")
-    await act(async () => {
-      if (!title) return
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
-        "value"
-      )?.set
-      setter?.call(title, "Ship Eidos File")
-      title.dispatchEvent(new Event("input", { bubbles: true }))
-    })
-    await act(async () => {
-      title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+      await act(async () => render({ ...row }))
+      expect(
+        container.querySelector<HTMLTextAreaElement>("textarea")?.value
+      ).toBe("Ship Eidos File")
 
-    expect(onCellEdit).toHaveBeenCalledOnce()
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Record is read-only"
-    )
-    expect(title?.value).toBe("Ship Eidos File")
-    expect(onError).not.toHaveBeenCalled()
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === "Retry")
+          ?.click()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
 
-    await act(async () => render({ ...row }))
-    expect(
-      container.querySelector<HTMLTextAreaElement>("textarea")?.value
-    ).toBe("Ship Eidos File")
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Retry")
-        ?.click()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    expect(onCellEdit).toHaveBeenCalledTimes(2)
-    expect(onCellEdit).toHaveBeenLastCalledWith(
-      row,
-      fields[0],
-      "Ship Eidos File"
-    )
-    expect(container.querySelector('[role="alert"]')).toBeNull()
-    expect(
-      container.querySelector<HTMLTextAreaElement>("textarea")?.value
-    ).toBe("Ship Eidos File")
-  })
+      expect(onCellEdit).toHaveBeenCalledTimes(2)
+      expect(onCellEdit).toHaveBeenLastCalledWith(
+        row,
+        fields[0],
+        "Ship Eidos File"
+      )
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expect(
+        container.querySelector<HTMLTextAreaElement>("textarea")?.value
+      ).toBe("Ship Eidos File")
+    }
+  )
 
   it("announces full-record loading and offers a recoverable load error", async () => {
     const row = {
