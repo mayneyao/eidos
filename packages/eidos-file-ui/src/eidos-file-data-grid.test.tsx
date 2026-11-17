@@ -13,6 +13,9 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
+import type { EidosFileGridProps } from "./eidos-file-grid"
+import { eidosFileMutationHistory } from "./eidos-file-mutation-history"
+import { EidosFileUndoScope } from "./eidos-file-undo-scope"
 
 const mocks = vi.hoisted(() => ({
   props: null as Record<string, unknown> | null,
@@ -113,6 +116,69 @@ describe("EidosFileDataGrid", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("records a Grid multi-row edit as one shared action with stable Row and Field identities", async () => {
+    const rows = new Map<string, EidosFileRow>([
+      ["a", { _id: "a", [titleField.id]: "A" }],
+      ["b", { _id: "b", [titleField.id]: "B" }],
+    ])
+    const updateRow = vi.fn(
+      async (
+        ...[_table, rowId, fields]: Parameters<EidosFileDataSource["updateRow"]>
+      ) => {
+        const row = { ...rows.get(rowId)!, ...fields } as EidosFileRow
+        rows.set(rowId, row)
+        return { tableId: "tasks", row, rowCount: 2 }
+      }
+    )
+    const source = {
+      getRow: async (_table: string, id: string) => rows.get(id) ?? null,
+      getPage: vi.fn(async () => ({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 2,
+        rows: [...rows.values()],
+      })),
+      getSnapshot: vi.fn(async () => ({ tables: [table] })),
+      calculateColumnStats: vi.fn(async () => []),
+      updateRow,
+    } as unknown as EidosFileDataSource
+    const history = eidosFileMutationHistory(source)
+    await act(async () =>
+      root.render(
+        <EidosFileUndoScope
+          history={history}
+          disabled={false}
+          focusKey="grid"
+          focusRequestToken={0}
+          grid
+        >
+          <EidosFileDataGrid source={history.source} table={table} />
+        </EidosFileUndoScope>
+      )
+    )
+    const edit = mocks.props?.onRowsEdit as EidosFileGridProps["onRowsEdit"]
+    expect(edit).toBeTypeOf("function")
+    await act(async () => {
+      await edit!([
+        { row: { _id: "a" }, changes: { title: "A edited" } },
+        { row: { _id: "b" }, changes: { title: "B edited" } },
+      ])
+    })
+    expect(updateRow).toHaveBeenCalledWith("tasks", "a", {
+      [titleField.id]: "A edited",
+    })
+    expect(updateRow).toHaveBeenCalledWith("tasks", "b", {
+      [titleField.id]: "B edited",
+    })
+    await act(async () => {
+      await history.undo()
+    })
+    expect(rows.get("a")?.[titleField.id]).toBe("A")
+    expect(rows.get("b")?.[titleField.id]).toBe("B")
+    expect(history.getSnapshot().canUndo).toBe(false)
   })
 
   it("does not reuse the unfiltered table count for a filtered Grid", async () => {

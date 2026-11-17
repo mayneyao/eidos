@@ -15,6 +15,7 @@ import {
 import { useEidosFileUI } from "./context"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 
 export function EidosFileRecordDeleteDialog({
   row,
@@ -34,6 +35,7 @@ export function EidosFileRecordDeleteDialog({
   onError?: (error: unknown) => void
 }) {
   const { translate: t } = useEidosFileUI()
+  const undo = useEidosFileUndo()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
 
@@ -69,7 +71,7 @@ export function EidosFileRecordDeleteDialog({
         if (!deleting || open) onOpenChange(open)
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={undo?.onCloseAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>
             {count > 1
@@ -80,9 +82,13 @@ export function EidosFileRecordDeleteDialog({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t(
-              count > 1
-                ? "This removes the selected records from the Eidos File. This action cannot be undone from the current view."
-                : "This removes the record from the Eidos File. This action cannot be undone from the current view."
+              undo
+                ? count > 1
+                  ? "This removes the selected records from the Eidos File."
+                  : "This removes the record from the Eidos File."
+                : count > 1
+                  ? "This removes the selected records from the Eidos File. This action cannot be undone from the current view."
+                  : "This removes the record from the Eidos File. This action cannot be undone from the current view."
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>

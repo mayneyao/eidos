@@ -1,4 +1,9 @@
-import { useMemo, type ComponentType, type ReactNode } from "react"
+import {
+  useMemo,
+  useSyncExternalStore,
+  type ComponentType,
+  type ReactNode,
+} from "react"
 import type {
   CreateEidosFileFieldInput,
   EidosFileFieldInfo,
@@ -24,6 +29,8 @@ import {
   useEidosFileCalendarExecution,
 } from "./eidos-file-calendar-context"
 import { EidosFileDateQueryUpgrade } from "./eidos-file-date-query-upgrade"
+import { eidosFileMutationHistory } from "./eidos-file-mutation-history"
+import { EidosFileUndoScope } from "./eidos-file-undo-scope"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -279,6 +286,53 @@ export function EidosFileEditorView({
   renderUnsupportedView,
   ...callbacks
 }: EidosFileEditorViewProps) {
+  const history = useMemo(() => eidosFileMutationHistory(source), [source])
+  const historyState = useSyncExternalStore(
+    history.subscribe,
+    history.getSnapshot,
+    history.getSnapshot
+  )
+  const tableCapabilities = table.table.settings?.capabilities as
+    | { delete?: boolean | "clear_meta" }
+    | undefined
+  const reversibleRecords =
+    !disabled &&
+    capabilities.mutate &&
+    tableCapabilities?.delete !== false &&
+    tableCapabilities?.delete !== "clear_meta" &&
+    table.table.settings?.vtabModule !== "fs_meta"
+  const deleteCallbacks = useMemo(
+    () =>
+      reversibleRecords
+        ? {
+            onDeleteRow:
+              callbacks.onDeleteRow && callbacks.onDeleteRowIds
+                ? async (row: EidosFileRow) => {
+                    await history.delete(() =>
+                      callbacks.onDeleteRowIds!([String(row._id)])
+                    )
+                  }
+                : callbacks.onDeleteRow,
+            onDeleteRowIds: callbacks.onDeleteRowIds
+              ? (ids: readonly string[]) =>
+                  history.delete(() => callbacks.onDeleteRowIds!(ids))
+              : undefined,
+            onDeleteRows: callbacks.onDeleteRows
+              ? (ranges: EidosFileRowRange[], rowQuery: EidosFileRowQuery) =>
+                  history.delete(() =>
+                    callbacks.onDeleteRows!(ranges, rowQuery)
+                  )
+              : undefined,
+          }
+        : {},
+    [
+      history,
+      reversibleRecords,
+      callbacks.onDeleteRow,
+      callbacks.onDeleteRowIds,
+      callbacks.onDeleteRows,
+    ]
+  )
   const searchNavigation = useEidosFileSearchNavigation()
   const resolvedSearchResultIndex =
     searchResultIndex === undefined
@@ -295,7 +349,7 @@ export function EidosFileEditorView({
     [search, view, calendar]
   )
   const props: EidosFileViewRendererProps = {
-    source,
+    source: history.source,
     table,
     view,
     query,
@@ -303,13 +357,14 @@ export function EidosFileEditorView({
     searchResultIndex: resolvedSearchResultIndex,
     onSearchResultCountChange: reportSearchResultCount,
     disabled,
-    reloadToken,
+    reloadToken: reloadToken + historyState.revision,
     focusRequestToken,
     commands,
     selection,
     state,
     capabilities,
     ...callbacks,
+    ...deleteCallbacks,
   }
   const type = view?.type || "grid"
   const pluginRegistry = useMemo(
@@ -334,9 +389,19 @@ export function EidosFileEditorView({
   }
   if (Renderer)
     return (
-      <EidosFileCalendarViewProvider view={view}>
-        <Renderer {...props} />
-      </EidosFileCalendarViewProvider>
+      <EidosFileUndoScope
+        history={history}
+        disabled={disabled || !capabilities.mutate}
+        onSnapshot={callbacks.onSnapshot}
+        onError={callbacks.onError}
+        focusKey={view?.id ?? "grid"}
+        focusRequestToken={focusRequestToken}
+        grid={type === "grid"}
+      >
+        <EidosFileCalendarViewProvider view={view}>
+          <Renderer {...props} />
+        </EidosFileCalendarViewProvider>
+      </EidosFileUndoScope>
     )
   if (renderUnsupportedView) return renderUnsupportedView(props)
   return (

@@ -230,7 +230,8 @@ export function useUndoRedo(
   onGridSelectionChange?: (newVal: GridSelection) => void,
   isActive?: () => boolean,
   onCellsEdited?: (edits: readonly UndoRedoEdit[]) => void,
-  maxHistoryBatches = Number.POSITIVE_INFINITY
+  maxHistoryBatches = Number.POSITIVE_INFINITY,
+  enabled = true
 ) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -263,7 +264,7 @@ export function useUndoRedo(
       const isApplyingUpdate =
         isApplyingUndoRef.current || isApplyingRedoRef.current
 
-      if (!isApplyingUpdate && gridSelectionRef.current) {
+      if (enabled && !isApplyingUpdate && gridSelectionRef.current) {
         if (timeout.current) clearTimeout(timeout.current)
         const previousValue = getCellContent(cell) as EditableGridCell
 
@@ -292,7 +293,7 @@ export function useUndoRedo(
       // Continue with the edit
       onCellEdited(cell, newValue)
     },
-    [getCellContent, maxHistoryBatches, onCellEdited]
+    [enabled, getCellContent, maxHistoryBatches, onCellEdited]
   )
 
   const wrappedOnCellsEdited = useCallback(
@@ -301,7 +302,7 @@ export function useUndoRedo(
       const isApplyingUpdate =
         isApplyingUndoRef.current || isApplyingRedoRef.current
 
-      if (!isApplyingUpdate && gridSelectionRef.current) {
+      if (enabled && !isApplyingUpdate && gridSelectionRef.current) {
         if (timeout.current) clearTimeout(timeout.current)
         timeout.current = null
         if (currentBatch.current) {
@@ -332,7 +333,7 @@ export function useUndoRedo(
         for (const edit of edits) onCellEdited(edit.cell, edit.newValue)
       }
     },
-    [getCellContent, maxHistoryBatches, onCellEdited, onCellsEdited]
+    [enabled, getCellContent, maxHistoryBatches, onCellEdited, onCellsEdited]
   )
 
   const undo = useCallback(() => {
@@ -353,6 +354,7 @@ export function useUndoRedo(
 
   const recordCommand = useCallback(
     (command: UndoRedoCommand) => {
+      if (!enabled) return
       if (timeout.current) clearTimeout(timeout.current)
       timeout.current = null
       if (currentBatch.current) {
@@ -369,7 +371,7 @@ export function useUndoRedo(
         maxBatches: maxHistoryBatches,
       })
     },
-    [maxHistoryBatches]
+    [enabled, maxHistoryBatches]
   )
 
   useEffect(
@@ -479,6 +481,7 @@ export function useUndoRedo(
   // Attach the keyboard shortcuts. CMD+Z and CMD+SHIFT+Z on mac, CTRL+Z and CTRL+Y on windows.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!enabled) return
       if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return
       if (isActive && !isActive()) return
       const key = e.key.toLowerCase()
@@ -500,7 +503,7 @@ export function useUndoRedo(
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [isActive, redo, undo])
+  }, [enabled, isActive, redo, undo])
 
   return useMemo(() => {
     return {

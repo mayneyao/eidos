@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   EidosFileColumnStatConfig,
+  EidosFileRow,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
@@ -39,6 +40,8 @@ import { eidosFileGalleryPlugin } from "./plugins/gallery"
 import { eidosFileKanbanPlugin } from "./plugins/kanban"
 import { eidosFileCalendarPlugin } from "./plugins/calendar"
 import { eidosFileFormPlugin } from "./plugins/form"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
+import { eidosFileMutationHistory } from "./eidos-file-mutation-history"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -136,6 +139,225 @@ describe("EidosFileEditorView registry", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("shares one history across renderer unmounts, consumes each key once, and isolates files and readonly views", async () => {
+    let rows: EidosFileRow[] = [
+      { _id: "a", title: "A" },
+      { _id: "b", title: "B" },
+    ]
+    let sequence = 0
+    const receipts = new Map<string, EidosFileRow[]>()
+    const fresh: EidosFileEditorDataSource = {
+      ...source,
+      getRow: async (_table, id) => rows.find((row) => row._id === id) ?? null,
+      updateRow: async (_table, id, fields) => {
+        rows = rows.map((row) =>
+          row._id === id ? ({ ...row, ...fields } as EidosFileRow) : row
+        )
+        return {
+          tableId: "tasks",
+          row: rows.find((row) => row._id === id)!,
+          rowCount: rows.length,
+        }
+      },
+      deleteRows: async (_table, ids) => {
+        const undoToken = String(++sequence)
+        receipts.set(undoToken, rows)
+        rows = rows.filter((row) => !ids.includes(String(row._id)))
+        return {
+          tableId: "tasks",
+          deletedCount: ids.length,
+          rowCount: rows.length,
+          undoToken,
+        }
+      },
+      revertRowMutation: vi.fn(async (_table, token) => {
+        const before = rows
+        rows = receipts.get(token)!
+        const undoToken = String(++sequence)
+        receipts.set(undoToken, before)
+        return { tableId: "tasks", rowCount: rows.length, undoToken }
+      }),
+    }
+    const identities: unknown[] = []
+    const scopes: NonNullable<ReturnType<typeof useEidosFileUndo>>[] = []
+    function Controls(props: EidosFileViewRendererProps) {
+      const scope = useEidosFileUndo()
+      identities.push(scope?.history)
+      if (scope) scopes.push(scope)
+      return (
+        <div tabIndex={0} data-view={props.view?.type}>
+          <button onClick={() => void props.onDeleteRow?.({ _id: "a" })}>
+            Delete A
+          </button>
+          <button
+            onClick={() =>
+              void props.source.updateRow("tasks", "b", { title: "Edited B" })
+            }
+          >
+            Edit B
+          </button>
+          <input aria-label="View search" />
+          <textarea aria-label="Content" />
+          <div contentEditable suppressContentEditableWarning tabIndex={0}>
+            Draft
+          </div>
+          <span>{rows.map((row) => row.title).join(",")}</span>
+        </div>
+      )
+    }
+    const Gallery = (props: EidosFileViewRendererProps) => (
+      <Controls {...props} />
+    )
+    const Grid = (props: EidosFileViewRendererProps) => <Controls {...props} />
+    const Other = (props: EidosFileViewRendererProps) => <Controls {...props} />
+    const render = async (type: string, current = fresh, disabled = false) =>
+      act(async () =>
+        root.render(
+          <EidosFileEditorView
+            source={current}
+            table={table}
+            view={{ ...view, id: type, type }}
+            disabled={disabled}
+            onDeleteRow={async (row) => {
+              await current.deleteRows("tasks", [String(row._id)])
+            }}
+            onDeleteRowIds={(ids) => current.deleteRows("tasks", [...ids])}
+            renderers={{
+              gallery: Gallery,
+              grid: Grid,
+              kanban: Other,
+              calendar: Other,
+              feed: Other,
+            }}
+          />
+        )
+      )
+    const key = async (redo = false) => {
+      const scope = container.querySelector<HTMLElement>(
+        "[data-eidos-file-undo-scope]"
+      )!
+      scope.focus()
+      const event = new KeyboardEvent("keydown", {
+        key: redo ? "Z" : "z",
+        metaKey: true,
+        shiftKey: redo,
+        bubbles: true,
+        cancelable: true,
+      })
+      await act(async () => {
+        scope.dispatchEvent(event)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      return event
+    }
+    await render("gallery")
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button")!.click()
+      await Promise.resolve()
+    })
+    expect(rows.map((row) => row._id)).toEqual(["b"])
+    await render("grid")
+    expect((await key()).defaultPrevented).toBe(true)
+    expect(rows.map((row) => row._id)).toEqual(["a", "b"])
+    expect(fresh.revertRowMutation).toHaveBeenCalledTimes(1)
+    await render("kanban")
+    await key(true)
+    expect(rows.map((row) => row._id)).toEqual(["b"])
+    for (const type of ["calendar", "feed", "gallery"]) {
+      await render(type)
+      expect(identities.at(-1)).toBe(eidosFileMutationHistory(fresh))
+    }
+    await act(async () => {
+      ;[...container.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent === "Edit B")!
+        .click()
+      await Promise.resolve()
+    })
+    await render("grid")
+    await key()
+    expect(rows.find((row) => row._id === "b")?.title).toBe("B")
+    expect(fresh.revertRowMutation).toHaveBeenCalledTimes(2)
+    await render("gallery", fresh, true)
+    expect((await key()).defaultPrevented).toBe(false)
+    expect(fresh.revertRowMutation).toHaveBeenCalledTimes(2)
+    await render("gallery", { ...fresh })
+    expect((await key()).defaultPrevented).toBe(false)
+    expect(fresh.revertRowMutation).toHaveBeenCalledTimes(2)
+    ;(document.activeElement as HTMLElement)?.blur()
+    scopes[0]!.onCloseAutoFocus(new Event("close", { cancelable: true }))
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it("keeps search, Content, settings inputs, IME and dialogs out of shared history shortcuts", async () => {
+    let row: EidosFileRow = { _id: "a", title: "Before" }
+    const update = vi.fn(
+      async (_table: string, _id: string, fields: Record<string, unknown>) => {
+        row = { ...row, ...fields } as EidosFileRow
+        return { tableId: "tasks", row, rowCount: 1 }
+      }
+    )
+    const fresh = { ...source, getRow: async () => row, updateRow: update }
+    await eidosFileMutationHistory(fresh).source.updateRow("tasks", "a", {
+      title: "After",
+    })
+    function Renderer() {
+      return (
+        <div tabIndex={0}>
+          <input />
+          <textarea />
+          <select>
+            <option>Settings</option>
+          </select>
+          <div contentEditable suppressContentEditableWarning tabIndex={0}>
+            Content
+          </div>
+          <div role="dialog">
+            <button>Dialog</button>
+          </div>
+          <div role="menu">
+            <button>Menu</button>
+          </div>
+        </div>
+      )
+    }
+    await act(async () =>
+      root.render(
+        <EidosFileEditorView
+          source={fresh}
+          table={table}
+          view={view}
+          renderers={{ timeline: Renderer }}
+        />
+      )
+    )
+    const send = async (target: HTMLElement, extra: KeyboardEventInit = {}) => {
+      target.focus()
+      const event = new KeyboardEvent("keydown", {
+        key: "z",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+        ...extra,
+      })
+      await act(async () => {
+        target.dispatchEvent(event)
+        await Promise.resolve()
+      })
+      expect(event.defaultPrevented).toBe(false)
+      expect(row.title).toBe("After")
+    }
+    for (const input of container.querySelectorAll<HTMLElement>(
+      "input,textarea,select,[contenteditable],button"
+    ))
+      await send(input)
+    const scope = container.querySelector<HTMLElement>(
+      "[data-eidos-file-undo-scope]"
+    )!
+    await send(scope, { isComposing: true })
+    await send(scope, { keyCode: 229 })
+    expect(update).toHaveBeenCalledTimes(1)
   })
 
   it("keeps Grid in core and exposes alternate layouts through plugins", () => {

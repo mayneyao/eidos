@@ -64,6 +64,7 @@ import {
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { pendingEditEditor, useEidosFilePendingEdit } from "./use-pending-edit"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { useEidosFileGridTouch } from "./use-eidos-file-grid-touch"
@@ -554,6 +555,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
   const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
+  const sharedUndo = useEidosFileUndo()
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
   const searchFocus = useEidosFileSearchFocus()
   const [searchFocusRequest, setSearchFocusRequest] = useState<{
@@ -2432,7 +2434,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     handleGridSelectionChange,
     isGridActive,
     commitCells,
-    MAX_UNDO_HISTORY_BATCHES
+    MAX_UNDO_HISTORY_BATCHES,
+    sharedUndo === null
   )
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection

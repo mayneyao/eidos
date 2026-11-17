@@ -130,6 +130,25 @@ version history and extension processes remain Host responsibilities. They
 enter the shared editor through data-source methods, plugins, capabilities or
 explicit Host-owned surfaces.
 
+`EidosFileEditorView` shares one bounded, in-memory mutation history for each
+stable data-source object. Keep that object stable while switching Tables,
+Views, filters and searches; use a new object for a replacement file/session.
+Field edits use stable Row IDs. Record deletion uses the Runtime's opaque
+session-local undo receipt, including one receipt for an atomic batch.
+Text inputs, Markdown drafts, IME, menus and dialogs retain their own keyboard
+ownership. Filesystem operations and persistent version history remain Host
+responsibilities.
+
+Built-in renderers consume the shared source and deletion callbacks. Return the
+actual `EidosFileRowsDeleteResult` from `onDeleteRowIds` and `onDeleteRows`;
+provide `onDeleteRowIds` for reversible single-card deletion too. Custom
+renderers can use `useEidosFileUndo()` for `canUndo`, `canRedo`, `busy`, `undo`
+and `redo`. Its controller groups `updateRows` by stable identity and registers
+Host-owned deletions with `history.delete(operation)`. It does not add Runtime
+capabilities or filesystem permissions. Creation and committed operations
+without an inverse start a new history boundary; general mutation undo and
+recovery across process restarts are not provided by this UI history.
+
 ## Host responsibilities
 
 The product supplies an EA-Host-1.0 `HostServices` implementation. Source,

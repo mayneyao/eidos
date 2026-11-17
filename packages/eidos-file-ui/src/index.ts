@@ -10,6 +10,8 @@ export {
 export * from "./eidos-file-schema-settings"
 export * from "./eidos-file-data-grid"
 export * from "./eidos-file-editor-view"
+export * from "./eidos-file-mutation-history"
+export { useEidosFileUndo } from "./eidos-file-undo-scope"
 export * from "./eidos-file-editor-chrome"
 export * from "./eidos-file-editor-shell"
 export * from "./eidos-file-empty-state"

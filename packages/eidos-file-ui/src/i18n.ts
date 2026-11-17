@@ -268,6 +268,10 @@ const zh: EidosFileUIMessageOverrides = {
   "Copy {count} record IDs": "复制 {count} 条记录的 ID",
   "Actions for {count} selected records": "所选 {count} 条记录的操作",
   "Could not delete the selected records.": "无法删除所选记录。",
+  "This removes the selected records from the Eidos File.":
+    "这会从 Eidos File 中删除选中的记录。",
+  "This removes the record from the Eidos File.":
+    "这会从 Eidos File 中删除这条记录。",
   "This removes the selected records from the Eidos File. This action cannot be undone from the current view.":
     "这将从 Eidos File 中删除所选记录，无法在当前视图中撤销。",
   "deleteRows accepts at most 500 Row IDs per atomic operation":
