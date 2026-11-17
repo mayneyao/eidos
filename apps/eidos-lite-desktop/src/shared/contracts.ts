@@ -1,4 +1,9 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
+import type {
+  ContentLinkSnapshot,
+  ContentLinkUpdate,
+  ContentLinkUpdateResult,
+} from "./content-link-updates"
 import type { FileMetaPatch } from "@eidos.space/plugin-sdk"
 import type { EidosLiteMenuOrders } from "./menu-orders"
 import type {
@@ -162,6 +167,8 @@ export const IPC_CHANNELS = {
   importMarkdownImage: "eidos-lite:markdown-image-import",
   importMarkdownFile: "eidos-lite:markdown-file-import",
   resolveMarkdownImage: "eidos-lite:markdown-image-resolve",
+  resolveMarkdownLink: "eidos-lite:markdown-link-resolve",
+  openMarkdownLink: "eidos-lite:markdown-link-open",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
@@ -1655,6 +1662,14 @@ export interface EidosLiteUrlImageResolution {
 }
 
 interface RuntimeCustomCalls {
+  readContentLinkDocuments: {
+    args: []
+    result: ContentLinkSnapshot
+  }
+  writeContentLinkDocuments: {
+    args: [update: ContentLinkUpdate]
+    result: ContentLinkUpdateResult
+  }
   getExternalChangeProbe: {
     args: []
     result: EidosLiteExternalChangeProbe
@@ -1727,6 +1742,7 @@ interface RuntimeCustomCalls {
 }
 
 export const RUNTIME_READ_METHODS = [
+  "readContentLinkDocuments",
   "readTablePluginConfig",
   "captureTableActionTarget",
   "readTableActionRows",
@@ -1754,6 +1770,7 @@ export const RUNTIME_READ_METHODS = [
 )[]
 
 export const RUNTIME_MUTATION_METHODS = [
+  "writeContentLinkDocuments",
   "writeTablePluginConfig",
   "writeTableActionRow",
   "undoTableActionRow",
@@ -2148,6 +2165,11 @@ export interface EidosLiteApi extends PluginApi {
     relativePath: string,
     markdownUrl: string
   ): Promise<EidosLiteMarkdownImageResolution | null>
+  resolveMarkdownLink(
+    owner: string,
+    href: string
+  ): Promise<SpaceTreeEntry | null>
+  openMarkdownLink(owner: string, href: string): Promise<void>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(

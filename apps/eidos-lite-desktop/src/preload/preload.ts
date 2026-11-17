@@ -469,6 +469,10 @@ const api: EidosLiteApi = {
       relativePath,
       markdownUrl
     ),
+  resolveMarkdownLink: (owner, href) =>
+    ipcRenderer.invoke(IPC_CHANNELS.resolveMarkdownLink, owner, href),
+  openMarkdownLink: (owner, href) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openMarkdownLink, owner, href),
   inspectEidosFileIssue: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>

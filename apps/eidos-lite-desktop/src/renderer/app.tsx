@@ -2475,6 +2475,7 @@ function WorkspaceApp({
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
         pluginEditor?: string
         metadataDirectory?: string
+        preview?: TextFilePreviewResult
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
@@ -2554,9 +2555,9 @@ function WorkspaceApp({
               : options.fileOpenMode === "preview"
                 ? "preview"
                 : htmlFileOpenMode
-          const preview = await window.eidosLite.previewTextFile(
-            entry.relativePath
-          )
+          const preview =
+            options.preview ??
+            (await window.eidosLite.previewTextFile(entry.relativePath))
           const draft = textDraftLifecycle.getDraft(entry.relativePath)
           const plugin = window.eidosLite.openPluginEditor
             ? await window.eidosLite.openPluginEditor(
@@ -2828,11 +2829,22 @@ function WorkspaceApp({
       request: MarkdownEditorInternalLinkRequest
     ) => {
       if (!request.path) return
-      const entry = await resolveObsidianSpaceEntry(
-        sourceRelativePath,
-        request,
-        window.eidosLite.searchSpacePaths
-      )
+      const wikiEntry =
+        request.syntax === "wikilink"
+          ? await resolveObsidianSpaceEntry(
+              sourceRelativePath,
+              request,
+              window.eidosLite.searchSpacePaths
+            )
+          : null
+      const href =
+        request.syntax === "wikilink" && wikiEntry
+          ? `/${wikiEntry.relativePath.split("/").map(encodeURIComponent).join("/")}`
+          : request.target
+      const entry =
+        request.syntax === "wikilink" && !wikiEntry
+          ? null
+          : await window.eidosLite.resolveMarkdownLink(sourceRelativePath, href)
       if (!entry) {
         const linkedNotePath = missingMarkdownNotePath(
           sourceRelativePath,
@@ -2849,6 +2861,14 @@ function WorkspaceApp({
         setError(`Could not find file link target: ${request.path}`)
         return
       }
+      const preview =
+        entry.kind === "eidos"
+          ? undefined
+          : await window.eidosLite.previewTextFile(entry.relativePath)
+      if (preview?.type === "unavailable") {
+        await window.eidosLite.openMarkdownLink(sourceRelativePath, href)
+        return
+      }
       const requestId = Date.now()
       setMarkdownNavigationTarget({
         relativePath: entry.relativePath,
@@ -2856,7 +2876,7 @@ function WorkspaceApp({
         ...(request.heading ? { heading: request.heading } : {}),
         ...(request.blockId ? { blockId: request.blockId } : {}),
       })
-      const opened = await openEntry(entry)
+      const opened = await openEntry(entry, { preview })
       if (!opened) {
         setMarkdownNavigationTarget((current) =>
           current?.requestId === requestId ? null : current
@@ -3517,6 +3537,18 @@ function WorkspaceApp({
     async (result: SpacePathMutationResult) => {
       acceptSpaceSnapshot(result.snapshot)
       invalidateCachedSessions(result.invalidatedSessionIds)
+      const contentUpdates =
+        result.markdownLinks?.updatedPaths.filter((path) =>
+          /\.eidos$/iu.test(path)
+        ) ?? []
+      if (
+        contentUpdates.length &&
+        result.snapshot.externalChangePaths === undefined
+      )
+        await refreshExternallyChangedEidosFiles(
+          result.snapshot,
+          contentUpdates
+        )
       if (result.markdownLinks?.skippedPaths.length) {
         setError(
           `The file was moved, but some Markdown references could not be updated: ${result.markdownLinks.skippedPaths.join(", ")}`
@@ -3545,7 +3577,13 @@ function WorkspaceApp({
         }
       }
     },
-    [acceptSpaceSnapshot, invalidateCachedSessions, textPreview, textFileDrafts]
+    [
+      acceptSpaceSnapshot,
+      invalidateCachedSessions,
+      textPreview,
+      textFileDrafts,
+      refreshExternallyChangedEidosFiles,
+    ]
   )
 
   const closeActiveDocument = useCallback(async () => {
@@ -3565,7 +3603,7 @@ function WorkspaceApp({
       completed?: (sources: string[]) => void,
       clipboard?: SpacePathClipboardSources
     ) => {
-      if (Object.values(textFileDrafts).some(Boolean))
+      if (eidosPendingEdits || Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before moving files so Markdown references can be updated safely."
         )
@@ -3613,6 +3651,7 @@ function WorkspaceApp({
       recordNavigationLocation,
       updateRecentFilePaths,
       textFileDrafts,
+      eidosPendingEdits,
     ]
   )
 
@@ -3649,7 +3688,7 @@ function WorkspaceApp({
 
   const renameTreeEntry = useCallback(
     async (entry: SpaceTreeEntry, name: string) => {
-      if (Object.values(textFileDrafts).some(Boolean))
+      if (eidosPendingEdits || Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before renaming files so Markdown references can be updated safely."
         )
@@ -3686,6 +3725,7 @@ function WorkspaceApp({
       recordNavigationLocation,
       updateRecentFilePaths,
       textFileDrafts,
+      eidosPendingEdits,
     ]
   )
 
@@ -5364,6 +5404,7 @@ function WorkspaceApp({
                     }
                   >
                     <EidosFileWorkbench
+                      onOpenMarkdownInternalLink={openMarkdownInternalLink}
                       onPendingEditChange={updateEidosPendingEdit}
                       onOpenFileInSidebar={openFileInSidebar}
                       fileSidebarOpen={

@@ -18,7 +18,7 @@ const hot = (
 ).hot
 
 const hotData = hot?.data
-export const EidosFileUIContext =
+export const EidosFileUIContext: Context<EidosFileUIHost> =
   hotData?.eidosFileUIContext ?? createContext<EidosFileUIHost>(defaultHost)
 
 if (hotData) hotData.eidosFileUIContext = EidosFileUIContext

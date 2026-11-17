@@ -12,6 +12,72 @@ import { EidosFileUIProvider } from "./context"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 describe("EidosFileMarkdownPreview", () => {
+  it("rebinds identical Content image URLs and body-link activation when the owning file changes", async () => {
+    let finishOld!: (value: string) => void
+    const oldRead = new Promise<string>((resolve) => {
+      finishOld = resolve
+    })
+    const ownerA = vi.fn(() => oldRead)
+    const ownerB = vi.fn(async () => "https://host.test/b.png")
+    const linkA = vi.fn(),
+      linkB = vi.fn()
+    const renderMarkdownHtml = () => ({
+      html: '<img src="../assets/a.png" alt="shared"><a href="../assets/a.pdf">plan</a>',
+      className: "host-content",
+    })
+    const render = (
+      resolve: typeof ownerA | typeof ownerB,
+      activate: typeof linkA
+    ) => (
+      <EidosFileUIProvider
+        renderMarkdownHtml={renderMarkdownHtml}
+        resolveMarkdownImageUrl={resolve}
+        activateMarkdownLink={activate}
+      >
+        <EidosFileMarkdownPreview markdown="![shared](../assets/a.png) [plan](../assets/a.pdf)" />
+      </EidosFileUIProvider>
+    )
+    await act(async () => {
+      root.render(render(ownerA, linkA))
+    })
+    await act(async () => {
+      root.render(render(ownerB, linkB))
+    })
+    expect(ownerB).toHaveBeenCalledWith("../assets/a.png")
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "https://host.test/b.png"
+    )
+    await act(async () => {
+      finishOld("https://host.test/a.png")
+      await oldRead
+    })
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "https://host.test/b.png"
+    )
+    act(() =>
+      container
+        .querySelector("a")!
+        .dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true })
+        )
+    )
+    expect(linkB).toHaveBeenCalledWith("../assets/a.pdf")
+    expect(linkA).not.toHaveBeenCalled()
+    const missing = vi.fn(async () => null)
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          renderMarkdownHtml={renderMarkdownHtml}
+          resolveMarkdownImageUrl={missing}
+        >
+          <EidosFileMarkdownPreview markdown="![shared](../assets/a.png) [plan](../assets/a.pdf)" />
+        </EidosFileUIProvider>
+      )
+    })
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "../assets/a.png"
+    )
+  })
   let container: HTMLDivElement
   let root: Root
 

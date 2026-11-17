@@ -7,6 +7,19 @@ import type {
 import { resolveObsidianSpaceEntry } from "../../shared/markdown-vault-paths"
 import { flattenSpaceTree, listSpaceTree } from "./space-paths"
 import { readTextFilePreview, saveTextFile } from "./text-file-preview"
+import type {
+  ContentLinkSnapshot,
+  ContentLinkUpdate,
+  ContentLinkUpdateResult,
+} from "../../shared/content-link-updates"
+
+export interface MarkdownContentStore {
+  read(owner: string): Promise<ContentLinkSnapshot>
+  write(
+    owner: string,
+    update: ContentLinkUpdate
+  ): Promise<ContentLinkUpdateResult>
+}
 
 export function movedPath(
   value: string,
@@ -68,14 +81,16 @@ export async function rewriteMovedMarkdownLinks(
   owner: string,
   source: string,
   target: string,
-  files: readonly SpacePathSearchHit[]
+  files: readonly SpacePathSearchHit[],
+  inputProfile: "document" | "fragment" = "document"
 ): Promise<string> {
   return rewriteIndexedMarkdownLinks(
     content,
     owner,
     source,
     target,
-    moveLinkTargets(files, source, target)
+    moveLinkTargets(files, source, target),
+    inputProfile
   )
 }
 
@@ -84,11 +99,12 @@ async function rewriteIndexedMarkdownLinks(
   owner: string,
   source: string,
   target: string,
-  targets: ReturnType<typeof moveLinkTargets>
+  targets: ReturnType<typeof moveLinkTargets>,
+  inputProfile: "document" | "fragment" = "document"
 ): Promise<string> {
   const nextOwner = movedPath(owner, source, target)
   const replacements: { start: number; end: number; value: string }[] = []
-  for (const link of markdownFileLinkRanges(content)) {
+  for (const link of markdownFileLinkRanges(content, { inputProfile })) {
     const resolved = await resolveObsidianSpaceEntry(
       owner,
       link,
@@ -151,13 +167,15 @@ interface MarkdownLinkEdit {
 export interface MarkdownLinkPlan {
   edits: MarkdownLinkEdit[]
   issues: string[]
+  contentEdits?: Array<{ relativePath: string; update: ContentLinkUpdate }>
 }
 
 export async function prepareMarkdownLinkMove(
   root: string,
   source: string,
   target: string,
-  options: Parameters<typeof listSpaceTree>[1] = {}
+  options: Parameters<typeof listSpaceTree>[1] = {},
+  contentStore?: MarkdownContentStore
 ): Promise<MarkdownLinkPlan> {
   const entries = flattenSpaceTree(await listSpaceTree(root, options)).filter(
     (entry) => entry.kind !== "directory" && entry.kind !== "symlink"
@@ -171,7 +189,42 @@ export async function prepareMarkdownLinkMove(
   const plan: MarkdownLinkPlan = { edits: [], issues: [] }
   const targets = moveLinkTargets(files, source, target)
   for (const file of files) {
-    if (file.kind !== "file" || !/\.md$/iu.test(file.name)) continue
+    if (
+      file.kind === "eidos" &&
+      contentStore &&
+      !file.relativePath
+        .split("/")
+        .some((part) =>
+          [".eidos", ".graft", ".git"].includes(part.toLowerCase())
+        )
+    ) {
+      try {
+        const snapshot = await contentStore.read(file.relativePath)
+        const documents: ContentLinkSnapshot["documents"] = []
+        for (const document of snapshot.documents) {
+          const content = await rewriteIndexedMarkdownLinks(
+            document.content,
+            file.relativePath,
+            source,
+            target,
+            targets,
+            "fragment"
+          )
+          if (content !== document.content)
+            documents.push({ ...document, content })
+        }
+        if (documents.length)
+          (plan.contentEdits ??= []).push({
+            relativePath: movedPath(file.relativePath, source, target),
+            update: { revision: snapshot.revision, documents },
+          })
+      } catch {
+        plan.issues.push(file.relativePath)
+      }
+      continue
+    }
+    if (file.kind !== "file" || !/\.(?:md|markdown)$/iu.test(file.name))
+      continue
     try {
       const preview = await readTextFilePreview(root, file.relativePath)
       if (preview.type !== "text" || preview.truncated) {
@@ -201,7 +254,8 @@ export async function prepareMarkdownLinkMove(
 /** Called inside Lite's mutation gate after the rename. Conflicts never overwrite newer bytes. */
 export async function applyMarkdownLinkMove(
   root: string,
-  plan: MarkdownLinkPlan
+  plan: MarkdownLinkPlan,
+  contentStore?: MarkdownContentStore
 ): Promise<NonNullable<SpacePathMutationResult["markdownLinks"]>> {
   const result = {
     updatedPaths: [] as string[],
@@ -212,6 +266,16 @@ export async function applyMarkdownLinkMove(
       const saved = await saveTextFile(root, edit)
       if (saved.status === "saved") result.updatedPaths.push(edit.relativePath)
       else result.skippedPaths.push(edit.relativePath)
+    } catch {
+      result.skippedPaths.push(edit.relativePath)
+    }
+  }
+  for (const edit of plan.contentEdits ?? []) {
+    try {
+      if (!contentStore) throw new Error("Content link writer unavailable")
+      const saved = await contentStore.write(edit.relativePath, edit.update)
+      if (saved.updated) result.updatedPaths.push(edit.relativePath)
+      if (saved.skipped) result.skippedPaths.push(edit.relativePath)
     } catch {
       result.skippedPaths.push(edit.relativePath)
     }

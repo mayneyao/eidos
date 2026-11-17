@@ -1266,6 +1266,12 @@ fetches. External links activate only through the Host's explicit URL
 activation boundary. Editing commits the underlying Text value through the
 normal atomic row-mutation and optimistic-state rules.
 
+A Host MAY provide the optional UI Host callback `activateMarkdownLink` for
+Content Markdown navigation, separately from external `activateUrl`. The Host
+owns the Content file's resource base and granted authority. Relative body
+references MUST NOT widen ordinary File-entry authorization or implicitly grant
+parent-directory access to a Host without an explicit resource root.
+
 Every user-facing Field-type selector, including create, conversion, CSV
 mapping, and Formula result/display controls, MUST pair the localized type label
 with the same canonical Field-type icon in both its closed trigger and every

@@ -46,6 +46,7 @@ import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
 import {
   prepareMarkdownLinkMove,
   applyMarkdownLinkMove,
+  type MarkdownContentStore,
 } from "./markdown-link-maintenance"
 import type {
   EidosFileFieldInfo,
@@ -200,6 +201,7 @@ import {
   importMarkdownDocumentFile,
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
+  resolveMarkdownDocumentLink,
 } from "./markdown-document-assets"
 import { readWorkingTextContent } from "./working-text-reader"
 
@@ -1665,7 +1667,11 @@ export class SpaceSession {
             this.resolveUserPath(target)
           )
           if (linkPlan)
-            await applyMarkdownLinkMove(this.canonical.root, linkPlan)
+            await applyMarkdownLinkMove(
+              this.canonical.root,
+              linkPlan,
+              this.contentLinkStore()
+            )
         }
         const next = await readTextFilePreview(this.canonical.root, target)
         return next.type === "text" ? next : null
@@ -1724,6 +1730,31 @@ export class SpaceSession {
     } finally {
       this.scheduleGraftStatusRefresh()
     }
+  }
+
+  async resolveMarkdownLink(
+    owner: string,
+    href: string
+  ): Promise<SpaceTreeEntry | null> {
+    return this.gate.withRuntimeRead(() =>
+      resolveMarkdownDocumentLink(this.canonical.root, owner, href)
+    )
+  }
+
+  async openMarkdownLink(
+    owner: string,
+    href: string,
+    activate: (relativePath: string) => Promise<void>
+  ): Promise<void> {
+    return this.gate.withRuntimeRead(async () => {
+      const entry = await resolveMarkdownDocumentLink(
+        this.canonical.root,
+        owner,
+        href
+      )
+      if (!entry) throw new Error("Markdown link target is unavailable")
+      await activate(entry.relativePath)
+    })
   }
 
   async inspectEidosFileIssue(
@@ -2010,8 +2041,32 @@ export class SpaceSession {
               )
             },
           }
-        : {}
+        : {},
+      this.contentLinkStore()
     )
+  }
+
+  private contentLinkStore(): MarkdownContentStore {
+    return {
+      read: async (owner) => {
+        const opened = await this.runtimePool.open(owner)
+        return this.runtimePool.call(
+          opened.sessionId,
+          "readContentLinkDocuments",
+          []
+        )
+      },
+      write: async (owner, update) => {
+        // Caller holds the Space mutation gate; do not recursively acquire it.
+        this.assertWritable()
+        const opened = await this.runtimePool.open(owner)
+        return this.runtimePool.call(
+          opened.sessionId,
+          "writeContentLinkDocuments",
+          [update]
+        )
+      },
+    }
   }
 
   async renamePath(
@@ -2051,11 +2106,19 @@ export class SpaceSession {
         this.resolveUserPath(source),
         this.resolveUserPath(target)
       )
-      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
+      markdownLinks = await applyMarkdownLinkMove(
+        this.canonical.root,
+        linkPlan,
+        this.contentLinkStore()
+      )
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
-    this.notifyMarkdownWatchers([source, target])
+    this.notifyMarkdownWatchers([
+      source,
+      target,
+      ...(markdownLinks?.updatedPaths ?? []),
+    ])
     let finalPath = target
     if (this.fileHookRunner && !/\.eidos$/i.test(target)) {
       const file = await this.previewTextFile(target)
@@ -2174,7 +2237,8 @@ export class SpaceSession {
           this.recordPathMoveInBackground(source, target)
           const links = await applyMarkdownLinkMove(
             this.canonical.root,
-            linkPlan
+            linkPlan,
+            this.contentLinkStore()
           )
           for (const value of links.updatedPaths) updatedPaths.add(value)
           for (const value of links.skippedPaths) skippedPaths.add(value)

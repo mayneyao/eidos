@@ -2015,6 +2015,30 @@ export function registerIpc(
         .resolveMarkdownImage(documentPath, imageUrl)
     }
   )
+  for (const channel of [
+    IPC_CHANNELS.resolveMarkdownLink,
+    IPC_CHANNELS.openMarkdownLink,
+  ]) {
+    ipcMain.handle(channel, async (event, owner: unknown, href: unknown) => {
+      const documentPath = requiredString(owner, "Markdown owner")
+      const target = requiredString(href, "Markdown link")
+      if (!documentPath || documentPath.length > 8192 || target.length > 8192)
+        throw new Error("Invalid Markdown link")
+      const session = controller.requireSession(event.sender)
+      if (channel === IPC_CHANNELS.resolveMarkdownLink)
+        return session.resolveMarkdownLink(documentPath, target)
+      return session.openMarkdownLink(
+        documentPath,
+        target,
+        async (relativePath) => {
+          const error = await shell.openPath(
+            session.resolveUserPath(relativePath)
+          )
+          if (error) throw new Error(error)
+        }
+      )
+    })
+  }
   ipcMain.handle(
     IPC_CHANNELS.inspectFileIssue,
     (event, relativePath: unknown) => {
