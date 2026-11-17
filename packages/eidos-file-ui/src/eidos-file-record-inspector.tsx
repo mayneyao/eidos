@@ -572,13 +572,9 @@ export function EidosFileRecordInspector({
     anchor: null,
     fieldId: null,
   })
-  const [peekSystemFields, setPeekSystemFields] = useState(false)
   useEffect(() => {
     setFieldManager({ anchor: null, fieldId: null })
   }, [recordPropertyScope, tableId])
-  useEffect(() => {
-    setPeekSystemFields(false)
-  }, [recordPropertyScope, tableId, hideSystemFields])
   const creationContext = useEidosFileCreationContext()
   const defaultSession = `${propertyScope}:${String(row._id ?? "")}`
   const newRecordDefaults = useRef<{
@@ -805,7 +801,7 @@ export function EidosFileRecordInspector({
         savingField === field.tableColumnName ||
         failedEdit?.field.id === field.id ||
         (field.systemRole != null
-          ? !hideSystemFields || peekSystemFields
+          ? !hideSystemFields
           : isEidosFileRecordLabelField(field) ||
             !recordPreferences.hiddenFields.includes(field.id))
     )
@@ -1160,13 +1156,13 @@ export function EidosFileRecordInspector({
         setPropertyPreference({ scope: propertyScope, collapsed })
       }}
     >
+      <span>{t("Properties ({count})", { count: metadataFields.length })}</span>
       <ChevronRight
         className={cn(
           "h-3.5 w-3.5 shrink-0",
           !propertiesCollapsed && "rotate-90"
         )}
       />
-      {t("Properties ({count})", { count: metadataFields.length })}
     </button>
   ) : null
 
@@ -1201,6 +1197,7 @@ export function EidosFileRecordInspector({
     metadataRows
   ) : (
     <EidosFileRecordPropertyList
+      variant={variant}
       disabled={presentationLocked || Boolean(fieldManager.anchor)}
       rows={metadataRows.map((content) => ({
         id: content.props["data-eidos-record-property"] as string,
@@ -1224,6 +1221,7 @@ export function EidosFileRecordInspector({
   )
   const propertiesFooter = !isMobile ? (
     <EidosFileRecordPropertiesFooter
+      variant={variant}
       hiddenFields={allMetadataFields.filter(
         (field) =>
           field.systemRole == null &&
@@ -1242,12 +1240,6 @@ export function EidosFileRecordInspector({
           ),
         }))
       }
-      hideSystemFields={hideSystemFields}
-      systemCount={
-        allMetadataFields.filter((field) => field.systemRole != null).length
-      }
-      peekSystemFields={peekSystemFields}
-      onPeek={() => setPeekSystemFields((value) => !value)}
     />
   ) : null
   const propertiesHeader = (

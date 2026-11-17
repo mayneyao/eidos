@@ -33,6 +33,7 @@ import {
 import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
+import { cn } from "./lib/cn"
 
 export interface RecordFieldMenuState {
   anchor: HTMLElement | null
@@ -44,17 +45,19 @@ function SortableRecordProperty({
   disabled,
   label,
   children,
+  variant,
 }: {
   id: string
   disabled: boolean
   label: string
   children: ReactNode
+  variant: "page" | "panel"
 }) {
   const sortable = useSortable({ id, disabled })
   return (
     <div
       ref={sortable.setNodeRef}
-      className="group/record-property relative min-w-0 pl-5"
+      className="group/record-property relative min-w-0"
       style={{
         transform: CSS.Transform.toString(
           sortable.transform ? { ...sortable.transform, x: 0 } : null
@@ -67,7 +70,13 @@ function SortableRecordProperty({
         ref={sortable.setActivatorNodeRef}
         disabled={disabled}
         aria-label={label}
-        className="absolute left-0 top-1.5 z-10 flex h-6 w-5 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-hidden hover:bg-accent focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring group-hover/record-property:opacity-100 group-focus-within/record-property:opacity-100 disabled:cursor-default disabled:opacity-0 [@media(hover:none)]:opacity-100"
+        data-eidos-file-record-property-handle=""
+        className={cn(
+          "absolute z-10 flex h-6 w-4 cursor-grab items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-hidden hover:bg-accent focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring group-hover/record-property:opacity-100 group-focus-within/record-property:opacity-100 disabled:cursor-default disabled:opacity-0 [@media(hover:none)]:opacity-100",
+          variant === "panel"
+            ? "left-0 top-2 @min-[480px]/eidos-file-record-panel:top-3"
+            : "-left-4 top-1.5"
+        )}
         {...sortable.attributes}
         {...sortable.listeners}
       >
@@ -82,10 +91,12 @@ export function EidosFileRecordPropertyList({
   rows,
   disabled,
   onReorder,
+  variant,
 }: {
   rows: { id: string; label: string; content: ReactNode }[]
   disabled: boolean
   onReorder: (ids: string[]) => void
+  variant: "page" | "panel"
 }) {
   const { translate: t } = useEidosFileUI()
   const [dragging, setDragging] = useState(false)
@@ -102,6 +113,7 @@ export function EidosFileRecordPropertyList({
           id={item.id}
           label={t("Reorder {field}", { field: item.label })}
           disabled={disabled}
+          variant={variant}
         >
           {item.content}
         </SortableRecordProperty>
@@ -480,10 +492,7 @@ export function EidosFileRecordPropertiesFooter({
   canCreate,
   onCreate,
   onRestore,
-  hideSystemFields,
-  systemCount,
-  peekSystemFields,
-  onPeek,
+  variant,
 }: {
   hiddenFields: EidosFileFieldInfo[]
   preferencesLocked: boolean
@@ -491,14 +500,14 @@ export function EidosFileRecordPropertiesFooter({
   canCreate: boolean
   onCreate: (anchor: HTMLElement) => void
   onRestore: (id: string) => void
-  hideSystemFields: boolean
-  systemCount: number
-  peekSystemFields: boolean
-  onPeek: () => void
+  variant: "page" | "panel"
 }) {
   const { translate: t } = useEidosFileUI()
   return (
-    <div className="grid gap-1 px-5 py-2" data-eidos-record-properties-footer>
+    <div
+      className={cn("grid gap-1 py-2", variant === "panel" && "px-4")}
+      data-eidos-record-properties-footer
+    >
       {canCreate ? (
         <Button
           variant="ghost"
@@ -533,21 +542,6 @@ export function EidosFileRecordPropertiesFooter({
             ))}
           </div>
         </details>
-      ) : null}
-      {hideSystemFields && systemCount ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 justify-start px-0 text-xs text-muted-foreground"
-          disabled={preferencesLocked}
-          onClick={onPeek}
-        >
-          {peekSystemFields
-            ? t("Hide system fields")
-            : t("Show system fields temporarily ({count})", {
-                count: systemCount,
-              })}
-        </Button>
       ) : null}
     </div>
   )

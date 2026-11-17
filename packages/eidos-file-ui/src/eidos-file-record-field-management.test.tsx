@@ -186,6 +186,14 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     await act(async () => root.render(<Fixture />))
     expect(systemRows()).toHaveLength(3)
     expect(byLabel("Manage record properties")).toBeNull()
+    const disclosure = container.querySelector(
+      "[data-eidos-file-record-properties-toggle]"
+    )!
+    expect(disclosure.firstElementChild?.tagName).toBe("SPAN")
+    expect(disclosure.lastElementChild?.tagName.toLowerCase()).toBe("svg")
+    expect(disclosure.firstElementChild?.textContent).toMatch(
+      /^Properties \(\d+\)$/
+    )
     await click(byLabel("Edit Status properties"))
     expect(
       dialog().querySelector('[data-eidos-file-detail-panel="field"]')
@@ -241,10 +249,10 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     await act(async () => setDefaultHidden(true))
     expect(systemRows()).toHaveLength(0)
     expect(container.textContent).toContain("Record ID") // ordinary homonym
-    await click(buttonText("Show system fields temporarily (3)", container))
-    expect(systemRows()).toHaveLength(3)
-    await click(buttonText("Hide system fields", container))
-    expect(systemRows()).toHaveLength(0)
+    expect(
+      container.querySelector("[data-eidos-record-properties-footer]")
+        ?.textContent
+    ).not.toMatch(/system fields/i)
     await assign(false)
     expect(systemRows()).toHaveLength(3)
     await act(async () => setDefaultHidden(false))
@@ -258,6 +266,10 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     expect(systemRows()).toHaveLength(0)
     await act(async () => setVariant("panel"))
     expect(systemRows()).toHaveLength(0)
+    expect(
+      container.querySelector("[data-eidos-record-properties-footer]")
+        ?.textContent
+    ).not.toMatch(/system fields/i)
     await act(async () => setTableIndex(1))
     expect(systemRows()).toHaveLength(0) // another unset table follows the current default
     await act(async () => setDefaultHidden(false))
