@@ -691,6 +691,22 @@ export function SettingsPage() {
       </header>
       <div className="settings-layout">
         <aside className="settings-sidebar">
+          <SettingsSearch
+            inputRef={searchInputRef}
+            descriptors={descriptors}
+            navigationVersion={navigationVersion}
+            catalogState={catalogState}
+            onRetry={() => {
+              void refreshPluginCatalog()
+            }}
+            onNavigate={(setting) => {
+              const current = descriptors.find(
+                (descriptor) => descriptor.id === setting.id
+              )
+              if (current) navigate(current.pageId, current)
+              else setError(t("This setting is no longer available."))
+            }}
+          />
           <nav aria-label={t("Settings sections")}>
             {SETTINGS_PAGES.map((page) => {
               const Icon = PAGE_ICONS[page.id]
@@ -708,22 +724,6 @@ export function SettingsPage() {
             })}
           </nav>
         </aside>
-        <SettingsSearch
-          inputRef={searchInputRef}
-          descriptors={descriptors}
-          navigationVersion={navigationVersion}
-          catalogState={catalogState}
-          onRetry={() => {
-            void refreshPluginCatalog()
-          }}
-          onNavigate={(setting) => {
-            const current = descriptors.find(
-              (descriptor) => descriptor.id === setting.id
-            )
-            if (current) navigate(current.pageId, current)
-            else setError(t("This setting is no longer available."))
-          }}
-        />
         <div className="settings-content" ref={contentRef}>
           <div className="settings-page" data-settings-page={activePage}>
             {visitedPages.has("devices") && (

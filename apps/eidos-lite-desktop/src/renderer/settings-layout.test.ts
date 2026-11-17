@@ -27,7 +27,7 @@ describe("Settings responsive layout", () => {
       /\.settings-layout\s*\{[^}]*grid-template-columns:\s*12\.5rem minmax\(0, 1fr\)/
     )
     expect(styles).toMatch(
-      /\.settings-sidebar button > span\s*\{[^}]*white-space:\s*nowrap/
+      /\.settings-sidebar nav button > span\s*\{[^}]*white-space:\s*nowrap/
     )
     expect(styles).toMatch(
       /\.settings-shortcut-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(10rem, 1fr\) auto/

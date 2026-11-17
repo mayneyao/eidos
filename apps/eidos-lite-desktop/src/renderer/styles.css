@@ -547,12 +547,15 @@ body {
   min-width: 0;
   min-height: 0;
   grid-template-columns: 12.5rem minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .settings-sidebar {
-  grid-row: 1 / span 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
   min-width: 0;
+  min-height: 0;
   padding: 1rem 0.65rem;
   border-right: 1px solid var(--hairline);
   background: var(--canvas);
@@ -560,10 +563,13 @@ body {
 
 .settings-sidebar nav {
   display: grid;
+  align-content: start;
   gap: 0.12rem;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-.settings-sidebar button {
+.settings-sidebar nav button {
   display: flex;
   width: 100%;
   min-height: 2rem;
@@ -580,29 +586,29 @@ body {
   cursor: pointer;
 }
 
-.settings-sidebar button:hover {
+.settings-sidebar nav button:hover {
   color: var(--ink);
   background: var(--surface-hover);
 }
 
-.settings-sidebar button[aria-current="page"] {
+.settings-sidebar nav button[aria-current="page"] {
   color: var(--ink);
   background: var(--surface-selected);
   font-weight: 620;
 }
 
-.settings-sidebar button:focus-visible {
+.settings-sidebar nav button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -1px;
 }
 
-.settings-sidebar svg {
+.settings-sidebar nav svg {
   width: 0.9rem;
   height: 0.9rem;
   flex: none;
 }
 
-.settings-sidebar button > span {
+.settings-sidebar nav button > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -611,7 +617,6 @@ body {
 
 .settings-content {
   grid-column: 2;
-  grid-row: 2;
   container-type: inline-size;
   position: relative;
   min-width: 0;
@@ -622,13 +627,9 @@ body {
 }
 
 .settings-search {
-  grid-column: 2;
-  grid-row: 1;
   position: relative;
   z-index: 2;
-  width: min(100%, 36rem);
-  margin: 0 auto;
-  padding: 1rem 1.5rem 0;
+  min-width: 0;
   -webkit-app-region: no-drag;
 }
 
@@ -696,8 +697,8 @@ body {
 .settings-search-results {
   position: absolute;
   top: 100%;
-  right: 1.5rem;
-  left: 1.5rem;
+  left: 0;
+  width: min(28rem, calc(100vw - 1.3rem));
   display: flex;
   flex-direction: column;
   max-height: min(24rem, calc(100vh - var(--window-titlebar-height) - 5rem));
@@ -15502,16 +15503,6 @@ body:has(.file-properties-window)
   .settings-page {
     padding-right: 1rem;
     padding-left: 1rem;
-  }
-
-  .settings-search {
-    padding-right: 1rem;
-    padding-left: 1rem;
-  }
-
-  .settings-search-results {
-    right: 1rem;
-    left: 1rem;
   }
 
   .settings-row-stacked {
