@@ -63,6 +63,7 @@ import {
 } from "./settings-catalog"
 import { SettingsSearch, isSettingsSearchShortcut } from "./settings-search"
 import { focusSetting } from "./settings-navigation"
+import { SettingsSidebarResizer } from "./settings-sidebar-resizer"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -669,6 +670,7 @@ export function SettingsPage() {
   return (
     <main
       className="settings-shell"
+      aria-label={t("Settings")}
       data-platform={appInfo?.platform ?? rendererPlatform()}
       data-settings-ready={appInfo ? "true" : "false"}
       onKeyDown={(event) => {
@@ -687,10 +689,15 @@ export function SettingsPage() {
       }}
     >
       <header className="settings-titlebar">
-        <strong>{t("Settings")}</strong>
+        <h1>
+          {t(
+            SETTINGS_PAGES.find((page) => page.id === activePage)?.label ??
+              "Settings"
+          )}
+        </h1>
       </header>
       <div className="settings-layout">
-        <aside className="settings-sidebar">
+        <aside className="settings-sidebar" id="settings-sidebar">
           <SettingsSearch
             inputRef={searchInputRef}
             descriptors={descriptors}
@@ -723,6 +730,8 @@ export function SettingsPage() {
               )
             })}
           </nav>
+          <SettingsSidebarResizer />
+          <div className="settings-sidebar-titlebar" aria-hidden="true" />
         </aside>
         <div className="settings-content" ref={contentRef}>
           <div className="settings-page" data-settings-page={activePage}>

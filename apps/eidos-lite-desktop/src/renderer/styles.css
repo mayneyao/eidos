@@ -516,37 +516,51 @@ body {
 
 .settings-shell {
   --window-titlebar-height: var(--chrome-header-height);
-  display: grid;
-  grid-template-rows: var(--window-titlebar-height) minmax(0, 1fr);
+  --settings-sidebar-width: 12.5rem;
+  --settings-sidebar-padding: 0.65rem;
+  position: relative;
   width: 100%;
   height: 100%;
   background: var(--canvas);
 }
 
 .settings-titlebar {
-  position: relative;
+  position: absolute;
   z-index: 3;
+  top: 0;
+  right: 0;
+  left: var(--settings-sidebar-width);
   display: flex;
+  min-width: 0;
+  height: var(--window-titlebar-height);
   align-items: center;
-  justify-content: center;
+  padding: 0 1.5rem;
   border-bottom: 1px solid var(--hairline);
   background: transparent;
   -webkit-app-region: drag;
   -webkit-user-select: none;
 }
 
-.settings-titlebar strong {
+.settings-titlebar h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--ink);
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-layout {
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 12.5rem minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  grid-template-columns: var(--settings-sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -556,7 +570,8 @@ body {
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;
-  padding: 1rem 0.65rem;
+  padding: calc(var(--window-titlebar-height) + 1rem)
+    var(--settings-sidebar-padding) 1rem;
   border-right: 1px solid var(--hairline);
   background: var(--canvas);
 }
@@ -567,6 +582,16 @@ body {
   gap: 0.12rem;
   min-height: 0;
   overflow-y: auto;
+}
+
+.settings-sidebar-titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--settings-sidebar-width);
+  height: var(--window-titlebar-height);
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
 }
 
 .settings-sidebar nav button {
@@ -617,6 +642,7 @@ body {
 
 .settings-content {
   grid-column: 2;
+  margin-top: var(--window-titlebar-height);
   container-type: inline-size;
   position: relative;
   min-width: 0;
@@ -624,6 +650,43 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+}
+
+.settings-sidebar-resizer {
+  position: absolute;
+  z-index: 3;
+  top: var(--window-titlebar-height, 0px);
+  bottom: 0;
+  left: calc(var(--settings-sidebar-width) - 4px);
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.settings-sidebar-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  content: "";
+}
+
+.settings-sidebar-resizer:hover::after,
+.settings-sidebar-resizer:focus-visible::after,
+.settings-sidebar-resizer[data-resizing="true"]::after {
+  background: var(--focus);
+}
+
+.settings-sidebar-resizer:focus-visible {
+  outline: none;
+}
+
+.settings-layout:has(.settings-sidebar-resizer[data-resizing="true"]) {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .settings-search {
@@ -697,8 +760,9 @@ body {
 .settings-search-results {
   position: absolute;
   top: 100%;
-  left: 0;
-  width: min(28rem, calc(100vw - 1.3rem));
+  left: calc(-1 * var(--settings-sidebar-padding));
+  width: var(--settings-sidebar-width);
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
   max-height: min(24rem, calc(100vh - var(--window-titlebar-height) - 5rem));
@@ -733,10 +797,8 @@ body {
 }
 
 .settings-search-result-heading {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.2rem 0.75rem;
+  display: grid;
+  gap: 0.2rem;
 }
 
 .settings-search-result-heading strong {
@@ -751,6 +813,13 @@ body {
   color: var(--ink-muted);
   font-size: 0.6875rem;
   overflow-wrap: anywhere;
+}
+
+.settings-search-results small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .settings-search-status {
@@ -778,7 +847,19 @@ body {
 .settings-page {
   width: min(100%, 36rem);
   margin: 0 auto;
-  padding: 1.75rem 1.5rem 3rem;
+  padding: 1.25rem 1.5rem 3rem;
+}
+
+/* The current category is already named by the right-hand titlebar. Keep
+   section labels available to assistive technology without repeating it. */
+.settings-page > section > h2:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .settings-page section > h2 {
@@ -2011,6 +2092,15 @@ body {
   )
   .welcome-settings-button {
   right: calc(var(--window-controls-overlay-width) + 0.75rem);
+}
+
+.settings-shell:is(
+    [data-platform="win32"],
+    [data-platform="linux"],
+    [data-platform="other"]
+  )
+  .settings-titlebar {
+  padding-right: calc(var(--window-controls-overlay-width) + 1.5rem);
 }
 
 .space-sidebar {
@@ -15494,10 +15584,6 @@ body:has(.file-properties-window)
 @media (max-width: 56rem) {
   .space-heading span {
     display: none;
-  }
-
-  .settings-layout {
-    grid-template-columns: 12.5rem minmax(0, 1fr);
   }
 
   .settings-page {

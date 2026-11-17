@@ -21,10 +21,10 @@ describe("Settings responsive layout", () => {
     expect(responsiveStart).toBeGreaterThan(-1)
     expect(responsiveEnd).toBeGreaterThan(responsiveStart)
     expect(styles).toMatch(
-      /\.settings-layout\s*\{[^}]*grid-template-columns:\s*12\.5rem minmax\(0, 1fr\)/
+      /\.settings-layout\s*\{[^}]*grid-template-columns:\s*var\(--settings-sidebar-width\) minmax\(0, 1fr\)/
     )
-    expect(responsiveStyles).toMatch(
-      /\.settings-layout\s*\{[^}]*grid-template-columns:\s*12\.5rem minmax\(0, 1fr\)/
+    expect(responsiveStyles).not.toMatch(
+      /\.settings-layout\s*\{[^}]*grid-template-columns:/
     )
     expect(styles).toMatch(
       /\.settings-sidebar nav button > span\s*\{[^}]*white-space:\s*nowrap/

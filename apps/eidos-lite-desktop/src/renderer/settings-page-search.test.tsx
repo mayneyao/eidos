@@ -237,6 +237,9 @@ describe("Settings search through original controls", () => {
     await search(".md")
     await key("Enter")
     expect(window.location.hash).toBe("#/settings/files")
+    expect(host.querySelector(".settings-titlebar h1")?.textContent).toBe(
+      "Files"
+    )
     expect(document.activeElement).toBe(original)
     expect(host.querySelector("[data-markdown-file-editing-mode-select]")).toBe(
       original

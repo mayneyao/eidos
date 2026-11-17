@@ -102,8 +102,8 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".welcome-titlebar")).toContain(
       "height: var(--window-titlebar-height)"
     )
-    expect(rule(".settings-shell")).toContain(
-      "grid-template-rows: var(--window-titlebar-height)"
+    expect(rule(".settings-titlebar")).toContain(
+      "height: var(--window-titlebar-height)"
     )
     expect(rule(".workbench")).toContain(
       "--workbench-titlebar-height: var(--window-titlebar-height)"
@@ -128,12 +128,17 @@ describe("Eidos Lite surface hierarchy", () => {
       "var(--window-controls-overlay-width)"
     ).filter((entry) => !entry.includes("--window-caption-width:"))
 
-    expect(actionRules).toHaveLength(4)
+    expect(actionRules).toHaveLength(5)
     for (const overlayRule of [overlayShells, ...actionRules]) {
       expect(overlayRule).toContain('[data-platform="linux"]')
       expect(overlayRule).toContain('[data-platform="other"]')
     }
     expect(overlayShells).toContain("--window-controls-overlay-width")
+    const settingsHeader = actionRules.find((entry) =>
+      entry.includes(".settings-titlebar")
+    )
+    expect(settingsHeader).toContain('[data-platform="win32"]')
+    expect(settingsHeader).not.toContain('[data-platform="darwin"]')
     expect(
       actionRules.some((actionRule) =>
         actionRule.includes(".welcome-settings-button")
@@ -258,8 +263,8 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".welcome-titlebar")).toContain(
       "height: var(--window-titlebar-height)"
     )
-    expect(rule(".settings-shell")).toContain(
-      "grid-template-rows: var(--window-titlebar-height)"
+    expect(rule(".settings-titlebar")).toContain(
+      "height: var(--window-titlebar-height)"
     )
     expect(rule(".workbench")).toContain(
       "--workbench-titlebar-height: var(--window-titlebar-height)"
