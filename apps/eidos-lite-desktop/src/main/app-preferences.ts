@@ -30,6 +30,7 @@ export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
+  hideSystemFieldsInRecords: false,
   builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
   terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
@@ -135,6 +136,7 @@ export function normalizeEidosLitePreferences(
       candidate.workspaceLayout
     ),
     timeZone: normalizeEidosLiteTimeZone(candidate.timeZone),
+    hideSystemFieldsInRecords: candidate.hideSystemFieldsInRecords === true,
     weekStartsOnMonday:
       typeof candidate.weekStartsOnMonday === "boolean"
         ? candidate.weekStartsOnMonday

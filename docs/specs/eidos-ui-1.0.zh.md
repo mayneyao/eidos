@@ -1158,6 +1158,16 @@ detail panel。配置后，在标准 Grid、Gallery、Kanban 或 Calendar surfac
 应展示居中的 record page：Record Label 提供 page title，其他 Field 保持紧凑、可编辑的
 metadata；Content Field 从通用列表移出，使用专用 Markdown preview/source editor。
 
+展开记录时，必须优先采用 Table 的显式 Boolean `hideSystemFieldsInRecords`，
+其次采用 Host 的个人默认（无偏好时为 `false`）。设置控件必须区分此表级设置和当前
+View 的列配置，并提供明确的恢复继承选项。旧本机系统字段显隐偏好不能构成第三层覆盖，
+也不能在打开文件时自动写入表设置。可以临时显示隐藏的系统值而不持久化更改。
+
+记录属性的 schema 操作必须说明影响整张表，并保留 canonical 转换及删除确认。
+普通 Field 的记录页显隐及顺序可以保存在 Host 本机，但必须说明作用域，不能改变 saved
+View layout。所有可选属性隐藏后必须仍有恢复入口。拖动柄和只读值必须保持 label/value
+对齐稳定，并保留活动编辑和键盘焦点。
+
 Markdown presentation 是 generated、non-canonical state。Raw HTML 与不安全 URL
 scheme 必须保持 inert；remote image 不能触发 ambient network fetch。External link 只能
 通过 Host 的 explicit URL activation boundary 激活。编辑底层 Text value 时遵循普通

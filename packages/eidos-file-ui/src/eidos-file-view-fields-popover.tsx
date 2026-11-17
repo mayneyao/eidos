@@ -37,6 +37,7 @@ import {
   PopoverTrigger,
 } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
+import { EidosFileRecordPresentationSettings } from "./eidos-file-record-presentation-settings"
 
 function configurableViewFields(
   fields: readonly EidosFileFieldInfo[],
@@ -483,6 +484,7 @@ export function EidosFileViewFieldsPopover({
           </Button>
         </div>
       ) : null}
+      <EidosFileRecordPresentationSettings />
       {error ? (
         <p
           className="border-t px-3 py-2 text-[11px] text-destructive"

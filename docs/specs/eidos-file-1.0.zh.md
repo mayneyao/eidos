@@ -761,6 +761,18 @@ EF-Writer 删除当前 Content Field 或把它改为非合法 Text 类型时，�
 清除 `contentFieldId` 或把它重定向到另一个合法 Field。不实现 Content Field presentation
 的 Reader 可以忽略该 member，但在保留 Table settings 时必须原样保留它。
 
+### 8.2.2 可选记录展示设置
+
+`eidos__tables.settings_json.hideSystemFieldsInRecords` 可以存储 Boolean 类型的
+展开记录展示提示。`true` 隐藏由 canonical system role 标识的 Field；`false` 显示它们。
+member 不存在时跟随 Host 的个人默认；Host 没有此偏好时默认 `false`。持久化的 `null`
+或其他非 Boolean 值不合法。删除 member 恢复继承。该提示不能改变 Field value、
+writability 或 saved View 的列显隐及顺序。派生或只读的业务 Field 不能仅因值不可编辑
+而被视为 system Field。
+
+该设置可选，不引入 required feature。不实现此展示行为的 Reader 可以忽略效果，
+但在保留 Table settings 时必须保留该 member。
+
 ### 8.3 File values
 
 File value 是有序的 canonical JSON array：

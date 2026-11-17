@@ -8,6 +8,7 @@ import { expectConnectionPortConformance } from "./connection-port.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
 import { expectCheckboxConversionConformance } from "./checkbox-conversion.conformance"
+import { expectRecordPresentationConformance } from "./record-presentation.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
@@ -43,6 +44,15 @@ const runtimeEnvironment = (): RuntimeEnvironment => ({
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
   },
 })
+
+it.runIf(supportsElectron43NodeSqlite)(
+  "preserves record presentation through the canonical Node SQLite Runtime",
+  async () => {
+    await expectRecordPresentationConformance(
+      new NodeSqliteConnectionPort(new DatabaseSync(":memory:"))
+    )
+  }
+)
 
 const runtimeFactoryContext = {
   cancellation: {

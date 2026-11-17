@@ -2481,6 +2481,19 @@ export class EidosFileRuntime {
       }
       const now = this.operationInstant()
       const nextSettings = { ...persistedSettings }
+      if (changes.hideSystemFieldsInRecords !== undefined) {
+        if (changes.hideSystemFieldsInRecords === null) {
+          delete nextSettings.hideSystemFieldsInRecords
+        } else if (typeof changes.hideSystemFieldsInRecords === "boolean") {
+          nextSettings.hideSystemFieldsInRecords =
+            changes.hideSystemFieldsInRecords
+        } else {
+          throw new EidosFileError(
+            "invalid-schema",
+            "hideSystemFieldsInRecords must be a boolean"
+          )
+        }
+      }
       if (changes.icon !== undefined) {
         if (changes.icon === null) delete nextSettings.icon
         else nextSettings.icon = changes.icon

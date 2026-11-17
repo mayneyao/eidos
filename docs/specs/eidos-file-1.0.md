@@ -869,6 +869,21 @@ eligible Text Field MUST clear or validly retarget `contentFieldId` in the same
 transaction. Readers that do not implement Content Field presentation MAY
 ignore the member but MUST preserve it when preserving Table settings.
 
+### 8.2.2 Optional record presentation
+
+`eidos__tables.settings_json.hideSystemFieldsInRecords` MAY contain a Boolean
+presentation hint for opened records. `true` hides Fields identified by their
+canonical system roles; `false` shows them. Absence delegates to the Host's
+personal default, or `false` when the Host has no such preference. Persisted
+`null` and other non-Boolean values are invalid. Removing the member restores
+inheritance. This hint MUST NOT change Field values, writability, or saved View
+column visibility/order. Derived or read-only business Fields are not system
+Fields solely because their values cannot be edited.
+
+The setting is optional and introduces no required feature. Readers that do
+not implement it MAY ignore its presentation effect but MUST preserve the
+member when preserving Table settings.
+
 ### 8.3 File values
 
 A File value is an ordered canonical JSON array:

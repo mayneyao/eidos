@@ -900,6 +900,8 @@ export interface EidosLitePreferences {
   terminalLayout: EidosLiteTerminalLayout
   timeZone: EidosLiteTimeZone
   weekStartsOnMonday: boolean
+  /** Missing in older preference files; normalized to false. */
+  hideSystemFieldsInRecords?: boolean
   builtInPlugins: EidosLiteBuiltInPlugins
   terminalShell: string | null
   keyboardShortcuts: EidosLiteKeyboardShortcuts

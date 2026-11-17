@@ -3761,6 +3761,15 @@ export class EidosRuntimeService implements RuntimeClient {
       if ("position" in leaf) parseSignedInt64(leaf.position, "position")
       switch (leaf.kind) {
         case "create-table":
+          if (
+            leaf.settings?.hideSystemFieldsInRecords !== undefined &&
+            typeof leaf.settings.hideSystemFieldsInRecords !== "boolean"
+          ) {
+            forbid(
+              "dependency-blocked",
+              "hideSystemFieldsInRecords must be a boolean"
+            )
+          }
           for (const field of leaf.fields)
             assertEidosFileTemporalDefault(
               field.kind,
@@ -3834,6 +3843,16 @@ export class EidosRuntimeService implements RuntimeClient {
           }
           break
         case "set-table-settings":
+          if (
+            leaf.settings.hideSystemFieldsInRecords !== undefined &&
+            typeof leaf.settings.hideSystemFieldsInRecords !== "boolean"
+          ) {
+            forbid(
+              "dependency-blocked",
+              "hideSystemFieldsInRecords must be a boolean",
+              { tableId: leaf.tableId }
+            )
+          }
           if (!tableIds.has(leaf.tableId)) {
             forbid("dependency-blocked", "Table does not exist", {
               tableId: leaf.tableId,

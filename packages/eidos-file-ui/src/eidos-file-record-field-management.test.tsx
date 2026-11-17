@@ -99,6 +99,9 @@ it("manages canonical fields inside a record and keeps personal visibility separ
   let setScope!: (scope: string) => void
   let setVariant!: (variant: "page" | "panel") => void
   let setTableIndex!: (index: number) => void
+  let setDefaultHidden!: (value: boolean) => void
+  let setReadOnly!: (value: boolean) => void
+  let acceptSnapshot!: (next: EidosFileSnapshot) => void
   const savedScope = `canonical-test-${crypto.randomUUID()}`
   let acceptedSnapshot = original
   const renderers = {
@@ -115,12 +118,23 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     const [scope, changeScope] = useState(savedScope)
     const [variant, changeVariant] = useState<"page" | "panel">("page")
     const [tableIndex, changeTableIndex] = useState(0)
+    const [defaultHidden, changeDefaultHidden] = useState(false)
+    const [readonly, changeReadOnly] = useState(false)
+    setDefaultHidden = changeDefaultHidden
+    setReadOnly = changeReadOnly
+    acceptSnapshot = (next) => {
+      acceptedSnapshot = next
+      setSnapshot(next)
+    }
     setScope = changeScope
     setVariant = changeVariant
     setTableIndex = changeTableIndex
     const current = snapshot.tables[tableIndex]!
     return (
-      <EidosFileUIProvider recordPropertyScope={scope}>
+      <EidosFileUIProvider
+        recordPropertyScope={scope}
+        defaultHideSystemFieldsInRecords={defaultHidden}
+      >
         <EidosFileEditorView
           source={source}
           table={current}
@@ -129,21 +143,54 @@ it("manages canonical fields inside a record and keeps personal visibility separ
             acceptedSnapshot = next
             setSnapshot(next)
           }}
-          disabled={false}
+          disabled={readonly}
           recordPresentation={variant}
           renderers={renderers}
         />
       </EidosFileUIProvider>
     )
   }
+  // Old local flags, including per-system IDs, must not override the new policy.
+  storage.set(
+    "eidos-record-properties-v1:" +
+      JSON.stringify([savedScope, table.table.id]),
+    JSON.stringify({
+      hideSystemFields: true,
+      hiddenFields: table.fields
+        .filter((field) => field.systemRole != null)
+        .map((field) => field.id),
+    })
+  )
+  const systemRows = () =>
+    container.querySelectorAll("[data-eidos-record-system-role]")
+  const property = (id: string) =>
+    container.querySelector('[data-eidos-record-property="' + id + '"]')
+  const dialog = () => document.querySelector('[role="dialog"]')!
+  const buttonText = (text: string, scope: ParentNode = document) =>
+    [...scope.querySelectorAll("button")].find(
+      (node) => node.textContent?.trim() === text
+    ) ?? null
+  const closeMenu = () =>
+    act(async () =>
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    )
+  const assign = async (value: boolean | null) => {
+    const next = await source.updateTable(table.table.id, {
+      hideSystemFieldsInRecords: value,
+    })
+    await act(async () => acceptSnapshot(next))
+  }
   try {
     await act(async () => root.render(<Fixture />))
+    expect(systemRows()).toHaveLength(3)
+    expect(byLabel("Manage record properties")).toBeNull()
+    await click(byLabel("Edit Status properties"))
     expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(3)
-    await click(byLabel("Manage record properties"))
-    const dialog = () => document.querySelector('[role="dialog"]')!
-    await click(byLabel("Edit Status properties", dialog()))
+      dialog().querySelector('[data-eidos-file-detail-panel="field"]')
+    ).toBeNull()
+    expect(dialog().textContent).toContain("Field changes affect every record")
     const name = dialog().querySelector<HTMLInputElement>("input[id]")!
     await input(name, "Stage")
     await act(async () =>
@@ -156,33 +203,24 @@ it("manages canonical fields inside a record and keeps personal visibility separ
         )
       ).toBe(true)
     )
-    expect(
-      (await source.getSnapshot()).tables[0]!.fields.some(
-        (field) => field.name === "Stage"
-      )
-    ).toBe(true)
-    await click(byLabel("Close field properties", dialog()))
-    const hide = dialog().querySelector('input[type="checkbox"]')!
-    expect((hide as HTMLInputElement).disabled).toBe(false)
-    await click(hide)
-    expect(
-      dialog().querySelector('[role="alert"]')?.textContent
-    ).toBeUndefined()
-    expect((hide as HTMLInputElement).checked).toBe(true)
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(0)
-    expect(container.textContent).toContain("Record ID") // ordinary homonym remains
-    expect(container.textContent).toContain("Properties (2)")
-    await click(byLabel("Show Stage", dialog()))
-    expect(container.textContent).not.toContain("Stage")
-    expect(JSON.stringify((await source.getSnapshot()).tables[0]!.views)).toBe(
-      beforeViews
+    await closeMenu()
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(byLabel("Edit Stage properties"))
     )
-    const newField = [...dialog().querySelectorAll("button")].find(
-      (node) => node.textContent?.trim() === "New field"
+    const stage = acceptedSnapshot.tables[0]!.fields.find(
+      (field) => field.name === "Stage"
     )!
-    await click(newField)
+    await click(byLabel("Edit Stage properties"))
+    await click(buttonText("Hide in records on this device", dialog()))
+    expect(property(stage.id)).toBeNull()
+    expect(container.textContent).toContain("Hidden properties on this device")
+    await act(async () => setScope("another-file"))
+    expect(property(stage.id)).not.toBeNull()
+    await act(async () => setScope(savedScope))
+    expect(property(stage.id)).toBeNull()
+    await click(buttonText("Show Stage", container))
+    expect(property(stage.id)).not.toBeNull()
+    await click(buttonText("New field", container))
     const createName = dialog().querySelector<HTMLInputElement>("input[id]")!
     await input(createName, "Priority")
     await act(async () =>
@@ -197,31 +235,41 @@ it("manages canonical fields inside a record and keeps personal visibility separ
         )
       ).toBe(true)
     )
-    expect(
-      (await source.getSnapshot()).tables[0]!.fields.some(
-        (field) => field.name === "Priority"
-      )
-    ).toBe(true)
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    )
+    await act(async () => setDefaultHidden(true))
+    expect(systemRows()).toHaveLength(0)
+    expect(container.textContent).toContain("Record ID") // ordinary homonym
+    await click(buttonText("Show system fields temporarily (3)", container))
+    expect(systemRows()).toHaveLength(3)
+    await click(buttonText("Hide system fields", container))
+    expect(systemRows()).toHaveLength(0)
+    await assign(false)
+    expect(systemRows()).toHaveLength(3)
+    await act(async () => setDefaultHidden(false))
+    await assign(true)
+    expect(systemRows()).toHaveLength(0)
+    await act(async () => setScope("other-device-scope"))
+    expect(systemRows()).toHaveLength(0) // persisted Table policy, not personal local storage
+    await assign(null)
+    expect(systemRows()).toHaveLength(3)
+    await act(async () => setDefaultHidden(true))
+    expect(systemRows()).toHaveLength(0)
     await act(async () => setVariant("panel"))
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(0)
-    await act(async () => setScope(`other-file-${crypto.randomUUID()}`))
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(3)
-    await act(async () => setScope(savedScope))
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(0)
+    expect(systemRows()).toHaveLength(0)
     await act(async () => setTableIndex(1))
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(3)
+    expect(systemRows()).toHaveLength(0) // another unset table follows the current default
+    await act(async () => setDefaultHidden(false))
+    expect(systemRows()).toHaveLength(3)
     await act(async () => setTableIndex(0))
-    expect(
-      container.querySelectorAll("[data-eidos-record-system-role]")
-    ).toHaveLength(0)
+    expect(systemRows()).toHaveLength(3)
+    await act(async () => setReadOnly(true))
+    expect(byLabel("Edit Stage properties")).toBeNull()
+    expect(buttonText("New field", container)).toBeNull()
+    expect(JSON.stringify((await source.getSnapshot()).tables[0]!.views)).toBe(
+      beforeViews
+    )
     const current = await source.getRow!(table.table.id, String(row._id))
     expect(current?.[title.id]).toBe("Record A")
   } finally {

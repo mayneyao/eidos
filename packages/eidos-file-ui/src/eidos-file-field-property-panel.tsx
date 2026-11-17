@@ -66,16 +66,7 @@ interface PendingOptionRename {
   impact: EidosFileSchemaImpact
 }
 
-export function EidosFileFieldPropertyPanel({
-  field,
-  tables = [],
-  disabled,
-  onClose,
-  onUpdate,
-  onDelete,
-  onEditFormula,
-  onEditLookup,
-}: {
+type EidosFileFieldPropertyPanelProps = {
   field: EidosFileFieldInfo
   tables?: readonly EidosFileTableSnapshot[]
   disabled: boolean
@@ -87,7 +78,25 @@ export function EidosFileFieldPropertyPanel({
   onDelete: (field: EidosFileFieldInfo) => void
   onEditFormula?: (field: EidosFileFieldInfo) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
-}) {
+}
+
+/** Shared mutation and confirmation controls; each surface owns its navigation. */
+export function useEidosFileFieldPropertyControls({
+  field,
+  tables = [],
+  disabled,
+  onUpdate,
+  onEditFormula,
+  onEditLookup,
+}: Pick<
+  EidosFileFieldPropertyPanelProps,
+  | "field"
+  | "tables"
+  | "disabled"
+  | "onUpdate"
+  | "onEditFormula"
+  | "onEditLookup"
+>) {
   const { translate: t } = useEidosFileUI()
   useEidosFilePendingEdit(true)
   const [name, setName] = useState(field.name)
@@ -319,6 +328,439 @@ export function EidosFileFieldPropertyPanel({
     }
   }
 
+  const nameControl = (
+    <>
+      <label className="grid gap-1.5 text-xs" htmlFor={nameId}>
+        <span className="font-medium">{t("Name")}</span>
+        <Input
+          id={nameId}
+          value={name}
+          disabled={busy || nameReadOnly}
+          className="h-8 text-xs"
+          onChange={(event) => setName(event.target.value)}
+          onBlur={saveName}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur()
+            if (event.key === "Escape") {
+              skipNameCommitRef.current = true
+              setName(field.name)
+              setError(null)
+              event.currentTarget.blur()
+            }
+          }}
+        />
+      </label>
+    </>
+  )
+  const typeControl = (
+    <>
+      <label className="grid gap-1.5 text-xs">
+        <span className="font-medium">{t("Type")}</span>
+        {mutable ? (
+          <Select
+            value={pendingType ?? field.type}
+            disabled={busy || applyingType}
+            onValueChange={(type) => {
+              setError(null)
+              setTypeImpact(null)
+              setPendingType(type as MutableEidosFileFieldType)
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {mutableTypeOptions.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  data-eidos-file-field-type={option.value}
+                >
+                  <span className="flex items-center gap-2">
+                    <EidosFileFieldTypeIcon
+                      type={option.value}
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span>{t(option.label)}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex h-8 items-center rounded-md border bg-muted/30 px-3 text-xs capitalize text-muted-foreground">
+            {t(field.type.replace(/-/g, " "))}
+          </div>
+        )}
+      </label>
+      {pendingType && pendingType !== field.type ? (
+        <div className="grid gap-2 rounded-md border bg-muted/30 p-2.5">
+          {typeImpact?.valueChanges.find(
+            (change) => change.code === "null-to-false"
+          ) ? (
+            <p className="text-xs font-medium" role="status">
+              {t("{count} empty cells in this column will become unchecked.", {
+                count: typeImpact.valueChanges.find(
+                  (change) => change.code === "null-to-false"
+                )!.rows,
+              })}
+            </p>
+          ) : null}
+          <p className="text-[11px] leading-4 text-muted-foreground">
+            {conversionMayChangeValues
+              ? t(
+                  "Some values may be shortened or changed. If conversion fails, no data is changed."
+                )
+              : t(
+                  "Existing values will be converted in place. If a value does not fit, the field remains unchanged."
+                )}
+          </p>
+          <div className="flex justify-end gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={busy || applyingType}
+              onClick={() => {
+                setPendingType(null)
+                setTypeImpact(null)
+                setError(null)
+              }}
+            >
+              {t("Cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={busy || applyingType}
+              onClick={() => void applyType()}
+            >
+              {applyingType
+                ? t("Converting…")
+                : typeImpact?.classification === "explicit-lossy" ||
+                    (pendingType !== "checkbox" && conversionMayChangeValues)
+                  ? t("Convert anyway")
+                  : t("Apply type")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+  const optionsControl = (
+    <>
+      {field.type === "select" || field.type === "multi-select" ? (
+        <>
+          <EidosFileSelectOptionsEditor
+            key={`${field.id ?? field.tableColumnName}:${optionEditorVersion}`}
+            field={field}
+            disabled={busy || pendingOptionRename !== null}
+            onChange={saveOptionsProperty}
+          />
+          {pendingOptionRename ? (
+            <div
+              className="grid gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs"
+              role="status"
+            >
+              <div className="grid gap-0.5">
+                <p className="font-medium">{t("Review option rename")}</p>
+                <p className="break-words text-muted-foreground">
+                  “{pendingOptionRename.from}” → “{pendingOptionRename.to}”
+                </p>
+              </div>
+              <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[11px]">
+                <dt className="text-muted-foreground">
+                  {t("Records updated")}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {pendingOptionRename.impact.affectedRows}
+                </dd>
+                <dt className="text-muted-foreground">
+                  {t("Affected saved views")}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {pendingOptionRename.impact.dependencyCount}
+                </dd>
+                {pendingOptionRename.impact.valueChanges.find(
+                  (change) => change.code === "option-duplicate-collapsed"
+                ) ? (
+                  <>
+                    <dt className="text-destructive">
+                      {t("Records with duplicate choices collapsed")}
+                    </dt>
+                    <dd className="font-medium tabular-nums text-destructive">
+                      {
+                        pendingOptionRename.impact.valueChanges.find(
+                          (change) =>
+                            change.code === "option-duplicate-collapsed"
+                        )!.rows
+                      }
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                {pendingOptionRename.impact.classification === "explicit-lossy"
+                  ? t(
+                      "The destination value already exists. Renaming will merge both values and cannot preserve their distinction."
+                    )
+                  : t(
+                      "Matching cells, the default option, and saved view filters are updated atomically."
+                    )}
+              </p>
+              {pendingOptionRename.impact.warningsTruncated ||
+              pendingOptionRename.impact.valueChangesTruncated ? (
+                <p className="text-[11px] leading-4 text-destructive">
+                  {t("Additional impact details were omitted.")}
+                </p>
+              ) : null}
+              <div className="flex justify-end gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={pendingUpdate}
+                  onClick={() => {
+                    setPendingOptionRename(null)
+                    setOptionEditorVersion((version) => version + 1)
+                  }}
+                >
+                  {t("Cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={pendingUpdate}
+                  onClick={() => void applyPendingOptionRename()}
+                >
+                  {pendingUpdate
+                    ? t("Applying…")
+                    : pendingOptionRename.impact.classification ===
+                        "explicit-lossy"
+                      ? t("Merge options")
+                      : t("Rename option")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  )
+  const settingsControl = (
+    <>
+      {(field.type === "date" || field.type === "datetime") &&
+      mutable &&
+      field.settings?.writable !== false &&
+      tables.some(
+        (table) =>
+          table.table.id === field.tableId &&
+          table.temporalDefaultsVersion === 1
+      ) ? (
+        <EidosFileTemporalDefaultEditor
+          type={field.type}
+          value={field.property?.defaultValue === "now" ? "now" : null}
+          disabled={busy}
+          onChange={(value) => {
+            void saveProperty({
+              ...(field.property ?? {}),
+              defaultValue: value,
+            }).catch(() => undefined)
+          }}
+        />
+      ) : null}
+      {field.type === "number" ? (
+        <EidosFileNumberPropertiesEditor
+          property={numberProperty}
+          disabled={busy}
+          onChange={saveProperty}
+        />
+      ) : null}
+      {eidosFileFieldDisplaysUrl(field) ? (
+        <label className="grid gap-1.5 text-xs">
+          <span className="font-medium">{t("Display")}</span>
+          <Select
+            value={urlDisplaysImage ? "image" : "link"}
+            disabled={busy}
+            onValueChange={(value) => {
+              const property = { ...(field.property ?? {}) }
+              const previousDisplay = property.display
+              const display: Record<string, unknown> =
+                typeof previousDisplay === "object" &&
+                previousDisplay !== null &&
+                !Array.isArray(previousDisplay)
+                  ? { ...previousDisplay }
+                  : {}
+              if (value === "image") display.kind = "image"
+              else delete display.kind
+              if (Object.keys(display).length > 0) property.display = display
+              else delete property.display
+              void saveProperty(property).catch(() => undefined)
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="link">{t("Link")}</SelectItem>
+              <SelectItem value="image">{t("Image")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-[11px] leading-4 text-muted-foreground">
+            {t("Images load lazily through the active Host policy.")}
+          </span>
+        </label>
+      ) : null}
+      {field.type === "formula" && onEditFormula ? (
+        <section className="grid gap-2 border-t pt-3">
+          <h3 className="text-xs font-medium">{t("Formula")}</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 justify-start gap-2 text-xs"
+            disabled={busy}
+            onClick={() => onEditFormula(field)}
+          >
+            <Calculator className="h-3.5 w-3.5" />
+            {t("Edit formula")}
+          </Button>
+        </section>
+      ) : null}
+      {field.type === "lookup" && onEditLookup ? (
+        <section className="grid gap-2 border-t pt-3">
+          <h3 className="text-xs font-medium">{t("Lookup")}</h3>
+          <dl
+            className="grid gap-1 text-[11px] leading-4"
+            data-eidos-file-lookup-summary
+          >
+            <div className="flex min-w-0 items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{t("Relation")}</dt>
+              <dd className="truncate font-medium">
+                {lookupRelation?.name ?? t("Relation unavailable")}
+              </dd>
+            </div>
+            <div className="flex min-w-0 items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{t("Target field")}</dt>
+              <dd className="truncate font-medium">
+                {lookupTarget?.name ?? t("Field unavailable")}
+              </dd>
+            </div>
+            <div className="flex min-w-0 items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{t("Calculate")}</dt>
+              <dd className="truncate font-medium">
+                {t(
+                  LOOKUP_AGGREGATE_LABELS[
+                    String(field.property?.aggregate ?? "first")
+                  ] ?? "First value"
+                )}
+              </dd>
+            </div>
+          </dl>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 justify-start gap-2 text-xs"
+            disabled={busy}
+            onClick={() => onEditLookup(field)}
+          >
+            <Waypoints className="h-3.5 w-3.5" />
+            {t("Edit lookup")}
+          </Button>
+        </section>
+      ) : null}
+      {field.type === "relation" ? (
+        <section
+          className="grid gap-1.5 border-t pt-3"
+          data-eidos-file-relation-summary
+        >
+          <h3 className="text-xs font-medium">{t("Relation")}</h3>
+          <div className="flex min-w-0 items-baseline justify-between gap-3 text-[11px] leading-4">
+            <span className="text-muted-foreground">{t("Related table")}</span>
+            <span className="truncate font-medium">
+              {relationTargetTable?.table.name ?? t("Table unavailable")}
+            </span>
+          </div>
+          <p className="text-[11px] leading-4 text-muted-foreground">
+            {field.property?.cardinality === "one" ||
+            field.property?.multiple === false
+              ? t("Links to one record")
+              : t("Links to multiple records")}
+          </p>
+        </section>
+      ) : null}
+    </>
+  )
+  const technicalControl = (
+    <>
+      <details
+        className="group border-t pt-3 text-xs"
+        data-eidos-file-technical-details
+      >
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-muted-foreground marker:content-none">
+          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+          <Database className="h-3 w-3" />
+          {t("Technical details")}
+        </summary>
+        <div className="mt-2 grid gap-2 pl-4">
+          <div className="grid gap-1">
+            <span className="text-[10px] text-muted-foreground">
+              {t("Field ID")}
+            </span>
+            <code className="truncate rounded border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
+              {field.id}
+            </code>
+          </div>
+          {physicalColumn ? (
+            <div className="grid gap-1">
+              <span className="text-[10px] text-muted-foreground">
+                {t("Physical column")}
+              </span>
+              <code className="truncate rounded border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
+                {physicalColumn}
+              </code>
+            </div>
+          ) : null}
+        </div>
+      </details>
+    </>
+  )
+  return {
+    nameControl,
+    typeControl,
+    optionsControl,
+    settingsControl,
+    technicalControl,
+    error,
+    busy,
+    pendingUpdate,
+    pendingUpdateRef,
+    isRecordLabel,
+  }
+}
+
+export function EidosFileFieldPropertyPanel(
+  props: EidosFileFieldPropertyPanelProps
+) {
+  const { field, disabled, onClose, onDelete } = props
+  const { translate: t } = useEidosFileUI()
+  const {
+    nameControl,
+    typeControl,
+    optionsControl,
+    settingsControl,
+    technicalControl,
+    error,
+    busy,
+    pendingUpdate,
+    pendingUpdateRef,
+    isRecordLabel,
+  } = useEidosFileFieldPropertyControls(props)
   return (
     <aside
       className="eidos-file-detail-panel flex h-full flex-col border-l bg-background"
@@ -362,396 +804,11 @@ export function EidosFileFieldPropertyPanel({
       ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          <label className="grid gap-1.5 text-xs" htmlFor={nameId}>
-            <span className="font-medium">{t("Name")}</span>
-            <Input
-              id={nameId}
-              value={name}
-              disabled={busy || nameReadOnly}
-              className="h-8 text-xs"
-              onChange={(event) => setName(event.target.value)}
-              onBlur={saveName}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-                if (event.key === "Escape") {
-                  skipNameCommitRef.current = true
-                  setName(field.name)
-                  setError(null)
-                  event.currentTarget.blur()
-                }
-              }}
-            />
-          </label>
-          <label className="grid gap-1.5 text-xs">
-            <span className="font-medium">{t("Type")}</span>
-            {mutable ? (
-              <Select
-                value={pendingType ?? field.type}
-                disabled={busy || applyingType}
-                onValueChange={(type) => {
-                  setError(null)
-                  setTypeImpact(null)
-                  setPendingType(type as MutableEidosFileFieldType)
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mutableTypeOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      data-eidos-file-field-type={option.value}
-                    >
-                      <span className="flex items-center gap-2">
-                        <EidosFileFieldTypeIcon
-                          type={option.value}
-                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                        />
-                        <span>{t(option.label)}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="flex h-8 items-center rounded-md border bg-muted/30 px-3 text-xs capitalize text-muted-foreground">
-                {t(field.type.replace(/-/g, " "))}
-              </div>
-            )}
-          </label>
-          {pendingType && pendingType !== field.type ? (
-            <div className="grid gap-2 rounded-md border bg-muted/30 p-2.5">
-              {typeImpact?.valueChanges.find(
-                (change) => change.code === "null-to-false"
-              ) ? (
-                <p className="text-xs font-medium" role="status">
-                  {t(
-                    "{count} empty cells in this column will become unchecked.",
-                    {
-                      count: typeImpact.valueChanges.find(
-                        (change) => change.code === "null-to-false"
-                      )!.rows,
-                    }
-                  )}
-                </p>
-              ) : null}
-              <p className="text-[11px] leading-4 text-muted-foreground">
-                {conversionMayChangeValues
-                  ? t(
-                      "Some values may be shortened or changed. If conversion fails, no data is changed."
-                    )
-                  : t(
-                      "Existing values will be converted in place. If a value does not fit, the field remains unchanged."
-                    )}
-              </p>
-              <div className="flex justify-end gap-1.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={busy || applyingType}
-                  onClick={() => {
-                    setPendingType(null)
-                    setTypeImpact(null)
-                    setError(null)
-                  }}
-                >
-                  {t("Cancel")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={busy || applyingType}
-                  onClick={() => void applyType()}
-                >
-                  {applyingType
-                    ? t("Converting…")
-                    : typeImpact?.classification === "explicit-lossy" ||
-                        (pendingType !== "checkbox" &&
-                          conversionMayChangeValues)
-                      ? t("Convert anyway")
-                      : t("Apply type")}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {field.type === "select" || field.type === "multi-select" ? (
-            <>
-              <EidosFileSelectOptionsEditor
-                key={`${field.id ?? field.tableColumnName}:${optionEditorVersion}`}
-                field={field}
-                disabled={busy || pendingOptionRename !== null}
-                onChange={saveOptionsProperty}
-              />
-              {pendingOptionRename ? (
-                <div
-                  className="grid gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs"
-                  role="status"
-                >
-                  <div className="grid gap-0.5">
-                    <p className="font-medium">{t("Review option rename")}</p>
-                    <p className="break-words text-muted-foreground">
-                      “{pendingOptionRename.from}” → “{pendingOptionRename.to}”
-                    </p>
-                  </div>
-                  <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[11px]">
-                    <dt className="text-muted-foreground">
-                      {t("Records updated")}
-                    </dt>
-                    <dd className="font-medium tabular-nums">
-                      {pendingOptionRename.impact.affectedRows}
-                    </dd>
-                    <dt className="text-muted-foreground">
-                      {t("Affected saved views")}
-                    </dt>
-                    <dd className="font-medium tabular-nums">
-                      {pendingOptionRename.impact.dependencyCount}
-                    </dd>
-                    {pendingOptionRename.impact.valueChanges.find(
-                      (change) => change.code === "option-duplicate-collapsed"
-                    ) ? (
-                      <>
-                        <dt className="text-destructive">
-                          {t("Records with duplicate choices collapsed")}
-                        </dt>
-                        <dd className="font-medium tabular-nums text-destructive">
-                          {
-                            pendingOptionRename.impact.valueChanges.find(
-                              (change) =>
-                                change.code === "option-duplicate-collapsed"
-                            )!.rows
-                          }
-                        </dd>
-                      </>
-                    ) : null}
-                  </dl>
-                  <p className="text-[11px] leading-4 text-muted-foreground">
-                    {pendingOptionRename.impact.classification ===
-                    "explicit-lossy"
-                      ? t(
-                          "The destination value already exists. Renaming will merge both values and cannot preserve their distinction."
-                        )
-                      : t(
-                          "Matching cells, the default option, and saved view filters are updated atomically."
-                        )}
-                  </p>
-                  {pendingOptionRename.impact.warningsTruncated ||
-                  pendingOptionRename.impact.valueChangesTruncated ? (
-                    <p className="text-[11px] leading-4 text-destructive">
-                      {t("Additional impact details were omitted.")}
-                    </p>
-                  ) : null}
-                  <div className="flex justify-end gap-1.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={pendingUpdate}
-                      onClick={() => {
-                        setPendingOptionRename(null)
-                        setOptionEditorVersion((version) => version + 1)
-                      }}
-                    >
-                      {t("Cancel")}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={pendingUpdate}
-                      onClick={() => void applyPendingOptionRename()}
-                    >
-                      {pendingUpdate
-                        ? t("Applying…")
-                        : pendingOptionRename.impact.classification ===
-                            "explicit-lossy"
-                          ? t("Merge options")
-                          : t("Rename option")}
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          {(field.type === "date" || field.type === "datetime") &&
-          mutable &&
-          field.settings?.writable !== false &&
-          tables.some(
-            (table) =>
-              table.table.id === field.tableId &&
-              table.temporalDefaultsVersion === 1
-          ) ? (
-            <EidosFileTemporalDefaultEditor
-              type={field.type}
-              value={field.property?.defaultValue === "now" ? "now" : null}
-              disabled={busy}
-              onChange={(value) => {
-                void saveProperty({
-                  ...(field.property ?? {}),
-                  defaultValue: value,
-                }).catch(() => undefined)
-              }}
-            />
-          ) : null}
-          {field.type === "number" ? (
-            <EidosFileNumberPropertiesEditor
-              property={numberProperty}
-              disabled={busy}
-              onChange={saveProperty}
-            />
-          ) : null}
-          {eidosFileFieldDisplaysUrl(field) ? (
-            <label className="grid gap-1.5 text-xs">
-              <span className="font-medium">{t("Display")}</span>
-              <Select
-                value={urlDisplaysImage ? "image" : "link"}
-                disabled={busy}
-                onValueChange={(value) => {
-                  const property = { ...(field.property ?? {}) }
-                  const previousDisplay = property.display
-                  const display: Record<string, unknown> =
-                    typeof previousDisplay === "object" &&
-                    previousDisplay !== null &&
-                    !Array.isArray(previousDisplay)
-                      ? { ...previousDisplay }
-                      : {}
-                  if (value === "image") display.kind = "image"
-                  else delete display.kind
-                  if (Object.keys(display).length > 0)
-                    property.display = display
-                  else delete property.display
-                  void saveProperty(property).catch(() => undefined)
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="link">{t("Link")}</SelectItem>
-                  <SelectItem value="image">{t("Image")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-[11px] leading-4 text-muted-foreground">
-                {t("Images load lazily through the active Host policy.")}
-              </span>
-            </label>
-          ) : null}
-          {field.type === "formula" && onEditFormula ? (
-            <section className="grid gap-2 border-t pt-3">
-              <h3 className="text-xs font-medium">{t("Formula")}</h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 justify-start gap-2 text-xs"
-                disabled={busy}
-                onClick={() => onEditFormula(field)}
-              >
-                <Calculator className="h-3.5 w-3.5" />
-                {t("Edit formula")}
-              </Button>
-            </section>
-          ) : null}
-          {field.type === "lookup" && onEditLookup ? (
-            <section className="grid gap-2 border-t pt-3">
-              <h3 className="text-xs font-medium">{t("Lookup")}</h3>
-              <dl
-                className="grid gap-1 text-[11px] leading-4"
-                data-eidos-file-lookup-summary
-              >
-                <div className="flex min-w-0 items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">{t("Relation")}</dt>
-                  <dd className="truncate font-medium">
-                    {lookupRelation?.name ?? t("Relation unavailable")}
-                  </dd>
-                </div>
-                <div className="flex min-w-0 items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">{t("Target field")}</dt>
-                  <dd className="truncate font-medium">
-                    {lookupTarget?.name ?? t("Field unavailable")}
-                  </dd>
-                </div>
-                <div className="flex min-w-0 items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">{t("Calculate")}</dt>
-                  <dd className="truncate font-medium">
-                    {t(
-                      LOOKUP_AGGREGATE_LABELS[
-                        String(field.property?.aggregate ?? "first")
-                      ] ?? "First value"
-                    )}
-                  </dd>
-                </div>
-              </dl>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 justify-start gap-2 text-xs"
-                disabled={busy}
-                onClick={() => onEditLookup(field)}
-              >
-                <Waypoints className="h-3.5 w-3.5" />
-                {t("Edit lookup")}
-              </Button>
-            </section>
-          ) : null}
-          {field.type === "relation" ? (
-            <section
-              className="grid gap-1.5 border-t pt-3"
-              data-eidos-file-relation-summary
-            >
-              <h3 className="text-xs font-medium">{t("Relation")}</h3>
-              <div className="flex min-w-0 items-baseline justify-between gap-3 text-[11px] leading-4">
-                <span className="text-muted-foreground">
-                  {t("Related table")}
-                </span>
-                <span className="truncate font-medium">
-                  {relationTargetTable?.table.name ?? t("Table unavailable")}
-                </span>
-              </div>
-              <p className="text-[11px] leading-4 text-muted-foreground">
-                {field.property?.cardinality === "one" ||
-                field.property?.multiple === false
-                  ? t("Links to one record")
-                  : t("Links to multiple records")}
-              </p>
-            </section>
-          ) : null}
-          <details
-            className="group border-t pt-3 text-xs"
-            data-eidos-file-technical-details
-          >
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-muted-foreground marker:content-none">
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-              <Database className="h-3 w-3" />
-              {t("Technical details")}
-            </summary>
-            <div className="mt-2 grid gap-2 pl-4">
-              <div className="grid gap-1">
-                <span className="text-[10px] text-muted-foreground">
-                  {t("Field ID")}
-                </span>
-                <code className="truncate rounded border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
-                  {field.id}
-                </code>
-              </div>
-              {physicalColumn ? (
-                <div className="grid gap-1">
-                  <span className="text-[10px] text-muted-foreground">
-                    {t("Physical column")}
-                  </span>
-                  <code className="truncate rounded border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
-                    {physicalColumn}
-                  </code>
-                </div>
-              ) : null}
-            </div>
-          </details>
+          {nameControl}
+          {typeControl}
+          {optionsControl}
+          {settingsControl}
+          {technicalControl}
         </div>
       </ScrollArea>
       {!isRecordLabel &&

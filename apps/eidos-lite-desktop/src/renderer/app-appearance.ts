@@ -47,6 +47,7 @@ export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   terminalLayout: "bottom",
   timeZone: "system",
   weekStartsOnMonday: true,
+  hideSystemFieldsInRecords: false,
   builtInPlugins: { ...DEFAULT_EIDOS_LITE_BUILT_IN_PLUGINS },
   terminalShell: null,
   keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },

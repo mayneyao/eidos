@@ -120,6 +120,8 @@ export interface EidosFileMarkdownHtml {
 export interface EidosFileUIHost {
   /** Stable, host-local file location/identity for personal record property preferences. */
   recordPropertyScope?: string
+  /** Personal Host default; an explicit Table record setting takes precedence. */
+  defaultHideSystemFieldsInRecords?: boolean
   /** Existing Runtime-backed schema boundary for records rendered by this editor. */
   recordFieldManagement?: RecordFieldManagement
   /** Unsubmitted, saving or failed editor state. Hosts may defer external refreshes. */
@@ -193,6 +195,7 @@ const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
   recordPropertyScope,
+  defaultHideSystemFieldsInRecords,
   recordFieldManagement,
   onPendingEditChange,
   menuOrders,
@@ -226,6 +229,10 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedDefaultHideSystemFieldsInRecords =
+    defaultHideSystemFieldsInRecords ??
+    parent.defaultHideSystemFieldsInRecords ??
+    false
   const resolvedRecordPropertyScope =
     recordPropertyScope ?? parent.recordPropertyScope
   const resolvedRecordFieldManagement =
@@ -271,6 +278,8 @@ export function EidosFileUIProvider({
   const value = useMemo<EidosFileUIHost>(
     () => ({
       recordPropertyScope: resolvedRecordPropertyScope,
+      defaultHideSystemFieldsInRecords:
+        resolvedDefaultHideSystemFieldsInRecords,
       recordFieldManagement: resolvedRecordFieldManagement,
       onPendingEditChange: resolvedOnPendingEditChange,
       ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
@@ -326,6 +335,7 @@ export function EidosFileUIProvider({
     }),
     [
       resolvedRecordPropertyScope,
+      resolvedDefaultHideSystemFieldsInRecords,
       resolvedRecordFieldManagement,
       resolvedOnPendingEditChange,
       resolvedMenuOrders,

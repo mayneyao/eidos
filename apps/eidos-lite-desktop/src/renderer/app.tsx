@@ -796,6 +796,8 @@ function WorkspaceApp({
     useState<EidosLiteKeyboardShortcuts>({
       ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
     })
+  const [hideSystemFieldsInRecords, setHideSystemFieldsInRecords] =
+    useState(false)
   const [weekStartsOnMonday, setWeekStartsOnMonday] = useState(
     DEFAULT_RENDERER_PREFERENCES.weekStartsOnMonday
   )
@@ -1366,6 +1368,9 @@ function WorkspaceApp({
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setMenuOrders(preferences.menuOrders ?? {})
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+      setHideSystemFieldsInRecords(
+        preferences.hideSystemFieldsInRecords === true
+      )
       setTimeZone(preferences.timeZone)
       setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
       setHtmlFileOpenMode(preferences.htmlFileOpenMode ?? "preview")
@@ -5519,6 +5524,7 @@ function WorkspaceApp({
                       }
                       theme={theme}
                       weekStartsOnMonday={weekStartsOnMonday}
+                      hideSystemFieldsInRecords={hideSystemFieldsInRecords}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
                       menuOrders={menuOrders}

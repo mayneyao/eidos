@@ -41,18 +41,26 @@ For a complete dataset, use [CSV import](/user-guide/import-and-export/).
 Use the row expand control to open record details in a side panel or full page.
 This provides more space for long text fields, relations, attachments, and Content.
 
-Select **Manage record properties** beside **Properties** to search fields,
-change their record-page visibility, or drag them into a different order.
-Select a property name to edit its name, type, or options using the same field
-editor as the table. **New field** adds a field to the table. Schema changes
-require write access and retain the usual conversion and deletion confirmations.
+Select a property name to rename the field, change its type or options, or delete
+it. These changes affect every record in the table, require write access, and
+retain the usual conversion and deletion confirmations. **New field** below the
+property list adds a field to the table. Save pending record edits before changing
+schema. Use each row's drag handle to reorder properties with a pointer or keyboard.
 
-Enable **Always hide system fields** in this menu to hide Record ID, Created at,
-and Updated at from record details. Turn it off in the same menu to show them again.
-These display preferences are remembered on this device or browser for the file
-and table, independently of view columns. The record title and Content remain
-available. Collapsing **Properties** only folds the visible list; it does not
-change which fields are shown. Save pending record edits before changing schema.
+**Hide in records on this device** and property order are remembered for this file
+and table on the current device or browser. Restore hidden properties below the
+list. These personal choices do not change view columns.
+
+In the table toolbar's **Fields** menu, **Open records · this table** controls
+whether Record ID, Created at, and Updated at appear in record details. Choose
+**Hide system fields**, **Show system fields**, or **Follow app default** to
+restore inheritance. An explicit table choice is saved in the file and applies
+across views. It does not change the current view's column checkboxes.
+Eidos Lite's **Settings → Preferences → Hide system fields in records** supplies the
+personal default; Web and CLI Serve use shown when no host default is provided.
+You can temporarily reveal system fields below the record's property list.
+The record title and Content remain available. Collapsing **Properties** only
+folds the list and does not change field visibility.
 
 ## Link to another record
 

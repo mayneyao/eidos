@@ -124,6 +124,49 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
+  it("sets, preserves and clears the optional record presentation override", () => {
+    const target = filePath()
+    let runtime = createEidosFile(target, {
+      defaultTable: {
+        name: "Tasks",
+        fields: [{ name: "Title", type: "text" }],
+      },
+    })
+    const table = runtime.listTables()[0]!
+    const read = () =>
+      JSON.parse(
+        runtime.connection.get<{ settings_json: string }>(
+          `SELECT settings_json FROM ${EIDOS_FILE_TABLES_TABLE} WHERE id = ?`,
+          [table.id]
+        )!.settings_json
+      ) as Record<string, unknown>
+    try {
+      runtime.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET settings_json = ? WHERE id = ?`,
+        ['{"vendorSetting":"kept"}', table.id]
+      )
+      runtime.close()
+      runtime = openEidosFile(target)
+      runtime.updateTable(table.id, { hideSystemFieldsInRecords: true })
+      runtime.updateTable(table.id, { icon: "document" })
+      expect(read()).toEqual({
+        vendorSetting: "kept",
+        icon: "document",
+        hideSystemFieldsInRecords: true,
+      })
+      runtime.close()
+      runtime = openEidosFile(target)
+      expect(read().hideSystemFieldsInRecords).toBe(true)
+      runtime.updateTable(table.id, { hideSystemFieldsInRecords: false })
+      expect(read().hideSystemFieldsInRecords).toBe(false)
+      runtime.updateTable(table.id, { hideSystemFieldsInRecords: null })
+      expect(read()).toEqual({ vendorSetting: "kept", icon: "document" })
+      expect(runtime.validate().valid).toBe(true)
+    } finally {
+      runtime.close()
+    }
+  })
+
   it("keeps an optional Markdown Content Field constrained to ordinary Text Fields", () => {
     const target = filePath()
     let runtime = createEidosFile(target, {

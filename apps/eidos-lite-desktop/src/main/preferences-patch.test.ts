@@ -2,6 +2,18 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts explicit record system field defaults and rejects non-Boolean input", () => {
+    for (const hideSystemFieldsInRecords of [true, false]) {
+      expect(eidosLitePreferencesPatch({ hideSystemFieldsInRecords })).toEqual({
+        hideSystemFieldsInRecords,
+      })
+    }
+    for (const hideSystemFieldsInRecords of [null, "true", 1]) {
+      expect(() =>
+        eidosLitePreferencesPatch({ hideSystemFieldsInRecords })
+      ).toThrow("Invalid record system fields preference")
+    }
+  })
   it("accepts stable menu action IDs and rejects malformed or duplicate orders", () => {
     const menuOrders = {
       "grid.cell": ["host/open-mapped-file-sidebar", "plugin/action"],

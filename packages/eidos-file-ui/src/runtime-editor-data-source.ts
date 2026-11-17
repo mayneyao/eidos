@@ -1535,6 +1535,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     if (
       changes.icon !== undefined ||
       changes.description !== undefined ||
+      changes.hideSystemFieldsInRecords !== undefined ||
       changes.contentFieldId !== undefined
     ) {
       if (
@@ -1548,7 +1549,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           )
         }
       }
-      const settings = {
+      const settings: NonNullable<typeof table.settings> = {
         ...table.settings,
         ...(changes.icon !== undefined ? { icon: changes.icon } : {}),
         ...(changes.description !== undefined
@@ -1560,6 +1561,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           : {}),
       }
       if (changes.contentFieldId === null) delete settings.contentFieldId
+      if (changes.hideSystemFieldsInRecords === null) {
+        delete settings.hideSystemFieldsInRecords
+      } else if (changes.hideSystemFieldsInRecords !== undefined) {
+        settings.hideSystemFieldsInRecords = changes.hideSystemFieldsInRecords
+      }
       leaves.push({
         kind: "set-table-settings",
         tableId,
