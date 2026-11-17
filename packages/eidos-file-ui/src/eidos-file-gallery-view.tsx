@@ -46,6 +46,7 @@ import {
 } from "./eidos-file-row-window"
 import {
   eidosFileVirtualLogicalOffset,
+  resetEidosFileVirtualizerMeasurements,
   useEidosFileBoundedVirtualizer,
 } from "./eidos-file-virtual-scroll"
 import type { GalleryRect } from "./eidos-file-gallery-selection"
@@ -665,7 +666,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     const targetWindow = scrollContainerRef.current?.ownerDocument.defaultView
     const suppressAdjustment = suppressRelayoutScrollAdjustmentRef.current
     if (!columnCountChanged) {
-      rowVirtualizer.measure()
+      resetEidosFileVirtualizerMeasurements(rowVirtualizer)
       return
     }
     relayoutCleanupRef.current?.()
@@ -677,7 +678,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     const targetRowIndex = Math.floor(
       visibleAnchorIndexRef.current / columnCount
     )
-    rowVirtualizer.measure()
+    resetEidosFileVirtualizerMeasurements(rowVirtualizer)
     if (!targetWindow) {
       rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
       return

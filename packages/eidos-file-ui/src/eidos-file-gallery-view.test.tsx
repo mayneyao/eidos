@@ -1142,6 +1142,92 @@ describe("EidosFileGalleryView", () => {
     await act(async () => Promise.resolve())
   })
 
+  it("retains measured row spacing when deletion refreshes equivalent field metadata", async () => {
+    const observers: Array<{
+      callback: ResizeObserverCallback
+      elements: Set<Element>
+    }> = []
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        elements = new Set<Element>()
+        constructor(callback: ResizeObserverCallback) {
+          observers.push({ callback, elements: this.elements })
+        }
+        observe(element: Element) {
+          this.elements.add(element)
+        }
+        unobserve(element: Element) {
+          this.elements.delete(element)
+        }
+        disconnect() {
+          this.elements.clear()
+        }
+      }
+    )
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return this.hasAttribute("data-eidos-file-virtual-index") ? 82 : 640
+      },
+    })
+    let rows = Array.from({ length: 7 }, (_, index) => ({
+      _id: `row_${index}`,
+      title: `Card ${index}`,
+    }))
+    const loadPage = async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: rows.length,
+      rows,
+    })
+    const render = async (reloadToken: number) =>
+      act(async () => {
+        root.render(
+          <EidosFileGalleryView
+            table={{
+              ...table,
+              fields: table.fields.map((field) => ({ ...field })),
+              rowCount: rows.length,
+            }}
+            view={view}
+            loadPage={loadPage}
+            reloadToken={reloadToken}
+          />
+        )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    const offsets = () =>
+      [
+        ...container.querySelectorAll<HTMLElement>(
+          "[data-eidos-file-virtual-index]"
+        ),
+      ].map((row) =>
+        Number(row.style.transform.match(/translate3d\(0, ([\d.]+)px/)?.[1])
+      )
+    await render(0)
+    // The browser reports the initial real sizes. Equivalent metadata refreshes
+    // do not resize these elements, so no second ResizeObserver entry follows.
+    await act(async () => {
+      for (const observer of observers) {
+        const entries = [...observer.elements].map((target) => ({
+          target,
+          contentRect: { width: 1024, height: 82 },
+          borderBoxSize: [{ inlineSize: 1024, blockSize: 82 }],
+        })) as unknown as ResizeObserverEntry[]
+        observer.callback(entries, {} as ResizeObserver)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    const before = offsets()
+    expect(before[1] - before[0]).toBe(94)
+    rows = rows.slice(1)
+    await render(1)
+    const after = offsets()
+    expect(after[1] - after[0]).toBe(94)
+  })
+
   it.each(["search", "record"])(
     "loads and reveals a paged %s target",
     async (mode) => {
