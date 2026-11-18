@@ -87,7 +87,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
-        run: node apps/eidos-lite-desktop/scripts/package-macos-release.mjs x64
+        run: pnpm --filter @eidos.space/eidos-lite-desktop exec node scripts/package-macos-release.mjs x64
       - name: Verify the signed target bundle
         run: |
           app='apps/eidos-lite-desktop/dist-app/mac/Eidos Lite.app'
@@ -96,6 +96,9 @@ jobs:
           esbuild="$(find "$app/Contents/Resources/app.asar.unpacked" -path '*/@esbuild/darwin-x64/bin/esbuild' -type f -print -quit)"
           test -n "$esbuild"
           lipo "$esbuild" -verify_arch x86_64
+          koffi="$(find "$app/Contents/Resources/app.asar.unpacked" -path '*/@koromix/koffi-darwin-x64/darwin_x64/koffi.node' -type f -print -quit)"
+          test -n "$koffi"
+          lipo "$koffi" -verify_arch x86_64
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
       - uses: actions/upload-artifact@v4
