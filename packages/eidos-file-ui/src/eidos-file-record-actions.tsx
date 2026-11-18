@@ -1,6 +1,7 @@
 import {
   cloneElement,
   useEffect,
+  useId,
   useRef,
   useState,
   type HTMLAttributes,
@@ -76,6 +77,7 @@ export function EidosFileRecordContextMenu({
   extraActions,
   getActionRowIds,
   onDeleteRowIds,
+  batchDeleteLimit,
   actionScope,
 }: {
   children: ReactElement<HTMLAttributes<HTMLElement>>
@@ -87,6 +89,7 @@ export function EidosFileRecordContextMenu({
   /** Resolve stable selection identities when the menu opens. */
   getActionRowIds?: (row: EidosFileRow) => readonly string[]
   onDeleteRowIds?: (rowIds: readonly string[]) => void
+  batchDeleteLimit?: number
   /** Changing the effective query/source dismisses stale action targets. */
   actionScope?: object
 }) {
@@ -94,7 +97,10 @@ export function EidosFileRecordContextMenu({
   const undo = useEidosFileUndo()
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
   const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
+  const deleteLimitHintId = useId()
   const multiple = actionRowIds.length > 1
+  const deleteLimitExceeded =
+    batchDeleteLimit !== undefined && actionRowIds.length > batchDeleteLimit
   const capturedScope = useRef(actionScope)
   useEffect(() => setPoint(null), [actionScope])
   const captureTarget = () => {
@@ -132,7 +138,7 @@ export function EidosFileRecordContextMenu({
   const [openRecord, copyId, deleteRecord] = eidosFileRecordActions({
     rowId: row._id,
     count: multiple ? actionRowIds.length : 1,
-    canDelete: multiple ? !!onDeleteRowIds : !!onDelete,
+    canDelete: multiple ? !!onDeleteRowIds && !deleteLimitExceeded : !!onDelete,
     onOpen: () => onOpen?.(row),
     onCopyId: (id) => {
       if (!navigator.clipboard?.writeText) {
@@ -226,6 +232,7 @@ export function EidosFileRecordContextMenu({
         <PopoverContent
           data-eidos-file-record-menu=""
           role="menu"
+          aria-describedby={deleteLimitExceeded ? deleteLimitHintId : undefined}
           aria-label={
             multiple
               ? t("Actions for {count} selected records", {
@@ -255,6 +262,16 @@ export function EidosFileRecordContextMenu({
               dragging.current = value
             }}
           />
+          {deleteLimitExceeded ? (
+            <p
+              id={deleteLimitHintId}
+              className="px-2 pb-1 text-xs text-muted-foreground"
+            >
+              {t("Select {count} or fewer records to delete", {
+                count: batchDeleteLimit,
+              })}
+            </p>
+          ) : null}
           {error ? (
             <p role="alert" className="px-2 text-xs text-destructive">
               {error}

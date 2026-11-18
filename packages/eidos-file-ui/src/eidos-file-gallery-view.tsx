@@ -62,6 +62,8 @@ const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_END_PADDING = 48
 const GALLERY_OVERSCAN_ROWS = 2
 const GALLERY_PREFETCH_ROWS = Math.floor(GALLERY_PAGE_SIZE / 2)
+// The Runtime accepts at most 500 operations in an atomic row-ID deletion.
+const GALLERY_BATCH_DELETE_LIMIT = 500
 
 function galleryVirtualRowKey(index: number): string {
   return `gallery-row:${index}`
@@ -217,6 +219,9 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               getActionRowIds={getActionRowIds}
               actionScope={actionScope}
               onDeleteRowIds={onDeleteRowIds}
+              batchDeleteLimit={
+                onDeleteRowIds ? GALLERY_BATCH_DELETE_LIMIT : undefined
+              }
             />
           ) : (
             <div
@@ -383,6 +388,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   }, [])
   const requestDeleteSelection = useCallback(
     (row: EidosFileRow, rowIds: readonly string[]) => {
+      if (rowIds.length > GALLERY_BATCH_DELETE_LIMIT) return
       setDeleteTarget({
         row,
         rowIds: [...rowIds],
@@ -646,6 +652,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   })
   const selectionRef = useRef(selection)
   selectionRef.current = selection
+  const deleteLimitExceeded =
+    onDeleteRowIds &&
+    !disabled &&
+    selection.selectedIds.size > GALLERY_BATCH_DELETE_LIMIT
   const getActionRowIds = useCallback((row: EidosFileRow) => {
     const rowId = String(row._id)
     const current = selectionRef.current
@@ -1013,18 +1023,26 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         ) : null}
         {selection.selectedIds.size > 0 ? (
           <div className="pointer-events-none sticky bottom-3 z-20 flex h-0 items-end justify-center">
-            <div className="pointer-events-auto flex h-8 items-center gap-2 rounded-md border bg-background px-2 text-xs shadow-sm">
+            <div className="pointer-events-auto flex min-h-8 max-w-full items-center gap-2 rounded-md border bg-background px-2 text-xs shadow-sm">
               <span
+                className="min-w-0 py-1"
                 role="status"
                 aria-live={selection.marquee ? "off" : "polite"}
               >
                 {t("Selected · {count}", { count: selection.selectedIds.size })}
+                {deleteLimitExceeded ? (
+                  <span className="block text-muted-foreground">
+                    {t("Select {count} or fewer records to delete", {
+                      count: GALLERY_BATCH_DELETE_LIMIT,
+                    })}
+                  </span>
+                ) : null}
               </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs text-foreground"
+                className="h-6 shrink-0 px-2 text-xs text-foreground"
                 onClick={() => {
                   selection.clear()
                   scrollContainerRef.current?.focus({ preventScroll: true })

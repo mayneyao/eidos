@@ -672,6 +672,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Unavailable record": "记录不可用",
   "Selected records, {count}": "已选记录，{count} 条",
   "Selected · {count}": "已选 · {count}",
+  "Select {count} or fewer records to delete":
+    "每次最多删除 {count} 条记录，请缩小选区",
   Selected: "已选中",
   Results: "结果",
   Records: "记录",

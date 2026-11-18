@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -308,6 +309,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   onDelete,
   getActionRowIds,
   onDeleteRowIds,
+  batchDeleteLimit,
   actionScope,
   moveOptions,
   disabledMoveOptionId,
@@ -332,6 +334,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   /** Resolve current selection only when an action menu opens. */
   getActionRowIds?: (row: EidosFileRow) => readonly string[]
   onDeleteRowIds?: (row: EidosFileRow, rowIds: readonly string[]) => void
+  batchDeleteLimit?: number
   actionScope?: object
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
   disabledMoveOptionId?: string
@@ -356,8 +359,11 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   const mobile = interactionMode === "mobile"
   const undo = useEidosFileUndo()
   const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
+  const deleteLimitHintId = useId()
   const capturedActionScope = useRef(actionScope)
   const multipleActions = actionRowIds.length > 1
+  const deleteLimitExceeded =
+    batchDeleteLimit !== undefined && actionRowIds.length > batchDeleteLimit
   const captureActionTarget = () => {
     capturedActionScope.current = actionScope
     const ids = getActionRowIds?.(row)
@@ -437,6 +443,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
       onDeleteRowIds={
         onDeleteRowIds ? (ids) => onDeleteRowIds(row, ids) : undefined
       }
+      batchDeleteLimit={batchDeleteLimit}
       extraActions={() => [
         ...(entry && onPreviewFile
           ? [
@@ -635,6 +642,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                   <DropdownMenuContent
                     align="end"
                     className="w-44"
+                    aria-describedby={
+                      deleteLimitExceeded ? deleteLimitHintId : undefined
+                    }
                     onCloseAutoFocus={undo?.onCloseAutoFocus}
                   >
                     {!multipleActions ? (
@@ -668,7 +678,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           disabled={
-                            multipleActions ? !onDeleteRowIds : !onDelete
+                            multipleActions
+                              ? !onDeleteRowIds || deleteLimitExceeded
+                              : !onDelete
                           }
                           onSelect={() => {
                             if (capturedActionScope.current !== actionScope)
@@ -685,6 +697,16 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                               })
                             : t("Delete record")}
                         </DropdownMenuItem>
+                        {deleteLimitExceeded ? (
+                          <p
+                            id={deleteLimitHintId}
+                            className="px-2 pb-1 text-xs text-muted-foreground"
+                          >
+                            {t("Select {count} or fewer records to delete", {
+                              count: batchDeleteLimit,
+                            })}
+                          </p>
+                        ) : null}
                       </>
                     ) : null}
                   </DropdownMenuContent>

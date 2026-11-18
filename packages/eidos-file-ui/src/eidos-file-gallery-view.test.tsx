@@ -774,6 +774,143 @@ describe("EidosFileGalleryView", () => {
       ])
       expect(count()).toBe("0")
     })
+
+    it("explains the batch limit in both menus and deletes 500 IDs in one action", async () => {
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+        function (this: HTMLElement) {
+          return this.hasAttribute("data-eidos-file-virtual-index") ? 108 : 640
+        }
+      )
+      const records = Array.from({ length: 501 }, (_, i) => ({
+        _id: `row_${i}`,
+        title: `Task ${i}`,
+      }))
+      const loadPage = async (offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: records.length,
+        rows: records.slice(offset, offset + limit),
+      })
+      const onDeleteRowIds = vi.fn(async (ids: readonly string[]) => ({
+        tableId: "tasks",
+        deletedCount: ids.length,
+        rowCount: records.length - ids.length,
+      }))
+      await render({
+        table: { ...table, rowCount: records.length },
+        loadPage,
+        onDeleteRowIds,
+      })
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-eidos-file-gallery-scroll]"
+      )!
+      const scrollEnd = () =>
+        Number(
+          container.querySelector<HTMLElement>(
+            "[data-eidos-file-physical-size]"
+          )!.dataset.eidosFilePhysicalSize
+        ) - 640
+      for (let offset = 0; ; offset += 500) {
+        const scrollTop = Math.min(offset, scrollEnd())
+        await act(async () => {
+          scroller.scrollTop = scrollTop
+          scroller.dispatchEvent(new Event("scroll"))
+        })
+        act(() => {
+          for (const card of container.querySelectorAll(
+            '[data-eidos-file-row-id]:not([data-eidos-file-selected="true"]) h3'
+          )) {
+            card.dispatchEvent(
+              new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                shiftKey: true,
+              })
+            )
+          }
+        })
+        if (scrollTop >= scrollEnd()) break
+      }
+      const hint = "Select 500 or fewer records to delete"
+      expect(count()).toBe("501")
+      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+        hint
+      )
+      await act(async () =>
+        container
+          .querySelector('[data-eidos-file-row-id="row_499"] h3')!
+          .dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "F10",
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true,
+            })
+          )
+      )
+      let menu = document.querySelector('[role="menu"]')!
+      expect(menu.textContent).toContain(hint)
+      const contextDelete = menu.querySelector<HTMLButtonElement>(
+        '[data-menu-action="core/delete-record"] button[role="menuitem"]'
+      )!
+      expect(contextDelete.disabled).toBe(true)
+      expect(
+        menu.querySelector<HTMLButtonElement>(
+          '[data-menu-action="core/copy-record-id"] button[role="menuitem"]'
+        )?.disabled
+      ).toBe(false)
+      await act(async () => {
+        contextDelete.click()
+        menu.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+      })
+      await act(async () =>
+        container
+          .querySelector('[aria-label="More actions for Task 499"]')!
+          .dispatchEvent(
+            new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+          )
+      )
+      menu = document.querySelector('[role="menu"]')!
+      expect(menu.textContent).toContain(hint)
+      expect(menu.querySelector('[aria-disabled="true"]')?.textContent).toBe(
+        "Delete 501 records"
+      )
+      expect(container.querySelector("[data-confirm-count]")).toBeNull()
+      expect(onDeleteRowIds).not.toHaveBeenCalled()
+      await act(async () =>
+        menu.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        )
+      )
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(
+          container.querySelector('[aria-label="More actions for Task 499"]')
+        )
+      )
+      act(() =>
+        container
+          .querySelector('[data-eidos-file-row-id="row_500"] h3')!
+          .dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              ctrlKey: true,
+            })
+          )
+      )
+      expect(count()).toBe("500")
+      expect(container.textContent).not.toContain(hint)
+      await context("499")
+      await click("Delete 500 records")
+      await click("Confirm delete Task 499")
+      expect(onDeleteRowIds).toHaveBeenCalledExactlyOnceWith(
+        records.slice(0, -1).map(({ _id }) => _id)
+      )
+      expect(count()).toBe("0")
+    })
   })
 
   it("does not select retained records while a replacement query is pending", async () => {
