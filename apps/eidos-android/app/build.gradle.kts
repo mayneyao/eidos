@@ -62,6 +62,7 @@ val buildNative =
         inputs.dir(rootProject.file("../../packages/eidos-file/generated/quickjs"))
         inputs.dir(rootProject.file("../../packages/eidos-file/src"))
         inputs.file(rootProject.file("../../packages/eidos-file/package.json"))
+        inputs.file(rootProject.file("../../pnpm-lock.yaml"))
         inputs.file(rootProject.file("../../scripts/build-quickjs.mjs"))
         inputs.file(rootProject.file("../../scripts/generated-assets.mjs"))
         inputs.file(rootProject.file("../../packages/plugin-runtime/src/compatibility-data.json"))
