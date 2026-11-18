@@ -156,27 +156,20 @@ export function EidosFileFieldCreatePopover({
           ).filter((type) => type !== "relation" && type !== "lookup"),
     [allowedTypes, supportsRelations]
   )
+  const initialFieldType = availableTypes?.includes("text")
+    ? "text"
+    : (availableTypes?.[0] ?? "text")
 
+  // The host can publish a new table snapshot while the form is open.
   useEffect(() => {
     if (!open) return
     setName("")
     setNameIsAutomatic(false)
-    setFieldType(
-      availableTypes?.includes("text")
-        ? "text"
-        : (availableTypes?.[0] ?? "text")
-    )
+    setFieldType(initialFieldType)
     setOptions([])
     setTemporalDefault(null)
     setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
-    setTargetTableId(
-      tables.find(
-        (candidate) =>
-          candidate.table.id !== table.table.id &&
-          candidate.table.settings?.tableType !== "virtual" &&
-          !candidate.table.settings?.vtabModule
-      )?.table.id ?? (supportsRelations ? table.table.id : "")
-    )
+    setTargetTableId("")
     setMultiple(true)
     setFormula("")
     setFormulaDisplayType("text")
@@ -186,15 +179,17 @@ export function EidosFileFieldCreatePopover({
     setLookupAggregate("first")
     setSubmitting(false)
     setError(null)
-  }, [availableTypes, open, table.table.id, tables, supportsRelations])
+  }, [initialFieldType, open, table.table.id])
 
   const columnName = useMemo(
     () => columnNameFor(name.trim() || "field", table.fields),
     [name, table.fields]
   )
-  const targetTable = tables.find(
-    (candidate) => candidate.table.id === targetTableId
-  )
+  const targetTable = targetTableId
+    ? relationTables.find((candidate) => candidate.table.id === targetTableId)
+    : (relationTables.find(
+        (candidate) => candidate.table.id !== table.table.id
+      ) ?? (supportsRelations ? table : undefined))
   const relationFields = table.fields.filter(
     (field) => field.type === "relation"
   )
@@ -224,11 +219,12 @@ export function EidosFileFieldCreatePopover({
       )
     : false
   const busy = disabled || submitting
+  const canSubmitType = !availableTypes || availableTypes.includes(fieldType)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = name.trim()
-    if (!trimmedName || busy) return
+    if (!trimmedName || busy || !canSubmitType) return
     let field: CreateEidosFileFieldInput
     if (fieldType === "relation") {
       if (!targetTable) return
@@ -557,6 +553,7 @@ export function EidosFileFieldCreatePopover({
             type="submit"
             disabled={
               busy ||
+              !canSubmitType ||
               !name.trim() ||
               (fieldType === "relation" && !targetTable) ||
               (fieldType === "formula" && (!formula.trim() || !formulaValid)) ||

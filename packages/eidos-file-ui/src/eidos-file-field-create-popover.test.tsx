@@ -3,6 +3,17 @@ import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileTableSnapshot } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider } from "./context"
 import { EidosFileFieldCreatePopover } from "./eidos-file-field-create-popover"
+import type { EidosFileFormulaInputProps } from "./eidos-file-formula-input"
+
+vi.mock("./eidos-file-formula-input", () => ({
+  EidosFileFormulaInput: ({ value, onChange }: EidosFileFormulaInputProps) => (
+    <textarea
+      aria-label="Formula expression"
+      value={value}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  ),
+}))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 const table: EidosFileTableSnapshot = {
@@ -101,6 +112,52 @@ async function submit() {
       .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
   )
 }
+
+it("keeps the new Formula draft when the host republishes the same tables", async () => {
+  const onCreate = vi.fn(async () => {})
+  const render = (snapshot: EidosFileTableSnapshot) =>
+    act(async () =>
+      root.render(
+        <EidosFileFieldCreatePopover
+          open
+          embedded
+          table={snapshot}
+          tables={[snapshot]}
+          onOpenChange={vi.fn()}
+          onCreate={onCreate}
+        />
+      )
+    )
+  await render(table)
+  await choose("formula")
+  await enterName("Calculated total")
+  const expression = document.querySelector<HTMLTextAreaElement>(
+    '[aria-label="Formula expression"]'
+  )!
+  const formula = "'ready'"
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value"
+    )!.set!.call(expression, formula)
+    expression.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+
+  await render({ ...table, fields: [...table.fields] })
+  expect(nameInput().value).toBe("Calculated total")
+  expect(document.querySelector('[aria-label="Formula expression"]')).toBe(
+    expression
+  )
+  expect(expression.value).toBe(formula)
+  await submit()
+  expect(onCreate).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      name: "Calculated total",
+      type: "formula",
+      property: { formula, displayType: "text" },
+    })
+  )
+})
 
 it.each([
   {
