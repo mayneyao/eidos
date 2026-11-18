@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url"
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
     const match =
-      /^--(evidence|previous-tag|target-tag|candidate|version)=(.+)$/u.exec(arg)
+      /^--(evidence|previous-tag|target-tag|candidate|version|mode)=(.+)$/u.exec(arg)
     if (!match)
       throw new Error(`Unknown installation acceptance argument: ${arg}`)
     return [match[1], match[2]]
@@ -402,6 +402,94 @@ async function inspect(session) {
 }
 
 let active
+async function verifyPublishedMacUpdater(previousInstaller) {
+  assert.equal(process.platform, "darwin")
+  assert.equal(process.env.GITHUB_ACTIONS, "true")
+
+  const executable = await install(previousInstaller)
+  active = await launch(executable, "in-app-previous")
+  const before = await inspect(active)
+  assert.equal(before.diagnostics.app.version, previousVersion)
+  assert.equal(before.diagnostics.environment, "production")
+  assert.equal(before.space.operation.phase, "ready")
+  const hashes = await fileHashes()
+  const status = async () => active.cdp.evaluate("window.eidosLite.getUpdateStatus()")
+  const terminalStatus = async (completed) => {
+    const current = await status()
+    assert.notEqual(current.state, "error", `Update failed: ${JSON.stringify(current)}`)
+    return current.state === completed ? current : false
+  }
+  await active.cdp.evaluate("window.eidosLite.checkForUpdates(); true")
+  report.detected = await waitFor(() => terminalStatus("available"), "stable update availability", 90_000)
+  assert.equal(report.detected.version, targetVersion)
+  console.log("Detected public update", report.detected)
+  await writeReport()
+
+  await active.cdp.evaluate("window.eidosLite.downloadUpdate(); true")
+  report.downloaded = await waitFor(() => terminalStatus("downloaded"), "public update download", 300_000)
+  assert.equal(report.downloaded.version, targetVersion)
+  console.log("Downloaded public update", report.downloaded)
+  await writeReport()
+
+  const oldSession = active
+  await active.cdp.evaluate("window.eidosLite.restartToInstallUpdate(); true").catch((error) => {
+    if (error.message !== "CDP closed") throw error
+  })
+  const oldExit = await Promise.race([oldSession.exit, sleep(45_000).then(() => false)])
+  assert.ok(oldExit, "The old application quit to install the update")
+  assert.equal(oldExit.code, 0)
+  oldSession.cdp.close()
+  await oldSession.log.close()
+  active = undefined
+
+  const bundle = path.dirname(path.dirname(path.dirname(executable)))
+  const info = path.join(bundle, "Contents/Info.plist")
+  const runningTestBundle = () => {
+    const normalize = (value) => value.replace(/^\/private(?=\/var\/)/u, "")
+    return command("ps", ["-axo", "pid=,comm="])
+      .split("\n")
+      .map((line) => /^\s*(\d+)\s+(.+)$/u.exec(line))
+      .filter((match) => match && normalize(match[2]) === normalize(executable))
+      .map((match) => Number(match[1]))
+  }
+  await waitFor(async () => {
+    if (!(await exists(info))) return false
+    const installedVersion = command("/usr/libexec/PlistBuddy", [
+      "-c", "Print CFBundleShortVersionString", info,
+    ]).trim()
+    return installedVersion === targetVersion
+  }, "macOS to replace the application bundle", 120_000)
+  const restarted = await waitFor(() => runningTestBundle()[0], "automatic relaunch", 60_000)
+  assert.notEqual(restarted, oldSession.child.pid)
+  command("codesign", ["--verify", "--deep", "--strict", bundle])
+  report.automaticRelaunch = { pid: restarted, version: targetVersion }
+  console.log("Restarted the updated application", report.automaticRelaunch)
+  await writeReport()
+
+  // Launch Services restarts the app without promising to retain CDP flags.
+  // Reopen this exact verified bundle with the same known test profile to
+  // inspect its diagnostics and stored Space through the public bridge.
+  process.kill(restarted, "SIGTERM")
+  await waitFor(() => !runningTestBundle().length, "test application to exit")
+  active = await launch(executable, "in-app-upgraded")
+  const after = await inspect(active)
+  assert.equal(after.diagnostics.app.version, targetVersion)
+  assert.equal(after.diagnostics.app.packaged, true)
+  assert.equal(after.diagnostics.environment, "production")
+  assert.equal(after.space.id, before.space.id)
+  assert.deepEqual(await fileHashes(), hashes)
+  assert.deepEqual(storedTableSchema(after.tables), storedTableSchema(before.tables))
+  assert.deepEqual(storedTableSchema(after.nestedTables), storedTableSchema(before.nestedTables))
+  report.diagnostics = after.diagnostics.app
+  report.preservedFiles = hashes
+  await quit(active)
+  active = undefined
+  report.status = "passed"
+  report.finishedAt = new Date().toISOString()
+  await writeReport()
+  console.log(JSON.stringify(report, null, 2))
+}
+
 try {
   await fs.mkdir(installRoot)
   await fs.mkdir(profile)
@@ -433,6 +521,10 @@ try {
     "Preserve the nested attachment.\n"
   )
   const previous = await publishedInstaller(previousTag)
+  if (args.mode === "in-app-mac") {
+    await verifyPublishedMacUpdater(previous)
+    process.exit(0)
+  }
   const candidate =
     args.candidate ?? (await publishedInstaller(args["target-tag"]))
   let expected
