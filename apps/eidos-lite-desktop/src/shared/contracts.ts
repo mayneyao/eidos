@@ -481,6 +481,7 @@ export interface SpaceTreeEntry {
   relativePath: string
   kind: SpaceEntryKind
   size: number
+  createdAtMs?: number
   modifiedAtMs: number
   children?: SpaceTreeEntry[]
   childrenLoaded?: boolean

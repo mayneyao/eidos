@@ -13,6 +13,7 @@ import type { SparkFeature } from "../../shared/spark"
 import { customSyncOrigin } from "../../shared/sync-encryption"
 import { searchSpaceText } from "./text-search"
 import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
+import { compileExplorerFileSystemFilter } from "./explorer-file-system-predicates"
 import {
   selectExplorerFilesPage,
   type ExplorerFilesPage,
@@ -820,8 +821,15 @@ export class SpaceSession {
     filter: ExplorerFileFilter,
     calendarExecution?: ExplorerCalendarExecution
   ): Promise<{ entries: SpaceTreeEntry[]; referenceInstant?: string }> {
+    const local = compileExplorerFileSystemFilter(filter, calendarExecution)
+    const predicates = local.predicates.size ? local.predicates : undefined
     if (!hasExplorerPropertyFilter(filter))
-      return { entries: filterExplorerEntries(entries, filter) }
+      return {
+        entries: filterExplorerEntries(entries, filter, undefined, predicates),
+        ...(local.referenceInstant
+          ? { referenceInstant: local.referenceInstant }
+          : {}),
+      }
     const opened = await this.openExistingFileMetadata()
     if (!opened) throw new Error("File properties are unavailable")
     const table = opened.snapshot.tables.find(
@@ -843,13 +851,14 @@ export class SpaceSession {
               }
             : undefined
         ),
-      calendarExecution
+      calendarExecution && local.referenceInstant
+        ? { ...calendarExecution, referenceInstant: local.referenceInstant }
+        : calendarExecution
     )
+    const referenceInstant = matches.referenceInstant ?? local.referenceInstant
     return {
-      entries: filterExplorerEntries(entries, filter, matches),
-      ...(matches.referenceInstant
-        ? { referenceInstant: matches.referenceInstant }
-        : {}),
+      entries: filterExplorerEntries(entries, filter, matches, predicates),
+      ...(referenceInstant ? { referenceInstant } : {}),
     }
   }
 

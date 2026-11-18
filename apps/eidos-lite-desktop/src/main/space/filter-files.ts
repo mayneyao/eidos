@@ -26,6 +26,7 @@ import {
   normalizeMutableRelativePath,
   resolveSpaceDirectory,
 } from "./space-paths"
+import { compileExplorerFileSystemFilter } from "./explorer-file-system-predicates"
 
 /** Property comparisons stay in the canonical Runtime, including dates and list membership. */
 export async function explorerPropertyMatches(
@@ -117,11 +118,15 @@ export async function explorerPropertyMatches(
 export async function filterSpaceFiles(
   root: string,
   filter: ExplorerFileFilter,
-  directory: string | null
+  directory: string | null,
+  execution?: ExplorerCalendarExecution
 ): Promise<SpaceTreeEntry[]> {
+  const { predicates } = compileExplorerFileSystemFilter(filter, execution)
   return filterExplorerEntries(
     await readSpaceFilterTree(root, directory),
-    filter
+    filter,
+    undefined,
+    predicates.size ? predicates : undefined
   )
 }
 

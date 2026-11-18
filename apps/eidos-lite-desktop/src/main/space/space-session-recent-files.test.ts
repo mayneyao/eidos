@@ -7,7 +7,103 @@ import { GraftClient } from "../graft/graft-client"
 import { GraftInProcessTransport } from "../graft/graft-in-process-transport"
 import * as filters from "./filter-files"
 import type { ExplorerFilesQuery } from "../../shared/explorer-file-list"
+import { flattenSpaceTree } from "./space-paths"
 afterEach(() => vi.restoreAllMocks())
+
+it("filters system dates and sizes in a read-only Space without opening a metadata catalog", async () => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "readonly-system-filter-session-")
+  )
+  const state = await fs.mkdtemp(
+    path.join(os.tmpdir(), "readonly-system-filter-state-")
+  )
+  const graft = new GraftClient({ sdkTransport: new GraftInProcessTransport() })
+  let session: SpaceSession | undefined
+  try {
+    await fs.mkdir(path.join(root, "folder"))
+    const file = path.join(root, "folder/notes.md")
+    await fs.writeFile(file, "0123456789")
+    const original = await fs.lstat(file)
+    const modified = new Date("2026-11-18T08:00:00.000Z")
+    await fs.utimes(file, original.atime, modified)
+    session = await SpaceSession.create(root, state, { graft, readOnly: true })
+    const query: ExplorerFilesQuery = {
+      directory: null,
+      filter: {
+        type: "group",
+        id: "root",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            id: "date",
+            field: "file-system",
+            operator: "matches",
+            value: {
+              type: "rule",
+              field: "explorer:modifiedAt",
+              operator: "is-in-calendar-period",
+              value: { unit: "day", offset: 0 },
+            },
+          },
+          {
+            type: "rule",
+            id: "size",
+            field: "file-system",
+            operator: "matches",
+            value: {
+              type: "rule",
+              field: "explorer:size",
+              operator: "greater-than",
+              value: 9,
+            },
+          },
+        ],
+      },
+      calendarExecution: {
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+        calendar: {
+          timeZone: "Asia/Shanghai",
+          timeZoneData: "2026f",
+          weekStartsOn: 1,
+        },
+        referenceInstant: "2026-11-18T10:00:00.000Z",
+      },
+      sort: { by: "name", direction: "ascending" },
+      sinceMs: 0,
+      period: "recent",
+      offset: 0,
+      respectGitignore: false,
+    }
+    const page = await session.listExplorerFiles(query)
+    expect(page.entries.map((entry) => entry.relativePath)).toEqual([
+      "folder/notes.md",
+    ])
+    expect(page.referenceInstant).toBe(
+      query.calendarExecution?.referenceInstant
+    )
+    const tree = await session.filterFiles(
+      query.filter,
+      query.directory,
+      false,
+      query.calendarExecution
+    )
+    expect(flattenSpaceTree(tree).map((entry) => entry.relativePath)).toEqual([
+      "folder",
+      "folder/notes.md",
+    ])
+    expect(await fs.readdir(root)).toEqual(["folder"])
+    expect(await fs.readFile(file, "utf8")).toBe("0123456789")
+    expect((await fs.lstat(file)).mtimeMs).toBe(modified.getTime())
+  } finally {
+    await session?.close()
+    await graft.close()
+    await fs.rm(root, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
 it("keeps ignored scan caches and Earlier counts separate, and refreshes edited ignore rules", async () => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "recent-ignore-session-")
