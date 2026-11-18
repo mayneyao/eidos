@@ -580,7 +580,7 @@ export function EidosFileRecordPropertiesFooter({
           className={
             interactionMode === "mobile"
               ? "eidos-mobile-record-disclosure"
-              : "-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
+              : "-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground/85 hover:bg-muted"
           }
           data-eidos-file-record-hidden-properties-toggle=""
           aria-expanded={expanded}

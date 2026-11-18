@@ -1295,7 +1295,7 @@ export function EidosFileRecordInspector({
       variant="ghost"
       size="sm"
       className={cn(
-        "h-[34px] justify-start justify-self-start gap-2 px-1.5 text-sm font-normal text-muted-foreground",
+        "h-[34px] justify-start justify-self-start gap-2 px-1.5 text-sm font-normal text-muted-foreground/85",
         variant === "panel" ? "ml-2.5" : "-ml-1.5"
       )}
       data-eidos-file-record-properties-toggle=""
