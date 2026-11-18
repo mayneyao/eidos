@@ -62,12 +62,11 @@ describe("record property type editing", () => {
     host.remove()
     vi.unstubAllGlobals()
   })
-  it("uses Grid text content, retains a refreshed draft, cancels IME Enter, and restores focus on save", async () => {
-    const save = vi.fn(async () => {}),
-      pending = vi.fn()
+  it("edits text inline, retaining an active draft across a row refresh and IME Enter", async () => {
+    const save = vi.fn(async () => {})
     const render = (row: EidosFileRow) =>
       root.render(
-        <EidosFileUIProvider onPendingEditChange={pending}>
+        <EidosFileUIProvider>
           <EidosFileRecordPropertyEditor
             field={field("text")}
             row={row}
@@ -77,17 +76,14 @@ describe("record property type editing", () => {
         </EidosFileUIProvider>
       )
     await act(async () => render({ _id: "A", value: "Initial" }))
-    const trigger = host.querySelector<HTMLButtonElement>(
-      '[aria-label="Value"]'
+    const input = host.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Value"]'
     )!
-    await act(async () => trigger.click())
-    const input = document.querySelector<HTMLTextAreaElement>(
-      '[role="dialog"] .gdg-input'
-    )!
-    expect(input).not.toBeNull()
+    await act(async () => input.focus())
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     await act(async () => inputValue(input, "中文 draft"))
     await act(async () => render({ _id: "A", value: "External value" }))
-    expect(document.querySelector(".gdg-input")).toBe(input)
+    expect(host.querySelector("textarea")).toBe(input)
     expect(input.value).toBe("中文 draft")
     await act(async () =>
       input.dispatchEvent(
@@ -99,16 +95,14 @@ describe("record property type editing", () => {
       )
     )
     expect(save).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
     await act(async () =>
       input.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
       )
     )
     expect(save).toHaveBeenCalledExactlyOnceWith("中文 draft")
-    expect(document.activeElement).toBe(
-      host.querySelector('[aria-label="Value"]')
-    )
-    expect(pending.mock.calls.at(-1)?.[1]).toBe(false)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
   it.each([null, ""])(
     "preserves %j when opening and closing without changing text",
@@ -124,10 +118,8 @@ describe("record property type editing", () => {
           />
         )
       )
-      await act(async () =>
-        host.querySelector<HTMLButtonElement>('[aria-label="Value"]')!.click()
-      )
-      const input = document.querySelector<HTMLTextAreaElement>(".gdg-input")!
+      const input = host.querySelector<HTMLTextAreaElement>("textarea")!
+      await act(async () => input.focus())
       await act(async () =>
         input.dispatchEvent(
           new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
@@ -136,6 +128,70 @@ describe("record property type editing", () => {
       expect(save).not.toHaveBeenCalled()
     }
   )
+  it("sets and clears ratings directly in the row, including keyboard navigation", async () => {
+    const save = vi.fn(async () => {})
+    const render = (value: number | null, readOnly = false) =>
+      root.render(
+        <EidosFileRecordPropertyEditor
+          field={field("rating")}
+          row={{ _id: "A", value }}
+          disabled={false}
+          readOnly={readOnly}
+          onChange={save}
+        />
+      )
+    await act(async () => render(null))
+    const star = (rating: number) =>
+      host.querySelector<HTMLButtonElement>(`[aria-label="Rate ${rating}"]`)!
+    await act(async () => star(3).click())
+    expect(save).toHaveBeenLastCalledWith(3)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    await act(async () => render(3))
+    await act(async () => {
+      star(3).focus()
+      star(3).dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    expect(document.activeElement).toBe(star(4))
+    expect(save).toHaveBeenLastCalledWith(4)
+    await act(async () => render(4))
+    await act(async () => star(4).click())
+    expect(save).toHaveBeenLastCalledWith(null)
+    await act(async () => render(4, true))
+    await act(async () => star(2).click())
+    expect(save).toHaveBeenCalledTimes(3)
+  })
+  it("toggles a historical nullable checkbox and exposes its inline clear action", async () => {
+    const save = vi.fn(async () => {})
+    const render = (value: boolean | null) =>
+      root.render(
+        <EidosFileRecordPropertyEditor
+          field={{ ...field("checkbox"), nullable: true }}
+          row={{ _id: "A", value }}
+          disabled={false}
+          onChange={save}
+        />
+      )
+    await act(async () => render(null))
+    const check = host.querySelector<HTMLButtonElement>('[role="checkbox"]')!
+    expect(check.getAttribute("aria-checked")).toBe("mixed")
+    await act(async () => check.click())
+    expect(save).toHaveBeenLastCalledWith(1)
+    await act(async () => render(true))
+    expect(check.getAttribute("aria-checked")).toBe("true")
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Clear Value"]')!
+        .click()
+    )
+    expect(save).toHaveBeenLastCalledWith(null)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
   it.each(["select", "multi-select"] as const)(
     "guards creation inside an already-open shared %s editor without losing its query",
     async (type) => {
@@ -273,12 +329,10 @@ describe("record property type editing", () => {
         />
       )
     )
-    const open = () =>
-      act(async () =>
-        host.querySelector<HTMLButtonElement>('[aria-label="Value"]')!.click()
-      )
-    await open()
-    let input = document.querySelector<HTMLTextAreaElement>(".gdg-input")!
+    const input = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Value"]'
+    )!
+    await act(async () => input.focus())
     expect(input.value).toBe("9223372036854775807")
     await act(async () => inputValue(input, "-9223372036854775808"))
     await act(async () =>
@@ -287,8 +341,8 @@ describe("record property type editing", () => {
       )
     )
     expect(save).not.toHaveBeenCalled()
-    await open()
-    input = document.querySelector<HTMLTextAreaElement>(".gdg-input")!
+    expect(input.value).toBe("9223372036854775807")
+    await act(async () => input.focus())
     await act(async () => inputValue(input, "-9223372036854775808"))
     await act(async () =>
       input.dispatchEvent(

@@ -156,7 +156,7 @@ describe("real editor state across host materialization rekey", () => {
     expect(pending.size).toBe(0)
   })
 
-  it("reports the record property's Grid draft lifetime; rekey loses the open draft", async () => {
+  it("reports the inline record property draft without saving on rekey", async () => {
     const save = vi.fn()
     const render = async (key: number) =>
       act(async () =>
@@ -173,14 +173,9 @@ describe("real editor state across host materialization rekey", () => {
       )
     await render(0)
     expect(pending.size).toBe(0)
-    await act(async () =>
-      host
-        .querySelector<HTMLButtonElement>('button[aria-label="Score"]')!
-        .click()
-    )
-    const editor = document.querySelector<HTMLInputElement>(
-      '[role="dialog"] input'
-    )!
+    const scoreInput = () =>
+      host.querySelector<HTMLInputElement>('input[aria-label="Score"]')!
+    const editor = scoreInput()
     await act(async () => {
       editor.focus()
       input(editor, "12.5")
@@ -189,10 +184,9 @@ describe("real editor state across host materialization rekey", () => {
     expect(save).not.toHaveBeenCalled()
     expect(editor.value).toBe("12.5")
     await render(1)
-    expect(document.querySelector('[role="dialog"] input')).toBeNull()
-    expect(host.querySelector('button[aria-label="Score"]')!.textContent).toBe(
-      "1"
-    )
+    expect(scoreInput()).not.toBe(editor)
+    expect(scoreInput().value).toBe("1")
+    expect(save).not.toHaveBeenCalled()
     expect(pending.size).toBe(0)
   })
 

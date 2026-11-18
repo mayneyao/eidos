@@ -37,6 +37,7 @@ import { Textarea } from "./ui/primitives"
 import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { cn } from "./lib/cn"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import {
@@ -93,19 +94,26 @@ export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
   )
 }
 
+export function EidosFileInlineRecordFieldEditor(
+  props: Omit<FieldEditorProps, "appearance">
+) {
+  return <FieldEditorControl {...props} inspector />
+}
+
 function FieldEditorControl({
   field,
   row,
   isNewRecord = false,
   placeholder,
   appearance = "field",
+  inspector = false,
   disabled,
   readOnly = false,
   onChange,
   onCreateOption,
   onEnter,
   commitRef,
-}: FieldEditorProps) {
+}: FieldEditorProps & { inspector?: boolean }) {
   const {
     activateUrl,
     timeZone,
@@ -115,7 +123,14 @@ function FieldEditorControl({
   } = useEidosFileUI()
   const mobileTitle =
     appearance === "record-title" && interactionMode === "mobile"
+  const [focused, setFocused] = useState(false)
+  const inlineClass =
+    "min-h-[34px] w-full min-w-0 rounded-md border-0 bg-transparent px-2 py-[7px] text-sm font-normal leading-5 shadow-none enabled:hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring placeholder:text-muted-foreground"
   const value = row[field.tableColumnName]
+  const formattedNumber =
+    inspector && field.type === "number" && !focused
+      ? eidosFileValueToGridCell(field, value)
+      : null
   const [draft, setDraft] = useState(
     field.type === "datetime"
       ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
@@ -170,7 +185,8 @@ function FieldEditorControl({
     if (
       row._id === draftOrigin.current.rowId &&
       draft !== draftOrigin.current.display &&
-      value === draftOrigin.current.value
+      (value === draftOrigin.current.value ||
+        (inspector && draft !== savedDraft))
     )
       return
     draftOrigin.current = {
@@ -250,6 +266,7 @@ function FieldEditorControl({
     return true
   }
   const commitOnBlur = () => {
+    if (inspector) setFocused(false)
     if (discardNextBlur.current) {
       discardNextBlur.current = false
       return
@@ -310,9 +327,19 @@ function FieldEditorControl({
         : value === true || value === 1 || value === "1"
           ? "checked"
           : "unchecked"
-    if (appearance === "record-property" || appearance === "compact")
+    if (
+      inspector ||
+      appearance === "record-property" ||
+      appearance === "compact"
+    )
       return (
-        <div className="flex min-h-11 items-center gap-2">
+        <div
+          className={
+            inspector
+              ? "flex min-h-[34px] items-center gap-1"
+              : "flex min-h-11 items-center gap-2"
+          }
+        >
           <button
             type="button"
             role="checkbox"
@@ -321,19 +348,38 @@ function FieldEditorControl({
               checkboxValue === "empty" ? "mixed" : checkboxValue === "checked"
             }
             disabled={disabled}
-            className="eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
+            aria-disabled={inspector && readOnly ? true : undefined}
+            className={
+              inspector
+                ? "flex min-h-[34px] flex-1 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                : "eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
+            }
             onClick={() => {
               if (!writeLocked)
                 void onChange(checkboxValue === "checked" ? 0 : 1)
             }}
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded border border-input">
+            <span
+              className={cn(
+                "flex items-center justify-center rounded border border-input",
+                inspector ? "h-4 w-4" : "h-5 w-5"
+              )}
+            >
               {checkboxValue === "checked" ? (
                 <Check size={16} />
               ) : checkboxValue === "empty" ? (
                 "−"
               ) : null}
             </span>
+            {inspector
+              ? t(
+                  checkboxValue === "empty"
+                    ? "Empty"
+                    : checkboxValue === "checked"
+                      ? "Checked"
+                      : "Unchecked"
+                )
+              : null}
           </button>
           {appearance !== "compact" &&
             field.nullable !== false &&
@@ -341,8 +387,17 @@ function FieldEditorControl({
               <button
                 type="button"
                 disabled={disabled}
-                className="eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
-                aria-label={t("Clear")}
+                aria-disabled={inspector && readOnly ? true : undefined}
+                className={
+                  inspector
+                    ? "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    : "eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
+                }
+                aria-label={
+                  inspector
+                    ? t("Clear {field}", { field: field.name })
+                    : t("Clear")
+                }
                 onClick={() => {
                   if (!writeLocked) void onChange(null)
                 }}
@@ -644,11 +699,16 @@ function FieldEditorControl({
         placeholder={placeholder}
         disabled={disabled}
         className={
-          appearance === "record-property"
-            ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
-            : appearance === "record-title"
-              ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 ${mobileTitle ? "text-xl font-semibold sm:text-2xl overflow-x-hidden [overflow-wrap:anywhere]" : "text-[40px] font-bold"}`
-              : "min-h-8 resize-none text-xs leading-5"
+          inspector
+            ? cn(
+                inlineClass,
+                "resize-none whitespace-pre-wrap [overflow-wrap:anywhere]"
+              )
+            : appearance === "record-property"
+              ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
+              : appearance === "record-title"
+                ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 ${mobileTitle ? "text-xl font-semibold sm:text-2xl overflow-x-hidden [overflow-wrap:anywhere]" : "text-[40px] font-bold"}`
+                : "min-h-8 resize-none text-xs leading-5"
         }
         style={
           appearance === "record-property"
@@ -675,15 +735,23 @@ function FieldEditorControl({
         onBlur={commitOnBlur}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
-          if (event.key === "Escape" && appearance === "compact") {
+          if (
+            event.key === "Escape" &&
+            (inspector || appearance === "compact")
+          ) {
+            if (inspector) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
             discardNextBlur.current = true
-            setDraft(value == null ? "" : String(value))
+            setDraft(savedDraft)
             event.currentTarget.blur()
             return
           }
           if (
             event.key === "Enter" &&
-            (appearance === "record-title" ||
+            (inspector ||
+              appearance === "record-title" ||
               appearance === "record-property") &&
             !event.shiftKey &&
             !event.metaKey &&
@@ -705,7 +773,7 @@ function FieldEditorControl({
 
   if (
     field.type === "rating" &&
-    (appearance === "record-property" || appearance === "compact")
+    (inspector || appearance === "record-property" || appearance === "compact")
   ) {
     const maximum =
       typeof field.settings?.max === "number" ? field.settings.max : 5
@@ -714,17 +782,60 @@ function FieldEditorControl({
         <div
           role="group"
           aria-label={field.name}
-          className="flex min-h-11 flex-wrap items-center"
+          className={
+            inspector
+              ? "flex min-h-[34px] flex-wrap items-center px-1"
+              : "flex min-h-11 flex-wrap items-center"
+          }
         >
           {Array.from({ length: maximum }, (_, index) => index + 1).map(
             (rating) => (
               <button
                 type="button"
                 key={rating}
-                className="flex h-11 min-w-8 flex-1 items-center justify-center"
+                className={
+                  inspector
+                    ? "inline-flex h-8 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    : "flex h-11 min-w-8 flex-1 items-center justify-center"
+                }
                 disabled={disabled}
+                aria-disabled={readOnly || undefined}
                 aria-label={t("Rate {value}", { value: rating })}
                 aria-pressed={Number(value) === rating && value != null}
+                tabIndex={
+                  inspector
+                    ? rating === (Number(value) || 1)
+                      ? 0
+                      : -1
+                    : undefined
+                }
+                onKeyDown={
+                  inspector
+                    ? (event) => {
+                        const step =
+                          event.key === "ArrowRight" || event.key === "ArrowUp"
+                            ? 1
+                            : event.key === "ArrowLeft" ||
+                                event.key === "ArrowDown"
+                              ? -1
+                              : 0
+                        if (!step || writeLocked) return
+                        event.preventDefault()
+                        const next = Math.min(
+                          maximum,
+                          Math.max(1, rating + step)
+                        )
+                        if (next === rating) return
+                        event.currentTarget.parentElement
+                          ?.querySelector<HTMLButtonElement>(
+                            `button[value="${next}"]`
+                          )
+                          ?.focus()
+                        void onChange(next)
+                      }
+                    : undefined
+                }
+                value={inspector ? rating : undefined}
                 onClick={() => {
                   if (writeLocked) return
                   void onChange(
@@ -737,13 +848,18 @@ function FieldEditorControl({
                 }}
               >
                 <Star
-                  size={22}
+                  size={inspector ? 16 : 22}
+                  className={
+                    inspector && Number(value) >= rating
+                      ? "text-foreground"
+                      : undefined
+                  }
                   fill={Number(value) >= rating ? "currentColor" : "none"}
                 />
               </button>
             )
           )}
-          {appearance !== "compact" && (
+          {!inspector && appearance !== "compact" && (
             <button
               type="button"
               disabled={disabled}
@@ -757,7 +873,8 @@ function FieldEditorControl({
               0
             </button>
           )}
-          {appearance !== "compact" &&
+          {!inspector &&
+            appearance !== "compact" &&
             field.nullable !== false &&
             value != null && (
               <button
@@ -799,7 +916,11 @@ function FieldEditorControl({
                   ? "datetime-local"
                   : "url"
         }
-        value={draft}
+        value={
+          draft === savedDraft && formattedNumber?.kind === GridCellKind.Number
+            ? formattedNumber.displayData
+            : draft
+        }
         aria-label={field.name}
         placeholder={placeholder}
         aria-invalid={
@@ -817,11 +938,14 @@ function FieldEditorControl({
         }
         readOnly={readOnly}
         className={[
-          appearance === "record-property"
-            ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
-            : "h-8 text-xs",
+          inspector
+            ? inlineClass
+            : appearance === "record-property"
+              ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
+              : "h-8 text-xs",
           field.type === "url" ? "pr-9" : "",
         ].join(" ")}
+        onFocus={inspector ? () => setFocused(true) : undefined}
         onChange={(event) => {
           setDraft(event.target.value)
           if (field.type === "url") setUrlError(false)
@@ -832,8 +956,20 @@ function FieldEditorControl({
         }}
         onBlur={commitOnBlur}
         onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur()
+          if (
+            inspector &&
+            (event.nativeEvent.isComposing || event.keyCode === 229)
+          )
+            return
+          if (event.key === "Enter") {
+            if (inspector) event.preventDefault()
+            event.currentTarget.blur()
+          }
           if (event.key === "Escape") {
+            if (inspector) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
             draftOrigin.current = {
               rowId: row._id,
               value,
@@ -913,7 +1049,10 @@ function FieldEditorControl({
         <div className="min-w-0">
           {input}
           {numberError ? (
-            <p className="mt-1 text-[10px] leading-4 text-destructive">
+            <p
+              role={inspector ? "alert" : undefined}
+              className="mt-1 text-[10px] leading-4 text-destructive"
+            >
               {numberError}
             </p>
           ) : null}

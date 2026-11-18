@@ -86,6 +86,7 @@ it("manages canonical fields inside a record and keeps personal visibility separ
   })
   const table = original.tables[0]!
   const title = table.fields.find((field) => field.name === "Title")!
+  const status = table.fields.find((field) => field.name === "Status")!
   const content = table.fields.find((field) => field.name === "Content")!
   const row = (
     await source.insertRow(table.table.id, {
@@ -113,7 +114,9 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     grid: (props: EidosFileViewRendererProps) => (
       <EidosFileRecordInspector
         row={row}
-        fields={props.table.fields}
+        fields={props.table.fields.filter(
+          (field) => field.systemRole == null && field.id !== status.id
+        )}
         variant={props.recordPresentation}
         contentField={props.table.fields.find(
           (field) => field.id === content.id

@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type CSSProperties,
   type RefObject,
 } from "react"
 import type {
@@ -25,7 +24,6 @@ import {
   type EditableGridCell,
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
-import { Check, ExternalLink, Minus, X } from "lucide-react"
 import { useEidosFileUI } from "./context"
 import { eidosFileValueEditor } from "./eidos-file-value-editor"
 import {
@@ -34,7 +32,7 @@ import {
 } from "./eidos-file-grid-adapter"
 import { eidosFileSelectOptionsProperty } from "./eidos-file-field-properties"
 import { eidosFileRecordFieldText } from "./eidos-file-record-format"
-import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
+import { EidosFileInlineRecordFieldEditor } from "./eidos-file-record-field-editor"
 import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { Button, Popover } from "./ui/primitives"
@@ -42,13 +40,10 @@ import {
   EidosFileValueEditorHost,
   EidosFileValueEditorTrigger,
   EidosFileGridEditorPopoverContent,
-  EidosFileGridEditorSurface,
-  EidosFileGridEditorHeader,
 } from "./cells/grid-editor-surface"
 import { SelectOptionItem } from "./ui/select-option-item"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { decodeEidosFileMultiSelectValues } from "@eidos.space/eidos-file"
-import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 
 interface Session {
@@ -58,7 +53,6 @@ interface Session {
   originalCell: GridCell
   Editor: ProvideEditorComponent<GridCell>
   ownPopover: boolean
-  ownSurface: boolean
 }
 
 function RecordTypeEditor({
@@ -87,22 +81,10 @@ function RecordTypeEditor({
   )
 }
 
-/** A record owns its field anchor and focus order, while Grid supplies type editing content. */
-export function EidosFileRecordPropertyEditor({
-  field,
-  row,
-  disabled,
-  readOnly = false,
-  display,
-  onChange,
-  onFieldUpdate,
-  onImportFiles,
-  onImportDroppedFiles,
-  onSearchRelation,
-  onError,
-}: {
+interface RecordPropertyEditorProps {
   field: EidosFileFieldInfo
   row: EidosFileRow
+  isNewRecord?: boolean
   disabled: boolean
   readOnly?: boolean
   display?: ReactNode
@@ -121,13 +103,64 @@ export function EidosFileRecordPropertyEditor({
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onError?: (error: unknown) => void
-}) {
-  const {
-    translate: t,
-    timeZone,
-    calendarTimeZoneData,
-    activateUrl,
-  } = useEidosFileUI()
+}
+
+export function EidosFileRecordPropertyEditor(
+  props: RecordPropertyEditorProps
+) {
+  const { field, row, disabled, readOnly, onChange, onError } = props
+  const { translate: t } = useEidosFileUI()
+  switch (field.type) {
+    case "text":
+    case "number":
+    case "integer":
+    case "url":
+    case "rating":
+    case "checkbox":
+      return (
+        <EidosFileInlineRecordFieldEditor
+          key={`${field.id}:${field.type}`}
+          field={field}
+          row={row}
+          isNewRecord={props.isNewRecord}
+          placeholder={t("Empty")}
+          disabled={disabled}
+          readOnly={readOnly}
+          onChange={(value) =>
+            onChange(value).catch((error) => onError?.(error))
+          }
+        />
+      )
+    case "date":
+    case "datetime":
+    case "select":
+    case "multi-select":
+    case "relation":
+    case "file":
+      return <RecordPropertyPicker {...props} />
+    default:
+      return (
+        <div className="min-h-[34px] px-2 py-[7px] text-sm leading-5">
+          {t(eidosFileRecordFieldText(row, field))}
+        </div>
+      )
+  }
+}
+
+function RecordPropertyPicker({
+  field,
+  row,
+  disabled,
+  readOnly = false,
+  display,
+  onChange,
+  onFieldUpdate,
+  onImportFiles,
+  onImportDroppedFiles,
+  onSearchRelation,
+  onError,
+}: RecordPropertyEditorProps) {
+  const { translate: t, timeZone, calendarTimeZoneData } = useEidosFileUI()
   const control = useRef<HTMLButtonElement>(null)
   const [session, setSession] = useState<Session | null>(null)
   const sessionToken = useRef(0)
@@ -140,7 +173,7 @@ export function EidosFileRecordPropertyEditor({
   }, [session])
   const sessionRef = useRef(session)
   sessionRef.current = session
-  const identity = `${row._id}:${field.id}`
+  const identity = `${row._id}:${field.id}:${field.type}`
   const identityRef = useRef(identity)
   const identityEpoch = useRef(0)
   if (identityRef.current !== identity) identityEpoch.current += 1
@@ -283,15 +316,10 @@ export function EidosFileRecordPropertyEditor({
         "multi-select-cell",
         "eidos-file-relation-cell",
       ].includes(kind ?? ""),
-      ownSurface:
-        initial.kind === GridCellKind.Custom &&
-        kind !== "eidos-file-url-image-cell" &&
-        kind !== "rating-cell" &&
-        kind !== "range-cell",
     })
   }
 
-  if (!cell.allowOverlay && cell.kind !== GridCellKind.Boolean)
+  if (!cell.allowOverlay)
     return (
       <div className="min-h-[34px] px-2 py-[7px] text-sm leading-5">
         {display ??
@@ -305,61 +333,6 @@ export function EidosFileRecordPropertyEditor({
               "Dates outside 1970–2499 are read-only here. Your saved value is unchanged."
             )}
           </p>
-        ) : null}
-      </div>
-    )
-
-  if (cell.kind === GridCellKind.Boolean)
-    return (
-      <div className="flex min-h-[34px] items-center gap-1">
-        <button
-          type="button"
-          role="checkbox"
-          aria-label={field.name}
-          aria-checked={cell.data == null ? "mixed" : cell.data === true}
-          disabled={disabled}
-          aria-disabled={readOnly || undefined}
-          className="flex min-h-[34px] flex-1 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          onClick={() => {
-            if (!lockedRef.current)
-              void onChange(
-                gridCellToEidosFileValue(field, {
-                  ...cell,
-                  data: cell.data !== true,
-                })
-              ).catch(onError)
-          }}
-        >
-          <span className="flex h-4 w-4 items-center justify-center rounded-sm border border-input">
-            {cell.data === true ? (
-              <Check className="h-3 w-3" />
-            ) : cell.data == null ? (
-              <Minus className="h-3 w-3" />
-            ) : null}
-          </span>
-          {cell.data == null
-            ? t("Empty")
-            : cell.data === true
-              ? t("Checked")
-              : t("Unchecked")}
-        </button>
-        {field.nullable !== false && cell.data != null ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground"
-            aria-label={t("Clear {field}", { field: field.name })}
-            disabled={disabled}
-            aria-disabled={readOnly || undefined}
-            onClick={() => {
-              if (!lockedRef.current)
-                void onChange(
-                  gridCellToEidosFileValue(field, { ...cell, data: null })
-                ).catch(onError)
-            }}
-          >
-            <X className="h-3 w-3" />
-          </Button>
         ) : null}
       </div>
     )
@@ -432,63 +405,11 @@ export function EidosFileRecordPropertyEditor({
       }}
     />
   ) : null
-  const Icon = eidosFileFieldTypeIcon(field.type)
-  const content = session?.ownSurface ? (
-    editor
-  ) : (
-    <EidosFileGridEditorSurface>
-      <EidosFileGridEditorHeader
-        icon={Icon ? <Icon /> : null}
-        title={field.name}
-      />
-      <div
-        className="p-2"
-        onKeyDownCapture={(event) => {
-          if (event.nativeEvent.isComposing || event.keyCode === 229) return
-          if (event.key === "Escape") {
-            event.preventDefault()
-            event.stopPropagation()
-            finish()
-          } else if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault()
-            event.stopPropagation()
-            finish(sessionRef.current?.cell)
-          }
-        }}
-        style={
-          {
-            "--gdg-text-dark": "var(--foreground)",
-            "--gdg-bg-cell": "var(--popover)",
-            "--gdg-editor-font-size": "13px",
-            "--gdg-font-family": "var(--font-ui, sans-serif)",
-          } as CSSProperties
-        }
-      >
-        {editor}
-      </div>
-    </EidosFileGridEditorSurface>
-  )
   return (
     <div
       className="min-w-0"
       data-eidos-file-property-editor={field.type}
       data-eidos-file-property-editing={session ? "true" : undefined}
-      onKeyDownCapture={(event) => {
-        if (
-          event.key !== "Tab" ||
-          !sessionRef.current ||
-          sessionRef.current.ownPopover ||
-          sessionRef.current.ownSurface ||
-          event.nativeEvent.isComposing
-        )
-          return
-        event.preventDefault()
-        event.stopPropagation()
-        finishAndTab(
-          () => finish(sessionRef.current?.cell, false),
-          event.shiftKey
-        )
-      }}
       onDragOver={(event) => {
         if (
           onImportDroppedFiles &&
@@ -586,29 +507,11 @@ export function EidosFileRecordPropertyEditor({
                 finish()
               }}
             >
-              {content}
+              {editor}
             </EidosFileGridEditorPopoverContent>
           </Popover>
         )}
       </EidosFileValueEditorHost>
-      {field.type === "url" &&
-      typeof value === "string" &&
-      activateUrl &&
-      eidosFileUrlIsActivatable(value) ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 px-2 text-xs text-muted-foreground"
-          aria-label={t("Open URL")}
-          onClick={() => {
-            void Promise.resolve(activateUrl(value)).catch(onError)
-          }}
-        >
-          <ExternalLink className="h-3 w-3" />
-          {t("Open URL")}
-        </Button>
-      ) : null}
     </div>
   )
 }

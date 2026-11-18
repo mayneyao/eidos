@@ -32,6 +32,7 @@ import {
   Maximize2,
   Minimize2,
   Minus,
+  Plus,
   X,
 } from "lucide-react"
 
@@ -77,6 +78,43 @@ import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { SelectOptionItem } from "./ui/select-option-item"
 
+function RecordChoiceValue({
+  field,
+  value,
+}: {
+  field: EidosFileFieldInfo
+  value: EidosFileRow[string] | undefined
+}) {
+  const { translate: t } = useEidosFileUI()
+  const options = eidosFileSelectOptions(field)
+  const values =
+    field.type === "select"
+      ? typeof value === "string" && value
+        ? [value]
+        : []
+      : decodeEidosFileMultiSelectValues(
+          typeof value === "string" ? value : null
+        )
+  if (values.length === 0)
+    return <span className="text-sm text-muted-foreground">{t("Empty")}</span>
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      {values.map((value) => (
+        <SelectOptionItem
+          key={value}
+          className="text-sm"
+          option={
+            options.find((option) => option.value === value) ?? {
+              name: value,
+              color: "default",
+            }
+          }
+        />
+      ))}
+    </span>
+  )
+}
+
 function MobileRecordValue({
   field,
   row,
@@ -88,31 +126,8 @@ function MobileRecordValue({
   const value = row[field.tableColumnName]
   if (value === null || value === undefined || value === "")
     return <span className="text-muted-foreground">{t("Empty")}</span>
-  if (field.type === "select" || field.type === "multi-select") {
-    const options = eidosFileSelectOptions(field)
-    const values =
-      field.type === "select"
-        ? [String(value)]
-        : decodeEidosFileMultiSelectValues(
-            typeof value === "string" ? value : null
-          )
-    return (
-      <span className="flex flex-wrap gap-1.5">
-        {values.map((value) => (
-          <SelectOptionItem
-            key={value}
-            className="text-sm"
-            option={
-              options.find((option) => option.value === value) ?? {
-                name: value,
-                color: "default",
-              }
-            }
-          />
-        ))}
-      </span>
-    )
-  }
+  if (field.type === "select" || field.type === "multi-select")
+    return <RecordChoiceValue field={field} value={value} />
   if (field.type === "checkbox")
     return (
       <span
@@ -284,6 +299,8 @@ function FieldValue({
     calendarTimeZoneData,
   } = useEidosFileUI()
   const value = row[field.tableColumnName]
+  if (field.type === "select" || field.type === "multi-select")
+    return <RecordChoiceValue field={field} value={value} />
   if (field.type === "checkbox") {
     if (value === null || value === undefined) {
       return <span className="text-sm text-muted-foreground">{t("Empty")}</span>
@@ -547,6 +564,9 @@ export function EidosFileRecordInspector({
   } = useEidosFileUI()
   const inheritedFieldManagement = useRecordFieldManagement()
   const fieldManagement = recordFieldManagement ?? inheritedFieldManagement
+  // View renderers can supply only their visible columns. Record visibility
+  // uses the table's fields and its own presentation settings.
+  const recordFields = fieldManagement?.table.fields ?? fields
   const variant = interactionMode === "mobile" ? "page" : requestedVariant
   const isMobile = interactionMode === "mobile"
   const tableId = fieldManagement?.table.table.id ?? fields[0]?.tableId ?? ""
@@ -756,7 +776,8 @@ export function EidosFileRecordInspector({
     loading || Boolean(loadError) || savingField !== null || failedEdit !== null
   const editable = Boolean(onCellEdit) && !disabled
   const Root = variant === "page" ? "section" : "aside"
-  const recordLabelField = fields.find(isEidosFileRecordLabelField) ?? null
+  const recordLabelField =
+    recordFields.find(isEidosFileRecordLabelField) ?? null
   const pageTitleField =
     variant === "page" && recordLabelField?.type === "text"
       ? recordLabelField
@@ -767,8 +788,9 @@ export function EidosFileRecordInspector({
     pageTitleField.valueKind === "source" &&
     isEidosFileFieldWritable(pageTitleField)
   )
-  const allMetadataFields = fields.filter(
+  const allMetadataFields = recordFields.filter(
     (field) =>
+      (!field.isHidden || field.systemRole != null) &&
       field.id !== contentField?.id &&
       (variant !== "page" || field.id !== pageTitleField?.id)
   )
@@ -985,6 +1007,9 @@ export function EidosFileRecordInspector({
     )
     .map((field) => {
       const fieldWritable = editable && isEidosFileFieldWritable(field)
+      const hasFiles =
+        field.type === "file" &&
+        decodeEidosFileValues(currentRow[field.tableColumnName]).length > 0
       const FieldTypeIcon = eidosFileFieldTypeIcon(field.type)
       const canManageField =
         !isMobile &&
@@ -1074,26 +1099,28 @@ export function EidosFileRecordInspector({
                 <MobileRecordValue field={field} row={currentRow} />
               </div>
             )
-          ) : fieldWritable && field.type === "text" && field.isRecordLabel ? (
-            <EidosFileRecordFieldEditor
-              field={field}
-              row={currentRow}
-              isNewRecord={isNewRecord && !loading}
-              disabled={editorDisabled}
-              readOnly={propertyReadOnly}
-              onChange={(value) => editField(field, value)}
-            />
           ) : fieldWritable && field.type === "file" ? (
             <div className="min-w-0">
-              <CopyableFieldValue
-                field={field}
-                row={currentRow}
-                onError={onError}
-              />
+              {hasFiles ? (
+                <CopyableFieldValue
+                  field={field}
+                  row={currentRow}
+                  onError={onError}
+                />
+              ) : null}
               <EidosFileRecordPropertyEditor
                 field={field}
                 row={currentRow}
-                display={t("Edit files")}
+                display={
+                  hasFiles ? (
+                    t("Edit files")
+                  ) : (
+                    <>
+                      <Plus aria-hidden="true" />
+                      {t("Add files")}
+                    </>
+                  )
+                }
                 disabled={editorDisabled}
                 readOnly={propertyReadOnly}
                 onChange={(value) => editField(field, value)}
@@ -1119,6 +1146,7 @@ export function EidosFileRecordInspector({
             <EidosFileRecordPropertyEditor
               field={field}
               row={currentRow}
+              isNewRecord={isNewRecord && !loading}
               disabled={editorDisabled}
               readOnly={propertyReadOnly}
               onChange={(value) => editField(field, value)}
@@ -1171,7 +1199,7 @@ export function EidosFileRecordInspector({
       rows={metadataRows.map((content) => ({
         id: content.props["data-eidos-record-property"] as string,
         label: eidosFileFieldDisplayName(
-          fields.find(
+          recordFields.find(
             (field) => field.id === content.props["data-eidos-record-property"]
           )!
         ),
@@ -1217,7 +1245,7 @@ export function EidosFileRecordInspector({
   const propertyMenu = !isMobile ? (
     <EidosFileRecordFieldMenu
       management={fieldManagement}
-      fields={fields}
+      fields={recordFields}
       schemaLocked={
         fieldManager.fieldId === null ? fieldCreationLocked : fieldEditingLocked
       }
