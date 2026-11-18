@@ -974,6 +974,10 @@ export function EidosFileRecordInspector({
     </>
   )
 
+  const fieldCreationLocked = disabled || propertyReadOnly
+  // Adding a field preserves the existing Content field and its draft.
+  const fieldEditingLocked =
+    fieldCreationLocked || contentDraft !== contentValue
   const metadataRows = metadataFields
     .filter(
       (field) =>
@@ -987,8 +991,7 @@ export function EidosFileRecordInspector({
         Boolean(
           fieldManagement &&
           !fieldManagement.disabled &&
-          !propertyReadOnly &&
-          contentDraft === contentValue &&
+          !fieldEditingLocked &&
           field.systemRole == null &&
           field.valueKind !== "system" &&
           (
@@ -1141,7 +1144,6 @@ export function EidosFileRecordInspector({
         '[aria-invalid="true"], [role="alert"], [data-eidos-file-property-editing="true"]'
       )
     )
-  const schemaLocked = propertyReadOnly || contentDraft !== contentValue
   const canAlterSchema = Boolean(
     fieldManagement &&
     !fieldManagement.disabled &&
@@ -1193,7 +1195,7 @@ export function EidosFileRecordInspector({
       expanded={showHiddenProperties}
       controlsId={propertiesId}
       preferencesLocked={presentationLocked}
-      schemaLocked={schemaLocked}
+      creationLocked={fieldCreationLocked}
       canCreate={canAlterSchema}
       onCreate={(anchor) => setFieldManager({ anchor, fieldId: null })}
       onToggleHidden={() => {
@@ -1216,7 +1218,9 @@ export function EidosFileRecordInspector({
     <EidosFileRecordFieldMenu
       management={fieldManagement}
       fields={fields}
-      schemaLocked={schemaLocked}
+      schemaLocked={
+        fieldManager.fieldId === null ? fieldCreationLocked : fieldEditingLocked
+      }
       state={fieldManager}
       onStateChange={setFieldManager}
       hiddenFields={recordPreferences.hiddenFields}

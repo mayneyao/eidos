@@ -553,7 +553,7 @@ export function EidosFileRecordPropertiesFooter({
   expanded,
   controlsId,
   preferencesLocked,
-  schemaLocked,
+  creationLocked,
   canCreate,
   onCreate,
   onToggleHidden,
@@ -563,7 +563,7 @@ export function EidosFileRecordPropertiesFooter({
   expanded: boolean
   controlsId: string
   preferencesLocked: boolean
-  schemaLocked: boolean
+  creationLocked: boolean
   canCreate: boolean
   onCreate: (anchor: HTMLElement) => void
   onToggleHidden: () => void
@@ -583,7 +583,7 @@ export function EidosFileRecordPropertiesFooter({
           variant="ghost"
           size="sm"
           className="-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
-          disabled={schemaLocked}
+          disabled={creationLocked}
           onClick={(event) => onCreate(event.currentTarget)}
         >
           <Plus className="h-4 w-4" />

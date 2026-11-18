@@ -81,12 +81,17 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       { name: "Title", type: "text" },
       { name: "Status", type: "text" },
       { name: "Record ID", type: "text" },
+      { name: "Content", type: "text" },
     ],
   })
   const table = original.tables[0]!
   const title = table.fields.find((field) => field.name === "Title")!
+  const content = table.fields.find((field) => field.name === "Content")!
   const row = (
-    await source.insertRow(table.table.id, { [title.id]: "Record A" })
+    await source.insertRow(table.table.id, {
+      [title.id]: "Record A",
+      [content.id]: "# Saved content",
+    })
   ).row
   const beforeViews = JSON.stringify(table.views)
   original = await source.createTable({
@@ -110,6 +115,14 @@ it("manages canonical fields inside a record and keeps personal visibility separ
         row={row}
         fields={props.table.fields}
         variant={props.recordPresentation}
+        contentField={props.table.fields.find(
+          (field) => field.id === content.id
+        )}
+        onCellEdit={(record, field, value) =>
+          source.updateRow(props.table.table.id, String(record._id), {
+            [field.id]: value,
+          })
+        }
       />
     ),
   }
@@ -134,6 +147,7 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       <EidosFileUIProvider
         recordPropertyScope={scope}
         defaultHideSystemFieldsInRecords={defaultHidden}
+        markdownEditingMode="wysiwyg"
       >
         <EidosFileEditorView
           source={source}
@@ -256,7 +270,23 @@ it("manages canonical fields inside a record and keeps personal visibility separ
         "[data-eidos-file-record-hidden-properties-toggle]"
       )
     ).toBeNull()
-    await click(buttonText("Add a property", container))
+    const contentEditor = "textarea[aria-label='Markdown content']"
+    const draft = "# Unsaved content"
+    await vi.waitFor(() =>
+      expect(container.querySelector(contentEditor)).not.toBeNull()
+    )
+    const editor = container.querySelector<HTMLTextAreaElement>(contentEditor)!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )!.set!.call(editor, draft)
+      editor.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const addProperty = buttonText("Add a property", container)
+    expect(addProperty?.disabled).toBe(false)
+    expect(byLabel("Edit Stage properties")).toBeNull()
+    await click(addProperty)
     const createName = dialog().querySelector<HTMLInputElement>("input[id]")!
     await input(createName, "Priority")
     await act(async () =>
@@ -273,6 +303,26 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     )
     await vi.waitFor(() =>
       expect(document.querySelector('[role="dialog"]')).toBeNull()
+    )
+    expect(container.querySelector(contentEditor)).toBe(editor)
+    expect(editor.value).toBe(draft)
+    expect(
+      (await source.getRow(table.table.id, String(row._id)))?.[content.id]
+    ).toBe("# Saved content")
+    await act(async () => {
+      editor.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "s",
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    })
+    await vi.waitFor(async () =>
+      expect(
+        (await source.getRow(table.table.id, String(row._id)))?.[content.id]
+      ).toBe(draft)
     )
     await act(async () => setDefaultHidden(true))
     expect(systemRows()).toHaveLength(0)
