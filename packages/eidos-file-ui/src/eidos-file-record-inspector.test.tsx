@@ -946,6 +946,68 @@ describe("EidosFileRecordInspector", () => {
     expect(onNextRecord).toHaveBeenCalledOnce()
   })
 
+  it("keeps the source editor mounted after saving while the host closes the record", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0]!,
+      id: "body",
+      tableColumnName: "body",
+      name: "Body",
+      isRecordLabel: false,
+    }
+    const onCellEdit = vi.fn(async (previous, field, value) => ({
+      tableId: "tasks",
+      row: { ...previous, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+    const onClose = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileRecordInspector
+          variant="page"
+          fields={[...fields, contentField]}
+          row={{ _id: "row_1", title: "Write RFC", body: "# Saved" }}
+          contentField={contentField}
+          onCellEdit={onCellEdit}
+          onClose={onClose}
+        />
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector("[data-eidos-file-markdown-preview]")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+    const editor = container.querySelector<HTMLTextAreaElement>(
+      '[data-eidos-file-markdown-editor="source"] textarea'
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )!.set!.call(editor, "# Draft")
+      editor.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Close record details"]'
+        )!
+        .click()
+    })
+    expect(onCellEdit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ body: "# Saved" }),
+      contentField,
+      "# Draft"
+    )
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(
+      container.querySelector(
+        '[data-eidos-file-markdown-editor="source"] textarea'
+      )
+    ).toBe(editor)
+    expect(editor.value).toBe("# Draft")
+  })
+
   it("keeps the content editor editable and preserves newer drafts across a save", async () => {
     const contentField: EidosFileFieldInfo = {
       ...fields[0]!,

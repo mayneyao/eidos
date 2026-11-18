@@ -959,7 +959,7 @@ export function EidosFileRecordInspector({
       if (savingRef.current || failedEditRef.current) return
     }
     if (contentDisplayMode === "edit" && contentDraft !== contentValue) {
-      const saved = await saveContentAndPreview()
+      const saved = await saveContent()
       if (!saved) return
     }
     onClose()

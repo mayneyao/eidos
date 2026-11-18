@@ -4093,6 +4093,7 @@ describe("EidosFileGrid", () => {
             loadPage={loadPage}
             locateRow={locateRow}
             inspectedRowId={rowId}
+            recordPresentation="page"
             onInspectedRowChange={onInspectedRowChange}
             onAddRow={vi.fn()}
             onCellEdit={createCellEdit()}
@@ -4117,6 +4118,17 @@ describe("EidosFileGrid", () => {
     ).toBe(inspector)
     expect(locateRow).not.toHaveBeenCalled()
     expect(loadPage).not.toHaveBeenCalled()
+    await act(async () => {
+      inspector!
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Close record details"]'
+        )!
+        .click()
+    })
+    expect(onInspectedRowChange).toHaveBeenCalledExactlyOnceWith(null)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
     await render(null)
     expect(
       container.querySelector('[aria-label="Record details for Write RFC"]')
@@ -4125,7 +4137,7 @@ describe("EidosFileGrid", () => {
     expect(
       container.querySelector('[aria-label="Record details for Row 1"]')
     ).toBeTruthy()
-    expect(onInspectedRowChange).not.toHaveBeenCalled()
+    expect(onInspectedRowChange).toHaveBeenCalledTimes(1)
   })
 
   it("retains the inspected record identity while a filtered refresh relocates its row", async () => {

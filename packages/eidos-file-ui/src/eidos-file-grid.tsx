@@ -3670,7 +3670,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onEditFormula={onEditFormula}
           onEditLookup={onEditLookup}
         />
-      ) : inspectedRow ? (
+      ) : inspectedRow && inspectedRowId !== null ? (
         <EidosFileRecordInspector
           row={inspectedRow}
           fields={fields}
@@ -3680,10 +3680,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           contentField={eidosFileContentField(table)}
           onPresentationToggle={onRecordPresentationToggle}
-          onClose={() => {
-            selectInspectedRowIndex(null)
-            onInspectedRowChange?.(null)
-          }}
+          onClose={
+            inspectedRowId === undefined || onInspectedRowChange
+              ? () => {
+                  // A controlled route closes after history navigation commits.
+                  if (inspectedRowId === undefined)
+                    selectInspectedRowIndex(null)
+                  onInspectedRowChange?.(null)
+                }
+              : undefined
+          }
           onPreviousRecord={
             visibleInspectorIndex !== null && visibleInspectorIndex > 0
               ? () => navigateInspectedRow(-1)
