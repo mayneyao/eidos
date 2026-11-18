@@ -416,6 +416,12 @@ async function verifyPublishedMacUpdater(previousInstaller) {
   const status = async () => active.cdp.evaluate("window.eidosLite.getUpdateStatus()")
   const terminalStatus = async (completed) => {
     const current = await status()
+    if (current.state === "error") {
+      report.updateErrors = await active.cdp.evaluate(
+        "window.eidosLite.getDiagnostics().then((value) => value.logs.recent.filter((entry) => entry.event.startsWith('update.')))"
+      )
+      await writeReport()
+    }
     assert.notEqual(current.state, "error", `Update failed: ${JSON.stringify(current)}`)
     return current.state === completed ? current : false
   }
