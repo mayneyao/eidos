@@ -384,7 +384,11 @@ function RecordPropertyPicker({
         </span>
       ) : (
         (display ??
-        (formatted === "" || formatted === "Empty" ? t("Empty") : formatted))
+        (formatted === "" || formatted === "Empty" ? (
+          <span className="text-muted-foreground/80">{t("Empty")}</span>
+        ) : (
+          formatted
+        )))
       )}
     </Button>
   )

@@ -125,7 +125,7 @@ function FieldEditorControl({
     appearance === "record-title" && interactionMode === "mobile"
   const [focused, setFocused] = useState(false)
   const inlineClass =
-    "min-h-[34px] w-full min-w-0 rounded-md border-0 bg-transparent px-2 py-[7px] text-sm font-normal leading-5 shadow-none enabled:hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring placeholder:text-muted-foreground"
+    "min-h-[34px] w-full min-w-0 rounded-md border-0 bg-transparent px-2 py-[7px] text-sm font-normal leading-5 shadow-none enabled:hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring placeholder:text-muted-foreground/80"
   const value = row[field.tableColumnName]
   const formattedNumber =
     inspector && field.type === "number" && !focused
@@ -371,15 +371,12 @@ function FieldEditorControl({
                 "−"
               ) : null}
             </span>
-            {inspector
-              ? t(
-                  checkboxValue === "empty"
-                    ? "Empty"
-                    : checkboxValue === "checked"
-                      ? "Checked"
-                      : "Unchecked"
-                )
-              : null}
+            {inspector &&
+              (checkboxValue === "empty" ? (
+                <span className="text-muted-foreground/80">{t("Empty")}</span>
+              ) : (
+                t(checkboxValue === "checked" ? "Checked" : "Unchecked")
+              ))}
           </button>
           {appearance !== "compact" &&
             field.nullable !== false &&
@@ -705,7 +702,7 @@ function FieldEditorControl({
                 "resize-none whitespace-pre-wrap [overflow-wrap:anywhere]"
               )
             : appearance === "record-property"
-              ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
+              ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0"
               : appearance === "record-title"
                 ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 ${mobileTitle ? "text-xl font-semibold sm:text-2xl overflow-x-hidden [overflow-wrap:anywhere]" : "text-[40px] font-bold"}`
                 : "min-h-8 resize-none text-xs leading-5"
@@ -941,7 +938,7 @@ function FieldEditorControl({
           inspector
             ? inlineClass
             : appearance === "record-property"
-              ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
+              ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0"
               : "h-8 text-xs",
           field.type === "url" ? "pr-9" : "",
         ].join(" ")}

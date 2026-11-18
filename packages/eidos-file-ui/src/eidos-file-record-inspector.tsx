@@ -99,7 +99,9 @@ function RecordChoiceValue({
           typeof value === "string" ? value : null
         )
   if (values.length === 0)
-    return <span className="text-sm text-muted-foreground">{t("Empty")}</span>
+    return (
+      <span className="text-sm text-muted-foreground/80">{t("Empty")}</span>
+    )
   return (
     <span className="flex flex-wrap gap-1.5">
       {values.map((value) => (
@@ -128,7 +130,7 @@ function MobileRecordValue({
   const { translate: t, timeZone, calendarTimeZoneData } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (value === null || value === undefined || value === "")
-    return <span className="text-muted-foreground">{t("Empty")}</span>
+    return <span className="text-muted-foreground/80">{t("Empty")}</span>
   if (field.type === "select" || field.type === "multi-select")
     return <RecordChoiceValue field={field} value={value} />
   if (field.type === "checkbox")
@@ -189,7 +191,7 @@ function AutosizedRecordFieldText({
       ref={measured.ref}
       className={cn(
         empty
-          ? "text-sm leading-5 text-muted-foreground"
+          ? "text-sm leading-5 text-muted-foreground/80"
           : "whitespace-pre-wrap break-words text-sm leading-5",
         measured.overflowing && "overscroll-contain pr-1"
       )}
@@ -306,7 +308,9 @@ function FieldValue({
     return <RecordChoiceValue field={field} value={value} />
   if (field.type === "checkbox") {
     if (value === null || value === undefined) {
-      return <span className="text-sm text-muted-foreground">{t("Empty")}</span>
+      return (
+        <span className="text-sm text-muted-foreground/80">{t("Empty")}</span>
+      )
     }
     const checked = value === true || value === 1 || value === "1"
     return (
@@ -323,7 +327,9 @@ function FieldValue({
   if (field.type === "file") {
     const entries = decodeEidosFileValues(value)
     if (entries.length === 0) {
-      return <span className="text-sm text-muted-foreground">{t("Empty")}</span>
+      return (
+        <span className="text-sm text-muted-foreground/80">{t("Empty")}</span>
+      )
     }
     return (
       <div className="grid gap-1">
