@@ -26,6 +26,9 @@ import { eidosFileDateTimeInputValue } from "./eidos-file-date-time"
 import { eidosFileRecordFieldText } from "./eidos-file-record-format"
 import { eidosFileValueToGridCell } from "./eidos-file-grid-adapter"
 import { eidosFileCalendarRowDateKey } from "./eidos-file-calendar-view"
+import { EidosFileCreateRecordButton } from "./eidos-file-create-record-button"
+import { EidosFileRelatedRecordPanel } from "./eidos-file-related-record-panel"
+import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -117,6 +120,7 @@ async function setup(legacy = false) {
   })
   const source = new EidosRuntimeEditorDataSource(client, "synthetic.eidos", {
     calendarQueryVersion: 2,
+    calendarWindowVersion: 1,
   })
   const snapshot = await source.initialize()
   calls.length = 0
@@ -269,6 +273,93 @@ async function mount(
 }
 
 describe("application calendar query flow", () => {
+  it("creates a record from a relative-date view and opens its inspector with working neighbors", async () => {
+    const { source, calls } = await setup()
+    const snapshot = await source.createView(fixture.tableId, {
+      name: "Relative calendar",
+      type: "calendar",
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: fixture.date,
+            operator: "is-in-calendar-window",
+            value: { direction: "next", count: 1, unit: "day" },
+          },
+        ],
+      },
+    })
+    const table = snapshot.tables.find(
+      (table) => table.table.id === fixture.tableId
+    )!
+    const view = table.views.find((view) => view.name === "Relative calendar")!
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    cleanup.unshift(async () => {
+      await act(async () => root.unmount())
+    })
+    const onError = vi.fn()
+    function App() {
+      const [rowId, setRowId] = useState<string | null>(null)
+      return (
+        <EidosFileUIProvider
+          timeZone="Asia/Shanghai"
+          weekStartsOnMonday={false}
+          calendarPeriodTimeZoneData={
+            snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+          }
+        >
+          <EidosFileCreateRecordButton
+            source={source}
+            table={table}
+            view={view}
+            onCreated={(result) => setRowId(String(result.row._id))}
+            onError={onError}
+          />
+          {rowId && (
+            <EidosFileRelatedRecordPanel
+              source={source}
+              table={table}
+              view={view}
+              target={{ tableId: fixture.tableId, rowId, title: "" }}
+              query={eidosFileViewRowQuery(view)}
+              onNavigate={setRowId}
+              onClose={() => setRowId(null)}
+              onError={onError}
+            />
+          )}
+        </EidosFileUIProvider>
+      )
+    }
+    await act(async () => root.render(<App />))
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="New record"]')!
+        .click()
+    })
+    await vi.waitFor(async () => {
+      await act(async () => {})
+      expect(calls.some((call) => call.method === "getRecordNeighbors")).toBe(
+        true
+      )
+    })
+    expect(onError).not.toHaveBeenCalled()
+    expect(calls.filter((call) => call.method === "mutateRows")).toHaveLength(1)
+    const request = calls.find(
+      (call) => call.method === "getRecordNeighbors"
+    )?.request
+    expect(request?.calendar).toEqual({
+      timeZone: "Asia/Shanghai",
+      weekStartsOn: 0,
+      timeZoneData: "2026f",
+    })
+    const created = await source.getRow(fixture.tableId, String(request?.rowId))
+    expect(created?.[fixture.date]).toBe("2026-11-13")
+  })
+
   it("does not revive UTC conditions when an older Runtime advertises the old model", async () => {
     const fixtureState = await setup(true)
     const ui = await mount(fixtureState, "America/New_York")

@@ -37,6 +37,19 @@ export function eidosFileCalendarViewContext(
     : { status: "legacy" }
 }
 
+/** Resolves transient query settings from the negotiated profile and host preferences. */
+export function eidosFileCalendarExecution(
+  timeZoneData: string,
+  timeZone?: string,
+  weekStartsOnMonday?: boolean
+): EidosFileCalendarContext {
+  return {
+    timeZone: eidosFileResolvedTimeZone(timeZone),
+    timeZoneData,
+    weekStartsOn: weekStartsOnMonday === false ? 0 : 1,
+  }
+}
+
 /** Host-resolved execution preferences shared by every renderer and input. */
 export function useEidosFileCalendarExecution():
   | EidosFileCalendarContext
@@ -55,11 +68,7 @@ export function useEidosFileCalendarExecution():
   return useMemo(
     () =>
       profile
-        ? {
-            timeZone: eidosFileResolvedTimeZone(timeZone),
-            timeZoneData: profile,
-            weekStartsOn: weekStartsOnMonday === false ? 0 : 1,
-          }
+        ? eidosFileCalendarExecution(profile, timeZone, weekStartsOnMonday)
         : undefined,
     [profile, timeZone, weekStartsOnMonday]
   )

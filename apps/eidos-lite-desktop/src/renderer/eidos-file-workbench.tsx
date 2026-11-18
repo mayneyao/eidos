@@ -32,6 +32,8 @@ import {
   EidosFileViewFieldsPopover,
   EidosFileViewTabs,
   exportEidosFileViewCsv,
+  eidosFileCalendarExecution,
+  eidosFileCalendarViewContext,
   eidosFileFeedCreatedField,
   eidosFilePluginContributionId,
   eidosFileViewRowQuery,
@@ -443,7 +445,22 @@ export function EidosFileWorkbench({
   )
   const recordNavigationQuery = useMemo(() => {
     if (!scopedView) return undefined
-    const base = eidosFileViewRowQuery(scopedView, search)
+    const context = eidosFileCalendarViewContext(
+      scopedView,
+      snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+    )
+    const base = {
+      ...eidosFileViewRowQuery(scopedView, search),
+      ...(context.status === "supported"
+        ? {
+            calendar: eidosFileCalendarExecution(
+              context.timeZoneData,
+              timeZone,
+              weekStartsOnMonday
+            ),
+          }
+        : {}),
+    }
     if (scopedView.type !== "feed" || (base.sorts && base.sorts.length > 0)) {
       return base
     }
@@ -454,7 +471,14 @@ export function EidosFileWorkbench({
           sorts: [{ field: created.id, direction: "desc" as const }],
         }
       : base
-  }, [activeTable, activeView, scopedView, search])
+  }, [
+    activeTable,
+    scopedView,
+    search,
+    snapshot.queryCapabilities?.calendarPeriodTimeZoneData,
+    timeZone,
+    weekStartsOnMonday,
+  ])
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken

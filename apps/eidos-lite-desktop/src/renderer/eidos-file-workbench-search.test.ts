@@ -481,6 +481,11 @@ describe("Eidos Lite Eidos File search navigation", () => {
     const firstTable = snapshot.tables[0]!
     const metadata: EidosFileSnapshot = {
       ...snapshot,
+      queryCapabilities: {
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+        calendarPeriodTimeZoneData: ["2026f"],
+      },
       tables: [
         {
           ...firstTable,
@@ -513,6 +518,8 @@ describe("Eidos Lite Eidos File search navigation", () => {
       activeTableId: "tasks",
       disabled: false,
       theme: "light" as const,
+      timeZone: "Asia/Shanghai",
+      weekStartsOnMonday: false,
       fileSidebarOpen: true,
       onOpenFileInSidebar: preview,
       onInspectedRowChange: inspect,
@@ -535,7 +542,13 @@ describe("Eidos Lite Eidos File search navigation", () => {
         .querySelector('[data-record-focus="record-a"]')
         ?.getAttribute("data-record-index")
     ).toBe("12")
-    expect(getRowIndex).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {})
+    expect(getRowIndex).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {
+      calendar: {
+        timeZone: "Asia/Shanghai",
+        timeZoneData: "2026f",
+        weekStartsOn: 0,
+      },
+    })
     let finishOldIndex!: (index: number | null) => void
     getRowIndex.mockReturnValueOnce(
       new Promise((resolve) => {

@@ -14,6 +14,7 @@ import type {
 
 import type { EidosFileRelationRecordTarget } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import {
   eidosFileContentField,
   eidosFileFieldKey,
@@ -123,7 +124,10 @@ export function EidosFileRelatedRecordPanel({
 
   // Key results by query value, row and revision so old neighbors cannot be used
   // while a new lookup is pending. Equivalent host renders do not restart reads.
-  const queryKey = JSON.stringify(query)
+  const calendar = useEidosFileCalendarExecution()
+  const queryKey = JSON.stringify(
+    query && !query.calendar && calendar ? { ...query, calendar } : query
+  )
   const [mutationRevision, setMutationRevision] = useState(0)
   const navigationKey = JSON.stringify([
     table.table.id,
