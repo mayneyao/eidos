@@ -455,10 +455,12 @@ async function verifyPublishedMacUpdater(previousInstaller) {
   const info = path.join(bundle, "Contents/Info.plist")
   const runningTestBundle = () => {
     const normalize = (value) => value.replace(/^\/private(?=\/var\/)/u, "")
-    return command("ps", ["-axo", "pid=,comm="])
+    return command("ps", ["-axo", "pid=,stat=,comm="])
       .split("\n")
-      .map((line) => /^\s*(\d+)\s+(.+)$/u.exec(line))
-      .filter((match) => match && normalize(match[2]) === normalize(executable))
+      .map((line) => /^\s*(\d+)\s+(\S+)\s+(.+)$/u.exec(line))
+      .filter((match) =>
+        match && !match[2].startsWith("Z") && normalize(match[3]) === normalize(executable)
+      )
       .map((match) => Number(match[1]))
   }
   await waitFor(async () => {
@@ -472,6 +474,7 @@ async function verifyPublishedMacUpdater(previousInstaller) {
   assert.notEqual(restarted, oldSession.child.pid)
   command("codesign", ["--verify", "--deep", "--strict", bundle])
   report.automaticRelaunch = { pid: restarted, version: targetVersion }
+  assert.deepEqual(await fileHashes(), hashes)
   console.log("Restarted the updated application", report.automaticRelaunch)
   await writeReport()
 
@@ -479,6 +482,15 @@ async function verifyPublishedMacUpdater(previousInstaller) {
   // Reopen this exact verified bundle with the same known test profile to
   // inspect its diagnostics and stored Space through the public bridge.
   process.kill(restarted, "SIGTERM")
+  await waitFor(
+    () => !runningTestBundle().length,
+    "a graceful exit from the automatic relaunch",
+    8_000
+  ).catch(() => {
+    // This is a disposable CI VM. Only stop the exact test bundle, which has
+    // already launched successfully and finished replacing the signed app.
+    for (const pid of runningTestBundle()) process.kill(pid, "SIGKILL")
+  })
   await waitFor(() => !runningTestBundle().length, "test application to exit")
   active = await launch(executable, "in-app-upgraded")
   const after = await inspect(active)
