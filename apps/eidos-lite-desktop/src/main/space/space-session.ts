@@ -43,11 +43,16 @@ import type {
 } from "../../shared/explorer-calendar"
 import path from "node:path"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import { listMarkdownLinkFiles } from "./markdown-link-maintenance"
 import {
-  prepareMarkdownLinkMove,
-  applyMarkdownLinkMove,
-  type MarkdownContentStore,
-} from "./markdown-link-maintenance"
+  MarkdownLinkWorker,
+  LocalMarkdownLinkMaintenance,
+  type MarkdownLinkMaintenance,
+} from "../runtime/markdown-link-worker"
+import type {
+  MarkdownLinkMove,
+  MarkdownLinkBatchResult,
+} from "../../shared/markdown-link-batch"
 import type {
   EidosFileFieldInfo,
   EidosSystemMergeDomainConflict,
@@ -444,6 +449,10 @@ export class SpaceSession {
     { connectionId: string; dataVersion: string; metadata: boolean }
   >()
   readonly runtimePool: RuntimePool
+  private readonly markdownLinkWorkers = new Set<MarkdownLinkMaintenance>()
+  private readonly closingMarkdownLinkWorkers = new Set<Promise<void>>()
+  private idleMarkdownLinkWorker: MarkdownLinkWorker | null = null
+  private markdownLinkIdleTimer: ReturnType<typeof setTimeout> | undefined
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
   private readonly pathIndex: SpacePathIndex
@@ -571,7 +580,7 @@ export class SpaceSession {
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
     private readonly stateDirectory: string,
-    workerPath?: string,
+    private readonly workerPath?: string,
     private readonly requireSparkFeature?: (
       feature: SparkFeature
     ) => Promise<void>,
@@ -1644,42 +1653,43 @@ export class SpaceSession {
             normalizeSpaceEntryName(plan.name)
           )
         : source
+      let linkedPaths: string[] = []
       const applied = await this.gate.withMutation(async () => {
         const current = await readTextFilePreview(this.canonical.root, source)
         if (current.type !== "text" || current.revision !== file.revision)
           return null
         if (target !== source) await this.requireMissingPath(target)
-        const linkPlan =
-          target === source
-            ? null
-            : await this.prepareMarkdownLinkMove(source, target)
-        if (plan.text !== undefined) {
-          const saved = await saveTextFile(this.canonical.root, {
-            relativePath: source,
-            content: plan.text,
-            expectedRevision: file.revision,
-          })
-          if (saved.status !== "saved") return null
-        }
-        if (target !== source) {
-          await renameWithRetry(
-            this.resolveUserPath(source),
-            this.resolveUserPath(target)
-          )
-          if (linkPlan)
-            await applyMarkdownLinkMove(
-              this.canonical.root,
-              linkPlan,
-              this.contentLinkStore()
+        const maintenance =
+          target === source ? null : await this.prepareMarkdownLinkMaintenance()
+        try {
+          if (plan.text !== undefined) {
+            const saved = await saveTextFile(this.canonical.root, {
+              relativePath: source,
+              content: plan.text,
+              expectedRevision: file.revision,
+            })
+            if (saved.status !== "saved") return null
+          }
+          if (target !== source) {
+            await renameWithRetry(
+              this.resolveUserPath(source),
+              this.resolveUserPath(target)
             )
+            const links = await this.applyMarkdownLinkMaintenance(maintenance, [
+              { source, relativePath: target },
+            ])
+            linkedPaths = links.updatedPaths
+          }
+          const next = await readTextFilePreview(this.canonical.root, target)
+          return next.type === "text" ? next : null
+        } finally {
+          await this.disposeMarkdownLinkMaintenance(maintenance)
         }
-        const next = await readTextFilePreview(this.canonical.root, target)
-        return next.type === "text" ? next : null
       })
       if (applied) {
         this.noteLocalChange()
         if (target !== source) this.recordPathMoveInBackground(source, target)
-        this.notifyMarkdownWatchers([source, target])
+        this.notifyMarkdownWatchers([source, target, ...linkedPaths])
         await this.freshSnapshotAndEmit()
       }
       return applied
@@ -2025,11 +2035,9 @@ export class SpaceSession {
     return counts
   }
 
-  private prepareMarkdownLinkMove(source: string, target: string) {
-    return prepareMarkdownLinkMove(
+  private async prepareMarkdownLinkMaintenance(): Promise<MarkdownLinkMaintenance | null> {
+    const files = await listMarkdownLinkFiles(
       this.canonical.root,
-      source,
-      target,
       this.graftSessionOpen()
         ? {
             ignoredPaths: async (paths) => {
@@ -2041,32 +2049,108 @@ export class SpaceSession {
               )
             },
           }
-        : {},
-      this.contentLinkStore()
+        : {}
     )
+    const owners = files.filter(
+      (file) =>
+        !file.relativePath
+          .split("/")
+          .some((part) =>
+            [".eidos", ".graft", ".git"].includes(part.toLowerCase())
+          ) &&
+        (file.kind === "eidos" || /\.(?:md|markdown)$/iu.test(file.name))
+    )
+    if (!owners.length) return null
+    let worker: MarkdownLinkMaintenance
+    if (owners.some((file) => file.kind === "eidos")) {
+      clearTimeout(this.markdownLinkIdleTimer)
+      this.markdownLinkIdleTimer = undefined
+      const idle = this.idleMarkdownLinkWorker
+      this.idleMarkdownLinkWorker = null
+      if (idle?.reusable) worker = idle
+      else {
+        await idle?.dispose()
+        worker = new MarkdownLinkWorker(this.workerPath)
+      }
+    } else worker = new LocalMarkdownLinkMaintenance()
+    this.markdownLinkWorkers.add(worker)
+    try {
+      await worker.prepare(this.canonical.root, files)
+      return worker
+    } catch (error) {
+      await this.disposeMarkdownLinkMaintenance(worker)
+      throw error
+    }
   }
 
-  private contentLinkStore(): MarkdownContentStore {
-    return {
-      read: async (owner) => {
-        const opened = await this.runtimePool.open(owner)
-        return this.runtimePool.call(
-          opened.sessionId,
-          "readContentLinkDocuments",
-          []
-        )
-      },
-      write: async (owner, update) => {
-        // Caller holds the Space mutation gate; do not recursively acquire it.
-        this.assertWritable()
-        const opened = await this.runtimePool.open(owner)
-        return this.runtimePool.call(
-          opened.sessionId,
-          "writeContentLinkDocuments",
-          [update]
-        )
-      },
+  private async disposeMarkdownLinkMaintenance(
+    worker: MarkdownLinkMaintenance | null
+  ): Promise<void> {
+    if (!worker) return
+    this.markdownLinkWorkers.delete(worker)
+    // Reuse only the process for a short burst of operations. Every batch still
+    // takes a fresh snapshot; no document graph or database handle stays open.
+    if (
+      worker instanceof MarkdownLinkWorker &&
+      worker.reusable &&
+      !this.closed
+    ) {
+      this.idleMarkdownLinkWorker = worker
+      this.markdownLinkIdleTimer = setTimeout(() => {
+        if (this.idleMarkdownLinkWorker !== worker) return
+        this.idleMarkdownLinkWorker = null
+        this.markdownLinkIdleTimer = undefined
+        void this.closeMarkdownLinkWorker(worker)
+      }, 5000)
+      this.markdownLinkIdleTimer.unref()
+      return
     }
+    await this.closeMarkdownLinkWorker(worker)
+  }
+
+  private closeMarkdownLinkWorker(
+    worker: MarkdownLinkMaintenance
+  ): Promise<void> {
+    const closing = worker
+      .dispose()
+      .catch((error) =>
+        console.warn("Could not close Markdown link maintenance", error)
+      )
+    this.closingMarkdownLinkWorkers.add(closing)
+    void closing.then(() => this.closingMarkdownLinkWorkers.delete(closing))
+    return closing
+  }
+
+  private async applyMarkdownLinkMaintenance(
+    worker: MarkdownLinkMaintenance | null,
+    moves: MarkdownLinkMove[]
+  ): Promise<MarkdownLinkBatchResult> {
+    if (!worker || !moves.some((move) => move.source !== move.relativePath))
+      return { updatedPaths: [], skippedPaths: [] }
+    let result: MarkdownLinkBatchResult
+    try {
+      result = await worker.apply(moves)
+    } catch (error) {
+      console.warn("Could not complete Markdown link maintenance", error)
+      result = worker.skipped(moves)
+    }
+    // A private writer must refresh already-resident UI sources without opening
+    // other databases or changing the UI pool's residency set.
+    const contentPaths = [
+      ...new Set([...result.updatedPaths, ...result.skippedPaths]),
+    ].filter((path) => /\.eidos$/iu.test(path))
+    if (!contentPaths.length) return result
+    const resident = new Set(this.runtimePool.residentRelativePaths())
+    for (const path of contentPaths) {
+      const sessionId = this.runtimeSessionByPath.get(path)
+      if (!sessionId || !resident.has(path)) continue
+      try {
+        await this.runtimePool.call(sessionId, "getSnapshot", [])
+      } catch (error) {
+        console.warn("Could not refresh Content after a file move", error)
+      }
+    }
+    return result
   }
 
   async renamePath(
@@ -2100,17 +2184,19 @@ export class SpaceSession {
     let invalidatedSessionIds: string[] = []
     let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
-      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
-      await renameWithRetry(
-        this.resolveUserPath(source),
-        this.resolveUserPath(target)
-      )
-      markdownLinks = await applyMarkdownLinkMove(
-        this.canonical.root,
-        linkPlan,
-        this.contentLinkStore()
-      )
+      const maintenance = await this.prepareMarkdownLinkMaintenance()
+      try {
+        invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
+        await renameWithRetry(
+          this.resolveUserPath(source),
+          this.resolveUserPath(target)
+        )
+        markdownLinks = await this.applyMarkdownLinkMaintenance(maintenance, [
+          { source, relativePath: target },
+        ])
+      } finally {
+        await this.disposeMarkdownLinkMaintenance(maintenance)
+      }
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
@@ -2202,54 +2288,64 @@ export class SpaceSession {
     let failure: SpacePathsMutationResult["failure"]
     let attempted = 0
     await this.gate.withMutation(async () => {
-      for (const relativePath of relativePaths) {
-        attempted += 1
-        try {
-          const source = normalizeMutableRelativePath(relativePath)
-          await this.validateClipboardSource(clipboard, source)
-          const parent = path.posix.dirname(source)
-          await resolveSpaceDirectory(
-            this.canonical.root,
-            parent === "." ? null : parent
-          )
-          await fs.lstat(this.resolveUserPath(source))
-          await resolveSpaceDirectory(this.canonical.root, targetDirectory)
-          const target = joinSpaceRelativePath(
-            targetDirectory,
-            path.posix.basename(source)
-          )
-          if (target === source) {
+      let maintenance: MarkdownLinkMaintenance | null = null
+      let captured = false
+      try {
+        for (const relativePath of relativePaths) {
+          attempted += 1
+          try {
+            const source = normalizeMutableRelativePath(relativePath)
+            await this.validateClipboardSource(clipboard, source)
+            const parent = path.posix.dirname(source)
+            await resolveSpaceDirectory(
+              this.canonical.root,
+              parent === "." ? null : parent
+            )
+            await fs.lstat(this.resolveUserPath(source))
+            await resolveSpaceDirectory(this.canonical.root, targetDirectory)
+            const target = joinSpaceRelativePath(
+              targetDirectory,
+              path.posix.basename(source)
+            )
+            if (target === source) {
+              moves.push({ source, relativePath: target })
+              continue
+            }
+            if (target.startsWith(`${source}/`))
+              throw new Error("A folder cannot be moved inside itself")
+            await this.requireMissingPath(target)
+            if (!captured) {
+              maintenance = await this.prepareMarkdownLinkMaintenance()
+              captured = true
+            }
+            for (const id of await this.closeAndEvictRuntimeSessions(source))
+              invalidatedSessionIds.add(id)
+            await renameWithRetry(
+              this.resolveUserPath(source),
+              this.resolveUserPath(target)
+            )
             moves.push({ source, relativePath: target })
-            continue
+            this.noteLocalChange()
+            this.recordPathMoveInBackground(source, target)
+            this.collectMoveWatcherPaths([source, target])
+          } catch (cause) {
+            failure = {
+              relativePath,
+              message: cause instanceof Error ? cause.message : String(cause),
+            }
+            break
           }
-          if (target.startsWith(`${source}/`))
-            throw new Error("A folder cannot be moved inside itself")
-          await this.requireMissingPath(target)
-          const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-          for (const id of await this.closeAndEvictRuntimeSessions(source))
-            invalidatedSessionIds.add(id)
-          await renameWithRetry(
-            this.resolveUserPath(source),
-            this.resolveUserPath(target)
-          )
-          moves.push({ source, relativePath: target })
-          this.noteLocalChange()
-          this.recordPathMoveInBackground(source, target)
-          const links = await applyMarkdownLinkMove(
-            this.canonical.root,
-            linkPlan,
-            this.contentLinkStore()
-          )
-          for (const value of links.updatedPaths) updatedPaths.add(value)
-          for (const value of links.skippedPaths) skippedPaths.add(value)
-          this.collectMoveWatcherPaths([source, target, ...links.updatedPaths])
-        } catch (cause) {
-          failure = {
-            relativePath,
-            message: cause instanceof Error ? cause.message : String(cause),
-          }
-          break
         }
+        const links = await this.applyMarkdownLinkMaintenance(
+          maintenance,
+          moves
+        )
+        for (const value of links.updatedPaths) updatedPaths.add(value)
+        for (const value of links.skippedPaths) skippedPaths.add(value)
+        if (links.updatedPaths.length)
+          this.collectMoveWatcherPaths(links.updatedPaths)
+      } finally {
+        await this.disposeMarkdownLinkMaintenance(maintenance)
       }
     })
     // One authoritative reconciliation, including external changes received while
@@ -5810,8 +5906,20 @@ export class SpaceSession {
     this.cancelGraftStatusRefresh(true)
     await backgroundStatus?.catch(() => undefined)
     this.closed = true
+    clearTimeout(this.markdownLinkIdleTimer)
+    const idleMarkdownWorker = this.idleMarkdownLinkWorker
+    this.idleMarkdownLinkWorker = null
+    if (idleMarkdownWorker)
+      await this.closeMarkdownLinkWorker(idleMarkdownWorker)
     await this.refreshInFlight?.catch(() => undefined)
     await this.gate.close()
+    for (const worker of this.markdownLinkWorkers) worker.abort()
+    await Promise.allSettled(
+      [...this.markdownLinkWorkers].map((worker) =>
+        this.closeMarkdownLinkWorker(worker)
+      )
+    )
+    await Promise.allSettled([...this.closingMarkdownLinkWorkers])
     await this.runtimePool.destroy()
     await this.graft.close()
     this.changeListeners.clear()

@@ -40,6 +40,7 @@ import { serializeRuntimeWorkerError } from "./runtime-worker-error"
 import { filemeta } from "./filemeta"
 import { inspectEidosMergeTables } from "./merge-table-inspection"
 import { readMergeTablePreview } from "./merge-table-preview"
+import { MarkdownLinkBatch } from "./markdown-link-batch"
 import { inspectExplorerEidosSummary } from "./explorer-eidos-summary"
 
 interface UtilityParentPort {
@@ -54,6 +55,7 @@ const parentPort = (
 if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
 let openedRuntime: EidosLiteFileRuntime | null = null
+let markdownLinkBatch: MarkdownLinkBatch | null = null
 let source: EidosRuntimeEditorDataSource | null = null
 let calendarSource: Promise<EidosRuntimeEditorDataSource> | null = null
 let calendarWindowSource: Promise<EidosRuntimeEditorDataSource> | null = null
@@ -512,7 +514,23 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       }
       return mergeEidosSystemMetadataFiles(request)
     }
+    case "markdownLinks": {
+      if (openedRuntime)
+        throw new Error("Link maintenance requires a private worker")
+      if (request.operation.kind === "prepare") {
+        if (markdownLinkBatch)
+          throw new Error("Link maintenance is already prepared")
+        markdownLinkBatch = new MarkdownLinkBatch(request.operation.root)
+        return markdownLinkBatch.prepare(request.operation.files)
+      }
+      if (!markdownLinkBatch)
+        throw new Error("Link maintenance is not prepared")
+      const batch = markdownLinkBatch
+      markdownLinkBatch = null
+      return batch.apply(request.operation.moves)
+    }
     case "close": {
+      markdownLinkBatch = null
       try {
         await openedRuntime?.close()
       } catch (error) {

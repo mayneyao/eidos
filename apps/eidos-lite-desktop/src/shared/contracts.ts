@@ -1,4 +1,5 @@
 import type { TextSearchProgress, TextSearchOptions } from "./text-search"
+import type { MarkdownLinkBatchOperation } from "./markdown-link-batch"
 import type {
   ContentLinkSnapshot,
   ContentLinkUpdate,
@@ -1898,6 +1899,11 @@ export function isEidosLiteSchemaImpactRequiredResult(
 }
 
 export type RuntimeWorkerRequest =
+  | {
+      type: "markdownLinks"
+      requestId: number
+      operation: MarkdownLinkBatchOperation
+    }
   | {
       type: "copySnapshot"
       requestId: number

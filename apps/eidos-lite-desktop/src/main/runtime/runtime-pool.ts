@@ -69,7 +69,7 @@ export function hasPendingRuntimeRequestsForChild<T>(
   return false
 }
 
-function defaultRuntimeWorkerPath(): string {
+export function defaultRuntimeWorkerPath(): string {
   const workerUrl = new URL("./runtime-worker.js", import.meta.url)
   if (workerUrl.protocol === "file:") return fileURLToPath(workerUrl)
   if (process.env.VITEST) {
