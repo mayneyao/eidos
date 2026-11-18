@@ -1073,6 +1073,7 @@ export function EidosFileWorkbench({
               <EidosFileRelatedRecordPanel
                 source={source}
                 table={activeTable}
+                view={activeView}
                 target={{
                   tableId: activeTable.table.id,
                   rowId: inspectedRowId,
@@ -1096,6 +1097,11 @@ export function EidosFileWorkbench({
                 key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
                 source={source}
                 table={relatedRecordTable}
+                view={
+                  activeView?.tableId === relatedRecordTable.table.id
+                    ? activeView
+                    : undefined
+                }
                 tables={snapshot.tables}
                 target={relatedRecordTarget}
                 presentation={recordOpenMode}

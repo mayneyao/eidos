@@ -27,6 +27,7 @@ import {
   eidosFileFieldKey,
   eidosFileViewVisibleSystemFields,
   isOptionalEidosFileSystemField,
+  orderedEidosFileViewFields,
 } from "./eidos-file-field-visibility"
 import { cn } from "./lib/cn"
 import {
@@ -37,50 +38,15 @@ import {
   PopoverTrigger,
 } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
-import { EidosFileRecordPresentationSettings } from "./eidos-file-record-presentation-settings"
-
-function configurableViewFields(
-  fields: readonly EidosFileFieldInfo[],
-  view: EidosFileViewInfo
-): EidosFileFieldInfo[] {
-  const configurable = fields.filter(
-    (field) =>
-      isOptionalEidosFileSystemField(field) ||
-      (!field.isHidden &&
-        (field.isRecordLabel === true ||
-          field.valueKind === "source" ||
-          field.valueKind === "relation" ||
-          field.valueKind === "derived"))
-  )
-  return view.type === "form"
-    ? configurable.filter(isEidosFileFormInputField)
-    : configurable
-}
 
 function orderedViewFields(
   fields: readonly EidosFileFieldInfo[],
   view: EidosFileViewInfo
 ): EidosFileFieldInfo[] {
-  return configurableViewFields(fields, view).sort((left, right) => {
-    const leftOrder = view.orderMap?.[eidosFileFieldKey(left)]
-    const rightOrder = view.orderMap?.[eidosFileFieldKey(right)]
-    if (leftOrder !== undefined || rightOrder !== undefined) {
-      if (leftOrder === undefined) return 1
-      if (rightOrder === undefined) return -1
-      return (
-        leftOrder - rightOrder ||
-        eidosFileFieldKey(left).localeCompare(eidosFileFieldKey(right))
-      )
-    }
-    const leftIsSystem = isOptionalEidosFileSystemField(left)
-    const rightIsSystem = isOptionalEidosFileSystemField(right)
-    if (leftIsSystem !== rightIsSystem) return leftIsSystem ? 1 : -1
-    return (
-      (left.position ?? Number.MAX_SAFE_INTEGER) -
-        (right.position ?? Number.MAX_SAFE_INTEGER) ||
-      eidosFileFieldKey(left).localeCompare(eidosFileFieldKey(right))
-    )
-  })
+  const ordered = orderedEidosFileViewFields(fields, view)
+  return view.type === "form"
+    ? ordered.filter(isEidosFileFormInputField)
+    : ordered
 }
 
 function fieldIsVisible(
@@ -484,7 +450,6 @@ export function EidosFileViewFieldsPopover({
           </Button>
         </div>
       ) : null}
-      <EidosFileRecordPresentationSettings />
       {error ? (
         <p
           className="border-t px-3 py-2 text-[11px] text-destructive"

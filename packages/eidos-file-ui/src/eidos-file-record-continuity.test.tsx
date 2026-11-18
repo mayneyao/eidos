@@ -5,9 +5,10 @@ import type {
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowMutationResult,
+  EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
-import { EidosFileUIProvider } from "./context"
+import type { EidosFileEditorDataSource } from "./data-source"
 
 const field = (name: string): EidosFileFieldInfo => ({
   id: name,
@@ -148,33 +149,51 @@ describe("record continuity", () => {
     }
   )
   it("reveals hidden properties without replacing Content or an unrelated draft", async () => {
-    const scope = crypto.randomUUID()
-    const preferences = JSON.stringify({
+    const view: EidosFileViewInfo = {
+      id: "grid",
+      name: "Grid",
+      type: "grid",
+      tableId: fields[0].tableId,
+      query: "",
+      properties: null,
+      filter: null,
+      sorts: [],
       hiddenFields: [fields[1].id],
-      fieldOrder: [],
-    })
-    const storage = new Map([
-      [
-        "eidos-record-properties-v1:" +
-          JSON.stringify([scope, fields[0].tableId]),
-        preferences,
-      ],
-    ])
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: vi.fn(),
-    })
+      orderMap: null,
+      position: null,
+      createdAt: "",
+      updatedAt: "",
+    }
+    const fieldManagement = {
+      view,
+      source: {} as EidosFileEditorDataSource,
+      disabled: true,
+      table: {
+        fields,
+        views: [view],
+        rowCount: 2,
+        table: {
+          id: view.tableId,
+          name: "Records",
+          rawTableName: fields[0].tableName,
+          position: null,
+          icon: null,
+          description: null,
+          createdAt: "",
+          updatedAt: "",
+        },
+      },
+    }
     const render = (next: EidosFileRow) =>
       root.render(
-        <EidosFileUIProvider recordPropertyScope={scope}>
-          <EidosFileRecordInspector
-            row={next}
-            fields={fields}
-            variant="panel"
-            contentField={fields[2]}
-            onCellEdit={vi.fn()}
-          />
-        </EidosFileUIProvider>
+        <EidosFileRecordInspector
+          row={next}
+          fields={fields}
+          variant="panel"
+          contentField={fields[2]}
+          onCellEdit={vi.fn()}
+          recordFieldManagement={fieldManagement}
+        />
       )
     await act(async () => render(row))
     const input = container.querySelector<HTMLTextAreaElement>(
@@ -207,8 +226,7 @@ describe("record continuity", () => {
     )
     await act(async () => disclosure!.click())
     await act(async () => render({ ...row, _id: "B", Title: "Title B" }))
-    expect(disclosure!.getAttribute("aria-expanded")).toBe("true")
-    await act(async () => disclosure!.click())
+    expect(disclosure!.getAttribute("aria-expanded")).toBe("false")
     expect(input.value).toBe("Title B")
   })
 })

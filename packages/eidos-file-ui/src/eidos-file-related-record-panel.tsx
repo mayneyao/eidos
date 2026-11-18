@@ -6,6 +6,7 @@ import type {
   EidosFileRowQuery,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
+  EidosFileViewInfo,
   EidosFileSnapshot,
   FileEntry,
   RecordNeighbors,
@@ -25,6 +26,8 @@ export interface EidosFileRelatedRecordPanelProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
   tables?: readonly EidosFileTableSnapshot[]
+  /** Saved field layout for the view that opened this record. */
+  view?: EidosFileViewInfo
   target: EidosFileRelationRecordTarget
   /**
    * Host-selected presentation. Defaults to the right panel, or the full page
@@ -56,6 +59,7 @@ export function EidosFileRelatedRecordPanel({
   source,
   table,
   tables,
+  view,
   target,
   presentation,
   onPresentationToggle,
@@ -193,6 +197,7 @@ export function EidosFileRelatedRecordPanel({
       recordFieldManagement={{
         source,
         tables,
+        view,
         table: { ...table, fields: recordFields },
         disabled: disabled || retainingPreviousRow,
         onSnapshot: (snapshot) => {

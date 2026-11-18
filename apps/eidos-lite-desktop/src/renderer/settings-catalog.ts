@@ -78,8 +78,8 @@ export const SETTINGS = {
   recordSystemFields: setting(
     "preferences.record-system-fields",
     "preferences",
-    "Hide system fields in records",
-    "Hide Record ID, Created, and Updated in open records by default. Tables can override this.",
+    "Always hide system fields in records",
+    "Hide Record ID, Created, and Updated in all open records on this device.",
     [
       "record",
       "properties",

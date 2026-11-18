@@ -999,17 +999,6 @@ export function validateEidosFile(
           : {}
       tableSettingsById.set(id, settings)
       if (
-        settings.hideSystemFieldsInRecords !== undefined &&
-        typeof settings.hideSystemFieldsInRecords !== "boolean"
-      ) {
-        add(
-          errors,
-          "invalid-schema",
-          `Table ${row.name} hideSystemFieldsInRecords must be a boolean`,
-          row.physical_name
-        )
-      }
-      if (
         settings.contentFieldId !== undefined &&
         typeof settings.contentFieldId !== "string"
       ) {

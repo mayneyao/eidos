@@ -4,9 +4,9 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
-  "Hide system fields in records": "在记录页中隐藏系统字段",
-  "Hide Record ID, Created, and Updated in open records by default. Tables can override this.":
-    "默认隐藏展开记录中的记录 ID、创建时间和更新时间。可为每张表单独设置。",
+  "Always hide system fields in records": "始终在记录页中隐藏系统字段",
+  "Hide Record ID, Created, and Updated in all open records on this device.":
+    "在此设备的所有记录页中隐藏记录 ID、创建时间和更新时间。",
   Cut: "剪切",
   Paste: "粘贴",
   "Preparing system copy…": "正在准备系统复制…",

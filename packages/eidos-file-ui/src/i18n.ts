@@ -11,25 +11,14 @@ const en: EidosFileUIMessageOverrides = {
 }
 
 const zh: EidosFileUIMessageOverrides = {
-  "Open records · this table": "展开记录 · 此表",
-  "System fields in records. View columns are unchanged.":
-    "设置记录页中的系统字段，不影响视图列。",
-  "System fields in open records": "展开记录中的系统字段",
-  "Follow app default (hidden)": "跟随应用默认（当前隐藏）",
-  "Follow app default (shown)": "跟随应用默认（当前显示）",
-  "Hide system fields": "隐藏系统字段",
-  "Show system fields": "显示系统字段",
-  "Show system fields temporarily ({count})": "临时显示系统字段（{count}）",
   "Field changes affect every record in this table.":
     "字段更改会影响此表的所有记录。",
-  "Hide in records on this device": "在此设备的记录页中隐藏",
-  "Show in records on this device": "在此设备的记录页中显示",
   "Add a property": "添加属性",
-  "{count} more property": "另外 {count} 个属性",
-  "{count} more properties": "另外 {count} 个属性",
-  "Hide {count} property": "收起 {count} 个属性",
-  "Hide {count} properties": "收起 {count} 个属性",
-  "Hidden properties on this device ({count})": "此设备中隐藏的属性（{count}）",
+  Properties: "属性",
+  "Show {count} hidden property": "显示 {count} 个隐藏属性",
+  "Show {count} hidden properties": "显示 {count} 个隐藏属性",
+  "Collapse {count} hidden property": "收起 {count} 个隐藏属性",
+  "Collapse {count} hidden properties": "收起 {count} 个隐藏属性",
   "Delete field from table": "从表中删除字段",
   "Manage record properties": "管理记录属性",
   "Properties in records": "记录中的属性",

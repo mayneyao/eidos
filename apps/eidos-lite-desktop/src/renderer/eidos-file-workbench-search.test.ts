@@ -317,6 +317,7 @@ describe("Eidos Lite Eidos File search navigation", () => {
               id: "gallery",
               name: "Gallery",
               type: "gallery",
+              hiddenFields: ["attachment"],
             },
           ],
         },
@@ -365,6 +366,12 @@ describe("Eidos Lite Eidos File search navigation", () => {
         })
       )
     )
+    expect(host.querySelector('[aria-label="Attachment"]')).toBeNull()
+    const disclosure = host.querySelector<HTMLButtonElement>(
+      "[data-eidos-file-record-hidden-properties-toggle]"
+    )!
+    expect(disclosure.textContent).toBe("Show 1 hidden property")
+    await act(async () => disclosure.click())
     const property = host.querySelector<HTMLButtonElement>(
       '[aria-label="Attachment"]'
     )!

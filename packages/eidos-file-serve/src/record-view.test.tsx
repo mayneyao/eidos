@@ -38,6 +38,7 @@ it("owns non-grid record opening, presentation, navigation and reloads", async (
       root.render(<BrowserEidosFileEditorView {...props} />)
     )
     await act(async () => observed.view?.onInspectedRowChange?.("first"))
+    expect(observed.panel?.view).toBe(props.view)
     expect(observed.panel?.target).toEqual({
       tableId: "notes",
       rowId: "first",

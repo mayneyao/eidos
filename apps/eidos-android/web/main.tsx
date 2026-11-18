@@ -406,6 +406,7 @@ function Database({
                   onImportFiles={importFiles}
                   source={source}
                   table={recordTable}
+                  view={view}
                   target={{
                     tableId: recordRoute.route!.tableId,
                     rowId: record,

@@ -420,6 +420,7 @@ export function EidosFileEditorView({
             source: history.source,
             table,
             tables: callbacks.tables,
+            view,
             disabled: disabled || !capabilities.mutate,
             onSnapshot: callbacks.onSnapshot,
           }}

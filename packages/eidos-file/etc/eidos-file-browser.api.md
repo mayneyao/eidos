@@ -3466,7 +3466,6 @@ export interface UpdateEidosFileTableInput {
     contentFieldId?: string | null;
     // (undocumented)
     description?: string | null;
-    hideSystemFieldsInRecords?: boolean | null;
     // (undocumented)
     icon?: string | null;
     // (undocumented)

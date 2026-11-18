@@ -120,7 +120,7 @@ export interface EidosFileMarkdownHtml {
 export interface EidosFileUIHost {
   /** Stable, host-local file location/identity for personal record property preferences. */
   recordPropertyScope?: string
-  /** Personal Host default; an explicit Table record setting takes precedence. */
+  /** Device preference that hides system fields in every open record. */
   defaultHideSystemFieldsInRecords?: boolean
   /** Existing Runtime-backed schema boundary for records rendered by this editor. */
   recordFieldManagement?: RecordFieldManagement

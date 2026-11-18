@@ -11,6 +11,7 @@ import {
   type EidosFileViewRendererProps,
 } from "./eidos-file-editor-view"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { EidosFileViewFieldsPopover } from "./eidos-file-view-fields-popover"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
@@ -46,7 +47,7 @@ const input = async (node: HTMLInputElement, value: string) => {
   })
 }
 
-it("manages canonical fields inside a record and keeps personal visibility separate from saved Views", async () => {
+it("follows the active View and keeps recording disclosures and system hiding out of the file", async () => {
   // Node's experimental global Web Storage can shadow jsdom's Storage in Vitest.
   const storage = new Map<string, string>()
   vi.stubGlobal("localStorage", {
@@ -87,6 +88,9 @@ it("manages canonical fields inside a record and keeps personal visibility separ
   const table = original.tables[0]!
   const title = table.fields.find((field) => field.name === "Title")!
   const status = table.fields.find((field) => field.name === "Status")!
+  const ordinaryId = table.fields.find(
+    (field) => field.name === "Record ID" && field.systemRole == null
+  )!
   const content = table.fields.find((field) => field.name === "Content")!
   const row = (
     await source.insertRow(table.table.id, {
@@ -94,7 +98,20 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       [content.id]: "# Saved content",
     })
   ).row
-  const beforeViews = JSON.stringify(table.views)
+  const systemIds = table.fields
+    .filter((field) => field.systemRole != null)
+    .map((field) => field.id)
+  const primaryViewId = table.views[0]!.id
+  await source.updateView(primaryViewId, {
+    properties: { visibleSystemFields: systemIds },
+    orderMap: { [ordinaryId.id]: 0, [status.id]: 1 },
+  })
+  await source.createView(table.table.id, {
+    name: "Alternate",
+    type: "grid",
+    hiddenFields: [status.id],
+  })
+  await source.updateTable(table.table.id, { description: "Table metadata" })
   original = await source.createTable({
     name: "Other table",
     fields: [{ name: "Name", type: "text" }],
@@ -102,7 +119,7 @@ it("manages canonical fields inside a record and keeps personal visibility separ
   const container = document.createElement("div")
   document.body.append(container)
   const root = createRoot(container)
-  let setScope!: (scope: string) => void
+  let setViewIndex!: (index: number) => void
   let setVariant!: (variant: "page" | "panel") => void
   let setTableIndex!: (index: number) => void
   let setDefaultHidden!: (value: boolean) => void
@@ -131,7 +148,7 @@ it("manages canonical fields inside a record and keeps personal visibility separ
   }
   function Fixture() {
     const [snapshot, setSnapshot] = useState<EidosFileSnapshot>(original)
-    const [scope, changeScope] = useState(savedScope)
+    const [viewIndex, changeViewIndex] = useState(0)
     const [variant, changeVariant] = useState<"page" | "panel">("page")
     const [tableIndex, changeTableIndex] = useState(0)
     const [defaultHidden, changeDefaultHidden] = useState(false)
@@ -142,19 +159,29 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       acceptedSnapshot = next
       setSnapshot(next)
     }
-    setScope = changeScope
+    setViewIndex = changeViewIndex
     setVariant = changeVariant
     setTableIndex = changeTableIndex
     const current = snapshot.tables[tableIndex]!
+    const view = current.views[viewIndex] ?? current.views[0]!
     return (
       <EidosFileUIProvider
-        recordPropertyScope={scope}
+        recordPropertyScope={savedScope}
         defaultHideSystemFieldsInRecords={defaultHidden}
         markdownEditingMode="wysiwyg"
       >
+        <EidosFileViewFieldsPopover
+          view={view}
+          fields={current.fields}
+          embedded
+          onUpdate={async (changes) => {
+            acceptSnapshot(await source.updateView(view.id, changes))
+          }}
+        />
         <EidosFileEditorView
           source={source}
           table={current}
+          view={view}
           tables={snapshot.tables}
           onSnapshot={(next) => {
             acceptedSnapshot = next
@@ -173,9 +200,7 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       JSON.stringify([savedScope, table.table.id]),
     JSON.stringify({
       hideSystemFields: true,
-      hiddenFields: table.fields
-        .filter((field) => field.systemRole != null)
-        .map((field) => field.id),
+      hiddenFields: [status.id, ...systemIds],
     })
   )
   const systemRows = () =>
@@ -193,29 +218,28 @@ it("manages canonical fields inside a record and keeps personal visibility separ
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
       )
     )
-  const assign = async (value: boolean | null) => {
-    const next = await source.updateTable(table.table.id, {
-      hideSystemFieldsInRecords: value,
-    })
-    await act(async () => acceptSnapshot(next))
-  }
+  const collapse = () =>
+    container.querySelector<HTMLButtonElement>(
+      "[data-eidos-file-record-properties-toggle]"
+    )!
   try {
     await act(async () => root.render(<Fixture />))
     expect(systemRows()).toHaveLength(3)
-    expect(byLabel("Manage record properties")).toBeNull()
     expect(
-      container.querySelector("[data-eidos-file-record-properties-toggle]")
-    ).toBeNull()
+      container
+        .querySelector("[data-eidos-record-property]")
+        ?.getAttribute("data-eidos-record-property")
+    ).toBe(ordinaryId.id)
+    expect(byLabel("Manage record properties")).toBeNull()
+    expect(collapse().getAttribute("aria-expanded")).toBe("true")
     const label = byLabel("Edit Status properties")!.closest(
       "[data-eidos-file-record-property-label]"
     )!
     expect(
       label.querySelector('[data-eidos-file-field-type-icon="text"]')
     ).not.toBeNull()
-    expect(
-      label.querySelector("[data-eidos-file-record-property-handle]")
-    ).toBe(byLabel("Reorder Status"))
     await click(byLabel("Edit Status properties"))
+    expect(dialog().textContent).not.toContain("on this device")
     expect(
       dialog().querySelector('[data-eidos-file-detail-panel="field"]')
     ).toBeNull()
@@ -239,22 +263,18 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     const stage = acceptedSnapshot.tables[0]!.fields.find(
       (field) => field.name === "Stage"
     )!
-    await click(byLabel("Edit Stage properties"))
-    await click(buttonText("Hide in records on this device", dialog()))
-    expect(property(stage.id)).toBeNull()
-    expect(buttonText("1 more property", container)).not.toBeNull()
-    expect(buttonText("Add a property", container)).toBeNull()
-    await act(async () => setScope("another-file"))
-    expect(property(stage.id)).not.toBeNull()
-    await act(async () => setScope(savedScope))
-    expect(property(stage.id)).toBeNull()
+    await click(byLabel("Show Stage"))
+    await vi.waitFor(() => expect(property(stage.id)).toBeNull())
+    expect(buttonText("Show 1 hidden property", container)).not.toBeNull()
+    expect(buttonText("Add a property", container)).not.toBeNull()
+    const savedViews = JSON.stringify(acceptedSnapshot.tables[0]!.views)
     const preferencesBeforePeek = storage.get(
       "eidos-record-properties-v1:" +
         JSON.stringify([savedScope, table.table.id])
     )
-    await click(buttonText("1 more property", container))
+    await click(buttonText("Show 1 hidden property", container))
     expect(property(stage.id)).not.toBeNull()
-    expect(buttonText("Hide 1 property", container)).not.toBeNull()
+    expect(buttonText("Collapse 1 hidden property", container)).not.toBeNull()
     expect(buttonText("Add a property", container)).not.toBeNull()
     expect(
       storage.get(
@@ -262,12 +282,30 @@ it("manages canonical fields inside a record and keeps personal visibility separ
           JSON.stringify([savedScope, table.table.id])
       )
     ).toBe(preferencesBeforePeek)
-    await click(buttonText("Hide 1 property", container))
+    expect(JSON.stringify((await source.getSnapshot()).tables[0]!.views)).toBe(
+      savedViews
+    )
+    await click(collapse())
+    expect(collapse().getAttribute("aria-expanded")).toBe("false")
+    expect(property(stage.id)?.closest("[hidden]")).not.toBeNull()
+    expect(
+      container
+        .querySelector("[data-eidos-file-record-content]")
+        ?.closest("[hidden]")
+    ).toBeNull()
+    await click(collapse())
+    expect(property(stage.id)?.closest("[hidden]")).toBeNull()
+    await click(buttonText("Collapse 1 hidden property", container))
     expect(property(stage.id)).toBeNull()
-    await click(buttonText("1 more property", container))
-    await click(byLabel("Edit Stage properties"))
-    await click(buttonText("Show in records on this device", dialog()))
-    expect(property(stage.id)).not.toBeNull()
+    await click(buttonText("Show 1 hidden property", container))
+    await act(async () => setViewIndex(1))
+    expect(property(stage.id)).toBeNull()
+    expect(systemRows()).toHaveLength(0)
+    expect(buttonText("Show 4 hidden properties", container)).not.toBeNull()
+    await act(async () => setViewIndex(0))
+    expect(property(stage.id)).toBeNull()
+    await click(byLabel("Show Stage"))
+    await vi.waitFor(() => expect(property(stage.id)).not.toBeNull())
     expect(
       container.querySelector(
         "[data-eidos-file-record-hidden-properties-toggle]"
@@ -334,17 +372,13 @@ it("manages canonical fields inside a record and keeps personal visibility separ
       container.querySelector("[data-eidos-record-properties-footer]")
         ?.textContent
     ).not.toMatch(/system fields/i)
-    await assign(false)
-    expect(systemRows()).toHaveLength(3)
-    await act(async () => setDefaultHidden(false))
-    await assign(true)
+    await act(async () => setViewIndex(1))
+    await click(buttonText("Show 1 hidden property", container))
+    expect(property(stage.id)).not.toBeNull()
     expect(systemRows()).toHaveLength(0)
-    await act(async () => setScope("other-device-scope"))
-    expect(systemRows()).toHaveLength(0) // persisted Table policy, not personal local storage
-    await assign(null)
-    expect(systemRows()).toHaveLength(3)
-    await act(async () => setDefaultHidden(true))
-    expect(systemRows()).toHaveLength(0)
+    expect(acceptedSnapshot.tables[0]!.table.settings).not.toHaveProperty(
+      "hideSystemFieldsInRecords"
+    )
     await act(async () => setVariant("panel"))
     expect(systemRows()).toHaveLength(0)
     expect(
@@ -354,22 +388,23 @@ it("manages canonical fields inside a record and keeps personal visibility separ
     await act(async () => setTableIndex(1))
     expect(systemRows()).toHaveLength(0) // another unset table follows the current default
     await act(async () => setDefaultHidden(false))
-    expect(systemRows()).toHaveLength(3)
+    expect(systemRows()).toHaveLength(0)
     await act(async () => setTableIndex(0))
+    await act(async () => setViewIndex(0))
     expect(systemRows()).toHaveLength(3)
-    await click(byLabel("Edit Stage properties"))
-    await click(buttonText("Hide in records on this device", dialog()))
+    await click(byLabel("Show Stage"))
+    await vi.waitFor(() => expect(property(stage.id)).toBeNull())
     await act(async () => setReadOnly(true))
     expect(byLabel("Edit Stage properties")).toBeNull()
     expect(buttonText("Add a property", container)).toBeNull()
-    await click(buttonText("1 more property", container))
+    await click(buttonText("Show 1 hidden property", container))
     expect(property(stage.id)).not.toBeNull()
     expect(systemRows()).toHaveLength(3)
-    await click(buttonText("Hide 1 property", container))
+    await click(buttonText("Collapse 1 hidden property", container))
     expect(property(stage.id)).toBeNull()
-    expect(JSON.stringify((await source.getSnapshot()).tables[0]!.views)).toBe(
-      beforeViews
-    )
+    expect(
+      (await source.getSnapshot()).tables[0]!.views[0]!.hiddenFields
+    ).toContain(stage.id)
     const current = await source.getRow!(table.table.id, String(row._id))
     expect(current?.[title.id]).toBe("Record A")
   } finally {

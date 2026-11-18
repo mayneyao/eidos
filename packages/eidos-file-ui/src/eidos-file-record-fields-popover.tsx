@@ -17,8 +17,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Eye,
-  EyeOff,
   GripVertical,
   Plus,
   Trash2,
@@ -36,7 +34,6 @@ import {
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
 } from "./eidos-file-derived-field-editor"
-import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
@@ -101,33 +98,30 @@ export function EidosFileRecordPropertyLabel({
       onPointerDown={(event) => sortable?.listeners?.onPointerDown?.(event)}
       title={label}
     >
-      <button
-        type="button"
-        ref={sortable?.setActivatorNodeRef}
-        disabled={!draggable}
-        aria-label={t("Reorder {field}", { field: label })}
-        data-eidos-file-record-property-handle=""
-        className="relative mt-[9px] flex h-4 w-4 shrink-0 cursor-grab items-center justify-center rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
-        {...sortable?.attributes}
-        onKeyDown={(event) => sortable?.listeners?.onKeyDown?.(event)}
-        onClick={onManage}
-      >
-        <span
-          className={cn(
-            "flex",
-            draggable &&
-              "group-hover/property-label:opacity-0 group-focus-within/property-label:opacity-0"
-          )}
+      {draggable ? (
+        <button
+          type="button"
+          ref={sortable?.setActivatorNodeRef}
+          aria-label={t("Reorder {field}", { field: label })}
+          data-eidos-file-record-property-handle=""
+          className="relative mt-[9px] flex h-4 w-4 shrink-0 cursor-grab items-center justify-center rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+          {...sortable?.attributes}
+          onKeyDown={(event) => sortable?.listeners?.onKeyDown?.(event)}
+          onClick={onManage}
         >
-          {icon}
-        </span>
-        {draggable ? (
+          <span className="flex group-hover/property-label:opacity-0 group-focus-within/property-label:opacity-0">
+            {icon}
+          </span>
           <GripVertical
             aria-hidden="true"
             className="absolute h-4 w-4 opacity-0 group-hover/property-label:opacity-100 group-focus-within/property-label:opacity-100"
           />
-        ) : null}
-      </button>
+        </button>
+      ) : (
+        <span aria-hidden="true" className="mt-[9px] flex h-4 w-4 shrink-0">
+          {icon}
+        </span>
+      )}
       {onManage ? (
         <button
           type="button"
@@ -176,8 +170,6 @@ function FieldMenuControls({
   management,
   disabled,
   onUpdate,
-  onHide,
-  hidden,
   onDelete,
   onDerived,
 }: {
@@ -185,8 +177,6 @@ function FieldMenuControls({
   management: RecordFieldManagement
   disabled: boolean
   onUpdate: Parameters<typeof useEidosFileFieldPropertyControls>[0]["onUpdate"]
-  onHide: () => void
-  hidden: boolean
   onDelete: () => void
   onDerived: (kind: "formula" | "lookup") => void
 }) {
@@ -249,24 +239,6 @@ function FieldMenuControls({
             {t("Edit property")}
             <ChevronRight className="h-3 w-3" />
           </Button>
-          {!isEidosFileRecordLabelField(field) ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 justify-start gap-2 text-xs"
-              disabled={controls.busy}
-              onClick={onHide}
-            >
-              {hidden ? (
-                <Eye className="h-3.5 w-3.5" />
-              ) : (
-                <EyeOff className="h-3.5 w-3.5" />
-              )}
-              {hidden
-                ? t("Show in records on this device")
-                : t("Hide in records on this device")}
-            </Button>
-          ) : null}
           {!controls.isRecordLabel ? (
             <Button
               variant="ghost"
@@ -304,18 +276,12 @@ export function EidosFileRecordFieldMenu({
   schemaLocked,
   state,
   onStateChange,
-  onHide,
-  hiddenFields,
-  onShow,
 }: {
   management?: RecordFieldManagement
   fields: EidosFileFieldInfo[]
   schemaLocked: boolean
   state: RecordFieldMenuState
   onStateChange: (next: RecordFieldMenuState) => void
-  onHide: (id: string) => void
-  hiddenFields: readonly string[]
-  onShow: (id: string) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
@@ -478,12 +444,6 @@ export function EidosFileRecordFieldMenu({
                       )
                     )
                   }
-                  onHide={() => {
-                    if (hiddenFields.includes(selected.id)) onShow(selected.id)
-                    else onHide(selected.id)
-                    close()
-                  }}
-                  hidden={hiddenFields.includes(selected.id)}
                   onDelete={() => setDeleteTarget(selected)}
                   onDerived={setDerived}
                 />
@@ -569,7 +529,8 @@ export function EidosFileRecordPropertiesFooter({
   onToggleHidden: () => void
   variant: "page" | "panel"
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { interactionMode, translate: t } = useEidosFileUI()
+  if (!canCreate && hiddenCount === 0) return null
   return (
     <div
       className={cn(
@@ -578,7 +539,7 @@ export function EidosFileRecordPropertiesFooter({
       )}
       data-eidos-record-properties-footer
     >
-      {canCreate && (!hiddenCount || expanded) ? (
+      {canCreate ? (
         <Button
           variant="ghost"
           size="sm"
@@ -595,7 +556,11 @@ export function EidosFileRecordPropertiesFooter({
           type="button"
           variant="ghost"
           size="sm"
-          className="-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
+          className={
+            interactionMode === "mobile"
+              ? "eidos-mobile-record-disclosure"
+              : "-ml-1.5 h-[34px] justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-muted-foreground hover:bg-muted"
+          }
           data-eidos-file-record-hidden-properties-toggle=""
           aria-expanded={expanded}
           aria-controls={controlsId}
@@ -610,14 +575,14 @@ export function EidosFileRecordPropertiesFooter({
           {expanded
             ? t(
                 hiddenCount === 1
-                  ? "Hide {count} property"
-                  : "Hide {count} properties",
+                  ? "Collapse {count} hidden property"
+                  : "Collapse {count} hidden properties",
                 { count: hiddenCount }
               )
             : t(
                 hiddenCount === 1
-                  ? "{count} more property"
-                  : "{count} more properties",
+                  ? "Show {count} hidden property"
+                  : "Show {count} hidden properties",
                 { count: hiddenCount }
               )}
         </Button>

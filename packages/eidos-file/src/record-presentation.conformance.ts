@@ -51,17 +51,6 @@ export async function expectRecordPresentationConformance(
     )
   }
   try {
-    const malformedCreate = await plan({
-      kind: "create-table",
-      clientKey: "invalid",
-      name: "Invalid",
-      position: "0",
-      settings: { hideSystemFieldsInRecords: null },
-      fields: [
-        { clientKey: "title", name: "Title", kind: "text", position: "0" },
-      ],
-    })
-    expect(malformedCreate.classification).toBe("forbidden")
     const created = await apply({
       kind: "create-table",
       clientKey: "tasks",
@@ -100,21 +89,6 @@ export async function expectRecordPresentationConformance(
       })
       expect(validateEidosFile(connection).valid).toBe(true)
     }
-    const revision = (await service.getSnapshot({}, context())).revision
-    for (const value of [null, "true", 1]) {
-      const invalid = await plan({
-        kind: "set-table-settings",
-        tableId,
-        settings: { hideSystemFieldsInRecords: value },
-      })
-      expect(invalid.classification).toBe("forbidden")
-      expect(
-        invalid.warnings.some((warning) =>
-          warning.message?.includes("must be a boolean")
-        )
-      ).toBe(true)
-      expect((await service.getSnapshot({}, context())).revision).toBe(revision)
-    }
     await apply({
       kind: "set-table-settings",
       tableId,
@@ -126,16 +100,12 @@ export async function expectRecordPresentationConformance(
     expect(
       (await service.getSnapshot({}, context())).schemaCounts.features
     ).toBe(before.schemaCounts.features)
-    // Malformed fixture input must also fail format validation when read directly.
+    // Legacy presentation keys are now opaque application metadata.
     connection.run("UPDATE eidos__tables SET settings_json = ? WHERE id = ?", [
       '{"hideSystemFieldsInRecords":null}',
       tableId,
     ])
-    expect(
-      validateEidosFile(connection).errors.some((error) =>
-        error.message.includes("hideSystemFieldsInRecords must be a boolean")
-      )
-    ).toBe(true)
+    expect(validateEidosFile(connection).valid).toBe(true)
   } finally {
     await service.close(context())
   }

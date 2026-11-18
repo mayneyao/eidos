@@ -1,11 +1,9 @@
 import { useCallback, useId, useSyncExternalStore } from "react"
 
 export interface RecordPropertyPreferences {
-  hiddenFields: string[]
   fieldOrder: string[]
 }
 const defaults: RecordPropertyPreferences = {
-  hiddenFields: [],
   fieldOrder: [],
 }
 const prefix = "eidos-record-properties-v1:"
@@ -34,7 +32,6 @@ function read(key: string, persistent: boolean): RecordPropertyPreferences {
               ]
             : []
         result = {
-          hiddenFields: ids(value.hiddenFields),
           fieldOrder: ids(value.fieldOrder),
         }
       }

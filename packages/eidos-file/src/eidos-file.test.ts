@@ -124,7 +124,7 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
-  it("sets, preserves and clears the optional record presentation override", () => {
+  it("preserves legacy record settings as opaque metadata during Table updates", () => {
     const target = filePath()
     let runtime = createEidosFile(target, {
       defaultTable: {
@@ -143,11 +143,10 @@ describe("Eidos File 1.0 native Runtime", () => {
     try {
       runtime.connection.run(
         `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET settings_json = ? WHERE id = ?`,
-        ['{"vendorSetting":"kept"}', table.id]
+        ['{"hideSystemFieldsInRecords":true,"vendorSetting":"kept"}', table.id]
       )
       runtime.close()
       runtime = openEidosFile(target)
-      runtime.updateTable(table.id, { hideSystemFieldsInRecords: true })
       runtime.updateTable(table.id, { icon: "document" })
       expect(read()).toEqual({
         vendorSetting: "kept",
@@ -157,10 +156,6 @@ describe("Eidos File 1.0 native Runtime", () => {
       runtime.close()
       runtime = openEidosFile(target)
       expect(read().hideSystemFieldsInRecords).toBe(true)
-      runtime.updateTable(table.id, { hideSystemFieldsInRecords: false })
-      expect(read().hideSystemFieldsInRecords).toBe(false)
-      runtime.updateTable(table.id, { hideSystemFieldsInRecords: null })
-      expect(read()).toEqual({ vendorSetting: "kept", icon: "document" })
       expect(runtime.validate().valid).toBe(true)
     } finally {
       runtime.close()

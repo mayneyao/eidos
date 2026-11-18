@@ -915,13 +915,6 @@ Field。Runtime 只有在它引用同一 Table 的普通 stored、non-system Tex
 值。删除或转换被引用 Field 的 schema batch 必须同时清除该 member 或合法重定向；
 editor-facing compatibility API 可以自动把清除操作组合进同一 atomic batch。
 
-`TableDescriptor.settings.hideSystemFieldsInRecords` 是 File Format 的可选 Boolean
-记录展示提示。Runtime 必须保留并返回显式 `false` 和 `true`；`set-table-settings`
-必须拒绝存在但非 Boolean 的值。删除 member 恢复跟随 Host 默认，并必须保留其他 Table
-settings。面向编辑器的 `updateTable` compatibility input 接受 Boolean 赋值、用 `null`
-删除 member，`undefined` 保持不变。写入沿用 schema mutation 及权限边界，不修改 row
-data 或 View layout。
-
 如果 `minimumRevision` 大于 current revision，Runtime 会等待该 revision、
 cancellation、deadline 或 close。若 events 不可用，它 MAY 在 deadline 内轮询
 Adapter `dataVersion`。较小或相等的值会立即返回。

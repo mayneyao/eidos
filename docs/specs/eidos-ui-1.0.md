@@ -1260,20 +1260,17 @@ record page: the Record Label supplies the page title, other Fields remain
 compact editable metadata, and the Content Field is removed from that generic
 list and receives a dedicated Markdown preview/source editor.
 
-Opened-record presentation MUST resolve an explicit Boolean Table setting
-`hideSystemFieldsInRecords` before the Host's personal default (fallback `false`).
-A configuration control MUST distinguish this Table-wide setting from the active
-View's columns and offer an explicit restore-inheritance choice. Local legacy
-system-visibility preferences MUST NOT introduce a third overriding layer or
-automatically write a Table setting when a file is opened. A temporary reveal
-MAY inspect hidden system values without persisting a new setting.
+Records opened from a saved View MUST use its property visibility and order.
+The Host MAY provide a device setting to always hide system properties in
+records. This preference MUST be stored outside the Eidos File and MUST also
+apply when temporarily revealing properties. A Table setting has no effect on
+this preference. Read-only business fields follow the View layout.
 
 Record property schema actions MUST identify their Table-wide effect and retain
-the canonical conversion/deletion confirmations. Personal record property order
-and ordinary-Field visibility MAY remain Host-local but MUST communicate that
-scope and MUST NOT change saved View layouts. Hiding every optional property
-MUST retain a way to restore them. Drag handles and read-only values MUST retain
-stable label/value alignment and preserve active edits and keyboard focus.
+the canonical conversion/deletion confirmations. A single disclosure SHOULD
+collapse the whole properties section. Eligible properties hidden by the View
+MUST have a temporary reveal in the record that leaves the saved layout intact.
+Disclosures MUST preserve active edits, keyboard focus, and the Content editor.
 
 Markdown presentation is generated and non-canonical. Raw HTML and unsafe URL
 schemes MUST remain inert; remote images MUST NOT trigger ambient network
