@@ -179,6 +179,7 @@ export default defineConfig(({ mode, command }) => {
                   "typescript",
                   "@eidos.space/graft",
                   "electron",
+                  "koffi",
                   "node-pty",
                   "node:sqlite",
                 ],

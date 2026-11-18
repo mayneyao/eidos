@@ -2,6 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import type { SpaceSnapshot, SpaceTreeEntry } from "../../shared/contracts"
+import * as exclusiveRename from "./rename-no-replace"
 import * as paths from "./space-paths"
 import { SpaceSession } from "./space-session"
 
@@ -149,18 +150,23 @@ it("rejects a stale directory read after a move and coalesces concurrent reads",
 
 it("keeps external changes and emits one final tree for many watcher events and a partial failure", async () => {
   const f = await fixture(3)
-  const rename = fs.rename.bind(fs)
+  const rename = exclusiveRename.renameNoReplace
   const paused = deferred<void>()
   const release = deferred<void>()
-  const spy = vi.spyOn(fs, "rename").mockImplementationOnce(async (...args) => {
-    await rename(...args)
-    paused.resolve()
-    await release.promise
-  })
+  const spy = vi
+    .spyOn(exclusiveRename, "renameNoReplace")
+    .mockImplementationOnce(async (...args) => {
+      await rename(...args)
+      paused.resolve()
+      await release.promise
+    })
+    .mockImplementationOnce(async (source, target) => {
+      await fs.writeFile(target, "existing", { flag: "wx" })
+      await rename(source, target)
+    })
   const snapshots: SpaceSnapshot[] = []
   f.session.onChanged((snapshot) => snapshots.push(snapshot))
   try {
-    await fs.writeFile(path.join(f.root, "target/1.txt"), "existing")
     const moving = f.session.movePaths(
       f.names.map((name) => `source/${name}`),
       "target"
@@ -186,6 +192,7 @@ it("keeps external changes and emits one final tree for many watcher events and 
       { source: "source/0.txt", relativePath: "target/0.txt" },
     ])
     expect(result.failure?.relativePath).toBe("source/1.txt")
+    expect(result.failure?.message).toContain("already exists at target/1.txt")
     expect(result.unattemptedPaths).toEqual(["source/2.txt"])
     expect(await fs.readdir(path.join(f.root, "source"))).toEqual([
       "1.txt",
@@ -327,9 +334,9 @@ it("reconciles an external write arriving after the final directory read started
 
 it("keeps cross-volume rename errors explicit and retries a transient file lock serially", async () => {
   const f = await fixture(2)
-  const rename = fs.rename.bind(fs)
+  const rename = exclusiveRename.renameNoReplace
   const spy = vi
-    .spyOn(fs, "rename")
+    .spyOn(exclusiveRename, "renameNoReplace")
     .mockRejectedValueOnce(Object.assign(new Error("Busy"), { code: "EBUSY" }))
     .mockImplementationOnce(rename)
     .mockRejectedValueOnce(
@@ -350,6 +357,72 @@ it("keeps cross-volume rename errors explicit and retries a transient file lock 
     expect(await fs.readdir(path.join(f.root, "target"))).toEqual(["0.txt"])
   } finally {
     spy.mockRestore()
+    await f.close()
+  }
+})
+
+it.each(["cut", "rename"] as const)(
+  "preserves both files and their Markdown links when a same-name target appears just before %s",
+  async (operation) => {
+    const f = await fixture(1)
+    const source = "source/0.txt"
+    const target = operation === "cut" ? "target/0.txt" : "source/renamed.txt"
+    const note = path.join(f.root, "note.md")
+    const links = "[source](source/0.txt)\n"
+    const rename = exclusiveRename.renameNoReplace
+    try {
+      await fs.writeFile(note, links)
+      const clipboard =
+        operation === "cut"
+          ? await f.session.preparePathClipboard([source])
+          : undefined
+      const spy = vi
+        .spyOn(exclusiveRename, "renameNoReplace")
+        .mockImplementationOnce(async (from, to) => {
+          await fs.writeFile(to, "other file", { flag: "wx" })
+          await rename(from, to)
+        })
+      try {
+        const message = `A file or folder already exists at ${target}`
+        if (operation === "cut") {
+          const result = await f.session.movePaths(
+            [source],
+            "target",
+            clipboard
+          )
+          expect(result.moves).toEqual([])
+          expect(result.failure?.message).toBe(message)
+        } else {
+          await expect(
+            f.session.renamePath(source, "renamed.txt")
+          ).rejects.toThrow(message)
+        }
+        expect(spy).toHaveBeenCalledTimes(1)
+      } finally {
+        spy.mockRestore()
+      }
+      expect(await fs.readFile(path.join(f.root, source), "utf8")).toBe("0.txt")
+      expect(await fs.readFile(path.join(f.root, target), "utf8")).toBe(
+        "other file"
+      )
+      expect(await fs.readFile(note, "utf8")).toBe(links)
+    } finally {
+      await f.close()
+    }
+  }
+)
+
+it("renames an entry that differs only by case without rewriting its contents", async () => {
+  const f = await fixture(0)
+  try {
+    await fs.writeFile(path.join(f.root, "source/Name.txt"), "preserved")
+    const result = await f.session.renamePath("source/Name.txt", "name.txt")
+    expect(result.relativePath).toBe("source/name.txt")
+    expect(await fs.readdir(path.join(f.root, "source"))).toEqual(["name.txt"])
+    expect(
+      await fs.readFile(path.join(f.root, "source/name.txt"), "utf8")
+    ).toBe("preserved")
+  } finally {
     await f.close()
   }
 })

@@ -209,6 +209,7 @@ import {
   resolveMarkdownDocumentLink,
 } from "./markdown-document-assets"
 import { readWorkingTextContent } from "./working-text-reader"
+import { renameNoReplace } from "./rename-no-replace"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
 const csvOperationControlMethods = new Set<RuntimeMethod>([
@@ -244,16 +245,20 @@ let snapshotSequence = 0
 async function renameWithRetry(
   sourcePath: string,
   targetPath: string,
+  target: string,
   maxRetries = 20,
   initialDelayMs = 50
 ): Promise<void> {
   let delay = initialDelayMs
   for (let attempt = 0; ; attempt++) {
     try {
-      await fs.rename(sourcePath, targetPath)
+      await renameNoReplace(sourcePath, targetPath)
       return
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code
+      if (code === "EEXIST" || code === "ENOTEMPTY") {
+        throw existingPathError(target)
+      }
       if (
         attempt < maxRetries &&
         (code === "EBUSY" || code === "EPERM" || code === "EACCES")
@@ -265,6 +270,10 @@ async function renameWithRetry(
       throw error
     }
   }
+}
+
+function existingPathError(relativePath: string): Error {
+  return new Error(`A file or folder already exists at ${relativePath}`)
 }
 
 function runtimeResultRevision(value: unknown): number | bigint | null {
@@ -1658,7 +1667,8 @@ export class SpaceSession {
         const current = await readTextFilePreview(this.canonical.root, source)
         if (current.type !== "text" || current.revision !== file.revision)
           return null
-        if (target !== source) await this.requireMissingPath(target)
+        if (target !== source)
+          await this.requireMissingRenameTarget(source, target)
         const maintenance =
           target === source ? null : await this.prepareMarkdownLinkMaintenance()
         try {
@@ -1673,7 +1683,8 @@ export class SpaceSession {
           if (target !== source) {
             await renameWithRetry(
               this.resolveUserPath(source),
-              this.resolveUserPath(target)
+              this.resolveUserPath(target),
+              target
             )
             const links = await this.applyMarkdownLinkMaintenance(maintenance, [
               { source, relativePath: target },
@@ -2180,16 +2191,20 @@ export class SpaceSession {
       this.canonical.root,
       parent === "." ? null : parent
     )
-    await this.requireMissingPath(target)
+    await this.requireMissingRenameTarget(source, target)
     let invalidatedSessionIds: string[] = []
     let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
       const maintenance = await this.prepareMarkdownLinkMaintenance()
       try {
+        // A conflict found during the scan can be reported without closing
+        // an open editor. The system rename still checks again atomically.
+        await this.requireMissingRenameTarget(source, target)
         invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
         await renameWithRetry(
           this.resolveUserPath(source),
-          this.resolveUserPath(target)
+          this.resolveUserPath(target),
+          target
         )
         markdownLinks = await this.applyMarkdownLinkMaintenance(maintenance, [
           { source, relativePath: target },
@@ -2322,7 +2337,8 @@ export class SpaceSession {
               invalidatedSessionIds.add(id)
             await renameWithRetry(
               this.resolveUserPath(source),
-              this.resolveUserPath(target)
+              this.resolveUserPath(target),
+              target
             )
             moves.push({ source, relativePath: target })
             this.noteLocalChange()
@@ -7341,7 +7357,7 @@ export class SpaceSession {
   private async requireMissingPath(relativePath: string): Promise<void> {
     try {
       await fs.lstat(this.resolveUserPath(relativePath))
-      throw new Error(`A file or folder already exists at ${relativePath}`)
+      throw existingPathError(relativePath)
     } catch (error) {
       if (
         error instanceof Error &&
@@ -7351,6 +7367,20 @@ export class SpaceSession {
         return
       }
       throw error
+    }
+  }
+
+  private async requireMissingRenameTarget(
+    source: string,
+    target: string
+  ): Promise<void> {
+    // A case-only rename can resolve to the source on a case-insensitive
+    // volume. Let the exclusive syscall decide whether the entry can move.
+    if (
+      source.normalize("NFC").toLowerCase() !==
+      target.normalize("NFC").toLowerCase()
+    ) {
+      await this.requireMissingPath(target)
     }
   }
 }

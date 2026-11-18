@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import * as exclusiveRename from "./rename-no-replace"
 import os from "node:os"
 import path from "node:path"
 import { SpaceSession } from "./space-session"
@@ -253,7 +254,7 @@ it("reports a cross-device cut failure without moving the source", async () => {
   const f = await fixture()
   const clipboard = await f.session.preparePathClipboard(["source/note.md"])
   const rename = vi
-    .spyOn(fs, "rename")
+    .spyOn(exclusiveRename, "renameNoReplace")
     .mockRejectedValueOnce(
       Object.assign(new Error("cross-device move"), { code: "EXDEV" })
     )

@@ -15,6 +15,8 @@
     "**/node_modules/@eidos.space/eidos-file/package.json",
     "**/node_modules/csv-parse/**/*",
     "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/koffi/**/*",
+    "**/node_modules/@koromix/koffi-*/**/*",
     "**/node_modules/node-pty/**/*",
     "**/node_modules/esbuild/**/*",
     "**/node_modules/@esbuild/**/*",
@@ -27,6 +29,7 @@
     "**/node_modules/esbuild/**/*",
     "**/node_modules/@esbuild/**/*",
     "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/@koromix/koffi-*/**/*",
     "**/node_modules/node-pty/**/*"
   ],
   "extraResources": [
