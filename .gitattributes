@@ -4,6 +4,9 @@
 # Package-manager patches must retain LF headers on Windows checkouts.
 *.patch text eol=lf
 
+# Generated Runtime and Serve manifests hash the lockfile bytes.
+/pnpm-lock.yaml text eol=lf
+
 # Embedded Web API bundles must be identical on every host.
 crates/eidos-plugin-sandbox/src/generated-*.js text eol=lf
 crates/eidos-plugin-sandbox/src/generated-web-NOTICE.txt text eol=lf
