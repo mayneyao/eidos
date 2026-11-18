@@ -2,8 +2,15 @@
 
 import { act, createElement, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
-import type { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui"
+import {
+  decodeEidosFileValues,
+  encodeEidosFileAttachmentPaths,
+  type EidosFileSnapshot,
+} from "@eidos.space/eidos-file"
+import type {
+  EidosFileQueryToolbar,
+  EidosFileRelatedRecordPanel,
+} from "@eidos.space/eidos-file-ui"
 
 import {
   RUNTIME_MUTATION_METHODS,
@@ -12,6 +19,7 @@ import {
 const observeAssetSession = vi.hoisted(() =>
   vi.fn<(session: unknown) => void>()
 )
+const relatedRecordFixture = vi.hoisted(() => ({ useActualPanel: false }))
 type QueryToolbarProps = ComponentProps<typeof EidosFileQueryToolbar>
 const observeQueryToolbar = vi.hoisted(() =>
   vi.fn<(props: QueryToolbarProps) => void>()
@@ -115,13 +123,13 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
       )
     )
   }
-  function RelatedRecordReporter({
-    target,
-    onClose,
-  }: {
-    target: { tableId: string; rowId: string; title: string }
-    onClose: () => void
-  }) {
+  function RelatedRecordReporter(
+    props: ComponentProps<typeof EidosFileRelatedRecordPanel>
+  ) {
+    if (relatedRecordFixture.useActualPanel) {
+      return React.createElement(actual.EidosFileRelatedRecordPanel, props)
+    }
+    const { target, onClose } = props
     return React.createElement(
       "aside",
       { "data-testid": "related-record-panel" },
@@ -272,8 +280,132 @@ describe("Eidos Lite Eidos File search navigation", () => {
 
   afterEach(() => {
     act(() => root.unmount())
+    relatedRecordFixture.useActualPanel = false
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
+  })
+
+  it("saves chosen and dropped local attachments in a Gallery record", async () => {
+    relatedRecordFixture.useActualPanel = true
+    const table = snapshot.tables[0]!
+    const title = table.fields[0]!
+    const attachment = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/local-report.txt"])
+    )[0]!
+    const gallerySnapshot: EidosFileSnapshot = {
+      ...snapshot,
+      tables: [
+        {
+          ...table,
+          fields: [
+            ...table.fields,
+            {
+              ...title,
+              id: "attachment",
+              name: "Attachment",
+              type: "file",
+              tableColumnName: "Attachment",
+              physicalName: "Attachment",
+              storageCodec: "json_array",
+              sourceTableColumnName: "Attachment",
+              isRecordLabel: false,
+            },
+          ],
+          views: [
+            {
+              ...table.views[0]!,
+              id: "gallery",
+              name: "Gallery",
+              type: "gallery",
+            },
+          ],
+        },
+      ],
+    }
+    const selectLocal = vi.fn(async () => [attachment])
+    const dropped = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/dropped.txt"])
+    )[0]!
+    const importDropped = vi.fn(async () => [dropped])
+    Object.assign(window.eidosLite, {
+      selectEidosFileAssets: selectLocal,
+      importDroppedEidosFileAssets: importDropped,
+    })
+    const source = new IpcEidosFileDataSource(
+      "gallery-runtime",
+      gallerySnapshot
+    )
+    const row = { _id: "record-a", Title: "Record A", Attachment: "[]" }
+    vi.spyOn(source, "getRow").mockResolvedValue(row)
+    vi.spyOn(source, "getRecordNeighbors").mockResolvedValue({ found: false })
+    const save = vi
+      .spyOn(source, "updateRow")
+      .mockImplementation(async (_table, _row, changes) => {
+        if (typeof changes.attachment !== "string")
+          throw new Error("Expected an encoded attachment list")
+        row.Attachment = changes.attachment
+        return { tableId: table.table.id, row: { ...row }, rowCount: 1 }
+      })
+    const onError = vi.fn()
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "sample.eidos",
+          snapshot: gallerySnapshot,
+          source,
+          activeTableId: "tasks",
+          activeViewId: "gallery",
+          inspectedRowId: "record-a",
+          recordOpenMode: "page",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot: vi.fn(),
+          onError,
+        })
+      )
+    )
+    const property = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Attachment"]'
+    )!
+    await act(async () => property.click())
+    const choose = [
+      ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((button) => button.textContent === "Add files")
+    expect(choose).toBeDefined()
+    await act(async () => choose!.click())
+    expect(selectLocal).toHaveBeenCalledExactlyOnceWith("gallery-runtime")
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "local-report.txt"
+    )
+    await act(async () => {
+      document.body.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true })
+      )
+    })
+    expect(save).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {
+      attachment: expect.stringContaining("assets/local-report.txt"),
+    })
+    expect(host.textContent).toContain("local-report.txt")
+
+    const file = new File(["fixture bytes"], "dropped.txt")
+    const drop = new Event("drop", { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, "dataTransfer", {
+      value: { types: ["Files"], files: [file] },
+    })
+    await act(async () => {
+      property
+        .closest('[data-eidos-file-property-editor="file"]')!
+        .dispatchEvent(drop)
+    })
+    expect(importDropped).toHaveBeenCalledExactlyOnceWith(
+      "gallery-runtime",
+      [file],
+      "drop"
+    )
+    expect(decodeEidosFileValues(row.Attachment)).toEqual([attachment, dropped])
+    expect(host.textContent).toContain("dropped.txt")
+    expect(onError).not.toHaveBeenCalled()
   })
 
   it.each([true, false])(

@@ -1087,6 +1087,8 @@ export function EidosFileWorkbench({
                 onMutation={() => setReloadToken((current) => current + 1)}
                 onClose={() => onInspectedRowChange?.(null)}
                 onError={onError}
+                onImportFiles={importFiles}
+                onImportDroppedFiles={importDroppedFiles}
                 disabled={disabled}
               />
             ) : relatedRecordTarget && relatedRecordTable ? (
