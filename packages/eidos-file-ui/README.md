@@ -56,7 +56,10 @@ export function Viewer({
   sourceToken: string
   assetPresenter: AssetPresenter<ReactNode>
 }) {
-  const kernel = useMemo(() => new EidosUIKernel(host), [host])
+  const kernel = useMemo(
+    () => new EidosUIKernel(host, { calendarQueryVersion: 2 }),
+    [host]
+  )
   useEffect(() => {
     void kernel.openSource({ sourceToken, access: "read" })
     return () => {
@@ -94,6 +97,14 @@ consume Runtime query/group results; they do not reproduce filtering,
 Formula/Lookup, Relation or grouping semantics locally. Unknown persisted View
 types remain accessible as unsupported renderers.
 
+The consuming UI opts into calendar-period syntax explicitly. Use
+`new EidosRuntimeEditorDataSource(runtime, path, { calendarQueryVersion: 2 })`
+for the current shared editor, or the Kernel option shown above. Reusable
+clients default to no declaration. The Runtime returns new period Views as
+opaque unsupported queries to undeclared consumers; preserve the original and
+block Apply/execution. Transports forward this per-request declaration without
+inferring it from their own version or Runtime capabilities.
+
 ## Shared editor composition
 
 Browser and Desktop products use `EidosFileEditorShell` as the single editor
@@ -119,6 +130,25 @@ version history and extension processes remain Host responsibilities. They
 enter the shared editor through data-source methods, plugins, capabilities or
 explicit Host-owned surfaces.
 
+`EidosFileEditorView` shares one bounded, in-memory mutation history for each
+stable data-source object. Keep that object stable while switching Tables,
+Views, filters and searches; use a new object for a replacement file/session.
+Field edits use stable Row IDs. Record deletion uses the Runtime's opaque
+session-local undo receipt, including one receipt for an atomic batch.
+Text inputs, Markdown drafts, IME, menus and dialogs retain their own keyboard
+ownership. Filesystem operations and persistent version history remain Host
+responsibilities.
+
+Built-in renderers consume the shared source and deletion callbacks. Return the
+actual `EidosFileRowsDeleteResult` from `onDeleteRowIds` and `onDeleteRows`;
+provide `onDeleteRowIds` for reversible single-card deletion too. Custom
+renderers can use `useEidosFileUndo()` for `canUndo`, `canRedo`, `busy`, `undo`
+and `redo`. Its controller groups `updateRows` by stable identity and registers
+Host-owned deletions with `history.delete(operation)`. It does not add Runtime
+capabilities or filesystem permissions. Creation and committed operations
+without an inverse start a new history boundary; general mutation undo and
+recovery across process restarts are not provided by this UI history.
+
 ## Host responsibilities
 
 The product supplies an EA-Host-1.0 `HostServices` implementation. Source,
@@ -126,8 +156,16 @@ destination, session, conflict, recovery and asset tokens are opaque. Host owns
 permission, publication, CAS/conflict checks, recovery, assets and replacement
 Runtime epochs. Dirty close requires an explicit save/discard/cancel decision.
 
-React renderers are trusted application code, not an extension sandbox. Asset
-content is obtained only through bounded Host leases and every lease is
+React renderers are trusted application code, not an extension sandbox.
+
+Gallery bulk deletion uses the optional `onDeleteRowIds` Host callback with
+the exact stable IDs captured when the menu opens. Hosts must commit these IDs
+atomically through their record mutation path and refresh their snapshot,
+dirty state and caches. The Runtime accepts at most 500 IDs per operation;
+failure preserves the selection. Without this callback, bulk deletion is
+disabled. Filesystem metadata clearing is not a file trash operation.
+
+Asset content is obtained only through bounded Host leases and every lease is
 released on expiry, surface removal, or close. Relative, `https:`, and
 canonical inline image Data URLs all use `HostServices.resolveAsset`; reusable
 UI never joins/fetches/navigates `FileEntry.uri` and has no package-global

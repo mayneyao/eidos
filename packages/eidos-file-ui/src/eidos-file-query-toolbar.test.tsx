@@ -117,15 +117,17 @@ describe("shared EidosFileQueryToolbar", () => {
     root = createRoot(container)
     act(() => {
       root.render(
-        <EidosFileQueryToolbar
-          fields={fields}
-          filter={null}
-          sorts={[]}
-          search=""
-          onSearchChange={onSearchChange}
-          onFilterChange={onFilterChange}
-          onSortsChange={onSortsChange}
-        />
+        <EidosFileUIProvider calendarPeriodTimeZoneData={["2026f"]}>
+          <EidosFileQueryToolbar
+            fields={fields}
+            filter={null}
+            sorts={[]}
+            search=""
+            onSearchChange={onSearchChange}
+            onFilterChange={onFilterChange}
+            onSortsChange={onSortsChange}
+          />
+        </EidosFileUIProvider>
       )
     })
   })
@@ -756,7 +758,7 @@ describe("shared EidosFileQueryToolbar", () => {
     ).toBe(true)
   })
 
-  it("saves rolling date shortcuts without freezing an absolute date", async () => {
+  it("saves relative calendar periods without freezing a date or time zone", async () => {
     await act(async () => button("Filter")?.click())
     await act(async () =>
       document.querySelector<HTMLElement>("[cmdk-item]")?.click()
@@ -774,18 +776,15 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => operator?.click())
     const relative = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
-    ).find((option) => option.textContent?.trim() === "is relative to today")
+    ).find((option) => option.textContent?.trim() === "Is relative to today")
     await act(async () => relative?.click())
     expect(
       document.body.querySelector('input[type="datetime-local"]')
     ).toBeNull()
-    const relativeHint = Array.from(
-      document.body.querySelectorAll<HTMLElement>("span")
-    ).find(
-      (element) =>
-        element.textContent?.trim() === "Filter updates with the current date."
-    )
-    expect(relativeHint?.parentElement?.classList).not.toContain("col-span-2")
+    expect(
+      document.querySelector("[data-eidos-file-date-range-help]")
+    ).toBeNull()
+    expect(document.body.textContent).not.toContain("inclusive rolling windows")
     await act(async () => button("Apply")?.click())
 
     expect(onFilterChange).toHaveBeenCalledWith({
@@ -795,8 +794,8 @@ describe("shared EidosFileQueryToolbar", () => {
         {
           type: "rule",
           field: fields[3].id,
-          operator: "is-relative-to-today",
-          value: { direction: "this", unit: "week" },
+          operator: "is-in-calendar-period",
+          value: { unit: "day", offset: 0 },
         },
       ],
     })
@@ -823,6 +822,12 @@ describe("shared EidosFileQueryToolbar", () => {
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
     ).find((option) => option.textContent?.trim() === "Created at")
     await act(async () => createdAt?.click())
+
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>('[aria-label="Choose date & time"]')
+        ?.click()
+    )
 
     const valueInput = document.body.querySelector<HTMLInputElement>(
       'input[type="datetime-local"]'
@@ -884,6 +889,11 @@ describe("shared EidosFileQueryToolbar", () => {
         .querySelector<HTMLButtonElement>(
           '[aria-label="Filter Eidos File rows"]'
         )
+        ?.click()
+    )
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>('[aria-label="Choose date & time"]')
         ?.click()
     )
 

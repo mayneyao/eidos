@@ -2,7 +2,11 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
+import {
+  encodeEidosFileValues,
+  type EidosFileFieldInfo,
+  type FileEntry,
+} from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider } from "./context"
@@ -381,6 +385,78 @@ describe("EidosFileRecordInspector", () => {
     }
   })
 
+  it("keeps one whole-field copy action in the first attachment row without asset capabilities", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    })
+    const attachments: FileEntry[] = [
+      {
+        id: "0198c72d-82b5-7000-8000-000000000021",
+        uri: "assets/first.png",
+        name: "First image.png",
+        mediaType: "image/png",
+        size: "1024",
+      },
+      {
+        id: "0198c72d-82b5-7000-8000-000000000022",
+        uri: "assets/second.pdf",
+        name: "Second document.pdf",
+        mediaType: "application/pdf",
+        size: "2048",
+      },
+    ]
+    const attachmentField: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "attachments",
+      name: "Attachments",
+      type: "file",
+      tableColumnName: "attachments",
+      storageCodec: "json_array",
+      isRecordLabel: false,
+    }
+    const onError = vi.fn()
+    try {
+      await act(async () =>
+        root.render(
+          <EidosFileRecordInspector
+            row={{
+              _id: "attachments",
+              attachments: encodeEidosFileValues(attachments),
+            }}
+            fields={[attachmentField]}
+            onError={onError}
+          />
+        )
+      )
+      const copy = container.querySelector<HTMLButtonElement>(
+        '[aria-label="Copy Attachments"]'
+      )!
+      const entries = container.querySelectorAll(".group\\/file")
+      expect(entries).toHaveLength(2)
+      expect(entries[0].contains(copy)).toBe(true)
+      expect(entries[1].querySelector("button")).toBeNull()
+      expect(
+        container.querySelectorAll('[aria-label="Copy Attachments"]')
+      ).toHaveLength(1)
+      await act(async () => copy.click())
+      expect(writeText).toHaveBeenLastCalledWith(
+        "First image.png, Second document.pdf"
+      )
+      expect(copy.title).toBe("Copied")
+      expect(copy.querySelector('[role="status"]')?.textContent).toBe("Copied")
+      const failure = new Error("Clipboard denied")
+      writeText.mockRejectedValueOnce(failure)
+      await act(async () => copy.click())
+      expect(onError).toHaveBeenCalledWith(failure)
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor)
+      else Reflect.deleteProperty(navigator, "clipboard")
+    }
+  })
+
   it("autosaves editable fields and keeps derived values readonly", async () => {
     const row = {
       _id: "row_1",
@@ -493,82 +569,90 @@ describe("EidosFileRecordInspector", () => {
     expect(activateUrl).toHaveBeenCalledWith(uri)
   })
 
-  it("keeps a failed draft recoverable while persisted data refreshes", async () => {
-    const row = {
-      _id: "row_1",
-      title: "Write RFC",
-      done: 0,
-      formula: 2,
-    }
-    const savedRow = { ...row, title: "Ship Eidos File" }
-    const onCellEdit = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Record is read-only"))
-      .mockResolvedValueOnce({
-        tableId: "tasks",
-        row: savedRow,
-        rowCount: 1,
+  it.each(["page", "panel"] as const)(
+    "keeps a failed %s draft recoverable while persisted data refreshes",
+    async (variant) => {
+      const row = {
+        _id: "row_1",
+        title: "Write RFC",
+        done: 0,
+        formula: 2,
+      }
+      const savedRow = { ...row, title: "Ship Eidos File" }
+      const onCellEdit = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Record is read-only"))
+        .mockResolvedValueOnce({
+          tableId: "tasks",
+          row: savedRow,
+          rowCount: 1,
+        })
+      const onError = vi.fn()
+      const render = (nextRow = row) =>
+        root.render(
+          <EidosFileRecordInspector
+            row={nextRow}
+            fields={fields}
+            variant={variant}
+            onClose={vi.fn()}
+            onCellEdit={onCellEdit}
+            onError={onError}
+          />
+        )
+
+      await act(async () => render())
+      const title = container.querySelector<HTMLTextAreaElement>("textarea")
+      await act(async () => {
+        if (!title) return
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set
+        setter?.call(title, "Ship Eidos File")
+        title.dispatchEvent(new Event("input", { bubbles: true }))
       })
-    const onError = vi.fn()
-    const render = (nextRow = row) =>
-      root.render(
-        <EidosFileRecordInspector
-          row={nextRow}
-          fields={fields}
-          onClose={vi.fn()}
-          onCellEdit={onCellEdit}
-          onError={onError}
-        />
+      await act(async () => {
+        title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(onCellEdit).toHaveBeenCalledOnce()
+      expect(container.querySelector("header")?.textContent).not.toContain(
+        "Saving"
       )
+      expect(container.querySelector('header [role="status"]')).toBeNull()
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Record is read-only"
+      )
+      expect(title?.value).toBe("Ship Eidos File")
+      expect(onError).not.toHaveBeenCalled()
 
-    await act(async () => render())
-    const title = container.querySelector<HTMLTextAreaElement>("textarea")
-    await act(async () => {
-      if (!title) return
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
-        "value"
-      )?.set
-      setter?.call(title, "Ship Eidos File")
-      title.dispatchEvent(new Event("input", { bubbles: true }))
-    })
-    await act(async () => {
-      title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+      await act(async () => render({ ...row }))
+      expect(
+        container.querySelector<HTMLTextAreaElement>("textarea")?.value
+      ).toBe("Ship Eidos File")
 
-    expect(onCellEdit).toHaveBeenCalledOnce()
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Record is read-only"
-    )
-    expect(title?.value).toBe("Ship Eidos File")
-    expect(onError).not.toHaveBeenCalled()
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === "Retry")
+          ?.click()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
 
-    await act(async () => render({ ...row }))
-    expect(
-      container.querySelector<HTMLTextAreaElement>("textarea")?.value
-    ).toBe("Ship Eidos File")
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Retry")
-        ?.click()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    expect(onCellEdit).toHaveBeenCalledTimes(2)
-    expect(onCellEdit).toHaveBeenLastCalledWith(
-      row,
-      fields[0],
-      "Ship Eidos File"
-    )
-    expect(container.querySelector('[role="alert"]')).toBeNull()
-    expect(
-      container.querySelector<HTMLTextAreaElement>("textarea")?.value
-    ).toBe("Ship Eidos File")
-  })
+      expect(onCellEdit).toHaveBeenCalledTimes(2)
+      expect(onCellEdit).toHaveBeenLastCalledWith(
+        row,
+        fields[0],
+        "Ship Eidos File"
+      )
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expect(
+        container.querySelector<HTMLTextAreaElement>("textarea")?.value
+      ).toBe("Ship Eidos File")
+    }
+  )
 
   it("announces full-record loading and offers a recoverable load error", async () => {
     const row = {
@@ -735,7 +819,7 @@ describe("EidosFileRecordInspector", () => {
     expect(pageHeaderRow?.className).toContain("py-2")
     expect(pageHeaderRow?.className).toContain("max-w-[760px]")
     expect(pageHeaderRow?.className).toContain("mx-auto")
-    expect(pageHeaderRow?.parentElement?.className).toContain("pt-4")
+    expect(pageHeaderRow?.parentElement?.className).toContain("pt-8")
     expect(pageHeaderRow?.parentElement?.className).not.toContain("border-b")
     const pageScroll = container.querySelector<HTMLElement>(
       '[data-eidos-file-record-page-scroll=""]'
@@ -761,7 +845,7 @@ describe("EidosFileRecordInspector", () => {
     expect(
       properties?.querySelector<HTMLElement>(".eidos-file-record-field")
         ?.className
-    ).toContain("py-1")
+    ).toContain("py-0.5")
     expect(
       properties?.querySelector('[data-eidos-file-field-type-icon="checkbox"]')
     ).not.toBeNull()
@@ -784,7 +868,7 @@ describe("EidosFileRecordInspector", () => {
       '[data-eidos-file-record-title=""] textarea[aria-label="Title"]'
     )
     expect(pageTitle?.className).toContain("border-0")
-    expect(pageTitle?.className).toContain("text-xl")
+    expect(pageTitle?.className).toContain("text-[40px]")
     expect(container.textContent).toContain("Design")
     expect(container.textContent).toContain("Local first.")
     expect(container.querySelector("script")).toBeNull()
@@ -860,6 +944,68 @@ describe("EidosFileRecordInspector", () => {
       "# Updated"
     )
     expect(onNextRecord).toHaveBeenCalledOnce()
+  })
+
+  it("keeps the source editor mounted after saving while the host closes the record", async () => {
+    const contentField: EidosFileFieldInfo = {
+      ...fields[0]!,
+      id: "body",
+      tableColumnName: "body",
+      name: "Body",
+      isRecordLabel: false,
+    }
+    const onCellEdit = vi.fn(async (previous, field, value) => ({
+      tableId: "tasks",
+      row: { ...previous, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+    const onClose = vi.fn()
+    await act(async () => {
+      root.render(
+        <EidosFileRecordInspector
+          variant="page"
+          fields={[...fields, contentField]}
+          row={{ _id: "row_1", title: "Write RFC", body: "# Saved" }}
+          contentField={contentField}
+          onCellEdit={onCellEdit}
+          onClose={onClose}
+        />
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector("[data-eidos-file-markdown-preview]")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+    const editor = container.querySelector<HTMLTextAreaElement>(
+      '[data-eidos-file-markdown-editor="source"] textarea'
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )!.set!.call(editor, "# Draft")
+      editor.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Close record details"]'
+        )!
+        .click()
+    })
+    expect(onCellEdit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ body: "# Saved" }),
+      contentField,
+      "# Draft"
+    )
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(
+      container.querySelector(
+        '[data-eidos-file-markdown-editor="source"] textarea'
+      )
+    ).toBe(editor)
+    expect(editor.value).toBe("# Draft")
   })
 
   it("keeps the content editor editable and preserves newer drafts across a save", async () => {
@@ -1145,10 +1291,10 @@ describe("EidosFileRecordInspector", () => {
     })
 
     const combobox = document.body.querySelector<HTMLInputElement>(
-      '[role="combobox"][aria-label="Search records for Owners"]'
+      '[role="combobox"][aria-label="Search relation records"]'
     )
     const listbox = document.body.querySelector<HTMLElement>(
-      '[role="listbox"][aria-label="Owners relation records"]'
+      '[role="listbox"][aria-label="Relation records"]'
     )
     expect(combobox?.getAttribute("aria-controls")).toBe(listbox?.id)
     expect(listbox?.querySelectorAll('[role="option"]')).toHaveLength(2)
@@ -1168,6 +1314,12 @@ describe("EidosFileRecordInspector", () => {
       await Promise.resolve()
     })
 
+    expect(onCellEdit).not.toHaveBeenCalled()
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Done")
+        ?.click()
+    })
     expect(onCellEdit).toHaveBeenCalledWith(
       row,
       ownersField,

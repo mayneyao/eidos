@@ -416,10 +416,17 @@ export function EidosFileFormulaComposer({
                   )}
                   <span className="min-w-0">
                     <span className="block truncate font-mono text-[11px]">
-                      {completion.label}
+                      {completion.displayLabel ?? completion.label}
                     </span>
-                    <span className="block truncate text-[10px] text-muted-foreground">
-                      {completion.info}
+                    <span
+                      className={cn(
+                        "block truncate text-[10px] text-muted-foreground",
+                        completion.kind === "field" && "capitalize"
+                      )}
+                    >
+                      {completion.kind === "field"
+                        ? t(completion.info)
+                        : completion.info}
                     </span>
                   </span>
                 </button>
@@ -441,10 +448,19 @@ export function EidosFileFormulaComposer({
                   <FunctionSquare className="h-3.5 w-3.5" />
                 )}
                 <code className="font-mono text-xs font-medium">
-                  {selectedCompletion.label}
+                  {selectedCompletion.displayLabel ?? selectedCompletion.label}
                 </code>
               </div>
-              <p className="mt-2 leading-5">{selectedCompletion.info}</p>
+              <p
+                className={cn(
+                  "mt-2 leading-5",
+                  selectedCompletion.kind === "field" && "capitalize"
+                )}
+              >
+                {selectedCompletion.kind === "field"
+                  ? t(selectedCompletion.info)
+                  : selectedCompletion.info}
+              </p>
               {selectedCompletion.example ? (
                 <pre className="mt-3 overflow-x-auto rounded-md border bg-background px-2.5 py-2 font-mono text-[11px] text-foreground">
                   {selectedCompletion.example}

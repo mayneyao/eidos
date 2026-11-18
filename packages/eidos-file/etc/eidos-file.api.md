@@ -123,6 +123,8 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
     // (undocumented)
     getRecordNeighbors(request: Parameters<RuntimeClient["getRecordNeighbors"]>[0], context: Parameters<RuntimeClient["getRecordNeighbors"]>[1]): ReturnType<RuntimeClient["getRecordNeighbors"]>;
     // (undocumented)
+    getRowIndex: RuntimeClient["getRowIndex"];
+    // (undocumented)
     getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
     // (undocumented)
     getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
@@ -286,9 +288,12 @@ export type AggregateItem = {
 // @public (undocumented)
 export interface AggregateRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     items: AggregateItem[];
     // (undocumented)
     query?: RowQuery;
+    referenceInstant?: string;
     // (undocumented)
     tableId: string;
 }
@@ -297,6 +302,8 @@ export interface AggregateRequest {
 export interface AggregateResponse {
     // (undocumented)
     fileId: string;
+    // (undocumented)
+    referenceInstant?: string;
     // (undocumented)
     results: AggregateResult[];
     // (undocumented)
@@ -317,6 +324,12 @@ export type AggregateResult = {
     key: string;
     statistics: ColumnStatistics;
 };
+
+// @public (undocumented)
+export function assertEidosFileCalendarContext(value: unknown): asserts value is EidosFileCalendarContext;
+
+// @public
+export function assertEidosFileCalendarZone(timeZone: string, timeZoneData: string): void;
 
 // @public @deprecated (undocumented)
 export function assertEidosFileColumnName(columnName: string): string;
@@ -344,6 +357,9 @@ export function assertEidosFileTableId(tableId: string): string;
 
 // @public (undocumented)
 export function assertEidosFileTableName(name: string): string;
+
+// @public
+export function assertEidosFileTemporalDefault(type: string, settings: Record<string, unknown> | null | undefined, writable?: boolean): "now" | null;
 
 // @public (undocumented)
 export function assertEidosFileUuid(value: string, label?: string): string;
@@ -597,6 +613,8 @@ export function compileEidosFileFormulaSource(source: string, fields: EidosFileF
 // @public (undocumented)
 export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: EidosFileRowQuery, context?: {
     referenceInstant?: string;
+    calendar?: EidosFileCalendarContext; /** External virtual sources may retain fractional precision beyond storage values. */
+    externalInstants?: boolean;
 }): CompiledEidosFileRowQuery;
 
 // @public (undocumented)
@@ -903,11 +921,14 @@ export interface CreateEidosFileViewInput {
 // @public (undocumented)
 export interface CsvExportRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     fields: string[];
     // (undocumented)
     includeHeader: boolean;
     // (undocumented)
     query: RowQuery;
+    referenceInstant?: string;
     // (undocumented)
     tableId: string;
 }
@@ -993,10 +1014,28 @@ export const EIDOS_ADAPTER_TRANSPORT_LIMITS: Readonly<AdapterTransportLimits>;
 export const EIDOS_FILE_APPLICATION_ID: 1162429523;
 
 // @public (undocumented)
+export const EIDOS_FILE_CALENDAR_MAX_YEAR = 2499;
+
+// @public (undocumented)
+export const EIDOS_FILE_CALENDAR_MIN_YEAR = 1970;
+
+// @public
+export const EIDOS_FILE_CALENDAR_TIME_ZONE_DATA = "2026f";
+
+// @public
+export const EIDOS_FILE_CALENDAR_WINDOW_COUNT_MAX = 1000000;
+
+// @public (undocumented)
 export const EIDOS_FILE_CSV_INFERENCE_ROW_COUNT = 1000;
 
 // @public (undocumented)
 export const EIDOS_FILE_CSV_PREVIEW_ROW_COUNT = 5;
+
+// @public (undocumented)
+export const EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT = "space.eidos/date-query-upgrade";
+
+// @public (undocumented)
+export const EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT_MAX_BYTES = 65536;
 
 // @public (undocumented)
 export const EIDOS_FILE_EXTENSION: ".eidos";
@@ -1097,6 +1136,92 @@ export interface EidosFileActionRow {
     version: string;
 }
 
+// @public
+export interface EidosFileCalendarContext {
+    // (undocumented)
+    timeZone: string;
+    // (undocumented)
+    timeZoneData: string;
+    // (undocumented)
+    weekStartsOn: 0 | 1;
+}
+
+// @public
+export function eidosFileCalendarDateRangeIntervals(startDate: string, endDate: string, timeZone: string, timeZoneData: string): Array<readonly [string, string]>;
+
+// @public (undocumented)
+export interface EidosFileCalendarDayBounds {
+    // (undocumented)
+    date: string;
+    intervals: Array<readonly [string, string]>;
+}
+
+// @public
+export function eidosFileCalendarDayBounds(value: EidosFileCalendarDayValue, referenceInstant: string): EidosFileCalendarDayBounds;
+
+// @public (undocumented)
+export interface EidosFileCalendarDayValue {
+    // (undocumented)
+    day: "yesterday" | "today" | "tomorrow";
+    // (undocumented)
+    timeZone: string;
+    // (undocumented)
+    timeZoneData: string;
+}
+
+// @public (undocumented)
+export interface EidosFileCalendarParts {
+    // (undocumented)
+    day: number;
+    // (undocumented)
+    hour: number;
+    // (undocumented)
+    millisecond: number;
+    // (undocumented)
+    minute: number;
+    // (undocumented)
+    month: number;
+    // (undocumented)
+    second: number;
+    // (undocumented)
+    year: number;
+}
+
+// @public (undocumented)
+export interface EidosFileCalendarPeriodBounds {
+    // (undocumented)
+    endDate: string;
+    intervals: Array<readonly [string, string]>;
+    startDate: string;
+}
+
+// @public
+export function eidosFileCalendarPeriodBounds(value: EidosFileCalendarPeriodValue, context: EidosFileCalendarContext, referenceInstant: string): EidosFileCalendarPeriodBounds;
+
+// @public (undocumented)
+export interface EidosFileCalendarPeriodValue {
+    // (undocumented)
+    offset: -1 | 0 | 1;
+    // (undocumented)
+    unit: "day" | "week" | "month" | "year";
+}
+
+// @public
+export function eidosFileCalendarTimeZones(timeZoneData: string): string[];
+
+// @public
+export function eidosFileCalendarWindowBounds(value: EidosFileCalendarWindowValue, context: EidosFileCalendarContext, referenceInstant: string): EidosFileCalendarPeriodBounds;
+
+// @public (undocumented)
+export interface EidosFileCalendarWindowValue {
+    // (undocumented)
+    count: number;
+    // (undocumented)
+    direction: "past" | "next";
+    // (undocumented)
+    unit: "day" | "week" | "month" | "year";
+}
+
 // @public (undocumented)
 export interface EidosFileCandidateDescriptor {
     // (undocumented)
@@ -1174,6 +1299,14 @@ export function eidosFileConversionCanReusePhysicalColumn(from: StoredFieldType,
 
 // @public
 export function eidosFileConversionTargetNullable(from: StoredFieldType, to: StoredFieldType, sourceNullable: boolean): boolean;
+
+// @public
+export interface EidosFileCreationContext {
+    // (undocumented)
+    timeZone: string;
+    // (undocumented)
+    timeZoneData: string;
+}
 
 // @public (undocumented)
 export interface EidosFileCsvColumnOverride {
@@ -1337,7 +1470,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext, creationQuery?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     readTableActionRows?(tableId: string, rowIds: string[], fieldIds: string[]): Promise<EidosFileActionRow[]>;
@@ -1370,6 +1503,22 @@ export interface EidosFileDataSource {
         expectedVersion: string;
     }): Promise<EidosFilePluginConfig>;
 }
+
+// @public (undocumented)
+export interface EidosFileDateQueryUpgrade {
+    // (undocumented)
+    changes: Array<{
+        fieldId: string;
+        from: string;
+        unit: "day" | "week" | "month" | "year";
+        offset: -1 | 0 | 1;
+    }>;
+    // (undocumented)
+    query: SavedViewQuery;
+}
+
+// @public (undocumented)
+export function eidosFileDateQueryUpgradeReceipt(originalQuery: unknown, upgrade: EidosFileDateQueryUpgrade): JsonObject;
 
 // @public (undocumented)
 export interface EidosFileDescriptor {
@@ -1536,7 +1685,7 @@ export interface EidosFileFilterGroup {
 }
 
 // @public (undocumented)
-export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of" | "is-between" | "is-relative-to-today";
+export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of" | "is-between" | "is-relative-to-today" | "is-on-calendar-day" | "is-in-calendar-period" | "is-in-calendar-window";
 
 // @public (undocumented)
 export interface EidosFileFilterRule {
@@ -1551,7 +1700,7 @@ export interface EidosFileFilterRule {
 }
 
 // @public (undocumented)
-export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterValue[] | EidosFileRelativeDateValue;
+export type EidosFileFilterRuleValue = EidosFileFilterValue | EidosFileFilterValue[] | EidosFileRelativeDateValue | EidosFileCalendarDayValue | EidosFileCalendarPeriodValue | EidosFileCalendarWindowValue;
 
 // @public (undocumented)
 export type EidosFileFilterValue = string | number | boolean | null;
@@ -1952,6 +2101,8 @@ export interface EidosFileRowPage {
     // (undocumented)
     offset: number;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     rows: EidosFileRow[];
     // (undocumented)
     tableId: string;
@@ -1986,8 +2137,11 @@ export interface EidosFileRowPageProjection {
 
 // @public (undocumented)
 export interface EidosFileRowQuery {
+    calendar?: EidosFileCalendarContext;
     // (undocumented)
     filter?: EidosFileFilterGroup | null;
+    // (undocumented)
+    referenceInstant?: string;
     // (undocumented)
     search?: string;
     searchFields?: string[];
@@ -2026,6 +2180,9 @@ export interface EidosFileRowsDeleteResult {
 
 // @public (undocumented)
 export interface EidosFileRowsMutation {
+    // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    creationQuery?: EidosFileRowQuery;
     // (undocumented)
     delete?: string[];
     // (undocumented)
@@ -2168,6 +2325,8 @@ export class EidosFileRuntime {
     // (undocumented)
     getRow(tableId: string, rowId: string): EidosFileRow | null;
     getRowIndex(tableId: string, rowId: string, query?: EidosFileRowQuery): number | null;
+    // @internal
+    getRowIndexValue(tableId: string, rowId: string, query?: EidosFileRowQuery): string | null;
     // (undocumented)
     getRowPage(tableId: string, offset: number, limit: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
     // (undocumented)
@@ -2183,7 +2342,7 @@ export class EidosFileRuntime {
     // (undocumented)
     insertImportedRows(tableId: string, rows: EidosFileRow[]): EidosFileRow[];
     // (undocumented)
-    insertRow(tableId: string, row: EidosFileRow): EidosFileRow;
+    insertRow(tableId: string, row: EidosFileRow, creationContext?: EidosFileCreationContext): EidosFileRow;
     // (undocumented)
     inspect(): EidosFileValidationResult;
     // (undocumented)
@@ -2251,6 +2410,15 @@ export class EidosFileRuntime {
         total: number;
     }>;
     // @internal
+    runtimeQueryRows(tableId: string, options: {
+        fields: string[];
+        query: EidosFileRowQuery;
+        limit: number;
+        offset?: number;
+        cursor?: string;
+        resolveRelations: boolean;
+    }): EidosFileLogicalRow[];
+    // @internal
     runtimeScanLogicalRows(tableId: string, fieldIds: string[], query: EidosFileRowQuery): EidosFileLogicalRow[];
     // (undocumented)
     schema(tableId?: string): {
@@ -2260,6 +2428,8 @@ export class EidosFileRuntime {
     }[];
     // (undocumented)
     setFieldNullable(fieldId: string, nullable: boolean): EidosFileFieldInfo;
+    // @internal
+    setRequestInstant(instant?: string): void;
     // (undocumented)
     updateField(tableId: string, fieldKey: string, changes: UpdateEidosFileFieldInput): EidosFileFieldInfo;
     // (undocumented)
@@ -2322,7 +2492,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>, creationContext?: EidosFileCreationContext, creationQuery?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     readonly path: string;
     // (undocumented)
@@ -2452,6 +2622,12 @@ export interface EidosFileSnapshot {
     // (undocumented)
     path: string;
     // (undocumented)
+    queryCapabilities?: {
+        calendarWindowVersion?: 1;
+        calendarQueryVersion?: 2;
+        calendarPeriodTimeZoneData?: string[];
+    };
+    // (undocumented)
     tables: EidosFileTableSnapshot[];
 }
 
@@ -2561,9 +2737,13 @@ export interface EidosFileTableSnapshot {
     rowCount: number;
     // (undocumented)
     table: EidosFileTableInfo;
+    temporalDefaultsVersion?: 1;
     // (undocumented)
     views: EidosFileViewInfo[];
 }
+
+// @public
+export function eidosFileTemporalDefaultValue(type: string, settings: Record<string, unknown> | null | undefined, referenceInstant: string, context?: EidosFileCreationContext): string | null;
 
 // @public
 export function eidosFileTextMultiSelectChoices(text: string): string[];
@@ -2686,6 +2866,8 @@ export class EidosRuntimeService implements RuntimeClient {
     // (undocumented)
     getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
     // (undocumented)
+    getRowIndex(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
+    // (undocumented)
     getRowsById(request: {
         tableId: string;
         rowIds: string[];
@@ -2729,8 +2911,14 @@ export class EidosRuntimeService implements RuntimeClient {
     }, context: RequestContext): Promise<{
         version: "1.0";
         capabilities: {
+            viewCreationDefaultsVersion?: 1;
+            temporalDefaultsVersion?: 1;
+            calendarWindowVersion?: 1;
+            calendarQueryVersion?: 2;
+            calendarPeriodTimeZoneData?: string[];
             readRows: boolean;
             batchRowPages?: boolean;
+            rowIndex?: boolean;
             schemaPaging: boolean;
             cursorPaging: boolean;
             aggregate: boolean;
@@ -2787,6 +2975,8 @@ export class EidosRuntimeService implements RuntimeClient {
     // (undocumented)
     queryRowPages(request: {
         tableId: string;
+        calendar?: EidosFileCalendarContext;
+        referenceInstant?: string;
         queries: RowQuery[];
         projection: ProjectionSpec;
         limit: number;
@@ -3052,7 +3242,16 @@ export interface FileEntry extends JsonObject {
 }
 
 // @public (undocumented)
-export type FilterNode = {
+export type FilterNode = ({
+    op: "calendar-window";
+    fieldId: string;
+} & EidosFileCalendarWindowValue) | ({
+    op: "calendar-period";
+    fieldId: string;
+} & EidosFileCalendarPeriodValue) /** @deprecated Retired wire shape retained for diagnostics and explicit upgrade. */ | ({
+    op: "calendar-day";
+    fieldId: string;
+} & EidosFileCalendarDayValue) | {
     op: "and" | "or";
     args: FilterNode[];
 } | {
@@ -3162,7 +3361,10 @@ export interface ForwardRelationDefinition {
 // @public (undocumented)
 export interface GetRecordNeighborsRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     query: RowQuery;
+    referenceInstant?: string;
     // (undocumented)
     rowId: string;
     // (undocumented)
@@ -3171,6 +3373,9 @@ export interface GetRecordNeighborsRequest {
 
 // @public (undocumented)
 export interface GetSchemaPageRequest {
+    calendarQueryVersion?: 2;
+    // (undocumented)
+    calendarWindowVersion?: 1;
     // (undocumented)
     cursor?: string;
     // (undocumented)
@@ -3200,6 +3405,8 @@ export interface GroupPage {
     // (undocumented)
     projectionHash: string;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     revision: string;
     // (undocumented)
     tableId: string;
@@ -3209,6 +3416,8 @@ export interface GroupPage {
 export interface GroupRequest {
     // (undocumented)
     aggregates: AggregateItem[];
+    // (undocumented)
+    calendar?: EidosFileCalendarContext;
     // (undocumented)
     cursor?: string;
     // (undocumented)
@@ -3221,6 +3430,7 @@ export interface GroupRequest {
     projection: ProjectionSpec;
     // (undocumented)
     query: RowQuery;
+    referenceInstant?: string;
     // (undocumented)
     rowsPerGroup: number;
     // (undocumented)
@@ -3242,6 +3452,8 @@ export interface GroupRowPage {
     // (undocumented)
     projectionHash: string;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     revision: string;
     // (undocumented)
     rows: ProjectedRow[];
@@ -3252,15 +3464,30 @@ export interface GroupRowPage {
 // @public (undocumented)
 export interface GroupRowsRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     cursor: string;
     // (undocumented)
     direction?: "forward" | "backward";
     // (undocumented)
     limit: number;
+    referenceInstant?: string;
 }
+
+// @public
+export function hasEidosFileCalendarPeriodQuery(value: unknown): boolean;
+
+// @public
+export function hasEidosFileCalendarQuery(value: unknown): boolean;
+
+// @public (undocumented)
+export function hasEidosFileCalendarWindowQuery(value: unknown): boolean;
 
 // @public (undocumented)
 export function hasEidosFileSqliteHeader(bytes: ArrayBuffer | Uint8Array): boolean;
+
+// @public (undocumented)
+export function hasRetiredEidosFileDateQuery(value: unknown): boolean;
 
 // @public (undocumented)
 export interface HostCapabilities {
@@ -3583,6 +3810,15 @@ export function isCanonicalEidosFileInstant(value: unknown): value is string;
 // @public (undocumented)
 export function isCanonicalEidosFileJson(text: string): boolean;
 
+// @public (undocumented)
+export function isEidosFileCalendarDayValue(value: unknown): value is EidosFileCalendarDayValue;
+
+// @public (undocumented)
+export function isEidosFileCalendarPeriodValue(value: unknown): value is EidosFileCalendarPeriodValue;
+
+// @public (undocumented)
+export function isEidosFileCalendarWindowValue(value: unknown): value is EidosFileCalendarWindowValue;
+
 // @public
 export function isEidosFileFilterOperator(value: unknown): value is EidosFileFilterRule["operator"];
 
@@ -3784,6 +4020,9 @@ export interface ProjectedRow {
     values: LogicalValue[];
 }
 
+// @public
+export function projectEidosFileCalendarInstant(instant: string, timeZone: string, timeZoneData: string): EidosFileCalendarParts | null;
+
 // @public (undocumented)
 export interface ProjectionSpec {
     // (undocumented)
@@ -3811,6 +4050,8 @@ export interface QueryResult {
 // @public (undocumented)
 export interface QueryRowsRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     cursor?: string;
     // (undocumented)
     direction?: "forward" | "backward";
@@ -3822,6 +4063,7 @@ export interface QueryRowsRequest {
     projection: ProjectionSpec;
     // (undocumented)
     query: RowQuery;
+    referenceInstant?: string;
     // (undocumented)
     tableId: string;
 }
@@ -3872,6 +4114,9 @@ export type ResolvedRelationItem = {
     label: LogicalValue;
 };
 
+// @public
+export function resolveEidosFileCalendarInstant(parts: EidosFileCalendarParts, timeZone: string, timeZoneData: string): string | null;
+
 // @public (undocumented)
 export type Revision = string;
 
@@ -3913,7 +4158,12 @@ export type RowChange = {
 // @public (undocumented)
 export interface RowMutation {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     changes: RowChange[];
+    // (undocumented)
+    creationContext?: EidosFileCreationContext;
+    creationQuery?: RowQuery;
     // (undocumented)
     expectedRevision: string;
     // (undocumented)
@@ -3935,11 +4185,14 @@ export interface RowPage {
     // (undocumented)
     projectionHash: string;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     revision: string;
     // (undocumented)
     rows: ProjectedRow[];
     // (undocumented)
     tableId: string;
+    total?: string;
 }
 
 // @public (undocumented)
@@ -3990,6 +4243,12 @@ export interface RuntimeCapabilities {
     // (undocumented)
     batchRowPages?: boolean;
     // (undocumented)
+    calendarPeriodTimeZoneData?: string[];
+    // (undocumented)
+    calendarQueryVersion?: 2;
+    // (undocumented)
+    calendarWindowVersion?: 1;
+    // (undocumented)
     csvExport: boolean;
     // (undocumented)
     csvImport: boolean;
@@ -4012,11 +4271,17 @@ export interface RuntimeCapabilities {
     // (undocumented)
     readRows: boolean;
     // (undocumented)
+    rowIndex?: boolean;
+    // (undocumented)
     schemaPaging: boolean;
     // (undocumented)
     schemaPreflight: boolean;
     // (undocumented)
+    temporalDefaultsVersion?: 1;
+    // (undocumented)
     validate: boolean;
+    // (undocumented)
+    viewCreationDefaultsVersion?: 1;
 }
 
 // @public (undocumented)
@@ -4033,6 +4298,8 @@ export interface RuntimeClient {
     exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
     // (undocumented)
     getRecordNeighbors(request: GetRecordNeighborsRequest, context: RequestContext): Promise<RecordNeighbors>;
+    // (undocumented)
+    getRowIndex?(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
         tableId: string;
@@ -4079,6 +4346,8 @@ export interface RuntimeClient {
     // (undocumented)
     queryRowPages?(request: {
         tableId: string;
+        calendar?: EidosFileCalendarContext; /** Omit for a fresh root; follow-up reads may reuse the returned root instant. */
+        referenceInstant?: string;
         queries: RowQuery[];
         projection: ProjectionSpec;
         limit: number;
@@ -4210,6 +4479,10 @@ export interface RuntimeHostBridge {
     createPublicationSnapshot(request: {
         maxBytes: string;
     }, context: RequestContext): Promise<RuntimePublicationSnapshot>;
+    // @internal
+    queuedRead?<T>(operation: (() => T) & ([Extract<T, {
+        then: (...args: never[]) => unknown;
+    }>] extends [never] ? unknown : never), context: RequestContext): Promise<T>;
 }
 
 // @public (undocumented)
@@ -4643,6 +4916,9 @@ export function sqlValueToNative(value: SqlValue): EidosFileSqlPrimitive;
 export type StoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select" | "multi-select" | "file" | "relation";
 
 // @public (undocumented)
+export function supportsEidosFileCalendarProfile(timeZoneData: string): boolean;
+
+// @public (undocumented)
 export interface TableDescriptor {
     // (undocumented)
     id: string;
@@ -4721,11 +4997,16 @@ export interface UpdateEidosFileViewInput {
     position?: number | null;
     // (undocumented)
     properties?: Record<string, unknown> | null;
+    restoreDateQuery?: boolean;
     // (undocumented)
     sorts?: EidosFileSort[];
     // (undocumented)
     type?: string;
+    upgradeDateQuery?: boolean;
 }
+
+// @public
+export function upgradeEidosFileDateQuery(value: unknown): EidosFileDateQueryUpgrade;
 
 // @public (undocumented)
 export interface UrlImageLease {
@@ -4780,6 +5061,12 @@ export interface ValidationRequest {
 
 // @public (undocumented)
 export type ViewChange = {
+    kind: "upgrade-date-query";
+    viewId: string;
+} | {
+    kind: "restore-date-query";
+    viewId: string;
+} | {
     kind: "create-view";
     clientKey: string;
     tableId: string;
@@ -4804,28 +5091,28 @@ export type ViewChange = {
 };
 
 // @public (undocumented)
-export interface ViewDescriptor {
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    layout: JsonObject;
-    // (undocumented)
-    name: string;
-    // (undocumented)
+export type ViewDescriptor = {
     object: "view";
-    // (undocumented)
-    position: string;
-    // (undocumented)
-    query: SavedViewQuery;
-    queryStatus?: "supported" | "unsupported";
-    // (undocumented)
+    id: string;
     tableId: string;
-    // (undocumented)
+    name: string;
     type: string;
-}
+    layout: JsonObject;
+    position: string;
+} & ({
+    queryStatus?: "supported";
+    query: SavedViewQuery;
+} /** Opaque original document. It must never be replaced with an empty query. */ | {
+    queryStatus: "unsupported";
+    query: JsonObject;
+});
 
 // @public (undocumented)
 export interface ViewMutationRequest {
+    // (undocumented)
+    calendarQueryVersion?: 2;
+    // (undocumented)
+    calendarWindowVersion?: 1;
     // (undocumented)
     changes: ViewChange[];
     // (undocumented)

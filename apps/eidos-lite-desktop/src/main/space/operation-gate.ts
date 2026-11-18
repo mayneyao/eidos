@@ -9,6 +9,8 @@ import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 
 interface MaterializationHooks {
   assertRootIdentity?(): Promise<void>
+  assertWritable?(): void
+  assertRepositoryAccess?(): void
   closeRuntimes(): Promise<void>
   validateWorktree(relativePaths?: readonly string[]): Promise<void>
   reopenRuntimes(): Promise<void>
@@ -105,6 +107,7 @@ export class SpaceOperationGate {
   }
 
   async withMutation<T>(operation: () => Promise<T>): Promise<T> {
+    this.hooks.assertWritable?.()
     if (
       !this.acceptingMutations ||
       this.closing ||
@@ -148,6 +151,7 @@ export class SpaceOperationGate {
       signal?: AbortSignal
     } = {}
   ): Promise<T> {
+    this.hooks.assertRepositoryAccess?.()
     if (this.closing || this.state.phase === "closed") {
       return Promise.reject(new Error("Space is closed"))
     }
@@ -232,6 +236,7 @@ export class SpaceOperationGate {
   }
 
   withMaterialization<T>(options: MaterializationOptions<T>): Promise<T> {
+    this.hooks.assertWritable?.()
     return this.withRepositoryOperation(
       options.detail ?? options.kind,
       async (signal) => {

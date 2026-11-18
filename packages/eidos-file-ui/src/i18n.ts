@@ -3,7 +3,88 @@ export type EidosFileUILocale = "en" | "zh"
 export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
 
+const en: EidosFileUIMessageOverrides = {
+  "Past (relative date)": "Past",
+  "Next (relative date)": "Next",
+  "This (relative date)": "This",
+  "Last (relative date)": "Last",
+}
+
 const zh: EidosFileUIMessageOverrides = {
+  "Field changes affect every record in this table.":
+    "字段更改会影响此表的所有记录。",
+  "Add a property": "添加属性",
+  Properties: "属性",
+  "Show {count} hidden property": "显示 {count} 个隐藏属性",
+  "Show {count} hidden properties": "显示 {count} 个隐藏属性",
+  "Collapse {count} hidden property": "收起 {count} 个隐藏属性",
+  "Collapse {count} hidden properties": "收起 {count} 个隐藏属性",
+  "Delete field from table": "从表中删除字段",
+  "Manage record properties": "管理记录属性",
+  "Properties in records": "记录中的属性",
+  "Display settings apply to records in this table, not view columns.":
+    "显示设置应用于此表的记录，不影响视图列。",
+  "Always hide system fields": "始终隐藏系统字段",
+  "No visible properties": "没有显示的属性",
+  "All properties": "所有属性",
+  "Save record edits before changing fields.": "更改字段前请先保存记录编辑。",
+  "Unable to save record property preferences": "无法保存记录属性偏好",
+  "Field changes are unavailable": "当前无法更改字段",
+  "Properties ({count})": "属性（{count}）",
+  "Edit files": "编辑文件",
+  "Clear {field}": "清空{field}",
+  "Past (relative date)": "过去",
+  "Next (relative date)": "接下来",
+  "This (relative date)": "当前",
+  "Last (relative date)": "上一个",
+  "Number of periods": "数量",
+  "More actions": "更多操作",
+  "Filter date range": "筛选日期范围",
+  "Filter will update with the current date": "筛选会随当前日期自动更新",
+  "After updating, this file requires Eidos with the new date filters.":
+    "更新后，此文件需要支持新版日期筛选的 Eidos。",
+  "Relative date": "相对日期",
+  "Is relative to today": "相对于今天",
+  "In a calendar period": "属于日历周期",
+  "Period relation": "周期关系",
+  "Calendar unit": "周期单位",
+  "Last period": "上期",
+  "This period": "本期",
+  "Next period": "下期",
+  Yesterday: "昨天",
+  Tomorrow: "明天",
+  "Last week": "上周",
+  "This week": "本周",
+  "Last month": "上月",
+  "This month": "本月",
+  "Last year": "去年",
+  "This year": "本年",
+  "Next year": "明年",
+  "Date filters need updating": "日期筛选需要更新",
+  "Update date filters": "更新日期筛选",
+  "Updating…": "正在更新…",
+  "Could not update date filters": "日期筛选更新失败",
+  "Update these filters to use whole calendar periods in your current time zone. Their meaning will change as shown below. Your original query will be kept for recovery.":
+    "更新后，这些筛选将按你当前时区的完整日历周期计算，含义会按下表改变。原查询会保留，供恢复使用。",
+  "This editor cannot use the application's calendar settings. Open this view in an updated editor.":
+    "此编辑器暂不支持当前日历设置。请使用新版编辑器打开此视图。",
+  "Yesterday (saved time zone)": "昨天（原时区）",
+  "Today (saved time zone)": "今天（原时区）",
+  "Tomorrow (saved time zone)": "明天（原时区）",
+  "Past 24 hours": "过去 24 小时",
+  "Past 7 days": "过去 7 天",
+  "Past month from now": "从现在往前一个月",
+  "Past year from now": "从现在往前一年",
+  "Next 24 hours": "未来 24 小时",
+  "Next 7 days": "未来 7 天",
+  "Next month from now": "从现在往后一个月",
+  "Next year from now": "从现在往后一年",
+  "Today (UTC)": "今天（UTC）",
+  "This week (UTC)": "本周（UTC）",
+  "This month (UTC)": "本月（UTC）",
+  "This year (UTC)": "本年（UTC）",
+  "Dates outside 1970–2499 are read-only here. Your saved value is unchanged.":
+    "此处只能查看 1970–2499 年以外的日期。已保存的值保持不变。",
   "Find a field…": "搜索属性…",
   "Filtered property unavailable": "筛选的属性已不可用",
   "Filter operator": "筛选运算符",
@@ -122,6 +203,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Default option": "默认选项",
   "Default option for new records": "新记录的默认选项",
   "No default": "无默认值",
+  "Default value": "默认值",
   "Applied when a new record omits this field.":
     "新建记录未填写此字段时自动使用。",
   "Search options…": "搜索选项…",
@@ -159,6 +241,11 @@ const zh: EidosFileUIMessageOverrides = {
   year: "年",
   "Starting date": "开始日期",
   "Ending date": "结束日期",
+  "Date range": "日期范围",
+  Hour: "小时",
+  Minute: "分钟",
+  "The ending date must be on or after the starting date.":
+    "结束日期不能早于开始日期。",
   "Filter updates with the current date.": "筛选会随当前日期自动更新。",
   Clear: "清除",
   "Clearing…": "正在清除…",
@@ -197,6 +284,17 @@ const zh: EidosFileUIMessageOverrides = {
   "Delete record": "删除记录",
   "Delete records": "删除记录",
   "Delete {count} records": "删除 {count} 条记录",
+  "Copy {count} record IDs": "复制 {count} 条记录的 ID",
+  "Actions for {count} selected records": "所选 {count} 条记录的操作",
+  "Could not delete the selected records.": "无法删除所选记录。",
+  "This removes the selected records from the Eidos File.":
+    "这会从 Eidos File 中删除选中的记录。",
+  "This removes the record from the Eidos File.":
+    "这会从 Eidos File 中删除这条记录。",
+  "This removes the selected records from the Eidos File. This action cannot be undone from the current view.":
+    "这将从 Eidos File 中删除所选记录，无法在当前视图中撤销。",
+  "deleteRows accepts at most 500 Row IDs per atomic operation":
+    "单次最多可删除 500 条记录。请减少选择后重试。",
   "Delete {count} records?": "删除 {count} 条记录？",
   "This action cannot be undone.": "此操作无法撤销。",
   Cancel: "取消",
@@ -469,6 +567,8 @@ const zh: EidosFileUIMessageOverrides = {
   "No matching field type.": "没有匹配的字段类型。",
   "Unable to save formula": "无法保存公式",
   "Edit formula": "编辑公式",
+  "New formula": "新建公式",
+  "Preview uses the current record.": "使用当前记录预览结果。",
   "Unable to save lookup": "无法保存查找字段",
   "Edit lookup": "编辑查找字段",
   "Derive {name} through an existing relation.":
@@ -572,6 +672,9 @@ const zh: EidosFileUIMessageOverrides = {
   "Unavailable record": "记录不可用",
   "Selected records, {count}": "已选记录，{count} 条",
   "Selected · {count}": "已选 · {count}",
+  "Select {count} or fewer records to delete":
+    "每次最多删除 {count} 条记录，请缩小选区",
+  Selected: "已选中",
   Results: "结果",
   Records: "记录",
   "All loaded records are linked": "已加载的记录均已关联",
@@ -585,6 +688,10 @@ const zh: EidosFileUIMessageOverrides = {
   "Choose date": "选择日期",
   "Choose date & time": "选择日期与时间",
   "Time zone: {timeZone}": "时区：{timeZone}",
+  "Current date": "当前日期",
+  "Current time": "当前时间",
+  "Filled when a record is created. You can edit or clear it.":
+    "创建记录时填写，之后仍可编辑或清空。",
   "This time is ambiguous or unavailable in {timeZone}. Choose another time.":
     "这个时间在 {timeZone} 中重复或不存在，请选择其他时间。",
   "Manage files": "管理文件",
@@ -795,7 +902,9 @@ export function translateEidosFileUI(
   overrides: Partial<EidosFileUIMessageOverrides> = {}
 ): string {
   const template =
-    overrides[message] ?? (locale === "zh" ? zh[message] : null) ?? message
+    overrides[message] ??
+    (locale === "zh" ? zh[message] : en[message]) ??
+    message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
     template

@@ -75,6 +75,7 @@ const copy = async (relative) => {
 }
 await copy("Cargo.toml")
 await copy("Cargo.lock")
+await copy("pnpm-lock.yaml")
 await copy("crates")
 await copy("apps/cli")
 await copy("apps/plugin-sandbox")

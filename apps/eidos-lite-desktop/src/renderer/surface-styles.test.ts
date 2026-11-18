@@ -55,14 +55,16 @@ function ruleAfter(selector: string, after: string, source = styles): string {
 }
 
 describe("Eidos Lite surface hierarchy", () => {
-  it("reserves the tinted shell background for the file tree sidebar", () => {
+  it("distinguishes navigation sidebars from their content surfaces", () => {
     expect(rule(":root", themeStyles)).toContain(
       "--canvas: var(--theme-surface)"
     )
     expect(rule(":root", themeStyles)).toContain("--surface: var(--canvas)")
     expect(rule(".space-sidebar")).toContain("var(--lite-sidebar)")
     expect(rule(".editor-region")).toContain("background: var(--canvas)")
-    expect(rule(".settings-sidebar")).toContain("background: var(--canvas)")
+    expect(rule(".settings-sidebar")).toContain(
+      "background: color-mix(in oklab, var(--canvas) 96%, var(--ink))"
+    )
   })
 
   it("keeps title bars on the default surface with quiet separators", () => {
@@ -102,8 +104,8 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".welcome-titlebar")).toContain(
       "height: var(--window-titlebar-height)"
     )
-    expect(rule(".settings-shell")).toContain(
-      "grid-template-rows: var(--window-titlebar-height)"
+    expect(rule(".settings-titlebar")).toContain(
+      "height: var(--window-titlebar-height)"
     )
     expect(rule(".workbench")).toContain(
       "--workbench-titlebar-height: var(--window-titlebar-height)"
@@ -128,12 +130,17 @@ describe("Eidos Lite surface hierarchy", () => {
       "var(--window-controls-overlay-width)"
     ).filter((entry) => !entry.includes("--window-caption-width:"))
 
-    expect(actionRules).toHaveLength(4)
+    expect(actionRules).toHaveLength(5)
     for (const overlayRule of [overlayShells, ...actionRules]) {
       expect(overlayRule).toContain('[data-platform="linux"]')
       expect(overlayRule).toContain('[data-platform="other"]')
     }
     expect(overlayShells).toContain("--window-controls-overlay-width")
+    const settingsHeader = actionRules.find((entry) =>
+      entry.includes(".settings-titlebar")
+    )
+    expect(settingsHeader).toContain('[data-platform="win32"]')
+    expect(settingsHeader).not.toContain('[data-platform="darwin"]')
     expect(
       actionRules.some((actionRule) =>
         actionRule.includes(".welcome-settings-button")
@@ -258,8 +265,8 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".welcome-titlebar")).toContain(
       "height: var(--window-titlebar-height)"
     )
-    expect(rule(".settings-shell")).toContain(
-      "grid-template-rows: var(--window-titlebar-height)"
+    expect(rule(".settings-titlebar")).toContain(
+      "height: var(--window-titlebar-height)"
     )
     expect(rule(".workbench")).toContain(
       "--workbench-titlebar-height: var(--window-titlebar-height)"

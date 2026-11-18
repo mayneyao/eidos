@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-lite-desktop",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "private": true,
   "description": "Independent local-first desktop client for Eidos File Spaces",
   "author": "mayneyao",
@@ -9,10 +9,10 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "verify:merge-demo": "node ../../scripts/run-electron-node.mjs --import tsx scripts/verify-merge-demo.ts",
-    "dev": "pnpm run prepare:terminal && pnpm run prepare:vtab && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite",
-    "build": "pnpm run prepare:terminal && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite build && node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs",
-    "build:production": "pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
-    "build:release": "pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-release && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
+    "dev": "pnpm run prepare:file-clipboard && pnpm run prepare:terminal && pnpm run prepare:vtab && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite",
+    "build": "pnpm run prepare:file-clipboard && pnpm run prepare:terminal && pnpm run prepare:graft-e2ee && pnpm run prepare:plugin-compiler && vite build && node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs",
+    "build:production": "pnpm run prepare:file-clipboard && pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
+    "build:release": "pnpm run prepare:file-clipboard && pnpm run verify:graft-release && pnpm run prepare:terminal && pnpm run prepare:plugin-compiler && vite build --mode eidos-release && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
     "test": "pnpm run prepare:terminal && pnpm run prepare:vtab && node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "test:performance": "node scripts/performance-smoke.mjs",
     "test:auto-sync:electron": "node scripts/automatic-sync-electron-smoke.mjs",
@@ -36,7 +36,8 @@
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
     "verify:packaged-file-runtime": "node ../../scripts/run-electron-node.mjs scripts/verify-packaged-file-runtime.mjs",
     "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs",
-    "smoke:markdown-image": "node scripts/packaged-markdown-image-smoke.mjs"
+    "smoke:markdown-image": "node scripts/packaged-markdown-image-smoke.mjs",
+    "prepare:file-clipboard": "node scripts/prepare-file-clipboard.mjs"
   },
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
@@ -60,6 +61,7 @@
     "electron-updater": "^6.8.9",
     "esbuild": "0.28.1",
     "ignore": "7.0.14",
+    "koffi": "3.3.3",
     "lucide-react": "^0.471.2",
     "marked": "^4.3.0",
     "node-pty": "^1.1.0",

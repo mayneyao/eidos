@@ -14,7 +14,11 @@
     "**/node_modules/@eidos.space/eidos-file/dist/**/*",
     "**/node_modules/@eidos.space/eidos-file/package.json",
     "**/node_modules/csv-parse/**/*",
+    "**/node_modules/moment/**/*",
+    "**/node_modules/moment-timezone/**/*",
     "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/koffi/**/*",
+    "**/node_modules/@koromix/koffi-*/**/*",
     "**/node_modules/node-pty/**/*",
     "**/node_modules/esbuild/**/*",
     "**/node_modules/@esbuild/**/*",
@@ -27,6 +31,7 @@
     "**/node_modules/esbuild/**/*",
     "**/node_modules/@esbuild/**/*",
     "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/@koromix/koffi-*/**/*",
     "**/node_modules/node-pty/**/*"
   ],
   "extraResources": [
@@ -88,7 +93,14 @@
       "NSBluetoothPeripheralUsageDescription": "Allow Eidos Lite to connect to BLE devices selected for plugins."
     },
     "gatekeeperAssess": false,
-    "notarize": true
+    "notarize": true,
+    "extraResources": [
+      {
+        "from": "resources/file-clipboard",
+        "to": "file-clipboard",
+        "filter": ["eidos-file-clipboard"]
+      }
+    ]
   },
   "win": {
     "target": ["nsis"],

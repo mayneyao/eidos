@@ -13,18 +13,29 @@ import {
 } from "./explorer-file-filter"
 
 export const EXPLORER_FIELD_PREFIX = "explorer:"
+export const EXPLORER_SIZE_FIELD = EXPLORER_FIELD_PREFIX + "size"
+const fileSystemFields = new Set([
+  EXPLORER_FIELD_PREFIX + "modifiedAt",
+  EXPLORER_FIELD_PREFIX + "createdAt",
+  EXPLORER_SIZE_FIELD,
+])
 
 export function explorerBuiltinFields(
   t: (text: string) => string
 ): EidosFileFieldInfo[] {
-  return [
-    ["name", "File name"],
-    ["suffix", "File suffix"],
-    ["path", "File path"],
-  ].map(([key, label]) => ({
+  return (
+    [
+      ["name", "File name", "text"],
+      ["suffix", "File suffix", "multi-select"],
+      ["path", "File path", "text"],
+      ["modifiedAt", "Modified time", "date"],
+      ["createdAt", "Created time", "date"],
+      ["size", "File size", "number"],
+    ] as const
+  ).map(([key, label, type]) => ({
     id: EXPLORER_FIELD_PREFIX + key,
     name: t(label),
-    type: key === "suffix" ? "multi-select" : "text",
+    type,
     tableId: "explorer",
     tableName: "explorer",
     tableColumnName: key,
@@ -40,13 +51,36 @@ export function explorerBuiltinFields(
 }
 
 export function explorerFieldOperators(
-  field: EidosFileFieldInfo
+  field: EidosFileFieldInfo,
+  extendedCalendarPeriods: boolean,
+  extendedCalendarWindows: boolean
 ): EidosFileFilterOperator[] {
   if (field.id === EXPLORER_FIELD_PREFIX + "suffix")
     return ["is-any-of", "is-none-of"]
+  if (field.id === EXPLORER_SIZE_FIELD)
+    return [
+      "greater-than",
+      "greater-than-or-equal",
+      "less-than",
+      "less-than-or-equal",
+      "is-between",
+      "equals",
+    ]
+  const operators = eidosFileFieldQueryCapabilities(field).filterOperators
+  if (fileSystemFields.has(field.id))
+    return operators.filter(
+      (operator) =>
+        operator !== "not-equals" &&
+        operator !== "is-empty" &&
+        operator !== "is-not-empty"
+    )
   if (field.id.startsWith(EXPLORER_FIELD_PREFIX))
     return [...EXPLORER_TEXT_OPERATORS]
-  return [...eidosFileFieldQueryCapabilities(field).filterOperators]
+  return operators.filter(
+    (operator) =>
+      (operator !== "is-in-calendar-period" || extendedCalendarPeriods) &&
+      (operator !== "is-in-calendar-window" || extendedCalendarWindows)
+  )
 }
 
 export function explorerToUIFilter(
@@ -58,7 +92,7 @@ export function explorerToUIFilter(
     children: group.children.map((child) =>
       child.type === "group"
         ? visit(child)
-        : child.field === "property"
+        : child.field === "property" || child.field === "file-system"
           ? child.value
           : {
               type: "rule",
@@ -91,6 +125,17 @@ export function explorerFromUIFilter(
       (child, index): ExplorerFilterGroup | ExplorerFilterRule => {
         const id = prefix + "-" + index
         if (child.type === "group") return explorerFromUIFilter(child, id)
+        if (fileSystemFields.has(child.field))
+          return {
+            type: "rule",
+            id,
+            field: "file-system",
+            operator: "matches",
+            value:
+              child.operator !== "is-between" && Array.isArray(child.value)
+                ? { ...child, value: child.value[0] ?? "" }
+                : child,
+          }
         if (child.field === EXPLORER_FIELD_PREFIX + "suffix")
           return {
             type: "rule",

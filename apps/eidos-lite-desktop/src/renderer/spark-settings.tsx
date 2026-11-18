@@ -1,20 +1,26 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sparkles } from "lucide-react"
 import type { SparkStatus } from "../shared/spark"
 import { useEidosLiteI18n } from "./i18n"
+import { SETTINGS, settingTarget } from "./settings-catalog"
 
 export function SparkSettings({
   signedIn,
   subject,
+  active = true,
 }: {
   signedIn: boolean
   subject?: string
+  active?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const [status, setStatus] = useState<SparkStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [confirmRelease, setConfirmRelease] = useState(false)
+  const identity = useRef<string | null>(null)
+  const requestGeneration = useRef(0)
+  const operationPending = useRef(false)
   const availableLicenses =
     signedIn && status?.state !== "active"
       ? (status?.licenses ?? []).filter((license) =>
@@ -28,6 +34,8 @@ export function SparkSettings({
     "This Spark license is bound to a different device identity. Activate this device again; if all slots are in use, release the old device first."
   )
   const run = async (operation: () => Promise<SparkStatus>) => {
+    operationPending.current = true
+    requestGeneration.current += 1
     setBusy(true)
     setError("")
     try {
@@ -44,32 +52,42 @@ export function SparkSettings({
             )
       )
     } finally {
+      requestGeneration.current += 1
+      operationPending.current = false
       setBusy(false)
     }
   }
   useEffect(() => {
-    let active = true
-    setError("")
-    setConfirmRelease(false)
+    if (!active || operationPending.current) return
+    let current = true
+    const generation = requestGeneration.current
+    const nextIdentity = String(signedIn) + ":" + (subject ?? "")
+    if (identity.current !== nextIdentity) {
+      identity.current = nextIdentity
+      setError("")
+      setConfirmRelease(false)
+    }
     void window.eidosLite
       .getSparkStatus?.(true)
       .then((value) => {
-        if (active) setStatus(value)
+        if (current && generation === requestGeneration.current)
+          setStatus(value)
       })
       .catch(() => {
-        if (active)
+        if (current && generation === requestGeneration.current)
           setError(
             t("Spark status is unavailable. Your local files are unaffected.")
           )
       })
     return () => {
-      active = false
+      current = false
     }
-  }, [signedIn, subject, t])
+  }, [signedIn, subject, t, active])
   return (
     <section
       className="settings-service settings-spark"
       aria-labelledby="settings-spark-title"
+      {...settingTarget(SETTINGS.spark.id)}
     >
       <div className="settings-service-heading">
         <h3 className="settings-subheading" id="settings-spark-title">

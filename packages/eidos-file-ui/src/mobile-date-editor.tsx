@@ -1,4 +1,11 @@
-import { useLayoutEffect, useState, type MutableRefObject } from "react"
+import {
+  useEffect,
+  useRef,
+  useLayoutEffect,
+  useState,
+  type MutableRefObject,
+} from "react"
+import { projectEidosFileCalendarInstant } from "@eidos.space/eidos-file"
 import type { EidosFileSqlPrimitive } from "@eidos.space/eidos-file"
 import { useEidosFileUI } from "./context"
 import { Calendar } from "./ui/primitives"
@@ -24,14 +31,31 @@ export function MobileDateEditor({
   commitRef: MutableRefObject<(() => boolean) | null>
   onChange(value: EidosFileSqlPrimitive): Promise<void>
 }) {
-  const { locale, timeZone, translate: t } = useEidosFileUI()
+  const {
+    locale,
+    timeZone,
+    translate: t,
+    calendarTimeZoneData,
+  } = useEidosFileUI()
   const initial =
     typeof value === "string" && value
       ? datetime && !Number.isNaN(new Date(value).getTime())
-        ? eidosFileDateTimeInputValue(new Date(value), timeZone, true)
+        ? eidosFileDateTimeInputValue(
+            new Date(value),
+            timeZone,
+            true,
+            calendarTimeZoneData
+          )
         : value
       : ""
   const [draft, setDraft] = useState(initial)
+  const origin = useRef({ value, initial, timeZone, calendarTimeZoneData })
+  useEffect(() => {
+    if (draft !== origin.current.initial && value === origin.current.value)
+      return
+    origin.current = { value, initial, timeZone, calendarTimeZoneData }
+    setDraft(initial)
+  }, [value, initial, timeZone, calendarTimeZoneData])
   const [month, setMonth] = useState(
     () => eidosFileWallDateFromInputValue(initial) ?? new Date()
   )
@@ -52,13 +76,17 @@ export function MobileDateEditor({
     )
   useLayoutEffect(() => {
     commitRef.current = () => {
-      if (draft === initial) return true
+      if (draft === origin.current.initial) return true
       if (!draft) {
         void onChange(null)
         return true
       }
       const date = datetime
-        ? eidosFileInstantFromInputValue(draft, timeZone)
+        ? eidosFileInstantFromInputValue(
+            draft,
+            origin.current.timeZone,
+            origin.current.calendarTimeZoneData
+          )
         : eidosFileWallDateFromInputValue(draft)
       if (!date) {
         setError(
@@ -78,6 +106,27 @@ export function MobileDateEditor({
       commitRef.current = null
     }
   })
+  if (
+    datetime &&
+    calendarTimeZoneData &&
+    typeof value === "string" &&
+    value &&
+    !projectEidosFileCalendarInstant(
+      value,
+      eidosFileResolvedTimeZone(timeZone),
+      calendarTimeZoneData
+    )
+  )
+    return (
+      <div className="text-xs">
+        {value}
+        <p>
+          {t(
+            "Dates outside 1970–2499 are read-only here. Your saved value is unchanged."
+          )}
+        </p>
+      </div>
+    )
   return (
     <div className="eidos-mobile-date-editor">
       <div className="flex gap-3">
@@ -117,7 +166,11 @@ export function MobileDateEditor({
               onChange={(event) =>
                 update(
                   (draft.split("T")[0] ||
-                    eidosFileDateKey(new Date(), timeZone)) +
+                    eidosFileDateKey(
+                      new Date(),
+                      timeZone,
+                      calendarTimeZoneData
+                    )) +
                     "T" +
                     event.target.value
                 )
@@ -163,7 +216,7 @@ export function MobileDateEditor({
           onClick={() =>
             chooseDate(
               eidosFileWallDateFromInputValue(
-                eidosFileDateKey(new Date(), timeZone)
+                eidosFileDateKey(new Date(), timeZone, calendarTimeZoneData)
               )
             )
           }

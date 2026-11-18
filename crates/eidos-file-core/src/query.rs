@@ -93,6 +93,15 @@ pub enum NullsOrder {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all_fields = "camelCase")]
 pub enum FilterNode {
+    /// Wire transport only; calendar semantics are owned by the TS Runtime.
+    #[serde(rename = "calendar-day")]
+    CalendarDay(CalendarDayFilter),
+    #[serde(rename = "calendar-period")]
+    CalendarPeriod(CalendarPeriodFilter),
+    #[serde(rename = "calendar-window")]
+    CalendarWindow(CalendarWindowFilter),
+    #[serde(rename = "relative-date")]
+    RelativeDate(RelativeDateFilter),
     #[serde(rename = "and")]
     And { args: Vec<FilterNode> },
     #[serde(rename = "or")]
@@ -146,6 +155,55 @@ pub enum FilterNode {
     RelationHas { field_id: String, row_id: String },
 }
 
+/// Wire-only document; the canonical Runtime validates and evaluates it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CalendarDayFilter {
+    pub field_id: String,
+    pub day: String,
+    pub time_zone: String,
+    pub time_zone_data: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CalendarPeriodFilter {
+    pub field_id: String,
+    pub unit: String,
+    pub offset: i8,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CalendarWindowFilter {
+    pub field_id: String,
+    pub direction: String,
+    pub count: u32,
+    pub unit: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RelativeDateFilter {
+    pub field_id: String,
+    pub direction: String,
+    pub unit: String,
+}
+
+impl FilterNode {
+    pub fn requires_runtime(&self) -> bool {
+        match self {
+            Self::CalendarDay(_)
+            | Self::CalendarPeriod(_)
+            | Self::CalendarWindow(_)
+            | Self::RelativeDate(_) => true,
+            Self::And { args } | Self::Or { args } => args.iter().any(Self::requires_runtime),
+            Self::Not { arg } => arg.requires_runtime(),
+            _ => false,
+        }
+    }
+}
+
 /// Defense-in-depth budgets for untrusted filter trees (§16).
 const MAX_FILTER_DEPTH: usize = 64;
 const MAX_FILTER_NODES: usize = 1024;
@@ -187,6 +245,8 @@ pub struct ReadRowsOptions {
 /// One page of logical rows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowPage {
+    /// Canonical Runtime root instant, when evaluated through the portable host.
+    pub reference_instant: Option<String>,
     /// Rows keyed by Field display name; the Row-ID field (`_id`) is always
     /// present. Integers are canonical decimal strings, numbers JSON
     /// numbers, checkboxes booleans, list fields parsed arrays, and SQL NULL
@@ -314,6 +374,12 @@ impl Compiler<'_> {
             ));
         }
         match node {
+            FilterNode::CalendarDay(_)
+            | FilterNode::CalendarPeriod(_)
+            | FilterNode::CalendarWindow(_)
+            | FilterNode::RelativeDate(_) => Err(invalid_query(
+                "calendar queries require the canonical Runtime",
+            )),
             // Every leaf below is total, so logical composition uses ordinary
             // two-valued Boolean logic even though SQLite itself has NULL.
             FilterNode::And { args } => {
@@ -960,6 +1026,7 @@ pub fn read_rows(
         |row| row.get(0),
     )?;
     Ok(RowPage {
+        reference_instant: None,
         rows,
         total_estimate: Some(total.max(0) as u64),
     })

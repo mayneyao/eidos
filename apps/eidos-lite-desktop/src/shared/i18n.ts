@@ -4,6 +4,15 @@ export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
 const zh: Record<string, string> = {
+  "Always hide system fields in records": "始终在记录页中隐藏系统字段",
+  "Hide Record ID, Created, and Updated in all open records on this device.":
+    "在此设备的所有记录页中隐藏记录 ID、创建时间和更新时间。",
+  Cut: "剪切",
+  Paste: "粘贴",
+  "Preparing system copy…": "正在准备系统复制…",
+  "Files copied": "文件已复制",
+  "System copy was not completed": "系统复制未完成",
+  "Cancel copy": "取消复制",
   "Could not open {name}. {value2}": "无法打开 {name}。{value2}",
   "Filter tree by name": "按名称过滤目录树",
   "Matching files": "匹配文件",
@@ -420,6 +429,11 @@ const zh: Record<string, string> = {
   "Loading properties for {name}…": "正在读取 {name} 的属性…",
   "Basic information": "基本信息",
   "File size": "文件大小",
+  "Minimum file size": "最小文件大小",
+  "Maximum file size": "最大文件大小",
+  "File size unit": "文件大小单位",
+  "Minimum file size must be at most maximum file size.":
+    "最小文件大小不得大于最大文件大小。",
   "Created time": "创建时间",
   "Properties shown in this window": "此窗口显示的属性",
   "Changes save automatically": "更改自动保存",
@@ -1066,6 +1080,8 @@ const zh: Record<string, string> = {
   Page: "页面",
   Command: "命令",
   "Read only": "只读",
+  "Filters and sorting apply only to this browsing session.":
+    "筛选和排序仅用于本次浏览，不保存到文件。",
   "Included with Eidos Lite. Can be disabled, but not uninstalled. Settings apply to this device.":
     "随 Eidos Lite 提供，可禁用但不能卸载。设置作用于本机。",
   "This plugin has no configurable settings.": "此插件暂无可配置项。",
@@ -1481,6 +1497,16 @@ const zh: Record<string, string> = {
   "Eidos Website": "Eidos 官网",
   Settings: "设置",
   "Settings sections": "设置分类",
+  "Search settings": "搜索设置",
+  "Custom servers": "自定义服务器",
+  "Settings search results": "设置搜索结果",
+  "No matching settings": "没有匹配的设置",
+  "{count} matching settings": "{count} 项匹配设置",
+  "Reading file editor settings…": "正在读取文件编辑器设置…",
+  "File editor settings are unavailable.": "文件编辑器设置暂不可用。",
+  "This setting is no longer available.": "此设置已不可用。",
+  "Choose where new Spaces are created.": "选择新建 Space 的保存位置。",
+  "Manage devices paired with this computer.": "管理与此电脑配对的设备。",
   Preferences: "偏好设置",
   Theme: "主题",
   "Select loaded files": "全选已加载文件",
@@ -1582,6 +1608,8 @@ const zh: Record<string, string> = {
   "Toggle version history": "切换版本历史",
   "Toggle Sync": "切换同步面板",
   "Toggle terminal": "切换终端",
+  "Show terminal": "显示终端",
+  "Hide terminal": "隐藏终端",
   "Toggle terminal position": "切换终端位置",
   "Move terminal beside file content": "将终端移到文件内容左侧",
   "Move terminal below file content": "将终端移到文件内容下方",

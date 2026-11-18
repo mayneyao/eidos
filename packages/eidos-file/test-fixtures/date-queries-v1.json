@@ -1,0 +1,42 @@
+{
+  "generatedBy": "public Runtime.mutateSchema/mutateRows/mutateView",
+  "parent": "15525d7667cd72be77607d048ca6fc79a5dfd74b",
+  "sha256": "4ce35138a6d6ae5c627f88ca42dc770bfa5050e73db8bae95d0520d0ea23f968",
+  "tableId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e12",
+  "label": "01a1cfbc-8140-7607-8809-0a0b0c0d0e16",
+  "date": "01a1cfbc-8140-7607-8809-0a0b0c0d0e17",
+  "instant": "01a1cfbc-8140-7607-8809-0a0b0c0d0e18",
+  "revision": "3",
+  "views": [
+    {
+      "clientKey": "relative",
+      "viewId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1d"
+    },
+    {
+      "clientKey": "day",
+      "viewId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1e"
+    },
+    {
+      "clientKey": "large",
+      "viewId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1f"
+    }
+  ],
+  "rows": [
+    {
+      "clientKey": "previous",
+      "rowId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e19"
+    },
+    {
+      "clientKey": "today",
+      "rowId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1a"
+    },
+    {
+      "clientKey": "boundary",
+      "rowId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1b"
+    },
+    {
+      "clientKey": "null",
+      "rowId": "01a1cfbc-8140-7607-8809-0a0b0c0d0e1c"
+    }
+  ]
+}

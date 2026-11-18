@@ -19,6 +19,7 @@ import { Button } from "./ui/primitives"
 export function EidosFileRecordAttachmentEditor({
   value,
   disabled,
+  readOnly = false,
   onChange,
   onImportFiles,
   onImportDroppedFiles,
@@ -26,6 +27,7 @@ export function EidosFileRecordAttachmentEditor({
 }: {
   value: EidosFileRow[string]
   disabled: boolean
+  readOnly?: boolean
   onChange: (value: string | null) => Promise<void>
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
@@ -40,6 +42,7 @@ export function EidosFileRecordAttachmentEditor({
   const [dragging, setDragging] = useState(false)
 
   const commit = async (next: FileEntry[]) => {
+    if (disabled || readOnly || importing) return
     await onChange(next.length > 0 ? encodeEidosFileValues(next) : null)
   }
   const append = async (imported: FileEntry[]) => {
@@ -55,7 +58,7 @@ export function EidosFileRecordAttachmentEditor({
   }
 
   const chooseFiles = async (imagesOnly = false) => {
-    if (disabled || importing || !onImportFiles) return
+    if (disabled || readOnly || importing || !onImportFiles) return
     setImporting(true)
     try {
       await append(
@@ -77,13 +80,21 @@ export function EidosFileRecordAttachmentEditor({
         dragging && "border-primary/40 bg-accent/50"
       )}
       onDragEnter={(event) => {
-        if (!disabled && event.dataTransfer.types.includes("Files")) {
+        if (
+          !disabled &&
+          !readOnly &&
+          event.dataTransfer.types.includes("Files")
+        ) {
           event.preventDefault()
           setDragging(true)
         }
       }}
       onDragOver={(event) => {
-        if (!disabled && event.dataTransfer.types.includes("Files")) {
+        if (
+          !disabled &&
+          !readOnly &&
+          event.dataTransfer.types.includes("Files")
+        ) {
           event.preventDefault()
           event.dataTransfer.dropEffect = "copy"
         }
@@ -96,7 +107,7 @@ export function EidosFileRecordAttachmentEditor({
       onDrop={(event) => {
         event.preventDefault()
         setDragging(false)
-        if (disabled || !onImportDroppedFiles) return
+        if (disabled || readOnly || importing || !onImportDroppedFiles) return
         const files = Array.from(event.dataTransfer.files)
         if (files.length === 0) return
         setImporting(true)
@@ -180,6 +191,7 @@ export function EidosFileRecordAttachmentEditor({
           <EidosFileRemoteAttachmentControl
             className="min-w-0 flex-1"
             disabled={disabled || importing}
+            readOnly={readOnly}
             onAcquired={(entry) => append([entry])}
             onError={onError}
           />

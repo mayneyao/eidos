@@ -29,6 +29,7 @@ import {
   EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
   EidosFileGridEditorHeader,
   EidosFileGridEditorSurface,
+  useEidosFileValueEditorReadOnly,
   eidosFileGridPopupEditor,
 } from "./cells/grid-editor-surface"
 
@@ -173,19 +174,20 @@ function EidosFileAttachmentCard({
 export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   EidosFileAttachmentCell
 > = ({ value: cell, onChange }) => {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { assetSession, translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const updateEntries = useCallback(
     (entries: FileEntry[]) => {
-      if (cell.readonly) return
+      if (cell.readonly || readOnly) return
       onChange({
         ...cell,
         copyData: entries.length > 0 ? encodeEidosFileValues(entries) : "",
         data: { ...cell.data, entries },
       })
     },
-    [cell, onChange]
+    [cell, onChange, readOnly]
   )
 
   return (
@@ -246,6 +248,7 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
                 className="h-7 w-full justify-start gap-1.5 px-1.5 text-xs"
                 disabled={busy}
                 onClick={() => {
+                  if (readOnly || busy) return
                   setBusy(true)
                   setError(null)
                   void cell.data
@@ -280,6 +283,7 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
             <EidosFileRemoteAttachmentControl
               className="w-full text-xs"
               disabled={busy}
+              readOnly={readOnly}
               onAcquired={(entry) => {
                 const existingIds = new Set(
                   cell.data.entries.map((candidate) => candidate.id)

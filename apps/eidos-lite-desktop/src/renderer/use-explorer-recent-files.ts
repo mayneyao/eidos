@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import type {
   ExplorerFilesPage,
@@ -20,7 +21,9 @@ export function useExplorerRecentFiles(options: {
   visible: boolean
   refreshKey: object | string
   respectGitignore?: boolean
+  calendarExecution?: ExplorerCalendarExecution
 }) {
+  const calendarKey = JSON.stringify(options.calendarExecution)
   const context = JSON.stringify([options.spaceId, options.directory])
   const signature = explorerFilterSignature(options.filter)
   const key = useMemo(
@@ -33,6 +36,7 @@ export function useExplorerRecentFiles(options: {
       options.sinceMs,
       options.refreshKey,
       options.respectGitignore,
+      calendarKey,
     ]
   )
   const [recent, setRecent] = useState<{
@@ -66,6 +70,18 @@ export function useExplorerRecentFiles(options: {
     period,
     offset,
     respectGitignore: options.respectGitignore !== false,
+    ...(options.calendarExecution
+      ? {
+          calendarExecution: {
+            ...options.calendarExecution,
+            ...(period === "earlier" &&
+            recent?.key === key &&
+            recent.page.referenceInstant
+              ? { referenceInstant: recent.page.referenceInstant }
+              : {}),
+          },
+        }
+      : {}),
   })
   useEffect(() => {
     setExpanded(false)

@@ -9,7 +9,12 @@ vi.mock("./space-paths", async (original) => ({
   assertSpaceRootIdentity: vi.fn(async () => {}),
 }))
 
-function sessionFixture(ahead: number, behind: number, dirty: boolean) {
+function sessionFixture(
+  ahead: number,
+  behind: number,
+  dirty: boolean,
+  { readOnly = false }: { readOnly?: boolean } = {}
+) {
   const relation = { ahead, behind, dirty, hasConflicts: false }
   const run = async (
     _label: string,
@@ -28,6 +33,8 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
     applyMerge: vi.fn(),
   }
   const session = {
+    readOnly,
+    assertWritable: SpaceSession.prototype["assertWritable"],
     syncTask: Promise.resolve(),
     withSyncTask: SpaceSession.prototype["withSyncTask"],
     syncHostedRemoteInternal:
@@ -69,7 +76,21 @@ function sessionFixture(ahead: number, behind: number, dirty: boolean) {
 }
 
 describe("explicit Sync actions", () => {
-  it("does not upload from a read-only Space during a full sync", async () => {
+  it.each<EidosSyncAction>(["fetch", "pull", "push", "sync"])(
+    "rejects %s in a locally read-only Space before contacting the remote",
+    async (action) => {
+      const { graft, invoke } = sessionFixture(1, 0, false, {
+        readOnly: true,
+      })
+      await expect(invoke(action)).rejects.toThrow("Space is read-only")
+      expect(graft.configureOfficialRemote).not.toHaveBeenCalled()
+      expect(graft.status).not.toHaveBeenCalled()
+      expect(graft.fetch).not.toHaveBeenCalled()
+      expect(graft.push).not.toHaveBeenCalled()
+    }
+  )
+
+  it("checks the remote but does not upload with read-only remote access", async () => {
     const { graft, invoke } = sessionFixture(1, 0, false)
     expect(await invoke("sync", "read_only")).toMatchObject({
       state: "read-only",

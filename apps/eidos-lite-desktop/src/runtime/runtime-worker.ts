@@ -1,4 +1,10 @@
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
+import { runtimeReadTrace } from "./read-trace"
+import {
+  readContentLinkDocuments,
+  writeContentLinkDocuments,
+} from "./content-link-updates"
 import {
   normalizeEidosSchemaMergeFiles,
   planEidosSchemaMergeFiles,
@@ -11,7 +17,7 @@ import type {
   EidosFileRowQuery,
 } from "@eidos.space/eidos-file"
 import { mergeEidosSystemMetadataFiles } from "@eidos.space/eidos-file/node-sqlite"
-import type { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
+import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 
 import type {
   RuntimeCalls,
@@ -25,6 +31,7 @@ import {
 } from "../shared/contracts"
 import {
   createEidosLiteFileRuntime,
+  copyEidosFileSnapshot,
   openEidosLiteFileRuntime,
   type EidosLiteCsvFileSource,
   type EidosLiteFileRuntime,
@@ -33,6 +40,7 @@ import { serializeRuntimeWorkerError } from "./runtime-worker-error"
 import { filemeta } from "./filemeta"
 import { inspectEidosMergeTables } from "./merge-table-inspection"
 import { readMergeTablePreview } from "./merge-table-preview"
+import { MarkdownLinkBatch } from "./markdown-link-batch"
 import { inspectExplorerEidosSummary } from "./explorer-eidos-summary"
 
 interface UtilityParentPort {
@@ -47,7 +55,10 @@ const parentPort = (
 if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
 let openedRuntime: EidosLiteFileRuntime | null = null
+let markdownLinkBatch: MarkdownLinkBatch | null = null
 let source: EidosRuntimeEditorDataSource | null = null
+let calendarSource: Promise<EidosRuntimeEditorDataSource> | null = null
+let calendarWindowSource: Promise<EidosRuntimeEditorDataSource> | null = null
 const connectionId = randomUUID()
 
 function requireSource(): EidosRuntimeEditorDataSource {
@@ -131,10 +142,59 @@ function methodArgs<M extends RuntimeMethod>(
 
 async function runtimeCall(
   method: Extract<RuntimeWorkerRequest, { type: "call" }>["method"],
-  args: unknown[]
+  args: unknown[],
+  calendarQueryVersion?: 2,
+  calendarWindowVersion?: 1
 ): Promise<unknown> {
-  const dataSource = requireSource()
+  const legacySource = requireSource()
+  if (calendarQueryVersion === 2 && !calendarSource) {
+    const declaredSource = new EidosRuntimeEditorDataSource(
+      legacySource.runtime,
+      legacySource.path,
+      { calendarQueryVersion: 2 }
+    )
+    const pending: Promise<EidosRuntimeEditorDataSource> = declaredSource
+      .initialize()
+      .then(() => declaredSource)
+      .catch((error) => {
+        if (calendarSource === pending) calendarSource = null
+        throw error
+      })
+    calendarSource = pending
+  }
+  if (
+    calendarWindowVersion === 1 &&
+    calendarQueryVersion === 2 &&
+    !calendarWindowSource
+  ) {
+    const declared = new EidosRuntimeEditorDataSource(
+      legacySource.runtime,
+      legacySource.path,
+      { calendarQueryVersion: 2, calendarWindowVersion: 1 }
+    )
+    const pending = declared
+      .initialize()
+      .then(() => declared)
+      .catch((error) => {
+        if (calendarWindowSource === pending) calendarWindowSource = null
+        throw error
+      })
+    calendarWindowSource = pending
+  }
+  const dataSource =
+    calendarWindowVersion === 1 && calendarQueryVersion === 2
+      ? await calendarWindowSource!
+      : calendarQueryVersion === 2
+        ? await calendarSource!
+        : legacySource
   switch (method) {
+    case "readContentLinkDocuments":
+      return readContentLinkDocuments(dataSource)
+    case "writeContentLinkDocuments":
+      return writeContentLinkDocuments(
+        dataSource,
+        ...methodArgs<"writeContentLinkDocuments">(args)
+      )
     case "readTablePluginConfig":
       return dataSource.readTablePluginConfig(
         ...methodArgs<"readTablePluginConfig">(args)
@@ -330,17 +390,31 @@ async function runtimeCall(
       const input = csvInput(args[0], args[1])
       return dataSource.importCsv(input.name, input.bytes, csvOptions(args[2]))
     }
-    case "importCsvFile":
-      return requireRuntime().importCsvFile(
+    case "importCsvFile": {
+      const imported = await requireRuntime().importCsvFile(
         csvFileSource(args[0]),
         csvOptions(args[1]),
         requireString(args[2], "CSV operation ID")
       )
+      return calendarQueryVersion === 2
+        ? { ...imported, snapshot: await dataSource.getSnapshot() }
+        : imported
+    }
   }
 }
 
 async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
   switch (request.type) {
+    case "copySnapshot":
+      if (openedRuntime) throw new Error("File copy requires a private worker")
+      if (
+        ![request.sourcePath, request.destinationPath].every((value) =>
+          path.isAbsolute(value)
+        )
+      )
+        throw new Error("Runtime snapshot paths must be absolute")
+      await copyEidosFileSnapshot(request.sourcePath, request.destinationPath)
+      return null
     case "explorerSummary":
       if (openedRuntime)
         throw Error("Explorer inspection requires a private worker")
@@ -368,6 +442,8 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         }
       )
       source = openedRuntime.source
+      calendarSource = null
+      calendarWindowSource = null
       return openedRuntime.initialSnapshot
     }
     case "inspectMergeTables": {
@@ -392,10 +468,17 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         readOnly: request.readOnly,
       })
       source = openedRuntime.source
+      calendarSource = null
+      calendarWindowSource = null
       return openedRuntime.initialSnapshot
     }
     case "call":
-      return runtimeCall(request.method, request.args)
+      return runtimeCall(
+        request.method,
+        request.args,
+        request.calendarQueryVersion,
+        request.calendarWindowVersion
+      )
     case "mergeSchema": {
       if (openedRuntime)
         throw new Error("Schema merge requires a private Runtime worker")
@@ -431,7 +514,23 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       }
       return mergeEidosSystemMetadataFiles(request)
     }
+    case "markdownLinks": {
+      if (openedRuntime)
+        throw new Error("Link maintenance requires a private worker")
+      if (request.operation.kind === "prepare") {
+        if (markdownLinkBatch)
+          throw new Error("Link maintenance is already prepared")
+        markdownLinkBatch = new MarkdownLinkBatch(request.operation.root)
+        return markdownLinkBatch.prepare(request.operation.files)
+      }
+      if (!markdownLinkBatch)
+        throw new Error("Link maintenance is not prepared")
+      const batch = markdownLinkBatch
+      markdownLinkBatch = null
+      return batch.apply(request.operation.moves)
+    }
     case "close": {
+      markdownLinkBatch = null
       try {
         await openedRuntime?.close()
       } catch (error) {
@@ -439,26 +538,59 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       } finally {
         openedRuntime = null
         source = null
+        calendarSource = null
+        calendarWindowSource = null
       }
       return { closed: true }
     }
   }
 }
 
+runtimeReadTrace.installSql(DatabaseSync.prototype)
+
 parentPort.on("message", (event) => {
   const request = event.data as RuntimeWorkerRequest
-  void handle(request).then(
-    (result) => {
-      parentPort.postMessage({ requestId: request.requestId, ok: true, result })
-      if (request.type === "close") setTimeout(() => process.exit(0), 10)
-    },
-    (error) => {
-      parentPort.postMessage({
-        requestId: request.requestId,
-        ok: false,
-        error: serializeRuntimeWorkerError(error),
-      })
-      if (request.type === "close") setTimeout(() => process.exit(0), 10)
-    }
-  )
+  const meta = {
+    requestId: request.requestId,
+    type: request.type,
+    ...(request.type === "call"
+      ? {
+          method: request.method,
+          ...(request.method === "getPage" && Array.isArray(request.args)
+            ? {
+                offset:
+                  typeof request.args[1] === "number"
+                    ? request.args[1]
+                    : undefined,
+                limit:
+                  typeof request.args[2] === "number"
+                    ? request.args[2]
+                    : undefined,
+              }
+            : {}),
+        }
+      : {}),
+  }
+  void runtimeReadTrace
+    .span("worker-request", meta, () => handle(request))
+    .then(
+      (result) => {
+        runtimeReadTrace.point("worker-reply", meta)
+        parentPort.postMessage({
+          requestId: request.requestId,
+          ok: true,
+          result,
+        })
+        if (request.type === "close") setTimeout(() => process.exit(0), 10)
+      },
+      (error) => {
+        runtimeReadTrace.point("worker-error", meta)
+        parentPort.postMessage({
+          requestId: request.requestId,
+          ok: false,
+          error: serializeRuntimeWorkerError(error),
+        })
+        if (request.type === "close") setTimeout(() => process.exit(0), 10)
+      }
+    )
 })

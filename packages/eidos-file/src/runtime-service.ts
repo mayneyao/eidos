@@ -10,6 +10,32 @@ import {
 } from "./canonical-conversion"
 import { ConnectionPortEidosFileConnection } from "./connection-port"
 import { EidosFileError, type EidosFileErrorCode } from "./errors"
+import {
+  hasEidosFileCalendarWindowQuery,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
+import {
+  assertEidosFileCreationContext,
+  assertEidosFileTemporalDefault,
+  eidosFileTemporalDefaultValue,
+  enableTemporalDefaultsFeature,
+  type EidosFileCreationContext,
+} from "./temporal-defaults"
+import {
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  assertEidosFileCalendarZone,
+  isEidosFileCalendarDayValue,
+} from "./calendar-day"
+import {
+  assertEidosFileCalendarContext,
+  isEidosFileCalendarPeriodValue,
+  hasEidosFileCalendarPeriodQuery,
+  type EidosFileCalendarContext,
+} from "./calendar-period"
+import {
+  upgradeEidosFileDateQuery,
+  EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT,
+} from "./calendar-query-upgrade"
 import { smallestDependencyCycle } from "./dependency-graph"
 import {
   compileEidosFileFormulaFields,
@@ -127,6 +153,7 @@ import {
 import {
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,
+  normalizeEidosFileInstant,
 } from "./temporal"
 import {
   assertEidosFileSelectOptions,
@@ -169,8 +196,14 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
 })
 
 const READONLY_CAPABILITIES: RuntimeCapabilities = Object.freeze({
+  viewCreationDefaultsVersion: 1,
+  calendarWindowVersion: 1,
+  temporalDefaultsVersion: 1,
+  calendarQueryVersion: 2,
+  calendarPeriodTimeZoneData: [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA],
   readRows: true,
   batchRowPages: true,
+  rowIndex: true,
   schemaPaging: true,
   cursorPaging: true,
   aggregate: true,
@@ -344,6 +377,9 @@ export class EidosRuntimeService implements RuntimeClient {
   private readonly requestControls = new Map<string, RequestControl>()
   private readonly schemaPlans = new Map<string, RetainedSchemaPlan>()
   private schemaPlanSequence = 0
+  private requestInstant: string | undefined
+  private requestCalendar: EidosFileCalendarContext | undefined
+  private requestedReference: string | undefined
   private queue: Promise<void> = Promise.resolve()
   private state: "open" | "closing" | "closed" | "fatal" = "open"
 
@@ -371,6 +407,41 @@ export class EidosRuntimeService implements RuntimeClient {
       )
     }
     this.hostBridge = {
+      queuedRead: (operation, context) =>
+        this.invoke(
+          context,
+          () => {
+            if (
+              Object.prototype.toString.call(operation) ===
+              "[object AsyncFunction]"
+            ) {
+              throw runtimeError(
+                "invalid-request",
+                "Host read callbacks must complete synchronously"
+              )
+            }
+            return this.read(() => {
+              const value = operation()
+              if (
+                value !== null &&
+                (typeof value === "object" || typeof value === "function") &&
+                "then" in value &&
+                typeof value.then === "function"
+              ) {
+                throw runtimeError(
+                  "invalid-request",
+                  "Host read callbacks must not return thenables"
+                )
+              }
+              return value
+            })
+          },
+          false,
+          undefined,
+          false,
+          false,
+          true
+        ),
       allocateFileEntry: (request, context) =>
         this.invoke(
           context,
@@ -509,6 +580,23 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       async () =>
         this.read(async () => {
+          if (
+            request.calendarWindowVersion !== undefined &&
+            (request.calendarWindowVersion !== 1 ||
+              request.calendarQueryVersion !== 2)
+          )
+            throw runtimeError(
+              "unsupported",
+              "Unsupported client calendar window version"
+            )
+          if (
+            request.calendarQueryVersion !== undefined &&
+            request.calendarQueryVersion !== 2
+          )
+            throw runtimeError(
+              "unsupported",
+              "Unsupported client calendar query version"
+            )
           assertLimit(
             request.limit,
             EIDOS_RUNTIME_LIMITS.schemaPageSizeMax,
@@ -522,6 +610,10 @@ export class EidosRuntimeService implements RuntimeClient {
             if (
               payload.fileId !== snapshot.fileId ||
               payload.revision !== request.revision ||
+              payload.calendarQueryVersion !==
+                (request.calendarQueryVersion ?? null) ||
+              payload.calendarWindowVersion !==
+                (request.calendarWindowVersion ?? null) ||
               typeof payload.offset !== "number" ||
               !Number.isSafeInteger(payload.offset) ||
               payload.offset < 0
@@ -530,7 +622,10 @@ export class EidosRuntimeService implements RuntimeClient {
             }
             offset = payload.offset
           }
-          const objects = this.schemaDescriptors()
+          const objects = this.schemaDescriptors(
+            request.calendarQueryVersion,
+            request.calendarWindowVersion
+          )
           const page = objects.slice(offset, offset + request.limit)
           if (offset > objects.length) {
             throw runtimeError("invalid-query", "Schema cursor is past the end")
@@ -546,6 +641,10 @@ export class EidosRuntimeService implements RuntimeClient {
                   ? this.encodeCursor("schema", {
                       fileId: snapshot.fileId,
                       revision: snapshot.revision,
+                      calendarQueryVersion:
+                        request.calendarQueryVersion ?? null,
+                      calendarWindowVersion:
+                        request.calendarWindowVersion ?? null,
                       offset: nextOffset,
                     })
                   : null,
@@ -609,9 +708,10 @@ export class EidosRuntimeService implements RuntimeClient {
           const direction = request.direction ?? "forward"
           const metadata = this.core.info()
           const projectionDigest = await projectionHash(request.projection)
-          const queryDigest = await hashJson(
-            normalizedRuntimeQuery(request.query)
-          )
+          const queryDigest = await hashJson({
+            query: normalizedRuntimeQuery(request.query),
+            calendar: this.requestCalendar ?? null,
+          })
           const backwardQuery = reverseRuntimeQuery(
             request.query,
             this.core.listFields(request.tableId)
@@ -651,6 +751,9 @@ export class EidosRuntimeService implements RuntimeClient {
               )
             }
             coreCursor = selected
+            if (typeof cursor.referenceInstant === "string") {
+              this.bindCursorReference(cursor.referenceInstant)
+            }
           }
           const extraFields = (request.query.sort ?? []).map(
             (sort) => sort.fieldId
@@ -658,7 +761,7 @@ export class EidosRuntimeService implements RuntimeClient {
           const fields = Array.from(
             new Set([...request.projection.fields, ...extraFields])
           )
-          const result = this.core.queryRows(request.tableId, {
+          const resultRows = this.core.runtimeQueryRows(request.tableId, {
             fields,
             query: traversal,
             limit: request.limit + 1,
@@ -666,8 +769,8 @@ export class EidosRuntimeService implements RuntimeClient {
             cursor: coreCursor,
             resolveRelations: request.projection.resolveRelations.length > 0,
           })
-          const hasMoreInTraversal = result.rows.length > request.limit
-          const traversalRows = result.rows.slice(0, request.limit)
+          const hasMoreInTraversal = resultRows.length > request.limit
+          const traversalRows = resultRows.slice(0, request.limit)
           const logicalRows =
             direction === "forward" ? traversalRows : traversalRows.reverse()
           const columns = this.columns(request.tableId, request.projection)
@@ -684,6 +787,8 @@ export class EidosRuntimeService implements RuntimeClient {
               tableId: request.tableId,
               revision: String(metadata.revision),
               queryHash: queryDigest,
+              referenceInstant:
+                this.requestInstant ?? checkedNowInstant(this.environment),
               projectionHash: projectionDigest,
               forward: this.core.createRowCursor(request.tableId, query, row),
               backward: this.core.createRowCursor(
@@ -708,18 +813,28 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             columns,
             rows,
+            ...(usesClockFilter(request.query.filter)
+              ? {
+                  total: String(this.core.countRows(request.tableId, query)),
+                  referenceInstant: this.requestInstant,
+                }
+              : {}),
             nextCursor: hasLater ? boundaryCursor(logicalRows.at(-1)) : null,
             previousCursor: hasEarlier ? boundaryCursor(logicalRows[0]) : null,
           }
         }),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
   queryRowPages(
     request: {
       tableId: string
+      calendar?: EidosFileCalendarContext
+      referenceInstant?: string
       queries: RowQuery[]
       projection: ProjectionSpec
       limit: number
@@ -778,7 +893,13 @@ export class EidosRuntimeService implements RuntimeClient {
                       fileId: metadata.fileId,
                       tableId: request.tableId,
                       revision: String(metadata.revision),
-                      queryHash: await hashJson(normalizedRuntimeQuery(query)),
+                      queryHash: await hashJson({
+                        query: normalizedRuntimeQuery(query),
+                        calendar: this.requestCalendar ?? null,
+                      }),
+                      referenceInstant:
+                        this.requestInstant ??
+                        checkedNowInstant(this.environment),
                       projectionHash: projectionDigest,
                       forward: this.core.createRowCursor(
                         request.tableId,
@@ -805,6 +926,9 @@ export class EidosRuntimeService implements RuntimeClient {
                   columns
                 ),
                 total: String(page.total),
+                ...(usesClockFilter(query.filter)
+                  ? { referenceInstant: this.requestInstant }
+                  : {}),
                 nextCursor,
                 previousCursor: null,
               }
@@ -812,7 +936,30 @@ export class EidosRuntimeService implements RuntimeClient {
           )
         }),
       false,
-      request
+      request,
+      true,
+      true
+    )
+  }
+
+  getRowIndex(
+    request: GetRecordNeighborsRequest,
+    context: RequestContext
+  ): Promise<string | null> {
+    return this.invoke(
+      context,
+      async () =>
+        this.read(async () =>
+          this.core.getRowIndexValue(
+            request.tableId,
+            request.rowId,
+            this.compatibilityQuery(request.tableId, request.query)
+          )
+        ),
+      false,
+      request,
+      true,
+      true
     )
   }
 
@@ -831,7 +978,9 @@ export class EidosRuntimeService implements RuntimeClient {
           )
         ),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -893,7 +1042,9 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       () => this.read(() => this.aggregateNow(request)),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -913,7 +1064,9 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       async () => this.read(async () => this.groupRowsNow(request)),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -927,10 +1080,21 @@ export class EidosRuntimeService implements RuntimeClient {
         this.read(async () => {
           assertLimit(request.limit, EIDOS_RUNTIME_LIMITS.pageSizeMax, "limit")
           const cursor = this.decodeCursor(request.cursor, "group-rows")
+          if (typeof cursor.referenceInstant === "string") {
+            this.bindCursorReference(cursor.referenceInstant)
+          }
           const source = cursor.request as unknown as GroupRequest
           if (!source || typeof source !== "object" || Array.isArray(source)) {
             throw runtimeError("invalid-query", "Invalid group row cursor")
           }
+          if (
+            canonicalizeEidosFileJson(request.calendar ?? null) !==
+            canonicalizeEidosFileJson(source.calendar ?? null)
+          )
+            throw runtimeError(
+              "invalid-query",
+              "Group cursor calendar context mismatch"
+            )
           assertProjection(source.projection)
           const metadata = this.core.info()
           const projectionDigest = await projectionHash(source.projection)
@@ -1006,6 +1170,8 @@ export class EidosRuntimeService implements RuntimeClient {
               revision: String(metadata.revision),
               projectionHash: projectionDigest,
               bindingHash: bindingDigest,
+              referenceInstant:
+                this.requestInstant ?? checkedNowInstant(this.environment),
               request: groupCursorSource(source),
               groupKey,
               forward: this.core.createRowCursor(
@@ -1031,6 +1197,9 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             columns,
             groupKey,
+            ...(usesClockFilter(source.query.filter)
+              ? { referenceInstant: this.requestInstant }
+              : {}),
             rows: this.projectRows(
               source.tableId,
               source.projection,
@@ -1042,7 +1211,9 @@ export class EidosRuntimeService implements RuntimeClient {
           }
         }),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -1183,6 +1354,23 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       async () => {
         this.assertWritable("mutateRows")
+        if (request.calendar !== undefined) {
+          assertEidosFileCalendarContext(request.calendar)
+          this.requestCalendar = request.calendar
+        }
+        if (
+          request.creationQuery !== undefined &&
+          (!request.creationQuery ||
+            typeof request.creationQuery !== "object" ||
+            Array.isArray(request.creationQuery) ||
+            Object.keys(request.creationQuery).some((key) => key !== "filter"))
+        )
+          throw runtimeError(
+            "invalid-query",
+            "Creation query accepts only a filter"
+          )
+        if (request.creationContext !== undefined)
+          assertEidosFileCreationContext(request.creationContext)
         if (
           request.changes.length < 1 ||
           request.changes.length > EIDOS_RUNTIME_LIMITS.mutationRowsMax
@@ -1310,7 +1498,12 @@ export class EidosRuntimeService implements RuntimeClient {
         const inserts = request.changes
           .filter((change) => change.kind === "create")
           .map((change) => ({
-            fields: this.mutationValues(request.tableId, change.values, true),
+            fields: this.mutationValues(
+              request.tableId,
+              change.values,
+              request.creationQuery?.filter === undefined,
+              request.creationContext
+            ),
           }))
         const updates = request.changes
           .filter((change) => change.kind === "update")
@@ -1342,6 +1535,15 @@ export class EidosRuntimeService implements RuntimeClient {
               ? { ...reversibleDelete, rows: [] }
               : this.core.mutateRows({
                   tableId: request.tableId,
+                  ...(request.creationQuery
+                    ? {
+                        creationQuery: this.compatibilityQuery(
+                          request.tableId,
+                          request.creationQuery
+                        ),
+                      }
+                    : {}),
+                  creationContext: request.creationContext,
                   insert: inserts,
                   update: updates,
                   delete: deletes,
@@ -1457,7 +1659,8 @@ export class EidosRuntimeService implements RuntimeClient {
   private mutationValues(
     tableId: string,
     values: Record<string, LogicalValue>,
-    completeCreate = false
+    completeCreate = false,
+    creationContext?: EidosFileCreationContext
   ): Record<string, EidosFileLogicalRow["fields"][string]> {
     const tableFields = this.core.listFields(tableId)
     const fields = new Map(tableFields.map((field) => [field.id!, field]))
@@ -1528,6 +1731,18 @@ export class EidosRuntimeService implements RuntimeClient {
       for (const field of tableFields) {
         const fieldId = field.id!
         if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.type === "date" || field.type === "datetime") {
+          const value = eidosFileTemporalDefaultValue(
+            field.type,
+            field.settings,
+            this.requestInstant ?? checkedNowInstant(this.environment),
+            creationContext
+          )
+          if (value !== null) {
+            normalized[fieldId] = value
+            continue
+          }
+        }
         if (field.type === "checkbox") {
           normalized[fieldId] = false
           continue
@@ -1754,6 +1969,23 @@ export class EidosRuntimeService implements RuntimeClient {
       context,
       () => {
         this.assertWritable("mutateView")
+        if (
+          request.calendarWindowVersion !== undefined &&
+          (request.calendarWindowVersion !== 1 ||
+            request.calendarQueryVersion !== 2)
+        )
+          throw runtimeError(
+            "invalid-request",
+            "Unsupported calendar window consumer version"
+          )
+        if (
+          request.calendarQueryVersion !== undefined &&
+          request.calendarQueryVersion !== 2
+        )
+          throw runtimeError(
+            "invalid-request",
+            "Unsupported calendar query consumer version"
+          )
         if (request.changes.length < 1) {
           throw runtimeError(
             "invalid-request",
@@ -1793,6 +2025,10 @@ export class EidosRuntimeService implements RuntimeClient {
             this.core.applyCanonicalMutation(() => {
               for (const change of request.changes) {
                 if (change.kind === "create-view") {
+                  assertRuntimeSavedViewQuery(
+                    this.core.listFields(change.tableId),
+                    change.query
+                  )
                   const view = this.core.createView(change.tableId, {
                     name: assertEidosFileDisplayName(change.name, "View name"),
                     type: change.type,
@@ -1825,6 +2061,83 @@ export class EidosRuntimeService implements RuntimeClient {
                   affected.add(change.viewId)
                   continue
                 }
+                if (
+                  change.kind === "upgrade-date-query" ||
+                  change.kind === "restore-date-query"
+                ) {
+                  if (change.kind === "upgrade-date-query") {
+                    const preview = upgradeEidosFileDateQuery(
+                      JSON.parse(current.query)
+                    )
+                    assertRuntimeSavedViewQuery(
+                      this.core.listFields(current.tableId),
+                      preview.query
+                    )
+                  } else {
+                    const receipt =
+                      current.properties?.[
+                        EIDOS_FILE_DATE_QUERY_UPGRADE_RECEIPT
+                      ]
+                    if (
+                      !receipt ||
+                      typeof receipt !== "object" ||
+                      Array.isArray(receipt) ||
+                      !("originalQuery" in receipt)
+                    )
+                      throw runtimeError(
+                        "invalid-value",
+                        "No date query recovery receipt is available"
+                      )
+                    const preview = upgradeEidosFileDateQuery(
+                      receipt.originalQuery
+                    )
+                    assertRuntimeSavedViewQuery(
+                      this.core.listFields(current.tableId),
+                      preview.query
+                    )
+                  }
+                  this.core.updateView(
+                    change.viewId,
+                    change.kind === "upgrade-date-query"
+                      ? { upgradeDateQuery: true }
+                      : { restoreDateQuery: true }
+                  )
+                  affected.add(change.viewId)
+                  continue
+                }
+                if (
+                  current.queryStatus === "unsupported" &&
+                  change.patch.query !== undefined
+                )
+                  throw runtimeError(
+                    "unsupported",
+                    "Unsupported View query must be upgraded explicitly before editing"
+                  )
+                if (
+                  change.patch.query !== undefined &&
+                  hasEidosFileCalendarPeriodQuery(JSON.parse(current.query)) &&
+                  request.calendarQueryVersion !== 2
+                )
+                  throw runtimeError(
+                    "unsupported",
+                    "This View requires a client that explicitly accepts calendar query version 2"
+                  )
+                if (change.patch.query !== undefined)
+                  if (
+                    hasEidosFileCalendarWindowQuery(
+                      JSON.parse(current.query)
+                    ) &&
+                    request.calendarWindowVersion !== 1
+                  )
+                    throw runtimeError(
+                      "unsupported",
+                      "This View requires a client that explicitly accepts calendar window version 1"
+                    )
+                if (change.patch.query !== undefined)
+                  assertRuntimeSavedViewQuery(
+                    this.core.listFields(current.tableId),
+                    change.patch.query
+                  )
                 const layout =
                   change.patch.layout === undefined
                     ? undefined
@@ -2331,12 +2644,19 @@ export class EidosRuntimeService implements RuntimeClient {
         tables: String(tables.length),
         fields: String(fields.length),
         views: String(views.length),
-        features: "0",
+        features: String(
+          this.core.connection.query<{ name: string }>(
+            "SELECT name FROM eidos__features"
+          ).length
+        ),
       },
     }
   }
 
-  private schemaDescriptors(): SchemaDescriptor[] {
+  private schemaDescriptors(
+    calendarQueryVersion?: 2,
+    calendarWindowVersion?: 1
+  ): SchemaDescriptor[] {
     const tables = this.core.listTables()
     const tableSettings = new Map(
       this.core.connection
@@ -2363,7 +2683,10 @@ export class EidosRuntimeService implements RuntimeClient {
       }
     })
     const fieldDescriptors = tables.flatMap((table) =>
-      this.core.listFields(table.id).map((field) => fieldDescriptor(field))
+      this.core.listFields(table.id).map((field) => ({
+        ...fieldDescriptor(field),
+        writable: this.writable && fieldWritable(field),
+      }))
     )
     const views = tables.flatMap((table) =>
       this.core.listViews(table.id).map((view) => ({
@@ -2372,34 +2695,62 @@ export class EidosRuntimeService implements RuntimeClient {
         tableId: view.tableId,
         name: view.name,
         type: view.type,
-        queryStatus: view.queryStatus,
-        query:
-          view.queryStatus === "unsupported"
-            ? {}
-            : ({
-                ...(view.filter
-                  ? {
-                      filter: compatibilityFilterToRuntime(
-                        view.filter,
-                        this.core.listFields(view.tableId)
-                      ),
-                    }
-                  : {}),
-                ...(view.sorts.length > 0
-                  ? {
-                      sort: view.sorts.map((sort) => ({
-                        fieldId: sort.field,
-                        direction: sort.direction,
-                        ...(sort.nulls ? { nulls: sort.nulls } : {}),
-                      })),
-                    }
-                  : {}),
-              } satisfies SavedViewQuery),
+        ...(view.queryStatus === "unsupported" ||
+        (calendarWindowVersion !== 1 &&
+          hasEidosFileCalendarWindowQuery(JSON.parse(view.query))) ||
+        (calendarQueryVersion !== 2 &&
+          hasEidosFileCalendarPeriodQuery(JSON.parse(view.query)))
+          ? {
+              queryStatus: "unsupported" as const,
+              query: objectValue(
+                parseEidosFileJson(view.query) as Record<string, unknown>
+              ),
+            }
+          : {
+              queryStatus: "supported" as const,
+              query: isPublicSavedQueryDocument(JSON.parse(view.query))
+                ? (JSON.parse(view.query) as SavedViewQuery)
+                : ({
+                    ...(view.filter
+                      ? {
+                          filter: compatibilityFilterToRuntime(
+                            view.filter,
+                            this.core.listFields(view.tableId)
+                          ),
+                        }
+                      : {}),
+                    ...(view.sorts.length > 0
+                      ? {
+                          sort: view.sorts.map((sort) => ({
+                            fieldId: sort.field,
+                            direction: sort.direction,
+                            ...(sort.nulls ? { nulls: sort.nulls } : {}),
+                          })),
+                        }
+                      : {}),
+                  } satisfies SavedViewQuery),
+            }),
         layout: objectValue(view.properties ?? {}),
         position: String(view.position ?? 0),
       }))
     )
-    return [...tableDescriptors, ...fieldDescriptors, ...views]
+    const features = this.core.connection
+      .query<{
+        name: string
+        version: string
+        required: number
+        config_json: string
+      }>(
+        "SELECT name, version, required, config_json FROM eidos__features ORDER BY name"
+      )
+      .map((row) => ({
+        object: "feature" as const,
+        name: row.name,
+        version: row.version,
+        required: row.required === 1,
+        config: objectValue(JSON.parse(row.config_json)),
+      }))
+    return [...features, ...tableDescriptors, ...fieldDescriptors, ...views]
   }
 
   private columns(
@@ -2428,7 +2779,7 @@ export class EidosRuntimeService implements RuntimeClient {
               : field.type === "relation" && relation?.direction === "inverse"
                 ? "inverse-relation"
                 : "stored",
-        writable: fieldWritable(field),
+        writable: this.writable && fieldWritable(field),
       }
     })
   }
@@ -2526,6 +2877,9 @@ export class EidosRuntimeService implements RuntimeClient {
         tableId: request.tableId,
         revision: String(metadata.revision),
         results: request.items.map((item) => ({ key: item.key, value: count })),
+        ...(usesClockFilter(request.query?.filter)
+          ? { referenceInstant: this.requestInstant }
+          : {}),
       }
     }
     const fields = this.core.listFields(request.tableId)
@@ -2620,15 +2974,40 @@ export class EidosRuntimeService implements RuntimeClient {
       tableId: request.tableId,
       revision: String(metadata.revision),
       results,
+      ...(usesClockFilter(request.query?.filter)
+        ? { referenceInstant: this.requestInstant }
+        : {}),
     }
+  }
+
+  private bindCursorReference(reference: string): void {
+    const instant = normalizeEidosFileInstant(reference)
+    if (
+      this.requestedReference !== undefined &&
+      this.requestedReference !== instant
+    )
+      throw runtimeError("invalid-query", "Cursor reference instant mismatch")
+    this.requestInstant = instant
+    this.core.setRequestInstant(instant)
   }
 
   private compatibilityQuery(tableId: string, query: RowQuery) {
     assertRuntimeRowQuery(this.core.listFields(tableId), query)
-    return runtimeQueryToCompatibility(query)
+    if (usesCalendarPeriod(query.filter))
+      assertEidosFileCalendarContext(this.requestCalendar)
+    return {
+      ...runtimeQueryToCompatibility(query),
+      ...(this.requestCalendar ? { calendar: this.requestCalendar } : {}),
+    }
   }
 
   private async groupRowsNow(request: GroupRequest): Promise<GroupPage> {
+    if (request.cursor) {
+      const cursor = this.decodeCursor(request.cursor, "groups")
+      if (typeof cursor.referenceInstant === "string") {
+        this.bindCursorReference(cursor.referenceInstant)
+      }
+    }
     assertLimit(
       request.groupLimit,
       EIDOS_RUNTIME_LIMITS.groupPageSizeMax,
@@ -2788,6 +3167,8 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             bindingHash: bindingDigest,
             groupIdentity: group.identity,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
           })
         : null
     return {
@@ -2796,6 +3177,9 @@ export class EidosRuntimeService implements RuntimeClient {
       revision: String(metadata.revision),
       projectionHash: projectionDigest,
       columns,
+      ...(usesClockFilter(request.query.filter)
+        ? { referenceInstant: this.requestInstant }
+        : {}),
       groups: selected.map((group) => {
         const visible = group.rows.slice(0, request.rowsPerGroup)
         const projected = visible.map(
@@ -2819,6 +3203,8 @@ export class EidosRuntimeService implements RuntimeClient {
             bindingHash: bindingDigest,
             request: groupCursorSource(request),
             groupKey: group.key,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
             forward: this.core.createRowCursor(
               request.tableId,
               this.compatibilityQuery(request.tableId, groupedQuery),
@@ -2923,6 +3309,8 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             bindingHash: bindingDigest,
             groupIdentity: group.identity,
+            referenceInstant:
+              this.requestInstant ?? checkedNowInstant(this.environment),
           })
         : null
     const groups = selected.map((group) => {
@@ -2961,6 +3349,8 @@ export class EidosRuntimeService implements RuntimeClient {
           bindingHash: bindingDigest,
           request: groupCursorSource(request),
           groupKey: group.key,
+          referenceInstant:
+            this.requestInstant ?? checkedNowInstant(this.environment),
           forward: this.core.createRowCursor(
             request.tableId,
             compatibilityQuery,
@@ -2994,6 +3384,9 @@ export class EidosRuntimeService implements RuntimeClient {
       revision: String(metadata.revision),
       projectionHash: projectionDigest,
       columns,
+      ...(usesClockFilter(request.query.filter)
+        ? { referenceInstant: this.requestInstant }
+        : {}),
       groups,
       nextCursor: end < counts.length ? cursorForGroup(selected.at(-1)) : null,
       previousCursor: start > 0 ? cursorForGroup(selected[0]) : null,
@@ -3368,6 +3761,14 @@ export class EidosRuntimeService implements RuntimeClient {
       if ("position" in leaf) parseSignedInt64(leaf.position, "position")
       switch (leaf.kind) {
         case "create-table":
+          for (const field of leaf.fields)
+            assertEidosFileTemporalDefault(
+              field.kind,
+              field.settings,
+              field.settings?.readOnly !== true &&
+                field.settings?.writable !== false &&
+                field.settings?.isSystem !== true
+            )
           if (
             leaf.fields.some(
               (field) => field.kind === "relation" || field.kind === "lookup"
@@ -3456,6 +3857,13 @@ export class EidosRuntimeService implements RuntimeClient {
           }
           break
         case "create-field":
+          assertEidosFileTemporalDefault(
+            leaf.field.kind,
+            leaf.field.settings,
+            leaf.field.settings?.readOnly !== true &&
+              leaf.field.settings?.writable !== false &&
+              leaf.field.settings?.isSystem !== true
+          )
           if (!tableIds.has(leaf.tableId)) {
             forbid("dependency-blocked", "Owning Table does not exist", {
               tableId: leaf.tableId,
@@ -3529,8 +3937,21 @@ export class EidosRuntimeService implements RuntimeClient {
           }
           break
         }
+        case "set-field-settings": {
+          const field = proposedFields.get(leaf.fieldId)
+          if (field)
+            assertEidosFileTemporalDefault(
+              field.type,
+              { ...field.settings, ...leaf.settings },
+              fieldWritable(field)
+            )
+          if (!fieldsById.has(leaf.fieldId))
+            forbid("dependency-blocked", "Field does not exist", {
+              fieldId: leaf.fieldId,
+            })
+          break
+        }
         case "rename-field":
-        case "set-field-settings":
         case "set-field-position":
         case "set-formula":
         case "set-lookup":
@@ -4154,6 +4575,15 @@ export class EidosRuntimeService implements RuntimeClient {
             ...(field.settings ?? {}),
             ...leaf.settings,
           }
+          if (
+            assertEidosFileTemporalDefault(
+              field.type,
+              settings,
+              fieldWritable(field)
+            ) === "now"
+          ) {
+            enableTemporalDefaultsFeature(this.core.connection)
+          }
           this.core.connection.run(
             "UPDATE eidos__fields SET settings_json=? WHERE id=? AND settings_json IS NOT ?",
             [
@@ -4437,7 +4867,9 @@ export class EidosRuntimeService implements RuntimeClient {
     operation: () => T | Promise<T>,
     allowClosing = false,
     requestPayload?: unknown,
-    accountResponse = true
+    accountResponse = true,
+    acceptCalendarExecution = false,
+    checkReadCompletion = false
   ): Promise<T> {
     try {
       assertRequestContext(context)
@@ -4483,7 +4915,32 @@ export class EidosRuntimeService implements RuntimeClient {
     const execute = async () => {
       try {
         if (!allowClosing) this.checkControl(context, control, acceptedAt)
+        const calendar =
+          acceptCalendarExecution &&
+          requestPayload &&
+          typeof requestPayload === "object" &&
+          "calendar" in requestPayload
+            ? requestPayload.calendar
+            : undefined
+        if (calendar !== undefined) assertEidosFileCalendarContext(calendar)
+        this.requestCalendar = calendar
+        const reference =
+          acceptCalendarExecution &&
+          requestPayload &&
+          typeof requestPayload === "object" &&
+          "referenceInstant" in requestPayload
+            ? requestPayload.referenceInstant
+            : undefined
+        if (reference !== undefined && !isCanonicalEidosFileInstant(reference))
+          throw runtimeError(
+            "invalid-query",
+            "referenceInstant must be a canonical UTC instant"
+          )
+        this.requestedReference = reference
+        this.requestInstant = reference ?? checkedNowInstant(this.environment)
+        this.core.setRequestInstant(this.requestInstant)
         const result = await operation()
+        if (checkReadCompletion) this.checkControl(context, control, acceptedAt)
         if (result !== undefined && accountResponse) {
           assertJcsBytes(
             result,
@@ -4499,6 +4956,10 @@ export class EidosRuntimeService implements RuntimeClient {
         }
         throw failure
       } finally {
+        this.core.setRequestInstant()
+        this.requestInstant = undefined
+        this.requestCalendar = undefined
+        this.requestedReference = undefined
         control.unsubscribe()
         this.requestControls.delete(context.requestId)
       }
@@ -4682,6 +5143,50 @@ function relationDefinition(
   }
 }
 
+function usesCalendarPeriod(node: FilterNode | undefined): boolean {
+  if (!node) return false
+  if (node.op === "calendar-period" || node.op === "calendar-window")
+    return true
+  if (node.op === "not") return usesCalendarPeriod(node.arg)
+  return (
+    (node.op === "and" || node.op === "or") &&
+    node.args.some(usesCalendarPeriod)
+  )
+}
+
+function usesClockFilter(node: FilterNode | undefined): boolean {
+  if (!node) return false
+  if (node.op === "calendar-period" || node.op === "calendar-window")
+    return true
+  if (node.op === "not") return usesClockFilter(node.arg)
+  if (node.op === "and" || node.op === "or")
+    return node.args.some(usesClockFilter)
+  return false
+}
+
+function isPublicSavedQueryDocument(query: Record<string, unknown>): boolean {
+  const visit = (value: unknown): boolean => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return false
+    const node = value as Record<string, unknown>
+    if (node.op === "not") return visit(node.arg)
+    if (node.op === "and" || node.op === "or")
+      return Array.isArray(node.args) && node.args.every(visit)
+    return typeof node.fieldId === "string"
+  }
+  return (
+    (query.filter === undefined || visit(query.filter)) &&
+    (query.sort === undefined ||
+      (Array.isArray(query.sort) &&
+        query.sort.every(
+          (sort) =>
+            sort &&
+            typeof sort === "object" &&
+            typeof (sort as Record<string, unknown>).fieldId === "string"
+        )))
+  )
+}
+
 function normalizedRuntimeQuery(query: RowQuery): JsonObject {
   return objectValue({
     ...(query.filter === undefined ? {} : { filter: query.filter }),
@@ -4801,6 +5306,23 @@ function runtimeListElementType(type: TypeRef): AtomicType | undefined {
   return undefined
 }
 
+function assertRuntimeSavedViewQuery(
+  fields: ReturnType<EidosFileRuntime["listFields"]>,
+  query: SavedViewQuery
+): void {
+  if (
+    !query ||
+    typeof query !== "object" ||
+    Array.isArray(query) ||
+    Object.keys(query).some((key) => key !== "filter" && key !== "sort")
+  )
+    throw runtimeError(
+      "invalid-query",
+      "SavedViewQuery contains execution settings or unknown members"
+    )
+  assertRuntimeRowQuery(fields, query)
+}
+
 function assertRuntimeRowQuery(
   fields: ReturnType<EidosFileRuntime["listFields"]>,
   query: RowQuery
@@ -4808,6 +5330,15 @@ function assertRuntimeRowQuery(
   if (!query || typeof query !== "object" || Array.isArray(query)) {
     throw runtimeError("invalid-query", "RowQuery must be an object")
   }
+  if (
+    Object.keys(query).some(
+      (key) => !["filter", "search", "sort"].includes(key)
+    )
+  )
+    throw runtimeError(
+      "invalid-query",
+      "Execution settings do not belong in RowQuery"
+    )
   const byId = new Map(fields.map((field) => [field.id!, field]))
   if (query.search !== undefined) {
     if (
@@ -4890,6 +5421,53 @@ function assertRuntimeRowQuery(
     }
     const type = fieldValueType(field)
     if (node.op === "is-null" || node.op === "is-not-null") return
+    if (node.op === "calendar-window") {
+      if (
+        (type !== "date" && type !== "datetime") ||
+        !isEidosFileCalendarWindowValue({
+          direction: node.direction,
+          unit: node.unit,
+          count: node.count,
+        }) ||
+        Object.keys(node).some(
+          (key) =>
+            !["op", "fieldId", "direction", "unit", "count"].includes(key)
+        )
+      )
+        throw runtimeError("invalid-query", "Calendar window Filter is invalid")
+      return
+    }
+    if (node.op === "calendar-period") {
+      if (
+        (type !== "date" && type !== "datetime") ||
+        !isEidosFileCalendarPeriodValue({
+          unit: node.unit,
+          offset: node.offset,
+        }) ||
+        Object.keys(node).some(
+          (key) => !["op", "fieldId", "unit", "offset"].includes(key)
+        )
+      )
+        throw runtimeError("invalid-query", "Calendar period Filter is invalid")
+      return
+    }
+    if (node.op === "calendar-day") {
+      const { day, timeZone, timeZoneData } = node
+      if (
+        (type !== "date" && type !== "datetime") ||
+        !isEidosFileCalendarDayValue({ day, timeZone, timeZoneData }) ||
+        Object.keys(node).some(
+          (key) =>
+            !["op", "fieldId", "day", "timeZone", "timeZoneData"].includes(key)
+        )
+      )
+        throw runtimeError("invalid-query", "Calendar day Filter is invalid")
+      assertEidosFileCalendarZone(timeZone, timeZoneData)
+      throw runtimeError(
+        "unsupported",
+        "Retired calendar-day query requires an explicit date filter upgrade"
+      )
+    }
     if (node.op === "relative-date") {
       if (type !== "date" && type !== "datetime") {
         throw runtimeError(
@@ -4898,6 +5476,9 @@ function assertRuntimeRowQuery(
         )
       }
       if (
+        Object.keys(node).some(
+          (key) => !["op", "fieldId", "direction", "unit"].includes(key)
+        ) ||
         !["past", "next", "this"].includes(node.direction) ||
         !["day", "week", "month", "year"].includes(node.unit)
       ) {
@@ -4906,7 +5487,10 @@ function assertRuntimeRowQuery(
           "Relative date Filter direction or unit is invalid"
         )
       }
-      return
+      throw runtimeError(
+        "unsupported",
+        "Retired relative-date query requires an explicit date filter upgrade"
+      )
     }
     if (
       node.op === "contains" ||
@@ -5095,6 +5679,34 @@ function runtimeFilterNodeToCompatibility(
       ],
     }
   }
+  if (node.op === "calendar-window") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-in-calendar-window",
+      value: { direction: node.direction, count: node.count, unit: node.unit },
+    }
+  }
+  if (node.op === "calendar-period") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-in-calendar-period",
+      value: { unit: node.unit, offset: node.offset },
+    }
+  }
+  if (node.op === "calendar-day") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-on-calendar-day",
+      value: {
+        day: node.day,
+        timeZone: node.timeZone,
+        timeZoneData: node.timeZoneData,
+      },
+    }
+  }
   if (node.op === "relative-date") {
     return {
       type: "rule",
@@ -5137,6 +5749,9 @@ function runtimeFilterNodeToCompatibility(
     | { op: "between" }
     | { op: "has-all" }
     | { op: "relative-date" }
+    | { op: "calendar-day" }
+    | { op: "calendar-period" }
+    | { op: "calendar-window" }
   >
   const operatorMap: Partial<
     Record<FilterNode["op"], EidosFileFilterOperator>
@@ -5227,6 +5842,24 @@ function compatibilityFilterRuleToRuntime(
       ? { op: "has-any", fieldId: rule.field, values: requireValues() }
       : { op: "in", fieldId: rule.field, values: requireValues() }
 
+  if (rule.operator === "is-in-calendar-window") {
+    if (!isEidosFileCalendarWindowValue(rule.value))
+      throw runtimeError("corrupt-file", "Stored calendar window is invalid")
+    return { op: "calendar-window", fieldId: rule.field, ...rule.value }
+  }
+  if (rule.operator === "is-in-calendar-period") {
+    if (!isEidosFileCalendarPeriodValue(rule.value))
+      throw runtimeError("corrupt-file", "Stored calendar period is invalid")
+    return { op: "calendar-period", fieldId: rule.field, ...rule.value }
+  }
+  if (rule.operator === "is-on-calendar-day") {
+    if (!isEidosFileCalendarDayValue(rule.value))
+      throw runtimeError(
+        "corrupt-file",
+        "Stored calendar day filter is invalid"
+      )
+    return { op: "calendar-day", fieldId: rule.field, ...rule.value }
+  }
   if (rule.operator === "is-relative-to-today") {
     const relative = rule.value as EidosFileRelativeDateValue | undefined
     if (
@@ -6155,6 +6788,7 @@ function compareGroupKeys(
 function groupCursorSource(request: GroupRequest): JsonObject {
   return objectValue({
     tableId: request.tableId,
+    ...(request.calendar ? { calendar: request.calendar } : {}),
     query: normalizedRuntimeQuery(request.query),
     groupBy: request.groupBy,
     aggregates: request.aggregates,
@@ -6186,6 +6820,7 @@ function queryForGroup(
 function groupBindingHash(request: GroupRequest): Promise<string> {
   return hashJson({
     tableId: request.tableId,
+    ...(request.calendar ? { calendar: request.calendar } : {}),
     query: normalizedRuntimeQuery(request.query),
     groupBy: request.groupBy,
     aggregates: request.aggregates,

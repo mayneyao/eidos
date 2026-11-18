@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
-import { eidosFileFieldQueryCapabilities } from "@eidos.space/eidos-file"
+import {
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  eidosFileFieldQueryCapabilities,
+  type EidosFileFieldInfo,
+} from "@eidos.space/eidos-file"
 import { EidosFileUIProvider, Button } from "@eidos.space/eidos-file-ui"
 import {
   Popover,
@@ -16,6 +19,8 @@ import {
 import { useEidosLiteI18n } from "./i18n"
 import type { SpaceTreeEntry } from "../shared/contracts"
 
+const fileSystemCalendarProfiles = [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA]
+
 export function ExplorerFilterBar({
   filter,
   onChange,
@@ -25,6 +30,7 @@ export function ExplorerFilterBar({
   triggerRef,
   theme = "light",
   timeZone,
+  weekStartsOnMonday,
   respectGitignore = true,
   onRespectGitignoreChange,
 }: {
@@ -36,10 +42,13 @@ export function ExplorerFilterBar({
   triggerRef: RefObject<HTMLButtonElement>
   theme?: "light" | "dark"
   timeZone?: string
+  weekStartsOnMonday?: boolean
   respectGitignore?: boolean
   onRespectGitignoreChange?(value: boolean): void
 }) {
   const { t, locale } = useEidosLiteI18n()
+  const [extendedCalendarPeriods, setExtendedCalendarPeriods] = useState(false)
+  const [extendedCalendarWindows, setExtendedCalendarWindows] = useState(false)
   const [fields, setFields] = useState<EidosFileFieldInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -49,22 +58,43 @@ export function ExplorerFilterBar({
     restoreFocus.current = true
     let cancelled = false
     setError(null)
-    void window.eidosLite.getExplorerFilterFields().then(
-      (next) => {
-        if (!cancelled)
-          setFields(
-            next.filter(
-              (field) =>
-                eidosFileFieldQueryCapabilities(field).filterOperators.length >
-                0
+    void window.eidosLite
+      .getExplorerFilterFields({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
+      .then(
+        (next) => {
+          if (!cancelled) {
+            const nextFields: EidosFileFieldInfo[] = Array.isArray(next)
+              ? next
+              : next.fields
+            const capabilities = Array.isArray(next)
+              ? undefined
+              : next.queryCapabilities
+            const extendedPeriods =
+              capabilities?.calendarQueryVersion === 2 &&
+              capabilities.calendarPeriodTimeZoneData?.includes(
+                EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+              )
+            setExtendedCalendarPeriods(!!extendedPeriods)
+            setExtendedCalendarWindows(
+              !!extendedPeriods && capabilities?.calendarWindowVersion === 1
             )
-          )
-      },
-      (cause: unknown) => {
-        if (!cancelled)
-          setError(cause instanceof Error ? cause.message : String(cause))
-      }
-    )
+            setFields(
+              nextFields.filter(
+                (field) =>
+                  eidosFileFieldQueryCapabilities(field).filterOperators
+                    .length > 0
+              )
+            )
+          }
+        },
+        (cause: unknown) => {
+          if (!cancelled)
+            setError(cause instanceof Error ? cause.message : String(cause))
+        }
+      )
     return () => {
       cancelled = true
     }
@@ -85,7 +115,14 @@ export function ExplorerFilterBar({
   }, [entries])
   const hasDraft = toExplorerFilterGroup(filter).children.length > 0
   return (
-    <EidosFileUIProvider locale={locale} themeName={theme} timeZone={timeZone}>
+    <EidosFileUIProvider
+      locale={locale}
+      themeName={theme}
+      timeZone={timeZone}
+      weekStartsOnMonday={weekStartsOnMonday}
+      calendarWindowVersion={1}
+      calendarPeriodTimeZoneData={fileSystemCalendarProfiles}
+    >
       <Popover
         open={open}
         onOpenChange={(next) => {
@@ -120,6 +157,8 @@ export function ExplorerFilterBar({
             fields={fields}
             suffixes={suffixes}
             filter={filter}
+            extendedCalendarPeriods={extendedCalendarPeriods}
+            extendedCalendarWindows={extendedCalendarWindows}
             onChange={(next) => {
               setError(null)
               onChange(next)

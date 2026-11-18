@@ -56,6 +56,7 @@ const READ_ONLY_PRAGMAS = new Set([
   "compile_options",
   "data_version",
   "database_list",
+  "encoding",
   "foreign_key_check",
   "foreign_key_list",
   "foreign_keys",

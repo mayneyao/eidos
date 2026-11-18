@@ -21,13 +21,17 @@ import {
   type EidosFileGridAppendResult,
   type EidosFileGridDeleteResult,
   type EidosFileGridUndoCommand,
+  type EidosFileGridRowEdit,
 } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
 import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { MobileFields } from "./mobile-fields"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import { useEidosFileUI } from "./context"
+import { useEidosFileCreationContext } from "./eidos-file-temporal-defaults"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
 
@@ -202,6 +206,9 @@ export function EidosFileDataGrid({
   onImportDroppedFiles,
 }: EidosFileDataGridProps) {
   const { interactionMode } = useEidosFileUI()
+  const creationContext = useEidosFileCreationContext()
+  const calendar = useEidosFileCalendarExecution()
+  const sharedUndo = useEidosFileUndo()
   const rowWriteTail = useRef<Promise<void> | null>(null)
   const enqueueRowWrite = useCallback(<T,>(write: () => Promise<T>) => {
     // The source captures expectedRevision when called. Wait until the prior
@@ -228,11 +235,12 @@ export function EidosFileDataGrid({
     useState<EidosFileFieldInfo | null>(null)
   const query = useMemo<EidosFileRowQuery>(
     () => ({
+      ...(calendar ? { calendar } : {}),
       ...(search.trim() ? { search: search.trim() } : {}),
       ...(view?.filter ? { filter: view.filter } : {}),
       ...(view?.sorts.length ? { sorts: view.sorts } : {}),
     }),
-    [search, view?.filter, view?.sorts]
+    [search, view?.filter, view?.sorts, calendar]
   )
 
   const loadPage = useCallback(
@@ -270,7 +278,12 @@ export function EidosFileDataGrid({
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
     const settled = enqueueRowWrite(async () => {
-      const result = await source.insertRow(table.table.id, {})
+      const result = await source.insertRow(
+        table.table.id,
+        {},
+        creationContext,
+        query
+      )
       onMutation?.(result)
       return result
     })
@@ -280,7 +293,15 @@ export function EidosFileDataGrid({
       rowCount: table.rowCount + 1,
       settled,
     }
-  }, [enqueueRowWrite, onMutation, source, table.rowCount, table.table.id])
+  }, [
+    enqueueRowWrite,
+    onMutation,
+    source,
+    table.rowCount,
+    table.table.id,
+    creationContext,
+    query,
+  ])
 
   const editCell = useCallback(
     (
@@ -354,6 +375,40 @@ export function EidosFileDataGrid({
       onSnapshot?.(snapshot)
     },
     [onSnapshot, source, table.table.id]
+  )
+
+  const editRows = useMemo(
+    () =>
+      sharedUndo?.history.source === source
+        ? (edits: readonly EidosFileGridRowEdit[]) =>
+            enqueueRowWrite(async () => {
+              const results = await sharedUndo.history.updateRows(
+                table.table.id,
+                edits.map((edit) => ({
+                  rowId: String(edit.row._id),
+                  fields: Object.fromEntries(
+                    Object.entries(edit.changes).map(([column, value]) => {
+                      const field = table.fields.find(
+                        (candidate) => candidate.tableColumnName === column
+                      )
+                      if (!field)
+                        throw new Error(
+                          "The edited field is no longer available"
+                        )
+                      return [eidosFileFieldKey(field), value]
+                    })
+                  ),
+                }))
+              )
+              results.forEach((result) => onMutation?.(result))
+              return {
+                tableId: table.table.id,
+                rows: results.map((result) => result.row),
+                rowCount: results.at(-1)?.rowCount ?? table.rowCount,
+              }
+            })
+        : undefined,
+    [enqueueRowWrite, onMutation, sharedUndo?.history, source, table]
   )
 
   const deleteField = useCallback(
@@ -443,6 +498,7 @@ export function EidosFileDataGrid({
         loadPage={loadPage}
         locateRow={locateRow}
         loadInspectorRow={loadInspectorRow}
+        recordScope={source}
         inspectedRowId={inspectedRowId}
         onInspectedRowChange={onInspectedRowChange}
         onOpenRecord={onOpenRecord}
@@ -451,6 +507,7 @@ export function EidosFileDataGrid({
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
         onCellEdit={editCell}
+        onRowsEdit={editRows}
         propertyField={propertyField}
         onPropertyFieldOpen={
           interactionMode === "mobile"

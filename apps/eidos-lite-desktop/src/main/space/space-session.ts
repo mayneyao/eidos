@@ -1,4 +1,6 @@
-import { randomUUID } from "node:crypto"
+import { randomUUID, createHash } from "node:crypto"
+import { runtimeReadTrace } from "../../runtime/read-trace"
+import { copySpacePath } from "./copy-space-path"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import {
   resolvePluginFile,
@@ -11,6 +13,7 @@ import type { SparkFeature } from "../../shared/spark"
 import { customSyncOrigin } from "../../shared/sync-encryption"
 import { searchSpaceText } from "./text-search"
 import { readSpaceFilterTree, explorerPropertyMatches } from "./filter-files"
+import { compileExplorerFileSystemFilter } from "./explorer-file-system-predicates"
 import {
   selectExplorerFilesPage,
   type ExplorerFilesPage,
@@ -25,15 +28,34 @@ import type {
   TextSearchProgress,
   TextSearchOptions,
 } from "../../shared/text-search"
-import { constants as fsConstants } from "node:fs"
+import { constants as fsConstants, type BigIntStats } from "node:fs"
+import type { SystemClipboardFiles } from "../system-file-clipboard"
+import type {
+  ClipboardExportLease,
+  ClipboardExportRequest,
+} from "../clipboard-export-store"
+import { createWriteStream } from "node:fs"
+import { Transform } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import fs from "node:fs/promises"
+import type {
+  ExplorerCalendarExecution,
+  ExplorerFilterFieldsResult,
+} from "../../shared/explorer-calendar"
 import path from "node:path"
 import type { GraftEncryptedInput } from "../../shared/graft-sdk-contracts"
+import { listMarkdownLinkFiles } from "./markdown-link-maintenance"
 import {
-  prepareMarkdownLinkMove,
-  applyMarkdownLinkMove,
-} from "./markdown-link-maintenance"
+  MarkdownLinkWorker,
+  LocalMarkdownLinkMaintenance,
+  type MarkdownLinkMaintenance,
+} from "../runtime/markdown-link-worker"
 import type {
+  MarkdownLinkMove,
+  MarkdownLinkBatchResult,
+} from "../../shared/markdown-link-batch"
+import type {
+  EidosFileFieldInfo,
   EidosSystemMergeDomainConflict,
   FileEntry,
 } from "@eidos.space/eidos-file"
@@ -71,6 +93,7 @@ import type {
   SpaceSyncHistoryStatus,
   SpaceSnapshot,
   SpacePathsMutationResult,
+  SpacePathClipboardSources,
   SpaceIgnoreRules,
   SpacePathMutationResult,
   SpacePathSearchHit,
@@ -184,8 +207,10 @@ import {
   importMarkdownDocumentFile,
   importMarkdownDocumentImage,
   resolveMarkdownDocumentImage,
+  resolveMarkdownDocumentLink,
 } from "./markdown-document-assets"
 import { readWorkingTextContent } from "./working-text-reader"
+import { renameNoReplace } from "./rename-no-replace"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
 const csvOperationControlMethods = new Set<RuntimeMethod>([
@@ -221,16 +246,20 @@ let snapshotSequence = 0
 async function renameWithRetry(
   sourcePath: string,
   targetPath: string,
+  target: string,
   maxRetries = 20,
   initialDelayMs = 50
 ): Promise<void> {
   let delay = initialDelayMs
   for (let attempt = 0; ; attempt++) {
     try {
-      await fs.rename(sourcePath, targetPath)
+      await renameNoReplace(sourcePath, targetPath)
       return
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code
+      if (code === "EEXIST" || code === "ENOTEMPTY") {
+        throw existingPathError(target)
+      }
       if (
         attempt < maxRetries &&
         (code === "EBUSY" || code === "EPERM" || code === "EACCES")
@@ -242,6 +271,10 @@ async function renameWithRetry(
       throw error
     }
   }
+}
+
+function existingPathError(relativePath: string): Error {
+  return new Error(`A file or folder already exists at ${relativePath}`)
 }
 
 function runtimeResultRevision(value: unknown): number | bigint | null {
@@ -420,11 +453,16 @@ interface RuntimeExternalChangeState extends EidosLiteExternalChangeProbe {
 }
 
 export class SpaceSession {
+  private readonly clipboardIdentitySalt = randomUUID()
   private readonly sparkRuntimePolicies = new Map<
     string,
     { connectionId: string; dataVersion: string; metadata: boolean }
   >()
   readonly runtimePool: RuntimePool
+  private readonly markdownLinkWorkers = new Set<MarkdownLinkMaintenance>()
+  private readonly closingMarkdownLinkWorkers = new Set<Promise<void>>()
+  private idleMarkdownLinkWorker: MarkdownLinkWorker | null = null
+  private markdownLinkIdleTimer: ReturnType<typeof setTimeout> | undefined
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
   private readonly pathIndex: SpacePathIndex
@@ -464,7 +502,7 @@ export class SpaceSession {
     string,
     { epoch: number; promise: Promise<void> }
   >()
-  private pathMoveInFlight: Promise<SpacePathsMutationResult> | null = null
+  private pathMoveInFlight: Promise<SpacePathMutationResult> | null = null
   private readonly moveWatcherPaths = new Set<string>()
   private readonly pendingEidosFileAssets = new Map<
     string,
@@ -552,12 +590,18 @@ export class SpaceSession {
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
     private readonly stateDirectory: string,
-    workerPath?: string,
+    private readonly workerPath?: string,
     private readonly requireSparkFeature?: (
       feature: SparkFeature
-    ) => Promise<void>
+    ) => Promise<void>,
+    readonly readOnly = false
   ) {
-    this.runtimePool = new RuntimePool(canonical.root, workerPath)
+    this.runtimePool = new RuntimePool(
+      canonical.root,
+      workerPath,
+      undefined,
+      readOnly
+    )
     this.pathIndex = new SpacePathIndex(canonical.root)
     this.repository = new SpaceRepositoryCoordinator()
     this.syncState = new SpaceSyncStateStore(
@@ -569,6 +613,10 @@ export class SpaceSession {
       new SpaceOperationJournal(stateDirectory),
       {
         assertRootIdentity: () => assertSpaceRootIdentity(this.canonical),
+        assertWritable: () => this.assertWritable(),
+        // Graft may perform maintenance even for a repository inspection. A
+        // protected browsing session never opens a source repository.
+        assertRepositoryAccess: () => this.assertWritable(),
         closeRuntimes: () => this.runtimePool.closeHandles(),
         validateWorktree: (relativePaths) =>
           this.validateMaterializedWorktree(relativePaths),
@@ -612,6 +660,7 @@ export class SpaceSession {
       graft: GraftClient
       workerPath?: string
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
+      readOnly?: boolean
     }
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root, userDataDirectory)
@@ -625,6 +674,7 @@ export class SpaceSession {
       graft: GraftClient
       workerPath?: string
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
+      readOnly?: boolean
     }
   ): Promise<SpaceSession> {
     await assertSpaceRootIdentity(canonical)
@@ -633,9 +683,15 @@ export class SpaceSession {
       options.graft,
       path.join(userDataDirectory, "spaces", canonical.id),
       options.workerPath,
-      options.requireSparkFeature
+      options.requireSparkFeature,
+      options.readOnly
     )
     try {
+      if (session.readOnly) {
+        session.watcher.start()
+        void session.pathIndex.ensureScanned().catch(() => undefined)
+        return session
+      }
       await session.gate.recoverInterruptedOperation()
       await session.recoverSyncSwitch().catch((error) => {
         console.warn(
@@ -702,7 +758,8 @@ export class SpaceSession {
   async filterFiles(
     filter: ExplorerFileFilter,
     directory: string | null,
-    respectGitignore = false
+    respectGitignore = false,
+    calendarExecution?: ExplorerCalendarExecution
   ): Promise<SpaceTreeEntry[]> {
     if (this.closed) throw new Error("Space is closed")
     const key = JSON.stringify([directory, respectGitignore])
@@ -719,7 +776,8 @@ export class SpaceSession {
       })
       this.filteredTreeReads.set(key, read)
     }
-    return this.filterFileEntries(await read, filter)
+    return (await this.filterFileEntries(await read, filter, calendarExecution))
+      .entries
   }
 
   async listExplorerFiles(
@@ -745,28 +803,63 @@ export class SpaceSession {
       if (this.explorerListReads.size >= 4) this.explorerListReads.clear()
       this.explorerListReads.set(key, read)
     }
-    return selectExplorerFilesPage(
-      await this.filterFileEntries(await read, query.filter),
-      query
+    const filtered = await this.filterFileEntries(
+      await read,
+      query.filter,
+      query.calendarExecution
     )
+    return {
+      ...selectExplorerFilesPage(filtered.entries, query),
+      ...(filtered.referenceInstant
+        ? { referenceInstant: filtered.referenceInstant }
+        : {}),
+    }
   }
 
   private async filterFileEntries(
     entries: SpaceTreeEntry[],
-    filter: ExplorerFileFilter
-  ): Promise<SpaceTreeEntry[]> {
+    filter: ExplorerFileFilter,
+    calendarExecution?: ExplorerCalendarExecution
+  ): Promise<{ entries: SpaceTreeEntry[]; referenceInstant?: string }> {
+    const local = compileExplorerFileSystemFilter(filter, calendarExecution)
+    const predicates = local.predicates.size ? local.predicates : undefined
     if (!hasExplorerPropertyFilter(filter))
-      return filterExplorerEntries(entries, filter)
+      return {
+        entries: filterExplorerEntries(entries, filter, undefined, predicates),
+        ...(local.referenceInstant
+          ? { referenceInstant: local.referenceInstant }
+          : {}),
+      }
     const opened = await this.openExistingFileMetadata()
     if (!opened) throw new Error("File properties are unavailable")
     const table = opened.snapshot.tables.find(
       ({ table }) => table.settings?.vtabModule === "fs_meta"
     )
     if (!table) throw new Error("File properties are unavailable")
-    const matches = await explorerPropertyMatches(filter, table, (...args) =>
-      this.runtimePool.call(opened.sessionId, "getPage", args)
+    const matches = await explorerPropertyMatches(
+      filter,
+      table,
+      (...args) =>
+        this.runtimePool.call(
+          opened.sessionId,
+          "getPage",
+          args,
+          calendarExecution
+            ? {
+                calendarQueryVersion: calendarExecution.calendarQueryVersion,
+                calendarWindowVersion: calendarExecution.calendarWindowVersion,
+              }
+            : undefined
+        ),
+      calendarExecution && local.referenceInstant
+        ? { ...calendarExecution, referenceInstant: local.referenceInstant }
+        : calendarExecution
     )
-    return filterExplorerEntries(entries, filter, matches)
+    const referenceInstant = matches.referenceInstant ?? local.referenceInstant
+    return {
+      entries: filterExplorerEntries(entries, filter, matches, predicates),
+      ...(referenceInstant ? { referenceInstant } : {}),
+    }
   }
 
   private async openExistingFileMetadata(): Promise<OpenEidosFileResult | null> {
@@ -780,11 +873,28 @@ export class SpaceSession {
     return existing ? this.openFileMetadata(null) : null
   }
 
-  async getExplorerFilterFields() {
+  async getExplorerFilterFields(): Promise<EidosFileFieldInfo[]>
+  async getExplorerFilterFields(consumer: {
+    calendarQueryVersion: 2
+    calendarWindowVersion?: 1
+  }): Promise<ExplorerFilterFieldsResult>
+  async getExplorerFilterFields(consumer?: {
+    calendarQueryVersion: 2
+    calendarWindowVersion?: 1
+  }): Promise<EidosFileFieldInfo[] | ExplorerFilterFieldsResult> {
     if (this.closed) throw new Error("Space is closed")
     const opened = await this.openExistingFileMetadata()
-    return (
-      opened?.snapshot.tables
+    const snapshot =
+      opened && consumer
+        ? await this.runtimePool.call(
+            opened.sessionId,
+            "getSnapshot",
+            [],
+            consumer
+          )
+        : opened?.snapshot
+    const fields =
+      snapshot?.tables
         .find(({ table }) => table.settings?.vtabModule === "fs_meta")
         ?.fields.filter(
           (field) =>
@@ -792,7 +902,9 @@ export class SpaceSession {
             field.valueKind !== "system" &&
             !field.isHidden
         ) ?? []
-    )
+    return consumer
+      ? { fields, queryCapabilities: snapshot?.queryCapabilities }
+      : fields
   }
 
   async searchText(
@@ -913,12 +1025,23 @@ export class SpaceSession {
   }
 
   private async openSpaceFileMetadata(): Promise<OpenEidosFileResult> {
-    const opened = await this.gate.withMutation(async () => {
+    const open = async () => {
       const privateDirectory = path.join(this.canonical.root, ".eidos")
-      await fs.mkdir(privateDirectory).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "EEXIST") throw error
-      })
-      const stats = await fs.lstat(privateDirectory)
+      if (!this.readOnly)
+        await fs
+          .mkdir(privateDirectory)
+          .catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== "EEXIST") throw error
+          })
+      const stats = await fs
+        .lstat(privateDirectory)
+        .catch((error: NodeJS.ErrnoException) => {
+          if (this.readOnly && error.code === "ENOENT")
+            throw new Error(
+              "File metadata is unavailable: this read-only Space has no existing catalog."
+            )
+          throw error
+        })
       if (
         !stats.isDirectory() ||
         stats.isSymbolicLink() ||
@@ -941,6 +1064,10 @@ export class SpaceSession {
           )
         return this.runtimePool.open(SPACE_FILE_METADATA_PATH)
       }
+      if (this.readOnly)
+        throw new Error(
+          "File metadata is unavailable: this read-only Space has no existing catalog."
+        )
       await this.requireSparkFeature?.("file-metadata")
       const created = await this.runtimePool.create(
         SPACE_FILE_METADATA_PATH,
@@ -949,7 +1076,10 @@ export class SpaceSession {
       )
       this.noteLocalChange()
       return created
-    })
+    }
+    const opened = this.readOnly
+      ? await this.gate.withRuntimeRead(open)
+      : await this.gate.withMutation(open)
     const tables = opened.snapshot.tables.filter(
       ({ table }) => table.settings?.vtabModule === "fs_meta"
     )
@@ -1541,38 +1671,45 @@ export class SpaceSession {
             normalizeSpaceEntryName(plan.name)
           )
         : source
+      let linkedPaths: string[] = []
       const applied = await this.gate.withMutation(async () => {
         const current = await readTextFilePreview(this.canonical.root, source)
         if (current.type !== "text" || current.revision !== file.revision)
           return null
-        if (target !== source) await this.requireMissingPath(target)
-        const linkPlan =
-          target === source
-            ? null
-            : await this.prepareMarkdownLinkMove(source, target)
-        if (plan.text !== undefined) {
-          const saved = await saveTextFile(this.canonical.root, {
-            relativePath: source,
-            content: plan.text,
-            expectedRevision: file.revision,
-          })
-          if (saved.status !== "saved") return null
+        if (target !== source)
+          await this.requireMissingRenameTarget(source, target)
+        const maintenance =
+          target === source ? null : await this.prepareMarkdownLinkMaintenance()
+        try {
+          if (plan.text !== undefined) {
+            const saved = await saveTextFile(this.canonical.root, {
+              relativePath: source,
+              content: plan.text,
+              expectedRevision: file.revision,
+            })
+            if (saved.status !== "saved") return null
+          }
+          if (target !== source) {
+            await renameWithRetry(
+              this.resolveUserPath(source),
+              this.resolveUserPath(target),
+              target
+            )
+            const links = await this.applyMarkdownLinkMaintenance(maintenance, [
+              { source, relativePath: target },
+            ])
+            linkedPaths = links.updatedPaths
+          }
+          const next = await readTextFilePreview(this.canonical.root, target)
+          return next.type === "text" ? next : null
+        } finally {
+          await this.disposeMarkdownLinkMaintenance(maintenance)
         }
-        if (target !== source) {
-          await renameWithRetry(
-            this.resolveUserPath(source),
-            this.resolveUserPath(target)
-          )
-          if (linkPlan)
-            await applyMarkdownLinkMove(this.canonical.root, linkPlan)
-        }
-        const next = await readTextFilePreview(this.canonical.root, target)
-        return next.type === "text" ? next : null
       })
       if (applied) {
         this.noteLocalChange()
         if (target !== source) this.recordPathMoveInBackground(source, target)
-        this.notifyMarkdownWatchers([source, target])
+        this.notifyMarkdownWatchers([source, target, ...linkedPaths])
         await this.freshSnapshotAndEmit()
       }
       return applied
@@ -1623,6 +1760,31 @@ export class SpaceSession {
     } finally {
       this.scheduleGraftStatusRefresh()
     }
+  }
+
+  async resolveMarkdownLink(
+    owner: string,
+    href: string
+  ): Promise<SpaceTreeEntry | null> {
+    return this.gate.withRuntimeRead(() =>
+      resolveMarkdownDocumentLink(this.canonical.root, owner, href)
+    )
+  }
+
+  async openMarkdownLink(
+    owner: string,
+    href: string,
+    activate: (relativePath: string) => Promise<void>
+  ): Promise<void> {
+    return this.gate.withRuntimeRead(async () => {
+      const entry = await resolveMarkdownDocumentLink(
+        this.canonical.root,
+        owner,
+        href
+      )
+      if (!entry) throw new Error("Markdown link target is unavailable")
+      await activate(entry.relativePath)
+    })
   }
 
   async inspectEidosFileIssue(
@@ -1893,11 +2055,9 @@ export class SpaceSession {
     return counts
   }
 
-  private prepareMarkdownLinkMove(source: string, target: string) {
-    return prepareMarkdownLinkMove(
+  private async prepareMarkdownLinkMaintenance(): Promise<MarkdownLinkMaintenance | null> {
+    const files = await listMarkdownLinkFiles(
       this.canonical.root,
-      source,
-      target,
       this.graftSessionOpen()
         ? {
             ignoredPaths: async (paths) => {
@@ -1911,6 +2071,106 @@ export class SpaceSession {
           }
         : {}
     )
+    const owners = files.filter(
+      (file) =>
+        !file.relativePath
+          .split("/")
+          .some((part) =>
+            [".eidos", ".graft", ".git"].includes(part.toLowerCase())
+          ) &&
+        (file.kind === "eidos" || /\.(?:md|markdown)$/iu.test(file.name))
+    )
+    if (!owners.length) return null
+    let worker: MarkdownLinkMaintenance
+    if (owners.some((file) => file.kind === "eidos")) {
+      clearTimeout(this.markdownLinkIdleTimer)
+      this.markdownLinkIdleTimer = undefined
+      const idle = this.idleMarkdownLinkWorker
+      this.idleMarkdownLinkWorker = null
+      if (idle?.reusable) worker = idle
+      else {
+        await idle?.dispose()
+        worker = new MarkdownLinkWorker(this.workerPath)
+      }
+    } else worker = new LocalMarkdownLinkMaintenance()
+    this.markdownLinkWorkers.add(worker)
+    try {
+      await worker.prepare(this.canonical.root, files)
+      return worker
+    } catch (error) {
+      await this.disposeMarkdownLinkMaintenance(worker)
+      throw error
+    }
+  }
+
+  private async disposeMarkdownLinkMaintenance(
+    worker: MarkdownLinkMaintenance | null
+  ): Promise<void> {
+    if (!worker) return
+    this.markdownLinkWorkers.delete(worker)
+    // Reuse only the process for a short burst of operations. Every batch still
+    // takes a fresh snapshot; no document graph or database handle stays open.
+    if (
+      worker instanceof MarkdownLinkWorker &&
+      worker.reusable &&
+      !this.closed
+    ) {
+      this.idleMarkdownLinkWorker = worker
+      this.markdownLinkIdleTimer = setTimeout(() => {
+        if (this.idleMarkdownLinkWorker !== worker) return
+        this.idleMarkdownLinkWorker = null
+        this.markdownLinkIdleTimer = undefined
+        void this.closeMarkdownLinkWorker(worker)
+      }, 5000)
+      this.markdownLinkIdleTimer.unref()
+      return
+    }
+    await this.closeMarkdownLinkWorker(worker)
+  }
+
+  private closeMarkdownLinkWorker(
+    worker: MarkdownLinkMaintenance
+  ): Promise<void> {
+    const closing = worker
+      .dispose()
+      .catch((error) =>
+        console.warn("Could not close Markdown link maintenance", error)
+      )
+    this.closingMarkdownLinkWorkers.add(closing)
+    void closing.then(() => this.closingMarkdownLinkWorkers.delete(closing))
+    return closing
+  }
+
+  private async applyMarkdownLinkMaintenance(
+    worker: MarkdownLinkMaintenance | null,
+    moves: MarkdownLinkMove[]
+  ): Promise<MarkdownLinkBatchResult> {
+    if (!worker || !moves.some((move) => move.source !== move.relativePath))
+      return { updatedPaths: [], skippedPaths: [] }
+    let result: MarkdownLinkBatchResult
+    try {
+      result = await worker.apply(moves)
+    } catch (error) {
+      console.warn("Could not complete Markdown link maintenance", error)
+      result = worker.skipped(moves)
+    }
+    // A private writer must refresh already-resident UI sources without opening
+    // other databases or changing the UI pool's residency set.
+    const contentPaths = [
+      ...new Set([...result.updatedPaths, ...result.skippedPaths]),
+    ].filter((path) => /\.eidos$/iu.test(path))
+    if (!contentPaths.length) return result
+    const resident = new Set(this.runtimePool.residentRelativePaths())
+    for (const path of contentPaths) {
+      const sessionId = this.runtimeSessionByPath.get(path)
+      if (!sessionId || !resident.has(path)) continue
+      try {
+        await this.runtimePool.call(sessionId, "getSnapshot", [])
+      } catch (error) {
+        console.warn("Could not refresh Content after a file move", error)
+      }
+    }
+    return result
   }
 
   async renamePath(
@@ -1940,21 +2200,35 @@ export class SpaceSession {
       this.canonical.root,
       parent === "." ? null : parent
     )
-    await this.requireMissingPath(target)
+    await this.requireMissingRenameTarget(source, target)
     let invalidatedSessionIds: string[] = []
     let markdownLinks: SpacePathMutationResult["markdownLinks"]
     await this.gate.withMutation(async () => {
-      const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-      invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
-      await renameWithRetry(
-        this.resolveUserPath(source),
-        this.resolveUserPath(target)
-      )
-      markdownLinks = await applyMarkdownLinkMove(this.canonical.root, linkPlan)
+      const maintenance = await this.prepareMarkdownLinkMaintenance()
+      try {
+        // A conflict found during the scan can be reported without closing
+        // an open editor. The system rename still checks again atomically.
+        await this.requireMissingRenameTarget(source, target)
+        invalidatedSessionIds = await this.closeAndEvictRuntimeSessions(source)
+        await renameWithRetry(
+          this.resolveUserPath(source),
+          this.resolveUserPath(target),
+          target
+        )
+        markdownLinks = await this.applyMarkdownLinkMaintenance(maintenance, [
+          { source, relativePath: target },
+        ])
+      } finally {
+        await this.disposeMarkdownLinkMaintenance(maintenance)
+      }
     })
     this.noteLocalChange()
     this.recordPathMoveInBackground(source, target)
-    this.notifyMarkdownWatchers([source, target])
+    this.notifyMarkdownWatchers([
+      source,
+      target,
+      ...(markdownLinks?.updatedPaths ?? []),
+    ])
     let finalPath = target
     if (this.fileHookRunner && !/\.eidos$/i.test(target)) {
       const file = await this.previewTextFile(target)
@@ -1984,11 +2258,22 @@ export class SpaceSession {
 
   movePaths(
     relativePaths: string[],
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathsMutationResult> {
+    return this.runPathMutation(() =>
+      this.performPathMoves(relativePaths, targetDirectory, clipboard)
+    )
+  }
+
+  private runPathMutation<T extends SpacePathMutationResult>(
+    start: () => Promise<T>
+  ): Promise<T> {
     if (this.pathMoveInFlight)
-      return Promise.reject(new Error("A file move is already in progress"))
-    const operation = this.performPathMoves(relativePaths, targetDirectory)
+      return Promise.reject(
+        new Error("A file operation is already in progress")
+      )
+    const operation = start()
     this.pathMoveInFlight = operation
     void operation
       .finally(() => {
@@ -2012,7 +2297,8 @@ export class SpaceSession {
 
   private async performPathMoves(
     relativePaths: string[],
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathsMutationResult> {
     this.prioritizeLocalWork()
     // Install the batch fence before the first async work. Do not wait for a
@@ -2026,47 +2312,65 @@ export class SpaceSession {
     let failure: SpacePathsMutationResult["failure"]
     let attempted = 0
     await this.gate.withMutation(async () => {
-      for (const relativePath of relativePaths) {
-        attempted += 1
-        try {
-          const source = normalizeMutableRelativePath(relativePath)
-          await fs.lstat(this.resolveUserPath(source))
-          await resolveSpaceDirectory(this.canonical.root, targetDirectory)
-          const target = joinSpaceRelativePath(
-            targetDirectory,
-            path.posix.basename(source)
-          )
-          if (target === source) {
+      let maintenance: MarkdownLinkMaintenance | null = null
+      let captured = false
+      try {
+        for (const relativePath of relativePaths) {
+          attempted += 1
+          try {
+            const source = normalizeMutableRelativePath(relativePath)
+            await this.validateClipboardSource(clipboard, source)
+            const parent = path.posix.dirname(source)
+            await resolveSpaceDirectory(
+              this.canonical.root,
+              parent === "." ? null : parent
+            )
+            await fs.lstat(this.resolveUserPath(source))
+            await resolveSpaceDirectory(this.canonical.root, targetDirectory)
+            const target = joinSpaceRelativePath(
+              targetDirectory,
+              path.posix.basename(source)
+            )
+            if (target === source) {
+              moves.push({ source, relativePath: target })
+              continue
+            }
+            if (target.startsWith(`${source}/`))
+              throw new Error("A folder cannot be moved inside itself")
+            await this.requireMissingPath(target)
+            if (!captured) {
+              maintenance = await this.prepareMarkdownLinkMaintenance()
+              captured = true
+            }
+            for (const id of await this.closeAndEvictRuntimeSessions(source))
+              invalidatedSessionIds.add(id)
+            await renameWithRetry(
+              this.resolveUserPath(source),
+              this.resolveUserPath(target),
+              target
+            )
             moves.push({ source, relativePath: target })
-            continue
+            this.noteLocalChange()
+            this.recordPathMoveInBackground(source, target)
+            this.collectMoveWatcherPaths([source, target])
+          } catch (cause) {
+            failure = {
+              relativePath,
+              message: cause instanceof Error ? cause.message : String(cause),
+            }
+            break
           }
-          if (target.startsWith(`${source}/`))
-            throw new Error("A folder cannot be moved inside itself")
-          await this.requireMissingPath(target)
-          const linkPlan = await this.prepareMarkdownLinkMove(source, target)
-          for (const id of await this.closeAndEvictRuntimeSessions(source))
-            invalidatedSessionIds.add(id)
-          await renameWithRetry(
-            this.resolveUserPath(source),
-            this.resolveUserPath(target)
-          )
-          moves.push({ source, relativePath: target })
-          this.noteLocalChange()
-          this.recordPathMoveInBackground(source, target)
-          const links = await applyMarkdownLinkMove(
-            this.canonical.root,
-            linkPlan
-          )
-          for (const value of links.updatedPaths) updatedPaths.add(value)
-          for (const value of links.skippedPaths) skippedPaths.add(value)
-          this.collectMoveWatcherPaths([source, target, ...links.updatedPaths])
-        } catch (cause) {
-          failure = {
-            relativePath,
-            message: cause instanceof Error ? cause.message : String(cause),
-          }
-          break
         }
+        const links = await this.applyMarkdownLinkMaintenance(
+          maintenance,
+          moves
+        )
+        for (const value of links.updatedPaths) updatedPaths.add(value)
+        for (const value of links.skippedPaths) skippedPaths.add(value)
+        if (links.updatedPaths.length)
+          this.collectMoveWatcherPaths(links.updatedPaths)
+      } finally {
+        await this.disposeMarkdownLinkMaintenance(maintenance)
       }
     })
     // One authoritative reconciliation, including external changes received while
@@ -2159,15 +2463,267 @@ export class SpaceSession {
     }
   }
 
-  async copyPath(
+  async preparePathClipboard(
+    relativePaths: string[]
+  ): Promise<SpacePathClipboardSources> {
+    if (!relativePaths.length || relativePaths.length > 10000)
+      throw new Error("Choose between 1 and 10000 items")
+    return this.gate.withRuntimeRead(async () => ({
+      spaceId: this.canonical.id,
+      sources: await Promise.all(
+        [...new Set(relativePaths)].map(async (value) => {
+          const relativePath = normalizeMutableRelativePath(value)
+          return {
+            relativePath,
+            token: await this.clipboardSourceToken(relativePath),
+          }
+        })
+      ),
+    }))
+  }
+
+  async withSystemClipboardFiles<T>(
+    sources: SpacePathClipboardSources,
+    mode: "cut" | "copy",
+    publish: (
+      files: SystemClipboardFiles,
+      exportFiles: ClipboardExportRequest
+    ) => Promise<T>
+  ): Promise<T> {
+    return this.gate.withRuntimeRead(async () => {
+      if (!sources.sources.length || sources.sources.length > 10000)
+        throw new Error("Choose between 1 and 10000 items")
+      const paths: string[] = []
+      let internalOnly = false
+      for (const source of sources.sources) {
+        const relative = normalizeMutableRelativePath(source.relativePath)
+        await this.validateClipboardSource(sources, relative)
+        const absolute = this.resolveUserPath(relative)
+        // Directory exports need a separate consistent snapshot lifecycle.
+        // Do not walk the selected directory or Space on each ordinary Cmd+C.
+        if (
+          (await fs.lstat(absolute)).isDirectory() ||
+          eidosDatabasePath(relative)
+        )
+          internalOnly = true
+        paths.push(absolute)
+      }
+      let image: string | undefined
+      if (
+        mode === "copy" &&
+        !internalOnly &&
+        paths.length === 1 &&
+        /\.(png|jpe?g|gif|webp|tiff?|bmp|heic|avif)$/i.test(paths[0]!)
+      ) {
+        const source = sources.sources[0]!
+        const file = await fs.open(
+          paths[0]!,
+          fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
+        )
+        try {
+          const stats = await file.stat({ bigint: true })
+          if (
+            this.clipboardStatToken(source.relativePath, stats) !== source.token
+          )
+            throw new Error("The clipboard source changed; select it again")
+          if (stats.size <= 32n * 1024n * 1024n) {
+            const bytes = Buffer.alloc(Number(stats.size))
+            let offset = 0
+            while (offset < bytes.length) {
+              const read = await file.read(
+                bytes,
+                offset,
+                bytes.length - offset,
+                offset
+              )
+              if (!read.bytesRead) break
+              offset += read.bytesRead
+            }
+            if (offset === bytes.length) image = bytes.toString("base64")
+          }
+        } finally {
+          await file.close()
+        }
+      }
+      for (const source of sources.sources)
+        await this.validateClipboardSource(sources, source.relativePath)
+      return publish(
+        {
+          paths: mode === "copy" && !internalOnly ? paths : [],
+          image,
+          internalOnly: mode === "copy" && internalOnly,
+        },
+        (lease, signal, complete) =>
+          this.exportClipboardFiles(sources, lease, signal, complete)
+      )
+    })
+  }
+
+  /** Materialize only explicitly selected folders/databases into a host lease. */
+  private async exportClipboardFiles<T>(
+    sources: SpacePathClipboardSources,
+    lease: ClipboardExportLease,
+    signal: AbortSignal,
+    publish: (paths: string[], bytes: number) => Promise<T>
+  ): Promise<T> {
+    // Invoked only by the callback holding withSystemClipboardFiles' read lease.
+    const prepare = async () => {
+      const paths: string[] = []
+      let bytes = 0
+      let entries = 0
+      const sizes = new Map<string, number>()
+      const check = () => {
+        signal.throwIfAborted()
+        if (bytes > lease.byteLimit)
+          throw new Error("This selection exceeds the system copy size limit")
+      }
+      for (const [index, source] of sources.sources.entries()) {
+        check()
+        const relative = normalizeMutableRelativePath(source.relativePath)
+        await this.validateClipboardSource(sources, relative)
+        const absolute = this.resolveUserPath(relative)
+        const stats = await fs.lstat(absolute)
+        if (stats.isFile() && !eidosDatabasePath(relative)) {
+          paths.push(absolute)
+          continue
+        }
+        await fs.mkdir(path.join(lease.root, String(index)), { mode: 0o700 })
+        const target = `${index}/${path.posix.basename(relative)}`
+        await copySpacePath(
+          this.canonical.root,
+          relative,
+          target,
+          async (from, to) => {
+            check()
+            await this.runtimePool.copyFileSnapshot(from, to, signal)
+            bytes += (await fs.stat(to)).size - (sizes.get(from) ?? 0)
+            check()
+          },
+          {
+            targetRoot: lease.root,
+            check: (from, stats) => {
+              if (++entries > 10000)
+                throw new Error(
+                  "This selection exceeds the system copy item limit"
+                )
+              if (stats.isFile()) {
+                sizes.set(from, stats.size)
+                bytes += stats.size
+              }
+              check()
+            },
+            copyFile: async (from, to) => {
+              let copied = 0
+              const expected = sizes.get(from) ?? 0
+              const input = await fs.open(
+                from,
+                fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
+              )
+              try {
+                await pipeline(
+                  input.createReadStream(),
+                  new Transform({
+                    transform(chunk: Buffer, _encoding, done) {
+                      copied += chunk.length
+                      if (bytes + copied - expected > lease.byteLimit)
+                        done(
+                          new Error(
+                            "This selection exceeds the system copy size limit"
+                          )
+                        )
+                      else done(null, chunk)
+                    },
+                  }),
+                  createWriteStream(to, { flags: "wx", mode: 0o600 }),
+                  { signal }
+                )
+              } finally {
+                await input.close()
+              }
+              bytes += copied - expected
+              check()
+            },
+          }
+        )
+        paths.push(path.join(lease.root, target))
+      }
+      for (const source of sources.sources)
+        await this.validateClipboardSource(sources, source.relativePath)
+      check()
+      await lease.retain(bytes)
+      return publish(paths, bytes)
+    }
+    return prepare()
+  }
+
+  private async clipboardSourceToken(relativePath: string): Promise<string> {
+    const sourcePath = this.resolveUserPath(relativePath)
+    if ((await fs.realpath(sourcePath)) !== sourcePath)
+      throw new Error("Space symlinks cannot be placed on the file clipboard")
+    const stats = await fs.lstat(sourcePath, { bigint: true })
+    if (!stats.isFile() && !stats.isDirectory())
+      throw new Error(
+        "Only ordinary files and folders can be placed on the file clipboard"
+      )
+    return this.clipboardStatToken(relativePath, stats)
+  }
+
+  private clipboardStatToken(relativePath: string, stats: BigIntStats): string {
+    return createHash("sha256")
+      .update(
+        [
+          this.clipboardIdentitySalt,
+          relativePath,
+          stats.dev,
+          stats.ino,
+          stats.birthtimeNs,
+        ].join("\0")
+      )
+      .digest("hex")
+  }
+
+  private async validateClipboardSource(
+    clipboard: SpacePathClipboardSources | undefined,
+    relativePath: string
+  ): Promise<void> {
+    if (!clipboard) return
+    if (clipboard.spaceId !== this.canonical.id)
+      throw new Error("The Space changed; select the source items again")
+    const source = clipboard.sources.find(
+      (entry) => entry.relativePath === relativePath
+    )
+    if (
+      !source ||
+      source.token !== (await this.clipboardSourceToken(relativePath))
+    )
+      throw new Error(
+        `The clipboard source changed; select it again: ${relativePath}`
+      )
+  }
+
+  copyPath(
     relativePath: string,
-    targetDirectory: string | null
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
   ): Promise<SpacePathMutationResult> {
+    return this.runPathMutation(() =>
+      this.performPathCopy(relativePath, targetDirectory, clipboard)
+    )
+  }
+
+  private async performPathCopy(
+    relativePath: string,
+    targetDirectory: string | null,
+    clipboard?: SpacePathClipboardSources
+  ): Promise<SpacePathMutationResult> {
+    await Promise.resolve()
     this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
-    const stats = await fs.lstat(this.resolveUserPath(source))
-    if (stats.isSymbolicLink())
-      throw new Error("Space symlinks cannot be copied")
+    const parent = path.posix.dirname(source)
+    await resolveSpaceDirectory(
+      this.canonical.root,
+      parent === "." ? null : parent
+    )
     await this.assertCopyTreeIsPortable(this.resolveUserPath(source))
     await resolveSpaceDirectory(this.canonical.root, targetDirectory)
     const target = joinSpaceRelativePath(
@@ -2179,33 +2735,33 @@ export class SpaceSession {
       throw new Error("A folder cannot be copied inside itself")
     }
     await this.requireMissingPath(target)
-    await this.gate.withMutation(() =>
-      fs.cp(this.resolveUserPath(source), this.resolveUserPath(target), {
-        recursive: stats.isDirectory(),
-        errorOnExist: true,
-        force: false,
-        filter: async (sourcePath) => {
-          const sourceStats = await fs.lstat(sourcePath)
-          if (sourceStats.isSymbolicLink()) {
-            throw new Error("Space symlinks cannot be copied")
-          }
-          if (
-            sourcePath !== this.resolveUserPath(source) &&
-            path.basename(sourcePath).toLowerCase() === ".graft"
-          ) {
-            throw new Error("Nested .graft directories cannot be copied")
-          }
-          if (!sourceStats.isDirectory() && !sourceStats.isFile()) {
-            throw new Error("Only ordinary files and folders can be copied")
-          }
-          return true
-        },
-      })
-    )
+    await this.gate.withMutation(async () => {
+      await this.validateClipboardSource(clipboard, source)
+      await copySpacePath(this.canonical.root, source, target, (from, to) =>
+        this.runtimePool.copyFileSnapshot(from, to)
+      )
+    })
     this.noteLocalChange()
     this.notifyMarkdownWatchers([target])
+    const cachedDirectories = new Map(this.directoryEntriesCache)
+    let snapshot: SpaceSnapshot
+    let refreshError: string | undefined
+    try {
+      snapshot = await this.freshSnapshotAndEmit(false, undefined, true)
+    } catch (cause) {
+      for (const [key, entries] of cachedDirectories) {
+        if (!this.directoryEntriesCache.has(key))
+          this.directoryEntriesCache.set(key, entries)
+      }
+      snapshot = this.buildSnapshot(
+        this.buildCachedTree(),
+        this.graftStatusCache ?? this.pendingGraftStatus()
+      )
+      refreshError = cause instanceof Error ? cause.message : String(cause)
+    }
     return {
-      snapshot: await this.freshSnapshotAndEmit(),
+      snapshot,
+      refreshError,
       relativePath: target,
       invalidatedSessionIds: [],
     }
@@ -2346,15 +2902,19 @@ export class SpaceSession {
   async callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
     const isMutation = mutationMethods.has(method)
+    if (isMutation) this.assertWritable()
     const isCsvOperationControl = csvOperationControlMethods.has(method)
     if (isMutation) this.prioritizeLocalWork()
     // Authorization may need a network refresh when an offline lease expired.
     // Resolve it before taking the Space mutation gate so other edits are not
     // blocked behind a Spark timeout.
     if (isMutation) await this.requireSparkRuntimeAccess(sessionId)
+    if (!isMutation && !isCsvOperationControl)
+      runtimeReadTrace.point("space-read-gate-wait", { method })
     let result: RuntimeCalls[M]["result"]
     try {
       result = isMutation
@@ -2362,7 +2922,8 @@ export class SpaceSession {
             const mutationResult = await this.runtimePool.call(
               sessionId,
               method,
-              args
+              args,
+              consumer
             )
             await this.rememberRuntimeExternalChangeState(
               sessionId,
@@ -2374,10 +2935,11 @@ export class SpaceSession {
             return mutationResult
           })
         : isCsvOperationControl
-          ? await this.runtimePool.call(sessionId, method, args)
-          : await this.gate.withRuntimeRead(() =>
-              this.runtimePool.call(sessionId, method, args)
-            )
+          ? await this.runtimePool.call(sessionId, method, args, consumer)
+          : await this.gate.withRuntimeRead(() => {
+              runtimeReadTrace.point("space-read-gate-ready", { method })
+              return this.runtimePool.call(sessionId, method, args, consumer)
+            })
     } catch (error) {
       if (error instanceof EidosFileRuntimeError) {
         this.fileIssuesByPath.set(error.issue.relativePath, error.issue)
@@ -2623,6 +3185,7 @@ export class SpaceSession {
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {
+    this.assertWritable()
     const status = await this.repository.runForeground((signal) =>
       this.graft.inspectSpace(
         this.canonical.root,
@@ -2750,6 +3313,7 @@ export class SpaceSession {
 
   /** Includes a connection whose origin was removed manually. Never contacts the server. */
   async hasHostedSyncConnection(): Promise<boolean> {
+    if (this.readOnly) return false
     return Boolean(await this.syncState.read()) || this.cloudSyncConnection
   }
 
@@ -2972,6 +3536,7 @@ export class SpaceSession {
   private syncTask: Promise<unknown> = Promise.resolve()
   private withSyncTask<T>(action: () => Promise<T>): Promise<T> {
     const run = async () => {
+      this.assertWritable()
       await assertSpaceRootIdentity(this.canonical)
       return action()
     }
@@ -5302,6 +5867,7 @@ export class SpaceSession {
   }
 
   hasEncryptedSync(automatic?: { signal: AbortSignal }): Promise<boolean> {
+    if (this.readOnly) return Promise.resolve(false)
     return automatic
       ? this.repository.runBackground(
           "automatic-sync-encryption",
@@ -5314,6 +5880,7 @@ export class SpaceSession {
       : this.graft.isEncryptedRemote(this.canonical.root)
   }
   encryptedSyncStatus(automatic?: { signal: AbortSignal }) {
+    this.assertWritable()
     return automatic
       ? this.repository.runBackground(
           "automatic-sync-encryption-status",
@@ -5326,6 +5893,7 @@ export class SpaceSession {
       : this.graft.encryptedSyncStatus(this.canonical.root)
   }
   lockEncryptedSync() {
+    this.assertWritable()
     return this.graft.lockEncryptedSync(this.canonical.root)
   }
 
@@ -5363,8 +5931,20 @@ export class SpaceSession {
     this.cancelGraftStatusRefresh(true)
     await backgroundStatus?.catch(() => undefined)
     this.closed = true
+    clearTimeout(this.markdownLinkIdleTimer)
+    const idleMarkdownWorker = this.idleMarkdownLinkWorker
+    this.idleMarkdownLinkWorker = null
+    if (idleMarkdownWorker)
+      await this.closeMarkdownLinkWorker(idleMarkdownWorker)
     await this.refreshInFlight?.catch(() => undefined)
     await this.gate.close()
+    for (const worker of this.markdownLinkWorkers) worker.abort()
+    await Promise.allSettled(
+      [...this.markdownLinkWorkers].map((worker) =>
+        this.closeMarkdownLinkWorker(worker)
+      )
+    )
+    await Promise.allSettled([...this.closingMarkdownLinkWorkers])
     await this.runtimePool.destroy()
     await this.graft.close()
     this.changeListeners.clear()
@@ -5634,6 +6214,7 @@ export class SpaceSession {
   private async readGraftStatus(
     authoritative: boolean
   ): Promise<GraftSpaceStatus> {
+    if (this.readOnly) return this.pendingGraftStatus()
     const epoch = this.graftStatusEpoch
     const activeRefresh = this.graftStatusRefresh
     if (activeRefresh) {
@@ -5683,6 +6264,7 @@ export class SpaceSession {
   private scheduleGraftStatusRefresh(
     delayMs = BACKGROUND_GRAFT_STATUS_DELAY_MS
   ): void {
+    if (this.readOnly) return
     if (this.graftStatusTimer) {
       if (delayMs > 0) return
       clearTimeout(this.graftStatusTimer)
@@ -5904,6 +6486,7 @@ export class SpaceSession {
       : undefined
     return {
       id: this.canonical.id,
+      ...(this.readOnly ? { readOnly: true } : {}),
       sequence: ++snapshotSequence,
       cloudSyncConnection:
         this.cloudSyncConnection || Boolean(this.syncHistoryState),
@@ -6043,6 +6626,9 @@ export class SpaceSession {
     while (pending.length > 0) {
       const current = pending.pop()
       if (!current) continue
+      normalizeMutableRelativePath(
+        path.relative(this.canonical.root, current).split(path.sep).join("/")
+      )
       const stats = await fs.lstat(current)
       if (stats.isSymbolicLink()) {
         throw new Error("Space symlinks cannot be copied")
@@ -6289,7 +6875,8 @@ export class SpaceSession {
 
   private async freshSnapshotAndEmit(
     authoritativeGraft = false,
-    materializedPaths?: readonly string[] | null
+    materializedPaths?: readonly string[] | null,
+    completingPathMutation = false
   ): Promise<SpaceSnapshot> {
     const loadedDirectories = [...this.directoryEntriesCache.keys()]
     this.invalidateSnapshotCaches()
@@ -6299,7 +6886,8 @@ export class SpaceSession {
     await this.reloadDirectoryEntries(loadedDirectories, authoritativeGraft)
     const snapshot = await this.readSnapshot(
       !authoritativeGraft,
-      authoritativeGraftStatus
+      authoritativeGraftStatus,
+      completingPathMutation
     )
     const emittedSnapshot =
       materializedPaths !== undefined
@@ -6759,6 +7347,10 @@ export class SpaceSession {
     }
   }
 
+  private assertWritable(): void {
+    if (this.readOnly) throw new Error("Space is read-only")
+  }
+
   private async requireInitializedVersioning(): Promise<void> {
     if (!this.versioningEnabled) {
       throw new Error("Enable local Space versioning first")
@@ -6774,7 +7366,7 @@ export class SpaceSession {
   private async requireMissingPath(relativePath: string): Promise<void> {
     try {
       await fs.lstat(this.resolveUserPath(relativePath))
-      throw new Error(`A file or folder already exists at ${relativePath}`)
+      throw existingPathError(relativePath)
     } catch (error) {
       if (
         error instanceof Error &&
@@ -6784,6 +7376,20 @@ export class SpaceSession {
         return
       }
       throw error
+    }
+  }
+
+  private async requireMissingRenameTarget(
+    source: string,
+    target: string
+  ): Promise<void> {
+    // A case-only rename can resolve to the source on a case-insensitive
+    // volume. Let the exclusive syscall decide whether the entry can move.
+    if (
+      source.normalize("NFC").toLowerCase() !==
+      target.normalize("NFC").toLowerCase()
+    ) {
+      await this.requireMissingPath(target)
     }
   }
 }

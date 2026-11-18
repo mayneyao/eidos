@@ -8,6 +8,7 @@ import { expectConnectionPortConformance } from "./connection-port.conformance"
 import { expectCheckboxDefaultConformance } from "./checkbox-default.conformance"
 import { expectCheckboxBinaryConformance } from "./checkbox-binary.conformance"
 import { expectCheckboxConversionConformance } from "./checkbox-conversion.conformance"
+import { expectRecordPresentationConformance } from "./record-presentation.conformance"
 import {
   createEidosFile,
   mergeEidosSystemMetadataFiles,
@@ -43,6 +44,15 @@ const runtimeEnvironment = (): RuntimeEnvironment => ({
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
   },
 })
+
+it.runIf(supportsElectron43NodeSqlite)(
+  "preserves record presentation through the canonical Node SQLite Runtime",
+  async () => {
+    await expectRecordPresentationConformance(
+      new NodeSqliteConnectionPort(new DatabaseSync(":memory:"))
+    )
+  }
+)
 
 const runtimeFactoryContext = {
   cancellation: {
@@ -262,6 +272,36 @@ describe.runIf(supportsElectron43NodeSqlite)(
         ])
       } finally {
         logicalReadonly.close()
+      }
+    })
+
+    it("allows reading the database encoding while rejecting changes in read-only mode", () => {
+      const connection = new NodeSqliteConnectionPort(
+        new DatabaseSync(":memory:"),
+        { readOnly: true }
+      )
+      try {
+        expect(connection.get("PRAGMA encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+        expect(connection.get("PRAGMA main.encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+        for (const sql of [
+          "PRAGMA encoding = 'UTF-16le'",
+          "PRAGMA main.encoding = 'UTF-16be'",
+          "PRAGMA main.encoding('UTF-16le')",
+          "PRAGMA query_only = OFF",
+          "PRAGMA journal_mode",
+        ])
+          expect(() => connection.get(sql)).toThrowError(
+            expect.objectContaining({ code: "read-only" })
+          )
+        expect(connection.get("PRAGMA encoding").row).toEqual([
+          { tag: "text", value: "UTF-8" },
+        ])
+      } finally {
+        connection.close()
       }
     })
 
@@ -651,6 +691,9 @@ describe.runIf(supportsElectron43NodeSqlite)(
           { readOnly: true }
         )
         try {
+          expect(readonly.get("PRAGMA encoding").row).toEqual([
+            { tag: "text", value: "UTF-8" },
+          ])
           const opened = await Runtime.open(
             readonly,
             runtimeEnvironment(),

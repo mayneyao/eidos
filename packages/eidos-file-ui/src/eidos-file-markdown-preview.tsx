@@ -30,6 +30,7 @@ export function EidosFileMarkdownPreview({
 }) {
   const {
     activateUrl,
+    activateMarkdownLink,
     contentImageBaseUrl,
     renderMarkdownHtml,
     resolveMarkdownImageUrl,
@@ -57,8 +58,12 @@ export function EidosFileMarkdownPreview({
     for (const image of surface.querySelectorAll<HTMLImageElement>(
       "img[src]"
     )) {
-      const source = image.getAttribute("src")
-      if (source && isResolvableMarkdownImage(source)) sources.add(source)
+      const source =
+        image.dataset.eidosMarkdownSource ?? image.getAttribute("src")
+      if (source && isResolvableMarkdownImage(source)) {
+        image.dataset.eidosMarkdownSource = source
+        sources.add(source)
+      }
     }
     if (sources.size === 0) return
     void Promise.all(
@@ -69,12 +74,11 @@ export function EidosFileMarkdownPreview({
     ).then((resolutions) => {
       if (cancelled) return
       for (const [source, resolved] of resolutions) {
-        if (!resolved) continue
         for (const image of surface.querySelectorAll<HTMLImageElement>(
           "img[src]"
         )) {
-          if (image.getAttribute("src") === source) {
-            image.setAttribute("src", resolved)
+          if (image.dataset.eidosMarkdownSource === source) {
+            image.setAttribute("src", resolved ?? source)
           }
         }
       }
@@ -97,9 +101,10 @@ export function EidosFileMarkdownPreview({
         const href = link?.getAttribute("href")
         if (!href || href.startsWith("#")) return
         event.preventDefault()
-        if (!activateUrl) return
+        const activate = activateMarkdownLink ?? activateUrl
+        if (!activate) return
         try {
-          void Promise.resolve(activateUrl(href)).catch(onError)
+          void Promise.resolve(activate(href)).catch(onError)
         } catch (error) {
           onError?.(error)
         }

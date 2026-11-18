@@ -12,6 +12,7 @@ import { useEidosLiteI18n } from "./i18n"
 
 export function SpaceSwitcher({
   name,
+  readOnly,
   currentId,
   recents,
   disabled,
@@ -21,6 +22,7 @@ export function SpaceSwitcher({
   onClone,
 }: {
   name?: string
+  readOnly?: boolean
   currentId?: string
   recents: RecentSpaceEntry[]
   disabled?: boolean
@@ -97,6 +99,11 @@ export function SpaceSwitcher({
         disabled={disabled}
         aria-expanded={open}
         aria-label={t("Switch Space")}
+        title={
+          readOnly
+            ? t("Filters and sorting apply only to this browsing session.")
+            : undefined
+        }
         onClick={() => {
           const bounds = trigger.current!.getBoundingClientRect()
           setPosition({
@@ -107,7 +114,10 @@ export function SpaceSwitcher({
           setOpen(!open)
         }}
       >
-        <span>{name ?? t("Choose a Space")}</span>
+        <span>
+          {name ?? t("Choose a Space")}
+          {readOnly ? ` · ${t("Read only")}` : ""}
+        </span>
         <ChevronDown />
       </button>
       {open &&

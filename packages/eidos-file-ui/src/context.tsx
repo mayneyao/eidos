@@ -1,4 +1,8 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react"
+import { useContext, useMemo, type ReactNode } from "react"
+import { EidosFileUIContext } from "./eidos-file-ui-context"
+// Keep the hook export stable while Fast Refresh replaces the provider.
+export { useEidosFileUI } from "./eidos-file-ui-context"
+import type { RecordFieldManagement } from "./eidos-file-record-field-context"
 import type {
   AssetLease,
   HostServiceCapabilities,
@@ -114,6 +118,12 @@ export interface EidosFileMarkdownHtml {
 }
 
 export interface EidosFileUIHost {
+  /** Stable, host-local file location/identity for personal record property preferences. */
+  recordPropertyScope?: string
+  /** Device preference that hides system fields in every open record. */
+  defaultHideSystemFieldsInRecords?: boolean
+  /** Existing Runtime-backed schema boundary for records rendered by this editor. */
+  recordFieldManagement?: RecordFieldManagement
   /** Unsubmitted, saving or failed editor state. Hosts may defer external refreshes. */
   onPendingEditChange?: (editorId: string, pending: boolean) => void
   /** Host-owned personal menu preferences, independent of saved View layout. */
@@ -130,9 +140,18 @@ export interface EidosFileUIHost {
   weekStartsOnMonday?: boolean
   /** Host-selected IANA time zone; absent means follow the current system zone. */
   timeZone?: string
+  /** Negotiated portable profile used with the current application settings. */
+  calendarTimeZoneData?: string | null
+  /** Unsupported saved queries cannot be edited piecemeal. */
+  queryEditingDisabled?: boolean
+  /** Negotiated Runtime capability, not a saved or global preference. */
+  calendarPeriodTimeZoneData?: readonly string[]
+  calendarWindowVersion?: 1
   translate(message: string, values?: EidosFileUIMessageValues): string
   /** Host-owned activation for a policy-checked external URL. */
   activateUrl?: (uri: string) => void | Promise<void>
+  /** Optional Host navigation for Content Markdown links; grants no FileEntry access. */
+  activateMarkdownLink?: (uri: string) => void | Promise<void>
   /** Host-owned navigation to a record referenced by a relation field. */
   openRelationRecord?: (
     target: EidosFileRelationRecordTarget
@@ -172,17 +191,12 @@ export interface EidosFileUIHost {
   ) => ReactNode
 }
 
-const defaultHost: EidosFileUIHost = {
-  themeName: "light",
-  locale: "en",
-  weekStartsOnMonday: true,
-  translate: (message, values) => translateEidosFileUI("en", message, values),
-}
-
-const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
 const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
+  recordPropertyScope,
+  defaultHideSystemFieldsInRecords,
+  recordFieldManagement,
   onPendingEditChange,
   menuOrders,
   onMenuOrderChange,
@@ -192,9 +206,14 @@ export function EidosFileUIProvider({
   locale,
   weekStartsOnMonday,
   timeZone,
+  calendarTimeZoneData,
+  queryEditingDisabled,
+  calendarPeriodTimeZoneData,
+  calendarWindowVersion,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
   activateUrl,
+  activateMarkdownLink,
   openRelationRecord,
   assetSession,
   assetPresenter,
@@ -210,6 +229,14 @@ export function EidosFileUIProvider({
   messages?: Partial<EidosFileUIMessageOverrides>
 }) {
   const parent = useContext(EidosFileUIContext)
+  const resolvedDefaultHideSystemFieldsInRecords =
+    defaultHideSystemFieldsInRecords ??
+    parent.defaultHideSystemFieldsInRecords ??
+    false
+  const resolvedRecordPropertyScope =
+    recordPropertyScope ?? parent.recordPropertyScope
+  const resolvedRecordFieldManagement =
+    recordFieldManagement ?? parent.recordFieldManagement
   const resolvedOnPendingEditChange =
     onPendingEditChange ?? parent.onPendingEditChange
   const resolvedMenuOrders = menuOrders ?? parent.menuOrders
@@ -221,7 +248,15 @@ export function EidosFileUIProvider({
   const resolvedWeekStartsOnMonday =
     weekStartsOnMonday ?? parent.weekStartsOnMonday ?? true
   const resolvedTimeZone = timeZone ?? parent.timeZone
+  const resolvedCalendarTimeZoneData =
+    calendarTimeZoneData === undefined
+      ? parent.calendarTimeZoneData
+      : calendarTimeZoneData
+  const resolvedCalendarPeriodTimeZoneData =
+    calendarPeriodTimeZoneData ?? parent.calendarPeriodTimeZoneData
   const resolvedActivateUrl = activateUrl ?? parent.activateUrl
+  const resolvedActivateMarkdownLink =
+    activateMarkdownLink ?? parent.activateMarkdownLink
   const resolvedOpenRelationRecord =
     openRelationRecord ?? parent.openRelationRecord
   const resolvedAssetSession = assetSession ?? parent.assetSession
@@ -242,6 +277,10 @@ export function EidosFileUIProvider({
     renderMarkdownSourceEditor ?? parent.renderMarkdownSourceEditor
   const value = useMemo<EidosFileUIHost>(
     () => ({
+      recordPropertyScope: resolvedRecordPropertyScope,
+      defaultHideSystemFieldsInRecords:
+        resolvedDefaultHideSystemFieldsInRecords,
+      recordFieldManagement: resolvedRecordFieldManagement,
       onPendingEditChange: resolvedOnPendingEditChange,
       ...(resolvedMenuOrders ? { menuOrders: resolvedMenuOrders } : {}),
       ...(resolvedOnMenuOrderChange
@@ -252,6 +291,11 @@ export function EidosFileUIProvider({
       locale: resolvedLocale,
       weekStartsOnMonday: resolvedWeekStartsOnMonday,
       ...(resolvedTimeZone ? { timeZone: resolvedTimeZone } : {}),
+      calendarTimeZoneData: resolvedCalendarTimeZoneData,
+      queryEditingDisabled: queryEditingDisabled ?? parent.queryEditingDisabled,
+      calendarPeriodTimeZoneData: resolvedCalendarPeriodTimeZoneData,
+      calendarWindowVersion:
+        calendarWindowVersion ?? parent.calendarWindowVersion,
       translate:
         translateOverride ??
         (locale !== undefined || messages !== EMPTY_MESSAGES
@@ -259,6 +303,9 @@ export function EidosFileUIProvider({
               translateEidosFileUI(resolvedLocale, message, values, messages)
           : parent.translate),
       ...(resolvedActivateUrl ? { activateUrl: resolvedActivateUrl } : {}),
+      ...(resolvedActivateMarkdownLink
+        ? { activateMarkdownLink: resolvedActivateMarkdownLink }
+        : {}),
       ...(resolvedOpenRelationRecord
         ? { openRelationRecord: resolvedOpenRelationRecord }
         : {}),
@@ -287,6 +334,9 @@ export function EidosFileUIProvider({
         : {}),
     }),
     [
+      resolvedRecordPropertyScope,
+      resolvedDefaultHideSystemFieldsInRecords,
+      resolvedRecordFieldManagement,
       resolvedOnPendingEditChange,
       resolvedMenuOrders,
       resolvedOnMenuOrderChange,
@@ -295,6 +345,7 @@ export function EidosFileUIProvider({
       messages,
       parent.translate,
       resolvedActivateUrl,
+      resolvedActivateMarkdownLink,
       resolvedOpenRelationRecord,
       resolvedAssetPresenter,
       resolvedAssetSession,
@@ -308,6 +359,12 @@ export function EidosFileUIProvider({
       resolvedLocale,
       resolvedThemeName,
       resolvedTimeZone,
+      resolvedCalendarTimeZoneData,
+      queryEditingDisabled,
+      parent.queryEditingDisabled,
+      resolvedCalendarPeriodTimeZoneData,
+      calendarWindowVersion,
+      parent.calendarWindowVersion,
       resolvedWeekStartsOnMonday,
       translateOverride,
     ]
@@ -317,8 +374,4 @@ export function EidosFileUIProvider({
       {children}
     </EidosFileUIContext.Provider>
   )
-}
-
-export function useEidosFileUI(): EidosFileUIHost {
-  return useContext(EidosFileUIContext)
 }

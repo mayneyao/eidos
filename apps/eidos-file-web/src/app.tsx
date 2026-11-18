@@ -27,7 +27,10 @@ import {
   type EidosFileEditorShellProps,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
-import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
+import {
+  createEidosFileTableWithContent,
+  EidosFileCreateRecordButton,
+} from "@eidos.space/eidos-file-ui"
 import { RecordContentProvider } from "@eidos.space/eidos-file-serve/record-content"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
@@ -154,10 +157,17 @@ type Theme = "light" | "dark"
 
 function ThemedEidosFileEditorShell({
   themeName,
+  recordPropertyScope,
   ...props
-}: EidosFileEditorShellProps & { themeName: Theme }) {
+}: EidosFileEditorShellProps & {
+  themeName: Theme
+  recordPropertyScope: string
+}) {
   return (
-    <EidosFileUIProvider themeName={themeName}>
+    <EidosFileUIProvider
+      themeName={themeName}
+      recordPropertyScope={recordPropertyScope}
+    >
       <RecordContentProvider>
         <EidosFileEditorShell {...props} />
       </RecordContentProvider>
@@ -181,7 +191,10 @@ function errorMessage(error: unknown): string {
 }
 
 async function discardPersistentWorkingCopy(recoveryId: string): Promise<void> {
-  const cleanupClient = new EidosFileWorkerClient()
+  const cleanupClient = new EidosFileWorkerClient({
+    calendarQueryVersion: 2,
+    calendarWindowVersion: 1,
+  })
   try {
     await cleanupClient.discardRecovery(recoveryId)
   } catch (error) {
@@ -705,7 +718,10 @@ export function App() {
       // later must never clobber a newer session.
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       const id = crypto.randomUUID()
       try {
         const result = await client.openEditorSource(
@@ -745,7 +761,10 @@ export function App() {
     async (manifest: CliHostManifest) => {
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileHttpClient()
+      const client = new EidosFileHttpClient({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       const id = crypto.randomUUID()
       try {
         const result = await client.openEditorSource(
@@ -855,7 +874,10 @@ export function App() {
       const generation = ++openGenerationRef.current
       setNotice(null)
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       const id = crypto.randomUUID()
       const createdAt = Date.now()
       const copy =
@@ -958,7 +980,10 @@ export function App() {
       if (!switchConfirmed && !confirmSwitch()) return false
       const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
-      const client = new EidosFileWorkerClient()
+      const client = new EidosFileWorkerClient({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       try {
         const permission = target.handle
           ? await queryWritePermission(target.handle)
@@ -1108,7 +1133,10 @@ export function App() {
 
   const discardRecovery = useCallback(async () => {
     if (!recovery) return
-    const client = new EidosFileWorkerClient()
+    const client = new EidosFileWorkerClient({
+      calendarQueryVersion: 2,
+      calendarWindowVersion: 1,
+    })
     try {
       await client.discardRecovery(recovery.id)
       await deleteRecoverySession(recovery.id)
@@ -1283,7 +1311,10 @@ export function App() {
 
       if (!handle || !previousClient || !isCurrentAndClean()) return false
 
-      const nextClient = new EidosFileWorkerClient()
+      const nextClient = new EidosFileWorkerClient({
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+      })
       const nextId = crypto.randomUUID()
       const discardPreparedClient = () => {
         nextClient.terminate()
@@ -1954,6 +1985,22 @@ export function App() {
     [activeTable, markCommitted]
   )
 
+  const deleteRowIds = useCallback(
+    async (rowIds: readonly string[]) => {
+      const client = clientRef.current
+      if (!client || !activeTable)
+        throw new Error("Record deletion is unavailable")
+      const result = await client.deleteRows(activeTable.table.id, [...rowIds])
+      setSnapshot((current) =>
+        current ? updateSnapshotRowCount(current, result) : current
+      )
+      setViewReloadToken((current) => current + 1)
+      markCommitted()
+      return result
+    },
+    [activeTable, markCommitted]
+  )
+
   const deleteRowRanges = useCallback(
     async (
       ranges: EidosFileRowRange[],
@@ -2251,6 +2298,17 @@ export function App() {
       </div>
 
       <ThemedEidosFileEditorShell
+        recordPropertyScope={JSON.stringify([
+          snapshot.path,
+          snapshot.metadata.fileId,
+        ])}
+        view={activeView}
+        calendarWindowVersion={
+          snapshot.queryCapabilities?.calendarWindowVersion
+        }
+        calendarPeriodTimeZoneData={
+          snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+        }
         themeName={theme}
         className="min-h-0 flex-1 !h-auto"
         searchNavigation={{
@@ -2289,6 +2347,20 @@ export function App() {
                 client.updateView(viewId, changes)
               )
             }}
+          />
+        }
+        recordCreator={
+          <EidosFileCreateRecordButton
+            source={editorSource}
+            table={activeTable}
+            view={activeView}
+            search={search}
+            disabled={saveState.phase === "saving"}
+            onCreated={(result) => {
+              onRowMutation(result)
+              setViewReloadToken((current) => current + 1)
+            }}
+            onError={(error) => setNotice(errorMessage(error))}
           />
         }
         queryToolbar={
@@ -2493,6 +2565,7 @@ export function App() {
           onMutation={onRowMutation}
           onSnapshot={onStructureSnapshot}
           onDeleteRow={deleteSingleRow}
+          onDeleteRowIds={deleteRowIds}
           onDeleteRows={deleteRowRanges}
           onFieldOpen={setPropertyField}
           onFieldClose={() => setPropertyField(null)}

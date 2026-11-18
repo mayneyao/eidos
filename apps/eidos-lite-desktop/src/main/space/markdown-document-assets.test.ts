@@ -305,7 +305,7 @@ describe("Markdown document images", () => {
     )
 
     await expect(
-      resolveMarkdownDocumentImage(root, "notes/readme.md", "../secret.png")
+      resolveMarkdownDocumentImage(root, "notes/readme.md", "../../secret.png")
     ).rejects.toThrow("escapes")
     await expect(
       resolveMarkdownDocumentImage(root, "notes/readme.md", "images/linked.png")

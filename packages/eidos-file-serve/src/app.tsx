@@ -22,7 +22,10 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
-import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui"
+import {
+  createEidosFileTableWithContent,
+  EidosFileCreateRecordButton,
+} from "@eidos.space/eidos-file-ui"
 import {
   EidosFileViewTabStrip,
   exportEidosFileViewCsv,
@@ -271,7 +274,10 @@ export function ServeApp() {
         }
         setManifest(nextManifest)
         setBootPhase("opening")
-        const nextClient = new EidosFileHttpClient()
+        const nextClient = new EidosFileHttpClient({
+          calendarQueryVersion: 2,
+          calendarWindowVersion: 1,
+        })
         openingClient = nextClient
         const result = await nextClient.openEditorSource(
           nextManifest.fileName,
@@ -901,6 +907,21 @@ export function ServeApp() {
     [activeTable]
   )
 
+  const deleteRowIds = useCallback(
+    async (rowIds: readonly string[]) => {
+      const current = clientRef.current
+      if (!current || !activeTable)
+        throw new Error("Record deletion is unavailable")
+      const result = await current.deleteRows(activeTable.table.id, [...rowIds])
+      setSnapshot((snapshot) =>
+        snapshot ? updateSnapshotRowCount(snapshot, result) : snapshot
+      )
+      setViewReloadToken((token) => token + 1)
+      return result
+    },
+    [activeTable]
+  )
+
   const deleteRowRanges = useCallback(
     async (
       ranges: EidosFileRowRange[],
@@ -1122,6 +1143,10 @@ export function ServeApp() {
       interactionMode={mobileInteraction ? "mobile" : "desktop"}
       activateUrl={activateCliHostUrl}
       assetSession={assetSession}
+      recordPropertyScope={JSON.stringify([
+        snapshot.path,
+        snapshot.metadata.fileId,
+      ])}
       assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
       contentImageBaseUrl={contentImageBaseUrl}
     >
@@ -1129,6 +1154,13 @@ export function ServeApp() {
         <main className="serve-shell">
           <EidosFileEditorShell
             className="min-h-0 flex-1 !h-auto"
+            view={activeView}
+            calendarWindowVersion={
+              snapshot.queryCapabilities?.calendarWindowVersion
+            }
+            calendarPeriodTimeZoneData={
+              snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+            }
             data-eidos-publish-editor={published ? "" : undefined}
             searchNavigation={{
               search,
@@ -1181,6 +1213,22 @@ export function ServeApp() {
                       current.updateView(viewId, changes)
                     )
                   }}
+                />
+              )
+            }
+            recordCreator={
+              readOnly ? undefined : (
+                <EidosFileCreateRecordButton
+                  source={client}
+                  table={activeTable}
+                  view={renderedActiveView}
+                  search={search}
+                  disabled={mutationDisabled}
+                  onCreated={(result) => {
+                    onRowMutation(result)
+                    setViewReloadToken((current) => current + 1)
+                  }}
+                  onError={(error) => setNotice(errorMessage(error))}
                 />
               )
             }
@@ -1398,6 +1446,7 @@ export function ServeApp() {
                 onMutation={onRowMutation}
                 onSnapshot={onStructureSnapshot}
                 onDeleteRow={deleteSingleRow}
+                onDeleteRowIds={deleteRowIds}
                 onDeleteRows={deleteRowRanges}
                 onFieldOpen={readOnly ? undefined : setPropertyField}
                 onFieldClose={() => setPropertyField(null)}

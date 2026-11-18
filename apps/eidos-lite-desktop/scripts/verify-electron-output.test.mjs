@@ -25,6 +25,7 @@ const cleanOutput = [
   "application-Ab-cD_e1.js",
   "automatic-sync-CtpZ3yCv.js",
   "automatic-sync-electron-smoke-DDe-8k5k.js",
+  "calendar-query-upgrade-BhHeVRcn.js",
   "compiler-d-fxUvkQ.js",
   "dist-DpwEI01X.js",
   "encrypted-staging-smoke-T5mogOX5.js",
@@ -34,10 +35,10 @@ const cleanOutput = [
   "package-CLObI5_8.js",
   "packaged-smoke-B5KS3Cg2.js",
   "packaged-startup-smoke-DtIjMns5.js",
-  "plugin-file-mutations-rynPN3Tf.js",
+  "markdown-link-maintenance-rynPN3Tf.js",
+  "media-file-preview-BCVqZKzh.js",
   "runtime-pool-CiiJNRl-.js",
   "space-clone-coordinator-Ds_y1Tuc.js",
-  "space-paths-BCVqZKzh.js",
   "space-session-rDeCYcDa.js",
   "sync-encryption-RAQwfjNc.js",
   "sync-failure-CAbpkW5V.js",
@@ -72,7 +73,7 @@ test("accepts the exact main/worker/preload outputs and the new split chunks", a
   const result = await execute(process.execPath, [verifier, root])
   assert.match(
     result.stdout,
-    /Verified clean Eidos Lite Electron output \(30 files\)/
+    /Verified clean Eidos Lite Electron output \(31 files\)/
   )
 })
 

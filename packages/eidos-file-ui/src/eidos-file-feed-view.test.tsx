@@ -8,6 +8,7 @@ import type {
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type * as ContextModule from "./context"
 
 const contextMocks = vi.hoisted(() => ({
   translate: (message: string, values: Record<string, string | number> = {}) =>
@@ -17,7 +18,8 @@ const contextMocks = vi.hoisted(() => ({
     ),
 }))
 
-vi.mock("./context", () => ({
+vi.mock("./context", async (importOriginal) => ({
+  ...(await importOriginal<typeof ContextModule>()),
   useEidosFileUI: () => ({
     themeName: "light",
     timeZone: "UTC",

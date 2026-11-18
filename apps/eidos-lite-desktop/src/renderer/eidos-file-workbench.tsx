@@ -17,6 +17,7 @@ import {
   createEidosFilePluginRegistry,
   createEidosFileTableWithContent,
   EidosFileEditorShell,
+  EidosFileCreateRecordButton,
   EidosFileEditorView,
   EidosFileFieldCreatePopover,
   EidosFileFormModeToolbar,
@@ -31,6 +32,8 @@ import {
   EidosFileViewFieldsPopover,
   EidosFileViewTabs,
   exportEidosFileViewCsv,
+  eidosFileCalendarExecution,
+  eidosFileCalendarViewContext,
   eidosFileFeedCreatedField,
   eidosFilePluginContributionId,
   eidosFileViewRowQuery,
@@ -51,6 +54,8 @@ import { eidosFileCalendarPlugin } from "@eidos.space/eidos-file-ui/plugins/cale
 import { eidosFileFormPlugin } from "@eidos.space/eidos-file-ui/plugins/form"
 import { eidosFileFeedPlugin } from "@eidos.space/eidos-file-ui/plugins/feed"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
+import { parseObsidianMarkdownLinkDestination } from "@eidos.space/markdown/source"
+import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
@@ -89,6 +94,10 @@ interface FormulaEditorTarget {
 export interface EidosFileWorkbenchProps {
   onPendingEditChange?(editorId: string, pending: boolean): void
   onOpenSpaceFile?(path: string): void | Promise<void>
+  onOpenMarkdownInternalLink?(
+    owner: string,
+    request: MarkdownEditorInternalLinkRequest
+  ): void | Promise<void>
   onOpenFileInSidebar?(path: string): void | Promise<void>
   fileSidebarOpen?: boolean
   relativePath: string
@@ -109,6 +118,7 @@ export interface EidosFileWorkbenchProps {
   disabled: boolean
   theme: "light" | "dark"
   weekStartsOnMonday?: boolean
+  hideSystemFieldsInRecords?: boolean
   timeZone?: string
   keyboardShortcuts?: EidosLiteKeyboardShortcuts
   menuOrders?: { "grid.cell"?: readonly string[] }
@@ -123,6 +133,7 @@ export interface EidosFileWorkbenchProps {
 }
 
 export function EidosFileWorkbench({
+  onOpenMarkdownInternalLink,
   onPendingEditChange,
   onOpenSpaceFile,
   onOpenFileInSidebar,
@@ -144,6 +155,7 @@ export function EidosFileWorkbench({
   disabled,
   theme,
   weekStartsOnMonday = true,
+  hideSystemFieldsInRecords = false,
   timeZone,
   keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   menuOrders,
@@ -160,6 +172,9 @@ export function EidosFileWorkbench({
     [tablePlugins]
   )
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
+  const [browsingQueries, setBrowsingQueries] = useState<
+    Record<string, Pick<UpdateEidosFileViewInput, "filter" | "sorts">>
+  >({})
   const [formModes, setFormModes] = useState<
     Record<string, EidosFileFormEditorMode>
   >({})
@@ -228,6 +243,24 @@ export function EidosFileWorkbench({
       ),
     [source.sessionId]
   )
+  const openContentLink = useCallback(
+    (request: MarkdownEditorInternalLinkRequest) =>
+      onOpenMarkdownInternalLink?.(relativePath, request),
+    [onOpenMarkdownInternalLink, relativePath]
+  )
+  const activateContentLink = useCallback(
+    async (href: string) => {
+      const target = parseObsidianMarkdownLinkDestination(href)
+      if (!target) return window.eidosLite.openExternalUrl(href)
+      await openContentLink({
+        ...target,
+        documentKey: relativePath,
+        embed: false,
+        syntax: "markdown",
+      })
+    },
+    [openContentLink, relativePath]
+  )
   const renderMarkdownEditor = useCallback(
     ({
       cacheKey,
@@ -242,6 +275,7 @@ export function EidosFileWorkbench({
           documentKey={`${source.sessionId}:${cacheKey}`}
           relativePath={contentEditorPath}
           assetDocumentPath={relativePath}
+          onOpenInternalLink={openContentLink}
           content={content}
           editingMode={CONTENT_FIELD_EDITING_MODE}
           theme={theme}
@@ -256,7 +290,7 @@ export function EidosFileWorkbench({
         />
       )
     },
-    [keyboardShortcuts, relativePath, source.sessionId, theme]
+    [keyboardShortcuts, relativePath, source.sessionId, theme, openContentLink]
   )
   const renderMarkdownHtml = useCallback(
     (markdown: string) => ({
@@ -395,11 +429,13 @@ export function EidosFileWorkbench({
     const requested = onViewSelect
       ? activeViewId
       : activeViews[activeTable.table.id]
-    return (
+    const view =
       activeTable.views.find((view) => view.id === requested) ??
       activeTable.views[0]
-    )
-  }, [activeTable, activeViews, activeViewId, onViewSelect])
+    return view && browsingQueries[view.id]
+      ? { ...view, ...browsingQueries[view.id] }
+      : view
+  }, [activeTable, activeViews, activeViewId, onViewSelect, browsingQueries])
   const scopedView = useMemo(
     () =>
       activeTable
@@ -409,7 +445,22 @@ export function EidosFileWorkbench({
   )
   const recordNavigationQuery = useMemo(() => {
     if (!scopedView) return undefined
-    const base = eidosFileViewRowQuery(scopedView, search)
+    const context = eidosFileCalendarViewContext(
+      scopedView,
+      snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+    )
+    const base = {
+      ...eidosFileViewRowQuery(scopedView, search),
+      ...(context.status === "supported"
+        ? {
+            calendar: eidosFileCalendarExecution(
+              context.timeZoneData,
+              timeZone,
+              weekStartsOnMonday
+            ),
+          }
+        : {}),
+    }
     if (scopedView.type !== "feed" || (base.sorts && base.sorts.length > 0)) {
       return base
     }
@@ -420,7 +471,14 @@ export function EidosFileWorkbench({
           sorts: [{ field: created.id, direction: "desc" as const }],
         }
       : base
-  }, [activeTable, activeView, scopedView, search])
+  }, [
+    activeTable,
+    scopedView,
+    search,
+    snapshot.queryCapabilities?.calendarPeriodTimeZoneData,
+    timeZone,
+    weekStartsOnMonday,
+  ])
   useEffect(() => {
     if (acceptedFocusRequestTokenRef.current === focusRequestToken) return
     acceptedFocusRequestTokenRef.current = focusRequestToken
@@ -521,6 +579,18 @@ export function EidosFileWorkbench({
 
   const updateActiveView = async (changes: UpdateEidosFileViewInput) => {
     if (!activeView) return
+    if (
+      source.readOnly &&
+      Object.keys(changes).every((key) => key === "filter" || key === "sorts")
+    ) {
+      // Query editing is local browsing state in a protected Space. Runtime
+      // still validates and executes the query; no saved View is mutated.
+      setBrowsingQueries((current) => ({
+        ...current,
+        [activeView.id]: { ...current[activeView.id], ...changes },
+      }))
+      return
+    }
     await source.updateView(activeView.id, changes)
   }
 
@@ -646,6 +716,12 @@ export function EidosFileWorkbench({
     setReloadToken((current) => current + 1)
   }
 
+  const deleteRowIds = async (rowIds: readonly string[]) => {
+    const result = await source.deleteRows(activeTable.table.id, [...rowIds])
+    setReloadToken((current) => current + 1)
+    return result
+  }
+
   const exportTableCsv = async (
     table: EidosFileTableSnapshot,
     view?: EidosFileViewInfo,
@@ -673,10 +749,16 @@ export function EidosFileWorkbench({
       locale={locale}
       themeName={theme}
       weekStartsOnMonday={weekStartsOnMonday}
+      defaultHideSystemFieldsInRecords={hideSystemFieldsInRecords}
       timeZone={timeZone}
       activateUrl={window.eidosLite?.openExternalUrl}
+      activateMarkdownLink={activateContentLink}
       openRelationRecord={openRelationRecord}
       assetSession={assetSession}
+      recordPropertyScope={JSON.stringify([
+        snapshot.path,
+        snapshot.metadata.fileId,
+      ])}
       assetPresenter={eidosLiteAssetPresenter}
       keyboardShortcuts={editorKeyboardShortcuts}
       menuOrders={menuOrders}
@@ -687,6 +769,13 @@ export function EidosFileWorkbench({
       resolveMarkdownImageUrl={resolveMarkdownImageUrl}
     >
       <EidosFileEditorShell
+        view={activeView}
+        calendarWindowVersion={
+          snapshot.queryCapabilities?.calendarWindowVersion
+        }
+        calendarPeriodTimeZoneData={
+          snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+        }
         ref={editorRef}
         data-eidos-file-workbench=""
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
@@ -738,6 +827,23 @@ export function EidosFileWorkbench({
               )
             }
             onExportError={onError}
+          />
+        }
+        recordCreator={
+          <EidosFileCreateRecordButton
+            source={source}
+            table={activeTable}
+            view={scopedView}
+            search={search}
+            disabled={disabled}
+            onCreated={(result) => {
+              setReloadToken((current) => current + 1)
+              const rowId = String(result.row._id)
+              sidebarRecords.rememberRecord(rowId, result.row)
+              ;(sidebarRecords.openRecord ?? onInspectedRowChange)?.(rowId)
+              focusRecordView()
+            }}
+            onError={onError}
           />
         }
         queryToolbar={
@@ -968,9 +1074,11 @@ export function EidosFileWorkbench({
                 resolveAssets: true,
                 rawFile: false,
                 nativeFileSystem: false,
+                reversibleRowDeletion: true,
               }}
               onSnapshot={onSnapshot}
               onDeleteRow={deleteRow}
+              onDeleteRowIds={deleteRowIds}
               onDeleteRows={deleteRows}
               onFieldOpen={setPropertyField}
               onFieldClose={() => setPropertyField(null)}
@@ -989,12 +1097,14 @@ export function EidosFileWorkbench({
               <EidosFileRelatedRecordPanel
                 source={source}
                 table={activeTable}
+                view={activeView}
                 target={{
                   tableId: activeTable.table.id,
                   rowId: inspectedRowId,
                   title: "",
                 }}
                 presentation={recordOpenMode}
+                tables={snapshot.tables}
                 onPresentationToggle={toggleRecordPresentation}
                 query={recordNavigationQuery}
                 reloadToken={reloadToken}
@@ -1002,6 +1112,8 @@ export function EidosFileWorkbench({
                 onMutation={() => setReloadToken((current) => current + 1)}
                 onClose={() => onInspectedRowChange?.(null)}
                 onError={onError}
+                onImportFiles={importFiles}
+                onImportDroppedFiles={importDroppedFiles}
                 disabled={disabled}
               />
             ) : relatedRecordTarget && relatedRecordTable ? (
@@ -1009,6 +1121,12 @@ export function EidosFileWorkbench({
                 key={`${relatedRecordTarget.tableId}:${relatedRecordTarget.rowId}`}
                 source={source}
                 table={relatedRecordTable}
+                view={
+                  activeView?.tableId === relatedRecordTable.table.id
+                    ? activeView
+                    : undefined
+                }
+                tables={snapshot.tables}
                 target={relatedRecordTarget}
                 presentation={recordOpenMode}
                 onPresentationToggle={toggleRecordPresentation}

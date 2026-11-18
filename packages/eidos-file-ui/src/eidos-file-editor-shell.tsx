@@ -1,4 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react"
+import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
+import { EidosFileCalendarViewProvider } from "./eidos-file-calendar-context"
+import { useEidosFileUI } from "./context"
 
 import {
   EidosFileEditorContent,
@@ -12,10 +15,14 @@ export interface EidosFileEditorShellProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   "children"
 > {
+  view?: EidosFileViewInfo
+  calendarPeriodTimeZoneData?: readonly string[]
+  calendarWindowVersion?: 1
   viewTabs?: ReactNode
   queryToolbar?: ReactNode
   fields?: ReactNode
   fieldCreator?: ReactNode
+  recordCreator?: ReactNode
   banner?: ReactNode
   children: ReactNode
   contentProps?: HTMLAttributes<HTMLDivElement>
@@ -35,10 +42,14 @@ export const EidosFileEditorShell = forwardRef<
   EidosFileEditorShellProps
 >(function EidosFileEditorShell(
   {
+    view,
+    calendarPeriodTimeZoneData,
+    calendarWindowVersion,
     viewTabs,
     queryToolbar,
     fields,
     fieldCreator,
+    recordCreator,
     banner,
     children,
     contentProps,
@@ -51,6 +62,7 @@ export const EidosFileEditorShell = forwardRef<
   ref
 ) {
   const hasFieldActions = fields !== undefined || fieldCreator !== undefined
+  const { translate: t } = useEidosFileUI()
   const editor = (
     <EidosFileEditorRoot
       ref={ref}
@@ -74,6 +86,7 @@ export const EidosFileEditorShell = forwardRef<
               {fieldCreator}
             </div>
           ) : null}
+          {recordCreator}
         </div>
       </EidosFileEditorWorkbar>
       {banner}
@@ -87,12 +100,34 @@ export const EidosFileEditorShell = forwardRef<
       {overlays}
     </EidosFileEditorRoot>
   )
-  return searchNavigation ? (
+  const content = searchNavigation ? (
     <EidosFileSearchNavigationProvider {...searchNavigation}>
       {editor}
     </EidosFileSearchNavigationProvider>
   ) : (
     editor
+  )
+  return (
+    <EidosFileCalendarViewProvider
+      view={view}
+      supported={calendarPeriodTimeZoneData ?? []}
+      calendarWindowVersion={calendarWindowVersion}
+      unsupported={
+        <EidosFileEditorRoot className={className}>
+          <EidosFileEditorWorkbar>
+            {viewTabs}
+            {queryToolbar}
+          </EidosFileEditorWorkbar>
+          <div role="status" className="p-4 text-sm">
+            {t(
+              "This editor cannot use the application's calendar settings. Open this view in an updated editor."
+            )}
+          </div>
+        </EidosFileEditorRoot>
+      }
+    >
+      {content}
+    </EidosFileCalendarViewProvider>
   )
 })
 

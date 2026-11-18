@@ -172,7 +172,7 @@ describe("Eidos File row query", () => {
     ).toThrow(/sub-millisecond/)
   })
 
-  it("compiles composable rolling week and month windows from one reference instant", () => {
+  it("compiles complete previous-week and next-month periods from one reference instant", () => {
     const referenceInstant = "2026-08-31T12:30:00.000Z"
     const compiled = compileEidosFileRowQuery(
       [field("scheduled", "datetime"), field("day", "date")],
@@ -184,36 +184,37 @@ describe("Eidos File row query", () => {
             {
               type: "rule",
               field: "scheduled",
-              operator: "is-relative-to-today",
-              value: { direction: "past", unit: "week" },
+              operator: "is-in-calendar-period",
+              value: { offset: -1, unit: "week" },
             },
             {
               type: "rule",
               field: "day",
-              operator: "is-relative-to-today",
-              value: { direction: "next", unit: "month" },
+              operator: "is-in-calendar-period",
+              value: { offset: 1, unit: "month" },
             },
           ],
         },
       },
-      { referenceInstant }
+      {
+        referenceInstant,
+        calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
+      }
     )
 
     expect(compiled.whereSql).toContain(
-      'COALESCE("scheduled" >= ? AND "scheduled" <= ?, 0)'
+      'COALESCE((("scheduled" >= ? AND "scheduled" < ?)), 0)'
     )
-    expect(compiled.whereSql).toContain(
-      'COALESCE("day" >= ? AND "day" <= ?, 0)'
-    )
+    expect(compiled.whereSql).toContain('COALESCE("day" >= ? AND "day" < ?, 0)')
     expect(compiled.params).toEqual([
-      "2026-08-24T12:30:00.000Z",
-      referenceInstant,
-      "2026-08-31",
-      "2026-09-30",
+      "2026-08-24T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      "2026-09-01",
+      "2026-10-01",
     ])
   })
 
-  it("uses ISO calendar boundaries for the current week and inclusive date ranges", () => {
+  it("uses configured calendar week boundaries and preserves inclusive absolute date ranges", () => {
     const compiled = compileEidosFileRowQuery(
       [field("day", "date"), field("scheduled", "datetime")],
       {
@@ -224,8 +225,8 @@ describe("Eidos File row query", () => {
             {
               type: "rule",
               field: "day",
-              operator: "is-relative-to-today",
-              value: { direction: "this", unit: "week" },
+              operator: "is-in-calendar-period",
+              value: { offset: 0, unit: "week" },
             },
             {
               type: "rule",
@@ -236,18 +237,21 @@ describe("Eidos File row query", () => {
           ],
         },
       },
-      { referenceInstant: "2026-08-20T12:30:00.000Z" }
+      {
+        referenceInstant: "2026-08-20T12:30:00.000Z",
+        calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
+      }
     )
 
     expect(compiled.params).toEqual([
       "2026-08-17",
-      "2026-08-23",
+      "2026-08-24",
       "2026-08-20T00:00:00.000Z",
       "2026-08-21T00:00:00.000Z",
     ])
   })
 
-  it("clamps leap-day year windows and computes the current calendar year", () => {
+  it("selects complete calendar years even when the reference is leap day", () => {
     const fields = [field("scheduled", "datetime"), field("day", "date")]
     const nextYear = compileEidosFileRowQuery(
       fields,
@@ -259,30 +263,33 @@ describe("Eidos File row query", () => {
             {
               type: "rule",
               field: "scheduled",
-              operator: "is-relative-to-today",
-              value: { direction: "next", unit: "year" },
+              operator: "is-in-calendar-period",
+              value: { offset: 1, unit: "year" },
             },
             {
               type: "rule",
               field: "day",
-              operator: "is-relative-to-today",
-              value: { direction: "this", unit: "year" },
+              operator: "is-in-calendar-period",
+              value: { offset: 0, unit: "year" },
             },
           ],
         },
       },
-      { referenceInstant: "2024-02-29T12:30:00.000Z" }
+      {
+        referenceInstant: "2024-02-29T12:30:00.000Z",
+        calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
+      }
     )
 
     expect(nextYear.params).toEqual([
-      "2024-02-29T12:30:00.000Z",
-      "2025-02-28T12:30:00.000Z",
+      "2025-01-01T00:00:00.000Z",
+      "2026-01-01T00:00:00.000Z",
       "2024-01-01",
-      "2024-12-31",
+      "2025-01-01",
     ])
   })
 
-  it("rejects relative date windows for non-temporal fields", () => {
+  it("rejects calendar periods for non-temporal fields", () => {
     expect(() =>
       compileEidosFileRowQuery(
         [field("title", "text")],
@@ -294,15 +301,18 @@ describe("Eidos File row query", () => {
               {
                 type: "rule",
                 field: "title",
-                operator: "is-relative-to-today",
-                value: { direction: "past", unit: "month" },
+                operator: "is-in-calendar-period",
+                value: { offset: -1, unit: "month" },
               },
             ],
           },
         },
-        { referenceInstant: "2026-08-20T12:30:00.000Z" }
+        {
+          referenceInstant: "2026-08-20T12:30:00.000Z",
+          calendar: { timeZone: "UTC", timeZoneData: "2026f", weekStartsOn: 1 },
+        }
       )
-    ).toThrow(/does not support relative date filters/)
+    ).toThrow(/requires a Date\/Datetime Field/)
   })
 
   it("normalizes untrusted IPC and persisted view input", () => {

@@ -10,7 +10,6 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
   type CreateEidosFileFieldInput,
-  type EidosFileFieldInfo,
   type EidosFileFormulaResultType,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
@@ -24,6 +23,7 @@ import {
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
 import { useEidosFileUI } from "./context"
+import { columnNameFor } from "./eidos-file-field-column-name"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
@@ -33,6 +33,7 @@ import {
 } from "./eidos-file-field-type-picker"
 import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
+import { EidosFileTemporalDefaultEditor } from "./eidos-file-temporal-default-editor"
 import { EidosFileOptionsEditor } from "./eidos-file-select-options-editor"
 import {
   Button,
@@ -61,28 +62,6 @@ const LOOKUP_AGGREGATES: Array<{
   { value: "max", label: "Maximum" },
 ]
 
-function columnNameFor(
-  label: string,
-  fields: readonly EidosFileFieldInfo[]
-): string {
-  const ascii = label
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-  const candidate = ascii
-    ? /^[0-9]/.test(ascii)
-      ? `field_${ascii}`
-      : ascii
-    : "field"
-  const used = new Set(fields.map((field) => field.tableColumnName))
-  if (!used.has(candidate)) return candidate
-  let suffix = 2
-  while (used.has(`${candidate}_${suffix}`)) suffix += 1
-  return `${candidate}_${suffix}`
-}
-
 export interface EidosFileFieldCreatePopoverProps {
   title?: string
   description?: string
@@ -94,6 +73,8 @@ export interface EidosFileFieldCreatePopoverProps {
   disabled?: boolean
   allowedTypes?: readonly EidosFileCreatableFieldType[]
   onCreate: (field: CreateEidosFileFieldInput) => Promise<void> | void
+  /** Open a dedicated formula editor with the current field name. */
+  onChooseFormula?: (name: string) => void
   onPreviewFormula?: (
     input: EidosFileFormulaPreviewInput
   ) => Promise<EidosFileFormulaPreview>
@@ -110,13 +91,16 @@ export function EidosFileFieldCreatePopover({
   disabled = false,
   allowedTypes,
   onCreate,
+  onChooseFormula,
   onPreviewFormula,
 }: EidosFileFieldCreatePopoverProps) {
   const { translate: t } = useEidosFileUI()
   const [name, setName] = useState("")
+  const [nameIsAutomatic, setNameIsAutomatic] = useState(false)
   const [fieldType, setFieldType] =
     useState<EidosFileCreatableFieldType>("text")
   const [options, setOptions] = useState<EidosFileSelectOption[]>([])
+  const [temporalDefault, setTemporalDefault] = useState<"now" | null>(null)
   const [numberProperty, setNumberProperty] = useState<EidosFileNumberProperty>(
     () => ({ ...DEFAULT_BASE_NUMBER_PROPERTY })
   )
@@ -153,25 +137,20 @@ export function EidosFileFieldCreatePopover({
           ).filter((type) => type !== "relation" && type !== "lookup"),
     [allowedTypes, supportsRelations]
   )
+  const initialFieldType = availableTypes?.includes("text")
+    ? "text"
+    : (availableTypes?.[0] ?? "text")
 
+  // The host can publish a new table snapshot while the form is open.
   useEffect(() => {
     if (!open) return
     setName("")
-    setFieldType(
-      availableTypes?.includes("text")
-        ? "text"
-        : (availableTypes?.[0] ?? "text")
-    )
+    setNameIsAutomatic(false)
+    setFieldType(initialFieldType)
     setOptions([])
+    setTemporalDefault(null)
     setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
-    setTargetTableId(
-      tables.find(
-        (candidate) =>
-          candidate.table.id !== table.table.id &&
-          candidate.table.settings?.tableType !== "virtual" &&
-          !candidate.table.settings?.vtabModule
-      )?.table.id ?? (supportsRelations ? table.table.id : "")
-    )
+    setTargetTableId("")
     setMultiple(true)
     setFormula("")
     setFormulaDisplayType("text")
@@ -181,15 +160,17 @@ export function EidosFileFieldCreatePopover({
     setLookupAggregate("first")
     setSubmitting(false)
     setError(null)
-  }, [availableTypes, open, table.table.id, tables, supportsRelations])
+  }, [initialFieldType, open, table.table.id])
 
   const columnName = useMemo(
     () => columnNameFor(name.trim() || "field", table.fields),
     [name, table.fields]
   )
-  const targetTable = tables.find(
-    (candidate) => candidate.table.id === targetTableId
-  )
+  const targetTable = targetTableId
+    ? relationTables.find((candidate) => candidate.table.id === targetTableId)
+    : (relationTables.find(
+        (candidate) => candidate.table.id !== table.table.id
+      ) ?? (supportsRelations ? table : undefined))
   const relationFields = table.fields.filter(
     (field) => field.type === "relation"
   )
@@ -219,11 +200,12 @@ export function EidosFileFieldCreatePopover({
       )
     : false
   const busy = disabled || submitting
+  const canSubmitType = !availableTypes || availableTypes.includes(fieldType)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = name.trim()
-    if (!trimmedName || busy) return
+    if (!trimmedName || busy || !canSubmitType) return
     let field: CreateEidosFileFieldInput
     if (fieldType === "relation") {
       if (!targetTable) return
@@ -285,7 +267,11 @@ export function EidosFileFieldCreatePopover({
             }
           : fieldType === "number"
             ? { property: numberProperty }
-            : {}),
+            : (fieldType === "date" || fieldType === "datetime") &&
+                temporalDefault === "now" &&
+                table.temporalDefaultsVersion === 1
+              ? { property: { defaultValue: temporalDefault } }
+              : {}),
       }
     }
     setSubmitting(true)
@@ -325,14 +311,34 @@ export function EidosFileFieldCreatePopover({
               autoFocus
               disabled={busy}
               placeholder={t("Status")}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameIsAutomatic(false)
+              }}
             />
           </label>
           <label className="grid gap-1.5 text-xs font-medium">
             {t("Type")}
             <EidosFileFieldTypePicker
               value={fieldType}
-              onChange={setFieldType}
+              onChange={(type) => {
+                if (type === "formula" && onChooseFormula) {
+                  onChooseFormula(
+                    !name.trim() || nameIsAutomatic ? t("Formula") : name
+                  )
+                  return
+                }
+                setFieldType(type)
+                if (!name.trim() || nameIsAutomatic) {
+                  const option = EIDOS_FILE_FIELD_TYPE_OPTIONS.find(
+                    (option) => option.value === type
+                  )
+                  if (option) {
+                    setName(t(option.label))
+                    setNameIsAutomatic(true)
+                  }
+                }
+              }}
               allowedTypes={availableTypes}
               disabled={busy}
             />
@@ -343,6 +349,15 @@ export function EidosFileFieldCreatePopover({
               disabled={busy}
               onChange={setOptions}
               className="border-t-0 pt-0"
+            />
+          ) : null}
+          {(fieldType === "date" || fieldType === "datetime") &&
+          table.temporalDefaultsVersion === 1 ? (
+            <EidosFileTemporalDefaultEditor
+              type={fieldType}
+              value={temporalDefault}
+              disabled={busy}
+              onChange={setTemporalDefault}
             />
           ) : null}
           {fieldType === "number" ? (
@@ -525,6 +540,7 @@ export function EidosFileFieldCreatePopover({
             type="submit"
             disabled={
               busy ||
+              !canSubmitType ||
               !name.trim() ||
               (fieldType === "relation" && !targetTable) ||
               (fieldType === "formula" && (!formula.trim() || !formulaValid)) ||

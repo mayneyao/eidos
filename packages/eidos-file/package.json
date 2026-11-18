@@ -82,7 +82,9 @@
   },
   "dependencies": {
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
-    "csv-parse": "^7.0.2"
+    "csv-parse": "^7.0.2",
+    "moment": "2.31.0",
+    "moment-timezone": "0.6.6"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.11",

@@ -153,3 +153,33 @@ export function nextEidosFileOptionColor(
     "default"
   )
 }
+
+export function eidosFileSelectOptionsProperty(
+  field: EidosFileFieldInfo,
+  options: readonly { name: string; color: string }[]
+): Record<string, unknown> {
+  const existing = Array.isArray(field.property?.options)
+    ? field.property.options
+    : []
+  const existingByName = new Map(
+    existing.flatMap((entry) => {
+      if (
+        typeof entry !== "object" ||
+        entry === null ||
+        Array.isArray(entry) ||
+        typeof (entry as { name?: unknown }).name !== "string"
+      ) {
+        return []
+      }
+      return [[(entry as { name: string }).name, entry] as const]
+    })
+  )
+  return {
+    ...(field.property ?? {}),
+    options: options.map((option) => ({
+      ...(existingByName.get(option.name) ?? {}),
+      name: option.name,
+      color: option.color,
+    })),
+  }
+}

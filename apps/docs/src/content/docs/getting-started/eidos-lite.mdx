@@ -51,6 +51,14 @@ note and inserts a relative Markdown link. Existing attachments are preserved;
 duplicate names receive a number. Canceling the chooser leaves the note unchanged.
 Attachments must be between 1 byte and 64 MiB. Use **Image** for an embedded image.
 
+Local body links may use `./` and `../` while the target stays inside the Space.
+Markdown resolves them from the note's folder; a record's configured Content
+field resolves them from its `.eidos` file's folder. Moving a note updates
+resolvable body references and keeps shared attachments in place. Explicit
+relative paths never select a different same-named file when the target is missing.
+Supported text and media links open in Lite; other files use the system application.
+The stricter File-field attachment rules remain unchanged.
+
 Choose **Save** below the editor, or press **Cmd+S** on macOS / **Ctrl+S** on
 Windows and Linux. The status shows unsaved changes, saving, or saved to disk.
 The shortcut saves the last text document you interacted with, including in the

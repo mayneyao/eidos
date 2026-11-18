@@ -3,6 +3,17 @@ package space.eidos.android
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Native consumers have no portable calendar presentation bridge yet. */
+internal fun nativeViewSupportsCalendarDisplay(query: JSONObject): Boolean {
+    fun supported(value: Any?): Boolean = when (value) {
+        is JSONObject -> value.optString("op") !in setOf("calendar-day", "relative-date", "calendar-period") &&
+            value.keys().asSequence().all { supported(value.opt(it)) }
+        is JSONArray -> (0 until value.length()).all { supported(value.opt(it)) }
+        else -> true
+    }
+    return supported(query)
+}
+
 /** Compose public query documents; Runtime owns their validation and evaluation. */
 internal fun effectiveViewQuery(
     view: EidosView?,

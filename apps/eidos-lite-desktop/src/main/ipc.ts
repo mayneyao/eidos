@@ -1,4 +1,9 @@
 import { createPublicKey, randomUUID } from "node:crypto"
+import {
+  readTraceKey,
+  readTraceValueKey,
+  runtimeReadTrace,
+} from "../runtime/read-trace"
 import { createRememberedSyncUnlocks } from "./sync/create-remembered-sync-unlocks"
 import { canRememberSyncUnlock } from "./sync/remembered-sync-unlocks"
 import { CustomSyncServers } from "./sync/custom-sync-servers"
@@ -11,6 +16,7 @@ import { PeerService } from "./peer/peer-service"
 import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
 import { normalizeTextSearchOptions } from "../shared/text-search"
+import { normalizeExplorerCalendarExecution } from "../shared/explorer-calendar"
 import { normalizeExplorerFileFilter } from "../shared/explorer-file-filter"
 import { normalizeExplorerFilesQuery } from "../shared/explorer-file-list"
 import { normalizeExplorerThumbnailRequest } from "../shared/explorer-media"
@@ -37,6 +43,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   nativeImage,
   powerMonitor,
   safeStorage,
@@ -54,6 +61,8 @@ import {
   type EidosLiteCsvSelection,
   type EidosLiteMarkdownImageImportRequest,
   type EidosLitePathClipboardMode,
+  type SpacePathClipboardSources,
+  type EidosLiteClipboardCommandState,
   type EidosLiteSettingsDestination,
   type HtmlPreviewOpenRequest,
   type TextFileSaveRequest,
@@ -170,6 +179,37 @@ interface RegisteredUrlImageLease {
   sessionId: string
   lease: UrlImageLease
   expiresAtMs: number
+}
+
+function pathClipboardSources(
+  value: unknown
+): SpacePathClipboardSources | undefined {
+  if (value === undefined) return undefined
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("spaceId" in value) ||
+    !("sources" in value) ||
+    !Array.isArray(value.sources) ||
+    value.sources.length > 10000
+  )
+    throw new Error("Invalid file clipboard sources")
+  return {
+    spaceId: requiredString(value.spaceId, "Space identity"),
+    sources: value.sources.map((source: unknown) => {
+      if (
+        !source ||
+        typeof source !== "object" ||
+        !("relativePath" in source) ||
+        !("token" in source)
+      )
+        throw new Error("Invalid file clipboard source")
+      return {
+        relativePath: requiredString(source.relativePath, "Space path"),
+        token: requiredString(source.token, "Source identity"),
+      }
+    }),
+  }
 }
 
 function optionalRelativePath(value: unknown): string | null {
@@ -1792,7 +1832,13 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.filterFiles,
-    (event, filter: unknown, directory: unknown, respectGitignore: unknown) => {
+    (
+      event,
+      filter: unknown,
+      directory: unknown,
+      respectGitignore: unknown,
+      calendarExecution: unknown
+    ) => {
       const normalized = normalizeExplorerFileFilter(filter)
       if (directory !== null && typeof directory !== "string")
         throw new Error("Invalid file filter")
@@ -1803,11 +1849,46 @@ export function registerIpc(
         throw new Error("Invalid ignore filter")
       return controller
         .requireSession(event.sender)
-        .filterFiles(normalized, directory, respectGitignore === true)
+        .filterFiles(
+          normalized,
+          directory,
+          respectGitignore === true,
+          normalizeExplorerCalendarExecution(calendarExecution)
+        )
     }
   )
-  ipcMain.handle(IPC_CHANNELS.explorerFilterFields, (event) =>
-    controller.requireSession(event.sender).getExplorerFilterFields()
+  ipcMain.handle(
+    IPC_CHANNELS.explorerFilterFields,
+    (
+      event,
+      consumer?: {
+        calendarQueryVersion?: unknown
+        calendarWindowVersion?: unknown
+      }
+    ) => {
+      const session = controller.requireSession(event.sender)
+      if (consumer === undefined) return session.getExplorerFilterFields()
+      if (
+        !consumer ||
+        typeof consumer !== "object" ||
+        Array.isArray(consumer) ||
+        Object.keys(consumer).some(
+          (key) =>
+            !["calendarQueryVersion", "calendarWindowVersion"].includes(key)
+        ) ||
+        (consumer.calendarWindowVersion !== undefined &&
+          (consumer.calendarWindowVersion !== 1 ||
+            consumer.calendarQueryVersion !== 2)) ||
+        consumer.calendarQueryVersion !== 2
+      )
+        throw new Error("Invalid Explorer calendar consumer")
+      return session.getExplorerFilterFields({
+        calendarQueryVersion: 2,
+        ...(consumer.calendarWindowVersion === 1
+          ? { calendarWindowVersion: 1 as const }
+          : {}),
+      })
+    }
   )
   ipcMain.handle(IPC_CHANNELS.listExplorerFiles, (event, query: unknown) =>
     controller
@@ -1934,6 +2015,30 @@ export function registerIpc(
         .resolveMarkdownImage(documentPath, imageUrl)
     }
   )
+  for (const channel of [
+    IPC_CHANNELS.resolveMarkdownLink,
+    IPC_CHANNELS.openMarkdownLink,
+  ]) {
+    ipcMain.handle(channel, async (event, owner: unknown, href: unknown) => {
+      const documentPath = requiredString(owner, "Markdown owner")
+      const target = requiredString(href, "Markdown link")
+      if (!documentPath || documentPath.length > 8192 || target.length > 8192)
+        throw new Error("Invalid Markdown link")
+      const session = controller.requireSession(event.sender)
+      if (channel === IPC_CHANNELS.resolveMarkdownLink)
+        return session.resolveMarkdownLink(documentPath, target)
+      return session.openMarkdownLink(
+        documentPath,
+        target,
+        async (relativePath) => {
+          const error = await shell.openPath(
+            session.resolveUserPath(relativePath)
+          )
+          if (error) throw new Error(error)
+        }
+      )
+    })
+  }
   ipcMain.handle(
     IPC_CHANNELS.inspectFileIssue,
     (event, relativePath: unknown) => {
@@ -2093,7 +2198,12 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.movePaths,
-    async (event, relativePaths: unknown, targetDirectory: unknown) => {
+    async (
+      event,
+      relativePaths: unknown,
+      targetDirectory: unknown,
+      clipboard: unknown
+    ) => {
       const session = controller.requireSession(event.sender)
       if (!Array.isArray(relativePaths) || relativePaths.length === 0)
         throw new Error("Expected Space paths")
@@ -2101,7 +2211,8 @@ export function registerIpc(
         relativePaths.map((value: unknown) =>
           requiredString(value, "Space path")
         ),
-        optionalRelativePath(targetDirectory)
+        optionalRelativePath(targetDirectory),
+        pathClipboardSources(clipboard)
       )
       for (const move of result.moves) {
         try {
@@ -2115,14 +2226,100 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.copyPath,
-    (event, relativePath: unknown, targetDirectory: unknown) =>
+    (
+      event,
+      relativePath: unknown,
+      targetDirectory: unknown,
+      clipboard: unknown
+    ) =>
       controller
         .requireSession(event.sender)
         .copyPath(
           requiredString(relativePath, "Space path"),
-          optionalRelativePath(targetDirectory)
+          optionalRelativePath(targetDirectory),
+          pathClipboardSources(clipboard)
         )
   )
+  const clipboardCommandStates = new WeakMap<
+    Electron.WebContents,
+    EidosLiteClipboardCommandState
+  >()
+  const applyClipboardCommandState = (
+    state: EidosLiteClipboardCommandState
+  ) => {
+    for (const command of ["cut", "copy", "paste"] as const) {
+      const item = Menu.getApplicationMenu()?.getMenuItemById(
+        `clipboard-${command}`
+      )
+      if (item) item.enabled = state?.[command] ?? true
+    }
+  }
+  const clipboardWindowFocus = (
+    _event: Electron.Event,
+    window: Electron.BrowserWindow
+  ) =>
+    applyClipboardCommandState(
+      clipboardCommandStates.get(window.webContents) ?? null
+    )
+  app.on("browser-window-focus", clipboardWindowFocus)
+  const clipboardStateListener = (
+    event: Electron.IpcMainEvent,
+    value: unknown
+  ) => {
+    if (
+      value !== null &&
+      (!value ||
+        typeof value !== "object" ||
+        !["cut", "copy", "paste"].every(
+          (key) =>
+            key in value &&
+            typeof (value as Record<string, unknown>)[key] === "boolean"
+        ))
+    )
+      return
+    const state = value as EidosLiteClipboardCommandState
+    clipboardCommandStates.set(event.sender, state)
+    if (BrowserWindow.getFocusedWindow()?.webContents === event.sender)
+      applyClipboardCommandState(state)
+  }
+  ipcMain.on(IPC_CHANNELS.clipboardCommandState, clipboardStateListener)
+  ipcMain.handle(
+    IPC_CHANNELS.textClipboardCommand,
+    (event, command: unknown) => {
+      if (command !== "cut" && command !== "copy" && command !== "paste")
+        throw new Error("Invalid clipboard command")
+      event.sender[command]()
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.preparePathClipboard,
+    (event, relativePaths: unknown, mode?: unknown) => {
+      if (!Array.isArray(relativePaths)) throw new Error("Expected Space paths")
+      if (mode !== undefined && mode !== "cut" && mode !== "copy")
+        throw new Error("Invalid clipboard mode")
+      return controller.preparePathClipboard(
+        event.sender,
+        relativePaths.map((value: unknown) =>
+          requiredString(value, "Space path")
+        ),
+        mode
+      )
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.isPathClipboardCurrent,
+    (event, token: unknown) => {
+      controller.requireSession(event.sender)
+      return controller.isPathClipboardCurrent(
+        requiredString(token, "Clipboard token")
+      )
+    }
+  )
+  const cancelPathClipboard = () => controller.cancelPathClipboard()
+  ipcMain.handle(IPC_CHANNELS.fileClipboardStatus, (event) =>
+    controller.fileClipboardStatus(event.sender)
+  )
+  ipcMain.on(IPC_CHANNELS.cancelPathClipboard, cancelPathClipboard)
   ipcMain.handle(IPC_CHANNELS.deletePath, (event, relativePath: unknown) =>
     controller.deletePath(
       event.sender,
@@ -2223,88 +2420,103 @@ export function registerIpc(
         thumbnailSize !== 1024
       )
         throw new Error("Invalid thumbnail size")
-      const activeCount = [
-        ...assetLeases.values(),
-        ...urlImageLeases.values(),
-      ].filter(
-        (record) =>
-          record.ownerId === event.sender.id &&
-          record.sessionId === sessionId &&
-          record.expiresAtMs > Date.now()
-      ).length
-      if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
-        throw new Error("Concurrent attachment preview limit reached")
-      }
-      const { entry, resolved } = await controller
-        .requireSession(event.sender)
-        .resolveEidosFileAsset(
-          sessionId,
-          entryId,
+      return runtimeReadTrace.span(
+        "asset-ipc",
+        {
+          sessionKey: runtimeReadTrace.enabled
+            ? readTraceKey(sessionId)
+            : undefined,
+          assetKey: runtimeReadTrace.enabled
+            ? readTraceKey(entryId)
+            : undefined,
           purpose,
-          systemFileThumbnail
-            ? (absolutePath, identity) =>
-                systemFileThumbnail!(absolutePath, identity, thumbnailSize)
-            : undefined
-        )
-      const leaseId = `eidos-lite-asset-${randomUUID()}`
-      const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
-      const lease: AssetLease = {
-        leaseId,
-        entryId: entry.id,
-        purpose,
-        mediaType: entry.mediaType,
-        name: entry.name,
-        size: entry.size,
-        expiresAt: new Date(expiresAtMs).toISOString(),
-        resourceToken: `eidos-lite-resource-${randomUUID()}`,
-      }
-      assetLeases.set(
-        leaseId,
-        resolved.kind === "local"
-          ? {
-              kind: "local",
-              ownerId: event.sender.id,
+          thumbnailSize,
+        },
+        async () => {
+          const activeCount = [
+            ...assetLeases.values(),
+            ...urlImageLeases.values(),
+          ].filter(
+            (record) =>
+              record.ownerId === event.sender.id &&
+              record.sessionId === sessionId &&
+              record.expiresAtMs > Date.now()
+          ).length
+          if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
+            throw new Error("Concurrent attachment preview limit reached")
+          }
+          const { entry, resolved } = await controller
+            .requireSession(event.sender)
+            .resolveEidosFileAsset(
               sessionId,
-              absolutePath: resolved.absolutePath,
-              identity: resolved.identity,
-              lease,
-              expiresAtMs,
-            }
-          : {
-              kind: "network",
-              ownerId: event.sender.id,
-              sessionId,
-              bytes: resolved.bytes,
-              lease,
-              expiresAtMs,
-            }
-      )
-      attachAssetLeaseCleanup(event.sender)
-      const mediaUrl =
-        purpose === "preview" &&
-        resolved.kind === "local" &&
-        entry.mediaType.startsWith("video/") &&
-        detectMediaFileType(resolved.absolutePath)?.mediaKind === "video"
-          ? issueMediaPreviewUrl(
-              path.dirname(resolved.absolutePath),
-              path.basename(resolved.absolutePath),
-              entry.mediaType,
-              {
-                identity: resolved.identity,
-                authorize: () =>
-                  assetLeases.get(leaseId)?.lease === lease &&
-                  expiresAtMs > Date.now(),
-              }
+              entryId,
+              purpose,
+              systemFileThumbnail
+                ? (absolutePath, identity) =>
+                    systemFileThumbnail!(absolutePath, identity, thumbnailSize)
+                : undefined
             )
-          : undefined
-      return {
-        lease,
-        ...(mediaUrl ? { mediaUrl } : {}),
-        ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
-        ...(resolved.kind === "local" && resolved.bytesMediaType
-          ? { bytesMediaType: resolved.bytesMediaType }
-          : {}),
-      }
+          const leaseId = `eidos-lite-asset-${randomUUID()}`
+          const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
+          const lease: AssetLease = {
+            leaseId,
+            entryId: entry.id,
+            purpose,
+            mediaType: entry.mediaType,
+            name: entry.name,
+            size: entry.size,
+            expiresAt: new Date(expiresAtMs).toISOString(),
+            resourceToken: `eidos-lite-resource-${randomUUID()}`,
+          }
+          assetLeases.set(
+            leaseId,
+            resolved.kind === "local"
+              ? {
+                  kind: "local",
+                  ownerId: event.sender.id,
+                  sessionId,
+                  absolutePath: resolved.absolutePath,
+                  identity: resolved.identity,
+                  lease,
+                  expiresAtMs,
+                }
+              : {
+                  kind: "network",
+                  ownerId: event.sender.id,
+                  sessionId,
+                  bytes: resolved.bytes,
+                  lease,
+                  expiresAtMs,
+                }
+          )
+          attachAssetLeaseCleanup(event.sender)
+          const mediaUrl =
+            purpose === "preview" &&
+            resolved.kind === "local" &&
+            entry.mediaType.startsWith("video/") &&
+            detectMediaFileType(resolved.absolutePath)?.mediaKind === "video"
+              ? issueMediaPreviewUrl(
+                  path.dirname(resolved.absolutePath),
+                  path.basename(resolved.absolutePath),
+                  entry.mediaType,
+                  {
+                    identity: resolved.identity,
+                    authorize: () =>
+                      assetLeases.get(leaseId)?.lease === lease &&
+                      expiresAtMs > Date.now(),
+                  }
+                )
+              : undefined
+          return {
+            lease,
+            ...(mediaUrl ? { mediaUrl } : {}),
+            ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
+            ...(resolved.kind === "local" && resolved.bytesMediaType
+              ? { bytesMediaType: resolved.bytesMediaType }
+              : {}),
+          }
+        }
+      )
     }
   )
   ipcMain.handle(
@@ -2489,7 +2701,8 @@ export function registerIpc(
       event,
       sessionId: unknown,
       method: unknown,
-      args: unknown
+      args: unknown,
+      consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
     ): Promise<unknown> => {
       if (typeof sessionId !== "string")
         throw new Error("Invalid runtime session")
@@ -2501,18 +2714,53 @@ export function registerIpc(
       }
       if (!Array.isArray(args))
         throw new Error("Runtime arguments must be an array")
+      if (
+        consumer !== undefined &&
+        (typeof consumer !== "object" ||
+          consumer === null ||
+          Object.keys(consumer).some(
+            (key) =>
+              !["calendarQueryVersion", "calendarWindowVersion"].includes(key)
+          ) ||
+          (consumer.calendarWindowVersion !== undefined &&
+            (consumer.calendarWindowVersion !== 1 ||
+              consumer.calendarQueryVersion !== 2)) ||
+          (consumer.calendarQueryVersion !== undefined &&
+            consumer.calendarQueryVersion !== 2))
+      )
+        throw new Error("Invalid calendar query consumer")
       const runtimeMethod = method as RuntimeMethod
       const runtimeArgs =
         runtimeMethod === "previewCsvFile" || runtimeMethod === "importCsvFile"
           ? [requireCsvSource(event.sender, args[0]), ...args.slice(1)]
           : args
-      const result = await controller
-        .requireSession(event.sender)
-        .callRuntime(
-          sessionId,
-          runtimeMethod,
-          runtimeArgs as RuntimeCalls[RuntimeMethod]["args"]
-        )
+      const session = controller.requireSession(event.sender)
+      const result = await runtimeReadTrace.span(
+        "ipc-call",
+        {
+          method: runtimeMethod,
+          sessionKey: runtimeReadTrace.enabled
+            ? readTraceKey(sessionId)
+            : undefined,
+          readOnly: session.readOnly,
+          ...(runtimeMethod === "getPage"
+            ? {
+                offset: typeof args[1] === "number" ? args[1] : undefined,
+                limit: typeof args[2] === "number" ? args[2] : undefined,
+                queryKey: runtimeReadTrace.enabled
+                  ? readTraceValueKey(args[3])
+                  : undefined,
+              }
+            : {}),
+        },
+        () =>
+          session.callRuntime(
+            sessionId,
+            runtimeMethod,
+            runtimeArgs as RuntimeCalls[RuntimeMethod]["args"],
+            consumer
+          )
+      )
       if (
         (RUNTIME_MUTATION_METHODS as readonly string[]).includes(runtimeMethod)
       )
@@ -4180,6 +4428,15 @@ export function registerIpc(
     verifyPluginPackageForSmoke: () => plugins.verifyPackagedSmoke(),
     openPluginPackage: (filePath) => plugins.openPackage(filePath),
     async close() {
+      ipcMain.removeListener(
+        IPC_CHANNELS.cancelPathClipboard,
+        cancelPathClipboard
+      )
+      app.removeListener("browser-window-focus", clipboardWindowFocus)
+      ipcMain.removeListener(
+        IPC_CHANNELS.clipboardCommandState,
+        clipboardStateListener
+      )
       clearInterval(automaticTimer)
       unsubscribeAutomaticPreferences()
       app.removeListener("browser-window-created", watchAutomaticActivity)

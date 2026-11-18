@@ -51,6 +51,7 @@ describe("Eidos Lite preferences", () => {
         terminalLayout: "side",
         timeZone: "America/New_York",
         weekStartsOnMonday: false,
+        hideSystemFieldsInRecords: true,
         builtInPlugins: { terminal: true },
         terminalShell: "/bin/zsh",
         keyboardShortcuts: {
@@ -72,6 +73,7 @@ describe("Eidos Lite preferences", () => {
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
+      hideSystemFieldsInRecords: true,
       terminalShell: "/bin/zsh",
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -96,6 +98,7 @@ describe("Eidos Lite preferences", () => {
       timeZone: "America/New_York",
       weekStartsOnMonday: false,
       builtInPlugins: { terminal: true },
+      hideSystemFieldsInRecords: true,
       terminalShell: "/bin/zsh",
       keyboardShortcuts: {
         ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,

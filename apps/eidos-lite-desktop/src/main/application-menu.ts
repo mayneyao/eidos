@@ -1,11 +1,13 @@
 import type { MenuItemConstructorOptions } from "electron"
 
 import { translateEidosLite, type EidosLiteLocale } from "../shared/i18n"
+import type { EidosLiteClipboardCommand } from "../shared/contracts"
 
 interface ApplicationMenuHandlers {
   openSettings(): void
   openDocumentation(): void
   openWebsite(): void
+  clipboardCommand(command: EidosLiteClipboardCommand): void
 }
 
 export function eidosLiteApplicationMenuTemplate(
@@ -48,7 +50,39 @@ export function eidosLiteApplicationMenuTemplate(
           ? [{ role: "close" }]
           : [settings, { type: "separator" }, { role: "quit" }],
     },
-    { role: "editMenu", label: t("Edit") },
+    {
+      label: t("Edit"),
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        ...(
+          [
+            { command: "cut", label: "Cut", accelerator: "CmdOrCtrl+X" },
+            { command: "copy", label: "Copy", accelerator: "CmdOrCtrl+C" },
+            { command: "paste", label: "Paste", accelerator: "CmdOrCtrl+V" },
+          ] as const
+        ).map(({ command, label, accelerator }) => ({
+          id: `clipboard-${command}`,
+          label: t(label),
+          accelerator,
+          click: () => handlers.clipboardCommand(command),
+        })),
+        ...(platform === "darwin"
+          ? [{ role: "pasteAndMatchStyle" as const }]
+          : []),
+        { role: "delete" },
+        { type: "separator" },
+        { role: "selectAll" },
+        ...(platform === "darwin"
+          ? [
+              { type: "separator" as const },
+              { role: "startSpeaking" as const },
+              { role: "stopSpeaking" as const },
+            ]
+          : []),
+      ],
+    },
     { role: "viewMenu", label: t("View") },
     { role: "windowMenu", label: t("Window") },
     {

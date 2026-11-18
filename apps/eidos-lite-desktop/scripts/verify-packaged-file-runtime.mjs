@@ -44,7 +44,17 @@ const fileManifest = JSON.parse(fs.readFileSync(filePackage, "utf8"))
 const fileRequire = createRequire(filePackage)
 const csvEntry = packagedFile(fileRequire.resolve("csv-parse/browser/esm/sync"))
 const csvManifest = packageManifest(csvEntry.path, "csv-parse")
+const timeZoneEntry = packagedFile(fileRequire.resolve("moment-timezone"))
+const timeZoneManifest = packageManifest(timeZoneEntry.path, "moment-timezone")
+const timeZoneRequire = createRequire(timeZoneEntry.path)
+const momentEntry = packagedFile(timeZoneRequire.resolve("moment"))
+const momentManifest = packageManifest(momentEntry.path, "moment")
 assert.ok(fileManifest.dependencies["csv-parse"])
+assert.equal(
+  fileManifest.dependencies["moment-timezone"],
+  timeZoneManifest.version
+)
+assert.equal(fileManifest.dependencies.moment, momentManifest.version)
 const runtime = await import(
   pathToFileURL(
     path.join(archive, "node_modules/@eidos.space/eidos-file/dist/index.mjs")
@@ -57,14 +67,29 @@ assert.deepEqual(
   }).rows,
   [{ Title: "Packaged", Note: "hello, world" }]
 )
+assert.equal(
+  runtime.eidosFileTemporalDefaultValue(
+    "date",
+    { defaultValue: "now" },
+    "2026-11-18T16:00:00.000Z",
+    {
+      timeZone: "Asia/Shanghai",
+      timeZoneData: runtime.EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+    }
+  ),
+  "2026-11-19"
+)
 console.log(
   JSON.stringify({
     ok: true,
     archive,
     dependencies: {
       "csv-parse": { entry: csvEntry, manifest: csvManifest },
+      moment: { entry: momentEntry, manifest: momentManifest },
+      "moment-timezone": { entry: timeZoneEntry, manifest: timeZoneManifest },
     },
     nodePathProvided: Boolean(process.env.NODE_PATH),
     csvParsing: true,
+    localDateDefaults: true,
   })
 )

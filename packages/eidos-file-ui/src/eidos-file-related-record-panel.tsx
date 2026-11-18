@@ -6,6 +6,7 @@ import type {
   EidosFileRowQuery,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
+  EidosFileViewInfo,
   EidosFileSnapshot,
   FileEntry,
   RecordNeighbors,
@@ -13,6 +14,7 @@ import type {
 
 import type { EidosFileRelationRecordTarget } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import {
   eidosFileContentField,
   eidosFileFieldKey,
@@ -24,6 +26,9 @@ import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspecto
 export interface EidosFileRelatedRecordPanelProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
+  tables?: readonly EidosFileTableSnapshot[]
+  /** Saved field layout for the view that opened this record. */
+  view?: EidosFileViewInfo
   target: EidosFileRelationRecordTarget
   /**
    * Host-selected presentation. Defaults to the right panel, or the full page
@@ -54,6 +59,8 @@ export interface EidosFileRelatedRecordPanelProps {
 export function EidosFileRelatedRecordPanel({
   source,
   table,
+  tables,
+  view,
   target,
   presentation,
   onPresentationToggle,
@@ -117,7 +124,10 @@ export function EidosFileRelatedRecordPanel({
 
   // Key results by query value, row and revision so old neighbors cannot be used
   // while a new lookup is pending. Equivalent host renders do not restart reads.
-  const queryKey = JSON.stringify(query)
+  const calendar = useEidosFileCalendarExecution()
+  const queryKey = JSON.stringify(
+    query && !query.calendar && calendar ? { ...query, calendar } : query
+  )
   const [mutationRevision, setMutationRevision] = useState(0)
   const navigationKey = JSON.stringify([
     table.table.id,
@@ -188,6 +198,20 @@ export function EidosFileRelatedRecordPanel({
 
   return (
     <EidosFileRecordInspector
+      recordFieldManagement={{
+        source,
+        tables,
+        view,
+        table: { ...table, fields: recordFields },
+        disabled: disabled || retainingPreviousRow,
+        onSnapshot: (snapshot) => {
+          const updated = snapshot.tables.find(
+            (value) => value.table.id === table.table.id
+          )
+          if (updated) setRecordFields(updated.fields)
+          onSnapshot?.(snapshot)
+        },
+      }}
       row={inspectedRow}
       fields={recordFields}
       variant={variant}

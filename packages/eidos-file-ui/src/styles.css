@@ -789,6 +789,480 @@
   max-height: none;
   overflow: visible;
 }
+[data-eidos-file-filter-popover] {
+  container: eidos-filters / inline-size;
+}
+.eidos-filter-rule {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1.65fr) 28px;
+}
+.eidos-filter-checkbox-rule {
+  grid-template-columns: minmax(100px, 1fr) minmax(180px, 2.5fr) 28px;
+}
+.eidos-filter-value {
+  min-width: 0;
+}
+.eidos-relative-date-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.eidos-relative-date-controls:not([data-direction="this"]):not(
+    [data-whole-period]
+  ) {
+  grid-template-columns: max-content minmax(36px, 1fr) max-content;
+  gap: 10px;
+}
+.eidos-relative-date-select,
+.eidos-relative-date-count {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover, var(--background));
+  color: var(--popover-foreground);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  box-shadow: none;
+}
+.eidos-relative-date-select {
+  width: auto;
+  padding-inline: 10px 4px;
+  gap: 4px;
+  font-weight: 500;
+}
+.eidos-relative-date-select > span {
+  white-space: nowrap;
+}
+.eidos-relative-date-select > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  opacity: 0.55;
+}
+.eidos-relative-date-count {
+  background: var(--muted);
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+.eidos-relative-date-count::-webkit-inner-spin-button,
+.eidos-relative-date-count::-webkit-outer-spin-button {
+  appearance: none;
+}
+.eidos-relative-date-count[aria-invalid] {
+  border-color: var(--destructive);
+}
+.eidos-relative-date-count:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.eidos-relative-date-menu {
+  min-width: 180px;
+  padding: 4px;
+  border-radius: 10px;
+  box-shadow: var(--floating-surface-shadow);
+}
+.eidos-relative-date-menu [role="option"] {
+  min-height: 28px;
+  padding-block: 3px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.eidos-relative-date-panel {
+  position: relative;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 12px 11.5px;
+  border-radius: 10px;
+}
+[role="dialog"]:has(> .eidos-relative-date-panel),
+[role="dialog"]:has(> .eidos-absolute-date-panel) {
+  width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--floating-surface-shadow);
+}
+.eidos-relative-date-panel [data-relative-rule] {
+  gap: 8px;
+}
+.eidos-relative-date-panel [data-relative-rule] > button[role="combobox"] {
+  width: calc(100% - 24px);
+  height: 18px;
+  min-height: 18px;
+  border: 0;
+  padding: 0 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: none;
+}
+.eidos-relative-date-panel
+  [data-relative-rule]
+  > button[role="combobox"]
+  > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+}
+.eidos-filter-rule[data-relative-rule] > button[role="combobox"],
+.eidos-filter-rule[data-relative-rule] .eidos-relative-date-select,
+.eidos-filter-rule[data-relative-rule] .eidos-relative-date-count {
+  height: 28px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.eidos-relative-date-calendar {
+  padding: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+.eidos-relative-date-month {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-weight: 600;
+}
+.eidos-relative-date-month > div {
+  display: flex;
+  gap: 4px;
+}
+.eidos-relative-date-month button {
+  display: grid;
+  width: 22px;
+  height: 24px;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+}
+.eidos-relative-date-month button:hover {
+  background: var(--accent);
+}
+.eidos-relative-date-month button:focus-visible {
+  outline: 2px solid var(--ring);
+}
+.eidos-relative-date-month button svg {
+  width: 16px;
+  height: 16px;
+}
+.eidos-relative-date-calendar table {
+  width: 224px;
+  max-width: 100%;
+  margin: 4px auto 0;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  table-layout: fixed;
+}
+.eidos-relative-date-calendar th {
+  height: 18px;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.eidos-relative-date-calendar td {
+  height: 28px;
+  padding: 0;
+  text-align: center;
+  font-size: 14px;
+}
+.eidos-relative-date-calendar td > span {
+  display: grid;
+  height: 28px;
+  width: 28px;
+  margin: 0 auto;
+  place-items: center;
+  border-radius: 6px;
+}
+.eidos-relative-date-calendar td[data-outside],
+.eidos-relative-date-calendar td[data-future] {
+  color: var(--muted-foreground);
+}
+.eidos-relative-date-calendar td[data-selected] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.eidos-relative-date-calendar td[data-selected][data-outside] {
+  color: var(--muted-foreground);
+}
+.eidos-relative-date-calendar td[data-range-start] {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.eidos-relative-date-calendar td[data-range-end] {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+.eidos-relative-date-calendar td[data-boundary="start"] > span,
+.eidos-relative-date-calendar td[data-boundary="end"] > span {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.eidos-relative-date-hint {
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+.eidos-relative-date-panel .eidos-relative-date-controls {
+  margin-inline: 4px;
+}
+.eidos-relative-date-more {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  width: 20px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-value {
+  min-width: 0;
+  container: eidos-date-value / inline-size;
+}
+.eidos-date-filter-inputs {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+.eidos-date-filter-inputs[data-range="true"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.eidos-date-filter-inputs[data-type="datetime"][data-range="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.eidos-filter-rule:where(:has(> .eidos-filter-value .eidos-date-filter-value)) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 2.3fr) 28px;
+}
+.eidos-date-filter-inputs input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  font-size: 12px;
+}
+.eidos-date-filter-inputs input:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: 0;
+}
+.eidos-date-filter-inputs input[data-active] {
+  border-color: var(--ring);
+}
+.eidos-date-filter-inputs input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+.eidos-date-filter-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  gap: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  text-align: left;
+}
+.eidos-date-filter-trigger > svg {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-summary {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 5px;
+}
+.eidos-date-filter-summary-endpoint {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 5px;
+}
+.eidos-date-filter-summary-endpoint > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eidos-date-filter-label-compact {
+  display: none;
+}
+@container eidos-date-value (max-width: 200px) {
+  .eidos-date-filter-label-full {
+    display: none;
+  }
+  .eidos-date-filter-label-compact {
+    display: inline;
+  }
+}
+.eidos-date-filter-calendar {
+  margin: 8px auto 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.eidos-date-filter-calendar .rdp {
+  padding: 0;
+  margin: 0;
+}
+.eidos-date-filter-month {
+  width: 224px;
+  max-width: 100%;
+}
+.eidos-date-filter-caption {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  justify-content: space-between;
+}
+.eidos-date-filter-caption-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.eidos-date-filter-nav {
+  display: flex;
+  gap: 0;
+}
+.eidos-date-filter-nav button {
+  position: static;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-week {
+  display: flex;
+  width: 100%;
+  margin-top: 4px;
+}
+.eidos-date-filter-week > td {
+  flex: 0 0 32px;
+  height: 28px;
+}
+.eidos-date-filter-calendar button[name="day"] {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+.eidos-date-filter-calendar
+  button[name="day"]:not([aria-selected="true"]):hover {
+  background: var(--muted);
+}
+.eidos-date-filter-calendar
+  button[name="day"]:not([aria-selected="true"]):focus-visible {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+.eidos-date-filter-today {
+  position: relative;
+  font-weight: 600;
+}
+.eidos-date-filter-today:not([aria-selected="true"]) {
+  color: var(--primary);
+}
+.eidos-date-filter-today::after {
+  position: absolute;
+  bottom: 1px;
+  left: calc(50% - 1.5px);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+.eidos-date-filter-popover {
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+.eidos-date-filter-popover[data-type="datetime"] {
+  width: 320px;
+}
+.eidos-date-filter-popover .eidos-date-filter-calendar {
+  margin-top: 8px;
+}
+.eidos-date-filter-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.eidos-date-filter-time > button {
+  width: 80px;
+  height: 28px;
+}
+.eidos-date-filter-calendar .eidos-date-filter-range-middle {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.eidos-date-filter-calendar .eidos-date-filter-range-endpoint,
+.eidos-date-filter-calendar .eidos-date-filter-selected {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.eidos-date-filter-zone,
+.eidos-date-filter-error {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--muted-foreground);
+}
+.eidos-date-filter-error {
+  color: var(--destructive);
+}
+.eidos-absolute-date-panel {
+  position: relative;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 12px 11.5px;
+}
+.eidos-absolute-date-panel[data-date-kind="datetime"],
+[role="dialog"]:has(> .eidos-absolute-date-panel[data-date-kind="datetime"]) {
+  width: 320px;
+}
+.eidos-absolute-date-back {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  width: 20px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+[data-absolute-date-rule] {
+  gap: 8px;
+}
+[data-absolute-date-rule] > button[role="combobox"] {
+  width: calc(100% - 24px);
+  min-height: 18px;
+  height: 18px;
+  margin-left: 24px;
+  border: 0;
+  padding: 0 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: none;
+}
+[data-absolute-date-rule] > button[role="combobox"] > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.eidos-absolute-date-panel .eidos-field-filter-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+}
 .eidos-mobile-settings-body .eidos-filter-rule {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
   gap: 8px;
@@ -802,18 +1276,57 @@
 .eidos-mobile-settings-body .eidos-filter-value:empty {
   display: none;
 }
+.eidos-mobile-settings-body
+  .eidos-filter-rule
+  > [data-eidos-file-filter-field] {
+  align-self: stretch;
+  height: auto;
+}
 
-@media (max-width: 520px) {
-  [data-eidos-file-filter-popover] .eidos-filter-rule {
+@container eidos-filters (max-width: 420px) {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > [data-eidos-file-filter-field] {
+    gap: 2px;
+    padding-inline: 6px;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > [data-eidos-file-filter-field]
+    > span
+    svg {
+    display: none;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:has(.eidos-date-filter-value)
+    > button[role="combobox"]
+    > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value)) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
   }
-  [data-eidos-file-filter-popover] .eidos-filter-value {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value))
+    > .eidos-filter-value {
     grid-column: 1 / 3;
     grid-row: 2;
   }
-  [data-eidos-file-filter-popover] .eidos-filter-remove {
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule
+    > [data-eidos-file-filter-field] {
+    align-self: stretch;
+    height: auto;
+  }
+  [data-eidos-file-filter-popover]
+    .eidos-filter-rule:not(:has(.eidos-date-filter-value))
+    > .eidos-filter-remove {
     grid-column: 3;
     grid-row: 1;
+    align-self: center;
   }
 }
 .eidos-mobile-settings-body .eidos-filter-remove {

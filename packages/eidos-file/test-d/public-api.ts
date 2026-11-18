@@ -5,6 +5,8 @@ import {
   type EidosFileDescriptor,
   type EidosFileHandle,
   type EidosFileRuntimeAdapter,
+  type RuntimeHostBridge,
+  type RequestContext,
 } from "@eidos.space/eidos-file"
 import {
   EidosFileBrowserRuntime,
@@ -42,3 +44,19 @@ void revision
 void NodeSqliteConnectionPort
 void NodeSqliteEidosFileConnection
 void ({} satisfies NodeSqliteConnectionPortOptions)
+
+function hostReadTypes(bridge: RuntimeHostBridge, context: RequestContext) {
+  if (!bridge.queuedRead) return
+  const value: Promise<Map<string, number>> = bridge.queuedRead(
+    () => new Map([["value", 1]]),
+    context
+  )
+  // @ts-expect-error Host read operations cannot be asynchronous.
+  void bridge.queuedRead(async () => 1, context)
+  // @ts-expect-error Host read operations cannot return a thenable.
+  void bridge.queuedRead(() => Promise.resolve(1), context)
+  // @ts-expect-error Non-Promise thenables also cannot leave the read callback.
+  void bridge.queuedRead(() => ({ then: () => undefined }), context)
+  void value
+}
+void hostReadTypes

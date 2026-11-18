@@ -14,7 +14,7 @@ import { Link2, Search } from "lucide-react"
 
 import { drawDrilldownCell } from "./cells/grid-cell-helper"
 import { useEidosFileUI } from "./context"
-import { Button, Input, Popover, PopoverTrigger } from "./ui/primitives"
+import { Button, Input, Popover } from "./ui/primitives"
 
 import { useEidosFileRelationListbox } from "./eidos-file-relation-listbox"
 import { EidosFileRelationOptionList } from "./eidos-file-relation-option-list"
@@ -25,6 +25,9 @@ import {
   EidosFileGridEditorHeader,
   EidosFileGridEditorPopoverContent,
   EidosFileGridEditorSurface,
+  EidosFileValueEditorTrigger,
+  useEidosFileValueEditorReadOnly,
+  useEidosFileValueEditorTab,
   eidosFileGridPopupEditor,
 } from "./cells/grid-editor-surface"
 
@@ -41,6 +44,7 @@ export type EidosFileRelationCell = CustomCell<EidosFileRelationCellData>
 export const EidosFileRelationCellEditor: ProvideEditorComponent<
   EidosFileRelationCell
 > = ({ value: cell, onChange, onFinishedEditing }) => {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { translate: t } = useEidosFileUI()
   const [query, setQuery] = useState("")
   const [options, setOptions] = useState<EidosFileRelationValue[]>([])
@@ -106,6 +110,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
   }, [available, setActiveOptionId, values])
 
   const update = (values: EidosFileRelationValue[]) => {
+    if (readOnly) return
     setValues(values)
     onChange({
       ...cell,
@@ -122,6 +127,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
     update(cell.data.multiple ? [...values, option] : [option])
   }
   const finish = () => {
+    if (readOnly) return
     setOpen(false)
     onFinishedEditing({
       ...cell,
@@ -130,12 +136,11 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
       data: { ...cell.data, values },
     })
   }
+  const finishByTab = useEidosFileValueEditorTab(finish)
 
   return (
     <Popover open={open}>
-      <PopoverTrigger>
-        <div />
-      </PopoverTrigger>
+      <EidosFileValueEditorTrigger />
       <EidosFileGridEditorPopoverContent
         role="presentation"
         onPointerDownOutside={finish}
@@ -143,6 +148,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
         <EidosFileGridEditorSurface
           className="max-h-[390px] min-h-48"
           onKeyDown={(event) => {
+            if (finishByTab(event)) return
             if (
               event.key === "Enter" &&
               !event.nativeEvent.isComposing &&

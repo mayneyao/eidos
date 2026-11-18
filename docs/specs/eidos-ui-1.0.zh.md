@@ -150,6 +150,14 @@ UI 不得 widen、coerce 或 reinterpret 导入类型。尤其 int64 decimal str
 
 ## 5. Bootstrap、capability negotiation 与精确 client
 
+### 日期消费端兼容
+
+理解 calendar-period 的实际 UI 在 schema 读取和 View 写入显式传入
+`calendarQueryVersion: 2`。可复用 data source、Kernel 和 transport 默认不声明，
+不能因 SDK 升级而让旧 UI 编辑新版条件。unsupported query 保持完整 opaque
+原文，阻止执行、Apply 和复制，不能变为空筛选。升级预览说明 Runtime 定义的
+整个文件兼容性后果；恢复条件不恢复旧 Eidos 兼容。
+
 ### 5.1 RuntimeClient
 
 下面是 Eidos Runtime language-neutral binding 的 generated mirror；它只对 UI 如何
@@ -1150,10 +1158,24 @@ detail panel。配置后，在标准 Grid、Gallery、Kanban 或 Calendar surfac
 应展示居中的 record page：Record Label 提供 page title，其他 Field 保持紧凑、可编辑的
 metadata；Content Field 从通用列表移出，使用专用 Markdown preview/source editor。
 
+从已保存的 View 打开的记录，必须采用该 View 的属性显隐和顺序。Host 可以提供始终
+隐藏记录中系统属性的设备偏好。此偏好须保存在 Eidos File 外，临时展开属性时也须生效。
+Table 设置不影响此偏好。只读的业务字段仍遵循 View 布局。
+
+记录属性的 schema 操作必须说明影响整张表，并保留 canonical 转换及删除确认。
+属性区应提供统一的折叠入口。对于被 View 隐藏且可以查看的属性，记录必须提供临时
+展开入口，且保持已保存的 View 布局。展开和折叠必须保留活动编辑、键盘焦点和 Content
+编辑器。
+
 Markdown presentation 是 generated、non-canonical state。Raw HTML 与不安全 URL
 scheme 必须保持 inert；remote image 不能触发 ambient network fetch。External link 只能
 通过 Host 的 explicit URL activation boundary 激活。编辑底层 Text value 时遵循普通
 atomic row mutation 与 optimistic-state 规则。
+
+Host 可以提供可选 UI Host callback `activateMarkdownLink`，用于 Content Markdown
+导航，与外部 `activateUrl` 分离。Content 所属文件的资源 base 与授权范围由 Host
+负责。正文相对引用不能扩大普通 File-entry 的授权，也不能让没有显式资源根的 Host
+自动获得父目录访问权限。
 
 每个面向用户的 Field 类型选择器，包括创建、转换、CSV mapping 以及 Formula
 结果/展示类型控件，必须在关闭状态的 trigger 和每个菜单行中，用同一个 canonical
@@ -1180,11 +1202,45 @@ rename 中 retarget default；删除当前 default catalog entry 时，必须在
 mutation 中清除 default。Multi-select 不得显示此控件。UI 不通过预填 draft cell
 模拟该行为：只有 create mutation 省略该 Field 时，Runtime 才应用 default。
 
+Runtime 广告 `temporalDefaultsVersion:1` 时，可写普通 stored Date/Datetime 的
+新建/已有 Field 设置必须提供**无默认值**与**当前日期 / 当前时间**，通过 revision-checked
+schema operation 保存 `defaultValue:"now"` 或 null。Created at、Updated at、derived
+及只读 Field 不得显示该控件。每次 ordinary create 通过 `creationContext` 传入当前
+应用时区和 portable profile；Calendar 显式指定的日期优先。未保存 Form/record draft
+用同一个保留的参考 instant 调用 canonical evaluator 预览；rerender、应用时区变化、
+保存失败/重试均不得重置用户编辑或重新求 draft 默认值。显式 null/清空保持空值，开始
+新 draft 才重新求值。默认填入值在创建后是普通可编辑值。existing/loading record、
+import 与 update 均不得由 UI 自动填值。
+
+Grid、Gallery、Calendar、Kanban 的普通 View 新建须捕获当时已应用的 filter 和执行
+偏好，经 shared data source 传 `creationQuery`/`calendar` 给 Runtime；须协商
+`viewCreationDefaultsVersion:1`，UI 不另实现 filter 推导。旧 Runtime 缺少能力时，
+该边界拒绝 filtered create，不能静默丢掉默认请求。显式输入/清空和分组/日历入口值
+优先于 View 推导，View 推导优先于 Field 默认。创建后可编辑；切 View/filter/表/文件
+不改变进行中新建的目标或给已有行回填。无 filter 时保持普通创建行为。没有安全候选时
+行可能不在视图中，不添加查询例外。Form 本地未保存预览和未捕获 View 上下文的 host
+draft 不推导 View 值；undo/redo 恢复已保存值，不重新求推导或日期默认值。
+
 Select 或 Multi-select editor 中显式的“新建选项”操作必须先提交完整、更新后的 Field
 option catalog。只有 metadata mutation 成功后，UI 才能使用其返回的 revision 提交 cell
 value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之后的 cell mutation
 若失败，catalog entry 作为合法的零使用选项保留。此用户操作不同于 CSV import 中被禁止的
 implicit option inference。
+
+当 Runtime 广告 calendarQueryVersion:2，所有共享 Grid、card、record/inspector、
+created/updated time、日期输入和 Calendar 均使用协商的 portable profile 与当前应用
+时区配置。默认 profile 明确为支持的2026f，不取能力数组第一项。已存条件不能选择展示
+规则，也不能保留第二份权威时区。Host 解析 system 为明确 IANA 名，把同一时区／profile
+和既有周起始 preference 作为 query execution context 传入，不新增设置。修改应用配置
+使筛选、显示、输入共同重算，建立新根并清除旧页／cursor cache，不改写已存 Date、
+instant 或 View 条件。
+
+同一可见日历日期下，Date 字面成员与 Datetime 投影成员一致。投影和 wall-clock 反解
+使用 canonical Runtime 规则，不使用宿主 offset。切换上下文保留草稿、焦点和组件
+identity；未改值保存保留原 instant 精度；gap/fold 输入需无歧义 instant。规则年份外
+普通值显示原 canonical 值并明确不能在此编辑，不让整页失败或降级宿主规则。Runtime／
+profile 不支持时保留查询并显示 unsupported，不成功展示部分／无过滤 View。Native UI
+消费相同 canonical 投影／反解桥接，否则明确限制 calendar-period View 并保留数据。
 
 Date input 原样发送 calendar value。Datetime display 使用 user/Host 选择的 IANA
 timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input 必须先得到
@@ -1487,15 +1543,34 @@ custom filter editor 可以保留专用控件。
 内部 compatibility model 使用不同 operator name，加载和保存 View 时也必须保留
 这些语义。
 
-Date 与 Datetime filter control 必须提供**是**、**早于**、**晚于**、**不晚于**、
-**不早于**、**介于**、**相对今天**、**为空**与**不为空**。**介于**接收有顺序且包含
-首尾的 lower/upper value，并发送 `between`。
+Date／Datetime 控件必须提供**是**、**早于**、**晚于**、**不晚于**、**不早于**、
+**介于**、**相对于今天**、**为空**和**不为空**。介于发送包含端点的 between predicate。
+相对日期只有一个入口，不并列 UTC 范围或日历日入口，不显示条件级时区选择、冻结区
+提示、规则版本或常驻技术说明。
 
-**相对今天**提供 direction（**过去**、**未来**或**本期**）与 unit（**日**、**周**、
-**月**或**年**），并发送一个 `relative-date` leaf。控件必须把 direction 与 unit 持久
-保存在 View 中，绝不能把条件冻结为 absolute date。重新打开时必须保留两个选择；
-reference instant、calendar-period rule 与 inclusive boundary 仍以 Runtime 为准。UI
-应说明结果会随当前日期更新，也可以用日历预览计算区间，但预览不能成为 canonical state。
+相对日期复用 Past／Next／This（过去／接下来／当前）与 day／week／month／year
+选择器。Past／Next 中间显示正整数数量，This 隐藏数量；从 This 切回数量重置为1。
+This 发 calendar-period offset0，Past／Next 发 calendar-window；两端日期均包含，
+例如过去1天包含昨天与今天，接下来1天包含今天与明天。月／年按目标月末截断。
+View 与 Explorer 使用同一控件与 Runtime helper。组合过滤器保持横排行；单字段
+弹层宽260 CSS px，含属性／operator header、选择器、只读42格日历预览、月份导航
+与“筛选会随当前日期自动更新”。预览使用实际应用时区与周起始，周一为默认。
+旧 calendar-period offset±1 保持完整周期与准确标签，打开、改名或编辑其他条件
+不能把它静默转换为 window。Window UI 必须另行声明 calendarWindowVersion 1。
+非法／空数量草稿保留上次有效筛选，不能发无过滤查询；单字段修改即时保存，
+组合过滤器保留其 Apply／Cancel 事务边界。时区只使用应用已有设置。
+
+新 UI 连接旧 Runtime 也不能恢复旧 UTC 行为：即便旧 Runtime 称旧日期查询 supported，
+新 UI 也将其标为 unsupported。缺 version2 能力不能创建或升级。新 Runtime 拒绝执行旧
+查询。Unsupported View 保留完整原query，不能发无过滤 rows／count／group，也不能普通
+Apply 筛选／排序。只有确实含旧日期条件且能完整安全预览时，显示一次**更新日期筛选**。
+本地化预览在操作前说明改义，例如过去7天→上周、今天（原时区）→按当前设置的今天。
+操作经 canonical Runtime 原子升级并保留恢复回执；非日期未知查询不提供该升级。普通
+新筛选不出现迁移或版本工具。
+
+筛选行的 Field、operator、value、Delete 在文字可容纳时保持紧凑一致的高度与对齐。
+长 operator 不得溢出固定高度，可自然增高以保留含义。窄容器把 value 放到第二行，
+避免横向溢出；不添加撑大弹层或造成大块空白的辅助配置列。
 
 Eidos 标准视图 1.0 的通用 Fields 控件以及适用的 Grid、Card、Kanban、Calendar、
 Form 控件是 Editor required surface，不是 optional authoring convenience。每个控件通过一次 revision-checked

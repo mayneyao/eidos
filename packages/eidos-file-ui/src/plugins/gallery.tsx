@@ -27,6 +27,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
     reloadToken,
     onMutation,
     onDeleteRow,
+    onDeleteRowIds,
     onError,
   } = props
   const projection = useMemo(
@@ -68,6 +69,18 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
   )
 
   if (!view) return null
+  const tableCapabilities = table.table.settings?.capabilities as
+    | { delete?: boolean | "clear_meta"; insert?: boolean }
+    | undefined
+  const canDelete =
+    !disabled &&
+    props.capabilities?.mutate === true &&
+    tableCapabilities?.delete !== false
+  // A filesystem record's metadata clear is not a filesystem trash operation.
+  const canDeleteSelection =
+    canDelete &&
+    tableCapabilities?.delete !== "clear_meta" &&
+    table.table.settings?.vtabModule !== "fs_meta"
   return (
     <EidosFileGalleryView
       onPreviewRecord={
@@ -98,7 +111,9 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       onCellEdit={editCell}
       onImportFiles={props.onImportFiles}
       onImportDroppedFiles={props.onImportDroppedFiles}
-      onDeleteRow={onDeleteRow}
+      onDeleteRow={canDelete ? onDeleteRow : undefined}
+      undoableDelete={props.canUndoDelete}
+      onDeleteRowIds={canDeleteSelection ? onDeleteRowIds : undefined}
       onSearchRelation={searchRelation}
       onRowCountChange={props.onSearchResultCountChange}
       onError={onError}

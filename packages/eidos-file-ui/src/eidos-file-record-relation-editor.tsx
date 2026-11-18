@@ -102,7 +102,7 @@ export function EidosFileRecordRelationEditor({
   }, [field, onError, onSearch, open, query, readOnly])
 
   const update = async (next: EidosFileRelationValue[]) => {
-    if (readOnly) return
+    if (disabled || readOnly) return
     await onChange(encodeEidosFileRelationIds(next.map((value) => value.id)))
     if (!inline && field.property?.multiple === false) setOpen(false)
   }

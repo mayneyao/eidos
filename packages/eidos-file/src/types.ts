@@ -1,4 +1,11 @@
 import type { EidosFileSqlPrimitive } from "./connection"
+import type { EidosFileCreationContext } from "./temporal-defaults"
+import type { EidosFileCalendarDayValue } from "./calendar-day"
+import type { EidosFileCalendarWindowValue } from "./calendar-window"
+import type {
+  EidosFileCalendarContext,
+  EidosFileCalendarPeriodValue,
+} from "./calendar-period"
 import type { JsonValue } from "./protocol-types"
 
 export interface EidosFileMetadata {
@@ -120,6 +127,10 @@ export interface EidosFileViewInfo {
 }
 
 export interface UpdateEidosFileViewInput {
+  /** Upgrade retired date conditions atomically, retaining a recovery receipt. */
+  upgradeDateQuery?: boolean
+  /** Restore the retained original as an explicitly unsupported query. */
+  restoreDateQuery?: boolean
   name?: string
   type?: string
   position?: number | null
@@ -440,6 +451,9 @@ export interface EidosFileLogicalRowUpdate {
 }
 
 export interface EidosFileRowsMutation {
+  /** Transient filter for ordinary creates only; explicit values always win. */
+  creationQuery?: EidosFileRowQuery
+  creationContext?: EidosFileCreationContext
   tableId: string
   insert?: EidosFileLogicalRowDraft[]
   update?: EidosFileLogicalRowUpdate[]
@@ -493,6 +507,9 @@ export type EidosFileFilterOperator =
   | "is-none-of"
   | "is-between"
   | "is-relative-to-today"
+  | "is-on-calendar-day"
+  | "is-in-calendar-period"
+  | "is-in-calendar-window"
 
 export type EidosFileFilterValue = string | number | boolean | null
 
@@ -509,6 +526,9 @@ export type EidosFileFilterRuleValue =
   | EidosFileFilterValue
   | EidosFileFilterValue[]
   | EidosFileRelativeDateValue
+  | EidosFileCalendarDayValue
+  | EidosFileCalendarPeriodValue
+  | EidosFileCalendarWindowValue
 
 export interface EidosFileFilterRule {
   type: "rule"
@@ -526,6 +546,9 @@ export interface EidosFileFilterGroup {
 }
 
 export interface EidosFileRowQuery {
+  /** Transient host execution context; never persisted in a Saved View. */
+  calendar?: EidosFileCalendarContext
+  referenceInstant?: string
   search?: string
   /** Exact Runtime search Field restriction, expressed as canonical Field IDs. */
   searchFields?: string[]
@@ -586,6 +609,8 @@ export interface EidosFileValidationResult {
 }
 
 export interface EidosFileTableSnapshot {
+  /** Negotiated Runtime capability, never persisted in Table settings. */
+  temporalDefaultsVersion?: 1
   table: EidosFileTableInfo
   fields: EidosFileFieldInfo[]
   views: EidosFileViewInfo[]
@@ -593,6 +618,7 @@ export interface EidosFileTableSnapshot {
 }
 
 export interface EidosFileRowPage {
+  referenceInstant?: string
   tableId: string
   offset: number
   limit: number
@@ -677,6 +703,11 @@ export interface EidosFileRowsUndoResult {
 }
 
 export interface EidosFileSnapshot {
+  queryCapabilities?: {
+    calendarWindowVersion?: 1
+    calendarQueryVersion?: 2
+    calendarPeriodTimeZoneData?: string[]
+  }
   path: string
   metadata: EidosFileMetadata
   tables: EidosFileTableSnapshot[]

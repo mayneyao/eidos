@@ -5,7 +5,49 @@ import type {
 } from "@glideapps/glide-data-grid"
 
 import { cn } from "../lib/cn"
-import { PopoverContent } from "../ui/primitives"
+import { PopoverContent, PopoverTrigger } from "../ui/primitives"
+
+const ValueEditorHost = React.createContext<{
+  anchor: React.ReactElement
+  readOnly?: boolean
+  onPointerDownOutside?: () => void
+  onEscapeKeyDown?: () => void
+  onTab?: (commit: () => void, reverse: boolean) => void
+  onCloseAutoFocus: NonNullable<
+    React.ComponentProps<typeof PopoverContent>["onCloseAutoFocus"]
+  >
+} | null>(null)
+
+export const EidosFileValueEditorHost = ValueEditorHost.Provider
+
+export function useEidosFileValueEditorReadOnly(): boolean {
+  return React.useContext(ValueEditorHost)?.readOnly ?? false
+}
+
+/** Record field navigation can finish local type state; Grid retains its own keys. */
+export function useEidosFileValueEditorTab(commit: () => void) {
+  const host = React.useContext(ValueEditorHost)
+  return (event: React.KeyboardEvent): boolean => {
+    if (event.key !== "Tab" || event.nativeEvent.isComposing || !host?.onTab)
+      return false
+    event.preventDefault()
+    event.stopPropagation()
+    host.onTab(commit, event.shiftKey)
+    return true
+  }
+}
+
+/** Grid supplies its cell anchor; a record supplies its existing field control. */
+export function EidosFileValueEditorTrigger() {
+  const host = React.useContext(ValueEditorHost)
+  return host ? (
+    <PopoverTrigger asChild>{host.anchor}</PopoverTrigger>
+  ) : (
+    <PopoverTrigger>
+      <div />
+    </PopoverTrigger>
+  )
+}
 
 export const EIDOS_FILE_GRID_EDITOR_PORTAL_CLASS_NAME =
   "click-outside-ignore z-[10000] w-auto border-0 bg-transparent p-0 shadow-none"
@@ -80,18 +122,30 @@ export const EidosFileGridEditorPopoverContent: React.ForwardRefExoticComponent<
       ...props
     },
     ref
-  ) => (
-    <PopoverContent
-      ref={ref}
-      align={align}
-      alignOffset={alignOffset}
-      className={cn(EIDOS_FILE_GRID_EDITOR_PORTAL_CLASS_NAME, className)}
-      collisionPadding={collisionPadding}
-      data-eidos-file-grid-editor-popover=""
-      sideOffset={sideOffset}
-      {...props}
-    />
-  )
+  ) => {
+    const host = React.useContext(ValueEditorHost)
+    return (
+      <PopoverContent
+        ref={ref}
+        align={align}
+        alignOffset={alignOffset}
+        className={cn(EIDOS_FILE_GRID_EDITOR_PORTAL_CLASS_NAME, className)}
+        collisionPadding={collisionPadding}
+        data-eidos-file-grid-editor-popover=""
+        sideOffset={sideOffset}
+        {...props}
+        onCloseAutoFocus={host?.onCloseAutoFocus ?? props.onCloseAutoFocus}
+        onPointerDownOutside={(event) => {
+          host?.onPointerDownOutside?.()
+          props.onPointerDownOutside?.(event)
+        }}
+        onEscapeKeyDown={(event) => {
+          host?.onEscapeKeyDown?.()
+          props.onEscapeKeyDown?.(event)
+        }}
+      />
+    )
+  }
 )
 EidosFileGridEditorPopoverContent.displayName =
   "EidosFileGridEditorPopoverContent"

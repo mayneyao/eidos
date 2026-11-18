@@ -1,4 +1,9 @@
-import { useMemo, type ComponentType, type ReactNode } from "react"
+import {
+  useMemo,
+  useSyncExternalStore,
+  type ComponentType,
+  type ReactNode,
+} from "react"
 import type {
   CreateEidosFileFieldInput,
   EidosFileFieldInfo,
@@ -19,6 +24,13 @@ import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileUI } from "./context"
+import {
+  EidosFileCalendarViewProvider,
+  useEidosFileCalendarExecution,
+} from "./eidos-file-calendar-context"
+import { EidosFileDateQueryUpgrade } from "./eidos-file-date-query-upgrade"
+import { eidosFileMutationHistory } from "./eidos-file-mutation-history"
+import { EidosFileUndoScope } from "./eidos-file-undo-scope"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 import type { EidosFileFormulaEditorAnchor } from "./eidos-file-derived-field-editor"
@@ -57,6 +69,12 @@ export interface EidosFileViewRendererProps {
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  /** Deletion callbacks register reversible receipts in this file's shared history. */
+  canUndoDelete?: boolean
+  /** Delete exact stable identities through the Host's atomic record mutation path. */
+  onDeleteRowIds?: (
+    rowIds: readonly string[]
+  ) => Promise<EidosFileRowsDeleteResult>
   onDeleteRows?: (
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery
@@ -110,6 +128,8 @@ export interface EidosFileViewCapabilities {
   resolveAssets: boolean
   rawFile: false
   nativeFileSystem: false
+  /** Host guarantees receipt-producing ordinary-row deletes and restore transport. */
+  reversibleRowDeletion?: boolean
 }
 
 /** A host-registered React renderer for a persisted Eidos File view type. */
@@ -130,6 +150,7 @@ export interface EidosFileEditorViewProps extends Omit<
   | "selection"
   | "state"
   | "capabilities"
+  | "canUndoDelete"
 > {
   search?: string
   disabled?: boolean
@@ -270,19 +291,80 @@ export function EidosFileEditorView({
   renderUnsupportedView,
   ...callbacks
 }: EidosFileEditorViewProps) {
+  const history = useMemo(() => eidosFileMutationHistory(source), [source])
+  const historyState = useSyncExternalStore(
+    history.subscribe,
+    history.getSnapshot,
+    history.getSnapshot
+  )
+  const tableCapabilities = table.table.settings?.capabilities as
+    | { delete?: boolean | "clear_meta" }
+    | undefined
+  const reversibleRecords =
+    !disabled &&
+    capabilities.mutate &&
+    tableCapabilities?.delete !== false &&
+    tableCapabilities?.delete !== "clear_meta" &&
+    table.table.settings?.vtabModule !== "fs_meta"
+  const deleteCallbacks = useMemo(
+    () =>
+      reversibleRecords
+        ? {
+            onDeleteRow:
+              callbacks.onDeleteRow && callbacks.onDeleteRowIds
+                ? async (row: EidosFileRow) => {
+                    await history.delete(() =>
+                      callbacks.onDeleteRowIds!([String(row._id)])
+                    )
+                  }
+                : callbacks.onDeleteRow,
+            onDeleteRowIds: callbacks.onDeleteRowIds
+              ? (ids: readonly string[]) =>
+                  history.delete(() => callbacks.onDeleteRowIds!(ids))
+              : undefined,
+            onDeleteRows: callbacks.onDeleteRows
+              ? (ranges: EidosFileRowRange[], rowQuery: EidosFileRowQuery) =>
+                  history.delete(() =>
+                    callbacks.onDeleteRows!(ranges, rowQuery)
+                  )
+              : undefined,
+          }
+        : {},
+    [
+      history,
+      reversibleRecords,
+      callbacks.onDeleteRow,
+      callbacks.onDeleteRowIds,
+      callbacks.onDeleteRows,
+    ]
+  )
   const searchNavigation = useEidosFileSearchNavigation()
+  const canUndoDelete = Boolean(
+    reversibleRecords &&
+    capabilities.reversibleRowDeletion &&
+    table.table.settings?.tableType !== "virtual" &&
+    !table.table.settings?.vtabModule &&
+    typeof source.revertRowMutation === "function" &&
+    callbacks.onDeleteRow &&
+    callbacks.onDeleteRowIds &&
+    !("readOnly" in source && source.readOnly === true)
+  )
   const resolvedSearchResultIndex =
     searchResultIndex === undefined
       ? (searchNavigation?.searchResultIndex ?? null)
       : searchResultIndex
   const reportSearchResultCount =
     onSearchResultCountChange ?? searchNavigation?.reportSearchResultCount
+  const calendar = useEidosFileCalendarExecution()
   const query = useMemo(
-    () => eidosFileViewRowQuery(view, search),
-    [search, view]
+    () => ({
+      ...eidosFileViewRowQuery(view, search),
+      ...(calendar ? { calendar } : {}),
+    }),
+    [search, view, calendar]
   )
   const props: EidosFileViewRendererProps = {
-    source,
+    source: history.source,
     table,
     view,
     query,
@@ -290,13 +372,15 @@ export function EidosFileEditorView({
     searchResultIndex: resolvedSearchResultIndex,
     onSearchResultCountChange: reportSearchResultCount,
     disabled,
-    reloadToken,
+    reloadToken: reloadToken + historyState.revision,
     focusRequestToken,
     commands,
     selection,
     state,
     capabilities,
     ...callbacks,
+    ...deleteCallbacks,
+    canUndoDelete,
   }
   const type = view?.type || "grid"
   const pluginRegistry = useMemo(
@@ -308,9 +392,43 @@ export function EidosFileEditorView({
     pluginRegistry.viewRenderers[type] ??
     builtInEidosFileViewRenderers[type]
   if (view?.queryStatus === "unsupported") {
-    return <EidosFileUnsupportedQuery name={view.name} />
+    return (
+      <EidosFileDateQueryUpgrade
+        source={source}
+        view={view}
+        fields={table.fields}
+        disabled={disabled || !capabilities.mutate}
+        onSnapshot={callbacks.onSnapshot}
+        fallback={<EidosFileUnsupportedQuery name={view.name} />}
+      />
+    )
   }
-  if (Renderer) return <Renderer {...props} />
+  if (Renderer)
+    return (
+      <EidosFileUndoScope
+        history={history}
+        disabled={disabled || !capabilities.mutate}
+        onSnapshot={callbacks.onSnapshot}
+        onError={callbacks.onError}
+        focusKey={view?.id ?? "grid"}
+        focusRequestToken={focusRequestToken}
+        grid={type === "grid"}
+      >
+        <EidosFileCalendarViewProvider
+          view={view}
+          recordFieldManagement={{
+            source: history.source,
+            table,
+            tables: callbacks.tables,
+            view,
+            disabled: disabled || !capabilities.mutate,
+            onSnapshot: callbacks.onSnapshot,
+          }}
+        >
+          <Renderer {...props} />
+        </EidosFileCalendarViewProvider>
+      </EidosFileUndoScope>
+    )
   if (renderUnsupportedView) return renderUnsupportedView(props)
   return (
     <EidosFileUnsupportedView name={view?.name ?? "Unknown view"} type={type} />

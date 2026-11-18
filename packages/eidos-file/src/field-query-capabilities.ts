@@ -53,7 +53,8 @@ const ORDERED_OPERATORS = [
 const TEMPORAL_OPERATORS = [
   ...ORDERED_OPERATORS,
   "is-between",
-  "is-relative-to-today",
+  "is-in-calendar-period",
+  "is-in-calendar-window",
 ] as const satisfies readonly EidosFileFilterOperator[]
 
 const LIST_OPERATORS = [

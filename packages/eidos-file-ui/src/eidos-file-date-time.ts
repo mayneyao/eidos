@@ -1,3 +1,8 @@
+import {
+  projectEidosFileCalendarInstant,
+  resolveEidosFileCalendarInstant,
+} from "@eidos.space/eidos-file"
+
 export interface EidosFileDateTimeParts {
   year: number
   month: number
@@ -21,8 +26,19 @@ function numericPart(
 /** Returns wall-clock parts in the selected zone, or in the system zone. */
 export function eidosFileDateTimeParts(
   date: Date,
-  timeZone?: string
+  timeZone?: string,
+  timeZoneData?: string | null
 ): EidosFileDateTimeParts {
+  if (timeZoneData) {
+    const parts = projectEidosFileCalendarInstant(
+      date.toISOString(),
+      eidosFileResolvedTimeZone(timeZone),
+      timeZoneData
+    )
+    if (!parts)
+      throw new RangeError("Value is outside calendar profile years 1970–2499")
+    return parts
+  }
   if (!timeZone) {
     return {
       year: date.getFullYear(),
@@ -53,22 +69,52 @@ export function eidosFileDateTimeParts(
   }
 }
 
-export function eidosFileDateKey(date: Date, timeZone?: string): string {
-  const parts = eidosFileDateTimeParts(date, timeZone)
+export function eidosFileDateKey(
+  date: Date,
+  timeZone?: string,
+  timeZoneData?: string | null
+): string {
+  const parts = eidosFileDateTimeParts(date, timeZone, timeZoneData)
   return `${String(parts.year).padStart(4, "0")}-${twoDigits(parts.month)}-${twoDigits(parts.day)}`
 }
 
-export function eidosFileDateTimeText(date: Date, timeZone?: string): string {
-  const parts = eidosFileDateTimeParts(date, timeZone)
+export function eidosFileDateTimeText(
+  date: Date,
+  timeZone?: string,
+  timeZoneData?: string | null
+): string {
+  if (
+    timeZoneData &&
+    !projectEidosFileCalendarInstant(
+      date.toISOString(),
+      eidosFileResolvedTimeZone(timeZone),
+      timeZoneData
+    )
+  )
+    return date.toISOString()
+  const parts = eidosFileDateTimeParts(date, timeZone, timeZoneData)
   return `${String(parts.year).padStart(4, "0")}-${twoDigits(parts.month)}-${twoDigits(parts.day)} ${twoDigits(parts.hour)}:${twoDigits(parts.minute)}:${twoDigits(parts.second)}`
 }
 
 export function eidosFileDateTimeInputValue(
   date: Date,
   timeZone?: string,
-  includeSeconds = false
+  includeSeconds = false,
+  timeZoneData?: string | null
 ): string {
-  const text = eidosFileDateTimeText(date, timeZone).replace(" ", "T")
+  if (
+    timeZoneData &&
+    !projectEidosFileCalendarInstant(
+      date.toISOString(),
+      eidosFileResolvedTimeZone(timeZone),
+      timeZoneData
+    )
+  )
+    return ""
+  const text = eidosFileDateTimeText(date, timeZone, timeZoneData).replace(
+    " ",
+    "T"
+  )
   return includeSeconds ? text : text.slice(0, 16)
 }
 
@@ -117,11 +163,33 @@ export function eidosFileWallDateFromInputValue(
 /** Parses an instant or interprets an HTML datetime-local value in a zone. */
 export function eidosFileInstantFromInputValue(
   value: string,
-  timeZone?: string
+  timeZone?: string,
+  timeZoneData?: string | null
 ): Date | undefined {
   if (/(?:Z|[+-]\d{2}:\d{2})$/u.test(value)) {
     const instant = new Date(value)
     return Number.isNaN(instant.getTime()) ? undefined : instant
+  }
+  if (timeZoneData) {
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/u.exec(
+        value
+      )
+    if (!match) return undefined
+    const result = resolveEidosFileCalendarInstant(
+      {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        day: Number(match[3]),
+        hour: Number(match[4]),
+        minute: Number(match[5]),
+        second: Number(match[6] ?? 0),
+        millisecond: Number((match[7] ?? "0").padEnd(3, "0")),
+      },
+      eidosFileResolvedTimeZone(timeZone),
+      timeZoneData
+    )
+    return result ? new Date(result) : undefined
   }
   const wallDate = eidosFileWallDateFromInputValue(value)
   return wallDate ? eidosFileInstantFromWallDate(wallDate, timeZone) : undefined
@@ -132,8 +200,12 @@ export function eidosFileInstantFromInputValue(
  * presentation-only and is useful for calendar controls that operate on local
  * year/month/day fields.
  */
-export function eidosFileWallDate(date: Date, timeZone?: string): Date {
-  const parts = eidosFileDateTimeParts(date, timeZone)
+export function eidosFileWallDate(
+  date: Date,
+  timeZone?: string,
+  timeZoneData?: string | null
+): Date {
+  const parts = eidosFileDateTimeParts(date, timeZone, timeZoneData)
   return new Date(
     parts.year,
     parts.month - 1,
@@ -178,8 +250,25 @@ function offsetAt(instantMs: number, timeZone: string): number {
  */
 export function eidosFileInstantFromWallDate(
   wallDate: Date,
-  timeZone?: string
+  timeZone?: string,
+  timeZoneData?: string | null
 ): Date | undefined {
+  if (timeZoneData) {
+    const result = resolveEidosFileCalendarInstant(
+      {
+        year: wallDate.getFullYear(),
+        month: wallDate.getMonth() + 1,
+        day: wallDate.getDate(),
+        hour: wallDate.getHours(),
+        minute: wallDate.getMinutes(),
+        second: wallDate.getSeconds(),
+        millisecond: wallDate.getMilliseconds(),
+      },
+      eidosFileResolvedTimeZone(timeZone),
+      timeZoneData
+    )
+    return result ? new Date(result) : undefined
+  }
   const resolvedTimeZone = eidosFileResolvedTimeZone(timeZone)
   const target: EidosFileDateTimeParts = {
     year: wallDate.getFullYear(),
@@ -216,5 +305,9 @@ export function eidosFileInstantFromWallDate(
 }
 
 export function eidosFileResolvedTimeZone(timeZone?: string): string {
-  return timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"
+  return (
+    (timeZone && timeZone !== "system" ? timeZone : undefined) ??
+    Intl.DateTimeFormat().resolvedOptions().timeZone ??
+    "UTC"
+  )
 }

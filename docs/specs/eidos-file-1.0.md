@@ -1013,6 +1013,16 @@ declared. This member is canonical Field metadata; it does not populate or
 rewrite any existing cell. Its create-time mutation behavior is owned by Eidos
 Runtime 1.0.
 
+A writable stored Date or Datetime Field MAY declare `settings.defaultValue`
+as the string `"now"`. Absence or JSON null disables this rule. Other values,
+expressions, and non-null `defaultValue` settings on other Field types,
+system Fields, derived Fields, or read-only Fields are invalid. The rule is
+metadata for ordinary Runtime creation; it is not a physical SQLite DEFAULT,
+does not change nullability, and MUST NOT fill or rewrite existing cells.
+Files declaring this rule MUST carry the required temporal-defaults feature
+below. The reference instant and application calendar context belong to the
+Runtime creation operation, not to persisted Field metadata.
+
 A stored value not
 present in the catalog remains valid canonical data and MUST be preserved.
 Presentation of an unconfigured value is owned by Eidos UI 1.0. Removing
@@ -1325,6 +1335,9 @@ stable Field IDs in the definition rows are canonical.
 
 ## 13. Saved View Definition Storage
 
+Persisted calendar-period queries require the declaration in §20. Unsupported
+query documents remain preserved and are never implicitly rewritten.
+
 A View is the row in `eidos__views` identified by its stable View ID.
 `query_json` and `layout_json` are JCS objects and all structural Field
 references inside them use Field IDs. Neither object may contain copied cell
@@ -1576,6 +1589,46 @@ A compatible clarification may add examples and tests but cannot change an
 existing valid byte/value interpretation. Any persisted meaning change
 requires a new File Format version. Upper-layer API, port, and interaction
 versions are independent as defined by the suite index.
+
+### Required calendar query feature
+
+The registered first-party feature `(name="eidos:calendar-query", version="2")`
+requires `required=1` and exactly the empty object `config_json='{}'`. It opts
+into the Runtime calendar-period query contract; it does not change Date or
+Datetime raw storage, the File 1.0 physical schema, or old query meanings.
+Persisting any `calendar-period` View, or explicitly upgrading/restoring date
+queries, MUST install this exact declaration in the same revision-checked
+transaction. Missing or incorrect declarations with persisted new syntax are
+invalid; an unsupported tuple/config MUST be rejected. Opening, transient
+queries, and unrelated mutations MUST NOT install it. The declaration MUST
+survive metadata edits, copies, restoration, and deletion of the last such View.
+Preview operates on a private copy and MUST leave the source unchanged.
+
+Readers that do not support this required feature MUST reject the entire file
+before exposing canonical data. Restoring saved conditions does not restore
+compatibility with old readers. Schema feature counts and descriptors report
+actual rows. Existing atomic feature merge/conflict rules apply unchanged;
+final candidate validation MUST reject new syntax without its declaration.
+
+The additional first-party feature `(name="eidos:calendar-window", version="1")`
+requires `required=1`, exactly `config_json='{}'`, and the exact calendar-query@2
+feature above. Any persisted calendar-window View MUST carry both declarations,
+installed atomically with the View in one revision. Their open, validation,
+copy/merge preservation, unsupported-reader and no-downgrade requirements are
+identical. Transient windows never install required features. Calendar-period
+meaning is unchanged; a full previous/next period is not a rolling window.
+
+### Required temporal defaults feature
+
+The first-party feature `(name="eidos:temporal-defaults", version="1")` requires
+`required=1` and exactly `config_json='{}'`. Persisting the first `defaultValue:
+"now"` Field MUST install this declaration atomically in the same schema
+transaction. Missing declarations or unsupported version/config are invalid.
+An unsupported reader/writer MUST reject the file before exposing canonical
+data or writing. Disabling the final default does not remove the declaration;
+copy, restore, merge, and schema edits MUST preserve it. Merely opening or
+creating rows without configuring defaults MUST NOT install it. Existing
+atomic feature merge/conflict and final semantic validation rules apply.
 
 ## 21. Media Type Registration Template
 

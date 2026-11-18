@@ -22,6 +22,8 @@ import {
 } from "./packaged-smoke-foreground"
 
 const EMPTY_MARKDOWN_SMOKE_CONTENT = "# Empty Markdown is editable"
+const RENDERER_SMOKE_TARGET_TIMEOUT_MS = 120_000
+const EMPTY_MARKDOWN_FOCUS_TIMEOUT_MS = 15_000
 
 type SmokeEnvironmentName = "staging" | "production"
 
@@ -1453,7 +1455,11 @@ const rendererProbe = `
     "closed Version panel"
   )
   window.__eidosLiteSmokeStep = "signed-out Sync after enabling versions"
-  syncAction.click()
+  const currentSyncAction = document.querySelector(
+    'button[data-titlebar-action="sync"]'
+  )
+  if (!currentSyncAction) throw new Error("Eidos Sync action is missing after enabling versions")
+  currentSyncAction.click()
   const syncPanel = await waitFor(
     () => {
       const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
@@ -1471,14 +1477,23 @@ const rendererProbe = `
         : null
     },
     "signed-out Eidos Sync control plane"
-  )
+  ).catch((error) => {
+    const currentPanel = document.querySelector(".sync-dialog")
+    throw new Error(String(error) + "; Sync panel diagnostics: " + JSON.stringify({
+      buttonPressed: currentSyncAction.getAttribute("aria-pressed"),
+      panelMode: currentPanel?.dataset.syncMode ?? null,
+      accountState: currentPanel?.dataset.syncAccountState ?? null,
+      environment: currentPanel?.dataset.syncEnvironment ?? null,
+      hasSignIn: Boolean(currentPanel?.querySelector("[data-sync-sign-in]")),
+    }))
+  })
   const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
   const stagingBadge = syncPanel.querySelector(
     '.environment-badge[data-service-environment="staging"]'
   )
   const syncControl = {
-    action: Boolean(syncAction),
-    iconAction: syncAction.textContent?.trim() === "",
+    action: Boolean(currentSyncAction),
+    iconAction: currentSyncAction.textContent?.trim() === "",
     panel: ["dialog", "complementary"].includes(
       syncPanel.getAttribute("role") ?? ""
     ),
@@ -1959,14 +1974,11 @@ const rendererProbe = `
     },
     readDiagnostics: readKeyboardDiagnostics,
   }
-  const coordinationDeadline = window.__eidosLiteEmptyMarkdownCoordinationDeadline
-  if (!Number.isFinite(coordinationDeadline)) {
-    throw new Error("Empty Markdown coordination deadline is missing")
-  }
   markKeyboard("TargetReady")
   window.__eidosLiteEmptyMarkdownTargetReady = true
+  const focusDeadline = performance.now() + ${EMPTY_MARKDOWN_FOCUS_TIMEOUT_MS}
   let emptyCaretReady = false
-  while (Date.now() < coordinationDeadline) {
+  while (performance.now() < focusDeadline) {
     const state = readKeyboardState()
     requireSameKeyboardTarget(state)
     if (focusRequested && state.ready) {
@@ -2253,26 +2265,25 @@ export async function runPackagedSmoke(
         "Packaged smoke foreground precondition:",
         JSON.stringify(foreground)
       )
-    const emptyInputDeadline = Date.now() + 60_000
     const reportPromise = window.webContents.executeJavaScript(
-      `window.__eidosLiteEmptyMarkdownCoordinationDeadline = ${emptyInputDeadline};\n${rendererProbe}`,
+      rendererProbe,
       true
     ) as Promise<RendererSmokeResult>
     let rendererProbeFailure: unknown
     void reportPromise.catch((error: unknown) => {
       rendererProbeFailure = error
     })
-    // The input handshake sits near the end of the full renderer smoke. Linux
-    // CI runs that probe under Xvfb after installing the fresh Debian package,
-    // so reaching the Markdown editor can legitimately take longer than one
-    // individual UI assertion's 15-second timeout. Keep the outer coordination
-    // window generous while still surfacing a real renderer failure immediately.
+    // The renderer completes the Space, Grid and Sync checks before it opens
+    // the Markdown target. Once ready, give the native focus handshake its own
+    // bounded interval, independent of the time spent in those prior checks.
     const probeWebContents = window.webContents
     const waitForEmptyKeyboardStage = async (
       expression: string,
-      stage: string
+      stage: string,
+      timeoutMs: number
     ): Promise<unknown> => {
-      while (Date.now() < emptyInputDeadline) {
+      const deadline = performance.now() + timeoutMs
+      for (;;) {
         if (rendererProbeFailure !== undefined) {
           const step = await probeWebContents.executeJavaScript(
             "window.__eidosLiteSmokeStep || 'unknown'",
@@ -2287,6 +2298,7 @@ export async function runPackagedSmoke(
           true
         )
         if (result) return result
+        if (performance.now() >= deadline) break
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
       const step = await probeWebContents.executeJavaScript(
@@ -2303,7 +2315,8 @@ export async function runPackagedSmoke(
     }
     await waitForEmptyKeyboardStage(
       "window.__eidosLiteEmptyMarkdownTargetReady === true",
-      "target"
+      "target",
+      RENDERER_SMOKE_TARGET_TIMEOUT_MS
     )
     const focusModifier = process.platform === "darwin" ? "meta" : "control"
     window.webContents.focus()
@@ -2323,7 +2336,8 @@ export async function runPackagedSmoke(
     )
     const keyboardBefore = await waitForEmptyKeyboardStage(
       "window.__eidosLiteEmptyMarkdownKeyboardProbe.captureBeforeInsert()",
-      "active-line caret"
+      "active-line caret",
+      EMPTY_MARKDOWN_FOCUS_TIMEOUT_MS
     )
     console.info(
       "Packaged smoke empty Markdown before insert:",

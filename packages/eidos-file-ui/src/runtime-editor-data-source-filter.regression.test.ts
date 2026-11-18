@@ -149,7 +149,7 @@ describe("Runtime editor filter regression", () => {
     expect(boundary.editorFilter(runtimeFilter)).toEqual(editorFilter)
   })
 
-  it("round-trips composable relative date filters without an absolute operand", () => {
+  it("round-trips full calendar periods without an absolute operand", () => {
     const boundary = filterBoundary()
     const editorFilter: EidosFileFilterGroup = {
       type: "group",
@@ -158,8 +158,8 @@ describe("Runtime editor filter regression", () => {
         {
           type: "rule",
           field: TITLE,
-          operator: "is-relative-to-today",
-          value: { direction: "past", unit: "month" },
+          operator: "is-in-calendar-period",
+          value: { unit: "month", offset: -1 },
         },
       ],
     }
@@ -169,9 +169,9 @@ describe("Runtime editor filter regression", () => {
       op: "and",
       args: [
         {
-          op: "relative-date",
+          op: "calendar-period",
           fieldId: TITLE,
-          direction: "past",
+          offset: -1,
           unit: "month",
         },
       ],

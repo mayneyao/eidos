@@ -23,12 +23,14 @@ export function SpaceEntryOpenMenuItems({
   onOpen,
   pluginEditors,
   hasPluginEditors,
+  disabled = false,
 }: {
   entry: SpaceTreeEntry
   editingModeShortcut?: string
   onOpen(mode?: EidosLiteMarkdownEditingMode | "preview"): void
   pluginEditors?: ReactNode
   hasPluginEditors?: boolean
+  disabled?: boolean
 }) {
   const { t } = useEidosLiteI18n()
   const [openWithVisible, setOpenWithVisible] = useState(false)
@@ -42,7 +44,12 @@ export function SpaceEntryOpenMenuItems({
 
   return (
     <>
-      <button type="button" role="menuitem" onClick={() => onOpen()}>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={disabled}
+        onClick={() => onOpen()}
+      >
         <FolderOpen aria-hidden="true" />
         {t("Open")}
       </button>
@@ -50,12 +57,15 @@ export function SpaceEntryOpenMenuItems({
         <div
           className="space-context-menu-submenu-trigger"
           role="none"
-          onPointerEnter={() => setOpenWithVisible(true)}
+          onPointerEnter={() => {
+            if (!disabled) setOpenWithVisible(true)
+          }}
           onPointerLeave={() => setOpenWithVisible(false)}
         >
           <button
             type="button"
             role="menuitem"
+            disabled={disabled}
             aria-haspopup="menu"
             aria-expanded={openWithVisible}
             onClick={() => setOpenWithVisible(true)}
@@ -78,7 +88,7 @@ export function SpaceEntryOpenMenuItems({
               aria-hidden="true"
             />
           </button>
-          {openWithVisible ? (
+          {openWithVisible && !disabled ? (
             <div
               className="space-context-menu-submenu"
               role="menu"
@@ -123,12 +133,14 @@ export function SpaceEntryOpenActions({
   editingModeShortcut,
   onOpen,
   onSelectPluginEditor,
+  disabled,
 }: {
   entry: SpaceTreeEntry
   selectedEditor: string
   editingModeShortcut?: string
   onOpen(mode?: EidosLiteMarkdownEditingMode | "preview"): void
   onSelectPluginEditor(editor: string): void
+  disabled?: boolean
 }) {
   const [choices, setChoices] = useState<PluginEditorChoice[]>([])
 
@@ -158,6 +170,7 @@ export function SpaceEntryOpenActions({
   return (
     <SpaceEntryOpenMenuItems
       entry={entry}
+      disabled={disabled}
       hasPluginEditors={choices.length > 0}
       pluginEditors={
         entry.kind !== "directory" && choices.length > 0 ? (

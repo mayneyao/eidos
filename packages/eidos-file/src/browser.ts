@@ -56,6 +56,11 @@ export type {
 } from "./host"
 export type * from "./types"
 export {
+  assertEidosFileTemporalDefault,
+  eidosFileTemporalDefaultValue,
+  type EidosFileCreationContext,
+} from "./temporal-defaults"
+export {
   currentEidosFileInstant,
   isCanonicalEidosFileDate,
   isCanonicalEidosFileInstant,

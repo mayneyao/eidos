@@ -17,8 +17,10 @@ import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-lay
 import { searchEidosFileRelationRecords } from "../eidos-file-relation-search"
 import { eidosFileViewGroupFilter } from "../eidos-file-view-query"
 import { defineEidosFilePlugin } from "../plugin"
+import { useEidosFileCreationContext } from "../eidos-file-temporal-defaults"
 
 function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
+  const creationContext = useEidosFileCreationContext()
   const {
     source,
     table,
@@ -110,14 +112,19 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, value: string | null, title: string) => {
       const labelField = table.fields.find(isEidosFileRecordLabelField)
-      const result = await source.insertRow(table.table.id, {
-        ...(labelField ? { [eidosFileFieldKey(labelField)]: title } : {}),
-        [eidosFileFieldKey(field)]: value,
-      })
+      const result = await source.insertRow(
+        table.table.id,
+        {
+          ...(labelField ? { [eidosFileFieldKey(labelField)]: title } : {}),
+          [eidosFileFieldKey(field)]: value,
+        },
+        creationContext,
+        query
+      )
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id]
+    [onMutation, source, table.table.id, creationContext, query]
   )
 
   if (!view) return null
@@ -142,6 +149,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       table={table}
+      undoableDelete={props.canUndoDelete}
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}

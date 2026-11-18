@@ -35,6 +35,10 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import {
+  eidosFileNewRecordDateDefaults,
+  useEidosFileCreationContext,
+} from "./eidos-file-temporal-defaults"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/adaptive-popover"
 import type { EidosFileViewRendererProps } from "./eidos-file-editor-view"
@@ -547,6 +551,7 @@ function QuestionOptionsPopover({
 }
 
 export function EidosFileFormView(props: EidosFileViewRendererProps) {
+  const creationContext = useEidosFileCreationContext()
   const { translate: t, interactionMode } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
   const { source, table, view } = props
@@ -584,7 +589,14 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
     properties
   )
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
-  const [draft, setDraft] = useState<EidosFileRow>({})
+  const [draft, setDraft] = useState<EidosFileRow>(() =>
+    eidosFileNewRecordDateDefaults(
+      fields,
+      {},
+      new Date().toISOString(),
+      creationContext
+    )
+  )
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set())
@@ -608,7 +620,14 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
   }, [fields, selection])
 
   useEffect(() => {
-    setDraft({})
+    setDraft(
+      eidosFileNewRecordDateDefaults(
+        fields,
+        {},
+        new Date().toISOString(),
+        creationContext
+      )
+    )
     setInvalidFields(new Set())
     setSubmitted(false)
     setError(null)
@@ -1163,7 +1182,14 @@ export function EidosFileFormView(props: EidosFileViewRendererProps) {
                           type="button"
                           className="mt-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
                           onClick={() => {
-                            setDraft({})
+                            setDraft(
+                              eidosFileNewRecordDateDefaults(
+                                fields,
+                                {},
+                                new Date().toISOString(),
+                                creationContext
+                              )
+                            )
                             setSubmitted(false)
                           }}
                         >

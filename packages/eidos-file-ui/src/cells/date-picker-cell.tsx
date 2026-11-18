@@ -19,7 +19,7 @@ import {
 } from "../eidos-file-date-time"
 import { formatEidosFileGridDate } from "../eidos-file-grid-date-format"
 import { Button, Calendar } from "../ui/primitives"
-import { Popover, PopoverTrigger } from "../ui/primitives"
+import { Popover } from "../ui/primitives"
 
 import {
   EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
@@ -27,6 +27,9 @@ import {
   EidosFileGridEditorHeader,
   EidosFileGridEditorPopoverContent,
   EidosFileGridEditorSurface,
+  EidosFileValueEditorTrigger,
+  useEidosFileValueEditorReadOnly,
+  useEidosFileValueEditorTab,
   eidosFileGridPopupEditor,
 } from "./grid-editor-surface"
 
@@ -36,6 +39,7 @@ interface DatePickerCellProps {
   readonly displayDate: string
   readonly format: "date" | "datetime-local"
   readonly timeZone?: string
+  readonly calendarTimeZoneData?: string | null
 }
 
 export type DatePickerCell = CustomCell<DatePickerCellProps>
@@ -51,17 +55,26 @@ interface DatePickerEditorProps {
   format: "date" | "datetime-local"
   date: Date | undefined
   timeZone?: string
+  calendarTimeZoneData?: string | null
   onFinishedEditing: (date: Date | undefined) => void
   onCancelEditing: () => void
 }
 
 function DatePickerEditor(props: DatePickerEditorProps) {
+  const readOnly = useEidosFileValueEditorReadOnly()
   const { locale, translate: t } = useEidosFileUI()
-  const { format, date, timeZone, onFinishedEditing, onCancelEditing } = props
+  const {
+    format,
+    date,
+    timeZone,
+    calendarTimeZoneData,
+    onFinishedEditing,
+    onCancelEditing,
+  } = props
 
   const defaultDate =
     format === "datetime-local"
-      ? eidosFileWallDate(date ?? new Date(), timeZone)
+      ? eidosFileWallDate(date ?? new Date(), timeZone, calendarTimeZoneData)
       : (date ?? new Date())
   const [open, setOpen] = React.useState(true)
 
@@ -69,7 +82,12 @@ function DatePickerEditor(props: DatePickerEditorProps) {
     date
       ? format === "date"
         ? toDateInputValue(date)
-        : eidosFileDateTimeInputValue(date, timeZone)
+        : eidosFileDateTimeInputValue(
+            date,
+            timeZone,
+            false,
+            calendarTimeZoneData
+          )
       : ""
   )
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date)
@@ -78,36 +96,47 @@ function DatePickerEditor(props: DatePickerEditorProps) {
 
   const commitDate = React.useCallback(
     (d: Date | undefined) => {
+      if (readOnly) return
       setSelectedDate(d)
       setInputError(null)
       if (d) {
         setMonth(
-          format === "datetime-local" ? eidosFileWallDate(d, timeZone) : d
+          format === "datetime-local"
+            ? eidosFileWallDate(d, timeZone, calendarTimeZoneData)
+            : d
         )
         setInputValue(
           format === "date"
             ? toDateInputValue(d)
-            : eidosFileDateTimeInputValue(d, timeZone)
+            : eidosFileDateTimeInputValue(
+                d,
+                timeZone,
+                false,
+                calendarTimeZoneData
+              )
         )
       } else {
         setInputValue("")
       }
     },
-    [format, timeZone]
+    [format, timeZone, calendarTimeZoneData, readOnly]
   )
 
   const handleSave = React.useCallback(() => {
-    if (inputError) return
+    if (readOnly || inputError) return
     setOpen(false)
     onFinishedEditing(selectedDate)
-  }, [inputError, selectedDate, onFinishedEditing])
+  }, [inputError, selectedDate, onFinishedEditing, readOnly])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
     onCancelEditing()
   }, [onCancelEditing])
 
+  const finishByTab = useEidosFileValueEditorTab(handleSave)
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (finishByTab(e)) return
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     // Escape to cancel editing
     if (e.key === "Escape") {
       e.preventDefault()
@@ -127,9 +156,7 @@ function DatePickerEditor(props: DatePickerEditorProps) {
 
   return (
     <Popover open={open}>
-      <PopoverTrigger>
-        <div />
-      </PopoverTrigger>
+      <EidosFileValueEditorTrigger />
       <EidosFileGridEditorPopoverContent
         onPointerDownOutside={() => {
           // 点击外部视为 Enter 保存，使用当前选中的值
@@ -148,7 +175,9 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               type={format === "date" ? "date" : "datetime-local"}
               value={inputValue}
               autoFocus
+              readOnly={readOnly}
               onChange={(e) => {
+                if (readOnly) return
                 const v = e.target.value
                 setInputValue(v)
                 if (!v) {
@@ -158,7 +187,11 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                 const d =
                   format === "date"
                     ? eidosFileWallDateFromInputValue(v)
-                    : eidosFileInstantFromInputValue(v, timeZone)
+                    : eidosFileInstantFromInputValue(
+                        v,
+                        timeZone,
+                        calendarTimeZoneData
+                      )
                 if (d) {
                   commitDate(d)
                 } else {
@@ -193,19 +226,25 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               mode="single"
               selected={
                 selectedDate && format === "datetime-local"
-                  ? eidosFileWallDate(selectedDate, timeZone)
+                  ? eidosFileWallDate(
+                      selectedDate,
+                      timeZone,
+                      calendarTimeZoneData
+                    )
                   : selectedDate
               }
               month={month}
               onMonthChange={setMonth}
               onSelect={(nextDate) => {
+                if (readOnly) return
                 if (!nextDate || format === "date") {
                   commitDate(nextDate)
                   return
                 }
                 const current = eidosFileDateTimeParts(
                   selectedDate ?? new Date(),
-                  timeZone
+                  timeZone,
+                  calendarTimeZoneData
                 )
                 const wallDate = new Date(
                   nextDate.getFullYear(),
@@ -215,7 +254,13 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                   current.minute,
                   current.second
                 )
-                const instant = eidosFileInstantFromWallDate(wallDate, timeZone)
+                const instant = calendarTimeZoneData
+                  ? eidosFileInstantFromInputValue(
+                      `${toDateInputValue(nextDate)}T${String(current.hour).padStart(2, "0")}:${String(current.minute).padStart(2, "0")}:${String(current.second).padStart(2, "0")}.${String(selectedDate?.getMilliseconds() ?? 0).padStart(3, "0")}`,
+                      timeZone,
+                      calendarTimeZoneData
+                    )
+                  : eidosFileInstantFromWallDate(wallDate, timeZone)
                 if (instant) commitDate(instant)
                 else {
                   setInputError(
@@ -270,7 +315,7 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
   DatePickerCell
 > = (p) => {
   const cellData = p.value.data
-  const { format, date, timeZone } = cellData
+  const { format, date, timeZone, calendarTimeZoneData } = cellData
 
   const handleFinishedEditing = (finalDate: Date | undefined) => {
     const newCell = {
@@ -279,7 +324,12 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
         ...p.value.data,
         date: finalDate,
         displayDate: finalDate
-          ? formatEidosFileGridDate(finalDate, format, timeZone)
+          ? formatEidosFileGridDate(
+              finalDate,
+              format,
+              timeZone,
+              calendarTimeZoneData
+            )
           : "",
       },
     }
@@ -295,6 +345,7 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
       format={format}
       date={date}
       timeZone={timeZone}
+      calendarTimeZoneData={calendarTimeZoneData}
       onFinishedEditing={handleFinishedEditing}
       onCancelEditing={handleCancelEditing}
     />
@@ -322,13 +373,18 @@ const renderer: CustomRenderer<DatePickerCell> = {
     const newDate =
       format === "date" && date
         ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
-        : eidosFileInstantFromInputValue(v, d.timeZone)
+        : eidosFileInstantFromInputValue(v, d.timeZone, d.calendarTimeZoneData)
 
     return {
       ...d,
       date: newDate,
       displayDate: newDate
-        ? formatEidosFileGridDate(newDate, format, d.timeZone)
+        ? formatEidosFileGridDate(
+            newDate,
+            format,
+            d.timeZone,
+            d.calendarTimeZoneData
+          )
         : "",
     }
   },

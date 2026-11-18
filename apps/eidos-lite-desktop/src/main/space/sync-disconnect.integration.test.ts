@@ -182,7 +182,9 @@ describe("disconnect cloud sync without changing the Space", () => {
         await graft.close()
         await fs.rm(directory, { recursive: true, force: true })
       }
-    }
+    },
+    // Reopening and enrolling a real Graft Space can exceed the unit test budget.
+    30_000
   )
 
   it("finishes an interrupted disconnect on startup, keeping the new connection ID", async () => {

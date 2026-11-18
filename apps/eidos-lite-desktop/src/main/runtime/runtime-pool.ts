@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { readTraceKey, runtimeReadTrace } from "../../runtime/read-trace"
 import type { FileMetaValues, FileMetaPatch } from "@eidos.space/plugin-sdk"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -19,6 +20,7 @@ import type {
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
+import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
 import { resolveSpacePath } from "../space/space-paths"
 import type { ExplorerEidosSummary } from "../../shared/explorer-summary"
 import {
@@ -67,7 +69,7 @@ export function hasPendingRuntimeRequestsForChild<T>(
   return false
 }
 
-function defaultRuntimeWorkerPath(): string {
+export function defaultRuntimeWorkerPath(): string {
   const workerUrl = new URL("./runtime-worker.js", import.meta.url)
   if (workerUrl.protocol === "file:") return fileURLToPath(workerUrl)
   if (process.env.VITEST) {
@@ -135,7 +137,8 @@ export class RuntimePool {
   constructor(
     private readonly spaceRoot: string,
     private readonly workerPath = defaultRuntimeWorkerPath(),
-    private readonly maxResidentRuntimes = DEFAULT_MAX_RESIDENT_RUNTIMES
+    private readonly maxResidentRuntimes = DEFAULT_MAX_RESIDENT_RUNTIMES,
+    readonly readOnly = false
   ) {
     if (!Number.isInteger(maxResidentRuntimes) || maxResidentRuntimes < 1) {
       throw new Error("Runtime LRU capacity must be a positive integer")
@@ -179,7 +182,7 @@ export class RuntimePool {
         snapshot:
           reopenedSnapshot ??
           (await this.call(entry.sessionId, "getSnapshot", [])),
-        readOnly: false,
+        readOnly: this.readOnly,
       }
     }
 
@@ -204,7 +207,7 @@ export class RuntimePool {
         sessionId: entry.sessionId,
         relativePath,
         snapshot,
-        readOnly: false,
+        readOnly: this.readOnly,
       }
     } catch (error) {
       this.entriesBySession.delete(entry.sessionId)
@@ -222,6 +225,7 @@ export class RuntimePool {
       contentFieldName?: string
     }
   ): Promise<OpenEidosFileResult> {
+    if (this.readOnly) throw new Error("Space is read-only")
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     if (path.extname(filePath).toLowerCase() !== ".eidos") {
       throw new Error("New Eidos Files must use the .eidos extension")
@@ -281,26 +285,43 @@ export class RuntimePool {
   async call<M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
+    if (
+      this.readOnly &&
+      (RUNTIME_MUTATION_METHODS as readonly string[]).includes(method)
+    )
+      throw new Error("Space is read-only")
     const entry = this.requireEntry(sessionId)
     if (entry.closed || this.closingEntries.has(entry)) {
       throw new Error("Unknown or closed Eidos File session")
     }
-    const issue = await this.entryIssue(entry)
+    const issue = await runtimeReadTrace.span(
+      "main-file-check",
+      {
+        sessionKey: runtimeReadTrace.enabled
+          ? readTraceKey(sessionId)
+          : undefined,
+      },
+      () => this.entryIssue(entry)
+    )
     if (issue) {
       await this.invalidateSession(sessionId)
       throw new EidosFileRuntimeError(issue)
     }
     this.touch(entry)
     let call: Promise<RuntimeCalls[M]["result"]> | null = null
+    runtimeReadTrace.point("main-residency-wait", { method })
     await this.withResidencyLock(async () => {
       await this.ensureResidentLocked(entry)
+      runtimeReadTrace.point("main-residency-ready", { method })
       call = this.request(entry, {
         type: "call",
         requestId: entry.nextRequestId++,
         method,
         args,
+        ...consumer,
       }) as Promise<RuntimeCalls[M]["result"]>
     })
     if (!call) throw new Error("Eidos File runtime call did not start")
@@ -377,11 +398,49 @@ export class RuntimePool {
     }
   }
 
+  /** Paths are resolved and authorized by SpaceSession, never by the renderer. */
+  async copyFileSnapshot(
+    sourcePath: string,
+    destinationPath: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    signal?.throwIfAborted()
+    const entry: RuntimeEntry = {
+      sessionId: randomUUID(),
+      relativePath: "",
+      filePath: sourcePath,
+      canonicalPath: sourcePath,
+      fileIdentity: null,
+      child: null,
+      pending: new Map(),
+      nextRequestId: 1,
+      crashed: false,
+      lastAccess: 0,
+    }
+    this.spawnChild(entry)
+    const abort = () => entry.child?.kill()
+    signal?.addEventListener("abort", abort, { once: true })
+    try {
+      signal?.throwIfAborted()
+      await this.request(entry, {
+        type: "copySnapshot",
+        requestId: 1,
+        sourcePath,
+        destinationPath,
+      })
+    } finally {
+      signal?.removeEventListener("abort", abort)
+      entry.child?.kill()
+    }
+  }
+
   async filemeta(
     relativePath: string,
     namespace: string,
     patch?: FileMetaPatch
   ): Promise<FileMetaValues> {
+    if (this.readOnly && patch !== undefined)
+      throw new Error("Space is read-only")
     const entry = (this.propertyEntry ??= {
       sessionId: randomUUID(),
       relativePath: "",
@@ -965,7 +1024,7 @@ export class RuntimePool {
     return this.spawnAndOpen(
       entry,
       createTitle,
-      false,
+      this.readOnly,
       createTemplate,
       metadataSchema,
       contentFieldName
@@ -1124,6 +1183,28 @@ export class RuntimePool {
         reject,
       })
       try {
+        runtimeReadTrace.point("main-worker-send", {
+          utilityPid: child.pid,
+          requestId: request.requestId,
+          type: request.type,
+          ...(request.type === "call"
+            ? {
+                method: request.method,
+                ...(request.method === "getPage"
+                  ? {
+                      offset:
+                        typeof request.args[1] === "number"
+                          ? request.args[1]
+                          : undefined,
+                      limit:
+                        typeof request.args[2] === "number"
+                          ? request.args[2]
+                          : undefined,
+                    }
+                  : {}),
+              }
+            : {}),
+        })
         child.postMessage(request)
       } catch (error) {
         entry.pending.delete(request.requestId)
@@ -1137,6 +1218,10 @@ export class RuntimePool {
     if (!isWorkerResponse(message)) return
     const pending = entry.pending.get(message.requestId)
     if (!pending) return
+    runtimeReadTrace.point("main-worker-receive", {
+      utilityPid: pending.child.pid,
+      requestId: message.requestId,
+    })
     entry.pending.delete(message.requestId)
     this.notifyPendingChange()
     if (message.ok) {

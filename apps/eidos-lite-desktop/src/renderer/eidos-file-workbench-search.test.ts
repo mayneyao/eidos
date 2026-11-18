@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from "react"
+import { act, createElement, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+import {
+  decodeEidosFileValues,
+  encodeEidosFileAttachmentPaths,
+  type EidosFileSnapshot,
+} from "@eidos.space/eidos-file"
+import type {
+  EidosFileQueryToolbar,
+  EidosFileRelatedRecordPanel,
+} from "@eidos.space/eidos-file-ui"
 
 import {
   RUNTIME_MUTATION_METHODS,
@@ -10,6 +18,11 @@ import {
 } from "../shared/contracts"
 const observeAssetSession = vi.hoisted(() =>
   vi.fn<(session: unknown) => void>()
+)
+const relatedRecordFixture = vi.hoisted(() => ({ useActualPanel: false }))
+type QueryToolbarProps = ComponentProps<typeof EidosFileQueryToolbar>
+const observeQueryToolbar = vi.hoisted(() =>
+  vi.fn<(props: QueryToolbarProps) => void>()
 )
 
 vi.mock("@eidos.space/eidos-file-ui/plugins/csv-import", () => ({
@@ -110,13 +123,13 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
       )
     )
   }
-  function RelatedRecordReporter({
-    target,
-    onClose,
-  }: {
-    target: { tableId: string; rowId: string; title: string }
-    onClose: () => void
-  }) {
+  function RelatedRecordReporter(
+    props: ComponentProps<typeof EidosFileRelatedRecordPanel>
+  ) {
+    if (relatedRecordFixture.useActualPanel) {
+      return React.createElement(actual.EidosFileRelatedRecordPanel, props)
+    }
+    const { target, onClose } = props
     return React.createElement(
       "aside",
       { "data-testid": "related-record-panel" },
@@ -145,6 +158,10 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   }
   return {
     ...actual,
+    EidosFileQueryToolbar: (props: QueryToolbarProps) => {
+      observeQueryToolbar(props)
+      return React.createElement(actual.EidosFileQueryToolbar, props)
+    },
     EidosFileEditorView: SearchResultReporter,
     EidosFileFieldCreatePopover: Empty,
     EidosFileFormulaEditorPopover: Empty,
@@ -263,14 +280,212 @@ describe("Eidos Lite Eidos File search navigation", () => {
 
   afterEach(() => {
     act(() => root.unmount())
+    relatedRecordFixture.useActualPanel = false
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
   })
+
+  it("saves chosen and dropped local attachments in a Gallery record", async () => {
+    relatedRecordFixture.useActualPanel = true
+    const table = snapshot.tables[0]!
+    const title = table.fields[0]!
+    const attachment = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/local-report.txt"])
+    )[0]!
+    const gallerySnapshot: EidosFileSnapshot = {
+      ...snapshot,
+      tables: [
+        {
+          ...table,
+          fields: [
+            ...table.fields,
+            {
+              ...title,
+              id: "attachment",
+              name: "Attachment",
+              type: "file",
+              tableColumnName: "Attachment",
+              physicalName: "Attachment",
+              storageCodec: "json_array",
+              sourceTableColumnName: "Attachment",
+              isRecordLabel: false,
+            },
+          ],
+          views: [
+            {
+              ...table.views[0]!,
+              id: "gallery",
+              name: "Gallery",
+              type: "gallery",
+              hiddenFields: ["attachment"],
+            },
+          ],
+        },
+      ],
+    }
+    const selectLocal = vi.fn(async () => [attachment])
+    const dropped = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/dropped.txt"])
+    )[0]!
+    const importDropped = vi.fn(async () => [dropped])
+    Object.assign(window.eidosLite, {
+      selectEidosFileAssets: selectLocal,
+      importDroppedEidosFileAssets: importDropped,
+    })
+    const source = new IpcEidosFileDataSource(
+      "gallery-runtime",
+      gallerySnapshot
+    )
+    const row = { _id: "record-a", Title: "Record A", Attachment: "[]" }
+    vi.spyOn(source, "getRow").mockResolvedValue(row)
+    vi.spyOn(source, "getRecordNeighbors").mockResolvedValue({ found: false })
+    const save = vi
+      .spyOn(source, "updateRow")
+      .mockImplementation(async (_table, _row, changes) => {
+        if (typeof changes.attachment !== "string")
+          throw new Error("Expected an encoded attachment list")
+        row.Attachment = changes.attachment
+        return { tableId: table.table.id, row: { ...row }, rowCount: 1 }
+      })
+    const onError = vi.fn()
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "sample.eidos",
+          snapshot: gallerySnapshot,
+          source,
+          activeTableId: "tasks",
+          activeViewId: "gallery",
+          inspectedRowId: "record-a",
+          recordOpenMode: "page",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot: vi.fn(),
+          onError,
+        })
+      )
+    )
+    expect(host.querySelector('[aria-label="Attachment"]')).toBeNull()
+    const disclosure = host.querySelector<HTMLButtonElement>(
+      "[data-eidos-file-record-hidden-properties-toggle]"
+    )!
+    expect(disclosure.textContent).toBe("Show 1 hidden property")
+    await act(async () => disclosure.click())
+    const property = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Attachment"]'
+    )!
+    await act(async () => property.click())
+    const choose = [
+      ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((button) => button.textContent === "Add files")
+    expect(choose).toBeDefined()
+    await act(async () => choose!.click())
+    expect(selectLocal).toHaveBeenCalledExactlyOnceWith("gallery-runtime")
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "local-report.txt"
+    )
+    await act(async () => {
+      document.body.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true })
+      )
+    })
+    expect(save).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {
+      attachment: expect.stringContaining("assets/local-report.txt"),
+    })
+    expect(host.textContent).toContain("local-report.txt")
+
+    const file = new File(["fixture bytes"], "dropped.txt")
+    const drop = new Event("drop", { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, "dataTransfer", {
+      value: { types: ["Files"], files: [file] },
+    })
+    await act(async () => {
+      property
+        .closest('[data-eidos-file-property-editor="file"]')!
+        .dispatchEvent(drop)
+    })
+    expect(importDropped).toHaveBeenCalledExactlyOnceWith(
+      "gallery-runtime",
+      [file],
+      "drop"
+    )
+    expect(decodeEidosFileValues(row.Attachment)).toEqual([attachment, dropped])
+    expect(host.textContent).toContain("dropped.txt")
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])(
+    "keeps browsing query edits local exactly when the source is read-only (%s)",
+    async (readOnly) => {
+      const source = new IpcEidosFileDataSource(
+        "readonly-query",
+        snapshot,
+        undefined,
+        {},
+        readOnly
+      )
+      const persist = vi.spyOn(source, "updateView").mockResolvedValue(snapshot)
+      await act(async () =>
+        root.render(
+          createElement(EidosFileWorkbench, {
+            relativePath: "sample.eidos",
+            snapshot,
+            source,
+            activeTableId: "tasks",
+            disabled: false,
+            theme: "light",
+            onTableSelect: vi.fn(),
+            onSnapshot: vi.fn(),
+            onError: vi.fn(),
+          })
+        )
+      )
+      const filter: QueryToolbarProps["filter"] = {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: "title",
+            operator: "equals",
+            value: "中文路径",
+          },
+        ],
+      }
+      const sorts: QueryToolbarProps["sorts"] = [
+        { field: "title", direction: "desc" },
+      ]
+      await act(async () => {
+        await observeQueryToolbar.mock.lastCall![0].onFilterChange(filter)
+      })
+      await act(async () => {
+        await observeQueryToolbar.mock.lastCall![0].onSortsChange(sorts)
+      })
+      if (readOnly) {
+        expect(persist).not.toHaveBeenCalled()
+        expect(observeQueryToolbar.mock.lastCall![0]).toMatchObject({
+          filter,
+          sorts,
+        })
+        expect(snapshot.tables[0]!.views[0]!.filter).toBeNull()
+        expect(snapshot.tables[0]!.views[0]!.sorts).toEqual([])
+      } else {
+        expect(persist).toHaveBeenCalledWith("grid", { filter })
+        expect(persist).toHaveBeenCalledWith("grid", { sorts })
+      }
+    }
+  )
 
   it("reuses the file sidebar without navigating the main view, then restores record inspection on close", async () => {
     const firstTable = snapshot.tables[0]!
     const metadata: EidosFileSnapshot = {
       ...snapshot,
+      queryCapabilities: {
+        calendarQueryVersion: 2,
+        calendarWindowVersion: 1,
+        calendarPeriodTimeZoneData: ["2026f"],
+      },
       tables: [
         {
           ...firstTable,
@@ -303,6 +518,8 @@ describe("Eidos Lite Eidos File search navigation", () => {
       activeTableId: "tasks",
       disabled: false,
       theme: "light" as const,
+      timeZone: "Asia/Shanghai",
+      weekStartsOnMonday: false,
       fileSidebarOpen: true,
       onOpenFileInSidebar: preview,
       onInspectedRowChange: inspect,
@@ -325,7 +542,13 @@ describe("Eidos Lite Eidos File search navigation", () => {
         .querySelector('[data-record-focus="record-a"]')
         ?.getAttribute("data-record-index")
     ).toBe("12")
-    expect(getRowIndex).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {})
+    expect(getRowIndex).toHaveBeenCalledExactlyOnceWith("tasks", "record-a", {
+      calendar: {
+        timeZone: "Asia/Shanghai",
+        timeZoneData: "2026f",
+        weekStartsOn: 0,
+      },
+    })
     let finishOldIndex!: (index: number | null) => void
     getRowIndex.mockReturnValueOnce(
       new Promise((resolve) => {

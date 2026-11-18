@@ -11,6 +11,7 @@ import {
 import type {
   EidosFileFieldInfo,
   EidosFileRow,
+  EidosFileRowsDeleteResult,
   EidosFileRowMutationResult,
   EidosFileRowPage,
   EidosFileRelationValue,
@@ -43,7 +44,13 @@ import {
   type EidosFileRowWindow,
   type EidosFileRowWindowMergeMode,
 } from "./eidos-file-row-window"
-import { useEidosFileBoundedVirtualizer } from "./eidos-file-virtual-scroll"
+import {
+  eidosFileVirtualLogicalOffset,
+  resetEidosFileVirtualizerMeasurements,
+  useEidosFileBoundedVirtualizer,
+} from "./eidos-file-virtual-scroll"
+import type { GalleryRect } from "./eidos-file-gallery-selection"
+import { useEidosFileGallerySelection } from "./use-eidos-file-gallery-selection"
 import { useEidosFileScrollKeys } from "./use-eidos-file-scroll-keys"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
@@ -55,6 +62,8 @@ const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_END_PADDING = 48
 const GALLERY_OVERSCAN_ROWS = 2
 const GALLERY_PREFETCH_ROWS = Math.floor(GALLERY_PAGE_SIZE / 2)
+// The Runtime accepts at most 500 operations in an atomic row-ID deletion.
+const GALLERY_BATCH_DELETE_LIMIT = 500
 
 function galleryVirtualRowKey(index: number): string {
   return `gallery-row:${index}`
@@ -88,7 +97,11 @@ interface EidosFileGalleryVirtualRowProps {
   view: EidosFileViewInfo
   layout: EidosFileRecordCardLayout
   focusedRowId: string | null
+  selectedRowIds: ReadonlySet<string>
   canDelete: boolean
+  getActionRowIds: (row: EidosFileRow) => readonly string[]
+  actionScope: object
+  onDeleteRowIds?: (row: EidosFileRow, rowIds: readonly string[]) => void
   measureElement: (node: HTMLDivElement | null | undefined) => void
   onOpen: (row: EidosFileRow) => void
   onPreviewFile: (row: EidosFileRow, entry: FileEntry) => void
@@ -110,6 +123,9 @@ function galleryVirtualRowPropsEqual(
     previous.view !== next.view ||
     previous.layout !== next.layout ||
     previous.canDelete !== next.canDelete ||
+    previous.getActionRowIds !== next.getActionRowIds ||
+    previous.actionScope !== next.actionScope ||
+    previous.onDeleteRowIds !== next.onDeleteRowIds ||
     previous.measureElement !== next.measureElement ||
     previous.onOpen !== next.onOpen ||
     previous.onPreviewFile !== next.onPreviewFile ||
@@ -119,7 +135,8 @@ function galleryVirtualRowPropsEqual(
   }
   if (
     previous.rowWindow === next.rowWindow &&
-    previous.focusedRowId === next.focusedRowId
+    previous.focusedRowId === next.focusedRowId &&
+    previous.selectedRowIds === next.selectedRowIds
   ) {
     return true
   }
@@ -136,6 +153,8 @@ function galleryVirtualRowPropsEqual(
     if ((previous.focusedRowId === rowId) !== (next.focusedRowId === rowId)) {
       return false
     }
+    if (previous.selectedRowIds.has(rowId) !== next.selectedRowIds.has(rowId))
+      return false
   }
   return true
 }
@@ -152,7 +171,11 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
   view,
   layout,
   focusedRowId,
+  selectedRowIds,
   canDelete,
+  getActionRowIds,
+  actionScope,
+  onDeleteRowIds,
   measureElement,
   onOpen,
   onPreviewFile,
@@ -189,9 +212,16 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               positionInSet={absoluteIndex + 1}
               setSize={total}
               focused={focusedRowId === String(row._id)}
+              selected={selectedRowIds.has(String(row._id))}
               onOpen={onOpen}
               onPreviewFile={onPreviewFile}
               onDelete={canDelete ? onDelete : undefined}
+              getActionRowIds={getActionRowIds}
+              actionScope={actionScope}
+              onDeleteRowIds={onDeleteRowIds}
+              batchDeleteLimit={
+                onDeleteRowIds ? GALLERY_BATCH_DELETE_LIMIT : undefined
+              }
             />
           ) : (
             <div
@@ -222,6 +252,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   view,
   disabled = false,
   reloadToken = 0,
+  undoableDelete = false,
   searchResultIndex = null,
   recordFocus,
   loadPage,
@@ -231,6 +262,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onImportDroppedFiles,
   onSearchRelation,
   onDeleteRow,
+  onDeleteRowIds,
   onOpenRecordInTab,
   onOpenRecord,
   onPreviewRecord,
@@ -256,6 +288,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     field: EidosFileFieldInfo,
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
+  /** @deprecated Record creation belongs to the shared toolbar. */
+  onAddRow?: () => Promise<EidosFileRowMutationResult>
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -266,6 +300,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
+  onDeleteRowIds?: (
+    rowIds: readonly string[]
+  ) => Promise<EidosFileRowsDeleteResult>
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onOpenRecord?: (row: EidosFileRow) => void
   /** Host-owned file preview replaces the Gallery lightbox for this record. */
@@ -276,6 +314,13 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
+  const selectionScopeKey = JSON.stringify([
+    table.table.id,
+    view.id,
+    view.query,
+    view.filter,
+    view.sorts,
+  ])
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const [preview, setPreview] = useState<{
@@ -284,6 +329,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   } | null>(null)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const cardListRef = useRef<HTMLDivElement>(null)
   useEidosFileScrollKeys(scrollContainerRef)
   const previousColumnCountRef = useRef<number | null>(null)
   const previousLayoutFieldsRef = useRef<EidosFileFieldInfo[] | null>(null)
@@ -302,6 +348,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     total: table.rowCount,
   })
   const [loading, setLoading] = useState(true)
+  const [loadedGeneration, setLoadedGeneration] = useState(-1)
   const [loadingMore, setLoadingMore] = useState(false)
   const [failedRequest, setFailedRequest] = useState<{
     offset: number
@@ -310,7 +357,47 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     cursor?: string
     message: string
   } | null>(null)
-  const [deleteRow, setDeleteRow] = useState<EidosFileRow | null>(null)
+  const actionScope = useMemo(
+    () => ({}),
+    [selectionScopeKey, loadPage, reloadToken]
+  )
+  const actionScopeRef = useRef(actionScope)
+  actionScopeRef.current = actionScope
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+  const deleteRequestRef = useRef(0)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    row: EidosFileRow
+    rowIds: readonly string[]
+    scope: object
+    requestId: number
+  } | null>(null)
+  useEffect(() => setDeleteTarget(null), [actionScope])
+  const requestDelete = useCallback((row: EidosFileRow) => {
+    setDeleteTarget({
+      row,
+      rowIds: [String(row._id)],
+      scope: actionScopeRef.current,
+      requestId: ++deleteRequestRef.current,
+    })
+  }, [])
+  const requestDeleteSelection = useCallback(
+    (row: EidosFileRow, rowIds: readonly string[]) => {
+      if (rowIds.length > GALLERY_BATCH_DELETE_LIMIT) return
+      setDeleteTarget({
+        row,
+        rowIds: [...rowIds],
+        scope: actionScopeRef.current,
+        requestId: ++deleteRequestRef.current,
+      })
+    },
+    []
+  )
   const {
     inspectedRow,
     inspectorLoading,
@@ -378,6 +465,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         setRowWindow((current) =>
           mergeRowWindowPage(current, page, mode, GALLERY_MAX_WINDOW_ROWS)
         )
+        setLoadedGeneration(generation)
         onRowCountChange?.(
           page.rows.length === 0 && page.offset > 0
             ? Math.min(page.total, page.offset)
@@ -431,6 +519,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     onRowCountChange,
     reloadToken,
     requestPage,
+    selectionScopeKey,
     table.table.id,
     view.id,
   ])
@@ -476,6 +565,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     virtualItems: virtualRows,
     logicalSize: logicalVirtualSize,
     physicalSize: physicalVirtualSize,
+    logicalScrollOffset,
     localScrollOffset,
     measurementCount,
     globalIndex: globalVirtualRowIndex,
@@ -496,6 +586,84 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     useAnimationFrameWithResizeObserver: true,
   })
 
+  const selection = useEidosFileGallerySelection({
+    scrollRef: scrollContainerRef,
+    enabled: !mobile && !disabled && loadedGeneration === generationRef.current,
+    scopeKey: selectionScopeKey,
+    // The renderer changes loadPage when its effective query/source changes.
+    queryIdentity: loadPage,
+    layoutKey: `${columnCount}:${renderedCardWidth}:${uniformGalleryCardHeight(cardLayout, renderedCardWidth)}`,
+    getGeometry: () => {
+      const container = scrollContainerRef.current
+      const list = cardListRef.current
+      const cards = new Map<string, GalleryRect>()
+      if (!container || !list) return { logicalScrollOffset, cards }
+      const viewport = container.getBoundingClientRect()
+      const listBounds = list.getBoundingClientRect()
+      const currentLogicalOffset = eidosFileVirtualLogicalOffset(
+        container.scrollTop,
+        logicalVirtualSize,
+        container.clientHeight
+      )
+      const left = listBounds.left - viewport.left
+      const actualCardWidth =
+        (listBounds.width - GALLERY_GAP * (columnCount - 1)) / columnCount
+      const top =
+        listBounds.top -
+        viewport.top +
+        container.scrollTop +
+        logicalScrollOffset -
+        localScrollOffset
+      const firstVirtualRow = globalVirtualRowIndex(0)
+      // The virtualizer already maintains bounded measurements/estimates. Only
+      // loaded records acquire identities; placeholders never become selections.
+      rows.forEach((row, index) => {
+        const absoluteIndex = rowWindow.startOffset + index
+        const virtualRowIndex = Math.floor(absoluteIndex / columnCount)
+        const measurement =
+          rowVirtualizer.measurementsCache[virtualRowIndex - firstVirtualRow]
+        if (!measurement) return
+        const cardLeft =
+          left + (absoluteIndex % columnCount) * (actualCardWidth + GALLERY_GAP)
+        cards.set(String(row._id), {
+          left: cardLeft,
+          right: cardLeft + actualCardWidth,
+          top: top + measurement.start,
+          bottom: top + measurement.end,
+        })
+      })
+      // The viewport's actual CSS geometry owns hit testing. In particular,
+      // ResizeObserver content widths exclude the scroller's horizontal padding.
+      list
+        .querySelectorAll<HTMLElement>("[data-eidos-file-row-id]")
+        .forEach((card) => {
+          const id = card.dataset.eidosFileRowId
+          if (id === undefined) return
+          const bounds = card.getBoundingClientRect()
+          cards.set(id, {
+            left: bounds.left - viewport.left,
+            right: bounds.right - viewport.left,
+            top: currentLogicalOffset + bounds.top - viewport.top,
+            bottom: currentLogicalOffset + bounds.bottom - viewport.top,
+          })
+        })
+      return { logicalScrollOffset: currentLogicalOffset, cards }
+    },
+  })
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+  const deleteLimitExceeded =
+    onDeleteRowIds &&
+    !disabled &&
+    selection.selectedIds.size > GALLERY_BATCH_DELETE_LIMIT
+  const getActionRowIds = useCallback((row: EidosFileRow) => {
+    const rowId = String(row._id)
+    const current = selectionRef.current
+    if (current.selectedIds.has(rowId)) return [...current.selectedIds]
+    current.clear()
+    return [rowId]
+  }, [])
+
   useLayoutEffect(() => {
     const previousColumnCount = previousColumnCountRef.current
     const layoutChanged =
@@ -506,13 +674,17 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     previousColumnCountRef.current = columnCount
     previousLayoutFieldsRef.current = table.fields
     previousViewPropertiesRef.current = view.properties
-    if (!layoutChanged) return
+    if (!layoutChanged) {
+      // Replayed layout effects must also repair already-stale measurements.
+      resetEidosFileVirtualizerMeasurements(rowVirtualizer)
+      return
+    }
     const columnCountChanged =
       previousColumnCount !== null && previousColumnCount !== columnCount
     const targetWindow = scrollContainerRef.current?.ownerDocument.defaultView
     const suppressAdjustment = suppressRelayoutScrollAdjustmentRef.current
     if (!columnCountChanged) {
-      rowVirtualizer.measure()
+      resetEidosFileVirtualizerMeasurements(rowVirtualizer)
       return
     }
     relayoutCleanupRef.current?.()
@@ -524,7 +696,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     const targetRowIndex = Math.floor(
       visibleAnchorIndexRef.current / columnCount
     )
-    rowVirtualizer.measure()
+    resetEidosFileVirtualizerMeasurements(rowVirtualizer)
     if (!targetWindow) {
       rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
       return
@@ -679,17 +851,42 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   }
 
   const deleteRecord = async (row: EidosFileRow) => {
-    if (disabled || !onDeleteRow) return
-    await onDeleteRow(row)
-    const rowId = String(row._id)
+    const target = deleteTarget
+    if (
+      !target ||
+      target.scope !== actionScopeRef.current ||
+      disabled ||
+      loading ||
+      loadedGeneration !== generationRef.current ||
+      !mountedRef.current
+    )
+      throw new Error("Record deletion is temporarily unavailable")
+    if (target.rowIds.length > 1) {
+      if (!onDeleteRowIds)
+        throw new Error("Selected record deletion is unavailable")
+      const result = await onDeleteRowIds(target.rowIds)
+      if (!result || result.deletedCount !== target.rowIds.length)
+        throw new Error(
+          "The deletion result did not match the selected records. Refresh before retrying."
+        )
+    } else {
+      if (!onDeleteRow) throw new Error("Record deletion is unavailable")
+      await onDeleteRow(row)
+    }
+    if (target.scope !== actionScopeRef.current || !mountedRef.current) return
+    selectionRef.current.remove(target.rowIds)
+    const rowIds = new Set(target.rowIds)
     setRowWindow((current) => ({
       ...current,
-      rows: current.rows.filter((candidate) => String(candidate._id) !== rowId),
-      total: Math.max(0, current.total - 1),
+      rows: current.rows.filter(
+        (candidate) => !rowIds.has(String(candidate._id))
+      ),
+      total: Math.max(0, current.total - rowIds.size),
     }))
-    const nextTotal = Math.max(0, total - 1)
+    const nextTotal = Math.max(0, total - rowIds.size)
     onRowCountChange?.(nextTotal)
-    if (inspectedRow && String(inspectedRow._id) === rowId) closeInspectorRow()
+    if (inspectedRow && rowIds.has(String(inspectedRow._id)))
+      closeInspectorRow()
   }
 
   return (
@@ -710,8 +907,12 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         data-eidos-file-column-count={columnCount}
         data-eidos-file-window-size={rows.length}
         data-eidos-file-window-start={rowWindow.startOffset}
+        data-eidos-file-selection-count={selection.selectedIds.size}
+        tabIndex={0}
+        aria-label={t("{view} records", { view: view.name })}
         aria-busy={loading || loadingMore}
-        className="relative min-w-0 flex-1 overflow-y-auto p-4"
+        className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+        style={selection.marquee ? { userSelect: "none" } : undefined}
       >
         {loading && rows.length === 0 ? (
           <div
@@ -753,6 +954,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           </div>
         ) : (
           <div
+            ref={cardListRef}
             className="relative"
             role="list"
             aria-label={t("{view} records", { view: view.name })}
@@ -781,15 +983,76 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   view={view}
                   layout={cardLayout}
                   focusedRowId={focusedRowId}
-                  canDelete={!disabled && onDeleteRow !== undefined}
+                  selectedRowIds={selection.selectedIds}
+                  canDelete={
+                    !disabled &&
+                    !loading &&
+                    loadedGeneration === generationRef.current &&
+                    onDeleteRow !== undefined
+                  }
+                  getActionRowIds={getActionRowIds}
+                  actionScope={actionScope}
+                  onDeleteRowIds={
+                    !disabled &&
+                    !loading &&
+                    loadedGeneration === generationRef.current &&
+                    onDeleteRowIds
+                      ? requestDeleteSelection
+                      : undefined
+                  }
                   measureElement={rowVirtualizer.measureElement}
                   onOpen={openInspectorRow}
-                  onDelete={setDeleteRow}
+                  onDelete={requestDelete}
                 />
               )
             })}
           </div>
         )}
+        {selection.marquee ? (
+          <div
+            data-eidos-file-gallery-marquee
+            aria-hidden="true"
+            className="pointer-events-none absolute z-20 border border-ring bg-ring/15"
+            style={{
+              left: selection.marquee.left,
+              top: selection.marquee.top,
+              width: selection.marquee.right - selection.marquee.left,
+              height: selection.marquee.bottom - selection.marquee.top,
+            }}
+          />
+        ) : null}
+        {selection.selectedIds.size > 0 ? (
+          <div className="pointer-events-none sticky bottom-3 z-20 flex h-0 items-end justify-center">
+            <div className="pointer-events-auto flex min-h-8 max-w-full items-center gap-2 rounded-md border bg-background px-2 text-xs shadow-sm">
+              <span
+                className="min-w-0 py-1"
+                role="status"
+                aria-live={selection.marquee ? "off" : "polite"}
+              >
+                {t("Selected · {count}", { count: selection.selectedIds.size })}
+                {deleteLimitExceeded ? (
+                  <span className="block text-muted-foreground">
+                    {t("Select {count} or fewer records to delete", {
+                      count: GALLERY_BATCH_DELETE_LIMIT,
+                    })}
+                  </span>
+                ) : null}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 px-2 text-xs text-foreground"
+                onClick={() => {
+                  selection.clear()
+                  scrollContainerRef.current?.focus({ preventScroll: true })
+                }}
+              >
+                {t("Clear")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {loadingMore ? (
           <div
             data-eidos-file-gallery-progress
@@ -864,13 +1127,28 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             onSearchRelation={onSearchRelation}
           />
         ) : null)}
-      {onDeleteRow ? (
+      {onDeleteRow || onDeleteRowIds ? (
         <EidosFileRecordDeleteDialog
-          row={deleteRow}
+          undoableDelete={undoableDelete}
+          key={deleteTarget?.requestId ?? "closed"}
+          row={deleteTarget?.row ?? null}
+          count={deleteTarget?.rowIds.length ?? 1}
           fields={table.fields}
-          disabled={disabled}
+          disabled={
+            disabled ||
+            loading ||
+            loadedGeneration !== generationRef.current ||
+            (!!deleteTarget &&
+              (deleteTarget.scope !== actionScope ||
+                (deleteTarget.rowIds.length > 1
+                  ? !onDeleteRowIds
+                  : !onDeleteRow)))
+          }
           onOpenChange={(open) => {
-            if (!open) setDeleteRow(null)
+            if (!open)
+              setDeleteTarget((current) =>
+                current === deleteTarget ? null : current
+              )
           }}
           onDelete={deleteRecord}
           onError={onError}

@@ -916,6 +916,7 @@
   "此文件有未保存草稿，请先打开并保存草稿再重命名": "This file has an unsaved draft. Open and save it before renaming.",
   "此文件请从资料页打开": "Open this file from Files",
   "此视图的查询暂不受当前 Runtime 支持": "This view query is not supported by the current Runtime yet",
+  "此视图的查询或日历显示规则暂不受原生界面支持，请使用文件编辑器打开": "This native screen does not support this view's query or calendar display rules. Open it in the file editor.",
   "此链接文件暂不支持预览，请从文件列表导出": "This linked file cannot be previewed yet. Export it from the file list.",
   "没有待恢复的下载": "No download to resume",
   "版本操作失败": "Version operation failed",

@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from "react"
+import { useEidosFileCreationContext } from "../eidos-file-temporal-defaults"
+import { eidosFileCalendarDateRangeIntervals } from "@eidos.space/eidos-file"
 import type {
   EidosFileFieldInfo,
   EidosFileFilterGroup,
@@ -37,15 +39,53 @@ export function eidosFileCalendarRangeFilter(
   current: EidosFileFilterGroup | null | undefined,
   field: EidosFileFieldInfo,
   range: EidosFileCalendarRange,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): EidosFileFilterGroup {
   const dateOnly = eidosFileCalendarFieldType(field) === "date"
+  if (!dateOnly && calendarTimeZoneData) {
+    const intervals = eidosFileCalendarDateRangeIntervals(
+      localDateValue(range.start),
+      localDateValue(range.end),
+      timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      calendarTimeZoneData
+    )
+    return {
+      type: "group",
+      conjunction: "and",
+      children: [
+        ...(current ? [current] : []),
+        {
+          type: "group",
+          conjunction: "or",
+          children: intervals.map(([start, end]) => ({
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: eidosFileFieldKey(field),
+                operator: "greater-than-or-equal",
+                value: start,
+              },
+              {
+                type: "rule",
+                field: eidosFileFieldKey(field),
+                operator: "less-than",
+                value: end,
+              },
+            ],
+          })),
+        },
+      ],
+    }
+  }
   const rangeStart = dateOnly
     ? undefined
-    : eidosFileInstantFromWallDate(range.start, timeZone)
+    : eidosFileInstantFromWallDate(range.start, timeZone, calendarTimeZoneData)
   const rangeEnd = dateOnly
     ? undefined
-    : eidosFileInstantFromWallDate(range.end, timeZone)
+    : eidosFileInstantFromWallDate(range.end, timeZone, calendarTimeZoneData)
   if (!dateOnly && (!rangeStart || !rangeEnd)) {
     throw new Error("The Calendar range has no unambiguous time-zone boundary")
   }
@@ -75,7 +115,8 @@ export function eidosFileCalendarRangeFilter(
 }
 
 function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
-  const { timeZone } = useEidosFileUI()
+  const creationContext = useEidosFileCreationContext()
+  const { timeZone, calendarTimeZoneData } = useEidosFileUI()
   const {
     source,
     table,
@@ -100,7 +141,8 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
           query.filter,
           field,
           range,
-          timeZone
+          timeZone,
+          calendarTimeZoneData
         ),
       }
       const projection = {
@@ -125,7 +167,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         nextCursor: page.nextCursor ?? null,
       }
     },
-    [labelField, query, source, table.table.id, timeZone]
+    [labelField, query, source, table.table.id, timeZone, calendarTimeZoneData]
   )
   const loadDayTotals = useCallback(
     async (field: EidosFileFieldInfo, range: EidosFileCalendarRange) => {
@@ -146,7 +188,8 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
             query.filter,
             field,
             range,
-            timeZone
+            timeZone,
+            calendarTimeZoneData
           ),
         }
       )
@@ -158,7 +201,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         )
       )
     },
-    [query, source, table.table.id, timeZone]
+    [query, source, table.table.id, timeZone, calendarTimeZoneData]
   )
   const loadPages = useCallback(
     async (
@@ -175,7 +218,8 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
             query.filter,
             field,
             range,
-            timeZone
+            timeZone,
+            calendarTimeZoneData
           ),
         })),
         limit,
@@ -195,7 +239,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
         })) ?? null
       )
     },
-    [source, table.table.id, query, timeZone, labelField]
+    [source, table.table.id, query, timeZone, labelField, calendarTimeZoneData]
   )
   const editCell = useCallback(
     async (
@@ -213,14 +257,32 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
   )
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, day: Date) => {
-      const value = eidosFileCalendarCreateValue(field, day, timeZone)
-      const result = await source.insertRow(table.table.id, {
-        ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
-      })
+      const value = eidosFileCalendarCreateValue(
+        field,
+        day,
+        timeZone,
+        calendarTimeZoneData
+      )
+      const result = await source.insertRow(
+        table.table.id,
+        {
+          ...(value === undefined ? {} : { [eidosFileFieldKey(field)]: value }),
+        },
+        creationContext,
+        query
+      )
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id, timeZone]
+    [
+      onMutation,
+      source,
+      table.table.id,
+      timeZone,
+      calendarTimeZoneData,
+      creationContext,
+      query,
+    ]
   )
   const searchRelation = useCallback(
     (field: EidosFileFieldInfo, relationQuery: string) =>
@@ -273,6 +335,7 @@ function EidosFileCalendarRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       table={table}
+      undoableDelete={props.canUndoDelete}
       recordFocus={props.recordFocus}
       view={view}
       disabled={disabled}

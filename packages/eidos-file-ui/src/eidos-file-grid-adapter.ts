@@ -15,6 +15,7 @@ import {
   encodeEidosFileMultiSelectValues,
   encodeEidosFileRelationIds,
   isEidosFileUuid,
+  projectEidosFileCalendarInstant,
 } from "@eidos.space/eidos-file"
 import {
   GridCellKind,
@@ -35,6 +36,7 @@ import {
   isOptionalEidosFileSystemField,
 } from "./eidos-file-field-visibility"
 import { formatEidosFileGridDate } from "./eidos-file-grid-date-format"
+import { eidosFileResolvedTimeZone } from "./eidos-file-date-time"
 import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
@@ -161,7 +163,8 @@ export function eidosFileValueToGridCell(
   unavailableRelationTitle = "Unavailable record",
   allowWrapping = false,
   timeZone?: string,
-  codeFontFamily?: string
+  codeFontFamily?: string,
+  calendarTimeZoneData?: string | null
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const elementType = eidosFileLookupListElementType(field)
@@ -174,7 +177,8 @@ export function eidosFileValueToGridCell(
         unavailableRelationTitle,
         allowWrapping,
         timeZone,
-        codeFontFamily
+        codeFontFamily,
+        calendarTimeZoneData
       )
       return { ...cell, allowOverlay: false }
     }
@@ -187,7 +191,8 @@ export function eidosFileValueToGridCell(
         unavailableRelationTitle,
         allowWrapping,
         timeZone,
-        codeFontFamily
+        codeFontFamily,
+        calendarTimeZoneData
       )
       return { ...cell, allowOverlay: false }
     }
@@ -216,7 +221,12 @@ export function eidosFileValueToGridCell(
       allowWrapping,
       readonly: true,
       data: typeof value === "string" ? value : "[]",
-      displayData: eidosFileLookupListText(lookupRow, field, timeZone),
+      displayData: eidosFileLookupListText(
+        lookupRow,
+        field,
+        timeZone,
+        calendarTimeZoneData
+      ),
     }
   }
   if (field.type === "formula" || field.type === "lookup") {
@@ -243,7 +253,8 @@ export function eidosFileValueToGridCell(
       unavailableRelationTitle,
       allowWrapping,
       timeZone,
-      codeFontFamily
+      codeFontFamily,
+      calendarTimeZoneData
     )
     return { ...cell, allowOverlay: false }
   }
@@ -329,7 +340,19 @@ export function eidosFileValueToGridCell(
   ) {
     const date = dateValue(value)
     const dateOnly = field.type === "date"
-    const cellReadonly = readonly || isOptionalEidosFileSystemField(field)
+    const outsideProfile =
+      date &&
+      !dateOnly &&
+      calendarTimeZoneData &&
+      !projectEidosFileCalendarInstant(
+        date.toISOString(),
+        eidosFileResolvedTimeZone(timeZone),
+        calendarTimeZoneData
+      )
+    const cellReadonly =
+      readonly ||
+      isOptionalEidosFileSystemField(field) ||
+      Boolean(outsideProfile)
     return {
       kind: GridCellKind.Custom,
       allowOverlay: !cellReadonly,
@@ -345,15 +368,27 @@ export function eidosFileValueToGridCell(
           ? formatEidosFileGridDate(
               date,
               dateOnly ? "date" : "datetime-local",
-              timeZone
+              timeZone,
+              calendarTimeZoneData
             )
           : "",
         format: dateOnly ? "date" : "datetime-local",
         ...(dateOnly || !timeZone ? {} : { timeZone }),
+        ...(dateOnly || !calendarTimeZoneData ? {} : { calendarTimeZoneData }),
       },
     }
   }
-  if (field.type === "number" || field.type === "integer") {
+  if (field.type === "integer") {
+    const text = scalarText(value)
+    return {
+      kind: GridCellKind.Text,
+      allowOverlay: !readonly,
+      readonly,
+      data: text,
+      displayData: text,
+    }
+  }
+  if (field.type === "number") {
     const number =
       value === null ||
       value === undefined ||
@@ -508,6 +543,13 @@ export function gridCellToEidosFileValue(
     cell.kind === GridCellKind.Uri ||
     cell.kind === GridCellKind.Markdown
   ) {
+    if (field.type === "integer" && cell.data.trim() !== "") {
+      const text = cell.data.trim()
+      // Runtime owns range/field validation; never round an Int64 through Number.
+      return /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(text)
+        ? BigInt(text)
+        : cell.data
+    }
     return cell.data === "" ? null : cell.data
   }
   const raw = "data" in cell ? cell.data : null

@@ -124,6 +124,44 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
+  it("preserves legacy record settings as opaque metadata during Table updates", () => {
+    const target = filePath()
+    let runtime = createEidosFile(target, {
+      defaultTable: {
+        name: "Tasks",
+        fields: [{ name: "Title", type: "text" }],
+      },
+    })
+    const table = runtime.listTables()[0]!
+    const read = () =>
+      JSON.parse(
+        runtime.connection.get<{ settings_json: string }>(
+          `SELECT settings_json FROM ${EIDOS_FILE_TABLES_TABLE} WHERE id = ?`,
+          [table.id]
+        )!.settings_json
+      ) as Record<string, unknown>
+    try {
+      runtime.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET settings_json = ? WHERE id = ?`,
+        ['{"hideSystemFieldsInRecords":true,"vendorSetting":"kept"}', table.id]
+      )
+      runtime.close()
+      runtime = openEidosFile(target)
+      runtime.updateTable(table.id, { icon: "document" })
+      expect(read()).toEqual({
+        vendorSetting: "kept",
+        icon: "document",
+        hideSystemFieldsInRecords: true,
+      })
+      runtime.close()
+      runtime = openEidosFile(target)
+      expect(read().hideSystemFieldsInRecords).toBe(true)
+      expect(runtime.validate().valid).toBe(true)
+    } finally {
+      runtime.close()
+    }
+  })
+
   it("keeps an optional Markdown Content Field constrained to ordinary Text Fields", () => {
     const target = filePath()
     let runtime = createEidosFile(target, {

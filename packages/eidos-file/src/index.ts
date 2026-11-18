@@ -47,4 +47,13 @@ export {
   normalizeEidosFileInstant,
 } from "./temporal"
 export * from "./types"
+export {
+  assertEidosFileTemporalDefault,
+  eidosFileTemporalDefaultValue,
+  type EidosFileCreationContext,
+} from "./temporal-defaults"
 export * from "./validation"
+export * from "./calendar-day"
+export * from "./calendar-period"
+export * from "./calendar-window"
+export * from "./calendar-query-upgrade"

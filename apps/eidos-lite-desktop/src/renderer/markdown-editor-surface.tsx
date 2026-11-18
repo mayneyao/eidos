@@ -125,6 +125,7 @@ export function MarkdownEditorSurface({
   const [focusAfterModeSwitch, setFocusAfterModeSwitch] = useState(false)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const previousDocumentKeyRef = useRef(documentKey)
+  const ownerPath = assetDocumentPath ?? relativePath
   const imageAttachments = useMarkdownImageAttachments(assetDocumentPath)
   const importImage = useCallback<MarkdownEditorPasteImageHandler>(
     async (request) => {
@@ -186,21 +187,25 @@ export function MarkdownEditorSurface({
         const targetPath = query.slice(0, hash)
         const entry = targetPath
           ? await resolveObsidianSpaceEntry(
-              relativePath,
+              ownerPath,
               { path: targetPath, syntax: "wikilink" },
               window.eidosLite.searchSpacePaths
             )
-          : { relativePath }
-        if (!entry || signal.aborted || !/\.md$/iu.test(entry.relativePath))
+          : { relativePath: ownerPath }
+        const currentDocument = entry?.relativePath === ownerPath
+        if (
+          !entry ||
+          signal.aborted ||
+          (!currentDocument && !/\.(?:md|markdown)$/iu.test(entry.relativePath))
+        )
           return []
-        const preview =
-          entry.relativePath === relativePath
-            ? {
-                type: "text",
-                content: content,
-                truncated: false,
-              }
-            : await window.eidosLite.previewTextFile(entry.relativePath)
+        const preview = currentDocument
+          ? {
+              type: "text",
+              content: content,
+              truncated: false,
+            }
+          : await window.eidosLite.previewTextFile(entry.relativePath)
         if (signal.aborted || preview.type !== "text" || preview.truncated)
           return []
         const { markdownReferenceTargets } =
@@ -214,7 +219,10 @@ export function MarkdownEditorSurface({
                 item.target.startsWith(filter))
           )
           .map((item) => ({
-            path: `/${entry.relativePath}${item.target}`,
+            path:
+              inputProfile === "fragment" && currentDocument
+                ? item.target
+                : `/${entry.relativePath}${item.target}`,
             title: item.title,
           }))
       }
@@ -243,7 +251,7 @@ export function MarkdownEditorSurface({
               }
             : {}),
         }))
-      const missing = missingMarkdownNotePath(relativePath, {
+      const missing = missingMarkdownNotePath(ownerPath, {
         path: query,
         syntax: "wikilink",
       })
@@ -267,7 +275,7 @@ export function MarkdownEditorSurface({
         })
       return candidates
     },
-    [relativePath, content, t]
+    [ownerPath, content, t, inputProfile]
   )
 
   useEffect(() => {

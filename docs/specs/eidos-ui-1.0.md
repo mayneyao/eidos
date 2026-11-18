@@ -167,6 +167,16 @@ string; its Field descriptor supplies the logical type.
 
 ## 5. Bootstrap, capability negotiation, and exact clients
 
+### Calendar consumer compatibility
+
+A UI that understands calendar-period opts in explicitly with
+`calendarQueryVersion: 2` on schema reads and View mutations. Reusable data
+sources, kernels and transports default to no declaration. An SDK upgrade alone
+must not make a legacy UI editable. Unsupported queries remain opaque and block
+query execution, Apply, and duplication rather than becoming empty filters.
+The upgrade preview includes the file compatibility consequence specified by
+Runtime; recovery does not restore compatibility with older Eidos versions.
+
 ### 5.1 RuntimeClient
 
 The following generated mirror of Eidos Runtime's language-neutral binding is
@@ -1250,11 +1260,29 @@ record page: the Record Label supplies the page title, other Fields remain
 compact editable metadata, and the Content Field is removed from that generic
 list and receives a dedicated Markdown preview/source editor.
 
+Records opened from a saved View MUST use its property visibility and order.
+The Host MAY provide a device setting to always hide system properties in
+records. This preference MUST be stored outside the Eidos File and MUST also
+apply when temporarily revealing properties. A Table setting has no effect on
+this preference. Read-only business fields follow the View layout.
+
+Record property schema actions MUST identify their Table-wide effect and retain
+the canonical conversion/deletion confirmations. A single disclosure SHOULD
+collapse the whole properties section. Eligible properties hidden by the View
+MUST have a temporary reveal in the record that leaves the saved layout intact.
+Disclosures MUST preserve active edits, keyboard focus, and the Content editor.
+
 Markdown presentation is generated and non-canonical. Raw HTML and unsafe URL
 schemes MUST remain inert; remote images MUST NOT trigger ambient network
 fetches. External links activate only through the Host's explicit URL
 activation boundary. Editing commits the underlying Text value through the
 normal atomic row-mutation and optimistic-state rules.
+
+A Host MAY provide the optional UI Host callback `activateMarkdownLink` for
+Content Markdown navigation, separately from external `activateUrl`. The Host
+owns the Content file's resource base and granted authority. Relative body
+references MUST NOT widen ordinary File-entry authorization or implicitly grant
+parent-directory access to a Host without an explicit resource root.
 
 Every user-facing Field-type selector, including create, conversion, CSV
 mapping, and Formula result/display controls, MUST pair the localized type label
@@ -1287,6 +1315,36 @@ metadata mutation. Multi-select MUST NOT expose this control. The UI does not
 pre-fill a draft cell to simulate the behavior: Runtime applies the default
 only when a create mutation omits the Field.
 
+Writable stored Date/Datetime Field settings MUST offer **No default** and
+**Current date** / **Current time** when Runtime advertises
+`temporalDefaultsVersion:1`. New-field and existing-field settings persist
+`defaultValue:"now"` or null through revision-checked schema operations.
+Created at, Updated at, derived and read-only Fields MUST NOT offer this control.
+Each ordinary create passes the current application time zone and portable
+profile as `creationContext`; explicitly selected Calendar dates take priority.
+An unsaved Form/record draft previews defaults using the canonical evaluator
+with one retained reference instant. A rerender, application time-zone change,
+or failed save/retry MUST NOT reset edited values or re-evaluate the draft.
+Explicit null/clear remains empty. Starting a new draft evaluates anew. Defaulted
+values are ordinary editable values after creation. Existing/loading records,
+imports, and updates MUST NOT be defaulted by the UI.
+
+Ordinary View creation in Grid, Gallery, Calendar, and Kanban MUST capture the
+current applied filter and execution preferences for that creation. With
+`viewCreationDefaultsVersion:1`, it passes them through the shared data source
+to Runtime as `creationQuery` and `calendar`. The UI MUST NOT implement its own
+filter coercion. An older Runtime without the capability rejects filtered
+creation at this boundary instead of silently ignoring the requested defaults.
+Explicit user values/clears and group/Calendar values take priority over View
+inference, which takes priority over Field defaults. New values remain editable.
+Changing View, filter, Table, or File MUST NOT retarget an in-flight create or
+apply defaults to existing records. Ordinary creation without a filter retains
+its existing behavior. A View with no safe inferred values may create a record
+outside its filter; it MUST NOT gain an exception to normal query membership.
+Form's unsaved local preview and a host-owned draft without a captured View
+creation context do not infer View values. Undo/redo restores saved values,
+never reruns creation inference or a temporal default.
+
 An explicit Create option action in a Select or Multi-select editor first
 commits the complete updated Field option catalog. Only after that metadata
 mutation succeeds may UI submit the cell value against the returned revision.
@@ -1294,6 +1352,29 @@ If the catalog mutation is rejected or stale, UI does not issue the cell
 mutation. If the later cell mutation fails, the catalog entry remains a valid
 zero-use option. This user action is distinct from forbidden implicit option
 inference during CSV import.
+
+For `calendarQueryVersion:2`, all shared Grid, card, record/inspector, created/
+updated time, date input and Calendar surfaces use the negotiated portable
+profile with the current application time-zone preference. The default supported
+profile is explicitly 2026f, not the first capability entry. A saved filter MUST
+NOT choose presentation rules or retain another authoritative time zone. Host
+resolves system to an IANA name and sends the same zone/profile and existing
+week-start preference as query execution context. No additional setting is
+introduced. Changing application preferences recomputes filters, display and
+input together, starts a new root and invalidates old page/cursor caches without
+rewriting stored dates, instants or View conditions.
+
+For the same displayed calendar date, Date literal membership and Datetime
+projection membership agree. Projection and inverse wall-clock binding use
+canonical Runtime rules rather than host offsets. Context changes preserve
+drafts, focus and component identity. Saving an unchanged value retains its
+original instant precision; gap/fold input requires an unambiguous instant.
+Values outside portable rule years display their original canonical value,
+with editing explicitly unavailable rather than failing the row page or using
+host rules. Unavailable Runtime/profile combinations preserve the query and show
+unsupported state; they MUST NOT render a successful partial or unfiltered View.
+Native UI consumes the same canonical projection/inverse bridge or explicitly
+restricts calendar-period Views while preserving their data.
 
 Date input sends the calendar value unchanged. Datetime display uses a
 user- or Host-selected IANA time-zone identifier and clearly exposes it near
@@ -1680,18 +1761,47 @@ without changing their membership. A Host-supplied custom filter editor MAY
 retain its specialized controls.
 
 Date and Datetime filter controls MUST expose **is**, **is before**, **is
-after**, **is on or before**, **is on or after**, **is between**, **is relative
-to today**, **is empty**, and **is not empty**. **Is between** accepts an
-ordered inclusive lower and upper value and emits `between`.
+after**, **is on or before**, **is on or after**, **is between**, **is relative to today**, **is empty**, and **is not empty**. Is between emits the inclusive
+`between` predicate. There is one relative-date entry and no parallel UTC range,
+calendar-day entry, per-condition zone selector, frozen-zone hint, rules version,
+or permanent technical tip.
 
-**Is relative to today** exposes a direction (**past**, **next**, or **this**)
-and a unit (**day**, **week**, **month**, or **year**) and emits one
-`relative-date` leaf. The control persists direction and unit in the View and
-MUST NOT freeze the condition into absolute dates. Reopening it preserves both
-selections while Runtime remains authoritative for the reference instant,
-calendar-period rules, and inclusive boundaries. UI SHOULD explain that the
-result updates with the current date and MAY preview the computed interval in
-a calendar without making that preview canonical state.
+Relative date shares Past / Next / This and day / week / month / year selectors.
+Past and Next show a positive integer count between them; This hides it and
+switching from This resets it to 1. This emits calendar-period offset 0;
+Past/Next emit calendar-window, including both endpoint dates. Past 1 day
+includes yesterday and today; Next 1 day includes today and tomorrow. Month/year
+shifts clamp to the target month end. View and Explorer use the same controls
+and canonical Runtime helpers. Advanced filters retain a horizontal rule row.
+Single-field configuration uses a 260 CSS px popover with property/operator
+header, selectors, read-only 42-day calendar range, month navigation and
+“Filter will update with the current date”. Preview uses the application zone
+and week-start preference (Monday default). Existing calendar-period offset ±1
+keeps its full-period meaning and accurate legacy label; opening or editing
+other conditions MUST NOT silently convert it into a window. Window-aware UIs
+explicitly declare calendarWindowVersion 1. Empty/invalid count drafts retain
+the last effective filter, never request unfiltered data. Single-field edits
+save immediately; advanced filters retain their Apply/Cancel transaction.
+The application retains one time-zone setting.
+
+New UI MUST NOT revive old UTC semantics when connected to an older Runtime.
+Retired date queries are locally treated as unsupported even if that Runtime
+reports them supported. Missing version-2 capability prevents creation and
+upgrade. A supported new Runtime rejects old executable queries. Unsupported
+Views retain their complete query, cannot send unfiltered rows/count/groups, and
+cannot apply ordinary filter/sort changes. Only an actually retired query with a
+complete safe preview exposes **Update date filters**. The localized preview
+shows changed meanings, such as Past 7 days → Last week and Today (saved time
+zone) → Today using current settings, before the action. The action performs the
+canonical atomic upgrade and preserves its recovery receipt. Arbitrary non-date
+unknown queries offer no date upgrade. Ordinary new filters expose no migration
+or version tools.
+
+Filter rows keep Field, operator, value and Delete aligned at a compact common
+height when their text fits. Long operator text remains readable and can grow
+vertically rather than overflowing a fixed-height trigger. Narrow filter
+containers place values on a second row without horizontal overflow. Secondary
+controls do not create large empty columns or expand the popover.
 
 The common Fields control and the applicable Grid, Card, Kanban, Calendar, and
 Form controls from Eidos Standard Views 1.0 are required Editor surfaces, not

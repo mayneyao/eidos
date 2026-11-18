@@ -156,7 +156,7 @@ describe("real editor state across host materialization rekey", () => {
     expect(pending.size).toBe(0)
   })
 
-  it("reports invalid field input until corrected or explicitly unmounted; rekey loses it", async () => {
+  it("reports the inline record property draft without saving on rekey", async () => {
     const save = vi.fn()
     const render = async (key: number) =>
       act(async () =>
@@ -173,21 +173,20 @@ describe("real editor state across host materialization rekey", () => {
       )
     await render(0)
     expect(pending.size).toBe(0)
-    const editor = host.querySelector<HTMLInputElement>(
-      'input[aria-label="Score"]'
-    )!
+    const scoreInput = () =>
+      host.querySelector<HTMLInputElement>('input[aria-label="Score"]')!
+    const editor = scoreInput()
     await act(async () => {
       editor.focus()
-      input(editor, "invalid")
-      editor.blur()
+      input(editor, "12.5")
     })
     expect(pending.size).toBeGreaterThan(0)
     expect(save).not.toHaveBeenCalled()
-    expect(editor.value).toBe("invalid")
+    expect(editor.value).toBe("12.5")
     await render(1)
-    expect(
-      host.querySelector<HTMLInputElement>('input[aria-label="Score"]')!.value
-    ).toBe("1")
+    expect(scoreInput()).not.toBe(editor)
+    expect(scoreInput().value).toBe("1")
+    expect(save).not.toHaveBeenCalled()
     expect(pending.size).toBe(0)
   })
 

@@ -8,6 +8,13 @@ import type {
 } from "../runtime-contract"
 import type { CancellationPort } from "../protocol-types"
 import { QuickJsConnectionPort } from "./port"
+import {
+  eidosFileCalendarDayBounds,
+  projectEidosFileCalendarInstant,
+  resolveEidosFileCalendarInstant,
+} from "../calendar-day"
+import { expectCalendarDayQueryConformance } from "../calendar-day.conformance"
+import { expectCalendarWindowConformance } from "../calendar-window.conformance"
 
 const cancellation: CancellationPort = {
   cancelled: () => false,
@@ -19,12 +26,12 @@ const context = (requestId: string): RequestContext => ({
   deadlineMilliseconds: 30_000,
 })
 
-const environment = (): RuntimeEnvironment => {
+const environment = (reference?: { instant: string }): RuntimeEnvironment => {
   let monotonic = 0
   let entropy = 0
   return {
     clock: {
-      nowInstant: () => "2026-07-22T00:00:00.000Z",
+      nowInstant: () => reference?.instant ?? "2026-07-22T00:00:00.000Z",
       nowMilliseconds: () => ++monotonic,
     },
     entropy: {
@@ -46,13 +53,14 @@ const environment = (): RuntimeEnvironment => {
  */
 export async function runSelfTest(): Promise<string> {
   const checks: string[] = []
+  const calendarReference = { instant: "2026-07-22T00:00:00.000Z" }
   const port = new QuickJsConnectionPort()
   globalThis.__eidos_scalar_dispatch = (name, argsJson) =>
     port.dispatchScalar(name, argsJson)
 
   const binding = await Runtime.create(
     port,
-    environment(),
+    environment(calendarReference),
     { title: "Groups" },
     { cancellation }
   )
@@ -315,6 +323,23 @@ export async function runSelfTest(): Promise<string> {
       throw new Error("Record neighbors must cross unloaded page boundaries")
     }
     checks.push("record-neighbors")
+    expect(
+      await runtime.getRowIndex!(
+        { tableId, rowId: firstItemId, query: {} },
+        context("row-index")
+      )
+    ).toBe("0")
+    checks.push("row-index")
+    expect(
+      port.get(`SELECT
+      eidos_source_instant_key('2023-11-14T22:13:20.124001+00:00') > eidos_source_instant_key('2023-11-14T22:13:20.124Z'),
+      eidos_source_instant_key('2023-11-15T06:13:20.124001+08:00') = eidos_source_instant_key('2023-11-14T22:13:20.124001Z')
+    `).row
+    ).toEqual([
+      { tag: "integer", value: "1" },
+      { tag: "integer", value: "1" },
+    ])
+    checks.push("exact-source-instant-comparison")
 
     const fileSearch = await runtime.queryRows(
       {
@@ -747,6 +772,244 @@ export async function runSelfTest(): Promise<string> {
       [true],
     ])
     checks.push("checkbox-null-to-false")
+
+    const calendarBase = await runtime.getSnapshot({}, context("calendar-base"))
+    const calendarPlan = await runtime.preflightSchema(
+      {
+        expectedRevision: calendarBase.revision,
+        change: {
+          kind: "create-table",
+          clientKey: "calendar",
+          name: "Calendar conformance",
+          position: "99",
+          labelFieldClientKey: "label",
+          fields: [
+            { clientKey: "label", name: "Label", kind: "text", position: "0" },
+            { clientKey: "date", name: "Date", kind: "date", position: "1" },
+            {
+              clientKey: "instant",
+              name: "Instant",
+              kind: "datetime",
+              position: "2",
+            },
+          ],
+        },
+      },
+      context("calendar-plan")
+    )
+    const calendarSchema = await runtime.mutateSchema(
+      {
+        expectedRevision: calendarBase.revision,
+        planToken: calendarPlan.planToken,
+        actionsHash: calendarPlan.actionsHash,
+      },
+      context("calendar-schema")
+    )
+    const calendarId = (key: string) =>
+      calendarSchema.createdObjects.find(
+        (item) => "clientKey" in item && item.clientKey === key
+      )!.id
+    const calendarTable = calendarId("calendar"),
+      label = calendarId("label"),
+      date = calendarId("date"),
+      instant = calendarId("instant")
+    await runtime.mutateRows(
+      {
+        tableId: calendarTable,
+        expectedRevision: calendarSchema.revision,
+        changes: [
+          {
+            kind: "create",
+            clientKey: "today",
+            values: {
+              [label]: "today",
+              [date]: "2026-07-22",
+              [instant]: "2026-07-21T16:00:00.000Z",
+            },
+          },
+          {
+            kind: "create",
+            clientKey: "tomorrow",
+            values: {
+              [label]: "tomorrow",
+              [date]: "2026-07-23",
+              [instant]: "2026-07-22T16:00:00.000Z",
+            },
+          },
+        ],
+      },
+      context("calendar-rows")
+    )
+    for (const fieldId of [date, instant]) {
+      const selected = await runtime.queryRows(
+        {
+          tableId: calendarTable,
+          calendar: {
+            timeZone: "Asia/Shanghai",
+            timeZoneData: "2026f",
+            weekStartsOn: 1,
+          },
+          query: {
+            filter: {
+              op: "calendar-period",
+              fieldId,
+              unit: "day",
+              offset: 0,
+            },
+          },
+          projection: { fields: [label], resolveRelations: [] },
+          limit: 10,
+        },
+        context("calendar-" + fieldId)
+      )
+      expect(selected.rows.map((row) => row.values)).toEqual([["today"]])
+    }
+    const parts = projectEidosFileCalendarInstant(
+      "2026-11-15T23:30:00.123Z",
+      "Africa/Casablanca",
+      "2026f"
+    )!
+    expect(parts).toMatchObject({ day: 15, hour: 23, millisecond: 123 })
+    expect(
+      resolveEidosFileCalendarInstant(parts, "Africa/Casablanca", "2026f")
+    ).toBe("2026-11-15T23:30:00.123Z")
+    expect(
+      eidosFileCalendarDayBounds(
+        { day: "today", timeZone: "America/New_York", timeZoneData: "2026f" },
+        "2026-03-08T12:30:00.000Z"
+      ).intervals
+    ).toEqual([["2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z"]])
+    checks.push("calendar-day-portable-profile")
+    await expectCalendarDayQueryConformance(runtime, (instant) => {
+      calendarReference.instant = instant
+    })
+    checks.push("calendar-period-query-conformance-vectors")
+    await expectCalendarWindowConformance(runtime, (instant) => {
+      calendarReference.instant = instant
+    })
+    checks.push("calendar-window-query-conformance-vectors")
+    const defaultsBase = await runtime.getSnapshot({}, context("defaults-base"))
+    const defaultsPlan = await runtime.preflightSchema(
+      {
+        expectedRevision: defaultsBase.revision,
+        change: {
+          kind: "create-table",
+          clientKey: "defaults",
+          name: "Temporal defaults",
+          position: "101",
+          labelFieldClientKey: "title",
+          fields: [
+            { clientKey: "title", name: "Title", kind: "text", position: "0" },
+            {
+              clientKey: "date",
+              name: "Date",
+              kind: "date",
+              nullable: true,
+              position: "1",
+              settings: { defaultValue: "now" },
+            },
+            {
+              clientKey: "instant",
+              name: "Instant",
+              kind: "datetime",
+              nullable: true,
+              position: "2",
+              settings: { defaultValue: "now" },
+            },
+            {
+              clientKey: "number",
+              name: "Number",
+              kind: "number",
+              nullable: true,
+              position: "3",
+            },
+          ],
+        },
+      },
+      context("defaults-plan")
+    )
+    const defaultsSchema = await runtime.mutateSchema(
+      {
+        expectedRevision: defaultsBase.revision,
+        planToken: defaultsPlan.planToken,
+        actionsHash: defaultsPlan.actionsHash,
+      },
+      context("defaults-schema")
+    )
+    const defaultId = (key: string) =>
+      defaultsSchema.createdObjects.find(
+        (object) => "clientKey" in object && object.clientKey === key
+      )!.id
+    calendarReference.instant = "2026-11-16T16:00:00.123Z"
+    const defaultsRows = await runtime.mutateRows(
+      {
+        tableId: defaultId("defaults"),
+        expectedRevision: defaultsSchema.revision,
+        creationContext: { timeZone: "Asia/Shanghai", timeZoneData: "2026f" },
+        changes: [
+          { kind: "create", clientKey: "first", values: {} },
+          { kind: "create", clientKey: "second", values: {} },
+          {
+            kind: "create",
+            clientKey: "null",
+            values: { [defaultId("date")]: null, [defaultId("instant")]: null },
+          },
+        ],
+        returning: {
+          fields: [defaultId("date"), defaultId("instant")],
+          resolveRelations: [],
+        },
+      },
+      context("defaults-rows")
+    )
+    expect(defaultsRows.returnedRows!.rows.map((row) => row.values)).toEqual([
+      ["2026-11-17", "2026-11-16T16:00:00.123Z"],
+      ["2026-11-17", "2026-11-16T16:00:00.123Z"],
+      [null, null],
+    ])
+    checks.push("temporal-defaults-create-context-and-null")
+    const inferred = await runtime.mutateRows(
+      {
+        tableId: defaultId("defaults"),
+        expectedRevision: defaultsRows.revision,
+        calendar: {
+          timeZone: "Asia/Shanghai",
+          timeZoneData: "2026f",
+          weekStartsOn: 1,
+        },
+        creationContext: { timeZone: "Asia/Shanghai", timeZoneData: "2026f" },
+        creationQuery: {
+          filter: {
+            op: "and",
+            args: [
+              { op: "contains", fieldId: defaultId("title"), value: "213" },
+              { op: "gt", fieldId: defaultId("number"), value: 1 },
+              {
+                op: "lt",
+                fieldId: defaultId("number"),
+                value: 1.0000000000000004,
+              },
+              {
+                op: "calendar-period",
+                fieldId: defaultId("date"),
+                unit: "year",
+                offset: 1,
+              },
+            ],
+          },
+        },
+        changes: [{ kind: "create", clientKey: "inferred", values: {} }],
+        returning: {
+          fields: [defaultId("title"), defaultId("number"), defaultId("date")],
+          resolveRelations: [],
+        },
+      },
+      context("filter-creation-defaults")
+    )
+    expect(inferred.returnedRows!.rows.map((row) => row.values)).toEqual([
+      ["213", 1.0000000000000002, "2027-01-01"],
+    ])
+    checks.push("view-filter-creation-defaults-and-adjacent-number")
     return JSON.stringify({ ok: true, checks })
   } finally {
     await runtime.close(context("close"))

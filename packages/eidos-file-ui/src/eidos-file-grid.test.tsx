@@ -31,6 +31,7 @@ import { EidosFileUIProvider } from "./context"
 import {
   EidosFileGrid,
   type EidosFileGridAppendResult,
+  type EidosFileGridDeleteResult,
   type EidosFileGridRowEdit,
 } from "./eidos-file-grid"
 import { EidosFileEditorShell } from "./eidos-file-editor-shell"
@@ -179,6 +180,32 @@ function createCellEdit(snapshot: EidosFileTableSnapshot = table) {
     row: { ...row, [field.tableColumnName]: value },
     rowCount: snapshot.rowCount,
   }))
+}
+
+function deferredRecord<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
+
+async function editInspectorTitle(container: HTMLElement, value: string) {
+  const title = container.querySelector<HTMLTextAreaElement>(
+    'textarea[aria-label="Title"]'
+  )!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value"
+    )!.set!.call(title, value)
+    title.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+  await act(async () =>
+    title.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+  )
 }
 
 describe("EidosFileGrid", () => {
@@ -2555,128 +2582,315 @@ describe("EidosFileGrid", () => {
     ).toBe(true)
   })
 
-  it("undoes and redoes a deleted record through the asynchronous row command", async () => {
-    let authoritativeRowCount = 250
-    const loadPage = vi.fn((offset: number, limit: number) =>
-      createLoadPage({ ...table, rowCount: authoritativeRowCount })(
-        offset,
-        limit
+  it.each([
+    { entry: "pointer", modifier: "metaKey", rowSelection: false },
+    { entry: "pointer", modifier: "ctrlKey", rowSelection: true },
+    { entry: "keyboard", modifier: "metaKey", rowSelection: true },
+    { entry: "keyboard", modifier: "ctrlKey", rowSelection: false },
+  ] as const)(
+    "undoes row deletion without another click ($entry/$modifier/rows=$rowSelection)",
+    async ({ entry, modifier, rowSelection }) => {
+      let authoritativeRowCount = 250
+      const loadPage = vi.fn((offset: number, limit: number) =>
+        createLoadPage({ ...table, rowCount: authoritativeRowCount })(
+          offset,
+          limit
+        )
       )
-    )
-    const undoApply = vi.fn()
-    const redoApply = vi.fn()
-    undoApply.mockImplementation(async () => {
-      authoritativeRowCount = 250
-      return { rowCountDelta: -1, apply: redoApply }
-    })
-    redoApply.mockImplementation(async () => {
-      authoritativeRowCount = 249
-      return { rowCountDelta: 1, apply: undoApply }
-    })
-    const onRequestDeleteRows = vi.fn(async () => {
-      authoritativeRowCount = 249
-      return {
-        rowCount: 249,
-        undo: { rowCountDelta: 1, apply: undoApply },
-      }
-    })
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          view={table.views[0]}
-          loadPage={loadPage}
-          onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
-          onRequestDeleteRows={onRequestDeleteRows}
-        />
-      )
-      await Promise.resolve()
-    })
-
-    act(() => {
-      mocks.props?.onGridSelectionChange?.({
-        columns: CompactSelection.empty(),
-        rows: CompactSelection.empty(),
-        current: {
-          cell: [0, 0],
-          range: { x: 0, y: 0, width: 1, height: 1 },
-          rangeStack: [],
-        },
+      const undoApply = vi.fn()
+      const redoApply = vi.fn()
+      undoApply.mockImplementation(async () => {
+        authoritativeRowCount = 250
+        return { rowCountDelta: -1, apply: redoApply }
       })
-      mocks.props?.onCellContextMenu?.([0, 0], {
-        bounds: { x: 40, y: 56, width: 180, height: 36 },
-        localEventX: 30,
-        localEventY: 18,
-        preventDefault: vi.fn(),
-      } as never)
-    })
-    const deleteRecord = [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.includes("Delete record")
-    )
-    await act(async () => {
-      deleteRecord?.click()
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(onRequestDeleteRows).toHaveBeenCalledWith([
-      { startIndex: 0, endIndex: 1 },
-    ])
-    expect(mocks.props?.rows).toBe(249)
+      redoApply.mockImplementation(async () => {
+        authoritativeRowCount = 249
+        return { rowCountDelta: 1, apply: undoApply }
+      })
+      const onRequestDeleteRows = vi.fn(async () => {
+        authoritativeRowCount = 249
+        return {
+          rowCount: 249,
+          undo: { rowCountDelta: 1, apply: undoApply },
+        }
+      })
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onRequestDeleteRows={onRequestDeleteRows}
+          />
+        )
+        await Promise.resolve()
+      })
 
-    const gridElement = container.querySelector<HTMLElement>(
-      '[data-testid="glide-grid"]'
-    )!
-    gridElement.focus()
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "z", metaKey: true })
-      )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(undoApply).toHaveBeenCalledOnce()
-    expect(mocks.props?.rows).toBe(250)
-
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "z",
-          metaKey: true,
-          shiftKey: true,
+      // Let the one-time view-open focus complete before the gesture. It must
+      // not accidentally repair the missing menu-close handoff in this test.
+      await act(async () => {
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        )
+      })
+      const gridElement = container.querySelector<HTMLElement>(
+        '[data-testid="glide-grid"]'
+      )!
+      act(() => {
+        gridElement.focus()
+        mocks.props?.onGridSelectionChange?.({
+          columns: CompactSelection.empty(),
+          rows: rowSelection
+            ? CompactSelection.fromSingleSelection(0)
+            : CompactSelection.empty(),
+          current: rowSelection
+            ? undefined
+            : {
+                cell: [0, 0],
+                range: { x: 0, y: 0, width: 1, height: 1 },
+                rangeStack: [],
+              },
         })
+      })
+      act(() => {
+        if (entry === "keyboard") {
+          gridElement.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "F10",
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true,
+            })
+          )
+        } else
+          mocks.props?.onCellContextMenu?.([0, 0], {
+            bounds: { x: 40, y: 56, width: 180, height: 36 },
+            localEventX: 30,
+            localEventY: 18,
+            preventDefault: vi.fn(),
+          } as never)
+      })
+      const deleteRecord = [...document.body.querySelectorAll("button")].find(
+        (button) => button.textContent?.includes("Delete record")
       )
-      await Promise.resolve()
-      await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(redoApply).toHaveBeenCalledOnce()
-    expect(mocks.props?.rows).toBe(249)
+      act(() => {
+        // Native pointer activation focuses the action before it is unmounted.
+        // HTMLElement.click() alone does not reproduce that browser behavior.
+        deleteRecord?.focus()
+        deleteRecord?.click()
+      })
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(onRequestDeleteRows).toHaveBeenCalledWith([
+        { startIndex: 0, endIndex: 1 },
+      ])
+      expect(mocks.props?.rows).toBe(249)
 
-    await act(async () => {
-      root.render(
-        <EidosFileGrid
-          table={table}
-          view={table.views[0]}
-          historyScopeKey="filtered-query"
-          loadPage={loadPage}
-          onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
-          onRequestDeleteRows={onRequestDeleteRows}
-        />
+      expect(document.activeElement).toBe(gridElement)
+
+      // Inputs, menus/dialogs and composition retain keyboard ownership even
+      // with row history available. This includes editable descendants of Grid.
+      for (const kind of [
+        "input",
+        "textarea",
+        "select",
+        "contenteditable",
+        "dialog",
+        "menu",
+      ]) {
+        const owner = document.createElement("div")
+        const input = document.createElement(
+          kind === "dialog" || kind === "menu"
+            ? "button"
+            : kind === "contenteditable"
+              ? "div"
+              : kind
+        )
+        if (kind === "dialog" || kind === "menu")
+          owner.setAttribute("role", kind)
+        if (kind === "contenteditable") {
+          input.setAttribute("contenteditable", "true")
+          input.tabIndex = 0
+        }
+        owner.append(input)
+        gridElement.parentElement!.append(owner)
+        input.focus()
+        expect(document.activeElement).toBe(input)
+        const inputUndo = new KeyboardEvent("keydown", {
+          key: "z",
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        })
+        act(() => input.dispatchEvent(inputUndo))
+        expect(inputUndo.defaultPrevented).toBe(false)
+        expect(undoApply).not.toHaveBeenCalled()
+        owner.remove()
+      }
+      gridElement.focus()
+      for (const options of [{ isComposing: true }, { keyCode: 229 }]) {
+        const composingUndo = new KeyboardEvent("keydown", {
+          key: "z",
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+          ...options,
+        })
+        act(() => gridElement.dispatchEvent(composingUndo))
+        expect(composingUndo.defaultPrevented).toBe(false)
+        expect(undoApply).not.toHaveBeenCalled()
+      }
+      const consumedUndo = new KeyboardEvent("keydown", {
+        key: "z",
+        [modifier]: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      consumedUndo.preventDefault()
+      act(() => gridElement.dispatchEvent(consumedUndo))
+      expect(undoApply).not.toHaveBeenCalled()
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "z",
+            [modifier]: true,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(undoApply).toHaveBeenCalledOnce()
+      expect(mocks.props?.rows).toBe(250)
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: modifier === "metaKey" ? "Z" : "y",
+            [modifier]: true,
+            shiftKey: modifier === "metaKey",
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(redoApply).toHaveBeenCalledOnce()
+      expect(mocks.props?.rows).toBe(249)
+
+      await act(async () => {
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            historyScopeKey="filtered-query"
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onRequestDeleteRows={onRequestDeleteRows}
+          />
+        )
+        await Promise.resolve()
+      })
+      await act(async () => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "z", metaKey: true })
+        )
+        await Promise.resolve()
+      })
+      expect(undoApply).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each(["success", "cancel", "failure", "dialog"] as const)(
+    "does not reclaim focus when a pending deletion settles (%s)",
+    async (outcome) => {
+      const request = deferredRecord<EidosFileGridDeleteResult | void>()
+      const destination = document.createElement(
+        outcome === "dialog" ? "button" : "input"
       )
-      await Promise.resolve()
-    })
-    await act(async () => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      const outside = document.createElement("div")
+      if (outcome === "dialog") outside.setAttribute("role", "dialog")
+      outside.append(destination)
+      const onError = vi.fn()
+      const undoApply = vi.fn()
+      await act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={createLoadPage()}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+            onRequestDeleteRows={() => {
+              if (outcome === "dialog") destination.focus()
+              return request.promise
+            }}
+          />
+        )
       )
-      await Promise.resolve()
-    })
-    expect(undoApply).toHaveBeenCalledOnce()
-  })
+      container.append(outside)
+      await act(async () => {
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        )
+      })
+      act(() =>
+        mocks.props?.onCellContextMenu?.([0, 0], {
+          bounds: { x: 40, y: 56, width: 180, height: 36 },
+          localEventX: 30,
+          localEventY: 18,
+          preventDefault: vi.fn(),
+        } as never)
+      )
+      const action = [
+        ...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+      ].find((button) => button.textContent?.includes("Delete record"))!
+      act(() => {
+        action.focus()
+        action.click()
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      if (outcome !== "dialog") destination.focus()
+      expect(document.activeElement).toBe(destination)
+      const focusCalls = mocks.focus.mock.calls.length
+      await act(async () => {
+        if (outcome === "failure") request.reject(new Error("Delete failed"))
+        else
+          request.resolve(
+            outcome === "success"
+              ? { rowCount: 249, undo: { rowCountDelta: 1, apply: undoApply } }
+              : undefined
+          )
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(document.activeElement).toBe(destination)
+      expect(mocks.focus).toHaveBeenCalledTimes(focusCalls)
+      const key = new KeyboardEvent("keydown", {
+        key: "z",
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      act(() => destination.dispatchEvent(key))
+      expect(key.defaultPrevented).toBe(false)
+      expect(undoApply).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(outcome === "failure" ? 1 : 0)
+    }
+  )
 
   it("restores Grid focus so the cell actions shortcut can be used repeatedly", async () => {
     await act(async () => {
@@ -3879,6 +4093,7 @@ describe("EidosFileGrid", () => {
             loadPage={loadPage}
             locateRow={locateRow}
             inspectedRowId={rowId}
+            recordPresentation="page"
             onInspectedRowChange={onInspectedRowChange}
             onAddRow={vi.fn()}
             onCellEdit={createCellEdit()}
@@ -3903,6 +4118,17 @@ describe("EidosFileGrid", () => {
     ).toBe(inspector)
     expect(locateRow).not.toHaveBeenCalled()
     expect(loadPage).not.toHaveBeenCalled()
+    await act(async () => {
+      inspector!
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Close record details"]'
+        )!
+        .click()
+    })
+    expect(onInspectedRowChange).toHaveBeenCalledExactlyOnceWith(null)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
     await render(null)
     expect(
       container.querySelector('[aria-label="Record details for Write RFC"]')
@@ -3911,7 +4137,483 @@ describe("EidosFileGrid", () => {
     expect(
       container.querySelector('[aria-label="Record details for Row 1"]')
     ).toBeTruthy()
-    expect(onInspectedRowChange).not.toHaveBeenCalled()
+    expect(onInspectedRowChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("retains the inspected record identity while a filtered refresh relocates its row", async () => {
+    let rows = [rowAt(0), rowAt(1)]
+    let refreshing = false
+    let finishLocate!: (index: number | null) => void
+    const locateRow = vi.fn(() =>
+      refreshing
+        ? new Promise<number | null>((resolve) => {
+            finishLocate = resolve
+          })
+        : Promise.resolve(0)
+    )
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const loadInspectorRow = vi.fn(async () => rowAt(0))
+    const save = createCellEdit()
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={locateRow}
+            loadInspectorRow={loadInspectorRow}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={save}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+      '[aria-label="Record details for Write RFC"]'
+    )
+    expect(inspector).not.toBeNull()
+    refreshing = true
+    rows = [rowAt(1)]
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(
+      container.querySelector('[aria-label="Record details for Row 1"]')
+    ).toBeNull()
+    await act(async () => finishLocate(null))
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    await editInspectorTitle(container, "Detached original")
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_0", title: "Write RFC" }),
+      table.fields[0],
+      "Detached original"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "Row 1" })
+  })
+
+  it("keeps the record and editor mounted through a sort reorder and edits its new index", async () => {
+    let rows = [rowAt(0), rowAt(1)]
+    const save = createCellEdit()
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: 2,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={save}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+      '[aria-label="Record details for Write RFC"]'
+    )
+    const input = container.querySelector('textarea[aria-label="Title"]')
+    rows = [rowAt(1), rowAt(0)]
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(container.querySelector('textarea[aria-label="Title"]')).toBe(input)
+    await editInspectorTitle(container, "Sorted original")
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_0" }),
+      table.fields[0],
+      "Sorted original"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "Row 1" })
+    expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+      data: "Sorted original",
+    })
+  })
+
+  it.each(["success", "failure"] as const)(
+    "rejects a late inspector save %s after selecting another record",
+    async (outcome) => {
+      const pending = deferredRecord<EidosFileRowMutationResult>()
+      const save = vi.fn(() => pending.promise)
+      const loadPage = createLoadPage()
+      const render = (id: string) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              loadPage={loadPage}
+              inspectedRowId={id}
+              onCellEdit={save}
+            />
+          )
+        )
+      await render("row_0")
+      await editInspectorTitle(container, "Old save")
+      await render("row_1")
+      await act(async () => {
+        if (outcome === "success")
+          pending.resolve({
+            tableId: table.table.id,
+            row: { ...rowAt(0), title: "Old save" },
+            rowCount: table.rowCount,
+          })
+        else pending.reject(new Error("Old failure"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Row 1"]')
+      ).not.toBeNull()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+        data: "Row 1",
+      })
+    }
+  )
+
+  it.each(["success", "failure"] as const)(
+    "scopes same-ID records to their source and rejects late save %s",
+    async (outcome) => {
+      const ownerA = {},
+        ownerB = {}
+      const oldSave = deferredRecord<EidosFileRowMutationResult>()
+      const newRead = deferredRecord<EidosFileRow | null>()
+      const newPage = deferredRecord<EidosFileRowPage>()
+      const rowA = { ...rowAt(0), title: "Source A" },
+        rowB = { ...rowAt(0), title: "Source B" }
+      const pageA = vi.fn(async (offset: number, limit: number) => ({
+        tableId: table.table.id,
+        offset,
+        limit,
+        total: 1,
+        rows: [rowA],
+      }))
+      const pageB = vi.fn(() => newPage.promise)
+      const readB = vi.fn(() => newRead.promise)
+      const saveA = vi.fn(() => oldSave.promise),
+        saveB = createCellEdit()
+      const render = (second: boolean) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              recordScope={second ? ownerB : ownerA}
+              loadPage={second ? pageB : pageA}
+              loadInspectorRow={second ? readB : undefined}
+              inspectedRowId="row_0"
+              onCellEdit={second ? saveB : saveA}
+            />
+          )
+        )
+      await render(false)
+      await editInspectorTitle(container, "Old source save")
+      await render(true)
+      expect(container.textContent).not.toContain("Source A")
+      expect(container.textContent).not.toContain("Old source save")
+      await act(async () => newRead.resolve(rowB))
+      expect(readB).toHaveBeenCalledOnce()
+      expect(
+        container.querySelector('[aria-label="Record details for Source B"]')
+      ).not.toBeNull()
+      expect(
+        container.querySelector<HTMLButtonElement>(
+          '[aria-label="Next record"]'
+        )!.disabled
+      ).toBe(true)
+      await act(async () => {
+        if (outcome === "success")
+          oldSave.resolve({
+            tableId: table.table.id,
+            row: { ...rowA, title: "Old source save" },
+            rowCount: 1,
+          })
+        else oldSave.reject(new Error("Old source failure"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Source B"]')
+      ).not.toBeNull()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      await editInspectorTitle(container, "New source edit")
+      expect(saveB).toHaveBeenCalledWith(
+        expect.objectContaining({ _id: "row_0", title: "Source B" }),
+        table.fields[0],
+        "New source edit"
+      )
+    }
+  )
+
+  it.each(["locate", "load"] as const)(
+    "rejects an old %s after rapid A → B → C navigation",
+    async (phase) => {
+      const old = deferredRecord<number | null>(),
+        oldRow = deferredRecord<EidosFileRow | null>(),
+        next = deferredRecord<EidosFileRow | null>()
+      const locate = vi.fn((id: string) =>
+        id === "B" && phase === "locate" ? old.promise : Promise.resolve(null)
+      )
+      const load = vi.fn((id: string) =>
+        id === "B" ? oldRow.promise : next.promise
+      )
+      const page = createLoadPage()
+      const onError = vi.fn()
+      const render = (id: string) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              loadPage={page}
+              locateRow={locate}
+              loadInspectorRow={load}
+              inspectedRowId={id}
+              onCellEdit={createCellEdit()}
+              onError={onError}
+            />
+          )
+        )
+      await render("row_0")
+      const inspector = container.querySelector(
+        '[aria-label="Record details for Write RFC"]'
+      )
+      await render("B")
+      await render("C")
+      expect(
+        container.querySelector('[aria-label="Record details for Write RFC"]')
+      ).toBe(inspector)
+      await act(async () =>
+        next.resolve({ _id: "C", title: "Latest C", done: 0 })
+      )
+      await act(async () => {
+        old.resolve(null)
+        if (phase === "load") oldRow.reject(new Error("Old row failed"))
+      })
+      expect(
+        container.querySelector('[aria-label="Record details for Latest C"]')
+      ).toBe(inspector)
+      expect(onError).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(["success", "failure"] as const)(
+    "rejects a same-ID old source read %s after the new source is ready",
+    async (outcome) => {
+      const ownerA = {},
+        ownerB = {}
+      const old = deferredRecord<EidosFileRow | null>(),
+        fresh = deferredRecord<EidosFileRow | null>()
+      const page = vi.fn(async (offset: number, limit: number) => ({
+        tableId: table.table.id,
+        offset,
+        limit,
+        total: 0,
+        rows: [],
+      }))
+      const locate = vi.fn(async () => null)
+      const readA = vi.fn(() => old.promise),
+        readB = vi.fn(() => fresh.promise),
+        onError = vi.fn()
+      const render = (second: boolean) =>
+        act(async () =>
+          root.render(
+            <EidosFileGrid
+              table={table}
+              view={table.views[0]}
+              recordScope={second ? ownerB : ownerA}
+              loadPage={page}
+              locateRow={locate}
+              loadInspectorRow={second ? readB : readA}
+              inspectedRowId="same"
+              onCellEdit={createCellEdit()}
+              onError={onError}
+            />
+          )
+        )
+      await render(false)
+      await render(true)
+      await act(async () =>
+        fresh.resolve({ _id: "same", title: "Fresh source", done: 0 })
+      )
+      await act(async () => {
+        if (outcome === "success")
+          old.resolve({ _id: "same", title: "Old source", done: 0 })
+        else old.reject(new Error("Old source failed"))
+      })
+      expect(
+        container.querySelector(
+          '[aria-label="Record details for Fresh source"]'
+        )
+      ).not.toBeNull()
+      expect(container.textContent).not.toContain("Old source")
+      expect(onError).not.toHaveBeenCalled()
+      expect(readA).toHaveBeenCalledOnce()
+      expect(readB).toHaveBeenCalledOnce()
+    }
+  )
+
+  it("invalidates a record snapshot on table changes even when the source and row ID match", async () => {
+    const owner = {}
+    const first = table,
+      second = { ...table, table: { ...table.table, id: "another-table" } }
+    const newRead = deferredRecord<EidosFileRow | null>()
+    const oldPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: first.table.id,
+      offset,
+      limit,
+      total: 1,
+      rows: [rowAt(0)],
+    }))
+    const pendingPage = deferredRecord<EidosFileRowPage>(),
+      pageB = vi.fn(() => pendingPage.promise),
+      readB = vi.fn(() => newRead.promise)
+    const render = (next: boolean) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={next ? second : first}
+            view={table.views[0]}
+            recordScope={owner}
+            loadPage={next ? pageB : oldPage}
+            loadInspectorRow={next ? readB : undefined}
+            inspectedRowId="row_0"
+            onCellEdit={createCellEdit()}
+          />
+        )
+      )
+    await render(false)
+    expect(container.textContent).toContain("Write RFC")
+    await render(true)
+    expect(container.textContent).not.toContain("Write RFC")
+    await act(async () =>
+      newRead.resolve({ ...rowAt(0), title: "Other table" })
+    )
+    expect(
+      container.querySelector('[aria-label="Record details for Other table"]')
+    ).not.toBeNull()
+    expect(readB).toHaveBeenCalledOnce()
+  })
+
+  it("keeps ready content and exposes Retry for a detached read failure", async () => {
+    let rows = [rowAt(0)]
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const locate = vi.fn(async () => (rows.length ? 0 : null)),
+      onError = vi.fn()
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Read failed"))
+      .mockResolvedValueOnce({ ...rowAt(0), title: "Recovered original" })
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={() => locate()}
+            historyScopeKey="same-query"
+            loadInspectorRow={read}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        )
+      )
+    await render(0)
+    const inspector = container.querySelector(
+        '[aria-label="Record details for Write RFC"]'
+      ),
+      title = container.querySelector('textarea[aria-label="Title"]')
+    rows = []
+    await render(1)
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBe(inspector)
+    expect(container.querySelector('textarea[aria-label="Title"]')).toBe(title)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Read failed"
+    )
+    await render(1)
+    expect(read).toHaveBeenCalledOnce()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Read failed"
+    )
+    await act(async () =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Retry")!
+        .click()
+    )
+    expect(
+      container.querySelector(
+        '[aria-label="Record details for Recovered original"]'
+      )
+    ).toBe(inspector)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(read).toHaveBeenCalledTimes(2)
+  })
+
+  it("closes a genuinely unavailable record rather than retaining its snapshot indefinitely", async () => {
+    let rows = [rowAt(0)]
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: table.table.id,
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const locate = vi.fn(async () => (rows.length ? 0 : null)),
+      read = vi.fn(async () => null),
+      onError = vi.fn(),
+      onClose = vi.fn()
+    const render = (reloadToken: number) =>
+      act(async () =>
+        root.render(
+          <EidosFileGrid
+            table={table}
+            view={table.views[0]}
+            loadPage={loadPage}
+            locateRow={locate}
+            loadInspectorRow={read}
+            inspectedRowId="row_0"
+            reloadToken={reloadToken}
+            onInspectedRowChange={onClose}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        )
+      )
+    await render(0)
+    rows = []
+    await render(1)
+    expect(
+      container.querySelector('[data-eidos-file-detail-panel="record"]')
+    ).toBeNull()
+    expect(onClose).toHaveBeenCalledWith(null)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(read).toHaveBeenCalledOnce()
   })
 
   it("restores a record on cold load when initial paging is already in flight", async () => {
@@ -4158,6 +4860,303 @@ describe("EidosFileGrid", () => {
     })
   })
 
+  it("does not let neighbor prefetch after slow page reads block the latest visible window", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 18_952 }
+    const pending = new Map<number, (page: EidosFileRowPage) => void>()
+    const page = (offset: number): EidosFileRowPage => ({
+      tableId: largeTable.table.id,
+      offset,
+      limit: 100,
+      total: largeTable.rowCount,
+      rows: Array.from(
+        { length: Math.min(100, largeTable.rowCount - offset) },
+        (_, index) => rowAt(offset + index)
+      ),
+    })
+    const loadPage = vi.fn(
+      (offset: number) =>
+        new Promise<EidosFileRowPage>((resolve) => pending.set(offset, resolve))
+    )
+    const show = async (y: number) =>
+      act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 10 },
+          0,
+          0,
+          {}
+        )
+      })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(257)
+      pending.get(0)?.(page(0))
+    })
+    await show(18_400)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(521)
+      pending.get(18_400)?.(page(18_400))
+    })
+    expect(mocks.props?.getCellContent([0, 18_400])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18400",
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 18_400])
+
+    await show(18_941)
+    expect(loadPage).toHaveBeenLastCalledWith(18_900, 100)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(257)
+      pending.get(18_900)?.(page(18_900))
+    })
+    expect(mocks.props?.getCellContent([0, 18_951])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18951",
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 18_400, 18_900,
+    ])
+  })
+
+  it("keeps neighbor prefetch behind visible pages and a settled latest window", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const loadPage = createLoadPage(largeTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    const show = async (y: number) =>
+      act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+      })
+    await show(195)
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 100, 200])
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    await show(1_000)
+    expect(loadPage).toHaveBeenLastCalledWith(1_000, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage).not.toHaveBeenCalledWith(300, 100)
+    expect(loadPage).not.toHaveBeenCalledWith(900, 100)
+    await show(195)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage).not.toHaveBeenCalledWith(900, 100)
+    expect(loadPage).not.toHaveBeenCalledWith(1_100, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 100, 200, 1_000, 300,
+    ])
+    await show(1_000)
+    await act(async () => vi.advanceTimersByTimeAsync(200))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 100, 200, 1_000, 300, 900, 1_100,
+    ])
+  })
+
+  it("cancels pending neighbor prefetch when the Grid unmounts", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const loadPage = createLoadPage(largeTable)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 200, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+    })
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200])
+    await act(async () => root.render(null))
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200])
+  })
+
+  it("requires sustained fast reads before restoring neighbor prefetch after a slow source", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 5_000 }
+    const page = createLoadPage(largeTable)
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      await new Promise((resolve) =>
+        setTimeout(resolve, offset === 0 ? 257 : 20)
+      )
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(257))
+    for (const y of [200, 1_000]) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+    }
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 200, 1_000,
+    ])
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 2_000, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await vi.advanceTimersByTimeAsync(30)
+    })
+    expect(loadPage).toHaveBeenLastCalledWith(2_000, 100)
+    await act(async () => vi.advanceTimersByTimeAsync(200))
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 200, 1_000, 2_000, 1_900, 2_100,
+    ])
+  })
+
+  it("retries a required page after failure without starting speculative neighbors", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 2_500 }
+    const page = createLoadPage(largeTable)
+    let fail = true
+    const onError = vi.fn()
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      if (offset === 200 && fail) {
+        fail = false
+        throw new Error("Source read failed")
+      }
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+          onError={onError}
+        />
+      )
+    })
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y: 200, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+    }
+    expect(onError).toHaveBeenCalledOnce()
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([0, 200, 200])
+    expect(mocks.props?.getCellContent([0, 200])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 200",
+    })
+  })
+
+  it("replays measured page costs without placing slow neighbors ahead of the final viewport", async () => {
+    vi.useFakeTimers()
+    const largeTable = { ...table, rowCount: 18_952 }
+    const page = createLoadPage(largeTable)
+    // Source costs and the final-scroll interval come from a body-free manual
+    // trace. This deterministic scheduler replay is not a native timing result.
+    const costs = new Map([
+      [0, 257],
+      [18_400, 521],
+      [18_300, 273],
+      [18_500, 2_207],
+      [18_900, 257],
+    ])
+    const starts = new Map<number, number>()
+    const loadPage = vi.fn(async (offset: number, limit: number) => {
+      starts.set(offset, performance.now())
+      await new Promise((resolve) =>
+        setTimeout(resolve, costs.get(offset) ?? 257)
+      )
+      return page(offset, limit)
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+    })
+    const show = (y: number) =>
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y, width: 2, height: 10 },
+        0,
+        0,
+        {}
+      )
+    await act(async () => vi.advanceTimersByTimeAsync(257))
+    await act(async () => {
+      show(18_400)
+      await vi.advanceTimersByTimeAsync(521 + 273 + 531)
+    })
+    const finalScrollAt = performance.now()
+    await act(async () => {
+      show(18_941)
+      await vi.advanceTimersByTimeAsync(2_500)
+    })
+    const startDelay = (starts.get(18_900) ?? Infinity) - finalScrollAt
+    console.info(
+      "GRID_SCHEDULER_REPLAY",
+      JSON.stringify({
+        notice: "Deterministic fixture; not native latency",
+        targetStartDelayMs: startDelay,
+        targetSourceMs: costs.get(18_900),
+        modeledTargetResponseMs: startDelay + 257,
+        offsets: loadPage.mock.calls.map(([offset]) => offset),
+      })
+    )
+    expect(startDelay).toBe(0)
+    expect(mocks.props?.getCellContent([0, 18_951])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 18951",
+    })
+  })
+
   it("lets the latest visible Grid region replace queued page loads", async () => {
     const largeTable = { ...table, rowCount: 2_500 }
     let resolvePage200: ((page: EidosFileRowPage) => void) | undefined
@@ -4228,6 +5227,7 @@ describe("EidosFileGrid", () => {
   })
 
   it("bounds a million-row Grid cache and reloads an evicted page", async () => {
+    vi.useFakeTimers()
     const largeTable = { ...table, rowCount: 1_000_000 }
     const loadPage = createLoadPage(largeTable)
     await act(async () => {
@@ -4250,8 +5250,7 @@ describe("EidosFileGrid", () => {
           0,
           {}
         )
-        await Promise.resolve()
-        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(200)
       })
     }
 
@@ -4404,6 +5403,7 @@ describe("EidosFileGrid", () => {
   it.each(["search", "record"])(
     "scrolls to and highlights a filtered %s target",
     async (mode) => {
+      vi.useFakeTimers()
       const loadPage = createLoadPage()
       await act(async () => {
         root.render(
@@ -4432,6 +5432,7 @@ describe("EidosFileGrid", () => {
         expect(mocks.props?.gridSelection?.rows.length ?? 0).toBe(0)
       }
       expect(loadPage).toHaveBeenCalledWith(100, 100)
+      await act(async () => vi.advanceTimersByTimeAsync(200))
       expect(loadPage).toHaveBeenCalledWith(200, 100)
       expect(mocks.props?.highlightRegions).toMatchObject([
         {

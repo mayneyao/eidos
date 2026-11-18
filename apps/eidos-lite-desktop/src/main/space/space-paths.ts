@@ -288,6 +288,9 @@ export async function listSpaceDirectory(
         relativePath: candidate.relativePath,
         kind,
         size: stats.size,
+        ...(Number.isFinite(stats.birthtimeMs) && stats.birthtimeMs !== 0
+          ? { createdAtMs: stats.birthtimeMs }
+          : {}),
         modifiedAtMs: stats.mtimeMs,
         ...(kind === "directory"
           ? { children: [], childrenLoaded: false }
@@ -383,6 +386,9 @@ export async function listSpaceTree(
           relativePath: candidate.relativePath,
           kind,
           size: stats.size,
+          ...(Number.isFinite(stats.birthtimeMs) && stats.birthtimeMs !== 0
+            ? { createdAtMs: stats.birthtimeMs }
+            : {}),
           modifiedAtMs: stats.mtimeMs,
           ...(kind === "directory"
             ? { children: [], childrenLoaded: true }

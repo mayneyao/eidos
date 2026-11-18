@@ -14,18 +14,18 @@ import {
 } from "react"
 import { flushSync } from "react-dom"
 import { AutomaticMaterializationFence } from "./automatic-materialization"
+import type { TreeExpansionActions } from "./tree-expansion-menu"
 import {
-  TreeExpansionMenu,
-  type TreeExpansionActions,
-} from "./tree-expansion-menu"
-import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  type EidosFileSnapshot,
+} from "@eidos.space/eidos-file"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import type { MarkdownEditorInternalLinkRequest } from "@eidos.space/markdown"
 import {
   ArrowLeft,
   ArrowRight,
   Blocks,
   CircleAlert,
-  ClipboardCopy,
   Cloud,
   CloudDownload,
   Copy,
@@ -35,14 +35,11 @@ import {
   FolderPlus,
   GitMerge,
   History,
-  Info,
   LoaderCircle,
   PanelLeft,
-  Pencil,
   RefreshCw,
   Settings,
   SquareTerminal,
-  Trash2,
   Upload,
   X,
 } from "lucide-react"
@@ -50,6 +47,7 @@ import { externalChangeAffectsEidosFile } from "./file-metadata-actions"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SPARK_ACTIVATION_REQUIRED } from "../shared/spark"
 import { WorkspaceHeading } from "./workspace-heading"
+import { FileClipboardStatus } from "./file-clipboard-status"
 import { ExplorerFilterBar } from "./explorer-filter-bar"
 import { SpaceSwitcher } from "./space-switcher"
 import appLogo from "../../assets/logo.svg"
@@ -66,6 +64,11 @@ import {
   readExplorerLayout,
 } from "./explorer-layout"
 import { SpaceFileGroups } from "./space-file-groups"
+import { useExplorerClipboard } from "./use-explorer-clipboard"
+import {
+  ExplorerEntryContextMenuItems,
+  ExplorerRootContextMenu,
+} from "./explorer-context-menu"
 import { ExplorerLayoutSwitch } from "./explorer-layout-switch"
 import {
   EXPLORER_IGNORE_OPTIONS_STORAGE_KEY,
@@ -97,12 +100,12 @@ import type {
   EidosSyncQueueStatus,
   RecentSpaceEntry,
   SpacePathMutationResult,
+  SpacePathClipboardSources,
   SpaceSnapshot,
   SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../shared/contracts"
 import { isEidosLiteShortcutEnabled } from "../shared/built-in-plugins"
-import { fileManagerMessage } from "../shared/platform-copy"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
@@ -116,6 +119,7 @@ import {
 import { useAppTheme } from "./use-app-theme"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
+import { setSpacePathDragData } from "./space-path-drag"
 import { isMarkdownTextFile } from "./text-editor-options"
 import type { EidosFileWorkbench as EidosFileWorkbenchImplementation } from "./eidos-file-workbench"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
@@ -162,7 +166,6 @@ import {
   SidebarUpdateAction,
 } from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
-import { SpaceEntryOpenActions } from "./space-entry-open-menu"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -793,6 +796,8 @@ function WorkspaceApp({
     useState<EidosLiteKeyboardShortcuts>({
       ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
     })
+  const [hideSystemFieldsInRecords, setHideSystemFieldsInRecords] =
+    useState(false)
   const [weekStartsOnMonday, setWeekStartsOnMonday] = useState(
     DEFAULT_RENDERER_PREFERENCES.weekStartsOnMonday
   )
@@ -1111,6 +1116,21 @@ function WorkspaceApp({
     explorerDirectoryEntry?.kind === "directory"
       ? explorerDirectoryEntry.relativePath
       : null
+  const explorerCalendarExecution = useMemo<ExplorerCalendarExecution>(
+    () => ({
+      calendarQueryVersion: 2,
+      calendarWindowVersion: 1,
+      calendar: {
+        timeZone:
+          timeZone === "system"
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : timeZone,
+        timeZoneData: EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+        weekStartsOn: weekStartsOnMonday ? 1 : 0,
+      },
+    }),
+    [timeZone, weekStartsOnMonday]
+  )
   const filteredExplorer = useExplorerFileFilter(
     space?.id ?? "",
     explorerDirectory,
@@ -1120,10 +1140,12 @@ function WorkspaceApp({
       : (space?.entries ?? []),
     space?.externalChangePaths ?? space?.materializedPaths ?? undefined,
     explorerSearchVisible && !!explorerSearchQuery.trim(),
-    explorerIgnoreOptions.respectGitignore
+    explorerIgnoreOptions.respectGitignore,
+    explorerCalendarExecution
   )
   const [titleHovered, setTitleHovered] = useState(false)
   const [titleAltPressed, setTitleAltPressed] = useState(false)
+  const titleDragStartedRef = useRef(false)
   useEffect(() => {
     if (!titleHovered) return
     const update = (event: KeyboardEvent) => setTitleAltPressed(event.altKey)
@@ -1145,20 +1167,23 @@ function WorkspaceApp({
     y: number
     expansionActions?: TreeExpansionActions
   } | null>(null)
+  const [rootClipboardMenu, setRootClipboardMenu] = useState<{
+    x: number
+    y: number
+  } | null>(null)
   const [treeExpansionActions, setTreeExpansionActions] =
     useState<TreeExpansionActions | null>(null)
   const entryContextMenuRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    for (const ref of [entryContextMenuRef]) {
-      const menu = ref.current
-      if (!menu) continue
-      const bounds = menu.getBoundingClientRect()
-      menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
-      menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
-    }
+    const menu = entryContextMenuRef.current
+    if (!menu) return
+    const bounds = menu.getBoundingClientRect()
+    menu.style.top = `${Math.max(8, Math.min(bounds.top, window.innerHeight - bounds.height - 8))}px`
+    menu.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - bounds.width - 8))}px`
   }, [contextMenu])
   useEffect(() => {
     setContextMenu(null)
+    setRootClipboardMenu(null)
   }, [space?.id, explorerDirectory])
   const [publishPanel, setPublishPanel] = useState<{
     entry: SpaceTreeEntry
@@ -1343,6 +1368,9 @@ function WorkspaceApp({
       setKeyboardShortcuts(preferences.keyboardShortcuts)
       setMenuOrders(preferences.menuOrders ?? {})
       setWeekStartsOnMonday(preferences.weekStartsOnMonday)
+      setHideSystemFieldsInRecords(
+        preferences.hideSystemFieldsInRecords === true
+      )
       setTimeZone(preferences.timeZone)
       setMarkdownFileEditingMode(preferences.markdownFileEditingMode)
       setHtmlFileOpenMode(preferences.htmlFileOpenMode ?? "preview")
@@ -1774,6 +1802,13 @@ function WorkspaceApp({
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  const activeDocumentEntry = useMemo(
+    () =>
+      activeDocumentPath && space
+        ? findSpaceEntry(space.entries, activeDocumentPath)
+        : null,
+    [activeDocumentPath, space?.entries]
+  )
   useEffect(() => {
     const path =
       activeDocumentPath === SPACE_FILE_METADATA_PATH
@@ -1866,9 +1901,10 @@ function WorkspaceApp({
   }, [space?.id])
 
   useEffect(() => {
-    if (!contextMenu) return
+    if (!contextMenu && !rootClipboardMenu) return
     const close = () => {
       setContextMenu(null)
+      setRootClipboardMenu(null)
     }
     const unsubscribePreviewPointer =
       window.eidosLite.onHtmlPreviewPointerDown(close)
@@ -1882,7 +1918,7 @@ function WorkspaceApp({
       window.removeEventListener("keydown", closeOnEscape)
       unsubscribePreviewPointer()
     }
-  }, [contextMenu])
+  }, [contextMenu, rootClipboardMenu])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
@@ -2444,6 +2480,7 @@ function WorkspaceApp({
         fileOpenMode?: EidosLiteMarkdownEditingMode | "preview"
         pluginEditor?: string
         metadataDirectory?: string
+        preview?: TextFilePreviewResult
       } = {}
     ): Promise<boolean> => {
       if (entry.kind === "directory") return false
@@ -2523,9 +2560,9 @@ function WorkspaceApp({
               : options.fileOpenMode === "preview"
                 ? "preview"
                 : htmlFileOpenMode
-          const preview = await window.eidosLite.previewTextFile(
-            entry.relativePath
-          )
+          const preview =
+            options.preview ??
+            (await window.eidosLite.previewTextFile(entry.relativePath))
           const draft = textDraftLifecycle.getDraft(entry.relativePath)
           const plugin = window.eidosLite.openPluginEditor
             ? await window.eidosLite.openPluginEditor(
@@ -2651,16 +2688,19 @@ function WorkspaceApp({
           (file) => file.sessionId === opened.sessionId
         )
         if (existing) {
+          // Host open results validate the file without assuming a UI consumer.
+          // Refresh through the cached source to retain its query capabilities.
+          const snapshot = await existing.source.getSnapshot()
           setCachedFiles((current) => {
             const next = current.find(
               (file) => file.sessionId === opened.sessionId
             )
-            if (!next) return current
+            if (!next || next.source !== existing.source) return current
             return [
               ...current.filter((file) => file.sessionId !== opened.sessionId),
               {
                 ...next,
-                snapshot: opened.snapshot,
+                snapshot,
                 tableId,
               },
             ]
@@ -2684,6 +2724,12 @@ function WorkspaceApp({
           }
           return true
         }
+        opened.snapshot = await window.eidosLite.callRuntime(
+          opened.sessionId,
+          "getSnapshot",
+          [],
+          { calendarQueryVersion: 2, calendarWindowVersion: 1 }
+        )
         const source = new IpcEidosFileDataSource(
           opened.sessionId,
           opened.snapshot,
@@ -2698,7 +2744,9 @@ function WorkspaceApp({
                   : (snapshot.tables[0]?.table.id ?? file.tableId)
                 return { ...file, snapshot, tableId }
               })
-            )
+            ),
+          { calendarQueryVersion: 2, calendarWindowVersion: 1 },
+          opened.readOnly
         )
         const file: CachedFile = {
           sessionId: opened.sessionId,
@@ -2786,11 +2834,22 @@ function WorkspaceApp({
       request: MarkdownEditorInternalLinkRequest
     ) => {
       if (!request.path) return
-      const entry = await resolveObsidianSpaceEntry(
-        sourceRelativePath,
-        request,
-        window.eidosLite.searchSpacePaths
-      )
+      const wikiEntry =
+        request.syntax === "wikilink"
+          ? await resolveObsidianSpaceEntry(
+              sourceRelativePath,
+              request,
+              window.eidosLite.searchSpacePaths
+            )
+          : null
+      const href =
+        request.syntax === "wikilink" && wikiEntry
+          ? `/${wikiEntry.relativePath.split("/").map(encodeURIComponent).join("/")}`
+          : request.target
+      const entry =
+        request.syntax === "wikilink" && !wikiEntry
+          ? null
+          : await window.eidosLite.resolveMarkdownLink(sourceRelativePath, href)
       if (!entry) {
         const linkedNotePath = missingMarkdownNotePath(
           sourceRelativePath,
@@ -2807,6 +2866,14 @@ function WorkspaceApp({
         setError(`Could not find file link target: ${request.path}`)
         return
       }
+      const preview =
+        entry.kind === "eidos"
+          ? undefined
+          : await window.eidosLite.previewTextFile(entry.relativePath)
+      if (preview?.type === "unavailable") {
+        await window.eidosLite.openMarkdownLink(sourceRelativePath, href)
+        return
+      }
       const requestId = Date.now()
       setMarkdownNavigationTarget({
         relativePath: entry.relativePath,
@@ -2814,7 +2881,7 @@ function WorkspaceApp({
         ...(request.heading ? { heading: request.heading } : {}),
         ...(request.blockId ? { blockId: request.blockId } : {}),
       })
-      const opened = await openEntry(entry)
+      const opened = await openEntry(entry, { preview })
       if (!opened) {
         setMarkdownNavigationTarget((current) =>
           current?.requestId === requestId ? null : current
@@ -3475,6 +3542,18 @@ function WorkspaceApp({
     async (result: SpacePathMutationResult) => {
       acceptSpaceSnapshot(result.snapshot)
       invalidateCachedSessions(result.invalidatedSessionIds)
+      const contentUpdates =
+        result.markdownLinks?.updatedPaths.filter((path) =>
+          /\.eidos$/iu.test(path)
+        ) ?? []
+      if (
+        contentUpdates.length &&
+        result.snapshot.externalChangePaths === undefined
+      )
+        await refreshExternallyChangedEidosFiles(
+          result.snapshot,
+          contentUpdates
+        )
       if (result.markdownLinks?.skippedPaths.length) {
         setError(
           `The file was moved, but some Markdown references could not be updated: ${result.markdownLinks.skippedPaths.join(", ")}`
@@ -3503,7 +3582,13 @@ function WorkspaceApp({
         }
       }
     },
-    [acceptSpaceSnapshot, invalidateCachedSessions, textPreview, textFileDrafts]
+    [
+      acceptSpaceSnapshot,
+      invalidateCachedSessions,
+      textPreview,
+      textFileDrafts,
+      refreshExternallyChangedEidosFiles,
+    ]
   )
 
   const closeActiveDocument = useCallback(async () => {
@@ -3517,8 +3602,13 @@ function WorkspaceApp({
   }, [activeFile, closeFile, recordNavigationLocation])
 
   const moveTreeEntries = useCallback(
-    async (relativePaths: string[], targetDirectory: string | null) => {
-      if (Object.values(textFileDrafts).some(Boolean))
+    async (
+      relativePaths: string[],
+      targetDirectory: string | null,
+      completed?: (sources: string[]) => void,
+      clipboard?: SpacePathClipboardSources
+    ) => {
+      if (eidosPendingEdits || Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before moving files so Markdown references can be updated safely."
         )
@@ -3528,8 +3618,10 @@ function WorkspaceApp({
       try {
         const result = await window.eidosLite.movePaths(
           relativePaths,
-          targetDirectory
+          targetDirectory,
+          clipboard
         )
+        completed?.(result.moves.map((move) => move.source))
         await applyPathMutation(result)
         for (const move of result.moves) {
           updateRecentFilePaths(move.source, move.relativePath)
@@ -3564,12 +3656,44 @@ function WorkspaceApp({
       recordNavigationLocation,
       updateRecentFilePaths,
       textFileDrafts,
+      eidosPendingEdits,
     ]
   )
 
+  const explorerClipboard = useExplorerClipboard({
+    spaceId: space?.id,
+    entries: space?.entries,
+    disabled:
+      pathMutationBusy ||
+      !space ||
+      blocksLocalInteraction(space.operation.phase) ||
+      busyFile !== null,
+    move: moveTreeEntries,
+    prepare: (paths, mode) =>
+      window.eidosLite.preparePathClipboard(paths, mode),
+    isCurrent: (token) => window.eidosLite.isPathClipboardCurrent(token),
+    cancelPrepare: () => window.eidosLite.cancelPathClipboard(),
+    copy: async (relativePath, targetDirectory, clipboard) => {
+      setPathMutationBusy(true)
+      setError(null)
+      try {
+        const result = await window.eidosLite.copyPath(
+          relativePath,
+          targetDirectory,
+          clipboard
+        )
+        if (!result.refreshError) await applyPathMutation(result)
+        return { refreshError: result.refreshError }
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  })
+
   const renameTreeEntry = useCallback(
     async (entry: SpaceTreeEntry, name: string) => {
-      if (Object.values(textFileDrafts).some(Boolean))
+      if (eidosPendingEdits || Object.values(textFileDrafts).some(Boolean))
         throw new Error(
           "Save or discard open text drafts before renaming files so Markdown references can be updated safely."
         )
@@ -3606,6 +3730,7 @@ function WorkspaceApp({
       recordNavigationLocation,
       updateRecentFilePaths,
       textFileDrafts,
+      eidosPendingEdits,
     ]
   )
 
@@ -3743,18 +3868,22 @@ function WorkspaceApp({
     ]
   )
 
-  const importFiles = useCallback(async () => {
-    setPathMutationBusy(true)
-    setError(null)
-    try {
-      const result = await window.eidosLite.importFiles(explorerDirectory)
-      if (result) applyPathMutation(result)
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setPathMutationBusy(false)
-    }
-  }, [applyPathMutation, explorerDirectory])
+  const importFiles = useCallback(
+    async (targetDirectory: string | null) => {
+      if (space?.readOnly) return
+      setPathMutationBusy(true)
+      setError(null)
+      try {
+        const result = await window.eidosLite.importFiles(targetDirectory)
+        if (result) applyPathMutation(result)
+      } catch (cause) {
+        setError(errorMessage(cause))
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    [applyPathMutation, space?.readOnly]
+  )
   const canGoBack = canNavigateHistory(navigationSnapshot, -1)
   const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   const pluginManager = (
@@ -3936,6 +4065,11 @@ function WorkspaceApp({
             }
           : null
   )
+  const titlebarDocumentDraggable =
+    !localInteractionBlocked &&
+    !titlebarPresentation.pending &&
+    activeDocumentEntry !== null &&
+    activeDocumentEntry.kind !== "directory"
   const openEntryContextMenu = (
     entry: SpaceTreeEntry,
     x: number,
@@ -3943,6 +4077,7 @@ function WorkspaceApp({
     entries: SpaceTreeEntry[] = [entry],
     expansionActions?: TreeExpansionActions
   ) => {
+    setRootClipboardMenu(null)
     setSelectedEntry(entries.length === 1 ? entry : null)
     void refreshPublicationBindings()
     void refreshPublishAccountState()
@@ -3953,6 +4088,10 @@ function WorkspaceApp({
       x: Math.max(8, Math.min(x, window.innerWidth - 200)),
       y: Math.max(8, Math.min(y, window.innerHeight - 260)),
     })
+  }
+  const openRootContextMenu = (x: number, y: number) => {
+    setContextMenu(null)
+    setRootClipboardMenu({ x, y })
   }
   const navigateExplorerDirectory = async (path: string | null) => {
     const request = ++folderNavigationRef.current
@@ -4067,9 +4206,7 @@ function WorkspaceApp({
   const workspaceSearchPanel = (
     <>
       <WorkspaceHeading
-        treeExpansionActions={
-          explorerLayout === "tree" ? treeExpansionActions : null
-        }
+        onRootContextMenu={openRootContextMenu}
         sort={explorerSort}
         onSortChange={setExplorerSort}
         fileFilter={explorerFileFilter}
@@ -4084,6 +4221,7 @@ function WorkspaceApp({
         spaceSwitcher={
           <SpaceSwitcher
             name={space.name}
+            readOnly={space.readOnly}
             currentId={space.id}
             recents={recentSpaces}
             disabled={openingSpace || localInteractionBlocked}
@@ -4116,7 +4254,8 @@ function WorkspaceApp({
           {
             label: t("New File"),
             icon: <FilePlus2 />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             shortcut: workspaceShortcutLabel(
               "new-file",
               macos,
@@ -4136,7 +4275,8 @@ function WorkspaceApp({
           {
             label: t("New folder"),
             icon: <FolderPlus />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             run: () =>
               setPathDialog({
                 action: "create-folder",
@@ -4146,9 +4286,10 @@ function WorkspaceApp({
           {
             label: t("Import files"),
             icon: <Upload />,
-            disabled: pathMutationBusy || localInteractionBlocked,
+            disabled:
+              pathMutationBusy || localInteractionBlocked || space.readOnly,
             run: () => {
-              void importFiles()
+              void importFiles(explorerDirectory)
             },
           },
         ]}
@@ -4265,6 +4406,7 @@ function WorkspaceApp({
               key={space.id}
               theme={theme}
               timeZone={timeZone === "system" ? undefined : timeZone}
+              weekStartsOnMonday={weekStartsOnMonday}
               filter={explorerFileFilter}
               entries={space.entries}
               open={explorerFilterVisible}
@@ -4298,6 +4440,9 @@ function WorkspaceApp({
                 }}
               >
                 <SpaceFileTree
+                  clipboard={explorerClipboard}
+                  macos={macos}
+                  onRootContextMenu={openRootContextMenu}
                   spaceId={space.id}
                   sort={explorerSort}
                   nameQuery={explorerSearchVisible ? explorerSearchQuery : ""}
@@ -4310,7 +4455,7 @@ function WorkspaceApp({
                   entries={filteredExplorer.entries}
                   activePath={activeDocumentPath}
                   revealToken={treeRevealToken}
-                  disabled={localInteractionBlocked}
+                  disabled={localInteractionBlocked || pathMutationBusy}
                   opening={busyFile !== null}
                   visible={
                     explorerLayout === "tree" &&
@@ -4372,6 +4517,7 @@ function WorkspaceApp({
                   respectGitignore={explorerIgnoreOptions.respectGitignore}
                   directory={explorerDirectory}
                   fileFilter={explorerFileFilter}
+                  calendarExecution={explorerCalendarExecution}
                   changes={
                     space.externalChangePaths ??
                     space.materializedPaths ??
@@ -4411,6 +4557,7 @@ function WorkspaceApp({
           </nav>
         </PluginExplorerPanel>
         <footer className="sidebar-footer">
+          <FileClipboardStatus />
           {whatsNew.unread && (
             <div className="whats-new-notice">
               <button type="button" onClick={whatsNew.show}>
@@ -4609,6 +4756,23 @@ function WorkspaceApp({
                   title={`${activeDocumentPath} — ${t("Reveal in Explorer")}`}
                   aria-label={t("Reveal in Explorer")}
                   disabled={localInteractionBlocked}
+                  draggable={titlebarDocumentDraggable}
+                  onPointerDown={() => {
+                    titleDragStartedRef.current = false
+                  }}
+                  onDragStart={(event) => {
+                    if (!titlebarDocumentDraggable) {
+                      event.preventDefault()
+                      return
+                    }
+                    titleDragStartedRef.current = true
+                    setSpacePathDragData(
+                      event.dataTransfer,
+                      activeDocumentPath,
+                      [activeDocumentPath],
+                      space.id
+                    )
+                  }}
                   onMouseEnter={(event) => {
                     setTitleHovered(true)
                     setTitleAltPressed(event.altKey)
@@ -4617,7 +4781,15 @@ function WorkspaceApp({
                     setTitleHovered(false)
                     setTitleAltPressed(false)
                   }}
-                  onClick={() => void activateDocumentTitle()}
+                  onClick={(event) => {
+                    // A drag must not reveal the file when the pointer lands
+                    // back on its title. The next press starts a normal click.
+                    if (titleDragStartedRef.current && event.detail > 0) {
+                      event.preventDefault()
+                      return
+                    }
+                    void activateDocumentTitle()
+                  }}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     void activateDocumentTitle({
@@ -5237,6 +5409,7 @@ function WorkspaceApp({
                     }
                   >
                     <EidosFileWorkbench
+                      onOpenMarkdownInternalLink={openMarkdownInternalLink}
                       onPendingEditChange={updateEidosPendingEdit}
                       onOpenFileInSidebar={openFileInSidebar}
                       fileSidebarOpen={
@@ -5351,6 +5524,7 @@ function WorkspaceApp({
                       }
                       theme={theme}
                       weekStartsOnMonday={weekStartsOnMonday}
+                      hideSystemFieldsInRecords={hideSystemFieldsInRecords}
                       timeZone={timeZone === "system" ? undefined : timeZone}
                       keyboardShortcuts={keyboardShortcuts}
                       menuOrders={menuOrders}
@@ -5812,6 +5986,40 @@ function WorkspaceApp({
           </Suspense>
         </>
       ) : null}
+      {rootClipboardMenu ? (
+        <ExplorerRootContextMenu
+          position={rootClipboardMenu}
+          platform={platform}
+          macos={macos}
+          disabled={
+            pathMutationBusy ||
+            localInteractionBlocked ||
+            Boolean(space.readOnly)
+          }
+          navigationDisabled={
+            pathMutationBusy || localInteractionBlocked || busyFile !== null
+          }
+          clipboard={explorerClipboard}
+          expansionActions={
+            explorerLayout === "tree" &&
+            (!pluginExplorer.selected || pluginExplorer.error) &&
+            filteredExplorer.entries.some((entry) => entry.kind === "directory")
+              ? (treeExpansionActions ?? undefined)
+              : undefined
+          }
+          terminalOpen={terminalPanelVisible}
+          onCreate={(action) => setPathDialog({ action, entry: null })}
+          onImport={() => void importFiles(null)}
+          onManageFiles={() => void openFileMetadata(null)}
+          onToggleTerminal={
+            terminalPluginEnabled ? toggleTerminalPanel : undefined
+          }
+          onReveal={() => {
+            void window.eidosLite.revealPath(".")
+          }}
+          onClose={() => setRootClipboardMenu(null)}
+        />
+      ) : null}
       {contextMenu ? (
         <div
           ref={entryContextMenuRef}
@@ -5823,281 +6031,119 @@ function WorkspaceApp({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          {contextMenu.entries.length > 1 ? (
-            <>
-              <p className="space-context-menu-selection">
-                {t("{count} items selected", {
-                  count: contextMenu.entries.length,
-                })}
-              </p>
-              {contextMenu.expansionActions && (
-                <>
-                  <TreeExpansionMenu
-                    actions={contextMenu.expansionActions}
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClose={() => setContextMenu(null)}
-                  />
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                </>
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                className="danger-menu-item"
-                disabled={pathMutationBusy || localInteractionBlocked}
-                onClick={() => {
-                  setPathDialog({
-                    action: "delete",
-                    entry: contextMenu.entry,
-                    entries: contextMenu.entries,
-                  })
-                  setContextMenu(null)
-                }}
-              >
-                <Trash2 /> {t("Move to Trash")}
-              </button>
-            </>
-          ) : (
-            <>
-              <SpaceEntryOpenActions
-                key={contextMenu.entry.relativePath}
-                entry={contextMenu.entry}
-                selectedEditor={
-                  pluginEditor?.relativePath === contextMenu.entry.relativePath
-                    ? pluginEditor.editor.key
-                    : "builtin"
-                }
-                editingModeShortcut={workspaceShortcutLabel(
-                  "toggle-markdown-editing-mode",
-                  macos,
-                  keyboardShortcuts
-                )}
-                onOpen={(fileOpenMode) => {
-                  void openEntry(contextMenu.entry, { fileOpenMode })
-                  setContextMenu(null)
-                }}
-                onSelectPluginEditor={(editor) => {
-                  void openEntry(contextMenu.entry, { pluginEditor: editor })
-                  setContextMenu(null)
-                }}
-              />
-              {contextMenu.entry.kind !== "directory" ? (
+          <ExplorerEntryContextMenuItems
+            entry={contextMenu.entry}
+            entries={contextMenu.entries}
+            platform={platform}
+            macos={macos}
+            disabled={pathMutationBusy || localInteractionBlocked}
+            navigationDisabled={
+              pathMutationBusy || localInteractionBlocked || busyFile !== null
+            }
+            clipboard={explorerClipboard}
+            expansionActions={contextMenu.expansionActions}
+            selectedEditor={
+              pluginEditor?.relativePath === contextMenu.entry.relativePath
+                ? pluginEditor.editor.key
+                : "builtin"
+            }
+            editingModeShortcut={workspaceShortcutLabel(
+              "toggle-markdown-editing-mode",
+              macos,
+              keyboardShortcuts
+            )}
+            publishAction={
+              isPublishableEntry(contextMenu.entry) ? (
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={pathMutationBusy || localInteractionBlocked}
+                  disabled={publishMenu.disabled}
                   onClick={() => {
-                    openFileProperties(contextMenu.entry.relativePath)
+                    if (publishMenu.disabled) return
+                    if (publishTask?.status === "running")
+                      setPublishTaskExpanded(true)
+                    else {
+                      setPublishTask(null)
+                      setPublishPanel({
+                        entry: contextMenu.entry,
+                        x: contextMenu.x,
+                        y: contextMenu.y,
+                      })
+                    }
                     setContextMenu(null)
                   }}
                 >
-                  <Info /> {t("File properties")}
+                  {publishTask?.status === "running" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <Upload />
+                  )}{" "}
+                  {publishMenu.label
+                    ? t(publishMenu.label)
+                    : publishTask?.status === "running"
+                      ? t("View Publish progress")
+                      : publicationBindings.some(
+                            (binding) =>
+                              binding.relativePath ===
+                              contextMenu.entry.relativePath
+                          )
+                        ? t("Manage Publish…")
+                        : t("Publish…")}
                 </button>
-              ) : null}
-              {isPublishableEntry(contextMenu.entry) ? (
-                <>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={publishMenu.disabled}
-                    onClick={() => {
-                      if (publishMenu.disabled) return
-                      if (publishTask?.status === "running") {
-                        setPublishTaskExpanded(true)
-                      } else {
-                        setPublishTask(null)
-                        setPublishPanel({
-                          entry: contextMenu.entry,
-                          x: contextMenu.x,
-                          y: contextMenu.y,
-                        })
-                      }
-                      setContextMenu(null)
-                    }}
-                  >
-                    {publishTask?.status === "running" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <Upload />
-                    )}{" "}
-                    {publishMenu.label
-                      ? t(publishMenu.label)
-                      : publishTask?.status === "running"
-                        ? t("View Publish progress")
-                        : publicationBindings.some(
-                              (binding) =>
-                                binding.relativePath ===
-                                contextMenu.entry.relativePath
-                            )
-                          ? t("Manage Publish…")
-                          : t("Publish…")}
-                  </button>
-                </>
-              ) : null}
-              {contextMenu.entry.kind === "directory" ? (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={pathMutationBusy || localInteractionBlocked}
-                    onClick={() => {
-                      setPathDialog({
-                        action: "create-file",
+              ) : undefined
+            }
+            actions={{
+              open: (fileOpenMode) => {
+                void openEntry(contextMenu.entry, { fileOpenMode })
+              },
+              selectPluginEditor: (editor) => {
+                void openEntry(contextMenu.entry, { pluginEditor: editor })
+              },
+              create: (action) =>
+                setPathDialog({ action, entry: contextMenu.entry }),
+              rename: () => {
+                setTreeRenameRequest({
+                  treePath:
+                    contextMenu.entry.kind === "directory"
+                      ? `${contextMenu.entry.relativePath}/`
+                      : contextMenu.entry.relativePath,
+                  nonce: Date.now(),
+                })
+                setSidebarCollapsed(false)
+                setExplorerSearchVisible(false)
+                if (contextMenu.entry.relativePath === activeDocumentPath)
+                  setTreeRevealToken((value) => value + 1)
+              },
+              showFolder: () => {
+                void navigateExplorerDirectory(contextMenu.entry.relativePath)
+              },
+              manageFiles: () => {
+                void openFileMetadata(contextMenu.entry.relativePath)
+              },
+              properties: () =>
+                openFileProperties(contextMenu.entry.relativePath),
+              reveal: () => {
+                void window.eidosLite.revealPath(contextMenu.entry.relativePath)
+              },
+              copyPath: (mode) => {
+                void window.eidosLite.copyPathText(
+                  contextMenu.entry.relativePath,
+                  mode
+                )
+              },
+              trash: () =>
+                setPathDialog(
+                  contextMenu.entries.length > 1
+                    ? {
+                        action: "delete",
                         entry: contextMenu.entry,
-                      })
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FilePlus2 /> {t("New File")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={pathMutationBusy || localInteractionBlocked}
-                    onClick={() => {
-                      setPathDialog({
-                        action: "create-folder",
-                        entry: contextMenu.entry,
-                      })
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderPlus /> {t("New folder")}
-                  </button>
-                  <div
-                    role="separator"
-                    className="space-context-menu-separator"
-                  />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void navigateExplorerDirectory(
-                        contextMenu.entry.relativePath
-                      )
-                      setContextMenu(null)
-                    }}
-                  >
-                    <FolderOpen /> {t("Show this folder")}
-                  </button>
-                  {contextMenu.expansionActions && (
-                    <TreeExpansionMenu
-                      actions={contextMenu.expansionActions}
-                      disabled={
-                        pathMutationBusy ||
-                        localInteractionBlocked ||
-                        busyFile !== null
+                        entries: contextMenu.entries,
                       }
-                      onClose={() => setContextMenu(null)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={
-                      pathMutationBusy ||
-                      localInteractionBlocked ||
-                      busyFile !== null
-                    }
-                    onClick={() => {
-                      void openFileMetadata(contextMenu.entry.relativePath)
-                      setContextMenu(null)
-                    }}
-                  >
-                    <Database /> {t("Manage files")}
-                  </button>
-                </>
-              ) : null}
-              <div role="separator" className="space-context-menu-separator" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setTreeRenameRequest({
-                    treePath:
-                      contextMenu.entry.kind === "directory"
-                        ? `${contextMenu.entry.relativePath}/`
-                        : contextMenu.entry.relativePath,
-                    nonce: Date.now(),
-                  })
-                  setSidebarCollapsed(false)
-                  setExplorerSearchVisible(false)
-                  if (contextMenu.entry.relativePath === activeDocumentPath) {
-                    setTreeRevealToken((value) => value + 1)
-                  }
-                  setContextMenu(null)
-                }}
-              >
-                <Pencil /> {t("Rename")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.revealPath(
-                    contextMenu.entry.relativePath
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <FolderOpen /> {t(fileManagerMessage(platform))}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.copyPathText(
-                    contextMenu.entry.relativePath,
-                    "relative"
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <ClipboardCopy /> {t("Copy Relative Path")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  void window.eidosLite.copyPathText(
-                    contextMenu.entry.relativePath,
-                    "absolute"
-                  )
-                  setContextMenu(null)
-                }}
-              >
-                <Copy /> {t("Copy Path")}
-              </button>
-              <div role="separator" className="space-context-menu-separator" />
-              <button
-                type="button"
-                role="menuitem"
-                className="danger-menu-item"
-                onClick={() => {
-                  setPathDialog({ action: "delete", entry: contextMenu.entry })
-                  setContextMenu(null)
-                }}
-              >
-                <Trash2 /> {t("Move to Trash")}
-              </button>
-            </>
-          )}
+                    : { action: "delete", entry: contextMenu.entry }
+                ),
+            }}
+            onClose={() => setContextMenu(null)}
+          />
         </div>
       ) : null}
       {publishPanel ? (

@@ -7,6 +7,7 @@ import {
   type EidosLiteMarkdownImageAsset,
   type EidosLiteMarkdownImageImportRequest,
   type EidosLiteMarkdownImageResolution,
+  type SpaceTreeEntry,
 } from "../../shared/contracts"
 import {
   detectRasterMediaType,
@@ -104,6 +105,12 @@ async function requireImageDocument(
   spaceRoot: string,
   relativePath: string
 ): Promise<{ documentPath: string; documentRoot: string }> {
+  if (
+    relativePath
+      .split(/[\\/]/u)
+      .some((part) => [".graft", ".eidos", ".git"].includes(part.toLowerCase()))
+  )
+    throw new Error("Internal Space files cannot own Markdown resources")
   const documentPath = resolveSpacePath(
     spaceRoot,
     normalizeMutableRelativePath(relativePath)
@@ -269,16 +276,18 @@ function localMarkdownImageSegments(markdownUrl: string): string[] | null {
     value.includes("\\") ||
     /^\/?[A-Za-z]:/u.test(value) ||
     value.startsWith("//") ||
-    value.includes("?") ||
-    value.includes("#") ||
     URI_SCHEME.test(value)
   ) {
     throw new Error("The Markdown image URL is not a safe local path")
   }
 
   const segments: string[] = []
-  for (const encoded of value.split("/")) {
+  for (const encoded of value.split(/[?#]/u, 1)[0]!.split("/")) {
     if (!encoded || encoded === ".") continue
+    if (encoded === "..") {
+      segments.push(encoded)
+      continue
+    }
     let decoded: string
     try {
       decoded = decodeURIComponent(encoded)
@@ -294,7 +303,9 @@ function localMarkdownImageSegments(markdownUrl: string): string[] | null {
       /^[A-Za-z]:/u.test(decoded) ||
       [".graft", ".eidos", ".git"].includes(decoded.toLocaleLowerCase("en-US"))
     ) {
-      throw new Error("The Markdown image URL escapes its document folder")
+      throw new Error(
+        "The Markdown resource URL contains an unsafe path segment"
+      )
     }
     segments.push(decoded)
   }
@@ -346,7 +357,9 @@ async function resolvedMarkdownImage(
     relativeToSpace === ".." ||
     relativeToSpace.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relativeToSpace) ||
-    relativeToSpace.split(path.sep).includes(".graft")
+    relativeToSpace
+      .split(path.sep)
+      .some((part) => [".graft", ".eidos", ".git"].includes(part.toLowerCase()))
   ) {
     return null
   }
@@ -383,16 +396,66 @@ export async function resolveMarkdownDocumentImage(
   // A single leading slash is a Space-root URL, never an OS filesystem path.
   const documentRelative = path.resolve(documentRoot, ...segments)
   const vaultRelative = path.resolve(spaceRoot, ...segments)
+  const explicit = /^(?:\.{1,2}\/|\/)/u.test(markdownUrl.trim())
   const candidates = markdownUrl.trim().startsWith("/")
     ? [vaultRelative]
-    : [documentRelative, vaultRelative]
+    : explicit
+      ? [documentRelative]
+      : [documentRelative, vaultRelative]
   for (const candidate of new Set(candidates)) {
+    const relative = path.relative(spaceRoot, candidate)
+    if (
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    )
+      throw new Error("The Markdown image URL escapes its Space")
     const resolution = await resolvedMarkdownImage(spaceRoot, candidate)
     if (resolution) return resolution
   }
-  if (segments.length === 1 && !markdownUrl.trim().startsWith("/")) {
+  if (segments.length === 1 && !explicit) {
     const candidate = await findVaultImageByName(spaceRoot, segments[0])
     if (candidate) return resolvedMarkdownImage(spaceRoot, candidate)
   }
   return null
+}
+
+/** Body-link authority is the Space, independently of canonical FileEntry assets. */
+export async function resolveMarkdownDocumentLink(
+  spaceRoot: string,
+  owner: string,
+  href: string
+): Promise<SpaceTreeEntry | null> {
+  const segments = localMarkdownImageSegments(href)
+  if (!segments) return null
+  const { documentRoot } = await requireImageDocument(spaceRoot, owner)
+  const candidate = path.resolve(
+    href.trim().startsWith("/") ? spaceRoot : documentRoot,
+    ...segments
+  )
+  const relative = path.relative(spaceRoot, candidate)
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative) ||
+    relative
+      .split(path.sep)
+      .some((part) => [".graft", ".eidos", ".git"].includes(part.toLowerCase()))
+  )
+    return null
+  const stats = await fs.lstat(candidate).catch(() => null)
+  if (
+    !stats?.isFile() ||
+    stats.isSymbolicLink() ||
+    (await fs.realpath(candidate).catch(() => null)) !== candidate
+  )
+    return null
+  return {
+    relativePath: relative.split(path.sep).join("/"),
+    name: path.basename(candidate),
+    kind: path.extname(candidate).toLowerCase() === ".eidos" ? "eidos" : "file",
+    size: stats.size,
+    modifiedAtMs: stats.mtimeMs,
+  }
 }

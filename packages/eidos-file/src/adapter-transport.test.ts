@@ -98,12 +98,14 @@ describe("Adapter 1.0 Transport", () => {
       },
     }
     const executionOrder: string[] = []
+    let rowIndex = false
     const runtime = {
       async negotiate() {
         return {
           version: "1.0" as const,
           capabilities: {
             readRows: true,
+            rowIndex,
             schemaPaging: true,
             cursorPaging: true,
             aggregate: true,
@@ -186,6 +188,9 @@ describe("Adapter 1.0 Transport", () => {
         expect(request.rowId).toBe(result.created[0]!.rowId)
         return { found: true, previousId: null, nextId: null }
       },
+      async getRowIndex() {
+        return "7"
+      },
       async cancel() {},
       async close() {},
     } as unknown as RuntimeClient
@@ -205,6 +210,7 @@ describe("Adapter 1.0 Transport", () => {
     expect(negotiation.version).toBe("1.0")
     expect("revertMutation" in client).toBe(false)
     expect("queryRowPages" in client).toBe(false)
+    expect("getRowIndex" in client).toBe(false)
     expect("exportCsv" in client).toBe(false)
     expect("importCsv" in client).toBe(false)
 
@@ -238,6 +244,28 @@ describe("Adapter 1.0 Transport", () => {
         context("neighbors")
       )
     ).resolves.toEqual({ found: true, previousId: null, nextId: null })
+
+    rowIndex = true
+    await client.negotiate(
+      { protocol: "eidos-runtime", versions: ["1.0"] },
+      context("negotiate-row-index")
+    )
+    await expect(
+      client.getRowIndex!(
+        {
+          tableId: result.affectedRows[0]!.tableId,
+          rowId: result.created[0]!.rowId,
+          query: {},
+        },
+        context("row-index")
+      )
+    ).resolves.toBe("7")
+    rowIndex = false
+    await client.negotiate(
+      { protocol: "eidos-runtime", versions: ["1.0"] },
+      context("negotiate-without-row-index")
+    )
+    expect("getRowIndex" in client).toBe(false)
 
     await client.close(context("close"))
     expect(closed).toBe(true)

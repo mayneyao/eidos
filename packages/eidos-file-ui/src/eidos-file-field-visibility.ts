@@ -123,8 +123,41 @@ export function eidosFileViewVisibleSystemFields(
   )
 }
 
+export function orderedEidosFileViewFields(
+  fields: readonly EidosFileFieldInfo[],
+  view: EidosFileViewInfo
+): EidosFileFieldInfo[] {
+  return fields
+    .filter(
+      (field) =>
+        isOptionalEidosFileSystemField(field) ||
+        (!field.isHidden &&
+          (field.isRecordLabel === true ||
+            field.valueKind === "source" ||
+            field.valueKind === "relation" ||
+            field.valueKind === "derived"))
+    )
+    .sort((left, right) => {
+      const leftOrder = view.orderMap?.[left.id]
+      const rightOrder = view.orderMap?.[right.id]
+      if (leftOrder !== undefined || rightOrder !== undefined) {
+        if (leftOrder === undefined) return 1
+        if (rightOrder === undefined) return -1
+        return leftOrder - rightOrder || left.id.localeCompare(right.id)
+      }
+      const leftIsSystem = isOptionalEidosFileSystemField(left)
+      const rightIsSystem = isOptionalEidosFileSystemField(right)
+      if (leftIsSystem !== rightIsSystem) return leftIsSystem ? 1 : -1
+      return (
+        (left.position ?? Number.MAX_SAFE_INTEGER) -
+          (right.position ?? Number.MAX_SAFE_INTEGER) ||
+        left.id.localeCompare(right.id)
+      )
+    })
+}
+
 export function visibleEidosFileFields(
-  fields: EidosFileFieldInfo[],
+  fields: readonly EidosFileFieldInfo[],
   hiddenFields: readonly string[] = [],
   visibleSystemFields: readonly string[] = []
 ): EidosFileFieldInfo[] {

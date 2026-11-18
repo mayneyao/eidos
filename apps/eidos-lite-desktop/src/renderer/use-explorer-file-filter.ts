@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
   filterExplorerEntries,
   countExplorerFilterRules,
   isExplorerFilterGroup,
   explorerFilterSignature,
-  hasExplorerPropertyFilter,
+  hasExplorerHostFilter,
   type ExplorerFileFilter,
 } from "./explorer-file-filter"
 
@@ -13,7 +14,7 @@ function treeSignature(entries: SpaceTreeEntry[]): string {
   return entries
     .map(
       (entry) =>
-        `${entry.relativePath}:${entry.modifiedAtMs}:${entry.size}[${treeSignature(entry.children ?? [])}]`
+        `${entry.relativePath}:${entry.modifiedAtMs}:${entry.createdAtMs ?? ""}:${entry.size}[${treeSignature(entry.children ?? [])}]`
     )
     .join("\n")
 }
@@ -25,18 +26,20 @@ export function useExplorerFileFilter(
   entries: SpaceTreeEntry[],
   changes?: readonly string[],
   recursive = false,
-  respectGitignore = false
+  respectGitignore = false,
+  calendarExecution?: ExplorerCalendarExecution
 ) {
   const active =
     countExplorerFilterRules(filter) > 0 || recursive || respectGitignore
   const context = JSON.stringify([spaceId, directory, respectGitignore])
-  const properties = hasExplorerPropertyFilter(filter)
+  const requiresHost = hasExplorerHostFilter(filter)
   const [retryToken, setRetryToken] = useState(0)
   const scope = JSON.stringify([
     spaceId,
     directory,
     explorerFilterSignature(filter),
     respectGitignore,
+    ...(requiresHost && calendarExecution ? [calendarExecution] : []),
   ])
   const key = JSON.stringify([scope, treeSignature(entries), retryToken])
   const [result, setResult] = useState<{
@@ -51,9 +54,16 @@ export function useExplorerFileFilter(
     let cancelled = false
     const request = () =>
       void (
-        respectGitignore
-          ? window.eidosLite.filterSpaceFiles(filter, directory, true)
-          : window.eidosLite.filterSpaceFiles(filter, directory)
+        requiresHost && calendarExecution
+          ? window.eidosLite.filterSpaceFiles(
+              filter,
+              directory,
+              respectGitignore,
+              calendarExecution
+            )
+          : respectGitignore
+            ? window.eidosLite.filterSpaceFiles(filter, directory, true)
+            : window.eidosLite.filterSpaceFiles(filter, directory)
       ).then(
         (next) => {
           if (!cancelled) setResult({ key, scope, context, entries: next })
@@ -66,9 +76,9 @@ export function useExplorerFileFilter(
               context,
               entries:
                 previous?.context === context &&
-                (properties || previous.scope === scope)
+                (requiresHost || previous.scope === scope)
                   ? previous.entries
-                  : properties
+                  : requiresHost
                     ? entries
                     : filterExplorerEntries(entries, filter),
               error: cause instanceof Error ? cause.message : String(cause),
@@ -90,7 +100,7 @@ export function useExplorerFileFilter(
       ? entries
       : result?.scope === scope
         ? result.entries
-        : properties
+        : requiresHost
           ? result?.context === context
             ? result.entries
             : entries

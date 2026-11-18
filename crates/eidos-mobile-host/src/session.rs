@@ -52,7 +52,9 @@ impl SessionHost {
                     | "getSnapshot"
                     | "getSchemaPage"
                     | "getRecordNeighbors"
+                    | "getRowIndex"
                     | "queryRows"
+                    | "queryRowPages"
                     | "getRowsById"
                     | "aggregate"
                     | "groupRows"
@@ -101,7 +103,9 @@ impl SessionHost {
                         | "getSnapshot"
                         | "getSchemaPage"
                         | "getRecordNeighbors"
+                        | "getRowIndex"
                         | "queryRows"
+                        | "queryRowPages"
                         | "getRowsById"
                         | "aggregate"
                         | "groupRows"
@@ -393,5 +397,20 @@ mod tests {
         host.close();
         assert!(host.execute(&path, "queryRows", request).is_err());
         Ok(())
+    }
+
+    #[test]
+    fn calendar_context_survives_android_web_request_serialization() -> Result<()> {
+        let mut host = SessionHost::default();
+        crate::calendar_conformance::check(|path, method, request| {
+            // JNI parses the same JSON request before passing it to SessionHost.
+            let request = serde_json::from_str(&request.to_string())?;
+            if method == "close" {
+                host.close();
+                Ok(Value::Null)
+            } else {
+                host.execute(path, method, request)
+            }
+        })
     }
 }

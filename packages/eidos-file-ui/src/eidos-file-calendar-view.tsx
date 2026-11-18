@@ -1,5 +1,9 @@
 import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
 import {
+  projectEidosFileCalendarInstant,
+  resolveEidosFileCalendarInstant,
+} from "@eidos.space/eidos-file"
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -143,13 +147,33 @@ export function eidosFileCalendarCreateMode(
 export function eidosFileCalendarCreateValue(
   field: EidosFileFieldInfo,
   day: Date,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string | undefined {
   if (eidosFileCalendarCreateMode(field) !== "all-days") return undefined
   if (field.type === "date") return localDateKey(day)
+  if (calendarTimeZoneData) {
+    const instant = resolveEidosFileCalendarInstant(
+      {
+        year: day.getFullYear(),
+        month: day.getMonth() + 1,
+        day: day.getDate(),
+        hour: 0,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      },
+      timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      calendarTimeZoneData
+    )
+    if (!instant)
+      throw new Error("The selected day has no unambiguous midnight instant")
+    return instant
+  }
   const instant = eidosFileInstantFromWallDate(
     new Date(day.getFullYear(), day.getMonth(), day.getDate()),
-    timeZone
+    timeZone,
+    calendarTimeZoneData
   )
   if (!instant) {
     throw new Error("The selected day has no unambiguous midnight instant")
@@ -168,7 +192,8 @@ function localDateKey(date: Date): string {
 export function eidosFileCalendarRowDateKey(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string | null {
   const value = row[field.tableColumnName]
   if (typeof value !== "string" || value.length === 0) return null
@@ -176,21 +201,56 @@ export function eidosFileCalendarRowDateKey(
     return /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : null
   }
   const instant = new Date(value)
+  if (
+    calendarTimeZoneData &&
+    !Number.isNaN(instant.getTime()) &&
+    !projectEidosFileCalendarInstant(
+      instant.toISOString(),
+      timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      calendarTimeZoneData
+    )
+  )
+    return null
   return Number.isNaN(instant.getTime())
     ? null
-    : eidosFileDateKey(instant, timeZone)
+    : eidosFileDateKey(instant, timeZone, calendarTimeZoneData)
 }
 
 function calendarRowTimeLabel(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string | null {
   if (eidosFileCalendarFieldType(field) !== "datetime") return null
   const value = row[field.tableColumnName]
   if (typeof value !== "string" || value.length === 0) return null
   const instant = new Date(value)
   if (Number.isNaN(instant.getTime())) return null
+  if (calendarTimeZoneData) {
+    const parts = projectEidosFileCalendarInstant(
+      instant.toISOString(),
+      timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      calendarTimeZoneData
+    )
+    if (!parts) return instant.toISOString() + " · outside calendar profile"
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+    }).format(
+      new Date(
+        Date.UTC(
+          parts.year,
+          parts.month - 1,
+          parts.day,
+          parts.hour,
+          parts.minute,
+          parts.second
+        )
+      )
+    )
+  }
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
@@ -298,6 +358,7 @@ function calendarPagesTotal(
 }
 
 export function EidosFileCalendarView({
+  undoableDelete = false,
   table,
   view,
   disabled = false,
@@ -350,6 +411,7 @@ export function EidosFileCalendarView({
     day: Date
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  undoableDelete?: boolean
   onImportFiles?: (options?: { imagesOnly?: boolean }) => Promise<FileEntry[]>
   onImportDroppedFiles?: (
     files: File[],
@@ -372,6 +434,7 @@ export function EidosFileCalendarView({
     interactionMode,
     translate: t,
     weekStartsOnMonday = true,
+    calendarTimeZoneData,
   } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
   const dateFields = useMemo(
@@ -393,10 +456,10 @@ export function EidosFileCalendarView({
   const [layout, setLayout] =
     useState<EidosFileCalendarLayout>(configuredLayout)
   const [anchorDate, setAnchorDate] = useState(() =>
-    eidosFileWallDate(new Date(), timeZone)
+    eidosFileWallDate(new Date(), timeZone, calendarTimeZoneData)
   )
   const [selectedDate, setSelectedDate] = useState(() =>
-    eidosFileWallDate(new Date(), timeZone)
+    eidosFileWallDate(new Date(), timeZone, calendarTimeZoneData)
   )
   const [dayPages, setDayPages] = useState<
     Map<string, EidosFileCalendarDayPage>
@@ -586,7 +649,12 @@ export function EidosFileCalendarView({
   const upsertLoadedRow = (row: EidosFileRow) => {
     if (!dateField) return
     const rowId = String(row._id)
-    const targetKey = eidosFileCalendarRowDateKey(row, dateField, timeZone)
+    const targetKey = eidosFileCalendarRowDateKey(
+      row,
+      dateField,
+      timeZone,
+      calendarTimeZoneData
+    )
     setDayPages((current) => {
       const next = new Map(current)
       for (const [key, page] of next) {
@@ -743,7 +811,12 @@ export function EidosFileCalendarView({
     try {
       const result = await onAddRow(dateField, day)
       if (
-        eidosFileCalendarRowDateKey(result.row, dateField, timeZone) === dayKey
+        eidosFileCalendarRowDateKey(
+          result.row,
+          dateField,
+          timeZone,
+          calendarTimeZoneData
+        ) === dayKey
       ) {
         upsertLoadedRow(result.row)
       }
@@ -802,7 +875,7 @@ export function EidosFileCalendarView({
     )
   }
 
-  const todayKey = eidosFileDateKey(new Date(), timeZone)
+  const todayKey = eidosFileDateKey(new Date(), timeZone, calendarTimeZoneData)
   const createMode = eidosFileCalendarCreateMode(dateField)
   const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
     const firstWeekday = new Date(2026, 0, (weekStartsOnMonday ? 5 : 4) + index)
@@ -932,7 +1005,7 @@ export function EidosFileCalendarView({
   ) => {
     const title = eidosFileRecordTitle(row, table.fields)
     const timeLabel = showTime
-      ? calendarRowTimeLabel(row, dateField, timeZone)
+      ? calendarRowTimeLabel(row, dateField, timeZone, calendarTimeZoneData)
       : null
     if (mobile)
       return (
@@ -1115,7 +1188,11 @@ export function EidosFileCalendarView({
               size="sm"
               className="h-7 w-fit px-2.5 text-xs"
               onClick={() => {
-                const today = eidosFileWallDate(new Date(), timeZone)
+                const today = eidosFileWallDate(
+                  new Date(),
+                  timeZone,
+                  calendarTimeZoneData
+                )
                 setAnchorDate(today)
                 if (mobile) setSelectedDate(today)
               }}
@@ -1380,6 +1457,7 @@ export function EidosFileCalendarView({
         ) : null)}
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
+          undoableDelete={undoableDelete}
           row={deleteRow}
           fields={table.fields}
           disabled={disabled}

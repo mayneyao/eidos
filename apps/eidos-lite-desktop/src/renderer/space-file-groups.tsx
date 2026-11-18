@@ -15,6 +15,7 @@ import {
   Video,
 } from "lucide-react"
 import type { SpaceTreeEntry } from "../shared/contracts"
+import { explorerRenameSelectionEnd } from "./explorer-rename"
 import {
   groupExplorerFiles,
   explorerGroupDateLabel,
@@ -27,6 +28,7 @@ import {
   ALL_EXPLORER_FILES,
   type ExplorerFileFilter,
 } from "./explorer-file-filter"
+import type { ExplorerCalendarExecution } from "../shared/explorer-calendar"
 import { useExplorerRecentFiles } from "./use-explorer-recent-files"
 import { canSummarizeFile } from "./explorer-card-summary"
 import { formatBytes } from "./format-bytes"
@@ -43,6 +45,7 @@ interface Props {
   spaceId: string
   directory?: string | null
   fileFilter?: ExplorerFileFilter
+  calendarExecution?: ExplorerCalendarExecution
   respectGitignore?: boolean
   changes?: readonly string[]
   entries: SpaceTreeEntry[]
@@ -229,6 +232,7 @@ export function SpaceFileGroups(props: Props) {
     visible: props.visible,
     refreshKey,
     respectGitignore: props.respectGitignore,
+    calendarExecution: props.calendarExecution,
   })
   const groups = useMemo(
     () => groupExplorerFiles(recent.entries, props.sort, now),
@@ -374,7 +378,10 @@ export function SpaceFileGroups(props: Props) {
   useLayoutEffect(() => {
     if (editing && input.current && document.activeElement !== input.current) {
       input.current.focus({ preventScroll: true })
-      input.current.select()
+      input.current.setSelectionRange(
+        0,
+        explorerRenameSelectionEnd(editing.entry.name, editing.entry.kind)
+      )
     }
   }, [editing?.entry.relativePath, virtualRows])
   useLayoutEffect(() => {

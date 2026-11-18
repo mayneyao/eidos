@@ -45,6 +45,8 @@ export function BrowserEidosFileEditorView(props: EidosFileEditorViewProps) {
         <EidosFileRelatedRecordPanel
           source={props.source}
           table={props.table}
+          tables={props.tables}
+          view={props.view}
           target={{ tableId: props.table.table.id, rowId, title: "" }}
           presentation={presentation}
           onPresentationToggle={togglePresentation}

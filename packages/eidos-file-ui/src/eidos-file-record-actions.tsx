@@ -1,5 +1,7 @@
 import {
   cloneElement,
+  useEffect,
+  useId,
   useRef,
   useState,
   type HTMLAttributes,
@@ -15,6 +17,7 @@ import {
   type EidosFileCellAction,
 } from "./eidos-file-cell-actions"
 import { useEidosFileTableActions } from "./table-actions"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/adaptive-popover"
 
 /** Shared record operations; cells and individual views add their own actions. */
@@ -72,6 +75,10 @@ export function EidosFileRecordContextMenu({
   onDelete,
   onError,
   extraActions,
+  getActionRowIds,
+  onDeleteRowIds,
+  batchDeleteLimit,
+  actionScope,
 }: {
   children: ReactElement<HTMLAttributes<HTMLElement>>
   row: EidosFileRow
@@ -79,9 +86,30 @@ export function EidosFileRecordContextMenu({
   onDelete?: (row: EidosFileRow) => void
   onError?: (error: unknown) => void
   extraActions?: () => EidosFileCellAction[]
+  /** Resolve stable selection identities when the menu opens. */
+  getActionRowIds?: (row: EidosFileRow) => readonly string[]
+  onDeleteRowIds?: (rowIds: readonly string[]) => void
+  batchDeleteLimit?: number
+  /** Changing the effective query/source dismisses stale action targets. */
+  actionScope?: object
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
+  const undo = useEidosFileUndo()
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
+  const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
+  const deleteLimitHintId = useId()
+  const multiple = actionRowIds.length > 1
+  const deleteLimitExceeded =
+    batchDeleteLimit !== undefined && actionRowIds.length > batchDeleteLimit
+  const capturedScope = useRef(actionScope)
+  useEffect(() => setPoint(null), [actionScope])
+  const captureTarget = () => {
+    capturedScope.current = actionScope
+    const ids = getActionRowIds?.(row)
+    setActionRowIds(
+      ids?.includes(String(row._id)) ? [...new Set(ids)] : [String(row._id)]
+    )
+  }
   // Virtualized rows use transforms/containment, which change the containing
   // block of a DOM fixed anchor. Pointer coordinates are already viewport-based.
   const anchorRef = useRef({
@@ -100,15 +128,17 @@ export function EidosFileRecordContextMenu({
     actions,
     items: extensions,
     error,
-  } = useEidosFileTableActions(target, open)
+  } = useEidosFileTableActions(target, open && !multiple)
   const close = () => setPoint(null)
   const run = (action: () => void) => {
     close()
+    if (capturedScope.current !== actionScope) return
     action()
   }
   const [openRecord, copyId, deleteRecord] = eidosFileRecordActions({
     rowId: row._id,
-    canDelete: !!onDelete,
+    count: multiple ? actionRowIds.length : 1,
+    canDelete: multiple ? !!onDeleteRowIds && !deleteLimitExceeded : !!onDelete,
     onOpen: () => onOpen?.(row),
     onCopyId: (id) => {
       if (!navigator.clipboard?.writeText) {
@@ -116,13 +146,20 @@ export function EidosFileRecordContextMenu({
         return
       }
       void navigator.clipboard
-        .writeText(id)
+        .writeText(multiple ? actionRowIds.join("\n") : id)
         .catch((cause: unknown) => onError?.(cause))
     },
-    onDelete: () => onDelete?.(row),
+    onDelete: () => {
+      fromKeyboard.current = false
+      return multiple ? onDeleteRowIds?.(actionRowIds) : onDelete?.(row)
+    },
     translate: t,
   })
   openRecord.disabled = !onOpen
+  if (multiple) {
+    copyId.title = t("Copy {count} record IDs", { count: actionRowIds.length })
+    copyId.disabled = false
+  }
   const closeAfterAction = (
     item: EidosFileCellAction
   ): EidosFileCellAction => ({
@@ -133,10 +170,10 @@ export function EidosFileRecordContextMenu({
       : undefined,
   })
   const items = [
-    ...(open ? (extraActions?.() ?? []) : []),
-    openRecord,
+    ...(open && !multiple ? (extraActions?.() ?? []) : []),
+    ...(!multiple ? [openRecord] : []),
     copyId,
-    ...extensions.map(
+    ...(!multiple ? extensions : []).map(
       (item): EidosFileCellAction => ({
         ...item,
         icon: item.icon ?? <Zap className="h-3.5 w-3.5" />,
@@ -157,6 +194,7 @@ export function EidosFileRecordContextMenu({
           event.stopPropagation()
           triggerRef.current = event.currentTarget
           fromKeyboard.current = false
+          captureTarget()
           setPoint({ x: event.clientX, y: event.clientY })
         },
         onKeyDown: (event) => {
@@ -176,6 +214,7 @@ export function EidosFileRecordContextMenu({
               ? event.target
               : event.currentTarget
           fromKeyboard.current = true
+          captureTarget()
           const bounds = event.currentTarget.getBoundingClientRect()
           setPoint({
             x: bounds.left + bounds.width / 2,
@@ -193,7 +232,14 @@ export function EidosFileRecordContextMenu({
         <PopoverContent
           data-eidos-file-record-menu=""
           role="menu"
-          aria-label={t("Record actions")}
+          aria-describedby={deleteLimitExceeded ? deleteLimitHintId : undefined}
+          aria-label={
+            multiple
+              ? t("Actions for {count} selected records", {
+                  count: actionRowIds.length,
+                })
+              : t("Record actions")
+          }
           align="start"
           sideOffset={2}
           className="max-h-[var(--radix-popover-content-available-height)] w-56 overflow-y-auto p-1 has-[[data-menu-reordering=true]]:w-[15.25rem]"
@@ -205,6 +251,7 @@ export function EidosFileRecordContextMenu({
             event.preventDefault()
             if (fromKeyboard.current)
               triggerRef.current?.focus({ preventScroll: true })
+            else undo?.onCloseAutoFocus(event)
           }}
         >
           <EidosFileCellActions
@@ -215,6 +262,16 @@ export function EidosFileRecordContextMenu({
               dragging.current = value
             }}
           />
+          {deleteLimitExceeded ? (
+            <p
+              id={deleteLimitHintId}
+              className="px-2 pb-1 text-xs text-muted-foreground"
+            >
+              {t("Select {count} or fewer records to delete", {
+                count: batchDeleteLimit,
+              })}
+            </p>
+          ) : null}
           {error ? (
             <p role="alert" className="px-2 text-xs text-destructive">
               {error}

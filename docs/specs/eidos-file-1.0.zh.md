@@ -886,6 +886,19 @@ default semantics 的 unknown preserved settings data。缺少该 member 表示�
 Select create-time default。它是 canonical Field metadata，不会填充或改写任何
 existing cell；create-time mutation 行为由 Eidos Runtime 1.0 定义。
 
+可写的普通 stored Date / Datetime Field 可以声明 `settings.defaultValue` 为
+string `"now"`；缺省或 JSON null 关闭规则。其他值、表达式，以及其他 Field type、
+system、derived 或只读 Field 上的非 null `defaultValue` 均无效。它是 ordinary
+Runtime creation 的 metadata，不是 physical SQLite DEFAULT，不改变 nullable，
+不得填充或改写 existing cell。声明此规则的文件必须携带 required feature
+`(name="eidos:temporal-defaults", version="1", required=1, config_json='{}')`。
+首次配置必须在同一 schema transaction 原子安装；缺少声明或不支持的 version/config
+无效。不支持此特性的 reader/writer 必须在暴露 canonical data 或写入前拒绝整个文件。
+关闭最后一个 default 后仍保留声明，copy、restore、merge、schema edit 均须保留；
+仅打开文件或创建未配置 default 的 row 不得安装声明。沿用现有 atomic feature
+merge/conflict 和最终 semantic validation 规则。参考时刻和应用时区属于 Runtime
+creation operation，不保存在 Field metadata 中。
+
 cell value 即使不在 catalog 里仍然是有效 canonical data，必须原样保留；如何呈现
 unconfigured value 归 UI 规范。删除 catalog metadata 不能静默删除 cell data。
 
@@ -1142,6 +1155,9 @@ canonical，parsed edge/topological plan 只是 generated state。
 
 ## 13. Saved View definition storage
 
+持久化 calendar-period 查询必须带 §20 的必需声明。unsupported query 文档
+须完整保留，不能隐式重写。
+
 View 是 `eidos__views` 中以 stable View ID 标识的 row。`query_json` 与
 `layout_json` 必须是 JCS object；其中结构化 Field reference 只用 Field ID。它们不能
 保存 copied cell、resolved label、generated SQL、cursor/page、current selection/focus/
@@ -1336,6 +1352,28 @@ value。extension table/index 只有对 declared extension 才是 canonical。co
 clarification 可以增加
 example/test，但不能改变已有 valid byte/value interpretation；任何 persisted meaning
 change 都必须升级 File Format version。Runtime/Adapter/UI version 相互独立。
+
+### 必需日历查询特性
+
+登记的 first-party feature 为 `(name="eidos:calendar-query", version="2")`，
+必须有 `required=1` 且 `config_json='{}'`。它显式启用 Runtime 的完整日历周期
+查询契约，不改变 Date/Datetime 原值、File 1.0 物理 schema 或旧查询含义。
+保存任何 `calendar-period` View 或显式升级/恢复日期查询，必须在同一检查
+revision 的事务内安装该精确声明。持久化新语法缺失声明属于无效文件；
+不支持的 tuple/config 必须拒绝。单纯打开、瞬时查询和无关写入不能安装声明。
+改名、layout、复制、恢复条件以及删除最后一个新版日期 View 后仍须保留声明。
+预览只能修改私有副本，不得改变源文件。
+
+不支持该必需特性的 Reader 必须在暴露 canonical 数据前拒绝整个文件。
+恢复条件不会恢复旧版本兼容。schema 的 feature 计数和 descriptor 返回实际
+声明。沿用现有原子 feature 合并/冲突规则；最终候选校验必须拒绝有新语法而
+缺少合法声明的文件。
+
+额外的 first-party feature `(name="eidos:calendar-window", version="1")` 要求
+`required=1`、精确 `config_json='{}'`，并依赖上述 calendar-query@2 声明。
+持久化 calendar-window View 必须在同一 revision 原子安装两项声明。打开、校验、
+复制／合并保留、拒绝不支持的 reader 及不自动降级要求与上述相同。临时 window
+不安装 feature。Calendar-period 原义不变，完整上／下周期不是滚动日期范围。
 
 ## 21. Media type registration template
 

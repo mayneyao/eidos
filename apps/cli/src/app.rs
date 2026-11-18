@@ -39,7 +39,7 @@ use crate::cli::{
     StandardViewTypeArg, TableArgs, TableCommand, TableCreateArgs, TableDeleteArgs,
     TableRenameArgs, TableUpdateArgs, UpgradeArgs, ValidateArgs, ValidationLevelArg, ViewApplyArgs,
     ViewArgs, ViewCommand, ViewCreateArgs, ViewDeleteArgs, ViewInspectArgs, ViewListArgs,
-    ViewUpdateArgs,
+    ViewUpdateArgs, ViewUpgradeDatesArgs,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -132,6 +132,7 @@ fn run_data(args: DataNamespaceArgs) -> Result<CommandOutput> {
             let table = args.table_opt.or(args.table);
             if args.compact {
                 context(ContextArgs {
+                    calendar: args.calendar,
                     file: args.file,
                     table,
                     where_json: args.where_clause,
@@ -150,6 +151,7 @@ fn run_data(args: DataNamespaceArgs) -> Result<CommandOutput> {
                     )
                 })?;
                 query(QueryArgs {
+                    calendar: args.calendar,
                     file: args.file,
                     table,
                     where_json: args.where_clause,
@@ -900,15 +902,20 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
     } else {
         Some(args.fields)
     };
-    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+    let page = if fields.iter().any(|field| field.physical_name.is_none())
+        || query
+            .filter
+            .as_ref()
+            .is_some_and(FilterNode::requires_runtime)
+    {
         runtime_query_rows(
             &args.file,
             &table.id,
             &fields,
             &query,
             projection,
-            args.limit,
-            args.offset,
+            (args.limit, args.offset),
+            args.calendar.execution(),
         )?
     } else {
         read_rows(
@@ -969,6 +976,7 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
             "views": views,
             "rows": page.rows,
             "totalEstimate": page.total_estimate,
+            "referenceInstant": page.reference_instant,
             "limit": args.limit,
             "offset": args.offset,
         })
@@ -1023,6 +1031,7 @@ fn context(args: ContextArgs) -> Result<CommandOutput> {
             "fields": compact_fields,
             "rows": page.rows,
             "totalEstimate": page.total_estimate,
+            "referenceInstant": page.reference_instant,
             "limit": args.limit,
             "offset": args.offset,
             "capabilities": {
@@ -1099,15 +1108,20 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         &table.id,
     )?;
     let projection = (!args.fields.is_empty()).then_some(args.fields);
-    let page = if fields.iter().any(|field| field.physical_name.is_none()) {
+    let page = if fields.iter().any(|field| field.physical_name.is_none())
+        || query
+            .filter
+            .as_ref()
+            .is_some_and(FilterNode::requires_runtime)
+    {
         runtime_query_rows(
             &args.file,
             &table.id,
             &fields,
             &query,
             projection,
-            args.limit,
-            args.offset,
+            (args.limit, args.offset),
+            args.calendar.execution(),
         )?
     } else {
         read_rows(
@@ -1129,6 +1143,7 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         "table": { "id": table.id, "name": table.name },
         "rows": page.rows,
         "totalEstimate": page.total_estimate,
+            "referenceInstant": page.reference_instant,
         "limit": args.limit,
         "offset": args.offset,
     })))
@@ -1140,9 +1155,10 @@ fn runtime_query_rows(
     fields: &[FieldMeta],
     query: &RowQuery,
     projection: Option<Vec<String>>,
-    limit: u32,
-    offset: u32,
+    pagination: (u32, u32),
+    execution: Map<String, Value>,
 ) -> Result<eidos_file_core::query::RowPage> {
+    let (limit, offset) = pagination;
     let projection = projection
         .map(|references| {
             references
@@ -1154,10 +1170,14 @@ fn runtime_query_rows(
         .unwrap_or_else(|| fields.iter().map(|field| field.id.clone()).collect());
     let query = serde_json::to_value(query)
         .map_err(|error| AppError::internal(format!("serialize Runtime query: {error}")))?;
+    let with_calendar = |mut request: Value| {
+        request.as_object_mut().unwrap().extend(execution.clone());
+        request
+    };
     with_runtime_session(file, false, |session| {
         let page = session.call(
             "queryRows",
-            &json!({
+            &with_calendar(json!({
                 "tableId": table_id,
                 "query": query,
                 "projection": {
@@ -1166,26 +1186,35 @@ fn runtime_query_rows(
                 },
                 "limit": limit,
                 "offset": offset,
-            }),
+                "includeTotal": true,
+            })),
         )?;
-        let aggregate = session.call(
-            "aggregate",
-            &json!({
-                "tableId": table_id,
-                "query": query,
-                "items": [{"key": "count", "op": "count-all"}],
-            }),
-        )?;
-        let total_estimate = aggregate
-            .get("results")
-            .and_then(Value::as_array)
-            .and_then(|results| results.first())
-            .and_then(|result| result.get("value"))
-            .and_then(|value| match value {
-                Value::String(value) => value.parse::<u64>().ok(),
-                Value::Number(value) => value.as_u64(),
-                _ => None,
-            });
+        let total_estimate = if let Some(total) = page
+            .get("total")
+            .and_then(Value::as_str)
+            .and_then(|value| value.parse::<u64>().ok())
+        {
+            Some(total)
+        } else {
+            let aggregate = session.call(
+                "aggregate",
+                &with_calendar(json!({
+                    "tableId": table_id,
+                    "query": query,
+                    "items": [{"key": "count", "op": "count-all"}],
+                })),
+            )?;
+            aggregate
+                .get("results")
+                .and_then(Value::as_array)
+                .and_then(|results| results.first())
+                .and_then(|result| result.get("value"))
+                .and_then(|value| match value {
+                    Value::String(value) => value.parse::<u64>().ok(),
+                    Value::Number(value) => value.as_u64(),
+                    _ => None,
+                })
+        };
         let columns = page
             .get("columns")
             .and_then(Value::as_array)
@@ -1221,6 +1250,10 @@ fn runtime_query_rows(
             rows.push(row);
         }
         Ok(eidos_file_core::query::RowPage {
+            reference_instant: page
+                .get("referenceInstant")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
             rows,
             total_estimate,
         })
@@ -1828,6 +1861,13 @@ fn resolve_upsert_key_fields(
 
 fn view_apply(args: ViewApplyArgs) -> Result<CommandOutput> {
     let request: ViewMutationRequest = serde_json::from_value(read_json_source(&args.request)?)?;
+    if view_request_requires_runtime(&request)
+        || view_source_requires_runtime(&args.file, &request)?
+    {
+        return Ok(CommandOutput::success(canonical_view_mutation(
+            &args.file, &request, false,
+        )?));
+    }
     let mut conn = open_file(&args.file, true)?;
     Ok(CommandOutput::success(json!(mutate_views(
         &mut conn, &request
@@ -1839,6 +1879,7 @@ fn view(args: ViewArgs) -> Result<CommandOutput> {
     match command {
         ViewCommand::List(args) => view_list(file, args),
         ViewCommand::Inspect(args) => view_inspect(file, args),
+        ViewCommand::UpgradeDates(args) => view_upgrade_dates(file, args),
         ViewCommand::Create(args) => view_create(file, args),
         ViewCommand::Update(args) => view_update(file, args),
         ViewCommand::Delete(args) => view_delete(file, args),
@@ -1882,6 +1923,59 @@ fn view_inspect(file: PathBuf, args: ViewInspectArgs) -> Result<CommandOutput> {
         "revision": meta.revision.to_string(),
         "view": saved_view_json(view, &tables),
     })))
+}
+
+fn view_upgrade_dates(file: PathBuf, args: ViewUpgradeDatesArgs) -> Result<CommandOutput> {
+    let conn = open_file(&file, false)?;
+    let meta = load_file_meta(&conn)?;
+    let views = load_views(&conn)?;
+    let view = resolve_view(&views, &args.reference)?;
+    let view_id = view.id.clone();
+    let original = parse_stored_json(&view.query_json);
+    let request = json!({
+        "expectedRevision": meta.revision.to_string(),
+        "changes": [{"kind": if args.restore { "restore-date-query" } else { "upgrade-date-query" }, "viewId": view_id}],
+    });
+    let execute = |session: &crate::runtime::RuntimeSession| -> Result<Value> {
+        let result = session.call("mutateView", &request)?;
+        let mut cursor: Option<Value> = None;
+        loop {
+            let mut request = json!({ "revision": result["revision"], "limit": 1000, "calendarQueryVersion": 2, "calendarWindowVersion": 1 });
+            if let Some(value) = &cursor {
+                request["cursor"] = value.clone();
+            }
+            let page = session.call("getSchemaPage", &request)?;
+            if let Some(updated) = page["objects"].as_array().and_then(|objects| {
+                objects
+                    .iter()
+                    .find(|item| item["object"] == "view" && item["id"] == view_id)
+            }) {
+                return Ok(json!({
+                    "dryRun": !args.apply, "restore": args.restore,
+                    "notice": if args.restore {"Restoring the conditions does not restore compatibility with older Eidos versions."} else {"After updating, this file requires Eidos with the new date filters. Past periods become complete previous calendar periods."},
+                    "beforeQuery": original, "afterQuery": updated["query"],
+                    "queryStatus": updated["queryStatus"],
+                    "recoveryReceipt": updated["layout"]["space.eidos/date-query-upgrade"],
+                    "result": result,
+                }));
+            }
+            cursor = page
+                .get("nextCursor")
+                .filter(|value| !value.is_null())
+                .cloned();
+            if cursor.is_none() {
+                return Err(AppError::internal(
+                    "Runtime did not return the updated View",
+                ));
+            }
+        }
+    };
+    let result = if args.apply {
+        with_runtime_session(&file, true, execute)?
+    } else {
+        crate::runtime::with_preview_session(&file, execute)?
+    };
+    Ok(CommandOutput::success(result))
 }
 
 fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
@@ -1942,6 +2036,8 @@ fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
         .expected_revision
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
+        calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::CreateView {
             client_key: "agent-view".into(),
@@ -1957,7 +2053,7 @@ fn view_create(file: PathBuf, args: ViewCreateArgs) -> Result<CommandOutput> {
         "table": {"id": table.id, "name": table.name},
         "viewType": view_type,
     });
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
 }
 
 fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
@@ -2068,6 +2164,8 @@ fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
         .expected_revision
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
+        calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::UpdateView {
             view_id: current.id.clone(),
@@ -2084,7 +2182,7 @@ fn view_update(file: PathBuf, args: ViewUpdateArgs) -> Result<CommandOutput> {
         "view": {"id": current.id, "name": current.name, "table": table.name},
         "viewType": view_type.as_str(),
     });
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
 }
 
 fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
@@ -2097,16 +2195,88 @@ fn view_delete(file: PathBuf, args: ViewDeleteArgs) -> Result<CommandOutput> {
         .expected_revision
         .unwrap_or_else(|| meta.revision.to_string());
     let request = ViewMutationRequest {
+        calendar_query_version: Some(2),
+        calendar_window_version: Some(1),
         expected_revision,
         changes: vec![ViewChange::DeleteView {
             view_id: current.id.clone(),
         }],
     };
     let resolved = json!({"view": saved_view_json(&current, &tables)});
-    execute_view_request(&mut conn, request, args.dry_run, resolved)
+    execute_view_request(&file, &mut conn, request, args.dry_run, resolved)
+}
+
+fn view_source_requires_runtime(file: &Path, request: &ViewMutationRequest) -> Result<bool> {
+    let marker_conn = open_file(file, false)?;
+    if marker_conn
+        .query_row(
+            "SELECT COUNT(*) FROM eidos__features WHERE name IN ('eidos:calendar-query','eidos:calendar-window')",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(EidosError::from)?
+        > 0
+    {
+        return Ok(true);
+    }
+    let ids: Vec<&str> = request
+        .changes
+        .iter()
+        .filter_map(|change| match change {
+            ViewChange::UpdateView { view_id, .. } => Some(view_id.as_str()),
+            _ => None,
+        })
+        .collect();
+    if ids.is_empty() {
+        return Ok(false);
+    }
+    let conn = open_file(file, false)?;
+    let views = load_views(&conn)?;
+    for view in views.iter().filter(|view| ids.contains(&view.id.as_str())) {
+        match serde_json::from_str::<SavedViewQuery>(&view.query_json) {
+            Ok(query)
+                if !query
+                    .filter
+                    .as_ref()
+                    .is_some_and(FilterNode::requires_runtime) => {}
+            _ => return Ok(true),
+        }
+    }
+    Ok(false)
+}
+
+fn view_request_requires_runtime(request: &ViewMutationRequest) -> bool {
+    request.changes.iter().any(|change| {
+        let query = match change {
+            ViewChange::CreateView { query, .. } => Some(query),
+            ViewChange::UpdateView { patch, .. } => patch.query.as_ref(),
+            ViewChange::DeleteView { .. } => None,
+            ViewChange::UpgradeDateQuery { .. } | ViewChange::RestoreDateQuery { .. } => {
+                return true;
+            }
+        };
+        query
+            .and_then(|query| query.filter.as_ref())
+            .is_some_and(FilterNode::requires_runtime)
+    })
+}
+
+fn canonical_view_mutation(
+    file: &Path,
+    request: &ViewMutationRequest,
+    preview: bool,
+) -> Result<Value> {
+    let value = serde_json::to_value(request)?;
+    let execute = |session: &crate::runtime::RuntimeSession| session.call("mutateView", &value);
+    if preview {
+        crate::runtime::with_preview_session(file, execute)
+    } else {
+        with_runtime_session(file, true, execute)
+    }
 }
 
 fn execute_view_request(
+    file: &Path,
     conn: &mut Connection,
     request: ViewMutationRequest,
     dry_run: bool,
@@ -2114,10 +2284,14 @@ fn execute_view_request(
 ) -> Result<CommandOutput> {
     let request_value = serde_json::to_value(&request)
         .map_err(|error| AppError::internal(format!("serialize View request: {error}")))?;
-    let result = if dry_run {
-        preview_views(conn, &request)?
+    let result = if view_request_requires_runtime(&request)
+        || view_source_requires_runtime(file, &request)?
+    {
+        canonical_view_mutation(file, &request, dry_run)?
+    } else if dry_run {
+        json!(preview_views(conn, &request)?)
     } else {
-        mutate_views(conn, &request)?
+        json!(mutate_views(conn, &request)?)
     };
     Ok(CommandOutput::success(json!({
         "dryRun": dry_run,

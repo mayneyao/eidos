@@ -16,18 +16,28 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   constructor(
     readonly sessionId: string,
     private snapshotValue: EidosFileSnapshot,
-    private readonly onSnapshot?: (snapshot: EidosFileSnapshot) => void
+    private readonly onSnapshot?: (snapshot: EidosFileSnapshot) => void,
+    private readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {},
+    readonly readOnly = false
   ) {}
+
+  private callRuntime: typeof window.eidosLite.callRuntime = (
+    sessionId,
+    method,
+    args
+  ) =>
+    this.consumer.calendarQueryVersion === 2
+      ? window.eidosLite.callRuntime(sessionId, method, args, this.consumer)
+      : window.eidosLite.callRuntime(sessionId, method, args)
 
   private async mutate<M extends RuntimeMutationMethod>(
     method: M,
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
-    const result = await window.eidosLite.callRuntime(
-      this.sessionId,
-      method,
-      args
-    )
+    const result = await this.callRuntime(this.sessionId, method, args)
     if (isEidosLiteSchemaImpactRequiredResult(result)) {
       throw Object.assign(
         new Error("Review the schema change impact before applying it"),
@@ -44,7 +54,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   }
 
   async getSnapshot(): Promise<EidosFileSnapshot> {
-    this.snapshotValue = await window.eidosLite.callRuntime(
+    this.snapshotValue = await this.callRuntime(
       this.sessionId,
       "getSnapshot",
       []
@@ -53,17 +63,13 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   }
 
   getPage(...args: Parameters<EidosFileDataSource["getPage"]>) {
-    return window.eidosLite.callRuntime(this.sessionId, "getPage", args)
+    return this.callRuntime(this.sessionId, "getPage", args)
   }
 
   readTablePluginConfig(
     ...args: RuntimeCalls["readTablePluginConfig"]["args"]
   ) {
-    return window.eidosLite.callRuntime(
-      this.sessionId,
-      "readTablePluginConfig",
-      args
-    )
+    return this.callRuntime(this.sessionId, "readTablePluginConfig", args)
   }
   writeTablePluginConfig(
     ...args: RuntimeCalls["writeTablePluginConfig"]["args"]
@@ -77,7 +83,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     signal?: AbortSignal
   ) {
     signal?.throwIfAborted()
-    const ids = await window.eidosLite.callRuntime(
+    const ids = await this.callRuntime(
       this.sessionId,
       "captureTableActionTarget",
       [tableId, query, ranges]
@@ -86,11 +92,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return ids
   }
   readTableActionRows(...args: RuntimeCalls["readTableActionRows"]["args"]) {
-    return window.eidosLite.callRuntime(
-      this.sessionId,
-      "readTableActionRows",
-      args
-    )
+    return this.callRuntime(this.sessionId, "readTableActionRows", args)
   }
   writeTableActionRow(
     tableId: string,
@@ -100,16 +102,14 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   ) {
     signal?.throwIfAborted()
     // A dispatched atomic write must settle so cancellation retains its undo receipt.
-    return window.eidosLite.callRuntime(this.sessionId, "writeTableActionRow", [
+    return this.callRuntime(this.sessionId, "writeTableActionRow", [
       tableId,
       row,
       values,
     ])
   }
   undoTableActionRow(token: string) {
-    return window.eidosLite.callRuntime(this.sessionId, "undoTableActionRow", [
-      token,
-    ])
+    return this.callRuntime(this.sessionId, "undoTableActionRow", [token])
   }
   releaseTableActionUndo(tokens: string[]) {
     void window.eidosLite
@@ -118,55 +118,47 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
   }
 
   getPages(...args: Parameters<NonNullable<EidosFileDataSource["getPages"]>>) {
-    return window.eidosLite.callRuntime(this.sessionId, "getPages", args)
+    return this.callRuntime(this.sessionId, "getPages", args)
   }
 
   getRow(...args: Parameters<NonNullable<EidosFileDataSource["getRow"]>>) {
-    return window.eidosLite.callRuntime(this.sessionId, "getRow", args)
+    return this.callRuntime(this.sessionId, "getRow", args)
   }
 
   getRecordNeighbors(
     ...args: Parameters<NonNullable<EidosFileDataSource["getRecordNeighbors"]>>
   ) {
-    return window.eidosLite.callRuntime(
-      this.sessionId,
-      "getRecordNeighbors",
-      args
-    )
+    return this.callRuntime(this.sessionId, "getRecordNeighbors", args)
   }
 
   getRowIndex(
     ...args: Parameters<NonNullable<EidosFileDataSource["getRowIndex"]>>
   ) {
-    return window.eidosLite.callRuntime(this.sessionId, "getRowIndex", args)
+    return this.callRuntime(this.sessionId, "getRowIndex", args)
   }
 
   getGroupCounts(
     ...args: Parameters<NonNullable<EidosFileDataSource["getGroupCounts"]>>
   ) {
-    return window.eidosLite.callRuntime(this.sessionId, "getGroupCounts", args)
+    return this.callRuntime(this.sessionId, "getGroupCounts", args)
   }
 
   calculateColumnStats(
     ...args: Parameters<EidosFileDataSource["calculateColumnStats"]>
   ) {
-    return window.eidosLite.callRuntime(
-      this.sessionId,
-      "calculateColumnStats",
-      args
-    )
+    return this.callRuntime(this.sessionId, "calculateColumnStats", args)
   }
 
   aggregateTable(
     ...args: Parameters<NonNullable<EidosFileDataSource["aggregateTable"]>>
   ) {
-    return window.eidosLite.callRuntime(this.sessionId, "aggregateTable", args)
+    return this.callRuntime(this.sessionId, "aggregateTable", args)
   }
 
   previewFormula(
     ...args: Parameters<NonNullable<EidosFileDataSource["previewFormula"]>>
   ) {
-    return window.eidosLite.callRuntime(this.sessionId, "previewFormula", args)
+    return this.callRuntime(this.sessionId, "previewFormula", args)
   }
 
   previewCsv(
@@ -174,7 +166,7 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     bytes: ArrayBuffer,
     options: EidosFileCsvImportOptions = {}
   ): Promise<EidosFileCsvImportPlan> {
-    return window.eidosLite.callRuntime(this.sessionId, "previewCsv", [
+    return this.callRuntime(this.sessionId, "previewCsv", [
       fileName,
       bytes,
       options,

@@ -1,9 +1,18 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import Database from "better-sqlite3"
+import { Runtime } from "./runtime-service"
+import {
+  AdapterTransportRuntimeClient,
+  AdapterTransportServer,
+  type AdapterTransportChannel,
+  type AdapterStructuredCloneCarrier,
+} from "./adapter-transport"
+import type { RowQuery, RuntimeService } from "./runtime-contract"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { createEidosFile } from "./better-sqlite3"
+import { createEidosFile, BetterSqlite3ConnectionPort } from "./better-sqlite3"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EIDOS_FILE_VIEWS_TABLE } from "./constants"
 
@@ -153,7 +162,7 @@ describe("saved View query forward compatibility", () => {
     }
   })
 
-  it("preserves an unsupported query until it is explicitly replaced", () => {
+  it("preserves unsupported queries and refuses ordinary query replacements", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "eidos-view-query-"))
     roots.push(root)
     const runtime = createEidosFile(path.join(root, "data.eidos"), {
@@ -167,6 +176,11 @@ describe("saved View query forward compatibility", () => {
       const table = runtime.schema()[0]!
       const field = table.fields.find((candidate) => candidate.name === "Name")!
       const original = canonicalizeEidosFileJson({
+        "x.example": {
+          flag: true,
+          array: [null, 1, "keep"],
+          nested: { original: true },
+        },
         filter: {
           op: "and",
           args: [
@@ -202,22 +216,57 @@ describe("saved View query forward compatibility", () => {
         "saved query from a newer Eidos version"
       )
 
-      const replaced = runtime.updateView(viewId, {
-        filter: {
-          type: "group",
-          conjunction: "and",
-          children: [
-            {
-              type: "rule",
-              field: field.id!,
-              operator: "equals",
-              value: "Roadmap",
+      expect(() =>
+        runtime.updateView(viewId, {
+          filter: {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: field.id!,
+                operator: "equals",
+                value: "Roadmap",
+              },
+            ],
+          },
+        })
+      ).toThrow(/must be upgraded explicitly/)
+      expect(runtime.listViews(table.table.id)[0]!.query).toBe(original)
+      const port = new BetterSqlite3ConnectionPort(
+        new Database(path.join(root, "data.eidos"))
+      )
+      let clock = 0,
+        entropy = 0
+      const service = (
+        await Runtime.open(
+          port,
+          {
+            clock: {
+              nowInstant: () => "2026-11-12T12:30:00.000Z",
+              nowMilliseconds: () => clock++,
             },
-          ],
-        },
-      })
-      expect(replaced.queryStatus).toBe("supported")
-      expect(replaced.filter?.children).toHaveLength(1)
+            entropy: {
+              randomBytes: (length) =>
+                Uint8Array.from({ length }, () => entropy++ & 255),
+            },
+          },
+          "readwrite",
+          { cancellation: { cancelled: () => false, onCancel: () => () => {} } }
+        )
+      ).service
+      try {
+        await assertOpaqueQueryWire(
+          service,
+          table.table.id,
+          viewId,
+          field.id!,
+          JSON.parse(original)
+        )
+      } finally {
+        await service.close({ requestId: "opaque-close" })
+        port.close()
+      }
     } finally {
       runtime.close()
     }
@@ -266,3 +315,101 @@ describe("saved View query forward compatibility", () => {
     }
   })
 })
+
+/** Exercise the real Adapter wire with a future query already in the synthetic fixture. */
+async function assertOpaqueQueryWire(
+  runtime: RuntimeService,
+  tableId: string,
+  viewId: string,
+  fieldId: string,
+  original: Record<string, unknown>
+) {
+  const listeners: Array<
+    Set<(carrier: AdapterStructuredCloneCarrier) => void>
+  > = [new Set(), new Set()]
+  const channel = (side: number): AdapterTransportChannel => ({
+    post(carrier) {
+      const copy: AdapterStructuredCloneCarrier = {
+        envelope: JSON.parse(JSON.stringify(carrier.envelope)),
+        buffers: carrier.buffers.map((buffer) => buffer.slice(0)),
+      }
+      queueMicrotask(() =>
+        listeners[1 - side]!.forEach((listener) => listener(copy))
+      )
+    },
+    subscribe(listener) {
+      listeners[side]!.add(listener)
+      return () => {
+        listeners[side]!.delete(listener)
+      }
+    },
+  })
+  const clientChannel = channel(0),
+    serverChannel = channel(1)
+  const server = new AdapterTransportServer(
+    (carrier) => serverChannel.post(carrier),
+    {
+      epoch: "opaque-epoch",
+      sessionID: "opaque-session",
+      workingID: "opaque-working",
+      cancelMode: "interrupt",
+      allocateReceiptID: () => "opaque-receipt",
+      retainPreparedReceipt: () => {},
+      settlePreparedReceipt: () => {},
+      closeConnection: () => {},
+    }
+  )
+  serverChannel.subscribe((carrier) => server.receive(carrier))
+  server.attachRuntime(runtime)
+  const client = await new AdapterTransportRuntimeClient(clientChannel, {
+    workingID: "opaque-working",
+    retainPreparedReceipt: () => {},
+    settlePreparedReceipt: () => {},
+  }).connect()
+  const snapshot = await client.getSnapshot(
+    {},
+    { requestId: "opaque-snapshot" }
+  )
+  const page = await client.getSchemaPage(
+    { revision: snapshot.revision, limit: 100 },
+    { requestId: "opaque-schema" }
+  )
+  const view = page.objects.find(
+    (item) => item.object === "view" && item.id === viewId
+  )
+  expect(view).toMatchObject({ queryStatus: "unsupported", query: original })
+  if (view?.object !== "view" || view.queryStatus !== "unsupported")
+    throw new Error("Expected opaque View")
+  expect(view.query).toEqual(original)
+  // Deliberately bypass the discriminated public type to test untrusted callers.
+  await expect(
+    client.queryRows(
+      {
+        tableId,
+        query: view.query as unknown as RowQuery,
+        projection: { fields: [fieldId], resolveRelations: [] },
+        limit: 20,
+      },
+      { requestId: "opaque-execute" }
+    )
+  ).rejects.toMatchObject({ code: "invalid-query" })
+  await expect(
+    client.mutateView(
+      {
+        expectedRevision: snapshot.revision,
+        changes: [{ kind: "upgrade-date-query", viewId }],
+      },
+      { requestId: "opaque-upgrade" }
+    )
+  ).rejects.toMatchObject({ code: "invalid-query" })
+  expect(
+    (await client.getSnapshot({}, { requestId: "opaque-unchanged" })).revision
+  ).toBe(snapshot.revision)
+  const again = await client.getSchemaPage(
+    { revision: snapshot.revision, limit: 100 },
+    { requestId: "opaque-again" }
+  )
+  expect(
+    again.objects.find((item) => item.object === "view" && item.id === viewId)
+  ).toMatchObject({ queryStatus: "unsupported", query: original })
+}

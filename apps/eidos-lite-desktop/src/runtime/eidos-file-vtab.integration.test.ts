@@ -13,6 +13,7 @@ import { NodeSqliteConnectionPort } from "@eidos.space/eidos-file/node-sqlite"
 import { createFsMetaEidosFile } from "./fs-meta-file"
 import { openEidosLiteFileRuntime } from "./eidos-file-runtime"
 import { resolveVTabExtensionPath } from "./vtab-resolver"
+import { SpaceMetadataConnectionPort } from "./space-metadata-connection"
 import { resolveEidosFileAttachment } from "../main/space/eidos-file-attachments"
 import { createEidosLiteFileRuntime } from "./eidos-file-runtime"
 import {
@@ -28,6 +29,57 @@ import {
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it("keeps native system ordering available on a physically read-only metadata catalog", async () => {
+    const root = fs.mkdtempSync(
+      path.join(tmpdir(), "eidos-readonly-meta-order-")
+    )
+    roots.push(root)
+    fs.mkdirSync(path.join(root, ".eidos"))
+    fs.writeFileSync(path.join(root, "proof.txt"), "unchanged")
+    const filePath = path.join(root, ".eidos/files.eidos")
+    createFsMetaEidosFile(filePath, { root: ".." })
+    const database = new DatabaseSync(filePath, {
+      readOnly: true,
+      allowExtension: true,
+    })
+    database.loadExtension(resolveVTabExtensionPath("fs_meta")!)
+    database.enableLoadExtension(false)
+    const connection = new SpaceMetadataConnectionPort(database, true)
+    try {
+      const plan = database
+        .prepare(
+          'EXPLAIN QUERY PLAN SELECT * FROM files ORDER BY "_created_at" DESC NULLS LAST, "_id" ASC LIMIT 100 OFFSET 0'
+        )
+        .all()
+      expect(plan.map((row) => row.detail).join(" ")).not.toContain(
+        "TEMP B-TREE"
+      )
+      expect(
+        connection.get(
+          'SELECT _id FROM files ORDER BY "_created_at" DESC NULLS LAST, "_id" ASC LIMIT 1'
+        ).row
+      ).toEqual([{ tag: "text", value: "proof.txt" }])
+      expect(() =>
+        connection.run("UPDATE files SET rating=1 WHERE _id='proof.txt'")
+      ).toThrowError(expect.objectContaining({ code: "read-only" }))
+      expect(
+        connection.get("SELECT rating FROM files WHERE _id='proof.txt'").row
+      ).toEqual([{ tag: "null" }])
+    } finally {
+      connection.close()
+    }
+    const runtime = await openEidosLiteFileRuntime(filePath, { readOnly: true })
+    runtimes.push(runtime)
+    const table = runtime.initialSnapshot.tables[0]!
+    expect(
+      (await runtime.source.getPage(table.table.id, 0, 100, {})).rows.map(
+        (row) => row._id
+      )
+    ).toEqual(["proof.txt"])
+    expect(fs.readFileSync(path.join(root, "proof.txt"), "utf8")).toBe(
+      "unchanged"
+    )
+  })
   it("preserves PDF, video and image File covers when the Gallery hides its fields", async () => {
     const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-gallery-covers-"))
     roots.push(root)
@@ -279,6 +331,11 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       false
     )
     expect(page.rows.map((row) => row._id)).toContain("root.txt")
+    const fileField = table.fields.find((field) => field.name === "file")!
+    const directory = page.rows.find((row) => row._id === "assets")!
+    expect(decodeEidosFileValues(directory[fileField.id!] as string)).toEqual(
+      []
+    )
     const scopedView = fileMetadataScopedView(table, view, "assets")!
     const scoped = await runtime.source.getPage(
       table.table.id,
@@ -287,6 +344,7 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       eidosFileViewRowQuery(scopedView)
     )
     expect(scoped.rows.map((row) => row._id).sort()).toEqual([
+      "assets/nested",
       "assets/nested/deep.txt",
       "assets/proof.txt",
     ])
@@ -304,9 +362,8 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     expect(fileMetadataRowPath(table, proof, ".eidos/files.eidos")).toBe(
       "assets/proof.txt"
     )
-    const fileField = table.fields.find((field) => field.name === "file")!
     const entry = decodeEidosFileValues(proof[fileField.id!] as string)[0]!
-    expect(runtime.findFileEntry(entry.id)).toEqual(entry)
+    expect(await runtime.findFileEntry(entry.id)).toEqual(entry)
     const resolved = await resolveEidosFileAttachment(
       root,
       ".eidos/files.eidos",
@@ -877,7 +934,7 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
     )
 
     // 3c. Verify runtime.findFileEntry resolves this attachment ID
-    const foundEntry = runtime.findFileEntry(entry.id)
+    const foundEntry = await runtime.findFileEntry(entry.id)
     expect(foundEntry).toEqual(entry)
 
     // 4. Update custom tags and rating columns on hello.txt

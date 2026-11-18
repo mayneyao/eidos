@@ -154,6 +154,8 @@ pub enum DataCommand {
 
 #[derive(Debug, Args)]
 pub struct DataQueryArgs {
+    #[command(flatten)]
+    pub calendar: CalendarQueryArgs,
     /// Target .eidos file.
     pub file: PathBuf,
     /// Table name or stable ID. If omitted, uses default or only table.
@@ -532,6 +534,8 @@ pub struct SchemaArgs {
 
 #[derive(Debug, Args)]
 pub struct ContextArgs {
+    #[command(flatten)]
+    pub calendar: CalendarQueryArgs,
     pub file: PathBuf,
     /// Table name or stable ID. Defaults to the File default or its only table.
     pub table: Option<String>,
@@ -559,8 +563,44 @@ pub struct ContextArgs {
     pub full: bool,
 }
 
+#[derive(Debug, Args, Default)]
+pub struct CalendarQueryArgs {
+    /// Resolved IANA application time zone. Required for calendar-period queries.
+    #[arg(long)]
+    pub time_zone: Option<String>,
+    /// Portable rules advertised by the Runtime.
+    #[arg(long, default_value = "2026f")]
+    pub time_zone_data: String,
+    #[arg(long, default_value = "monday", value_parser = ["monday", "sunday"])]
+    pub week_start: String,
+    /// Reuse a canonical UTC root instant for a reproducible calendar query.
+    #[arg(long)]
+    pub reference_instant: Option<String>,
+}
+
+impl CalendarQueryArgs {
+    pub fn execution(&self) -> serde_json::Map<String, serde_json::Value> {
+        let mut execution = serde_json::Map::new();
+        if let Some(zone) = &self.time_zone {
+            execution.insert(
+                "calendar".into(),
+                serde_json::json!({
+                    "timeZone": zone, "timeZoneData": self.time_zone_data,
+                    "weekStartsOn": if self.week_start == "sunday" { 0 } else { 1 },
+                }),
+            );
+        }
+        if let Some(reference) = &self.reference_instant {
+            execution.insert("referenceInstant".into(), serde_json::json!(reference));
+        }
+        execution
+    }
+}
+
 #[derive(Debug, Args)]
 pub struct QueryArgs {
+    #[command(flatten)]
+    pub calendar: CalendarQueryArgs,
     pub file: PathBuf,
     pub table: String,
     /// FilterNode JSON. Field references may be names or stable IDs.
@@ -823,6 +863,8 @@ pub enum ViewCommand {
     List(ViewListArgs),
     /// Inspect one saved View by name or stable ID.
     Inspect(ViewInspectArgs),
+    /// Preview changed date-filter meanings; --apply updates through Runtime.
+    UpgradeDates(ViewUpgradeDatesArgs),
     /// Create a standard View from user-facing Table and Field references.
     Create(ViewCreateArgs),
     /// Update a standard View without writing raw layout JSON.
@@ -837,6 +879,17 @@ pub struct ViewListArgs {}
 #[derive(Debug, Args)]
 pub struct ViewInspectArgs {
     pub reference: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ViewUpgradeDatesArgs {
+    pub reference: String,
+    /// Commit the upgrade. Without this flag the source file is unchanged.
+    #[arg(long)]
+    pub apply: bool,
+    /// Restore the retained original as an explicitly unsupported query.
+    #[arg(long)]
+    pub restore: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -1647,7 +1700,16 @@ fn normalize_nested_args(mut args: Vec<OsString>) -> Vec<OsString> {
     for (command, subcommands) in [
         (
             "view",
-            ["list", "inspect", "create", "update", "delete", "apply"].as_slice(),
+            [
+                "list",
+                "inspect",
+                "create",
+                "update",
+                "delete",
+                "apply",
+                "upgrade-dates",
+            ]
+            .as_slice(),
         ),
         (
             "rows",

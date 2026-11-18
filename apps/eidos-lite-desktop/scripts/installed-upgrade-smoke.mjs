@@ -377,6 +377,11 @@ async function fileHashes() {
   )
 }
 
+function storedTableSchema(tables) {
+  // Runtime capabilities can change across versions without changing the file.
+  return tables.map(({ temporalDefaultsVersion, ...schema }) => schema)
+}
+
 async function inspect(session) {
   const snapshot = await session.cdp.evaluate(`(async () => {
     const api = window.eidosLite;
@@ -503,11 +508,15 @@ try {
         "Every history entry preserved"
       )
       assert.deepEqual(
-        snapshot.tables,
-        expected.tables,
+        storedTableSchema(snapshot.tables),
+        storedTableSchema(expected.tables),
         "Eidos File schema preserved"
       )
-      assert.deepEqual(snapshot.nestedTables, expected.nestedTables)
+      assert.deepEqual(
+        storedTableSchema(snapshot.nestedTables),
+        storedTableSchema(expected.nestedTables),
+        "Nested Eidos File schema preserved"
+      )
       for (const key of [
         "appearance",
         "automaticUpdates",

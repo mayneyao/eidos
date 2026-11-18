@@ -51,7 +51,12 @@ export class EidosFileWorkerClient {
   private editor: EidosRuntimeEditorDataSource | null = null
   private inFlightMutations = 0
 
-  constructor() {
+  constructor(
+    private readonly consumer: {
+      calendarQueryVersion?: 2
+      calendarWindowVersion?: 1
+    } = {}
+  ) {
     this.worker.addEventListener(
       "message",
       (
@@ -389,7 +394,11 @@ export class EidosFileWorkerClient {
       retain: () => undefined,
       settle: () => undefined,
     })
-    const editor = new EidosRuntimeEditorDataSource(runtime, path)
+    const editor = new EidosRuntimeEditorDataSource(
+      runtime,
+      path,
+      this.consumer
+    )
     this.editor = editor
     return editor.initialize()
   }

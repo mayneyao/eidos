@@ -13,11 +13,14 @@ import type {
   EidosFileFilterRule,
   EidosFileFilterRuleValue,
   EidosFileFilterValue,
-  EidosFileRelativeDateDirection,
-  EidosFileRelativeDateUnit,
   EidosFileSort,
 } from "@eidos.space/eidos-file"
-import { eidosFileFieldQueryCapabilities } from "@eidos.space/eidos-file"
+import {
+  eidosFileFieldQueryCapabilities,
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  isEidosFileCalendarPeriodValue,
+  isEidosFileCalendarWindowValue,
+} from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
   Check,
@@ -28,6 +31,7 @@ import {
   ChevronRight,
   Filter,
   LoaderCircle,
+  MoreHorizontal,
   Plus,
   Search,
   Trash2,
@@ -39,11 +43,11 @@ import { useEidosFileUI } from "./context"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
+import { eidosFileResolvedTimeZone } from "./eidos-file-date-time"
 import {
-  eidosFileDateTimeInputValue,
-  eidosFileInstantFromInputValue,
-  eidosFileResolvedTimeZone,
-} from "./eidos-file-date-time"
+  EidosFileDateFilterValue,
+  focusInvalidDateFilter,
+} from "./eidos-file-date-filter-value"
 import {
   Button,
   CommandGroup,
@@ -75,6 +79,9 @@ import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 import { SelectOptionItem } from "./ui/select-option-item"
 import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { Select as SelectPrimitive } from "radix-ui"
+
+import { EidosFileRelativeDateControls } from "./eidos-file-relative-date-controls"
+import { RelativeDatePreview } from "./eidos-file-relative-date-preview"
 
 function FilterFieldIcon({ field }: { field: EidosFileFieldInfo }) {
   const Icon = eidosFileFieldTypeIcon(field.type)
@@ -124,7 +131,10 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-all-of": "has all of",
   "is-none-of": "has none of",
   "is-between": "is between",
-  "is-relative-to-today": "is relative to today",
+  "is-relative-to-today": "Date filters need updating",
+  "is-on-calendar-day": "Date filters need updating",
+  "is-in-calendar-period": "Is relative to today",
+  "is-in-calendar-window": "Is relative to today",
 }
 
 const emptyOperators = new Set<EidosFileFilterOperator>([
@@ -137,20 +147,6 @@ const multipleValueOperators = new Set<EidosFileFilterOperator>([
   "is-all-of",
   "is-none-of",
 ])
-
-const relativeDirectionLabels: Record<EidosFileRelativeDateDirection, string> =
-  {
-    past: "Past",
-    next: "Future",
-    this: "Current",
-  }
-
-const relativeUnitLabels: Record<EidosFileRelativeDateUnit, string> = {
-  day: "day",
-  week: "week",
-  month: "month",
-  year: "year",
-}
 
 const checkboxConditions: Array<{
   key: string
@@ -267,6 +263,25 @@ function CheckboxConditionSelect({
   )
 }
 
+export const eidosFileCalendarPeriodOptions = [
+  { unit: "day", offset: -1, label: "Yesterday" },
+  { unit: "day", offset: 0, label: "Today" },
+  { unit: "day", offset: 1, label: "Tomorrow" },
+  { unit: "week", offset: -1, label: "Last week" },
+  { unit: "week", offset: 0, label: "This week" },
+  { unit: "week", offset: 1, label: "Next week" },
+  { unit: "month", offset: -1, label: "Last month" },
+  { unit: "month", offset: 0, label: "This month" },
+  { unit: "month", offset: 1, label: "Next month" },
+  { unit: "year", offset: -1, label: "Last year" },
+  { unit: "year", offset: 0, label: "This year" },
+  { unit: "year", offset: 1, label: "Next year" },
+] as const
+
+function configuredCalendarTimeZone(timeZone?: string): string {
+  return eidosFileResolvedTimeZone(timeZone === "system" ? undefined : timeZone)
+}
+
 function queryCandidateFields(fields: EidosFileFieldInfo[]) {
   return fields.filter(
     (field) =>
@@ -348,23 +363,6 @@ function defaultRule(
   }
 }
 
-function datetimeLocalFromFilterInstant(
-  value: EidosFileFilterValue,
-  timeZone?: string
-): string {
-  if (typeof value !== "string" || value.length === 0) return ""
-  const timestamp = Date.parse(value)
-  if (Number.isNaN(timestamp)) return ""
-  return eidosFileDateTimeInputValue(new Date(timestamp), timeZone, true)
-}
-
-function filterInstantFromDatetimeLocal(
-  value: string,
-  timeZone?: string
-): string {
-  return eidosFileInstantFromInputValue(value, timeZone)?.toISOString() ?? ""
-}
-
 function FilterTextInput({
   value,
   onChange,
@@ -409,17 +407,20 @@ function FilterValueEditor({
   rule,
   source,
   compact = false,
+  inlineDatePicker = false,
+  onRuleChange,
   onChange,
 }: {
   field: EidosFileFieldInfo
   rule: EidosFileFilterRule
   source?: EidosFileEditorDataSource
   compact?: boolean
+  inlineDatePicker?: boolean
+  onRuleChange?: (rule: EidosFileFilterRule) => void
   onChange: (value: EidosFileFilterRuleValue) => void
 }) {
-  const { timeZone, translate: t } = useEidosFileUI()
+  const { translate: t } = useEidosFileUI()
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const [datetimeError, setDatetimeError] = useState<string | null>(null)
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
@@ -434,70 +435,63 @@ function FilterValueEditor({
       />
     )
   }
-  if (rule.operator === "is-relative-to-today") {
-    const candidate =
-      rule.value && typeof rule.value === "object" && !Array.isArray(rule.value)
-        ? rule.value
-        : null
-    const direction: EidosFileRelativeDateDirection =
-      candidate?.direction === "past" ||
-      candidate?.direction === "next" ||
-      candidate?.direction === "this"
-        ? candidate.direction
-        : "this"
-    const unit: EidosFileRelativeDateUnit =
-      candidate?.unit === "day" ||
-      candidate?.unit === "week" ||
-      candidate?.unit === "month" ||
-      candidate?.unit === "year"
-        ? candidate.unit
-        : "week"
+  if (
+    rule.operator === "is-in-calendar-period" ||
+    rule.operator === "is-in-calendar-window"
+  ) {
+    const period = isEidosFileCalendarPeriodValue(rule.value)
+      ? rule.value
+      : undefined
+    const window = isEidosFileCalendarWindowValue(rule.value)
+      ? rule.value
+      : undefined
+    const legacy = !!period && period.offset !== 0
+    const selection = window ?? {
+      direction:
+        period?.offset === -1
+          ? ("past" as const)
+          : period?.offset === 1
+            ? ("next" as const)
+            : ("this" as const),
+      count: 1,
+      unit: period?.unit ?? "day",
+    }
     return (
-      <div className="grid min-w-0 grid-cols-2 gap-1.5">
-        <Select
-          value={direction}
-          onValueChange={(next: EidosFileRelativeDateDirection) =>
-            onChange({ direction: next, unit })
-          }
-        >
-          <SelectTrigger className="h-7 min-w-0 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(
-              Object.keys(
-                relativeDirectionLabels
-              ) as EidosFileRelativeDateDirection[]
-            ).map((entry) => (
-              <SelectItem key={entry} value={entry}>
-                {t(relativeDirectionLabels[entry])}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={unit}
-          onValueChange={(next: EidosFileRelativeDateUnit) =>
-            onChange({ direction, unit: next })
-          }
-        >
-          <SelectTrigger className="h-7 min-w-0 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(
-              Object.keys(relativeUnitLabels) as EidosFileRelativeDateUnit[]
-            ).map((entry) => (
-              <SelectItem key={entry} value={entry}>
-                {t(relativeUnitLabels[entry])}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="col-span-2 text-[11px] text-muted-foreground">
-          {t("Filter updates with the current date.")}
-        </span>
-      </div>
+      <fieldset
+        disabled={!!window && !onRuleChange}
+        className="m-0 min-w-0 border-0 p-0"
+      >
+        <EidosFileRelativeDateControls
+          value={selection}
+          legacyPeriod={legacy || (!onRuleChange && !window)}
+          onChange={(value) => {
+            if (legacy || !onRuleChange || value.direction === "this") {
+              const offset: -1 | 0 | 1 =
+                value.direction === "past"
+                  ? -1
+                  : value.direction === "next"
+                    ? 1
+                    : 0
+              const next = {
+                ...rule,
+                operator: "is-in-calendar-period" as const,
+                value: { unit: value.unit, offset },
+              }
+              if (onRuleChange) onRuleChange(next)
+              else onChange(next.value)
+            } else
+              onRuleChange({
+                ...rule,
+                operator: "is-in-calendar-window",
+                value: {
+                  direction: value.direction,
+                  count: value.count,
+                  unit: value.unit,
+                },
+              })
+          }}
+        />
+      </fieldset>
     )
   }
   if (
@@ -610,128 +604,15 @@ function FilterValueEditor({
     )
   }
   if (displayType === "date" || displayType === "datetime") {
-    const inputValue = (value: EidosFileFilterValue): string =>
-      displayType === "datetime"
-        ? datetimeLocalFromFilterInstant(value, timeZone)
-        : String(value ?? "")
-    const committedValue = (value: string): string | undefined =>
-      displayType === "datetime" && value
-        ? filterInstantFromDatetimeLocal(value, timeZone) || undefined
-        : value
-    const timezoneHint =
-      datetimeError ??
-      t("Time zone: {timeZone}", {
-        timeZone: eidosFileResolvedTimeZone(timeZone),
-      })
-    if (rule.operator === "is-between") {
-      const range = Array.isArray(rule.value) ? rule.value : ["", ""]
-      return (
-        <div className="min-w-0">
-          <div className="grid min-w-0 grid-cols-2 gap-1.5">
-            {[0, 1].map((index) => (
-              <Input
-                key={index}
-                className="h-7 min-w-0 text-xs"
-                type={displayType === "date" ? "date" : "datetime-local"}
-                step={displayType === "datetime" ? 1 : undefined}
-                aria-label={t(index === 0 ? "Starting date" : "Ending date")}
-                aria-invalid={
-                  displayType === "datetime" && Boolean(datetimeError)
-                }
-                value={inputValue(
-                  (range[index] as EidosFileFilterValue | undefined) ?? ""
-                )}
-                onChange={(event) => {
-                  const committed = committedValue(event.target.value)
-                  if (committed === undefined) {
-                    setDatetimeError(
-                      t(
-                        "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
-                        { timeZone: eidosFileResolvedTimeZone(timeZone) }
-                      )
-                    )
-                    return
-                  }
-                  setDatetimeError(null)
-                  const next: EidosFileFilterValue[] = [
-                    (range[0] as EidosFileFilterValue | undefined) ?? "",
-                    (range[1] as EidosFileFilterValue | undefined) ?? "",
-                  ]
-                  next[index] = committed
-                  onChange(next)
-                }}
-              />
-            ))}
-          </div>
-          {displayType === "datetime" ? (
-            <p
-              className={cn(
-                "mt-1 text-[10px]",
-                datetimeError ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              {timezoneHint}
-            </p>
-          ) : null}
-        </div>
-      )
-    }
-    const candidateValue = Array.isArray(rule.value)
-      ? (rule.value[0] ?? "")
-      : (rule.value ?? "")
-    const rawValue: EidosFileFilterValue =
-      candidateValue !== null && typeof candidateValue === "object"
-        ? ""
-        : candidateValue
-    const input = (
-      <Input
-        className="h-7 min-w-0 text-xs"
-        type={displayType === "date" ? "date" : "datetime-local"}
-        step={displayType === "datetime" ? 1 : undefined}
-        aria-invalid={displayType === "datetime" && Boolean(datetimeError)}
-        value={
-          displayType === "datetime"
-            ? datetimeLocalFromFilterInstant(rawValue, timeZone)
-            : String(rawValue)
-        }
-        placeholder={t("Value")}
-        onChange={(event) => {
-          if (displayType === "datetime") {
-            const committed = event.target.value
-              ? filterInstantFromDatetimeLocal(event.target.value, timeZone) ||
-                undefined
-              : ""
-            if (committed === undefined) {
-              setDatetimeError(
-                t(
-                  "This time is ambiguous or unavailable in {timeZone}. Choose another time.",
-                  { timeZone: eidosFileResolvedTimeZone(timeZone) }
-                )
-              )
-              return
-            }
-            setDatetimeError(null)
-            onChange(committed)
-          } else {
-            onChange(event.target.value)
-          }
-        }}
+    return (
+      <EidosFileDateFilterValue
+        key={rule.operator}
+        type={displayType}
+        value={rule.value}
+        range={rule.operator === "is-between"}
+        inline={inlineDatePicker}
+        onChange={onChange}
       />
-    )
-    return displayType === "datetime" ? (
-      <div className="min-w-0">
-        {input}
-        <p
-          className={cn(
-            "mt-1 text-[10px]",
-            datetimeError ? "text-destructive" : "text-muted-foreground"
-          )}
-        >
-          {timezoneHint}
-        </p>
-      </div>
-    ) : (
-      input
     )
   }
   return (
@@ -792,7 +673,12 @@ function EidosFileFilterRuleEditor({
   onChange: (rule: EidosFileFilterRule) => void
   onRemove?: () => void
 } & EidosFileFilterEditorOptions) {
-  const { translate: t } = useEidosFileUI()
+  const {
+    translate: t,
+    calendarTimeZoneData,
+    calendarPeriodTimeZoneData,
+    calendarWindowVersion,
+  } = useEidosFileUI()
   const field = fields.find(
     (candidate) => eidosFileFieldKey(candidate) === rule.field
   )
@@ -816,7 +702,16 @@ function EidosFileFilterRuleEditor({
   const customValue = renderValue?.(field, rule, (value) =>
     onChange({ ...rule, value })
   )
-  const availableOperators = getOperators(field)
+  const operators = getOperators(field)
+  const availableOperators = operators.filter(
+    (operator) =>
+      operator !== "is-in-calendar-window" &&
+      (operator !== "is-in-calendar-period" ||
+        rule.operator === operator ||
+        calendarPeriodTimeZoneData?.includes(
+          calendarTimeZoneData ?? EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+        ))
+  )
   const conditions = checkboxConditions.filter((condition) =>
     availableOperators.includes(condition.operator)
   )
@@ -829,15 +724,30 @@ function EidosFileFilterRuleEditor({
               condition.value === rule.value)
         )
       : undefined
+  const legacyPeriod =
+    rule.operator === "is-in-calendar-period" &&
+    isEidosFileCalendarPeriodValue(rule.value) &&
+    rule.value.offset !== 0
+  const relative =
+    rule.operator === "is-in-calendar-window" ||
+    (rule.operator === "is-in-calendar-period" && !legacyPeriod)
   return (
     <div
+      data-relative-rule={relative || legacyPeriod || undefined}
+      data-absolute-date-rule={
+        (fixedField &&
+          !relative &&
+          !legacyPeriod &&
+          ["date", "datetime"].includes(fieldDisplayType(field))) ||
+        undefined
+      }
       className={cn(
         "grid items-start gap-1.5",
         fixedField
           ? "grid-cols-1"
           : checkboxCondition
-            ? "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(180px,2.5fr)_28px]"
-            : "eidos-filter-rule grid-cols-[minmax(100px,1fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_28px]"
+            ? "eidos-filter-rule eidos-filter-checkbox-rule"
+            : "eidos-filter-rule"
       )}
     >
       {!fixedField && (
@@ -853,6 +763,7 @@ function EidosFileFilterRuleEditor({
           <SelectTrigger
             className="h-7 min-w-0 gap-1 text-xs [&>span]:min-w-0 [&>span]:truncate"
             aria-label={t("Field")}
+            data-eidos-file-filter-field
           >
             <SelectValue />
           </SelectTrigger>
@@ -904,9 +815,14 @@ function EidosFileFilterRuleEditor({
       ) : (
         <>
           <Select
-            value={rule.operator}
-            onValueChange={(operator: EidosFileFilterOperator) => {
-              const relative = operator === "is-relative-to-today"
+            value={relative ? "relative-date" : rule.operator}
+            onValueChange={(selected: string) => {
+              const operator = (
+                selected === "relative-date"
+                  ? "is-in-calendar-period"
+                  : selected
+              ) as EidosFileFilterOperator
+              const relative = operator === "is-in-calendar-period"
               const between = operator === "is-between"
               const membership =
                 eidosFileFieldQueryCapabilities(field).membership
@@ -920,7 +836,7 @@ function EidosFileFilterRuleEditor({
                 emptyOperators.has(operator)
                   ? undefined
                   : relative
-                    ? { direction: "this", unit: "week" }
+                    ? { unit: "day", offset: 0 }
                     : between
                       ? ["", ""]
                       : multiple
@@ -944,17 +860,36 @@ function EidosFileFilterRuleEditor({
             }}
           >
             <SelectTrigger
-              className="h-7 min-w-0 text-xs"
+              className="h-auto min-h-7 min-w-0 gap-1 px-2 py-1 text-left text-xs [&>span]:min-w-0 [&>span]:whitespace-normal [&>span]:leading-4 [&>svg]:shrink-0"
               aria-label={t("Filter operator")}
             >
-              <SelectValue />
+              <SelectValue>
+                {fixedField && relative
+                  ? `${eidosFileFieldDisplayName(field)} ${t("is relative to today")}`
+                  : fixedField &&
+                      ["date", "datetime"].includes(fieldDisplayType(field))
+                    ? `${eidosFileFieldDisplayName(field)} ${t(operatorLabel(field, rule.operator))}`
+                    : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {availableOperators.map((operator) => (
-                <SelectItem key={operator} value={operator}>
+                <SelectItem
+                  key={operator}
+                  value={
+                    operator === "is-in-calendar-period"
+                      ? "relative-date"
+                      : operator
+                  }
+                >
                   {t(operatorLabel(field, operator))}
                 </SelectItem>
               ))}
+              {legacyPeriod && (
+                <SelectItem value="is-in-calendar-period">
+                  {t("In a calendar period")}
+                </SelectItem>
+              )}
             </SelectContent>
           </Select>
           <div
@@ -967,11 +902,21 @@ function EidosFileFilterRuleEditor({
                 rule={rule}
                 source={source}
                 compact
+                inlineDatePicker={fixedField}
+                onRuleChange={
+                  calendarWindowVersion === 1 &&
+                  operators.includes("is-in-calendar-window")
+                    ? onChange
+                    : undefined
+                }
                 onChange={(value) => onChange({ ...rule, value })}
               />
             )}
           </div>
         </>
+      )}
+      {fixedField && (relative || legacyPeriod) && (
+        <RelativeDatePreview rule={rule} />
       )}
       {onRemove && (
         <Button
@@ -1029,6 +974,15 @@ export function EidosFileFieldFilterEditor({
     return current?.type === "rule" ? current : defaultRule(field)
   })
   const [pending, setPending] = useState(false)
+  const relative =
+    draft.operator === "is-in-calendar-period" ||
+    draft.operator === "is-in-calendar-window"
+  const dateKind = fieldDisplayType(field)
+  const absoluteDate =
+    !relative && (dateKind === "date" || dateKind === "datetime")
+  const draftRef = useRef(draft)
+  const valueRef = useRef(value)
+  valueRef.current = value
   const pendingRef = useRef(false)
   const lifecycleRef = useRef({ active: false, generation: 0 })
   const callbacksRef = useRef({ onClose, onPendingChange })
@@ -1054,8 +1008,9 @@ export function EidosFileFieldFilterEditor({
       }
     }
   }, [])
-  const commit = async () => {
+  const commit = async (nextDraft = draft, close = true) => {
     if (disabled || pendingRef.current || !lifecycleRef.current.active) return
+    if (focusInvalidDateFilter(editorRef.current)) return
     const generation = lifecycleRef.current.generation
     const isActive = () =>
       lifecycleRef.current.active &&
@@ -1065,6 +1020,7 @@ export function EidosFileFieldFilterEditor({
     callbacksRef.current.onPendingChange?.(true)
     setError(null)
     try {
+      const value = valueRef.current
       const index = directFieldFilterRuleIndex(value, field)
       const next: EidosFileFilterGroup =
         value?.conjunction === "and"
@@ -1073,17 +1029,18 @@ export function EidosFileFieldFilterEditor({
               children:
                 index >= 0
                   ? value.children.map((child, childIndex) =>
-                      childIndex === index ? draft : child
+                      childIndex === index ? nextDraft : child
                     )
-                  : [...value.children, draft],
+                  : [...value.children, nextDraft],
             }
           : {
               type: "group",
               conjunction: "and",
-              children: value ? [value, draft] : [draft],
+              children: value ? [value, nextDraft] : [nextDraft],
             }
       await onChange(next)
-      if (isActive()) callbacksRef.current.onClose()
+      valueRef.current = next
+      if (isActive() && close) callbacksRef.current.onClose()
     } catch (changeError) {
       if (isActive()) {
         setError(
@@ -1097,34 +1054,114 @@ export function EidosFileFieldFilterEditor({
         pendingRef.current = false
         setPending(false)
         callbacksRef.current.onPendingChange?.(false)
+        if (!close && draftRef.current !== nextDraft)
+          void commit(draftRef.current, false)
       }
     }
   }
   return (
     <div
       ref={editorRef}
-      className="w-80 max-w-full p-3"
+      className={cn(
+        "max-w-full p-3",
+        draft.operator === "is-in-calendar-period" ||
+          draft.operator === "is-in-calendar-window"
+          ? "eidos-relative-date-panel"
+          : absoluteDate
+            ? "eidos-absolute-date-panel"
+            : "w-80"
+      )}
+      data-date-kind={absoluteDate ? dateKind : undefined}
       aria-busy={pending || undefined}
     >
-      <fieldset disabled={pending} className="m-0 min-w-0 border-0 p-0">
-        <div className="mb-3 flex min-w-0 items-center gap-2">
+      <fieldset
+        disabled={pending && !relative}
+        className="m-0 min-w-0 border-0 p-0"
+      >
+        {relative && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="eidos-relative-date-more"
+                aria-label={t("More actions")}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-1" align="end">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                onClick={onBack}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {t("Back")}
+              </button>
+              <button
+                type="button"
+                disabled={disabled || pending}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                onClick={async () => {
+                  const current = valueRef.current
+                  const index = directFieldFilterRuleIndex(current, field)
+                  if (current && index >= 0) {
+                    try {
+                      await onChange({
+                        ...current,
+                        children: current.children.filter(
+                          (_, childIndex) => childIndex !== index
+                        ),
+                      })
+                      onClose()
+                    } catch (error) {
+                      setError(
+                        error instanceof Error
+                          ? error.message
+                          : t("Unable to update filters")
+                      )
+                    }
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("Remove filter")}
+              </button>
+            </PopoverContent>
+          </Popover>
+        )}
+        {absoluteDate && (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="eidos-absolute-date-back"
             aria-label={t("Back")}
             onClick={onBack}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <div className="min-w-0">
-            <p className="text-[10px] text-muted-foreground">{t("Filter")}</p>
-            <h3 className="truncate text-xs font-medium">
-              {eidosFileFieldDisplayName(field)}
-            </h3>
+        )}
+        {!relative && !absoluteDate && (
+          <div className="mb-3 flex min-w-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={t("Back")}
+              onClick={onBack}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground">{t("Filter")}</p>
+              <h3 className="truncate text-xs font-medium">
+                {eidosFileFieldDisplayName(field)}
+              </h3>
+            </div>
           </div>
-        </div>
+        )}
         <fieldset disabled={disabled} className="m-0 min-w-0 border-0 p-0">
           <EidosFileFilterRuleEditor
             key={disabled ? "disabled" : "enabled"}
@@ -1132,7 +1169,15 @@ export function EidosFileFieldFilterEditor({
             fixedField
             rule={draft}
             source={source}
-            onChange={setDraft}
+            onChange={(next) => {
+              draftRef.current = next
+              setDraft(next)
+              if (
+                next.operator === "is-in-calendar-period" ||
+                next.operator === "is-in-calendar-window"
+              )
+                void commit(next, false)
+            }}
           />
         </fieldset>
         {error ? (
@@ -1140,29 +1185,31 @@ export function EidosFileFieldFilterEditor({
             {error}
           </p>
         ) : null}
-        <div className="mt-3 flex justify-end gap-1.5 border-t pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={onClose}
-          >
-            {t("Cancel")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 gap-1.5 text-xs"
-            disabled={disabled}
-            onClick={() => void commit()}
-          >
-            {pending ? (
-              <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-            ) : null}
-            {t(pending ? "Applying…" : "Apply")}
-          </Button>
-        </div>
+        {!relative && (
+          <div className="eidos-field-filter-footer mt-3 flex justify-end gap-1.5 border-t pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={onClose}
+            >
+              {t("Cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              disabled={disabled}
+              onClick={() => void commit()}
+            >
+              {pending ? (
+                <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+              ) : null}
+              {t(pending ? "Applying…" : "Apply")}
+            </Button>
+          </div>
+        )}
       </fieldset>
     </div>
   )
@@ -1453,6 +1500,7 @@ export function EidosFileFilterPopover({
   const pendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   useEidosFilePendingEdit(open || pendingAction !== null)
+  const editorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (open && !pendingRef.current) {
       setDraft(value ?? { type: "group", conjunction: "and", children: [] })
@@ -1464,6 +1512,7 @@ export function EidosFileFilterPopover({
     action: "apply" | "clear"
   ) => {
     if (pendingRef.current) return
+    if (action === "apply" && focusInvalidDateFilter(editorRef.current)) return
     pendingRef.current = true
     setPendingAction(action)
     setError(null)
@@ -1510,6 +1559,7 @@ export function EidosFileFilterPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        ref={editorRef}
         data-eidos-file-filter-popover
         aria-label={t("Filter")}
         align="end"
@@ -1865,7 +1915,7 @@ export function EidosFileQueryToolbar({
   onFilterChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
   onSortsChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, queryEditingDisabled } = useEidosFileUI()
   const hasSearchableFields = useMemo(
     () =>
       queryCandidateFields(fields).some(
@@ -2042,13 +2092,13 @@ export function EidosFileQueryToolbar({
         fields={fields}
         value={filter}
         source={source}
-        disabled={disabled || mutationsDisabled}
+        disabled={disabled || mutationsDisabled || queryEditingDisabled}
         onChange={onFilterChange}
       />
       <EidosFileSortPopover
         fields={fields}
         value={sorts}
-        disabled={disabled || mutationsDisabled}
+        disabled={disabled || mutationsDisabled || queryEditingDisabled}
         onChange={onSortsChange}
       />
     </div>

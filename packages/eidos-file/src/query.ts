@@ -2,12 +2,25 @@ import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EidosFileError } from "./errors"
 import {
+  eidosFileCalendarPeriodBounds,
+  assertEidosFileCalendarContext,
+  isEidosFileCalendarPeriodValue,
+  type EidosFileCalendarContext,
+} from "./calendar-period"
+import { isEidosFileCalendarDayValue } from "./calendar-day"
+import {
+  eidosFileCalendarWindowBounds,
+  isEidosFileCalendarWindowValue,
+} from "./calendar-window"
+import {
   eidosFileFieldQueryCapabilities,
   eidosFileFieldValueType,
 } from "./field-query-capabilities"
 import { quoteIdentifier } from "./identifiers"
+import { sourceInstantComparisonKey } from "./source-instant"
 import {
   currentEidosFileInstant,
+  isCanonicalEidosFileInstant,
   normalizeEidosFileDate,
   normalizeEidosFileInstant,
 } from "./temporal"
@@ -41,6 +54,9 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-none-of",
   "is-between",
   "is-relative-to-today",
+  "is-on-calendar-day",
+  "is-in-calendar-period",
+  "is-in-calendar-window",
 ])
 
 /** Returns whether a persisted compatibility filter operator is executable. */
@@ -61,6 +77,16 @@ export function assertEidosFileRowQuery(value: unknown): void {
     throw new EidosFileError("invalid-query", "Row query must be an object")
   }
   const query = value as Record<string, unknown>
+  if (query.calendar !== undefined)
+    assertEidosFileCalendarContext(query.calendar)
+  if (
+    query.referenceInstant !== undefined &&
+    !isCanonicalEidosFileInstant(query.referenceInstant)
+  )
+    throw new EidosFileError(
+      "invalid-query",
+      "referenceInstant must be a canonical UTC instant"
+    )
   if (
     query.search !== undefined &&
     (typeof query.search !== "string" ||
@@ -125,6 +151,30 @@ export function assertEidosFileRowQuery(value: unknown): void {
       !isEidosFileFilterOperator(filter.operator)
     ) {
       throw new EidosFileError("invalid-query", "Invalid filter rule")
+    }
+    if (filter.operator === "is-in-calendar-window") {
+      if (!isEidosFileCalendarWindowValue(filter.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Calendar window filter is invalid"
+        )
+      return
+    }
+    if (filter.operator === "is-in-calendar-period") {
+      if (!isEidosFileCalendarPeriodValue(filter.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Calendar period filter is invalid"
+        )
+      return
+    }
+    if (filter.operator === "is-on-calendar-day") {
+      if (!isEidosFileCalendarDayValue(filter.value))
+        throw new EidosFileError(
+          "invalid-query",
+          "Calendar day filter value is invalid"
+        )
+      return
     }
     if (filter.operator === "is-relative-to-today") {
       if (!isRelativeDateValue(filter.value)) {
@@ -204,18 +254,35 @@ function normalizeFilterNode(
       return null
     }
     const values: EidosFileFilterRuleValue | undefined =
-      candidate.operator === "is-relative-to-today" &&
-      isRelativeDateValue(candidate.value)
+      candidate.operator === "is-in-calendar-window" &&
+      isEidosFileCalendarWindowValue(candidate.value)
         ? {
             direction: candidate.value.direction,
+            count: candidate.value.count,
             unit: candidate.value.unit,
           }
-        : Array.isArray(candidate.value)
-          ? candidate.value.flatMap((entry) => {
-              const normalized = filterValue(entry)
-              return normalized === undefined ? [] : [normalized]
-            })
-          : filterValue(candidate.value)
+        : candidate.operator === "is-in-calendar-period" &&
+            isEidosFileCalendarPeriodValue(candidate.value)
+          ? { unit: candidate.value.unit, offset: candidate.value.offset }
+          : candidate.operator === "is-on-calendar-day" &&
+              isEidosFileCalendarDayValue(candidate.value)
+            ? {
+                day: candidate.value.day,
+                timeZone: candidate.value.timeZone,
+                timeZoneData: candidate.value.timeZoneData,
+              }
+            : candidate.operator === "is-relative-to-today" &&
+                isRelativeDateValue(candidate.value)
+              ? {
+                  direction: candidate.value.direction,
+                  unit: candidate.value.unit,
+                }
+              : Array.isArray(candidate.value)
+                ? candidate.value.flatMap((entry) => {
+                    const normalized = filterValue(entry)
+                    return normalized === undefined ? [] : [normalized]
+                  })
+                : filterValue(candidate.value)
     return {
       type: "rule",
       field: candidate.field,
@@ -294,6 +361,12 @@ export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery {
   if (typeof value !== "object" || value === null) return {}
   const candidate = value as Record<string, unknown>
   return {
+    ...(candidate.calendar
+      ? { calendar: candidate.calendar as EidosFileCalendarContext }
+      : {}),
+    ...(typeof candidate.referenceInstant === "string"
+      ? { referenceInstant: candidate.referenceInstant }
+      : {}),
     ...(typeof candidate.search === "string"
       ? { search: candidate.search }
       : {}),
@@ -623,91 +696,6 @@ function temporalFieldType(
   return null
 }
 
-function shiftUtcMonth(instant: Date, amount: -1 | 1): Date {
-  const result = new Date(instant.getTime())
-  const day = result.getUTCDate()
-  result.setUTCDate(1)
-  result.setUTCMonth(result.getUTCMonth() + amount)
-  const endOfTargetMonth = new Date(
-    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)
-  ).getUTCDate()
-  result.setUTCDate(Math.min(day, endOfTargetMonth))
-  return result
-}
-
-function shiftUtcYear(instant: Date, amount: -1 | 1): Date {
-  const result = new Date(instant.getTime())
-  const month = result.getUTCMonth()
-  const day = result.getUTCDate()
-  result.setUTCDate(1)
-  result.setUTCFullYear(result.getUTCFullYear() + amount)
-  result.setUTCMonth(month)
-  const endOfTargetMonth = new Date(
-    Date.UTC(result.getUTCFullYear(), month + 1, 0)
-  ).getUTCDate()
-  result.setUTCDate(Math.min(day, endOfTargetMonth))
-  return result
-}
-
-function shiftUtcUnit(
-  instant: Date,
-  unit: EidosFileRelativeDateValue["unit"],
-  amount: -1 | 1
-): Date {
-  if (unit === "day" || unit === "week") {
-    const days = unit === "day" ? 1 : 7
-    return new Date(instant.getTime() + amount * days * 86_400_000)
-  }
-  return unit === "month"
-    ? shiftUtcMonth(instant, amount)
-    : shiftUtcYear(instant, amount)
-}
-
-function utcPeriodStart(
-  instant: Date,
-  unit: EidosFileRelativeDateValue["unit"]
-): Date {
-  const year = instant.getUTCFullYear()
-  const month = instant.getUTCMonth()
-  const day = instant.getUTCDate()
-  if (unit === "year") return new Date(Date.UTC(year, 0, 1))
-  if (unit === "month") return new Date(Date.UTC(year, month, 1))
-  const start = new Date(Date.UTC(year, month, day))
-  if (unit === "week") {
-    const daysSinceMonday = (start.getUTCDay() + 6) % 7
-    start.setUTCDate(start.getUTCDate() - daysSinceMonday)
-  }
-  return start
-}
-
-function relativeTemporalBounds(
-  relative: EidosFileRelativeDateValue,
-  referenceInstant: string,
-  type: "date" | "datetime"
-): [string, string] {
-  const reference = new Date(
-    normalizeEidosFileInstant(referenceInstant, "Relative filter reference")
-  )
-  const ordered = (() => {
-    if (relative.direction === "this") {
-      const start = utcPeriodStart(reference, relative.unit)
-      const nextStart =
-        relative.unit === "day" || relative.unit === "week"
-          ? new Date(
-              start.getTime() + (relative.unit === "day" ? 1 : 7) * 86_400_000
-            )
-          : shiftUtcUnit(start, relative.unit, 1)
-      return [start, new Date(nextStart.getTime() - 1)]
-    }
-    const past = relative.direction === "past"
-    const boundary = shiftUtcUnit(reference, relative.unit, past ? -1 : 1)
-    return past ? [boundary, reference] : [reference, boundary]
-  })()
-  return ordered.map((value) =>
-    type === "date" ? value.toISOString().slice(0, 10) : value.toISOString()
-  ) as [string, string]
-}
-
 function likeExpression(
   field: EidosFileFieldInfo,
   operator: EidosFileFilterRule["operator"],
@@ -752,10 +740,20 @@ function compileRule(
   rule: EidosFileFilterRule,
   fields: Map<string, EidosFileFieldInfo>,
   params: EidosFileSqlPrimitive[],
-  referenceInstant: string
+  referenceInstant: string,
+  calendar?: EidosFileCalendarContext,
+  externalInstants = false
 ): string {
   const field = requireField(fields, rule.field)
-  const column = quoteIdentifier(field.tableColumnName)
+  const sourceInstant =
+    externalInstants && temporalFieldType(field) === "datetime"
+  const column = sourceInstant
+    ? `eidos_source_instant_key(${quoteIdentifier(field.tableColumnName)})`
+    : quoteIdentifier(field.tableColumnName)
+  const fieldValue = (value: EidosFileFilterValue) => {
+    const normalized = sqlFieldValue(field, value)
+    return sourceInstant ? sourceInstantComparisonKey(normalized) : normalized
+  }
   const arrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
   const empty = arrayCodec
@@ -769,29 +767,51 @@ function compileRule(
     return `NOT ${empty}`
   }
 
-  if (rule.operator === "is-relative-to-today") {
-    const type = temporalFieldType(field)
-    if (!type) {
-      throw new EidosFileError(
-        "invalid-query",
-        `${field.name} does not support relative date filters`
-      )
-    }
-    if (!isRelativeDateValue(rule.value)) {
-      throw new EidosFileError(
-        "invalid-query",
-        `${field.name} relative date filter is invalid`
-      )
-    }
-    const [lower, upper] = relativeTemporalBounds(
-      rule.value,
-      referenceInstant,
-      type
+  if (
+    rule.operator === "is-on-calendar-day" ||
+    rule.operator === "is-relative-to-today"
+  ) {
+    throw new EidosFileError(
+      "unsupported-feature",
+      "Retired date filter requires an explicit upgrade"
     )
-    params.push(lower, upper)
-    return `COALESCE(${column} >= ? AND ${column} <= ?, 0)`
   }
-
+  if (
+    rule.operator === "is-in-calendar-period" ||
+    rule.operator === "is-in-calendar-window"
+  ) {
+    const type = temporalFieldType(field)
+    const period =
+      rule.operator === "is-in-calendar-period" &&
+      isEidosFileCalendarPeriodValue(rule.value)
+        ? rule.value
+        : null
+    const window =
+      rule.operator === "is-in-calendar-window" &&
+      isEidosFileCalendarWindowValue(rule.value)
+        ? rule.value
+        : null
+    if (!type || (!period && !window))
+      throw new EidosFileError(
+        "invalid-query",
+        "Calendar period requires a Date/Datetime Field"
+      )
+    const bounds = window
+      ? eidosFileCalendarWindowBounds(window, calendar!, referenceInstant)
+      : eidosFileCalendarPeriodBounds(period!, calendar!, referenceInstant)
+    if (type === "date") {
+      params.push(bounds.startDate, bounds.endDate)
+      return `COALESCE(${column} >= ? AND ${column} < ?, 0)`
+    }
+    const spans = bounds.intervals.map(([lower, upper]) => {
+      params.push(
+        sourceInstant ? sourceInstantComparisonKey(lower) : lower,
+        sourceInstant ? sourceInstantComparisonKey(upper) : upper
+      )
+      return `(${column} >= ? AND ${column} < ?)`
+    })
+    return spans.length ? `COALESCE((${spans.join(" OR ")}), 0)` : "0"
+  }
   if (rule.operator === "is-between") {
     if (!Array.isArray(rule.value) || rule.value.length !== 2) {
       throw new EidosFileError(
@@ -806,7 +826,7 @@ function compileRule(
         `${field.name} between filter values cannot be null`
       )
     }
-    params.push(sqlFieldValue(field, lower), sqlFieldValue(field, upper))
+    params.push(fieldValue(lower), fieldValue(upper))
     return `COALESCE(${column} >= ? AND ${column} <= ?, 0)`
   }
 
@@ -848,7 +868,7 @@ function compileRule(
       )})`
       return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
     }
-    params.push(...values.map((entry) => sqlFieldValue(field, entry)))
+    params.push(...values.map(fieldValue))
     if (rule.operator === "is-all-of") return "0"
     const expression = `COALESCE(${column} IN (${values.map(() => "?").join(", ")}), 0)`
     return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
@@ -871,7 +891,7 @@ function compileRule(
     if (value === null || value === undefined) {
       return `${column} IS ${rule.operator === "not-equals" ? "NOT " : ""}NULL`
     }
-    params.push(sqlFieldValue(field, value))
+    params.push(fieldValue(value))
     return rule.operator === "not-equals"
       ? `${column} IS NOT ?`
       : `${column} IS ?`
@@ -895,7 +915,7 @@ function compileRule(
   }
   const comparison = comparisons[rule.operator]
   if (!comparison) return "0"
-  params.push(sqlFieldValue(field, value))
+  params.push(fieldValue(value))
   return `COALESCE(${column} ${comparison} ?, 0)`
 }
 
@@ -903,12 +923,28 @@ function compileGroup(
   group: EidosFileFilterGroup,
   fields: Map<string, EidosFileFieldInfo>,
   params: EidosFileSqlPrimitive[],
-  referenceInstant: string
+  referenceInstant: string,
+  calendar?: EidosFileCalendarContext,
+  externalInstants = false
 ): string {
   const children = group.children.map((child) =>
     child.type === "group"
-      ? compileGroup(child, fields, params, referenceInstant)
-      : compileRule(child, fields, params, referenceInstant)
+      ? compileGroup(
+          child,
+          fields,
+          params,
+          referenceInstant,
+          calendar,
+          externalInstants
+        )
+      : compileRule(
+          child,
+          fields,
+          params,
+          referenceInstant,
+          calendar,
+          externalInstants
+        )
   )
   const expression =
     children.length === 0
@@ -966,8 +1002,14 @@ function compileSorts(
 export function compileEidosFileRowQuery(
   fields: EidosFileFieldInfo[],
   query: EidosFileRowQuery = {},
-  context: { referenceInstant?: string } = {}
+  context: {
+    referenceInstant?: string
+    calendar?: EidosFileCalendarContext
+    /** External virtual sources may retain fractional precision beyond storage values. */
+    externalInstants?: boolean
+  } = {}
 ): CompiledEidosFileRowQuery {
+  assertEidosFileRowQuery(query)
   query = normalizeEidosFileRowQuery(query)
   const byColumn = new Map(
     fields.map((field) => [field.tableColumnName, field])
@@ -988,7 +1030,9 @@ export function compileEidosFileRowQuery(
         query.filter,
         byColumn,
         params,
-        context.referenceInstant ?? currentEidosFileInstant()
+        context.referenceInstant ?? currentEidosFileInstant(),
+        context.calendar ?? query.calendar,
+        context.externalInstants
       )
     )
   }

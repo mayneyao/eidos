@@ -13,11 +13,17 @@ import type {
 import {
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
+  projectEidosFileCalendarInstant,
 } from "@eidos.space/eidos-file"
 import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
+import {
+  eidosFileValueToGridCell,
+  gridCellToEidosFileValue,
+} from "./eidos-file-grid-adapter"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 import { Button, Input } from "./ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 import {
@@ -31,6 +37,7 @@ import { Textarea } from "./ui/primitives"
 import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { cn } from "./lib/cn"
 import { useEidosFileAutosizedText } from "./eidos-file-text-height"
 import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import {
@@ -41,12 +48,18 @@ import {
 
 function dateTimeInputValue(
   value: EidosFileRow[string],
-  timeZone?: string
+  timeZone?: string,
+  calendarTimeZoneData?: string | null
 ): string {
   if (typeof value !== "string" || value.length === 0) return ""
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  return eidosFileDateTimeInputValue(date, timeZone)
+  return eidosFileDateTimeInputValue(
+    date,
+    timeZone,
+    false,
+    calendarTimeZoneData
+  )
 }
 
 type FieldEditorProps = {
@@ -57,6 +70,8 @@ type FieldEditorProps = {
   placeholder?: string
   appearance?: "field" | "record-title" | "record-property" | "compact"
   disabled: boolean
+  /** Serialize commits without dimming the record or removing input focus. */
+  readOnly?: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
   /** The host creates the catalog option and selects it for this record. */
   onCreateOption?: (name: string) => Promise<void>
@@ -66,13 +81,23 @@ type FieldEditorProps = {
 
 /** Compact is a shared form presentation, independent of host or feature. */
 export function EidosFileRecordFieldEditor(props: FieldEditorProps) {
-  return props.appearance === "compact" ? (
-    <div className="eidos-field-compact" data-field-type={props.field.type}>
+  return (
+    <div
+      className={
+        props.appearance === "compact" ? "eidos-field-compact" : "contents"
+      }
+      data-field-type={props.field.type}
+      aria-disabled={props.readOnly || undefined}
+    >
       <FieldEditorControl {...props} />
     </div>
-  ) : (
-    <FieldEditorControl {...props} />
   )
+}
+
+export function EidosFileInlineRecordFieldEditor(
+  props: Omit<FieldEditorProps, "appearance">
+) {
+  return <FieldEditorControl {...props} inspector />
 }
 
 function FieldEditorControl({
@@ -81,24 +106,34 @@ function FieldEditorControl({
   isNewRecord = false,
   placeholder,
   appearance = "field",
+  inspector = false,
   disabled,
+  readOnly = false,
   onChange,
   onCreateOption,
   onEnter,
   commitRef,
-}: FieldEditorProps) {
+}: FieldEditorProps & { inspector?: boolean }) {
   const {
     activateUrl,
     timeZone,
     interactionMode,
     translate: t,
+    calendarTimeZoneData,
   } = useEidosFileUI()
   const mobileTitle =
     appearance === "record-title" && interactionMode === "mobile"
+  const [focused, setFocused] = useState(false)
+  const inlineClass =
+    "min-h-[34px] w-full min-w-0 rounded-md border-0 bg-transparent px-2 py-[7px] text-sm font-normal leading-5 shadow-none enabled:hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring placeholder:text-muted-foreground/80"
   const value = row[field.tableColumnName]
+  const formattedNumber =
+    inspector && field.type === "number" && !focused
+      ? eidosFileValueToGridCell(field, value)
+      : null
   const [draft, setDraft] = useState(
     field.type === "datetime"
-      ? dateTimeInputValue(value, timeZone)
+      ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
       : value === null || value === undefined
         ? ""
         : String(value)
@@ -112,7 +147,7 @@ function FieldEditorControl({
   const [optionOpen, setOptionOpen] = useState(false)
   const savedDraft =
     field.type === "datetime"
-      ? dateTimeInputValue(value, timeZone)
+      ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
       : value === null || value === undefined
         ? ""
         : String(value)
@@ -121,7 +156,15 @@ function FieldEditorControl({
       Boolean(datetimeError || numberError || urlError || optionError) ||
       optionBusy
   )
+  const draftOrigin = useRef({
+    rowId: row._id,
+    value,
+    display: savedDraft,
+    timeZone,
+    calendarTimeZoneData,
+  })
   const optionSaving = useRef(false)
+  const writeLocked = disabled || readOnly
   const optionInput = useRef<HTMLInputElement>(null)
   const discardNextBlur = useRef(false)
   const measuredText = useEidosFileAutosizedText<HTMLTextAreaElement>({
@@ -139,9 +182,23 @@ function FieldEditorControl({
   })
 
   useEffect(() => {
+    if (
+      row._id === draftOrigin.current.rowId &&
+      draft !== draftOrigin.current.display &&
+      (value === draftOrigin.current.value ||
+        (inspector && draft !== savedDraft))
+    )
+      return
+    draftOrigin.current = {
+      rowId: row._id,
+      value,
+      display: savedDraft,
+      timeZone,
+      calendarTimeZoneData,
+    }
     setDraft(
       field.type === "datetime"
-        ? dateTimeInputValue(value, timeZone)
+        ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
         : value === null || value === undefined
           ? ""
           : String(value)
@@ -149,10 +206,22 @@ function FieldEditorControl({
     setDatetimeError(null)
     setNumberError(null)
     setUrlError(false)
-  }, [field.type, timeZone, value])
+  }, [row._id, field.type, timeZone, value, calendarTimeZoneData])
 
   const commitDraft = () => {
+    if (disabled || readOnly) return false
+    if (draft === draftOrigin.current.display) return true
     let next: EidosFileSqlPrimitive = draft.trim().length > 0 ? draft : null
+    if (
+      field.type === "text" ||
+      field.type === "url" ||
+      field.type === "integer"
+    ) {
+      const cell = eidosFileValueToGridCell(field, draft)
+      if (cell.kind === GridCellKind.Text || cell.kind === GridCellKind.Uri) {
+        next = gridCellToEidosFileValue(field, cell)
+      }
+    }
     if (field.type === "number") {
       const number = Number(draft)
       if (draft.trim().length > 0 && !Number.isFinite(number)) {
@@ -174,12 +243,12 @@ function FieldEditorControl({
         return false
       }
       next = draft.trim().length > 0 ? number : null
-    } else if (field.type === "integer" && draft.trim().length > 0) {
-      next = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(draft.trim())
-        ? BigInt(draft.trim())
-        : draft
     } else if (field.type === "datetime" && draft) {
-      const date = eidosFileInstantFromInputValue(draft, timeZone)
+      const date = eidosFileInstantFromInputValue(
+        draft,
+        draftOrigin.current.timeZone,
+        draftOrigin.current.calendarTimeZoneData
+      )
       if (!date) {
         setDatetimeError(
           t(
@@ -197,6 +266,7 @@ function FieldEditorControl({
     return true
   }
   const commitOnBlur = () => {
+    if (inspector) setFocused(false)
     if (discardNextBlur.current) {
       discardNextBlur.current = false
       return
@@ -221,6 +291,27 @@ function FieldEditorControl({
     }
   })
 
+  if (
+    field.type === "datetime" &&
+    calendarTimeZoneData &&
+    typeof value === "string" &&
+    value &&
+    !projectEidosFileCalendarInstant(
+      value,
+      eidosFileResolvedTimeZone(timeZone),
+      calendarTimeZoneData
+    )
+  )
+    return (
+      <div className="text-xs">
+        <span>{value}</span>
+        <p className="text-muted-foreground">
+          {t(
+            "Dates outside 1970–2499 are read-only here. Your saved value is unchanged."
+          )}
+        </p>
+      </div>
+    )
   if (field.type === "checkbox") {
     const omittedDefault =
       isNewRecord &&
@@ -236,9 +327,19 @@ function FieldEditorControl({
         : value === true || value === 1 || value === "1"
           ? "checked"
           : "unchecked"
-    if (appearance === "record-property" || appearance === "compact")
+    if (
+      inspector ||
+      appearance === "record-property" ||
+      appearance === "compact"
+    )
       return (
-        <div className="flex min-h-11 items-center gap-2">
+        <div
+          className={
+            inspector
+              ? "flex min-h-[34px] items-center gap-1"
+              : "flex min-h-11 items-center gap-2"
+          }
+        >
           <button
             type="button"
             role="checkbox"
@@ -247,16 +348,35 @@ function FieldEditorControl({
               checkboxValue === "empty" ? "mixed" : checkboxValue === "checked"
             }
             disabled={disabled}
-            className="eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
-            onClick={() => void onChange(checkboxValue === "checked" ? 0 : 1)}
+            aria-disabled={inspector && readOnly ? true : undefined}
+            className={
+              inspector
+                ? "flex min-h-[34px] flex-1 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                : "eidos-field-checkbox flex h-11 min-w-11 items-center justify-start"
+            }
+            onClick={() => {
+              if (!writeLocked)
+                void onChange(checkboxValue === "checked" ? 0 : 1)
+            }}
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded border border-input">
+            <span
+              className={cn(
+                "flex items-center justify-center rounded border border-input",
+                inspector ? "h-4 w-4" : "h-5 w-5"
+              )}
+            >
               {checkboxValue === "checked" ? (
                 <Check size={16} />
               ) : checkboxValue === "empty" ? (
                 "−"
               ) : null}
             </span>
+            {inspector &&
+              (checkboxValue === "empty" ? (
+                <span className="text-muted-foreground/80">{t("Empty")}</span>
+              ) : (
+                t(checkboxValue === "checked" ? "Checked" : "Unchecked")
+              ))}
           </button>
           {appearance !== "compact" &&
             field.nullable !== false &&
@@ -264,9 +384,20 @@ function FieldEditorControl({
               <button
                 type="button"
                 disabled={disabled}
-                className="eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
-                aria-label={t("Clear")}
-                onClick={() => void onChange(null)}
+                aria-disabled={inspector && readOnly ? true : undefined}
+                className={
+                  inspector
+                    ? "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    : "eidos-field-clear flex h-11 w-11 items-center justify-center text-muted-foreground"
+                }
+                aria-label={
+                  inspector
+                    ? t("Clear {field}", { field: field.name })
+                    : t("Clear")
+                }
+                onClick={() => {
+                  if (!writeLocked) void onChange(null)
+                }}
               >
                 <X size={16} />
               </button>
@@ -277,9 +408,10 @@ function FieldEditorControl({
       <Select
         value={omittedDefault ? "" : checkboxValue}
         disabled={disabled}
-        onValueChange={(next) =>
-          void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
-        }
+        onValueChange={(next) => {
+          if (!writeLocked)
+            void onChange(next === "empty" ? null : next === "checked" ? 1 : 0)
+        }}
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
           <SelectValue
@@ -306,9 +438,9 @@ function FieldEditorControl({
       <Select
         value={typeof value === "string" && value ? value : "__empty__"}
         disabled={disabled}
-        onValueChange={(next) =>
-          void onChange(next === "__empty__" ? null : next)
-        }
+        onValueChange={(next) => {
+          if (!writeLocked) void onChange(next === "__empty__" ? null : next)
+        }}
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
           <SelectValue placeholder={placeholder ?? t("Empty")} />
@@ -347,7 +479,8 @@ function FieldEditorControl({
     )
     const existing = options.find((option) => option.name === query)
     const createOption = async () => {
-      if (!onCreateOption || !query || disabled || optionSaving.current) return
+      if (!onCreateOption || !query || writeLocked || optionSaving.current)
+        return
       optionSaving.current = true
       setOptionBusy(true)
       setOptionError(null)
@@ -422,7 +555,7 @@ function FieldEditorControl({
                 placeholder={t("Search or create an option…")}
                 className="h-7 text-xs"
                 disabled={disabled}
-                readOnly={optionBusy}
+                readOnly={optionBusy || readOnly}
                 aria-busy={optionBusy}
                 onChange={(event) => {
                   setOptionQuery(event.target.value)
@@ -436,7 +569,7 @@ function FieldEditorControl({
                   )
                     return
                   event.preventDefault()
-                  if (disabled || optionSaving.current) return
+                  if (writeLocked || optionSaving.current) return
                   if (existing) {
                     if (!selectedSet.has(existing.value))
                       void onChange(
@@ -467,6 +600,7 @@ function FieldEditorControl({
                 className="flex min-h-7 items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 disabled={disabled || optionBusy}
                 onClick={() => {
+                  if (writeLocked) return
                   void onChange(null)
                   setOptionOpen(false)
                 }}
@@ -493,6 +627,7 @@ function FieldEditorControl({
                 aria-checked={selectedSet.has(option.value)}
                 disabled={disabled || optionBusy}
                 onClick={() => {
+                  if (writeLocked) return
                   if (single) {
                     void onChange(option.value)
                     setOptionOpen(false)
@@ -556,15 +691,21 @@ function FieldEditorControl({
         value={draft}
         rows={1}
         wrap="soft"
+        readOnly={readOnly}
         aria-label={field.name}
         placeholder={placeholder}
         disabled={disabled}
         className={
-          appearance === "record-property"
-            ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none focus-visible:ring-0"
-            : appearance === "record-title"
-              ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 text-xl font-semibold leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 sm:text-2xl ${mobileTitle ? "overflow-x-hidden [overflow-wrap:anywhere]" : ""}`
-              : "min-h-8 resize-none text-xs leading-5"
+          inspector
+            ? cn(
+                inlineClass,
+                "resize-none whitespace-pre-wrap [overflow-wrap:anywhere]"
+              )
+            : appearance === "record-property"
+              ? "eidos-mobile-inline-text min-h-11 w-full resize-none overflow-x-hidden whitespace-pre-wrap [overflow-wrap:anywhere] rounded-none border-0 px-0 py-2 text-base leading-relaxed shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0"
+              : appearance === "record-title"
+                ? `min-h-8 w-full resize-none rounded-none border-0 px-0 py-0 leading-tight tracking-tight shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0 ${mobileTitle ? "text-xl font-semibold sm:text-2xl overflow-x-hidden [overflow-wrap:anywhere]" : "text-[40px] font-bold"}`
+                : "min-h-8 resize-none text-xs leading-5"
         }
         style={
           appearance === "record-property"
@@ -591,15 +732,23 @@ function FieldEditorControl({
         onBlur={commitOnBlur}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
-          if (event.key === "Escape" && appearance === "compact") {
+          if (
+            event.key === "Escape" &&
+            (inspector || appearance === "compact")
+          ) {
+            if (inspector) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
             discardNextBlur.current = true
-            setDraft(value == null ? "" : String(value))
+            setDraft(savedDraft)
             event.currentTarget.blur()
             return
           }
           if (
             event.key === "Enter" &&
-            (appearance === "record-title" ||
+            (inspector ||
+              appearance === "record-title" ||
               appearance === "record-property") &&
             !event.shiftKey &&
             !event.metaKey &&
@@ -621,7 +770,7 @@ function FieldEditorControl({
 
   if (
     field.type === "rating" &&
-    (appearance === "record-property" || appearance === "compact")
+    (inspector || appearance === "record-property" || appearance === "compact")
   ) {
     const maximum =
       typeof field.settings?.max === "number" ? field.settings.max : 5
@@ -630,18 +779,62 @@ function FieldEditorControl({
         <div
           role="group"
           aria-label={field.name}
-          className="flex min-h-11 flex-wrap items-center"
+          className={
+            inspector
+              ? "flex min-h-[34px] flex-wrap items-center px-1"
+              : "flex min-h-11 flex-wrap items-center"
+          }
         >
           {Array.from({ length: maximum }, (_, index) => index + 1).map(
             (rating) => (
               <button
                 type="button"
                 key={rating}
-                className="flex h-11 min-w-8 flex-1 items-center justify-center"
+                className={
+                  inspector
+                    ? "inline-flex h-8 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    : "flex h-11 min-w-8 flex-1 items-center justify-center"
+                }
                 disabled={disabled}
+                aria-disabled={readOnly || undefined}
                 aria-label={t("Rate {value}", { value: rating })}
                 aria-pressed={Number(value) === rating && value != null}
-                onClick={() =>
+                tabIndex={
+                  inspector
+                    ? rating === (Number(value) || 1)
+                      ? 0
+                      : -1
+                    : undefined
+                }
+                onKeyDown={
+                  inspector
+                    ? (event) => {
+                        const step =
+                          event.key === "ArrowRight" || event.key === "ArrowUp"
+                            ? 1
+                            : event.key === "ArrowLeft" ||
+                                event.key === "ArrowDown"
+                              ? -1
+                              : 0
+                        if (!step || writeLocked) return
+                        event.preventDefault()
+                        const next = Math.min(
+                          maximum,
+                          Math.max(1, rating + step)
+                        )
+                        if (next === rating) return
+                        event.currentTarget.parentElement
+                          ?.querySelector<HTMLButtonElement>(
+                            `button[value="${next}"]`
+                          )
+                          ?.focus()
+                        void onChange(next)
+                      }
+                    : undefined
+                }
+                value={inspector ? rating : undefined}
+                onClick={() => {
+                  if (writeLocked) return
                   void onChange(
                     value != null && Number(value) === rating
                       ? field.nullable === false
@@ -649,28 +842,36 @@ function FieldEditorControl({
                         : null
                       : rating
                   )
-                }
+                }}
               >
                 <Star
-                  size={22}
+                  size={inspector ? 16 : 22}
+                  className={
+                    inspector && Number(value) >= rating
+                      ? "text-foreground"
+                      : undefined
+                  }
                   fill={Number(value) >= rating ? "currentColor" : "none"}
                 />
               </button>
             )
           )}
-          {appearance !== "compact" && (
+          {!inspector && appearance !== "compact" && (
             <button
               type="button"
               disabled={disabled}
               className="h-11 min-w-8 text-sm text-muted-foreground"
               aria-label={t("Rate {value}", { value: 0 })}
               aria-pressed={value === 0}
-              onClick={() => void onChange(0)}
+              onClick={() => {
+                if (!writeLocked) void onChange(0)
+              }}
             >
               0
             </button>
           )}
-          {appearance !== "compact" &&
+          {!inspector &&
+            appearance !== "compact" &&
             field.nullable !== false &&
             value != null && (
               <button
@@ -678,7 +879,9 @@ function FieldEditorControl({
                 disabled={disabled}
                 className="eidos-field-clear flex h-11 min-w-8 items-center justify-center text-muted-foreground"
                 aria-label={t("Clear")}
-                onClick={() => void onChange(null)}
+                onClick={() => {
+                  if (!writeLocked) void onChange(null)
+                }}
               >
                 <X size={16} />
               </button>
@@ -710,7 +913,11 @@ function FieldEditorControl({
                   ? "datetime-local"
                   : "url"
         }
-        value={draft}
+        value={
+          draft === savedDraft && formattedNumber?.kind === GridCellKind.Number
+            ? formattedNumber.displayData
+            : draft
+        }
         aria-label={field.name}
         placeholder={placeholder}
         aria-invalid={
@@ -726,12 +933,16 @@ function FieldEditorControl({
               ? "decimal"
               : undefined
         }
+        readOnly={readOnly}
         className={[
-          appearance === "record-property"
-            ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none focus-visible:ring-0"
-            : "h-8 text-xs",
+          inspector
+            ? inlineClass
+            : appearance === "record-property"
+              ? "h-11 min-w-0 w-full rounded-none border-0 px-0 text-base shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0"
+              : "h-8 text-xs",
           field.type === "url" ? "pr-9" : "",
         ].join(" ")}
+        onFocus={inspector ? () => setFocused(true) : undefined}
         onChange={(event) => {
           setDraft(event.target.value)
           if (field.type === "url") setUrlError(false)
@@ -742,12 +953,31 @@ function FieldEditorControl({
         }}
         onBlur={commitOnBlur}
         onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur()
+          if (
+            inspector &&
+            (event.nativeEvent.isComposing || event.keyCode === 229)
+          )
+            return
+          if (event.key === "Enter") {
+            if (inspector) event.preventDefault()
+            event.currentTarget.blur()
+          }
           if (event.key === "Escape") {
+            if (inspector) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
+            draftOrigin.current = {
+              rowId: row._id,
+              value,
+              display: savedDraft,
+              timeZone,
+              calendarTimeZoneData,
+            }
             discardNextBlur.current = true
             setDraft(
               field.type === "datetime"
-                ? dateTimeInputValue(value, timeZone)
+                ? dateTimeInputValue(value, timeZone, calendarTimeZoneData)
                 : value === null || value === undefined
                   ? ""
                   : String(value)
@@ -816,7 +1046,10 @@ function FieldEditorControl({
         <div className="min-w-0">
           {input}
           {numberError ? (
-            <p className="mt-1 text-[10px] leading-4 text-destructive">
+            <p
+              role={inspector ? "alert" : undefined}
+              className="mt-1 text-[10px] leading-4 text-destructive"
+            >
               {numberError}
             </p>
           ) : null}

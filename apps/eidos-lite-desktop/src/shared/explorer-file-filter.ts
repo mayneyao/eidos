@@ -1,6 +1,10 @@
 import type { SpaceTreeEntry } from "./contracts"
 import {
+  isCanonicalEidosFileDate,
+  isEidosFileCalendarPeriodValue,
+  isEidosFileCalendarWindowValue,
   normalizeEidosFileFilter,
+  type EidosFileFilterOperator,
   type EidosFileFilterRule,
 } from "@eidos.space/eidos-file"
 
@@ -11,6 +15,29 @@ export const EXPLORER_TEXT_OPERATORS = [
   "starts-with",
   "ends-with",
 ] as const
+
+const FILE_SYSTEM_COMPARISONS: readonly EidosFileFilterOperator[] = [
+  "equals",
+  "greater-than",
+  "greater-than-or-equal",
+  "less-than",
+  "less-than-or-equal",
+  "is-between",
+]
+
+export interface ExplorerFileSystemFilterRule {
+  type: "rule"
+  id: string
+  field: "file-system"
+  operator: "matches"
+  value: EidosFileFilterRule
+}
+
+export type ExplorerFileSystemPredicates = ReadonlyMap<
+  ExplorerFileSystemFilterRule,
+  (entry: SpaceTreeEntry) => boolean
+>
+
 export type ExplorerFilterRule = {
   type: "rule"
   id: string
@@ -30,6 +57,7 @@ export type ExplorerFilterRule = {
       operator: "in" | "not-in"
       value: readonly string[]
     }
+  | ExplorerFileSystemFilterRule
 )
 export interface ExplorerFilterGroup {
   type: "group"
@@ -134,7 +162,10 @@ export function normalizeExplorerFileFilter(
       }
     }
     if (item.type !== "rule") throw new Error("Invalid filter condition")
-    if (item.field === "property" && item.operator === "matches") {
+    if (
+      (item.field === "property" || item.field === "file-system") &&
+      item.operator === "matches"
+    ) {
       const group = normalizeEidosFileFilter({
         type: "group",
         conjunction: "and",
@@ -154,10 +185,23 @@ export function normalizeExplorerFileFilter(
             )))
       )
         throw new Error("Invalid property condition")
+      if (
+        item.field === "file-system" &&
+        !(
+          (rule.field === "explorer:size" &&
+            FILE_SYSTEM_COMPARISONS.includes(rule.operator)) ||
+          ((rule.field === "explorer:modifiedAt" ||
+            rule.field === "explorer:createdAt") &&
+            (FILE_SYSTEM_COMPARISONS.includes(rule.operator) ||
+              rule.operator === "is-in-calendar-period" ||
+              rule.operator === "is-in-calendar-window"))
+        )
+      )
+        throw new Error("Invalid file system condition")
       return {
         type: "rule",
         id: item.id,
-        field: "property",
+        field: item.field,
         operator: "matches",
         value: rule,
       }
@@ -211,6 +255,30 @@ export function countExplorerFilterRules(filter: ExplorerFileFilter): number {
 }
 
 export function isExplorerRuleActive(rule: ExplorerFilterRule): boolean {
+  if (rule.field === "file-system") {
+    const { field, operator, value } = rule.value
+    if (operator === "is-in-calendar-period")
+      return isEidosFileCalendarPeriodValue(value)
+    if (operator === "is-in-calendar-window")
+      return isEidosFileCalendarWindowValue(value)
+    if (field === "explorer:size") {
+      if (operator !== "is-between") return isFileSizeThreshold(value)
+      return (
+        Array.isArray(value) &&
+        value.length === 2 &&
+        value.every(isFileSizeThreshold) &&
+        Number(value[0]) <= Number(value[1])
+      )
+    }
+    if (operator !== "is-between") return isCanonicalEidosFileDate(value)
+    return (
+      Array.isArray(value) &&
+      value.length === 2 &&
+      isCanonicalEidosFileDate(value[0]) &&
+      isCanonicalEidosFileDate(value[1]) &&
+      value[0] <= value[1]
+    )
+  }
   if (rule.field !== "property") return rule.value.length > 0
   return (
     rule.value.operator === "is-empty" ||
@@ -219,6 +287,30 @@ export function isExplorerRuleActive(rule: ExplorerFilterRule): boolean {
       rule.value.value !== "" &&
       (!Array.isArray(rule.value.value) || rule.value.value.length > 0))
   )
+}
+
+function isFileSizeThreshold(value: unknown): boolean {
+  if (
+    typeof value !== "number" &&
+    !(typeof value === "string" && value.trim() !== "")
+  )
+    return false
+  const bytes = Number(value)
+  return (
+    Number.isFinite(bytes) && bytes >= 0 && bytes <= Number.MAX_SAFE_INTEGER
+  )
+}
+
+export function hasExplorerFileSystemFilter(
+  filter: ExplorerFileFilter
+): boolean {
+  const visit = (group: ExplorerFilterGroup): boolean =>
+    group.children.some((child) =>
+      child.type === "group"
+        ? visit(child)
+        : child.field === "file-system" && isExplorerRuleActive(child)
+    )
+  return visit(toExplorerFilterGroup(filter))
 }
 
 export function hasExplorerPropertyFilter(filter: ExplorerFileFilter): boolean {
@@ -251,7 +343,7 @@ export function explorerFilterSignature(filter: ExplorerFileFilter): string {
             field: node.field,
             operator: node.operator,
             value:
-              node.field === "property"
+              node.field === "property" || node.field === "file-system"
                 ? node.value
                 : typeof node.value === "string"
                   ? node.value.toLowerCase()
@@ -272,7 +364,11 @@ export function matchesExplorerFileFilter(
   name: string,
   filter: ExplorerFileFilter,
   relativePath = name,
-  propertyMatches?: ReadonlyMap<string, ReadonlySet<string>>
+  propertyMatches?: ReadonlyMap<string, ReadonlySet<string>>,
+  fileSystem?: {
+    entry: SpaceTreeEntry
+    predicates: ExplorerFileSystemPredicates
+  }
 ): boolean {
   const leaf = name.slice(name.lastIndexOf("/") + 1).toLowerCase()
   if (!isExplorerFilterGroup(filter))
@@ -289,6 +385,11 @@ export function matchesExplorerFileFilter(
           ? values.every(Boolean)
           : values.some(Boolean)
         : null
+    }
+    if (node.field === "file-system") {
+      if (fileSystem)
+        return fileSystem.predicates.get(node)?.(fileSystem.entry) ?? null
+      return isExplorerRuleActive(node) ? false : null
     }
     if (!isExplorerRuleActive(node)) return null
     if (node.field === "property")
@@ -321,26 +422,32 @@ export function matchesExplorerFileFilter(
 export function filterExplorerEntries(
   entries: SpaceTreeEntry[],
   filter: ExplorerFileFilter,
-  propertyMatches?: ReadonlyMap<string, ReadonlySet<string>>
+  propertyMatches?: ReadonlyMap<string, ReadonlySet<string>>,
+  predicates?: ExplorerFileSystemPredicates
 ): SpaceTreeEntry[] {
   if (!countExplorerFilterRules(filter)) return entries
-  return entries.flatMap((entry) => {
-    if (entry.kind !== "directory")
-      return matchesExplorerFileFilter(
-        entry.name,
-        filter,
-        entry.relativePath,
-        propertyMatches
-      )
-        ? [entry]
+  const visit = (entries: readonly SpaceTreeEntry[]): SpaceTreeEntry[] =>
+    entries.flatMap((entry) => {
+      if (entry.kind !== "directory")
+        return matchesExplorerFileFilter(
+          entry.name,
+          filter,
+          entry.relativePath,
+          propertyMatches,
+          predicates ? { entry, predicates } : undefined
+        )
+          ? [entry]
+          : []
+      const children = visit(entry.children ?? [])
+      return children.length
+        ? [
+            {
+              ...entry,
+              children,
+              childrenLoaded: entry.childrenLoaded !== false,
+            },
+          ]
         : []
-    const children = filterExplorerEntries(
-      entry.children ?? [],
-      filter,
-      propertyMatches
-    )
-    return children.length
-      ? [{ ...entry, children, childrenLoaded: entry.childrenLoaded !== false }]
-      : []
-  })
+    })
+  return visit(entries)
 }

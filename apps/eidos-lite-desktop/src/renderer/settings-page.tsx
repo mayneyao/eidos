@@ -1,5 +1,12 @@
-import { viewResource } from "@eidos.space/plugin-runtime/view"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { fileEditorSettings } from "./settings-file-editors"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type { PluginListing } from "../shared/plugins"
 import { DevicesSettings } from "./peer-sync-panel"
 import { SyncPasswordSettings } from "./sync-password-settings"
@@ -46,6 +53,17 @@ import {
 } from "./sync-status-cache"
 import { TimeZonePicker } from "./time-zone-picker"
 import { UsageMeter, formatUsageBytes } from "./usage-meter"
+import {
+  SETTINGS,
+  SETTINGS_SECTIONS,
+  settingsCatalog,
+  settingTarget,
+  type SettingDescriptor,
+  type SettingsPageId,
+} from "./settings-catalog"
+import { SettingsSearch, isSettingsSearchShortcut } from "./settings-search"
+import { focusSetting } from "./settings-navigation"
+import { SettingsSidebarResizer } from "./settings-sidebar-resizer"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -63,17 +81,16 @@ const MARKDOWN_EDITOR_OPTIONS: Array<{
   { label: "Rich text", value: "wysiwyg" },
 ]
 
-const SETTINGS_PAGES = [
-  { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
-  { id: "devices", label: "Devices", icon: Laptop },
-  { id: "account-sync", label: "Account & Services", icon: Cloud },
-  { id: "files", label: "Files", icon: FileText },
-  { id: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
-  { id: "updates", label: "Updates", icon: RefreshCw },
-  { id: "about", label: "About", icon: Info },
-] as const
-
-type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"]
+const SETTINGS_PAGES = SETTINGS_SECTIONS
+const PAGE_ICONS = {
+  preferences: SlidersHorizontal,
+  devices: Laptop,
+  "account-sync": Cloud,
+  files: FileText,
+  shortcuts: Keyboard,
+  updates: RefreshCw,
+  about: Info,
+}
 
 function platformLabel(appInfo: EidosLiteAppInfo): string {
   const platform =
@@ -94,7 +111,7 @@ function platformLabel(appInfo: EidosLiteAppInfo): string {
 }
 
 export function SettingsPage() {
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const readPage = (): SettingsPageId => {
     const section = window.location.hash.split("/")[2]
     return (
@@ -102,13 +119,39 @@ export function SettingsPage() {
     )
   }
   const [activePage, setActivePage] = useState<SettingsPageId>(readPage)
-  useEffect(
-    () =>
-      window.eidosLite.onSettingsNavigate?.((page) => {
-        setActivePage(page)
-        window.history.pushState(null, "", `#/settings/${page}`)
-      }),
+  const activePageRef = useRef(activePage)
+  const renderedPageRef = useRef(activePage)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const scrollPositions = useRef<Partial<Record<SettingsPageId, number>>>({})
+  const [visitedPages, setVisitedPages] = useState(() => new Set([activePage]))
+  const [navigationVersion, setNavigationVersion] = useState(0)
+  const [navigationTarget, setNavigationTarget] =
+    useState<SettingDescriptor | null>(null)
+  const navigate = useCallback(
+    (
+      page: SettingsPageId,
+      target: SettingDescriptor | null = null,
+      recordHistory = true
+    ) => {
+      if (contentRef.current)
+        scrollPositions.current[renderedPageRef.current] =
+          contentRef.current.scrollTop
+      activePageRef.current = page
+      setActivePage(page)
+      setVisitedPages((previous) =>
+        previous.has(page) ? previous : new Set([...previous, page])
+      )
+      setNavigationTarget(target)
+      setNavigationVersion((version) => version + 1)
+      if (recordHistory && window.location.hash !== "#/settings/" + page)
+        window.history.pushState(null, "", "#/settings/" + page)
+    },
     []
+  )
+  useEffect(
+    () => window.eidosLite.onSettingsNavigate?.((page) => navigate(page)),
+    [navigate]
   )
   useEffect(() => {
     window.history.replaceState(
@@ -116,14 +159,17 @@ export function SettingsPage() {
       "",
       `#/settings/${readPage()}`
     )
-    const restore = () => setActivePage(readPage())
+    const restore = () => {
+      const page = readPage()
+      if (page !== activePageRef.current) navigate(page, null, false)
+    }
     window.addEventListener("popstate", restore)
     window.addEventListener("hashchange", restore)
     return () => {
       window.removeEventListener("popstate", restore)
       window.removeEventListener("hashchange", restore)
     }
-  }, [])
+  }, [navigate])
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
@@ -193,138 +239,80 @@ export function SettingsPage() {
   }, [])
 
   const [pluginListing, setPluginListing] = useState<PluginListing | null>(null)
-
-  useEffect(() => {
-    if (activePage !== "files" || !window.eidosLite?.listPlugins) return
-    let active = true
-    const refresh = () => {
-      void window.eidosLite
-        .listPlugins()
-        .then((listing) => {
-          if (active) setPluginListing(listing)
-        })
-        .catch(() => {})
+  const [catalogState, setCatalogState] = useState<
+    "loading" | "ready" | "error"
+  >(typeof window.eidosLite.listPlugins === "function" ? "loading" : "ready")
+  const catalogMounted = useRef(true)
+  const catalogRequest = useRef<Promise<void> | null>(null)
+  const catalogInvalidated = useRef(false)
+  const catalogLocale = useRef(locale)
+  const refreshPluginCatalog = useCallback(function refresh(
+    invalidate = false
+  ): Promise<void> {
+    if (!window.eidosLite.listPlugins) return Promise.resolve()
+    if (catalogRequest.current) {
+      if (invalidate) catalogInvalidated.current = true
+      return catalogRequest.current
     }
-    refresh()
+    setCatalogState("loading")
+    const request = window.eidosLite
+      .listPlugins()
+      .then(
+        (listing) => {
+          if (!catalogMounted.current) return
+          setPluginListing(listing)
+          setCatalogState("ready")
+        },
+        () => {
+          if (catalogMounted.current) setCatalogState("error")
+        }
+      )
+      .finally(() => {
+        catalogRequest.current = null
+        if (catalogInvalidated.current && catalogMounted.current) {
+          catalogInvalidated.current = false
+          void refresh()
+        }
+      })
+    catalogRequest.current = request
+    return request
+  }, [])
+  useEffect(() => {
+    catalogMounted.current = true
+    return () => {
+      catalogMounted.current = false
+    }
+  }, [])
+  useEffect(() => {
+    const changed = catalogLocale.current !== locale
+    catalogLocale.current = locale
+    void refreshPluginCatalog(changed)
+  }, [locale, refreshPluginCatalog])
+  useEffect(() => {
+    const refresh = () => {
+      void refreshPluginCatalog(true)
+    }
     const unsubscribe = window.eidosLite.onPluginEvent?.(({ event }) => {
       if (event.observation === "host.catalog") refresh()
     })
     window.addEventListener("eidos-plugins-changed", refresh)
     return () => {
-      active = false
       unsubscribe?.()
       window.removeEventListener("eidos-plugins-changed", refresh)
     }
-  }, [activePage])
+  }, [refreshPluginCatalog])
 
   const { markdownPluginEditors, htmlPluginEditors, fileEditorGroups } =
-    useMemo(() => {
-      const associations =
-        pluginListing?.associations ?? pluginListing?.space?.associations ?? {}
-
-      const extChoicesMap = new Map<string, { key: string; label: string }[]>()
-
-      for (const plugin of pluginListing?.plugins ?? []) {
-        for (const placement of plugin.manifest.placements ?? []) {
-          if (
-            placement.location !== "file/open" ||
-            !placement.extensions?.length
-          )
-            continue
-          const view = plugin.manifest.views?.find(
-            (v) =>
-              v.id === placement.view &&
-              (viewResource(v) === "file" || viewResource(v) === "document")
-          )
-          if (!view) continue
-          const editorKey = `${plugin.manifest.id}/${view.id}`
-          const editorLabel =
-            plugin.manifest.name === view.title
-              ? view.title
-              : `${view.title} (${plugin.manifest.name})`
-
-          for (const rawExt of placement.extensions) {
-            const ext = (
-              rawExt.startsWith(".") ? rawExt : `.${rawExt}`
-            ).toLowerCase()
-            if (ext === ".eidos") continue
-            if (!extChoicesMap.has(ext)) {
-              extChoicesMap.set(ext, [])
-            }
-            const list = extChoicesMap.get(ext)!
-            if (!list.some((item) => item.key === editorKey)) {
-              list.push({ key: editorKey, label: editorLabel })
-            }
-          }
-        }
-      }
-
-      const mdChoices = [
-        ...(extChoicesMap.get(".md") ?? []),
-        ...(extChoicesMap.get(".markdown") ?? []),
-      ].filter(
-        (item, index, self) =>
-          self.findIndex((other) => other.key === item.key) === index
-      )
-
-      const htmlChoices = [
-        ...(extChoicesMap.get(".html") ?? []),
-        ...(extChoicesMap.get(".htm") ?? []),
-      ].filter(
-        (item, index, self) =>
-          self.findIndex((other) => other.key === item.key) === index
-      )
-
-      const nonBuiltinExts = [...extChoicesMap.keys()]
-        .filter(
-          (ext) =>
-            ext !== ".md" &&
-            ext !== ".markdown" &&
-            ext !== ".html" &&
-            ext !== ".htm"
-        )
-        .sort()
-
-      const groups: {
-        extensions: string[]
-        label: string
-        options: { key: string; label: string }[]
-        selected: string
-      }[] = []
-
-      for (const ext of nonBuiltinExts) {
-        const choices = extChoicesMap.get(ext)!
-        const selected = associations[ext] ?? "builtin"
-        const options = [
-          { key: "builtin", label: t("Built-in editor") },
-          ...choices,
-        ]
-
-        const existing = groups.find(
-          (g) =>
-            g.selected === selected &&
-            g.options.length === options.length &&
-            g.options.every((opt, idx) => opt.key === options[idx].key)
-        )
-        if (existing) {
-          existing.extensions.push(ext)
-          existing.label = existing.extensions.join(", ")
-        } else {
-          groups.push({
-            extensions: [ext],
-            label: ext,
-            options,
-            selected,
-          })
-        }
-      }
-
-      return {
-        markdownPluginEditors: mdChoices,
-        htmlPluginEditors: htmlChoices,
-        fileEditorGroups: groups,
-      }
-    }, [pluginListing, t])
+    useMemo(() => fileEditorSettings(pluginListing, t), [pluginListing, t])
+  const descriptors = useMemo(
+    () =>
+      settingsCatalog({
+        platform: appInfo?.platform ?? "unknown",
+        builtInPlugins: preferences.builtInPlugins,
+        fileEditorGroups,
+      }),
+    [appInfo?.platform, preferences.builtInPlugins, fileEditorGroups]
+  )
 
   const currentAssociations =
     pluginListing?.associations ?? pluginListing?.space?.associations ?? {}
@@ -664,35 +652,77 @@ export function SettingsPage() {
           )
         : null
 
+  const appliedNavigation = useRef(-1)
+  useLayoutEffect(() => {
+    if (appliedNavigation.current === navigationVersion || !contentRef.current)
+      return
+    appliedNavigation.current = navigationVersion
+    renderedPageRef.current = activePage
+    if (navigationTarget) {
+      if (!focusSetting(contentRef.current, navigationTarget)) {
+        setError(t("This setting is no longer available."))
+        searchInputRef.current?.focus()
+      }
+    } else
+      contentRef.current.scrollTop = scrollPositions.current[activePage] ?? 0
+  }, [activePage, navigationVersion, navigationTarget, t])
+
   return (
     <main
       className="settings-shell"
+      aria-label={t("Settings")}
       data-platform={appInfo?.platform ?? rendererPlatform()}
       data-settings-ready={appInfo ? "true" : "false"}
+      onKeyDown={(event) => {
+        if (
+          isSettingsSearchShortcut(
+            event.nativeEvent,
+            event.target,
+            searchInputRef.current,
+            (appInfo?.platform ?? rendererPlatform()) === "darwin"
+          )
+        ) {
+          event.preventDefault()
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        }
+      }}
     >
       <header className="settings-titlebar">
-        <strong>{t("Settings")}</strong>
+        <h1>
+          {t(
+            SETTINGS_PAGES.find((page) => page.id === activePage)?.label ??
+              "Settings"
+          )}
+        </h1>
       </header>
       <div className="settings-layout">
-        <aside className="settings-sidebar">
+        <aside className="settings-sidebar" id="settings-sidebar">
+          <SettingsSearch
+            inputRef={searchInputRef}
+            descriptors={descriptors}
+            navigationVersion={navigationVersion}
+            catalogState={catalogState}
+            onRetry={() => {
+              void refreshPluginCatalog()
+            }}
+            onNavigate={(setting) => {
+              const current = descriptors.find(
+                (descriptor) => descriptor.id === setting.id
+              )
+              if (current) navigate(current.pageId, current)
+              else setError(t("This setting is no longer available."))
+            }}
+          />
           <nav aria-label={t("Settings sections")}>
             {SETTINGS_PAGES.map((page) => {
-              const Icon = page.icon
+              const Icon = PAGE_ICONS[page.id]
               return (
                 <button
                   type="button"
                   key={page.id}
                   aria-current={activePage === page.id ? "page" : undefined}
-                  onClick={() => {
-                    setError(null)
-                    setActivePage(page.id)
-                    if (readPage() !== page.id)
-                      window.history.pushState(
-                        null,
-                        "",
-                        `#/settings/${page.id}`
-                      )
-                  }}
+                  onClick={() => navigate(page.id)}
                 >
                   <Icon aria-hidden="true" />
                   <span>{t(page.label)}</span>
@@ -700,25 +730,30 @@ export function SettingsPage() {
               )
             })}
           </nav>
+          <SettingsSidebarResizer />
+          <div className="settings-sidebar-titlebar" aria-hidden="true" />
         </aside>
-        <div className="settings-content">
+        <div className="settings-content" ref={contentRef}>
           <div className="settings-page" data-settings-page={activePage}>
-            {activePage === "devices" && <DevicesSettings />}
+            {visitedPages.has("devices") && (
+              <DevicesSettings active={activePage === "devices"} />
+            )}
             <section
               aria-labelledby="settings-preferences"
               hidden={activePage !== "preferences"}
             >
               <h2 id="settings-preferences">{t("Preferences")}</h2>
               <div className="settings-group">
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.uiScale.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("UI scale")}</strong>
-                    <small>
-                      {t("Resize the entire interface. Saved for all windows.")}
-                    </small>
+                    <strong>{t(SETTINGS.uiScale.title)}</strong>
+                    <small>{t(SETTINGS.uiScale.summary)}</small>
                   </div>
                   <select
-                    aria-label={t("UI scale")}
+                    aria-label={t(SETTINGS.uiScale.title)}
                     value={preferences.uiZoom ?? 1}
                     onChange={(event) =>
                       void updatePreferences({
@@ -733,17 +768,18 @@ export function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                <div className="settings-row settings-row-stacked">
+                <div
+                  className="settings-row settings-row-stacked"
+                  {...settingTarget(SETTINGS.appearance.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Theme")}</strong>
-                    <small>
-                      {t("Follow the system or keep one appearance.")}
-                    </small>
+                    <strong>{t(SETTINGS.appearance.title)}</strong>
+                    <small>{t(SETTINGS.appearance.summary)}</small>
                   </div>
                   <div
                     className="settings-segmented-control"
                     role="radiogroup"
-                    aria-label={t("Theme")}
+                    aria-label={t(SETTINGS.appearance.title)}
                   >
                     {APPEARANCE_OPTIONS.map((option) => (
                       <button
@@ -768,19 +804,18 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="settings-row settings-row-stacked">
+                <div
+                  className="settings-row settings-row-stacked"
+                  {...settingTarget(SETTINGS.language.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Language")}</strong>
-                    <small>
-                      {t(
-                        "Use the system language or choose one for Eidos Lite."
-                      )}
-                    </small>
+                    <strong>{t(SETTINGS.language.title)}</strong>
+                    <small>{t(SETTINGS.language.summary)}</small>
                   </div>
                   <div
                     className="settings-segmented-control"
                     role="radiogroup"
-                    aria-label={t("Language")}
+                    aria-label={t(SETTINGS.language.title)}
                   >
                     {LANGUAGE_OPTIONS.map((option) => (
                       <button
@@ -803,36 +838,62 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <div className="settings-row settings-row-stacked">
+                <div
+                  className="settings-row settings-row-stacked"
+                  {...settingTarget(SETTINGS.timeZone.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Time zone")}</strong>
-                    <small>
-                      {t(
-                        "Follow the system time zone or choose a fixed zone for date and time displays."
-                      )}
-                    </small>
+                    <strong>{t(SETTINGS.timeZone.title)}</strong>
+                    <small>{t(SETTINGS.timeZone.summary)}</small>
                   </div>
                   <TimeZonePicker
                     value={preferences.timeZone}
-                    label={t("Time zone")}
+                    label={t(SETTINGS.timeZone.title)}
                     t={t}
                     onChange={(timeZone) =>
                       void updatePreferences({ timeZone })
                     }
                   />
                 </div>
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.recordSystemFields.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Start week on Monday")}</strong>
-                    <small>
-                      {t("Show Monday as the first day in Calendar views.")}
-                    </small>
+                    <strong>{t(SETTINGS.recordSystemFields.title)}</strong>
+                    <small>{t(SETTINGS.recordSystemFields.summary)}</small>
                   </div>
                   <button
                     type="button"
                     role="switch"
                     className="settings-switch"
-                    aria-label={t("Start week on Monday")}
+                    aria-label={t(SETTINGS.recordSystemFields.title)}
+                    aria-checked={
+                      preferences.hideSystemFieldsInRecords === true
+                    }
+                    onClick={() =>
+                      void updatePreferences({
+                        hideSystemFieldsInRecords:
+                          !preferences.hideSystemFieldsInRecords,
+                      })
+                    }
+                  >
+                    <span />
+                  </button>
+                </div>
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.weekStart.id)}
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t(SETTINGS.weekStart.title)}</strong>
+                    <small>{t(SETTINGS.weekStart.summary)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    className="settings-switch"
+                    aria-label={t(SETTINGS.weekStart.title)}
                     aria-checked={preferences.weekStartsOnMonday}
                     onClick={() =>
                       void updatePreferences({
@@ -843,9 +904,12 @@ export function SettingsPage() {
                     <span />
                   </button>
                 </div>
-                <div className="settings-row settings-row-stacked">
+                <div
+                  className="settings-row settings-row-stacked"
+                  {...settingTarget(SETTINGS.spaceLocation.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Default location for new Spaces")}</strong>
+                    <strong>{t(SETTINGS.spaceLocation.title)}</strong>
                     <small className="settings-path">
                       {preferences.defaultSpaceLocation ??
                         t("Documents folder (system default)")}
@@ -869,6 +933,7 @@ export function SettingsPage() {
                       type="button"
                       className="settings-button"
                       disabled={busy}
+                      data-setting-focus
                       onClick={() => void chooseSpaceLocation()}
                     >
                       <FolderOpen /> {busy ? t("Choosing…") : t("Choose…")}
@@ -887,18 +952,15 @@ export function SettingsPage() {
                 <div
                   className="settings-row settings-row-stacked"
                   data-markdown-file-editing-mode
+                  {...settingTarget(SETTINGS.markdownEditor.id)}
                 >
                   <div className="settings-row-copy">
-                    <strong>{t("Markdown file editor")}</strong>
-                    <small>
-                      {t(
-                        "Choose the default editor for .md and .markdown files."
-                      )}
-                    </small>
+                    <strong>{t(SETTINGS.markdownEditor.title)}</strong>
+                    <small>{t(SETTINGS.markdownEditor.summary)}</small>
                   </div>
                   <select
                     className="settings-shell-select"
-                    aria-label={t("Markdown file editor")}
+                    aria-label={t(SETTINGS.markdownEditor.title)}
                     data-markdown-file-editing-mode-select
                     value={selectedMarkdownEditor}
                     onChange={(event) => {
@@ -933,11 +995,7 @@ export function SettingsPage() {
                           window.dispatchEvent(
                             new Event("eidos-plugins-changed")
                           )
-                          if (window.eidosLite?.listPlugins) {
-                            setPluginListing(
-                              await window.eidosLite.listPlugins()
-                            )
-                          }
+                          await refreshPluginCatalog()
                         } catch (cause) {
                           setError(
                             cause instanceof Error
@@ -985,18 +1043,15 @@ export function SettingsPage() {
                 <div
                   className="settings-row settings-row-stacked"
                   data-html-file-open-mode
+                  {...settingTarget(SETTINGS.htmlEditor.id)}
                 >
                   <div className="settings-row-copy">
-                    <strong>{t("HTML default open mode")}</strong>
-                    <small>
-                      {t(
-                        "Choose how .html and .htm files open. Preview runs in a sandbox."
-                      )}
-                    </small>
+                    <strong>{t(SETTINGS.htmlEditor.title)}</strong>
+                    <small>{t(SETTINGS.htmlEditor.summary)}</small>
                   </div>
                   <select
                     className="settings-shell-select"
-                    aria-label={t("HTML default open mode")}
+                    aria-label={t(SETTINGS.htmlEditor.title)}
                     data-html-file-open-mode-select
                     value={selectedHtmlEditor}
                     onChange={(event) => {
@@ -1030,11 +1085,7 @@ export function SettingsPage() {
                           window.dispatchEvent(
                             new Event("eidos-plugins-changed")
                           )
-                          if (window.eidosLite?.listPlugins) {
-                            setPluginListing(
-                              await window.eidosLite.listPlugins()
-                            )
-                          }
+                          await refreshPluginCatalog()
                         } catch (cause) {
                           setError(
                             cause instanceof Error
@@ -1091,6 +1142,10 @@ export function SettingsPage() {
                   <div
                     className="settings-row settings-row-stacked"
                     key={group.label}
+                    tabIndex={-1}
+                    data-setting-ids={group.extensions
+                      .map((extension) => "files.default-editor:" + extension)
+                      .join(" ")}
                   >
                     <div className="settings-row-copy">
                       <strong>{group.label}</strong>
@@ -1118,11 +1173,7 @@ export function SettingsPage() {
                             window.dispatchEvent(
                               new Event("eidos-plugins-changed")
                             )
-                            if (window.eidosLite.listPlugins) {
-                              setPluginListing(
-                                await window.eidosLite.listPlugins()
-                              )
-                            }
+                            await refreshPluginCatalog()
                           } catch (cause) {
                             setError(
                               cause instanceof Error
@@ -1151,7 +1202,10 @@ export function SettingsPage() {
             >
               <h2 id="settings-account-sync">{t("Account & Services")}</h2>
               <div className="settings-group">
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.account.id)}
+                >
                   <div className="settings-account-summary">
                     <span
                       className="settings-account-avatar"
@@ -1237,13 +1291,18 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
-              {activePage === "account-sync" && (
+              {visitedPages.has("account-sync") && (
                 <SparkSettings
+                  active={activePage === "account-sync"}
                   signedIn={Boolean(syncSignedIn)}
                   subject={syncSubject}
                 />
               )}
-              <div className="settings-service" data-settings-sync>
+              <div
+                className="settings-service"
+                data-settings-sync
+                {...settingTarget(SETTINGS.sync.id)}
+              >
                 <div className="settings-service-heading">
                   <h3 className="settings-subheading">
                     <Cloud aria-hidden="true" />
@@ -1262,17 +1321,16 @@ export function SettingsPage() {
                   ) : null}
                 </div>
                 <div className="settings-group">
-                  <div className="settings-row">
+                  <div
+                    className="settings-row"
+                    {...settingTarget(SETTINGS.automaticSync.id)}
+                  >
                     <label
                       className="settings-row-copy"
                       htmlFor="automatic-sync"
                     >
-                      <strong>{t("Automatic Sync")}</strong>
-                      <small>
-                        {t(
-                          "Sync saved changes in open, connected Spaces when Eidos Lite is idle. Includes custom servers."
-                        )}
-                      </small>
+                      <strong>{t(SETTINGS.automaticSync.title)}</strong>
+                      <small>{t(SETTINGS.automaticSync.summary)}</small>
                     </label>
                     <select
                       id="automatic-sync"
@@ -1349,14 +1407,20 @@ export function SettingsPage() {
                     </div>
                   )}
                   {supportsEncryptedSync(appInfo?.platform ?? "unknown") ? (
-                    <SyncPasswordSettings />
+                    <SyncPasswordSettings
+                      active={activePage === "account-sync"}
+                    />
                   ) : null}
-                  {activePage === "account-sync" ? (
+                  {visitedPages.has("account-sync") ? (
                     <CustomSyncSettings />
                   ) : null}
                 </div>
               </div>
-              <div className="settings-service" data-settings-publish>
+              <div
+                className="settings-service"
+                data-settings-publish
+                {...settingTarget(SETTINGS.publish.id)}
+              >
                 <div className="settings-service-heading">
                   <h3 className="settings-subheading">
                     <Upload aria-hidden="true" />
@@ -1505,9 +1569,12 @@ export function SettingsPage() {
             >
               <h2 id="settings-updates">{t("Updates")}</h2>
               <div className="settings-group">
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.currentVersion.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Current version")}</strong>
+                    <strong>{t(SETTINGS.currentVersion.title)}</strong>
                     <small>{appInfo?.version ?? "…"}</small>
                   </div>
                   <button
@@ -1517,20 +1584,19 @@ export function SettingsPage() {
                     {t("What's new")} →
                   </button>
                 </div>
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.startupUpdates.id)}
+                >
                   <div className="settings-row-copy">
-                    <strong>{t("Check for updates on startup")}</strong>
-                    <small>
-                      {t(
-                        "Check when Eidos Lite starts. Updates download only when you choose."
-                      )}
-                    </small>
+                    <strong>{t(SETTINGS.startupUpdates.title)}</strong>
+                    <small>{t(SETTINGS.startupUpdates.summary)}</small>
                   </div>
                   <button
                     type="button"
                     role="switch"
                     className="settings-switch"
-                    aria-label={t("Check for updates on startup")}
+                    aria-label={t(SETTINGS.startupUpdates.title)}
                     aria-checked={preferences.automaticUpdates}
                     onClick={() =>
                       void updatePreferences({
@@ -1541,9 +1607,12 @@ export function SettingsPage() {
                     <span />
                   </button>
                 </div>
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.softwareUpdate.id)}
+                >
                   <span className="settings-row-copy">
-                    <strong>{t("Software update")}</strong>
+                    <strong>{t(SETTINGS.softwareUpdate.title)}</strong>
                     <small>{updateCopy}</small>
                   </span>
                   {updateStatus?.state === "downloaded" ? (
@@ -1609,6 +1678,8 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="settings-row"
+                  {...settingTarget(SETTINGS.documentation.id)}
+                  tabIndex={0}
                   onClick={() => void openDestination("documentation")}
                 >
                   <span>{t("Documentation")}</span>
@@ -1617,6 +1688,8 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="settings-row"
+                  {...settingTarget(SETTINGS.website.id)}
+                  tabIndex={0}
                   onClick={() => void openDestination("website")}
                 >
                   <span>{t("Eidos website")}</span>
@@ -1625,6 +1698,8 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="settings-row"
+                  {...settingTarget(SETTINGS.source.id)}
+                  tabIndex={0}
                   onClick={() => void openDestination("github")}
                 >
                   <span>{t("Source code on GitHub")}</span>
@@ -1633,6 +1708,8 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="settings-row"
+                  {...settingTarget(SETTINGS.diagnostics.id)}
+                  tabIndex={0}
                   onClick={() => void copyDiagnostics()}
                 >
                   <span>
@@ -1645,6 +1722,8 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="settings-row"
+                  {...settingTarget(SETTINGS.logs.id)}
+                  tabIndex={0}
                   onClick={() => void openDestination("logs")}
                 >
                   <span>{t("Show logs folder")}</span>

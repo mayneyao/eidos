@@ -6,6 +6,8 @@ import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
   IPC_CHANNELS,
   type EidosLiteApi,
+  type EidosLiteClipboardCommand,
+  type EidosLiteFileClipboardStatus,
   type EidosLiteAssetDataSource,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
@@ -22,7 +24,25 @@ import {
 import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
+const clipboardCommandListeners = new Set<
+  (command: EidosLiteClipboardCommand) => boolean
+>()
+ipcRenderer.on(IPC_CHANNELS.clipboardCommand, (_event, command: unknown) => {
+  if (command !== "cut" && command !== "copy" && command !== "paste") return
+  for (const listener of clipboardCommandListeners)
+    if (listener(command)) return
+  void ipcRenderer.invoke(IPC_CHANNELS.textClipboardCommand, command)
+})
+
 const api: EidosLiteApi = {
+  setClipboardCommandState: (state) =>
+    ipcRenderer.send(IPC_CHANNELS.clipboardCommandState, state),
+  onClipboardCommand: (listener) => {
+    clipboardCommandListeners.add(listener)
+    return () => {
+      clipboardCommandListeners.delete(listener)
+    }
+  },
   onBluetoothPicker: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -313,15 +333,18 @@ const api: EidosLiteApi = {
       limit,
       includeDirectories
     ),
-  filterSpaceFiles: (filter, directory, respectGitignore) =>
+  filterSpaceFiles: (filter, directory, respectGitignore, calendarExecution) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.filterFiles,
       filter,
       directory,
-      respectGitignore
+      respectGitignore,
+      calendarExecution
     ),
-  getExplorerFilterFields: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields),
+  getExplorerFilterFields: (consumer?: {
+    calendarQueryVersion: 2
+    calendarWindowVersion?: 1
+  }) => ipcRenderer.invoke(IPC_CHANNELS.explorerFilterFields, consumer),
   listExplorerFiles: (query) =>
     ipcRenderer.invoke(IPC_CHANNELS.listExplorerFiles, query),
   getExplorerFileThumbnail: (request) =>
@@ -446,6 +469,10 @@ const api: EidosLiteApi = {
       relativePath,
       markdownUrl
     ),
+  resolveMarkdownLink: (owner, href) =>
+    ipcRenderer.invoke(IPC_CHANNELS.resolveMarkdownLink, owner, href),
+  openMarkdownLink: (owner, href) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openMarkdownLink, owner, href),
   inspectEidosFileIssue: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>
@@ -468,10 +495,48 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.renamePath, relativePath, name),
   movePath: (relativePath, targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.movePath, relativePath, targetDirectory),
-  movePaths: (relativePaths, targetDirectory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.movePaths, relativePaths, targetDirectory),
-  copyPath: (relativePath, targetDirectory) =>
-    ipcRenderer.invoke(IPC_CHANNELS.copyPath, relativePath, targetDirectory),
+  movePaths: (relativePaths, targetDirectory, clipboard) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.movePaths,
+      relativePaths,
+      targetDirectory,
+      clipboard
+    ),
+  copyPath: (relativePath, targetDirectory, clipboard) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.copyPath,
+      relativePath,
+      targetDirectory,
+      clipboard
+    ),
+  preparePathClipboard: (relativePaths, mode) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preparePathClipboard, relativePaths, mode),
+  isPathClipboardCurrent: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.isPathClipboardCurrent, token),
+  cancelPathClipboard: () => ipcRenderer.send(IPC_CHANNELS.cancelPathClipboard),
+  onFileClipboardStatus: (listener) => {
+    let active = true
+    let sequence = -1
+    const receive = (value: EidosLiteFileClipboardStatus | null) => {
+      if (active && value && value.sequence > sequence) {
+        sequence = value.sequence
+        listener(value)
+      }
+    }
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: EidosLiteFileClipboardStatus
+    ) => receive(value)
+    ipcRenderer.on(IPC_CHANNELS.fileClipboardStatus, handler)
+    void ipcRenderer
+      .invoke(IPC_CHANNELS.fileClipboardStatus)
+      .then(receive)
+      .catch(() => undefined)
+    return () => {
+      active = false
+      ipcRenderer.removeListener(IPC_CHANNELS.fileClipboardStatus, handler)
+    }
+  },
   deletePath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>
@@ -567,8 +632,16 @@ const api: EidosLiteApi = {
   callRuntime: <M extends RuntimeMethod>(
     sessionId: string,
     method: M,
-    args: RuntimeCalls[M]["args"]
-  ) => ipcRenderer.invoke(IPC_CHANNELS.runtimeCall, sessionId, method, args),
+    args: RuntimeCalls[M]["args"],
+    consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
+  ) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.runtimeCall,
+      sessionId,
+      method,
+      args,
+      consumer
+    ),
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
   getSpaceIgnoreRules: () =>
     ipcRenderer.invoke(IPC_CHANNELS.spaceIgnoreRulesGet),

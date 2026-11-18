@@ -38,7 +38,6 @@ import {
 import DataEditor, {
   CompactSelection,
   GridCellKind,
-  AllCellRenderers,
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
@@ -51,11 +50,11 @@ import DataEditor, {
   type Theme,
 } from "@glideapps/glide-data-grid"
 import { Plus } from "lucide-react"
-import MultiSelectCell from "./cells/multi-select-cell"
-import SelectCell from "./cells/select-cell"
-import DatePickerCell from "./cells/date-picker-cell"
-import RatingCell from "./cells/rating-cell"
-import RangeCell from "./cells/range-cell"
+import {
+  eidosFileValueEditor,
+  eidosFileValueRenderers,
+} from "./eidos-file-value-editor"
+import { eidosFileSelectOptionsProperty as selectOptionsProperty } from "./eidos-file-field-properties"
 import { defaultConfig } from "./grid-default-config"
 import { EIDOS_FILE_EMPTY_STAT_ICON } from "./header-icons"
 import {
@@ -65,6 +64,7 @@ import {
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { pendingEditEditor, useEidosFilePendingEdit } from "./use-pending-edit"
+import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
 import { EidosFileMobileCellEditor } from "./eidos-file-mobile-cell-editor"
 import { useEidosFileGridTouch } from "./use-eidos-file-grid-touch"
@@ -84,22 +84,13 @@ import {
   gridCellToEidosFileValue,
   type EidosFileGridSelectOption,
 } from "./eidos-file-grid-adapter"
-import {
-  EidosFileAttachmentCellRenderer,
-  type EidosFileAttachmentCell,
-} from "./eidos-file-attachment-cell"
+import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
 import { sharedEidosFileAttachmentSourceCache } from "./eidos-file-attachment-source-cache"
-import {
-  EidosFileUrlImageCellRenderer,
-  type EidosFileUrlImageCell,
-} from "./eidos-file-url-image-cell"
+import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
 import { EidosFileUrlImageThumbnailManager } from "./eidos-file-url-image-thumbnails"
 import { sharedEidosFileUrlImageSourceCache } from "./eidos-file-url-image-source-cache"
-import {
-  EidosFileRelationCellRenderer,
-  type EidosFileRelationCell,
-} from "./eidos-file-relation-cell"
+import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { encodeEidosFileValues } from "@eidos.space/eidos-file"
@@ -133,31 +124,19 @@ import "@glideapps/glide-data-grid/dist/index.css"
 
 const PAGE_SIZE = 100
 const PAGE_OVERSCAN = 1
+// Speculative reads must not occupy a slow source while the user changes rows.
+const PAGE_PREFETCH_SETTLE_MS = 150
+const PAGE_PREFETCH_READ_BUDGET_MS = 100
+const PAGE_PREFETCH_RECOVERY_READS = 3
 const MAX_CACHED_PAGES = 8
 const MAX_UNDO_HISTORY_BATCHES = 50
 
-const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
-  RatingCell,
-  RangeCell,
-  SelectCell,
-  MultiSelectCell,
-  DatePickerCell,
-  EidosFileAttachmentCellRenderer,
-  EidosFileUrlImageCellRenderer,
-  EidosFileRelationCellRenderer,
-]
+const EIDOS_FILE_GRID_CUSTOM_RENDERERS = eidosFileValueRenderers
 
 const providePendingEditor: NonNullable<DataEditorProps["provideEditor"]> = (
   cell
 ) => {
-  const renderer =
-    cell.kind === GridCellKind.Custom
-      ? EIDOS_FILE_GRID_CUSTOM_RENDERERS.find((candidate) =>
-          candidate.isMatch(cell)
-        )
-      : AllCellRenderers.find((candidate) => candidate.kind === cell.kind)
-  const provide = renderer?.provideEditor as DataEditorProps["provideEditor"]
-  const editor = provide?.(cell)
+  const editor = eidosFileValueEditor(cell)
   return editor ? pendingEditEditor(editor) : undefined
 }
 
@@ -259,6 +238,9 @@ export interface EidosFileGridProps {
   loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
   locateRow?: (rowId: string) => Promise<number | null>
   loadInspectorRow?: (rowId: string) => Promise<EidosFileRow | null>
+  /** Opaque record owner. Pass the stable source when reusing a Grid across sources;
+   * without it, record ownership is limited to this Grid instance and table. */
+  recordScope?: object
   inspectedRowId?: string | null
   onInspectedRowChange?: (rowId: string | null) => void
   /** Host-owned navigation replaces the embedded record inspector. */
@@ -379,36 +361,6 @@ function gridMutationErrorMessage(error: unknown): string {
   return /[.!?]$/.test(message) ? message : `${message}.`
 }
 
-function selectOptionsProperty(
-  field: EidosFileFieldInfo,
-  options: readonly Pick<EidosFileGridSelectOption, "name" | "color">[]
-): Record<string, unknown> {
-  const existing = Array.isArray(field.property?.options)
-    ? field.property.options
-    : []
-  const existingByName = new Map(
-    existing.flatMap((entry) => {
-      if (
-        typeof entry !== "object" ||
-        entry === null ||
-        Array.isArray(entry) ||
-        typeof (entry as { name?: unknown }).name !== "string"
-      ) {
-        return []
-      }
-      return [[(entry as { name: string }).name, entry] as const]
-    })
-  )
-  return {
-    ...(field.property ?? {}),
-    options: options.map((option) => ({
-      ...(existingByName.get(option.name) ?? {}),
-      name: option.name,
-      color: option.color,
-    })),
-  }
-}
-
 function sameFields(
   left: EidosFileFieldInfo[],
   right: EidosFileFieldInfo[]
@@ -527,6 +479,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   loadPage,
   locateRow,
   loadInspectorRow,
+  recordScope,
   inspectedRowId,
   onInspectedRowChange,
   onOpenRecord,
@@ -569,6 +522,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     themeName,
     timeZone,
     translate: t,
+    calendarTimeZoneData,
   } = useEidosFileUI()
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -601,6 +555,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
   const restoreGridFocus = useCallback(() => gridRef.current?.focus(), [])
+  const sharedUndo = useEidosFileUndo()
   const acceptedFocusRequestTokenRef = useRef(focusRequestToken)
   const searchFocus = useEidosFileSearchFocus()
   const [searchFocusRequest, setSearchFocusRequest] = useState<{
@@ -676,6 +631,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const visiblePagesRef = useRef(new Set<number>())
   const latestPageRequestRef = useRef<EidosFileGridPageRequest | null>(null)
   const pageLoadRunnerActiveRef = useRef(false)
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pageRequestTimeRef = useRef(0)
+  const prefetchReadStateRef = useRef({
+    measured: false,
+    paused: false,
+    fastReads: 0,
+  })
   const loadPageIndexRef = useRef<(pageIndex: number) => Promise<boolean>>(
     async () => false
   )
@@ -717,14 +679,95 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const [columnStatMenu, setColumnStatMenu] =
     useState<EidosFileFieldMenuState | null>(null)
   const [cellMenu, setCellMenu] = useState<EidosFileCellMenuState | null>(null)
-  const cellMenuOpenedFromKeyboardRef = useRef(false)
+  const cellMenuRestoreFocusRef = useRef(false)
   const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
     null
   )
   const inspectedRowIndexRef = useRef<number | null>(null)
   const [detachedInspectorRow, setDetachedInspectorRow] =
     useState<EidosFileRow | null>(null)
-  inspectedRowIndexRef.current = inspectedRowIndex
+  const [localInspectorId, setLocalInspectorId] = useState<string | null>(null)
+  const inspectorSnapshotRef = useRef<EidosFileRow | null>(null)
+  const inspectorSelectionGenerationRef = useRef(0)
+  const recordOwnerRef = useRef({
+    source: recordScope,
+    tableId: table.table.id,
+    epoch: 0,
+  })
+  const snapshotOwnerEpochRef = useRef(0)
+  const recordCacheEligibleRef = useRef(true)
+  const [inspectorReadPending, setInspectorReadPending] = useState(false)
+  const [inspectorReadError, setInspectorReadError] = useState<string | null>(
+    null
+  )
+  const [inspectorRetry, setInspectorRetry] = useState(0)
+  const inspectionRequestRef = useRef<{
+    epoch: number
+    id: string
+    generation: number
+    query: string | typeof locateRow
+    load: typeof loadInspectorRow
+    reload: number
+    retry: number
+  } | null>(null)
+  useEffect(
+    () => () => {
+      inspectionRequestRef.current = null
+    },
+    []
+  )
+  const failedInspectionRequestRef =
+    useRef<typeof inspectionRequestRef.current>(null)
+  const unavailableInspectionRef = useRef<{
+    epoch: number
+    id: string
+    reload: number
+  } | null>(null)
+  if (
+    recordOwnerRef.current.source !== recordScope ||
+    recordOwnerRef.current.tableId !== table.table.id
+  ) {
+    recordOwnerRef.current = {
+      source: recordScope,
+      tableId: table.table.id,
+      epoch: recordOwnerRef.current.epoch + 1,
+    }
+    inspectorSelectionGenerationRef.current += 1
+    inspectorSnapshotRef.current = null
+    recordCacheEligibleRef.current = false
+    unavailableInspectionRef.current = null
+  }
+  const scopedInspectorSnapshot =
+    snapshotOwnerEpochRef.current === recordOwnerRef.current.epoch
+      ? detachedInspectorRow
+      : null
+  const retainInspectorRow = useCallback((row: EidosFileRow | null) => {
+    if (inspectorSnapshotRef.current?._id !== row?._id)
+      inspectorSelectionGenerationRef.current += 1
+    inspectorSnapshotRef.current = row
+    snapshotOwnerEpochRef.current = recordOwnerRef.current.epoch
+    setDetachedInspectorRow(row)
+  }, [])
+  const selectInspectedRowIndex = useCallback(
+    (index: number | null) => {
+      inspectionRequestRef.current = null
+      failedInspectionRequestRef.current = null
+      const row = index === null ? null : (rowsRef.current.get(index) ?? null)
+      setLocalInspectorId(row ? String(row._id) : null)
+      if (row && !recordCacheEligibleRef.current) {
+        setInspectedRowIndex(null)
+        retainInspectorRow(null)
+        setInspectorReadPending(true)
+      } else {
+        setInspectedRowIndex(index)
+        retainInspectorRow(row)
+        setInspectorReadPending(false)
+      }
+      setInspectorReadError(null)
+      unavailableInspectionRef.current = null
+    },
+    [retainInspectorRow]
+  )
   const inspectionErrorRef = useRef(onError)
   inspectionErrorRef.current = onError
   const availableFields = useMemo(
@@ -810,14 +853,29 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     ? eidosFileViewFreezeColumns(view, fields.length)
     : 0
   const showVerticalLines = view?.properties?.showVerticalLines !== false
-  const inspectedRow =
+  const indexedInspectorRow =
     inspectedRowIndex === null
-      ? (detachedInspectorRow ?? undefined)
+      ? undefined
       : rowsRef.current.get(inspectedRowIndex)
+  const visibleInspectorIndex =
+    recordCacheEligibleRef.current &&
+    indexedInspectorRow &&
+    indexedInspectorRow._id === scopedInspectorSnapshot?._id
+      ? inspectedRowIndex
+      : null
+  // A row position can change under filter/sort revalidation. Keep the selected
+  // record and its identity together until that ID is ready at its next position.
+  const inspectedRow =
+    visibleInspectorIndex === null
+      ? (scopedInspectorSnapshot ?? undefined)
+      : indexedInspectorRow
+  inspectedRowIndexRef.current = visibleInspectorIndex
   const navigateInspectedRow = useCallback(
     async (offset: -1 | 1) => {
       const currentIndex = inspectedRowIndexRef.current
       if (currentIndex === null) return
+      const ownerEpoch = recordOwnerRef.current.epoch
+      const selectionGeneration = inspectorSelectionGenerationRef.current
       const targetIndex = currentIndex + offset
       if (targetIndex < 0 || targetIndex >= rowCountRef.current) return
       if (!rowsRef.current.has(targetIndex)) {
@@ -826,75 +884,208 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         )
         if (
           !loaded ||
+          recordOwnerRef.current.epoch !== ownerEpoch ||
+          inspectorSelectionGenerationRef.current !== selectionGeneration ||
           inspectedRowIndexRef.current !== currentIndex ||
           !rowsRef.current.has(targetIndex)
         ) {
           return
         }
       }
-      setInspectedRowIndex(targetIndex)
+      selectInspectedRowIndex(targetIndex)
       const row = rowsRef.current.get(targetIndex)
       if (row?._id != null) onInspectedRowChange?.(String(row._id))
     },
-    [onInspectedRowChange]
+    [onInspectedRowChange, selectInspectedRowIndex]
   )
 
+  const detachedReadRef = useRef<{
+    epoch: number
+    id: string
+    reload: number
+    query: string | typeof locateRow
+    load: typeof loadInspectorRow
+  } | null>(null)
+  const inspectionChangeRef = useRef(onInspectedRowChange)
+  inspectionChangeRef.current = onInspectedRowChange
+  const inspectionQueryKey = historyScopeKey ?? locateRow
   useEffect(() => {
-    if (inspectedRowId === undefined) return
-    if (inspectedRowId === null) {
-      setInspectedRowIndex(null)
-      setDetachedInspectorRow(null)
+    if (dataScopeRef.current !== `${table.table.id}:${view?.id ?? "default"}`)
+      return
+    const selectedId =
+      inspectedRowId === undefined ? localInspectorId : inspectedRowId
+    if (selectedId === null) {
+      if (inspectedRowIndex !== null || detachedInspectorRow)
+        selectInspectedRowIndex(null)
       return
     }
-    // Local previous/next navigation has already selected a cached row.
-    // Reconcile the route without unmounting the inspector or refetching it.
-    for (const [index, row] of rowsRef.current) {
-      if (String(row._id) === inspectedRowId) {
-        setInspectedRowIndex(index)
-        return
-      }
-    }
-    if (!locateRow) return
+    const epoch = recordOwnerRef.current.epoch
+    const unavailable = unavailableInspectionRef.current
     if (
-      detachedInspectorRow &&
-      String(detachedInspectorRow._id) === inspectedRowId
+      unavailable?.epoch === epoch &&
+      unavailable.id === selectedId &&
+      unavailable.reload === reloadToken
     )
       return
-    let active = true
-    void (async () => {
-      const index = await locateRow(inspectedRowId)
-      if (!active) return
-      if (index === null && loadInspectorRow) {
-        const row = await loadInspectorRow(inspectedRowId)
-        if (!active) return
-        if (!row) throw new Error("This record is no longer available.")
-        setInspectedRowIndex(null)
-        setDetachedInspectorRow(row)
-        return
+    if (
+      !recordCacheEligibleRef.current &&
+      scopedInspectorSnapshot &&
+      String(scopedInspectorSnapshot._id) === selectedId
+    ) {
+      for (const [index, row] of rowsRef.current) {
+        if (
+          row._id === scopedInspectorSnapshot._id &&
+          Object.keys(scopedInspectorSnapshot).every(
+            (key) =>
+              Object.hasOwn(row, key) &&
+              Object.is(row[key], scopedInspectorSnapshot[key])
+          )
+        ) {
+          recordCacheEligibleRef.current = true
+          selectInspectedRowIndex(index)
+          return
+        }
       }
-      if (index === null)
+    }
+    if (recordCacheEligibleRef.current) {
+      for (const [index, row] of rowsRef.current) {
+        if (String(row._id) === selectedId) {
+          selectInspectedRowIndex(index)
+          return
+        }
+      }
+    }
+    const detachedRead = detachedReadRef.current
+    if (!locateRow && !loadInspectorRow && !scopedInspectorSnapshot) return
+    if (
+      scopedInspectorSnapshot &&
+      inspectedRowIndex === null &&
+      String(scopedInspectorSnapshot._id) === selectedId &&
+      detachedRead?.epoch === epoch &&
+      detachedRead.id === selectedId &&
+      detachedRead.reload === reloadToken &&
+      detachedRead.query === inspectionQueryKey &&
+      detachedRead.load === loadInspectorRow
+    )
+      return
+    const selectionGeneration = inspectorSelectionGenerationRef.current
+    if (
+      [inspectionRequestRef.current, failedInspectionRequestRef.current].some(
+        (previousRequest) =>
+          previousRequest?.epoch === epoch &&
+          previousRequest.id === selectedId &&
+          previousRequest.generation === selectionGeneration &&
+          previousRequest.query === inspectionQueryKey &&
+          previousRequest.load === loadInspectorRow &&
+          previousRequest.reload === reloadToken &&
+          previousRequest.retry === inspectorRetry
+      )
+    )
+      return
+    const request = {
+      epoch,
+      id: selectedId,
+      generation: selectionGeneration,
+      query: inspectionQueryKey,
+      load: loadInspectorRow,
+      reload: reloadToken,
+      retry: inspectorRetry,
+    }
+    inspectionRequestRef.current = request
+    const isCurrent = () =>
+      inspectionRequestRef.current === request &&
+      recordOwnerRef.current.epoch === epoch &&
+      inspectorSelectionGenerationRef.current === selectionGeneration
+    let unavailableRecord = false
+    setInspectorReadPending(true)
+    setInspectorReadError(null)
+    const loadDetached = async () => {
+      if (!loadInspectorRow) {
+        unavailableRecord = true
         throw new Error(
           "This record is no longer available in the current view."
         )
+      }
+      const row = await loadInspectorRow(selectedId)
+      if (!isCurrent()) return
+      if (!row) {
+        unavailableRecord = true
+        throw new Error("This record is no longer available.")
+      }
+      if (String(row._id) !== selectedId)
+        throw new Error("Unable to load the requested record.")
+      setInspectedRowIndex(null)
+      setLocalInspectorId(selectedId)
+      setInspectorReadPending(false)
+      inspectionRequestRef.current = null
+      detachedReadRef.current = {
+        epoch,
+        id: selectedId,
+        reload: reloadToken,
+        query: inspectionQueryKey,
+        load: loadInspectorRow,
+      }
+      retainInspectorRow(row)
+    }
+    void (async () => {
+      // Cache positions from an earlier source cannot establish this record's identity.
+      if (!recordCacheEligibleRef.current || !locateRow) return loadDetached()
+      const index = await locateRow(selectedId)
+      if (!isCurrent()) return
+      if (index === null) return loadDetached()
       const loaded = await loadPageIndexRef.current(
         Math.floor(index / PAGE_SIZE)
       )
-      if (active && loaded && rowsRef.current.has(index))
-        setInspectedRowIndex(index)
-    })().catch((error) => {
-      if (active) inspectionErrorRef.current?.(error)
-    })
-    return () => {
-      active = false
-    }
-    // Initial paging may already be in flight when the route is restored.
-    // Reconcile again when those rows arrive, rather than losing the target.
+      if (!isCurrent()) return
+      if (loaded && !loadedPagesRef.current.has(Math.floor(index / PAGE_SIZE)))
+        return
+      if (loaded && String(rowsRef.current.get(index)?._id) === selectedId)
+        selectInspectedRowIndex(index)
+      else await loadDetached()
+    })()
+      .catch((error) => {
+        if (!isCurrent()) return
+        if (unavailableRecord) {
+          selectInspectedRowIndex(null)
+          unavailableInspectionRef.current = {
+            epoch,
+            id: selectedId,
+            reload: reloadToken,
+          }
+          inspectionChangeRef.current?.(null)
+        } else {
+          failedInspectionRequestRef.current = request
+          setInspectorReadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load record details"
+          )
+        }
+        inspectionErrorRef.current?.(error)
+      })
+      .finally(() => {
+        if (isCurrent()) {
+          inspectionRequestRef.current = null
+          setInspectorReadPending(false)
+        }
+      })
   }, [
     inspectedRowId,
     locateRow,
     loadInspectorRow,
     cacheRevision,
     detachedInspectorRow,
+    scopedInspectorSnapshot,
+    inspectedRowIndex,
+    retainInspectorRow,
+    selectInspectedRowIndex,
+    recordScope,
+    table.table.id,
+    reloadToken,
+    inspectorRetry,
+    localInspectorId,
+    view?.id,
+    inspectionQueryKey,
   ])
 
   const touchPage = useCallback((pageIndex: number) => {
@@ -1010,9 +1201,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       }
       const generation = generationRef.current
       loadingPagesRef.current.set(pageIndex, generation)
+      const started = performance.now()
       try {
         const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
         if (generation !== generationRef.current) return false
+        const prefetch = prefetchReadStateRef.current
+        prefetch.measured = true
+        if (performance.now() - started > PAGE_PREFETCH_READ_BUDGET_MS) {
+          prefetch.paused = true
+          prefetch.fastReads = 0
+        } else if (prefetch.paused) {
+          // A single warm page must not reopen speculation on an expensive
+          // source. Only consecutive successful reads restore the budget.
+          prefetch.fastReads += 1
+          if (prefetch.fastReads >= PAGE_PREFETCH_RECOVERY_READS)
+            prefetch.paused = false
+        }
         const pinnedRows = new Map<string, number>()
         for (const [pinnedIndex, pin] of draftRowPinsRef.current) {
           const rowId = canonicalEidosFileRowId(
@@ -1079,7 +1283,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         setCacheRevision((current) => current + 1)
         return true
       } catch (error) {
-        if (generation === generationRef.current) onErrorRef.current?.(error)
+        if (generation === generationRef.current) {
+          prefetchReadStateRef.current.paused = true
+          prefetchReadStateRef.current.fastReads = 0
+          onErrorRef.current?.(error)
+        }
         return false
       } finally {
         if (loadingPagesRef.current.get(pageIndex) === generation) {
@@ -1094,37 +1302,70 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const scheduleLatestPageRequest = useCallback(
     (request: EidosFileGridPageRequest) => {
       latestPageRequestRef.current = request
-      if (pageLoadRunnerActiveRef.current) return
+      pageRequestTimeRef.current = performance.now()
+      if (prefetchTimerRef.current !== null) {
+        clearTimeout(prefetchTimerRef.current)
+        prefetchTimerRef.current = null
+      }
+      const run = () => {
+        if (pageLoadRunnerActiveRef.current) return
 
-      pageLoadRunnerActiveRef.current = true
-      void (async () => {
-        try {
-          while (latestPageRequestRef.current) {
-            const latest = latestPageRequestRef.current
-            const pageIndex = [
-              ...latest.visiblePages,
-              ...latest.prefetchPages,
-            ].find(
-              (candidate) =>
+        pageLoadRunnerActiveRef.current = true
+        void (async () => {
+          try {
+            while (latestPageRequestRef.current) {
+              const latest = latestPageRequestRef.current
+              const missing = (candidate: number) =>
                 !loadedPagesRef.current.has(candidate) &&
                 !loadingPagesRef.current.has(candidate)
-            )
-            if (pageIndex === undefined) {
-              if (latestPageRequestRef.current === latest) {
+              let pageIndex = latest.visiblePages.find(missing)
+              if (pageIndex === undefined) {
+                const prefetch = prefetchReadStateRef.current
+                const neighbor = latest.prefetchPages.find(missing)
+                if (
+                  !prefetch.measured ||
+                  prefetch.paused ||
+                  neighbor === undefined
+                ) {
+                  latestPageRequestRef.current = null
+                  continue
+                }
+                // Only neighbors wait. Required visible pages always start as
+                // soon as the existing in-flight read settles. That synchronous
+                // host read cannot be safely preempted from the Grid.
+                const remaining =
+                  PAGE_PREFETCH_SETTLE_MS -
+                  (performance.now() - pageRequestTimeRef.current)
+                if (remaining > 0) {
+                  prefetchTimerRef.current = setTimeout(() => {
+                    prefetchTimerRef.current = null
+                    run()
+                  }, remaining)
+                  break
+                }
+                pageIndex = neighbor
+              }
+
+              const loaded = await loadPageIndexRef.current(pageIndex)
+              if (!loaded && latestPageRequestRef.current === latest) {
                 latestPageRequestRef.current = null
               }
-              continue
             }
-
-            const loaded = await loadPageIndexRef.current(pageIndex)
-            if (!loaded && latestPageRequestRef.current === latest) {
-              latestPageRequestRef.current = null
-            }
+          } finally {
+            pageLoadRunnerActiveRef.current = false
           }
-        } finally {
-          pageLoadRunnerActiveRef.current = false
-        }
-      })()
+        })()
+      }
+      run()
+    },
+    []
+  )
+
+  useEffect(
+    () => () => {
+      latestPageRequestRef.current = null
+      if (prefetchTimerRef.current !== null)
+        clearTimeout(prefetchTimerRef.current)
     },
     []
   )
@@ -1158,6 +1399,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       urlImageThumbnails.clear()
     }
     generationRef.current += 1
+    prefetchReadStateRef.current = {
+      measured: false,
+      paused: false,
+      fastReads: 0,
+    }
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
     pageAccessRef.current.clear()
@@ -1180,7 +1426,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       setFieldMenu(null)
       setColumnStatMenu(null)
       setCellMenu(null)
-      setInspectedRowIndex(null)
+      selectInspectedRowIndex(null)
     }
     onRowCountChangeRef.current?.(null)
     setCacheRevision((current) => current + 1)
@@ -1195,6 +1441,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     refreshToken,
     reloadToken,
     scheduleLatestPageRequest,
+    selectInspectedRowIndex,
     table.table.id,
     updateFailedMutation,
     urlImageThumbnails,
@@ -1421,7 +1668,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         t("Unavailable record"),
         view?.properties?.textWrapping === true,
         timeZone,
-        codeFontFamily
+        codeFontFamily,
+        calendarTimeZoneData
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -1550,6 +1798,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       t,
       timeZone,
       view?.properties?.textWrapping,
+      calendarTimeZoneData,
     ]
   )
   const requestVisiblePages = useCallback(
@@ -1988,23 +2237,27 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       field: EidosFileFieldInfo,
       value: EidosFileSqlPrimitive
     ) => {
-      if (inspectedRowIndex === null) {
-        if (detachedInspectorRow) {
-          const result = await (onInspectorCellEdit ?? onCellEdit)(
-            row,
-            field,
-            value
-          )
-          setDetachedInspectorRow(result.row)
-          return result
-        }
+      const id = String(row._id)
+      if (String(inspectorSnapshotRef.current?._id) !== id)
         throw new Error("No inspected Eidos File row")
+      const ownerEpoch = recordOwnerRef.current.epoch
+      const selectionGeneration = inspectorSelectionGenerationRef.current
+      const isCurrent = () =>
+        recordOwnerRef.current.epoch === ownerEpoch &&
+        inspectorSelectionGenerationRef.current === selectionGeneration &&
+        String(inspectorSnapshotRef.current?._id) === id
+      const findCurrentIndex = () => {
+        if (!recordCacheEligibleRef.current) return null
+        for (const [index, candidate] of rowsRef.current)
+          if (String(candidate._id) === id) return index
+        return null
       }
-      const previous = rowsRef.current.get(inspectedRowIndex) ?? row
-      rowsRef.current.set(inspectedRowIndex, {
-        ...previous,
-        [field.tableColumnName]: value,
-      })
+      const index = findCurrentIndex()
+      const previous = index === null ? row : rowsRef.current.get(index)!
+      const optimistic = { ...previous, [field.tableColumnName]: value }
+      if (index !== null && String(rowsRef.current.get(index)?._id) === id)
+        rowsRef.current.set(index, optimistic)
+      retainInspectorRow(optimistic)
       setCacheRevision((current) => current + 1)
       try {
         const result = await (onInspectorCellEdit ?? onCellEdit)(
@@ -2012,24 +2265,37 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           field,
           value
         )
-        rowsRef.current.set(inspectedRowIndex, result.row)
+        if (!isCurrent()) return result
+        const currentIndex = findCurrentIndex()
+        if (
+          currentIndex !== null &&
+          String(rowsRef.current.get(currentIndex)?._id) === id
+        )
+          rowsRef.current.set(currentIndex, result.row)
+        retainInspectorRow(result.row)
         setRowCount(result.rowCount)
         setCacheRevision((current) => current + 1)
         refreshColumnStats()
         return result
       } catch (error) {
-        rowsRef.current.set(inspectedRowIndex, previous)
-        setCacheRevision((current) => current + 1)
+        if (isCurrent()) {
+          const currentIndex = findCurrentIndex()
+          if (
+            currentIndex !== null &&
+            rowsRef.current.get(currentIndex) === optimistic
+          )
+            rowsRef.current.set(currentIndex, previous)
+          retainInspectorRow(
+            currentIndex === null
+              ? previous
+              : (rowsRef.current.get(currentIndex) ?? previous)
+          )
+          setCacheRevision((current) => current + 1)
+        }
         throw error
       }
     },
-    [
-      inspectedRowIndex,
-      detachedInspectorRow,
-      onCellEdit,
-      onInspectorCellEdit,
-      refreshColumnStats,
-    ]
+    [onCellEdit, onInspectorCellEdit, refreshColumnStats, retainInspectorRow]
   )
 
   const appendRow = useCallback(async () => {
@@ -2148,10 +2414,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [onSelectedRowsChange]
   )
 
-  const isGridActive = useCallback(
-    () => containerRef.current?.contains(document.activeElement) === true,
-    []
-  )
+  const isGridActive = useCallback(() => {
+    const active = document.activeElement
+    return (
+      containerRef.current?.contains(active) === true &&
+      !(
+        active instanceof HTMLElement &&
+        active.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"]'
+        )
+      )
+    )
+  }, [])
 
   const history = useUndoRedo(
     gridRef,
@@ -2160,7 +2434,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     handleGridSelectionChange,
     isGridActive,
     commitCells,
-    MAX_UNDO_HISTORY_BATCHES
+    MAX_UNDO_HISTORY_BATCHES,
+    sharedUndo === null
   )
   historyRowsRef.current = history.historyRows
   gridSelectionRef.current = history.gridSelection
@@ -2168,13 +2443,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     lastActiveGridCellRef.current = history.gridSelection.current.cell
   }
 
-  const refreshAfterRowCommand = useCallback((nextRowCount: number) => {
-    rowCountRef.current = nextRowCount
-    setRowCount(nextRowCount)
-    onRowCountChangeRef.current?.(nextRowCount)
-    setInspectedRowIndex(null)
-    setRefreshToken((token) => token + 1)
-  }, [])
+  const refreshAfterRowCommand = useCallback(
+    (nextRowCount: number) => {
+      rowCountRef.current = nextRowCount
+      setRowCount(nextRowCount)
+      onRowCountChangeRef.current?.(nextRowCount)
+      selectInspectedRowIndex(null)
+      setRefreshToken((token) => token + 1)
+    },
+    [selectInspectedRowIndex]
+  )
 
   const rowHistoryCommand = useCallback(
     (command: EidosFileGridUndoCommand): UndoRedoCommand => {
@@ -2203,6 +2481,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const requestDeleteRows = useCallback(
     (ranges: EidosFileRowRange[]) => {
       if (!onRequestDeleteRows || !beginRowCommand()) return
+      // The pointer action is about to unmount the focused menu item. Return
+      // ownership in the menu's close phase, never when this async write ends.
+      cellMenuRestoreFocusRef.current = true
       void Promise.resolve(onRequestDeleteRows(ranges))
         .then((result) => {
           if (!result) return
@@ -2811,7 +3092,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const field = fields[fieldIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
-      cellMenuOpenedFromKeyboardRef.current = openedFromKeyboard
+      cellMenuRestoreFocusRef.current = openedFromKeyboard
       setMobileCell(null)
       setFieldMenu(null)
       setColumnStatMenu(null)
@@ -3000,7 +3281,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       )?.type
     : undefined
   const cellText = cellMenu
-    ? eidosFileRecordFieldText(cellMenu.row, cellMenu.field, timeZone)
+    ? eidosFileRecordFieldText(
+        cellMenu.row,
+        cellMenu.field,
+        timeZone,
+        calendarTimeZoneData
+      )
     : ""
   let singleFileEntry: FileEntry | undefined
   if (cellMenu?.field.type === "file" && assetPresenter) {
@@ -3256,7 +3542,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onEditProperty={
             onPropertyFieldOpen
               ? (field) => {
-                  setInspectedRowIndex(null)
+                  selectInspectedRowIndex(null)
                   onInspectedRowChange?.(null)
                   onPropertyFieldOpen(field)
                 }
@@ -3323,15 +3609,22 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           onOpenChange={(open) => {
             if (open) return
-            const shouldRestoreFocus = cellMenuOpenedFromKeyboardRef.current
-            cellMenuOpenedFromKeyboardRef.current = false
             setCellMenu(null)
-            if (shouldRestoreFocus) {
-              // The menu has no DOM trigger for Radix to return to. Restore
-              // immediately for the next keypress, then once more after its
-              // deferred close-focus phase has completed.
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!cellMenuRestoreFocusRef.current) return
+            cellMenuRestoreFocusRef.current = false
+            event.preventDefault()
+            const active = document.activeElement
+            // A dialog, input, or another explicit destination owns its focus.
+            // This menu has only a virtual anchor, so Radix cannot return to a
+            // DOM trigger when its action leaves focus on the document body.
+            if (
+              active === document.body ||
+              active === null ||
+              (event.target instanceof Node && event.target.contains(active))
+            ) {
               restoreGridFocus()
-              requestAnimationFrame(restoreGridFocus)
             }
           }}
           onOpenRecord={(state) => {
@@ -3342,7 +3635,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
               onOpenRecord(String(row._id))
               return
             }
-            setInspectedRowIndex(state.rowIndex)
+            selectInspectedRowIndex(state.rowIndex)
             if (row?._id != null) onInspectedRowChange?.(String(row._id))
           }}
           onCopyCell={copyText}
@@ -3377,7 +3670,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onEditFormula={onEditFormula}
           onEditLookup={onEditLookup}
         />
-      ) : inspectedRow ? (
+      ) : inspectedRow && inspectedRowId !== null ? (
         <EidosFileRecordInspector
           row={inspectedRow}
           fields={fields}
@@ -3387,18 +3680,24 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }
           contentField={eidosFileContentField(table)}
           onPresentationToggle={onRecordPresentationToggle}
-          onClose={() => {
-            setInspectedRowIndex(null)
-            setDetachedInspectorRow(null)
-            onInspectedRowChange?.(null)
-          }}
+          onClose={
+            inspectedRowId === undefined || onInspectedRowChange
+              ? () => {
+                  // A controlled route closes after history navigation commits.
+                  if (inspectedRowId === undefined)
+                    selectInspectedRowIndex(null)
+                  onInspectedRowChange?.(null)
+                }
+              : undefined
+          }
           onPreviousRecord={
-            inspectedRowIndex !== null && inspectedRowIndex > 0
+            visibleInspectorIndex !== null && visibleInspectorIndex > 0
               ? () => navigateInspectedRow(-1)
               : undefined
           }
           onNextRecord={
-            inspectedRowIndex !== null && inspectedRowIndex < rowCount - 1
+            visibleInspectorIndex !== null &&
+            visibleInspectorIndex < rowCount - 1
               ? () => navigateInspectedRow(1)
               : undefined
           }
@@ -3406,6 +3705,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCellEdit={editInspectedRecord}
           onFieldUpdate={canAlterSchema ? onFieldUpdate : undefined}
           disabled={gridWriteLocked}
+          loading={inspectorReadPending}
+          preserveContentWhileLoading
+          loadError={inspectorReadError}
+          onRetryLoad={() => {
+            unavailableInspectionRef.current = null
+            setInspectorRetry((current) => current + 1)
+          }}
           onError={onError}
           onImportFiles={onImportFiles}
           onImportDroppedFiles={onImportDroppedFiles}

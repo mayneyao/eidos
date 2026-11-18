@@ -22,7 +22,8 @@ function escaped(source: string, index: number): boolean {
 
 /** Read-only source ranges. Never serializes an AST or normalizes whitespace. */
 export function markdownFileLinkRanges(
-  source: string
+  source: string,
+  options: { inputProfile?: "document" | "fragment" } = {}
 ): MarkdownFileLinkRange[] {
   const root = fromMarkdown(source, {
     extensions: [gfm()],
@@ -48,9 +49,11 @@ export function markdownFileLinkRanges(
     ...scanInlineMath(source, { start: 0, end: source.length }, protectedRanges)
   )
   const frontmatterEnd =
-    /^\uFEFF?---\s*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/u.exec(
-      source
-    )?.[0].length ?? 0
+    options.inputProfile === "fragment"
+      ? 0
+      : (/^\uFEFF?---\s*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/u.exec(
+          source
+        )?.[0].length ?? 0)
   for (const match of source.matchAll(/%%[\s\S]*?%%/gu))
     protectedRanges.push({
       start: match.index,
@@ -142,12 +145,12 @@ export function markdownFileLinkRanges(
     if (!destination?.path) continue
     let hash = -1
     for (const part of token.matchAll(
-      /\\#|&(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z]+);|#/gu
+      /\\[#?]|&(?:#[xX][\da-fA-F]+|#\d+|[A-Za-z]+);|[#?]/gu
     )) {
       const fragment = fromMarkdown(`[x](<${part[0]}>)`).children[0]
       const value =
         fragment?.type === "paragraph" ? fragment.children[0] : undefined
-      if (value?.type === "link" && value.url === "#") {
+      if (value?.type === "link" && (value.url === "#" || value.url === "?")) {
         hash = part.index
         break
       }

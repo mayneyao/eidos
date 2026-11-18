@@ -16,6 +16,7 @@ apps/eidos-lite-desktop/resources/publish-engine/
 apps/eidos-lite-desktop/resources/vtab/
 apps/eidos-lite-desktop/resources/plugin-sandbox/
 apps/eidos-lite-desktop/resources/graft-e2ee/
+apps/eidos-lite-desktop/resources/file-clipboard/
 
 # Vite may name a generated CLI Serve chunk `dist-<hash>.js`. It must remain
 # tracked because the release binary embeds only files present in Git.
