@@ -81,6 +81,7 @@ jobs:
           node .codex/skills/eidos-release/scripts/audit-release-notes.mjs \
             --surface lite \
             --tag "$TAG" \
+            --unpublished-tag lite-v0.35.0 \
             --unpublished-tag lite-v0.29.2 \
             --unpublished-tag lite-v0.1.14 \
             --unpublished-tag lite-v0.1.15 \
@@ -240,7 +241,7 @@ jobs:
           pnpm --filter @eidos.space/eidos-lite-desktop build:release
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:publish-engine
           pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
-          node apps/eidos-lite-desktop/scripts/package-macos-release.mjs '${{ matrix.architecture }}'
+          pnpm --filter @eidos.space/eidos-lite-desktop exec node scripts/package-macos-release.mjs '${{ matrix.architecture }}'
 
       - name: Build unsigned Windows release
         if: matrix.platform == 'win'

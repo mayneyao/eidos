@@ -71,3 +71,21 @@ test("manual candidate workflow has no publisher and retains native acceptance",
     assert.ok(commands.includes(expected), expected)
   assert.match(commands, /GITHUB_REF_NAME#lite-v/)
 })
+
+test("Intel packaging verifies the target Koffi binary used for exclusive file moves", () => {
+  const crossBuild = mac.jobs["cross-build"].steps.find(
+    (step) => step.name === "Package, sign and notarize x64"
+  )
+  const nativeBuild = release.jobs.build.steps.find(
+    (step) => step.name === "Build signed and notarized macOS release"
+  )
+  const packageCommand =
+    "pnpm --filter @eidos.space/eidos-lite-desktop exec node scripts/package-macos-release.mjs"
+  assert.ok(crossBuild.run.includes(packageCommand))
+  assert.ok(nativeBuild.run.includes(packageCommand))
+  const verify = mac.jobs["cross-build"].steps.find(
+    (step) => step.name === "Verify the signed target bundle"
+  )
+  assert.match(verify.run, /koffi-darwin-x64\/darwin_x64\/koffi\.node/)
+  assert.match(verify.run, /lipo "\$koffi" -verify_arch x86_64/)
+})
