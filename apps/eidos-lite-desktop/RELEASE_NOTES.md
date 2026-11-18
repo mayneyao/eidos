@@ -12,6 +12,8 @@ Upgrade each client before using these features in a shared `.eidos` file. Older
 
 Collapse properties to get to the record content, or add, edit, and reorder properties directly on the record. In Gallery, draw a box to select multiple cards. Record edits and deletions share undo and redo history across views.
 
+Create records from the right end of the view toolbar. Ordinary record deletions that support Undo run immediately.
+
 ### File actions in Explorer
 
 Cut, copy, and paste files from Explorer. Click an empty area before pasting to put files at the Space root. On macOS, copied files can also be pasted into Finder and apps that accept system file copies. Drag the active file's title into the built-in terminal to insert its path.
@@ -32,7 +34,7 @@ Jumping to distant rows in a sorted Files grid does less background work. Moving
 
 ### Field creation and visibility
 
-Selecting a type fills in a field name when the name is blank. Field visibility changes stay in the current menu. Set the default for hiding system properties in Settings and override it for a table from the Fields menu.
+Selecting a type fills in a field name when the name is blank. Field visibility changes stay in the current menu. Expanded records follow the active view's field visibility and order. In Settings, turn on **Always hide system fields in records** to hide system properties in expanded records on this device.
 
 ## Bug fixes
 
@@ -42,4 +44,4 @@ Cut and paste and Rename preserve both files when the destination already has th
 
 ### Record layout and focus
 
-Read-only properties align with editable properties, and saving a property keeps the open record and editor in place. After deleting Grid rows, Undo works without clicking back into the grid.
+Read-only properties align with editable properties, and file field actions line up. Saving a property keeps the open record and editor in place. After deleting Grid rows, Undo works without clicking back into the grid.
