@@ -408,6 +408,9 @@ async function verifyPublishedMacUpdater(previousInstaller) {
 
   const executable = await install(previousInstaller)
   active = await launch(executable, "in-app-previous")
+  await active.cdp.evaluate("window.eidosLite.enableVersioning()")
+  await fs.appendFile(path.join(space, "note.md"), "Preserved before installing the public update.\n")
+  await active.cdp.evaluate("window.eidosLite.createCheckpoint('Before public update')")
   const before = await inspect(active)
   assert.equal(before.diagnostics.app.version, previousVersion)
   assert.equal(before.diagnostics.environment, "production")
@@ -483,6 +486,11 @@ async function verifyPublishedMacUpdater(previousInstaller) {
   assert.equal(after.diagnostics.app.packaged, true)
   assert.equal(after.diagnostics.environment, "production")
   assert.equal(after.space.id, before.space.id)
+  assert.equal(after.history.currentHead, before.history.currentHead)
+  assert.deepEqual(
+    after.history.commits.map((commit) => commit.id),
+    before.history.commits.map((commit) => commit.id)
+  )
   assert.deepEqual(await fileHashes(), hashes)
   assert.deepEqual(storedTableSchema(after.tables), storedTableSchema(before.tables))
   assert.deepEqual(storedTableSchema(after.nestedTables), storedTableSchema(before.nestedTables))
