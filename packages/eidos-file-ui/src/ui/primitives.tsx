@@ -19,7 +19,6 @@ import {
 
 import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
-import { MobilePopoverLayer } from "./mobile-layer"
 
 export const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -199,22 +198,16 @@ export const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(function SelectContent(
-  { className, children, position = "popper", style, ...props },
+  { className, children, position = "popper", ...props },
   ref
 ) {
   const { themeName, interactionMode } = useEidosFileUI()
-  const layer = React.useContext(MobilePopoverLayer)
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         {...props}
         ref={ref}
         position={position}
-        style={
-          interactionMode !== "mobile" && layer > 10000
-            ? { zIndex: layer + 2, ...style }
-            : style
-        }
         className={cn(
           "eidos-file-root z-50 min-w-32 overflow-hidden rounded-md border border-border/70 bg-popover text-popover-foreground [box-shadow:var(--floating-surface-shadow)]",
           className

@@ -424,18 +424,20 @@ it("follows the active View and keeps recording disclosures and system hiding ou
     await click(
       document.querySelector('[data-eidos-file-field-type="formula"]')
     )
-    const editorDialog = document.querySelector(
-      '[data-eidos-file-record-formula-dialog="create"]'
+    const editorPopover = document.querySelector(
+      '[data-eidos-file-record-formula-popover="create"]'
     )!
-    expect(editorDialog).toBe(dialog())
-    expect(editorDialog.querySelector("input")?.value).toBe("Computed label")
+    expect(editorPopover).toBe(dialog())
+    expect(editorPopover.querySelector("input")?.value).toBe("Computed label")
+    expect(add.closest('[aria-hidden="true"]')).toBeNull()
+    expect(document.body.style.pointerEvents).not.toBe("none")
     expect(
       (await source.getSnapshot()).tables[0]!.fields.some(
         (field) => field.name === "Computed label"
       )
     ).toBe(false)
     await click(
-      [...editorDialog.querySelectorAll("[data-formula-reference]")].find(
+      [...editorPopover.querySelectorAll("[data-formula-reference]")].find(
         (button) => button.querySelector("span > span")?.textContent === "Title"
       ) ?? null
     )
@@ -444,15 +446,15 @@ it("follows the active View and keeps recording disclosures and system hiding ou
         table.table.id,
         expect.objectContaining({ rowIds: [String(row._id)] })
       )
-      expect(buttonText("Create field", editorDialog)?.disabled).toBe(false)
+      expect(buttonText("Create field", editorPopover)?.disabled).toBe(false)
     })
-    await click(buttonText("Create field", editorDialog))
+    await click(buttonText("Create field", editorPopover))
     await vi.waitFor(() => expect(document.activeElement).toBe(add))
     await click(byLabel("Edit Computed label properties"))
     await click(buttonText("Edit formula", dialog()))
-    expect(dialog().getAttribute("data-eidos-file-record-formula-dialog")).toBe(
-      "edit"
-    )
+    expect(
+      dialog().getAttribute("data-eidos-file-record-formula-popover")
+    ).toBe("edit")
     expect(
       dialog().querySelector('[aria-label="Formula expression"]')?.textContent
     ).toBe('"Title"')

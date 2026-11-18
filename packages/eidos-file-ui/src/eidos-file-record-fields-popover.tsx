@@ -33,7 +33,7 @@ import {
 import { EidosFileFieldCreatePopover } from "./eidos-file-field-create-popover"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { EidosFileLookupEditorPopover } from "./eidos-file-derived-field-editor"
-import { EidosFileRecordFormulaDialog } from "./eidos-file-record-formula-dialog"
+import { EidosFileRecordFormulaPopover } from "./eidos-file-record-formula-popover"
 import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
@@ -475,16 +475,17 @@ export function EidosFileRecordFieldMenu({
         </PopoverContent>
       </Popover>
       {management && state.formula && (state.fieldId === null || selected) ? (
-        <EidosFileRecordFormulaDialog
+        <EidosFileRecordFormulaPopover
+          anchor={lastAnchor}
           field={selected ?? null}
           fields={fields}
           initialName={state.formula.initialName}
           rowId={rowId}
           disabled={!canAlter || busy}
           onClose={close}
-          onRestoreFocus={() => {
+          onCloseFocus={(restore) => {
             transferringFocus.current = false
-            restoreFocus()
+            if (restore) restoreFocus()
           }}
           onPreview={source?.previewFormula ? previewFormula : undefined}
           onSave={({ name, columnName, property }) =>

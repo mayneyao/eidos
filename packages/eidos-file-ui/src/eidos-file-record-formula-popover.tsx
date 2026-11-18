@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState } from "react"
+import { useCallback, useId, useRef, useState, type RefObject } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileFormulaPreview,
@@ -12,12 +12,12 @@ import {
   type EidosFileFormulaInputRef,
 } from "./eidos-file-formula-composer"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "./ui/dialog"
-import { Button, Input } from "./ui/primitives"
+  Button,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "./ui/primitives"
 
 const DISPLAY_TYPES: readonly EidosFileFormulaResultType[] = [
   "text",
@@ -35,24 +35,26 @@ interface FormulaDraft {
   property: { formula: string; displayType: EidosFileFormulaResultType }
 }
 
-export function EidosFileRecordFormulaDialog({
+export function EidosFileRecordFormulaPopover({
+  anchor,
   field,
   fields,
   initialName,
   rowId,
   disabled,
   onClose,
-  onRestoreFocus,
+  onCloseFocus,
   onPreview,
   onSave,
 }: {
+  anchor: RefObject<HTMLElement>
   field: EidosFileFieldInfo | null
   fields: EidosFileFieldInfo[]
   initialName: string
   rowId: string
   disabled: boolean
   onClose: () => void
-  onRestoreFocus: () => void
+  onCloseFocus: (restore: boolean) => void
   onPreview?: (
     input: EidosFileFormulaPreviewInput
   ) => Promise<EidosFileFormulaPreview>
@@ -60,7 +62,10 @@ export function EidosFileRecordFormulaDialog({
 }) {
   const { translate: t } = useEidosFileUI()
   const nameId = useId()
+  const titleId = useId()
+  const descriptionId = useId()
   const editor = useRef<EidosFileFormulaInputRef>(null)
+  const interactedOutside = useRef(false)
   const saving = useRef(false)
   const [name, setName] = useState(initialName)
   const [formula, setFormula] = useState(
@@ -107,24 +112,33 @@ export function EidosFileRecordFormulaDialog({
   }
 
   return (
-    <Dialog
+    <Popover
       open
       onOpenChange={(open) => {
         if (!open) close()
       }}
     >
-      <DialogContent
-        data-eidos-file-record-formula-dialog={field ? "edit" : "create"}
-        overlayClassName="bg-black/30"
-        className="max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-lg p-0"
-        onPointerDownOutside={(event) => event.preventDefault()}
+      <PopoverAnchor virtualRef={anchor} />
+      <PopoverContent
+        data-eidos-file-record-formula-popover={field ? "edit" : "create"}
+        align="start"
+        side="bottom"
+        sideOffset={2}
+        collisionPadding={12}
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        className="grid max-h-[var(--radix-popover-content-available-height)] w-[600px] max-w-[calc(100vw-24px)] grid-rows-[minmax(0,1fr)] overflow-hidden p-0"
+        onInteractOutside={(event) => {
+          if (saving.current) event.preventDefault()
+          else interactedOutside.current = true
+        }}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           editor.current?.focus()
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
-          onRestoreFocus()
+          onCloseFocus(!interactedOutside.current)
         }}
       >
         <form
@@ -135,17 +149,20 @@ export function EidosFileRecordFormulaDialog({
           }}
         >
           <header className="min-w-0 border-b px-4 py-3 sm:px-5">
-            <DialogTitle className="truncate text-base">
+            <h2 id={titleId} className="truncate text-sm font-semibold">
               {field ? t("Edit formula") : t("New formula")}
-            </DialogTitle>
-            <DialogDescription className="mt-0.5 text-xs">
+            </h2>
+            <p
+              id={descriptionId}
+              className="mt-0.5 text-xs text-muted-foreground"
+            >
               {field ? (
                 <span className="mr-2 font-medium text-foreground">
                   {field.name}
                 </span>
               ) : null}
               {t("Preview uses the current record.")}
-            </DialogDescription>
+            </p>
           </header>
           <div className="min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
             {!field ? (
@@ -210,7 +227,7 @@ export function EidosFileRecordFormulaDialog({
             </div>
           </footer>
         </form>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   )
 }
