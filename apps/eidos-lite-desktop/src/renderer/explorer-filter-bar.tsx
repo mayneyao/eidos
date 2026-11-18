@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
-import { eidosFileFieldQueryCapabilities } from "@eidos.space/eidos-file"
+import {
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+  eidosFileFieldQueryCapabilities,
+  type EidosFileFieldInfo,
+} from "@eidos.space/eidos-file"
 import { EidosFileUIProvider, Button } from "@eidos.space/eidos-file-ui"
 import {
   Popover,
@@ -15,6 +18,8 @@ import {
 } from "./explorer-file-filter"
 import { useEidosLiteI18n } from "./i18n"
 import type { SpaceTreeEntry } from "../shared/contracts"
+
+const fileSystemCalendarProfiles = [EIDOS_FILE_CALENDAR_TIME_ZONE_DATA]
 
 export function ExplorerFilterBar({
   filter,
@@ -42,10 +47,8 @@ export function ExplorerFilterBar({
   onRespectGitignoreChange?(value: boolean): void
 }) {
   const { t, locale } = useEidosLiteI18n()
-  const [calendarProfiles, setCalendarProfiles] = useState<readonly string[]>(
-    []
-  )
-  const [calendarWindows, setCalendarWindows] = useState<1 | undefined>()
+  const [extendedCalendarPeriods, setExtendedCalendarPeriods] = useState(false)
+  const [extendedCalendarWindows, setExtendedCalendarWindows] = useState(false)
   const [fields, setFields] = useState<EidosFileFieldInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -66,16 +69,17 @@ export function ExplorerFilterBar({
             const nextFields: EidosFileFieldInfo[] = Array.isArray(next)
               ? next
               : next.fields
-            setCalendarWindows(
-              Array.isArray(next)
-                ? undefined
-                : next.queryCapabilities?.calendarWindowVersion
-            )
-            setCalendarProfiles(
-              !Array.isArray(next) &&
-                next.queryCapabilities?.calendarQueryVersion === 2
-                ? (next.queryCapabilities.calendarPeriodTimeZoneData ?? [])
-                : []
+            const capabilities = Array.isArray(next)
+              ? undefined
+              : next.queryCapabilities
+            const extendedPeriods =
+              capabilities?.calendarQueryVersion === 2 &&
+              capabilities.calendarPeriodTimeZoneData?.includes(
+                EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+              )
+            setExtendedCalendarPeriods(!!extendedPeriods)
+            setExtendedCalendarWindows(
+              !!extendedPeriods && capabilities?.calendarWindowVersion === 1
             )
             setFields(
               nextFields.filter(
@@ -116,8 +120,8 @@ export function ExplorerFilterBar({
       themeName={theme}
       timeZone={timeZone}
       weekStartsOnMonday={weekStartsOnMonday}
-      calendarWindowVersion={calendarWindows}
-      calendarPeriodTimeZoneData={calendarProfiles}
+      calendarWindowVersion={1}
+      calendarPeriodTimeZoneData={fileSystemCalendarProfiles}
     >
       <Popover
         open={open}
@@ -153,6 +157,8 @@ export function ExplorerFilterBar({
             fields={fields}
             suffixes={suffixes}
             filter={filter}
+            extendedCalendarPeriods={extendedCalendarPeriods}
+            extendedCalendarWindows={extendedCalendarWindows}
             onChange={(next) => {
               setError(null)
               onChange(next)

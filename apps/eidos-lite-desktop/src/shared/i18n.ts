@@ -429,6 +429,11 @@ const zh: Record<string, string> = {
   "Loading properties for {name}…": "正在读取 {name} 的属性…",
   "Basic information": "基本信息",
   "File size": "文件大小",
+  "Minimum file size": "最小文件大小",
+  "Maximum file size": "最大文件大小",
+  "File size unit": "文件大小单位",
+  "Minimum file size must be at most maximum file size.":
+    "最小文件大小不得大于最大文件大小。",
   "Created time": "创建时间",
   "Properties shown in this window": "此窗口显示的属性",
   "Changes save automatically": "更改自动保存",

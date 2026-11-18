@@ -25,7 +25,7 @@ const execution: ExplorerCalendarExecution = {
     weekStartsOn: 1,
   },
 }
-const filter: ExplorerFilterGroup = {
+const filterFor = (field: "property" | "file-system"): ExplorerFilterGroup => ({
   type: "group",
   id: "root",
   conjunction: "and",
@@ -33,17 +33,17 @@ const filter: ExplorerFilterGroup = {
     {
       type: "rule",
       id: "date",
-      field: "property",
+      field,
       operator: "matches",
       value: {
         type: "rule",
-        field: "day",
+        field: field === "file-system" ? "explorer:createdAt" : "day",
         operator: "is-in-calendar-period",
         value: { unit: "day", offset: 0 },
       },
     },
   ],
-}
+})
 const file = (name: string): SpaceTreeEntry => ({
   name,
   relativePath: name,
@@ -59,7 +59,12 @@ const page = (name: string, root: string): ExplorerFilesPage => ({
   referenceInstant: root,
 })
 
-it("refreshes tree filters on zone/week/profile changes and ignores stale replies", async () => {
+it.each(["property", "file-system"] as const)(
+  "refreshes tree %s filters on zone/week/profile changes and ignores stale replies",
+  checkTreeCalendarFilter
+)
+
+async function checkTreeCalendarFilter(field: "property" | "file-system") {
   vi.useFakeTimers()
   const pending: Array<{
     execution: ExplorerCalendarExecution
@@ -78,6 +83,7 @@ it("refreshes tree filters on zone/week/profile changes and ignores stale replie
   })
   let current!: ReturnType<typeof useExplorerFileFilter>
   const entries: SpaceTreeEntry[] = []
+  const filter = filterFor(field)
   function Harness({
     value = execution,
   }: {
@@ -140,9 +146,14 @@ it("refreshes tree filters on zone/week/profile changes and ignores stale replie
   } finally {
     await act(async () => root.unmount())
   }
-})
+}
 
-it("binds Gallery continuations to the returned root and starts fresh after calendar changes", async () => {
+it.each(["property", "file-system"] as const)(
+  "binds Gallery %s continuations to the returned root and starts fresh after calendar changes",
+  checkGalleryCalendarFilter
+)
+
+async function checkGalleryCalendarFilter(field: "property" | "file-system") {
   const pending: Array<{
     query: ExplorerFilesQuery
     resolve: (page: ExplorerFilesPage) => void
@@ -154,6 +165,7 @@ it("binds Gallery continuations to the returned root and starts fresh after cale
       ),
   })
   let current!: ReturnType<typeof useExplorerRecentFiles>
+  const filter = filterFor(field)
   function Harness({
     value = execution,
   }: {
@@ -204,4 +216,4 @@ it("binds Gallery continuations to the returned root and starts fresh after cale
   } finally {
     await act(async () => root.unmount())
   }
-})
+}

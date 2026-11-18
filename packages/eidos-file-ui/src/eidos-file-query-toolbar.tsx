@@ -702,7 +702,8 @@ function EidosFileFilterRuleEditor({
   const customValue = renderValue?.(field, rule, (value) =>
     onChange({ ...rule, value })
   )
-  const availableOperators = getOperators(field).filter(
+  const operators = getOperators(field)
+  const availableOperators = operators.filter(
     (operator) =>
       operator !== "is-in-calendar-window" &&
       (operator !== "is-in-calendar-period" ||
@@ -903,7 +904,10 @@ function EidosFileFilterRuleEditor({
                 compact
                 inlineDatePicker={fixedField}
                 onRuleChange={
-                  calendarWindowVersion === 1 ? onChange : undefined
+                  calendarWindowVersion === 1 &&
+                  operators.includes("is-in-calendar-window")
+                    ? onChange
+                    : undefined
                 }
                 onChange={(value) => onChange({ ...rule, value })}
               />

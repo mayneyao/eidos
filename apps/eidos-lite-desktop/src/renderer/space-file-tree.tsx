@@ -46,7 +46,7 @@ import {
 } from "./explorer-sort"
 import {
   matchesExplorerFileFilter,
-  hasExplorerPropertyFilter,
+  hasExplorerHostFilter,
   countExplorerFilterRules,
   explorerFilterSignature,
   filterExplorerEntries,
@@ -316,9 +316,9 @@ export function buildSpaceFileTreeModel(
   fileFilter: ExplorerFileFilter = ALL_EXPLORER_FILES,
   nameQuery = ""
 ): SpaceFileTreeModel {
-  // Property predicates are evaluated by the host Runtime. These entries are
-  // already filtered; the renderer has no property values to evaluate again.
-  const localFilter = hasExplorerPropertyFilter(fileFilter)
+  // The host evaluates metadata predicates for the full tree. Keep its result
+  // together while a new metadata query is pending.
+  const localFilter = hasExplorerHostFilter(fileFilter)
     ? ALL_EXPLORER_FILES
     : fileFilter
   const paths: string[] = []
@@ -994,7 +994,7 @@ export function SpaceFileTree({
     if (!visiblePath) return
     const activeTreePath = visiblePath
     if (
-      hasExplorerPropertyFilter(fileFilter)
+      hasExplorerHostFilter(fileFilter)
         ? !tree.entryByTreePath.has(activeTreePath)
         : !matchesExplorerFileFilter(
             activeTreePath,

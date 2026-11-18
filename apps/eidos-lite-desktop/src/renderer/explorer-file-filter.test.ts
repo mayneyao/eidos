@@ -77,6 +77,37 @@ it("retains host-filtered property matches, including mixed OR conditions and fo
   )
 })
 
+it("keeps the previously loaded tree visible while a size filter loads", () => {
+  const file: SpaceTreeEntry = {
+    name: "note.md",
+    relativePath: "docs/note.md",
+    kind: "file",
+    size: 1,
+    modifiedAtMs: 1,
+  }
+  expect(
+    buildSpaceFileTreeModel([file], "docs", undefined, {
+      type: "group",
+      id: "root",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          id: "size",
+          field: "file-system",
+          operator: "matches",
+          value: {
+            type: "rule",
+            field: "explorer:size",
+            operator: "greater-than",
+            value: 2000,
+          },
+        },
+      ],
+    }).paths
+  ).toEqual(["note.md"])
+})
+
 it("accepts arbitrary multiple and compound suffixes, normalizes aliases, and matches their union", () => {
   const filter = parseExplorerFileFilter("*.MD, csv .tar.gz；.custom，.md")
   expect(filter).toEqual([".csv", ".custom", ".md", ".tar.gz"])

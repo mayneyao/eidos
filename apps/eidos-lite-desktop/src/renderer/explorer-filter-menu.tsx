@@ -7,13 +7,17 @@ import {
   Button,
 } from "@eidos.space/eidos-file-ui"
 import { ChevronDown } from "lucide-react"
-import { ExplorerSuffixValues } from "./explorer-filter-values"
+import {
+  ExplorerSizeValues,
+  ExplorerSuffixValues,
+} from "./explorer-filter-values"
 import {
   explorerBuiltinFields,
   explorerFieldOperators,
   explorerToUIFilter,
   explorerFromUIFilter,
   EXPLORER_FIELD_PREFIX,
+  EXPLORER_SIZE_FIELD,
 } from "./explorer-filter-adapter"
 import {
   normalizeExplorerFileFilter,
@@ -25,11 +29,15 @@ export function ExplorerAdvancedFilterEditor({
   suffixes = [],
   fields = [],
   filter,
+  extendedCalendarPeriods,
+  extendedCalendarWindows,
   onChange,
 }: {
   suffixes?: readonly string[]
   fields?: EidosFileFieldInfo[]
   filter: ExplorerFileFilter
+  extendedCalendarPeriods: boolean
+  extendedCalendarWindows: boolean
   onChange(filter: ExplorerFileFilter): void
 }) {
   const { t } = useEidosLiteI18n()
@@ -45,8 +53,22 @@ export function ExplorerAdvancedFilterEditor({
       }
       group={explorerToUIFilter(filter)}
       depth={0}
-      getOperators={explorerFieldOperators}
+      getOperators={(field) =>
+        explorerFieldOperators(
+          field,
+          extendedCalendarPeriods,
+          extendedCalendarWindows
+        )
+      }
       renderValue={(field, rule, change) => {
+        if (field.id === EXPLORER_SIZE_FIELD)
+          return (
+            <ExplorerSizeValues
+              value={rule.value}
+              range={rule.operator === "is-between"}
+              onChange={change}
+            />
+          )
         if (field.id !== EXPLORER_FIELD_PREFIX + "suffix") return undefined
         const values = Array.isArray(rule.value)
           ? rule.value.filter(
