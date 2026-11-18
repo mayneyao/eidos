@@ -1,30 +1,45 @@
 ## What's new
 
-### Follow records with a file preview
+### Relative dates across tables and Explorer
 
-When a file is open in the sidebar, clicking a record in a table view updates that preview while keeping your place in the main view. The selected record stays in view across Grid, Gallery, Kanban, Calendar and Feed layouts.
+Use filters such as **Past 7 days** and **This week** in saved table views. The filters advance with the calendar and respect your configured time zone. Explorer also lets you filter by creation time, modification time, and file size.
 
-### Attach files to Markdown notes
+Set a Date or Datetime field to default to the current date or time when you create a record. You can edit the result. New records also pick up field values when the active view's filters determine them.
 
-In Rich text, type `/` and choose **Attach file** to copy a file into the note's `assets/` folder and insert a relative link.
+Upgrade each client before using these features in a shared `.eidos` file. Older clients may reject the file, and standalone CLI 3.3.2 can insert records without applying the new defaults.
 
-In Rich text, type `[[` to find existing Space files and choose a link or an image where supported. Candidate paths remain readable for Chinese and other non-ASCII filenames.
+### Record properties and Gallery selection
 
-Drag files from the Space Explorer into a note to reference them at the drop position; images appear inline. File drops work in Rich text and Source, in the main editor and file sidebar.
+Collapse properties to get to the record content, or add, edit, and reorder properties directly on the record. In Gallery, draw a box to select multiple cards. Record edits and deletions share undo and redo history across views.
 
-### Two-state checkboxes for new fields
+### File actions in Explorer
 
-New Checkbox fields use checked or unchecked values, with unchecked as the default. Clearing cells or pasting blank values leaves them unchecked. Converting a field to Checkbox previews how many empty values will become unchecked and asks for confirmation before changing them.
+Cut, copy, and paste files from Explorer. Click an empty area before pasting to put files at the Space root. On macOS, copied files can also be pasted into Finder and apps that accept system file copies. Drag the active file's title into the built-in terminal to insert its path.
 
-Existing nullable Checkbox fields and their empty values remain unchanged. No automatic data conversion runs when you open a file.
+### Relative links in notes and record content
+
+Use standard relative Markdown links and images to reference files within the Space from a Markdown note or an expanded record's Content. When you move a note or its target within the Space using Lite, supported references update so they keep pointing to that file.
 
 ## Improvements
 
-- **Saving notes**: Save status appears beside each file title. Cmd/Ctrl+S saves the last text document you used after focus moves to Explorer; when two notes are open, click the intended note or its Save button to select the target.
-- **Moving files**: Dragging several files into a folder keeps the Explorer tree consistent while the move completes, including when part of a batch fails.
+### Searchable Settings
+
+Search for a setting by name or keyword and open its section from the results. Resize the settings sidebar to fit longer labels.
+
+### Large file collections
+
+Jumping to distant rows in a sorted Files grid does less background work. Moving several files together now scans for link updates once per batch.
+
+### Field creation and visibility
+
+Selecting a type fills in a field name when the name is blank. Field visibility changes stay in the current menu. Set the default for hiding system properties in Settings and override it for a table from the Fields menu.
 
 ## Bug fixes
 
-- **Conflict resolution**: Table and field changes are reviewed before row conflicts. Undoing a choice refreshes the review so subsequent choices use the current merge state.
-- **Image blocks**: The image placeholder opens the image chooser and remains usable after cancellation or an import error. Imported images remain available to file references.
-- **Editor focus**: Updates in one pane no longer take focus from the Markdown editor in the other pane, and switching editing modes places focus in the destination editor.
+### File name collisions
+
+Cut and paste and Rename preserve both files when the destination already has the same name.
+
+### Record layout and focus
+
+Read-only properties align with editable properties, and saving a property keeps the open record and editor in place. After deleting Grid rows, Undo works without clicking back into the grid.
