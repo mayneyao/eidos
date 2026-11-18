@@ -97,10 +97,11 @@ async function run(executable, space, result) {
       },
       stdio: "inherit",
     })
+    // Leave room for startup, the renderer probe, and the native input check.
     const timeout = setTimeout(() => {
       child.kill("SIGTERM")
       reject(new Error("Packaged Eidos Lite smoke timed out"))
-    }, 90_000)
+    }, 180_000)
     child.once("error", (error) => {
       clearTimeout(timeout)
       reject(error)
