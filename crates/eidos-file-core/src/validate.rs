@@ -24,6 +24,8 @@ use crate::naming::{assert_display_name, is_reserved_table_name, sqlite_nocase};
 use crate::query::{ReadRowsOptions, RowQuery, read_rows};
 use crate::relation;
 
+const TEMPORAL_DEFAULTS_FEATURE: &str = "eidos:temporal-defaults";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ValidationLevel {
@@ -73,7 +75,7 @@ fn diagnostic(
     });
 }
 
-fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bool {
+fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> Option<bool> {
     let application_id: i64 = match conn.query_row("PRAGMA application_id", [], |row| row.get(0)) {
         Ok(value) => value,
         Err(error) => {
@@ -84,7 +86,7 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
                 error.to_string(),
                 "/",
             );
-            return false;
+            return None;
         }
     };
     if application_id != i64::from(EIDOS_FILE_APPLICATION_ID) {
@@ -167,6 +169,7 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
         });
     let mut calendar_feature = false;
     let mut window_feature = false;
+    let mut temporal_defaults_feature = false;
     match required_features {
         Ok(features) => {
             for (name, version, required, config) in features {
@@ -186,9 +189,18 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
                     window_feature = true;
                     continue;
                 }
+                if name == TEMPORAL_DEFAULTS_FEATURE
+                    && version == "1"
+                    && required == 1
+                    && config == "{}"
+                {
+                    temporal_defaults_feature = true;
+                    continue;
+                }
                 if required != 1
                     && name != "eidos:calendar-query"
                     && name != "eidos:calendar-window"
+                    && name != TEMPORAL_DEFAULTS_FEATURE
                 {
                     continue;
                 }
@@ -263,9 +275,10 @@ fn validate_identity(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bo
             ),
         }
     }
-    !diagnostics
+    (!diagnostics
         .iter()
-        .any(|item| item.severity <= Severity::Error)
+        .any(|item| item.severity <= Severity::Error))
+    .then_some(temporal_defaults_feature)
 }
 
 fn has_calendar_period(value: &JsonValue) -> bool {
@@ -382,7 +395,11 @@ fn validate_view_layout_field_references(
     Ok(())
 }
 
-fn validate_structural(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> bool {
+fn validate_structural(
+    conn: &Connection,
+    diagnostics: &mut Vec<Diagnostic>,
+    temporal_defaults_feature: bool,
+) -> bool {
     let tables = match load_tables(conn) {
         Ok(tables) => tables,
         Err(error) => {
@@ -567,6 +584,35 @@ fn validate_structural(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> 
             .collect();
         let mut field_names = HashSet::new();
         for field in &table_fields {
+            if let Ok(settings) = serde_json::from_str::<JsonValue>(&field.settings_json)
+                && let Some(default) = settings
+                    .get("defaultValue")
+                    .filter(|value| !value.is_null())
+            {
+                let violation = if default.as_str() != Some("now")
+                    || !matches!(field.field_type, FieldType::Date | FieldType::Datetime)
+                    || field.system_role.is_some()
+                    || field.physical_name.is_none()
+                    || settings["writable"] == false
+                    || settings["readOnly"] == true
+                    || settings["isSystem"] == true
+                {
+                    Some("defaultValue must be now on a writable stored Date or Datetime Field")
+                } else if !temporal_defaults_feature {
+                    Some("Temporal defaults require the eidos:temporal-defaults feature")
+                } else {
+                    None
+                };
+                if let Some(message) = violation {
+                    diagnostic(
+                        diagnostics,
+                        Severity::Error,
+                        "file-metadata-invalid",
+                        message,
+                        format!("/fields/{}/settings/defaultValue", field.id),
+                    );
+                }
+            }
             if !field_names.insert(sqlite_nocase(&field.name)) {
                 diagnostic(
                     diagnostics,
@@ -876,13 +922,11 @@ pub fn validate(
         ));
     }
     let mut diagnostics = Vec::new();
-    let identity_valid = validate_identity(conn, &mut diagnostics);
-    let needs_structural = level >= ValidationLevel::Structural;
-    let structural_valid = if identity_valid && needs_structural {
-        validate_structural(conn, &mut diagnostics)
-    } else {
-        identity_valid
-    };
+    let structural_valid =
+        validate_identity(conn, &mut diagnostics).is_some_and(|temporal_defaults_feature| {
+            level < ValidationLevel::Structural
+                || validate_structural(conn, &mut diagnostics, temporal_defaults_feature)
+        });
     if structural_valid
         && matches!(
             level,
@@ -959,6 +1003,56 @@ mod tests {
         ddl::configure_connection(&conn).unwrap();
         let report = validate(&conn, ValidationLevel::Full, 100).unwrap();
         assert!(report.valid, "{:?}", report.diagnostics);
+    }
+
+    #[test]
+    fn rejects_noncanonical_temporal_default_feature_declarations() {
+        let (_dir, conn, _, _) = file_with_view();
+        for (version, required, config) in [
+            ("2", 1, "{}"),
+            ("1", 0, "{}"),
+            ("1", 1, r#"{"extra":true}"#),
+        ] {
+            conn.execute(
+                "INSERT OR REPLACE INTO eidos__features (name, version, required, config_json)
+                 VALUES (?, ?, ?, ?)",
+                rusqlite::params![TEMPORAL_DEFAULTS_FEATURE, version, required, config],
+            )
+            .unwrap();
+            let report = validate(&conn, ValidationLevel::Full, 100).unwrap();
+            assert!(!report.valid);
+            assert!(report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "file-feature-unsupported"
+                    && diagnostic.path == "/eidos__features/eidos:temporal-defaults"
+            }));
+        }
+    }
+
+    #[test]
+    fn rejects_temporal_defaults_on_unsupported_fields_or_without_a_feature() {
+        let (_dir, conn, _, field_id) = file_with_view();
+        conn.execute(
+            "UPDATE eidos__fields SET settings_json = ? WHERE id = ?",
+            [r#"{"defaultValue":"now"}"#, &field_id],
+        )
+        .unwrap();
+        let invalid_type = validate(&conn, ValidationLevel::Full, 100).unwrap();
+        assert!(!invalid_type.valid);
+        assert!(invalid_type.diagnostics.iter().any(|diagnostic| {
+            diagnostic.message
+                == "defaultValue must be now on a writable stored Date or Datetime Field"
+        }));
+
+        conn.execute(
+            "UPDATE eidos__fields SET type = 'date' WHERE id = ?",
+            [field_id],
+        )
+        .unwrap();
+        let missing_feature = validate(&conn, ValidationLevel::Full, 100).unwrap();
+        assert!(!missing_feature.valid);
+        assert!(missing_feature.diagnostics.iter().any(|diagnostic| {
+            diagnostic.message == "Temporal defaults require the eidos:temporal-defaults feature"
+        }));
     }
 
     #[test]

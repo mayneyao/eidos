@@ -681,6 +681,58 @@ fn agent_can_round_trip_calendar_windows_through_view_commands() {
 }
 
 #[test]
+fn agent_can_validate_and_update_rows_in_files_with_temporal_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("temporal-defaults.eidos"));
+    success(&[
+        "file",
+        "new",
+        &file,
+        "--table",
+        "Tasks",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Day","type":"date","settings":{"defaultValue":"now"}},{"name":"Moment","type":"datetime","settings":{"defaultValue":"now"}}]"#,
+    ]);
+    let inserted = success(&[
+        "data",
+        "mutate",
+        &file,
+        "--table",
+        "Tasks",
+        "--insert",
+        r#"{"Title":"First"}"#,
+    ]);
+    assert_eq!(inserted["revision"], "2");
+
+    assert_eq!(
+        success(&["file", "validate", &file, "--level", "full"])["valid"],
+        true
+    );
+    let updated = success(&[
+        "data",
+        "mutate",
+        &file,
+        "--table",
+        "Tasks",
+        "--match",
+        r#"{"Title":"First"}"#,
+        "--set",
+        r#"{"Title":"Updated"}"#,
+        "--expect",
+        "1",
+        "--expected-revision",
+        "2",
+    ]);
+    assert_eq!(updated["applied"], true);
+    let result = success(&["data", "query", &file, "Tasks"]);
+    let row = &result["rows"][0];
+    assert_eq!(row["Title"], "Updated");
+    let created_at = row["_created_at"].as_str().unwrap();
+    assert_eq!(row["Day"], &created_at[..10]);
+    assert_eq!(row["Moment"], created_at);
+}
+
+#[test]
 fn agent_can_mutate_schema_by_table_field_and_relation_intent() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("schema-intent.eidos"));
