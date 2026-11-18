@@ -16,6 +16,7 @@
     <a href="https://download.eidos.space/android"><img src="https://img.shields.io/badge/download-Android%20APK-34d399.svg?style=flat-square" alt="Download Android APK" /></a>
     <a href="https://docs.eidos.space/"><img src="https://img.shields.io/badge/docs-eidos.space-0ea5e9.svg?style=flat-square" alt="Eidos documentation" /></a>
     <a href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/chat-Discord-7289da.svg?style=flat-square" alt="Chat on Discord" /></a>
+    <a href="https://news.ycombinator.com/item?id=40746773"><img src="https://hackergit.org/badge/mayneyao/eidos.svg" alt="Hacker News points via HackerGit" height="20" /></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue.svg?style=flat-square" alt="AGPL v3 license" /></a>
   </p>
   <p>
