@@ -104,7 +104,7 @@ export function EidosFileCreateRecordButton({
       }}
     >
       <Plus className="h-3.5 w-3.5" />
-      <span className="eidos-file-workbar-action-label">{t("New record")}</span>
+      <span className="eidos-file-workbar-action-label">{t("New")}</span>
     </Button>
   )
 }

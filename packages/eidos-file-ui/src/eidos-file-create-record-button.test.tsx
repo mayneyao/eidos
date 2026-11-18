@@ -103,10 +103,7 @@ it("creates through the one trailing toolbar slot with applied filters and now d
           "[data-eidos-file-workbar-actions] button"
         ),
       ]
-      expect(buttons.map((b) => b.textContent)).toEqual([
-        "Fields",
-        "New record",
-      ])
+      expect(buttons.map((b) => b.textContent)).toEqual(["Fields", "New"])
       await act(async () => {
         buttons.at(-1)!.click()
         await new Promise((r) => setTimeout(r, 0))
