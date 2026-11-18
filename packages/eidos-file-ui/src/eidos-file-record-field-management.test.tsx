@@ -18,6 +18,10 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   configurable: true,
   value: vi.fn(),
 })
+Object.defineProperties(Range.prototype, {
+  getBoundingClientRect: { configurable: true, value: () => new DOMRect() },
+  getClientRects: { configurable: true, value: () => [] },
+})
 vi.stubGlobal(
   "ResizeObserver",
   class {
@@ -407,6 +411,57 @@ it("follows the active View and keeps recording disclosures and system hiding ou
     ).toContain(stage.id)
     const current = await source.getRow!(table.table.id, String(row._id))
     expect(current?.[title.id]).toBe("Record A")
+
+    await act(async () => setReadOnly(false))
+    const preview = vi.spyOn(source, "previewFormula")
+    const add = buttonText("Add a property", container)!
+    await click(add)
+    await input(
+      dialog().querySelector<HTMLInputElement>("input[id]")!,
+      "Computed label"
+    )
+    await click(byLabel("Field type", dialog()))
+    await click(
+      document.querySelector('[data-eidos-file-field-type="formula"]')
+    )
+    const editorDialog = document.querySelector(
+      '[data-eidos-file-record-formula-dialog="create"]'
+    )!
+    expect(editorDialog).toBe(dialog())
+    expect(editorDialog.querySelector("input")?.value).toBe("Computed label")
+    expect(
+      (await source.getSnapshot()).tables[0]!.fields.some(
+        (field) => field.name === "Computed label"
+      )
+    ).toBe(false)
+    await click(
+      [...editorDialog.querySelectorAll("[data-formula-reference]")].find(
+        (button) => button.querySelector("span > span")?.textContent === "Title"
+      ) ?? null
+    )
+    await vi.waitFor(() => {
+      expect(preview).toHaveBeenCalledWith(
+        table.table.id,
+        expect.objectContaining({ rowIds: [String(row._id)] })
+      )
+      expect(buttonText("Create field", editorDialog)?.disabled).toBe(false)
+    })
+    await click(buttonText("Create field", editorDialog))
+    await vi.waitFor(() => expect(document.activeElement).toBe(add))
+    await click(byLabel("Edit Computed label properties"))
+    await click(buttonText("Edit formula", dialog()))
+    expect(dialog().getAttribute("data-eidos-file-record-formula-dialog")).toBe(
+      "edit"
+    )
+    expect(
+      dialog().querySelector('[aria-label="Formula expression"]')?.textContent
+    ).toBe('"Title"')
+    await click(buttonText("Cancel", dialog()))
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(
+        byLabel("Edit Computed label properties")
+      )
+    )
   } finally {
     act(() => root.unmount())
     container.remove()

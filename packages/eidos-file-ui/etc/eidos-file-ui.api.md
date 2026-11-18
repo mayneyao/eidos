@@ -1670,6 +1670,8 @@ interface EidosFileFieldCreatePopoverProps {
   disabled?: boolean;
   allowedTypes?: readonly EidosFileCreatableFieldType[];
   onCreate: (field: CreateEidosFileFieldInput) => Promise<void> | void;
+  /** Open a dedicated formula editor with the current field name. */
+  onChooseFormula?: (name: string) => void;
   onPreviewFormula?: (input: EidosFileFormulaPreviewInput) => Promise<EidosFileFormulaPreview>;
 }
 declare function EidosFileFieldCreatePopover({
@@ -1683,6 +1685,7 @@ declare function EidosFileFieldCreatePopover({
   disabled,
   allowedTypes,
   onCreate,
+  onChooseFormula,
   onPreviewFormula
 }: EidosFileFieldCreatePopoverProps): _$react_jsx_runtime0.JSX.Element;
 //#endregion

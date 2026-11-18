@@ -33,15 +33,20 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(function DialogContent({ className, ...props }, ref) {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    overlayClassName?: string
+  }
+>(function DialogContent({ className, overlayClassName, ...props }, ref) {
   const { themeName, interactionMode } = useEidosFileUI()
   const layer = React.useContext(MobilePopoverLayer) + 20
   const mobile = interactionMode === "mobile"
   return (
     <MobilePopoverLayer.Provider value={layer}>
       <DialogPortal>
-        <DialogOverlay style={mobile ? { zIndex: layer } : undefined} />
+        <DialogOverlay
+          className={overlayClassName}
+          style={mobile ? { zIndex: layer } : undefined}
+        />
         <DialogPrimitive.Content
           {...props}
           style={mobile ? { ...props.style, zIndex: layer + 1 } : props.style}

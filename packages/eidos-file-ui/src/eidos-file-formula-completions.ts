@@ -7,6 +7,10 @@ import type {
   CompletionContext,
   CompletionResult,
 } from "@codemirror/autocomplete"
+import {
+  eidosFileFieldDisplayName,
+  isOptionalEidosFileSystemField,
+} from "./eidos-file-field-visibility"
 
 export type EidosFileFormulaCompletionKind = "field" | "function" | "syntax"
 
@@ -176,17 +180,30 @@ export function eidosFileFormulaCompletions(
         field.tableColumnName !== currentColumnName &&
         isFormulaScalarField(field)
     )
-    .map<EidosFileFormulaCompletion>((field) => ({
-      id: `field:${field.tableName}:${field.tableColumnName}`,
-      kind: "field",
-      label: field.name,
-      type: "variable",
-      detail: `${field.tableColumnName} · ${field.type}`,
-      info: `${field.tableColumnName} · ${field.type}`,
-      insert: `"${field.name.replace(/"/g, '""')}"`,
-      example: `"${field.name.replace(/"/g, '""')}"`,
-      boost: 100,
-    }))
+    .sort(
+      (left, right) =>
+        Number(isOptionalEidosFileSystemField(left)) -
+        Number(isOptionalEidosFileSystemField(right))
+    )
+    .map<EidosFileFormulaCompletion>((field) => {
+      const info = isOptionalEidosFileSystemField(field) ? "System" : field.type
+      const reference = `"${field.name.replace(/"/g, '""')}"`
+      return {
+        id: `field:${field.tableName}:${field.tableColumnName}`,
+        kind: "field",
+        label: field.name,
+        displayLabel: eidosFileFieldDisplayName(field),
+        type: "variable",
+        detail:
+          field.tableColumnName === field.id
+            ? info
+            : `${field.tableColumnName} · ${info}`,
+        info,
+        insert: reference,
+        example: reference,
+        boost: 100,
+      }
+    })
   const fieldFunctionCompletions: EidosFileFormulaCompletion[] = []
   const syntaxCompletions: EidosFileFormulaCompletion[] = [
     {

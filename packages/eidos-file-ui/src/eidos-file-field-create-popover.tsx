@@ -10,7 +10,6 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
   type CreateEidosFileFieldInput,
-  type EidosFileFieldInfo,
   type EidosFileFormulaResultType,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
@@ -24,6 +23,7 @@ import {
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
 import { useEidosFileUI } from "./context"
+import { columnNameFor } from "./eidos-file-field-column-name"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
@@ -62,28 +62,6 @@ const LOOKUP_AGGREGATES: Array<{
   { value: "max", label: "Maximum" },
 ]
 
-function columnNameFor(
-  label: string,
-  fields: readonly EidosFileFieldInfo[]
-): string {
-  const ascii = label
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-  const candidate = ascii
-    ? /^[0-9]/.test(ascii)
-      ? `field_${ascii}`
-      : ascii
-    : "field"
-  const used = new Set(fields.map((field) => field.tableColumnName))
-  if (!used.has(candidate)) return candidate
-  let suffix = 2
-  while (used.has(`${candidate}_${suffix}`)) suffix += 1
-  return `${candidate}_${suffix}`
-}
-
 export interface EidosFileFieldCreatePopoverProps {
   title?: string
   description?: string
@@ -95,6 +73,8 @@ export interface EidosFileFieldCreatePopoverProps {
   disabled?: boolean
   allowedTypes?: readonly EidosFileCreatableFieldType[]
   onCreate: (field: CreateEidosFileFieldInput) => Promise<void> | void
+  /** Open a dedicated formula editor with the current field name. */
+  onChooseFormula?: (name: string) => void
   onPreviewFormula?: (
     input: EidosFileFormulaPreviewInput
   ) => Promise<EidosFileFormulaPreview>
@@ -111,6 +91,7 @@ export function EidosFileFieldCreatePopover({
   disabled = false,
   allowedTypes,
   onCreate,
+  onChooseFormula,
   onPreviewFormula,
 }: EidosFileFieldCreatePopoverProps) {
   const { translate: t } = useEidosFileUI()
@@ -341,6 +322,12 @@ export function EidosFileFieldCreatePopover({
             <EidosFileFieldTypePicker
               value={fieldType}
               onChange={(type) => {
+                if (type === "formula" && onChooseFormula) {
+                  onChooseFormula(
+                    !name.trim() || nameIsAutomatic ? t("Formula") : name
+                  )
+                  return
+                }
                 setFieldType(type)
                 if (!name.trim() || nameIsAutomatic) {
                   const option = EIDOS_FILE_FIELD_TYPE_OPTIONS.find(

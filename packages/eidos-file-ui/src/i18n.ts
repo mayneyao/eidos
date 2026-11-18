@@ -567,6 +567,8 @@ const zh: EidosFileUIMessageOverrides = {
   "No matching field type.": "没有匹配的字段类型。",
   "Unable to save formula": "无法保存公式",
   "Edit formula": "编辑公式",
+  "New formula": "新建公式",
+  "Preview uses the current record.": "使用当前记录预览结果。",
   "Unable to save lookup": "无法保存查找字段",
   "Edit lookup": "编辑查找字段",
   "Derive {name} through an existing relation.":

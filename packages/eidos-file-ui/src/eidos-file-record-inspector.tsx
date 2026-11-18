@@ -1281,6 +1281,7 @@ export function EidosFileRecordInspector({
     <EidosFileRecordFieldMenu
       management={fieldManagement}
       fields={recordFields}
+      rowId={currentRowId}
       schemaLocked={
         fieldManager.fieldId === null ? fieldCreationLocked : fieldEditingLocked
       }

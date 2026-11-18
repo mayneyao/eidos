@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useRef,
   useState,
@@ -8,6 +9,7 @@ import {
 } from "react"
 import type {
   EidosFileFieldInfo,
+  EidosFileFormulaPreviewInput,
   EidosFileSnapshot,
 } from "@eidos.space/eidos-file"
 import { useSortable } from "@dnd-kit/sortable"
@@ -30,10 +32,8 @@ import {
 } from "./eidos-file-field-type-picker"
 import { EidosFileFieldCreatePopover } from "./eidos-file-field-create-popover"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
-import {
-  EidosFileFormulaEditorPopover,
-  EidosFileLookupEditorPopover,
-} from "./eidos-file-derived-field-editor"
+import { EidosFileLookupEditorPopover } from "./eidos-file-derived-field-editor"
+import { EidosFileRecordFormulaDialog } from "./eidos-file-record-formula-dialog"
 import { Button, Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
@@ -42,6 +42,7 @@ import { cn } from "./lib/cn"
 export interface RecordFieldMenuState {
   anchor: HTMLElement | null
   fieldId: string | null
+  formula?: { initialName: string }
 }
 
 const RecordPropertyDragContext = createContext<ReturnType<
@@ -234,9 +235,13 @@ function FieldMenuControls({
             size="sm"
             className="h-8 justify-between text-xs"
             disabled={controls.busy}
-            onClick={() => setStep("settings")}
+            onClick={() =>
+              field.type === "formula"
+                ? onDerived("formula")
+                : setStep("settings")
+            }
           >
-            {t("Edit property")}
+            {t(field.type === "formula" ? "Edit formula" : "Edit property")}
             <ChevronRight className="h-3 w-3" />
           </Button>
           {!controls.isRecordLabel ? (
@@ -273,12 +278,14 @@ function FieldMenuControls({
 export function EidosFileRecordFieldMenu({
   management,
   fields,
+  rowId,
   schemaLocked,
   state,
   onStateChange,
 }: {
   management?: RecordFieldManagement
   fields: EidosFileFieldInfo[]
+  rowId: string
   schemaLocked: boolean
   state: RecordFieldMenuState
   onStateChange: (next: RecordFieldMenuState) => void
@@ -286,6 +293,7 @@ export function EidosFileRecordFieldMenu({
   const { translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
   const locked = useRef(false)
+  const transferringFocus = useRef(false)
   const lastAnchor = useRef<HTMLElement | null>(null)
   const recordRoot = useRef<HTMLElement | null>(null)
   if (state.anchor) {
@@ -294,7 +302,7 @@ export function EidosFileRecordFieldMenu({
       '[data-eidos-file-detail-panel="record"]'
     )
   }
-  const [derived, setDerived] = useState<"formula" | "lookup" | null>(null)
+  const [editingLookup, setEditingLookup] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<EidosFileFieldInfo | null>(
     null
   )
@@ -316,10 +324,32 @@ export function EidosFileRecordFieldMenu({
         | undefined
     )?.alterSchema !== false
   )
+  const tableId = management?.table.table.id
+  const source = management?.source
+  const previewFormula = useCallback(
+    (input: EidosFileFormulaPreviewInput) =>
+      source!.previewFormula!(tableId!, input),
+    [source, tableId]
+  )
+  const restoreFocus = () => {
+    if (lastAnchor.current?.isConnected)
+      lastAnchor.current.focus({ preventScroll: true })
+    else
+      recordRoot.current
+        ?.querySelector<HTMLElement>(
+          "[data-eidos-record-properties-footer] button"
+        )
+        ?.focus()
+  }
+  const openFormula = (initialName: string) => {
+    if (!canAlter || locked.current) return
+    transferringFocus.current = true
+    onStateChange({ ...state, formula: { initialName } })
+  }
   const close = () => {
     if (locked.current || deleteTarget) return
     onStateChange({ anchor: null, fieldId: null })
-    setDerived(null)
+    setEditingLookup(false)
     setError(null)
   }
   const mutate = async (operation: () => Promise<EidosFileSnapshot>) => {
@@ -338,9 +368,9 @@ export function EidosFileRecordFieldMenu({
     <>
       <Popover
         modal
-        open={Boolean(state.anchor)}
+        open={Boolean(state.anchor) && !state.formula}
         onOpenChange={(open) => {
-          if (!open) close()
+          if (!open && !transferringFocus.current) close()
         }}
       >
         <PopoverAnchor virtualRef={lastAnchor} />
@@ -356,78 +386,42 @@ export function EidosFileRecordFieldMenu({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
-            if (lastAnchor.current?.isConnected) lastAnchor.current.focus()
-            else
-              recordRoot.current
-                ?.querySelector<HTMLElement>(
-                  "[data-eidos-record-properties-footer] button"
-                )
-                ?.focus()
+            if (!transferringFocus.current) restoreFocus()
           }}
         >
           {management && state.anchor ? (
             selected ? (
-              derived ? (
+              editingLookup ? (
                 <>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="m-1 h-7 gap-1 text-xs"
                     disabled={busy}
-                    onClick={() => setDerived(null)}
+                    onClick={() => setEditingLookup(false)}
                   >
                     <ArrowLeft className="h-3 w-3" />
                     {selected.name}
                   </Button>
-                  {derived === "formula" ? (
-                    <EidosFileFormulaEditorPopover
-                      embedded
-                      open
-                      field={selected}
-                      fields={fields}
-                      onOpenChange={(open) => {
-                        if (!open) setDerived(null)
-                      }}
-                      onPreview={
-                        management.source.previewFormula
-                          ? (input) =>
-                              management.source.previewFormula!(
-                                management.table.table.id,
-                                input
-                              )
-                          : undefined
-                      }
-                      onSave={(property) =>
-                        mutate(() =>
-                          management.source.updateField(
-                            management.table.table.id,
-                            selected.id,
-                            { property }
-                          )
+                  <EidosFileLookupEditorPopover
+                    embedded
+                    open
+                    field={selected}
+                    fields={fields}
+                    tables={[...(management.tables ?? [management.table])]}
+                    onOpenChange={(open) => {
+                      if (!open) setEditingLookup(false)
+                    }}
+                    onSave={(property) =>
+                      mutate(() =>
+                        management.source.updateField(
+                          management.table.table.id,
+                          selected.id,
+                          { property }
                         )
-                      }
-                    />
-                  ) : (
-                    <EidosFileLookupEditorPopover
-                      embedded
-                      open
-                      field={selected}
-                      fields={fields}
-                      tables={[...(management.tables ?? [management.table])]}
-                      onOpenChange={(open) => {
-                        if (!open) setDerived(null)
-                      }}
-                      onSave={(property) =>
-                        mutate(() =>
-                          management.source.updateField(
-                            management.table.table.id,
-                            selected.id,
-                            { property }
-                          )
-                        )
-                      }
-                    />
-                  )}
+                      )
+                    }
+                  />
                 </>
               ) : (
                 <FieldMenuControls
@@ -445,7 +439,10 @@ export function EidosFileRecordFieldMenu({
                     )
                   }
                   onDelete={() => setDeleteTarget(selected)}
-                  onDerived={setDerived}
+                  onDerived={(kind) => {
+                    if (kind === "formula") openFormula(selected.name)
+                    else setEditingLookup(true)
+                  }}
                 />
               )
             ) : (
@@ -466,15 +463,7 @@ export function EidosFileRecordFieldMenu({
                     management.source.addField(management.table.table.id, input)
                   )
                 }
-                onPreviewFormula={
-                  management.source.previewFormula
-                    ? (input) =>
-                        management.source.previewFormula!(
-                          management.table.table.id,
-                          input
-                        )
-                    : undefined
-                }
+                onChooseFormula={openFormula}
               />
             )
           ) : null}
@@ -485,6 +474,37 @@ export function EidosFileRecordFieldMenu({
           ) : null}
         </PopoverContent>
       </Popover>
+      {management && state.formula && (state.fieldId === null || selected) ? (
+        <EidosFileRecordFormulaDialog
+          field={selected ?? null}
+          fields={fields}
+          initialName={state.formula.initialName}
+          rowId={rowId}
+          disabled={!canAlter || busy}
+          onClose={close}
+          onRestoreFocus={() => {
+            transferringFocus.current = false
+            restoreFocus()
+          }}
+          onPreview={source?.previewFormula ? previewFormula : undefined}
+          onSave={({ name, columnName, property }) =>
+            mutate(() =>
+              selected
+                ? management.source.updateField(
+                    management.table.table.id,
+                    selected.id,
+                    { property }
+                  )
+                : management.source.addField(management.table.table.id, {
+                    name,
+                    columnName,
+                    type: "formula",
+                    property,
+                  })
+            )
+          }
+        />
+      ) : null}
       <EidosFileFieldDeleteDialog
         field={deleteTarget}
         disabled={!canAlter || busy}
@@ -498,7 +518,7 @@ export function EidosFileRecordFieldMenu({
           )
           setDeleteTarget(null)
           onStateChange({ anchor: null, fieldId: null })
-          setDerived(null)
+          setEditingLookup(false)
         }}
         onError={(cause) =>
           setError(cause instanceof Error ? cause.message : String(cause))
