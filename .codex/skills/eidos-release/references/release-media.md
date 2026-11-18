@@ -25,9 +25,10 @@ For a release with media:
    fixtures. Approve the exact final video/poster hashes.
 5. Upload those files to the existing media service; verify public bytes,
    MIME/cache/CORS and HTTP 206 Range playback.
-6. Backfill the verified URLs and media metadata into the matching website
-   changelog candidate. Finalize app notes, review all required languages and
-   preview desktop/narrow layouts and actual playback.
+6. Add the verified URLs and metadata to the matching website changelog
+   candidate. Place each demo after the feature text it illustrates. Finalize
+   app notes and verify placement and playback in every locale on desktop and
+   narrow layouts.
 7. Follow the surface runbook to merge the release PR, tag and verify public
    product artifacts. Complete the website entry with the actual publication
    timestamp and sources, verify and deploy it, then check the public pages.
@@ -229,7 +230,11 @@ already-published footage creates a new bundle/URL; never overwrite its old key.
 Use `published-media.json.media` in the matching `releaseTag` entry's `media`
 array in eidos.space `src/data/changelog.json`. Preserve actual dimensions,
 duration, poster, provenance distinctions and translated feature/alt/caption
-for every locale required by that checkout. Do not add false publication dates
+for every locale required by that checkout. Add `afterSection` with the exact
+matching `###` heading in each locale. Readers should encounter the video
+after the relevant explanation and before the next feature or category.
+Check placement in both the changelog list and the series detail. Keep the
+source Markdown identical to the tagged release notes. Do not add false publication dates
 for an unpublished release or modify Desktop Legacy's `src/data/releases.json`.
 After product publication, use the real timestamp and tagged note sources,
 run the website's changelog/source/locale/build gates and verify the deployed
