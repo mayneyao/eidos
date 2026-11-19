@@ -1,6 +1,7 @@
 import { marked, type MarkedToken } from "marked"
 
 export const demoLocales = ["en", "zh", "ja", "ko"] as const
+export const maxReleaseMedia = 4
 type DemoLocale = (typeof demoLocales)[number]
 type Translations = Record<DemoLocale, string>
 export type NotesLocale = "en" | "zh"
@@ -12,16 +13,13 @@ export interface ReleaseDemo {
   sourceCommit: string
   afterSection: Translations
   media: {
-    type: "video"
     src: string
-    poster: string
     width: number
     height: number
-    duration: number
     feature: Translations
     alt: Translations
     caption: Translations
-  }
+  } & ({ type: "video"; poster: string; duration: number } | { type: "image" })
 }
 
 export function isLocalizedDemoText(value: unknown): value is Translations {
@@ -53,26 +51,29 @@ export function isReleaseDemo(
     typeof sourceCommit !== "string" ||
     !/^[a-f0-9]{40}$/.test(sourceCommit) ||
     !isLocalizedDemoText(demo.afterSection) ||
-    media?.type !== "video"
+    (media?.type !== "video" && media?.type !== "image")
   )
     return false
 
   const prefix = `https://media.eidos.space/releases/lite/${version}/${scenarioId}/`
   if (typeof media.src !== "string" || !media.src.startsWith(prefix))
     return false
-  const bundle = /^([a-f0-9]{64})\/demo\.mp4$/.exec(
-    media.src.slice(prefix.length)
-  )?.[1]
+  const path = media.src.slice(prefix.length)
+  const bundle = /^([a-f0-9]{64})\/demo\.mp4$/.exec(path)?.[1]
+  const validAsset =
+    media.type === "image"
+      ? /^[a-f0-9]{64}\/screenshot\.webp$/.test(path)
+      : Boolean(bundle) &&
+        media.poster === `${prefix}${bundle}/poster.webp` &&
+        Number.isFinite(media.duration) &&
+        media.duration > 0 &&
+        media.duration <= 60
   return (
-    Boolean(bundle) &&
-    media.poster === `${prefix}${bundle}/poster.webp` &&
+    validAsset &&
     Number.isSafeInteger(media.width) &&
     media.width > 0 &&
     Number.isSafeInteger(media.height) &&
     media.height > 0 &&
-    Number.isFinite(media.duration) &&
-    media.duration > 0 &&
-    media.duration <= 60 &&
     isLocalizedDemoText(media.feature) &&
     isLocalizedDemoText(media.alt) &&
     isLocalizedDemoText(media.caption)
@@ -84,9 +85,15 @@ export const demoLinkLabel = {
   zh: "观看演示",
 }
 
+export const screenshotLinkLabel = {
+  en: "Open screenshot",
+  zh: "打开截图",
+}
+
 export function demoMarkdown(demo: ReleaseDemo, locale: NotesLocale): string {
   const { media } = demo
   const alt = media.alt[locale].replace(/[\\\[\]`*_<>!&]/g, "\\$&")
+  if (media.type === "image") return `[![${alt}](${media.src})](${media.src})`
   return `[![${alt}](${media.poster})](${media.src})\\\n[${demoLinkLabel[locale]}](${media.src})`
 }
 

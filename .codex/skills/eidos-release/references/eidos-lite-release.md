@@ -178,9 +178,9 @@ its own release history.
 
 ## Tag and monitor
 
-If the release includes demo media, follow [release-media.md](release-media.md).
-Draft the notes, record with synchronized bottom-of-video shortcut labels,
-review the final annotated files, then upload and verify the media once.
+If the release includes screenshots or videos, follow [release-media.md](release-media.md).
+Draft the notes, choose the clearest format for each change, and review the
+captured files before uploading and verifying them once.
 Compose and check both app-note languages, the English GitHub body and the
 changelog candidate from the same receipts before merging and tagging.
 The tag workflow checks the receipts and the bilingual Markdown before building.

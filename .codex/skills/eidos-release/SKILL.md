@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Assess release impact and release Eidos packages, plugins, Lite, Android, iOS, CLI, Web or Publish. Use for release preparation, demo recording and reviewed media, publication, release notes, bundled dependency updates, and artifact verification. Trace shared Markdown/UI/Runtime changes into mobile app releases; plugin API changes also require registry and template compatibility checks.
+description: Assess release impact and release Eidos packages, plugins, Lite, Android, iOS, CLI, Web or Publish. Use for release preparation, changelog screenshots and demo videos, publication, release notes, bundled dependency updates, and artifact verification. Trace shared Markdown/UI/Runtime changes into mobile app releases; plugin API changes also require registry and template compatibility checks.
 ---
 
 # Eidos Release
@@ -37,15 +37,12 @@ not complete this release gate. Record evidence for unaffected entries too.
 
 ## Select the release surface
 
-- **Release demo recording, shortcut annotations, media upload or changelog media:**
-  read [references/release-media.md](references/release-media.md). Show only
-  feature-relevant shortcuts in one replaceable line at the bottom of the
-  original footage, using the standard capture profile and directly recorded
-  native key timeline. Draft notes → record and
-  review → upload and verify media →
-  compose and verify demos beside their feature descriptions in Lite, GitHub and the changelog →
-  publish. A local-only recording request
-  ends with reviewed local files and does not authorize publication.
+- **Changelog screenshots, demo videos, shortcut annotations or media upload:**
+  read [references/release-media.md](references/release-media.md). Choose the
+  clearest format for each change. Use up to four screenshots and videos
+  combined per release. Apply the same capture profile, review, storage and
+  verification to both formats. A local capture request ends with reviewed
+  local files.
 - **Plugin SDK/tools, registry plugins and templates:** read
   [references/plugin-api-release.md](references/plugin-api-release.md).
 - **Eidos File npm packages:** read

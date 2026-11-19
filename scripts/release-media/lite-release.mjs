@@ -9,6 +9,7 @@ import {
   demoMarkdown,
   demoSectionEnd,
   isReleaseDemo,
+  maxReleaseMedia,
 } from "../../apps/eidos-lite-desktop/src/shared/release-demos.ts"
 
 const lite = new URL("../../apps/eidos-lite-desktop/", import.meta.url)
@@ -23,6 +24,10 @@ const json = (value) => JSON.stringify(value, null, 2) + "\n"
 
 function validateDemos(demos, tag) {
   assert.ok(Array.isArray(demos), "Expected an array of Lite demo receipts")
+  assert.ok(
+    demos.length <= maxReleaseMedia,
+    `Use at most ${maxReleaseMedia} screenshots and videos combined per release`
+  )
   const scenarios = new Set()
   for (const demo of demos) {
     assert.ok(
@@ -38,13 +43,17 @@ function validateDemos(demos, tag) {
       demo.schemaVersion === 1 &&
         demo.uploaded === true &&
         Number.isFinite(Date.parse(demo.verifiedAt)) &&
-        demo.checks?.range?.status === 206,
+        (demo.media.type === "image" || demo.checks?.range?.status === 206),
       `Use the verified published-media.json for ${demo.scenarioId}`
     )
-    for (const [url, mime] of [
-      [demo.media.src, "video/mp4"],
-      [demo.media.poster, "image/webp"],
-    ]) {
+    const expectedFiles =
+      demo.media.type === "image"
+        ? [[demo.media.src, "image/webp"]]
+        : [
+            [demo.media.src, "video/mp4"],
+            [demo.media.poster, "image/webp"],
+          ]
+    for (const [url, mime] of expectedFiles) {
       const file = demo.files?.find((file) => file.url === url)
       const check = demo.checks.files?.find((check) => check.url === url)
       assert.ok(
@@ -118,7 +127,7 @@ function checkNotes(markdown, demos, locale) {
   for (const token of tokens) {
     if (token.type !== "paragraph") continue
     const paragraph = token.raw.trimEnd()
-    // Identify generated covers even if someone edited their label or URL.
+    // Identify generated media even if someone edited its label or URL.
     if (
       expected.has(paragraph) ||
       (paragraph.startsWith("[![") &&

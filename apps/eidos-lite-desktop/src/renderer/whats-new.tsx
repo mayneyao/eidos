@@ -7,6 +7,7 @@ import {
   demoLinkLabel,
   demoSections,
   isReleaseDemo,
+  screenshotLinkLabel,
   type NotesLocale,
   type ReleaseDemo,
 } from "../shared/release-demos"
@@ -27,7 +28,7 @@ const releaseDemos = (
   isReleaseDemo(demo, `lite-v${releaseVersion}`)
 )
 
-function DemoVideo({
+function DemoMedia({
   demo,
   locale,
 }: {
@@ -35,12 +36,14 @@ function DemoVideo({
   locale: NotesLocale
 }) {
   const [failed, setFailed] = useState(false)
-  const { src, poster, width, height, alt, caption } = demo.media
+  const { media } = demo
+  const { src, width, height, alt, caption } = media
+  const label = media.type === "image" ? screenshotLinkLabel : demoLinkLabel
   return (
     <figure className="whats-new-demo">
-      {failed ? (
+      {media.type === "image" || failed ? (
         <img
-          src={poster}
+          src={media.type === "image" ? src : media.poster}
           alt={alt[locale]}
           width={width}
           height={height}
@@ -52,7 +55,7 @@ function DemoVideo({
       ) : (
         <video
           src={src}
-          poster={poster}
+          poster={media.poster}
           width={width}
           height={height}
           aria-label={alt[locale]}
@@ -64,7 +67,7 @@ function DemoVideo({
       )}
       <figcaption>
         <a href={src} data-markdown-external="true">
-          {demoLinkLabel[locale]}
+          {label[locale]}
         </a>
         {" · "}
         {caption[locale]}
@@ -232,7 +235,7 @@ export function WhatsNewPage({ standalone = false }: { standalone?: boolean }) {
                   }}
                 />
               ) : (
-                <DemoVideo
+                <DemoMedia
                   key={section.scenarioId}
                   demo={section}
                   locale={notesLocale}

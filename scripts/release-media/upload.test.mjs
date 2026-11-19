@@ -1,9 +1,15 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { execFileSync, spawnSync } from "node:child_process"
+import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 import {
   validateSourceManifest,
   inspectExistingObject,
   resolveMediaCopy,
+  publish,
 } from "./upload.mjs"
 
 const valid = () => ({
@@ -98,4 +104,123 @@ test("missing objects are probed privately so a CDN 404 is never cached before u
   )
   assert.equal(found, false)
   assert.equal(calls, 1)
+})
+
+test("screenshots use the same hash approval, immutable receipt and release validation", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "lite-release-screenshot-"))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const script = (name) => fileURLToPath(new URL(name, import.meta.url))
+  const asset = join(directory, "screenshot.webp")
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=blue:s=2528x1768",
+    "-frames:v",
+    "1",
+    "-c:v",
+    "libwebp",
+    "-quality",
+    "90",
+    asset,
+  ])
+  const source = {
+    ...valid(),
+    scenarioId: "screenshot-fixture",
+    mediaType: "image",
+    editorialReview: "pending",
+    output: { width: 2528, height: 1768 },
+  }
+  const manifest = join(directory, "source.manifest.json")
+  await writeFile(manifest, JSON.stringify(source))
+  execFileSync(process.execPath, [
+    script("review.mjs"),
+    "--dir",
+    directory,
+    "--approve",
+  ])
+  const locales = { en: "Layout", zh: "布局", ja: "レイアウト", ko: "레이아웃" }
+  const copyFile = join(directory, "copy.json")
+  await writeFile(
+    copyFile,
+    JSON.stringify({
+      releaseTag: source.introducedInRelease,
+      scenarioId: source.scenarioId,
+      capturedAppVersion: source.capturedAppVersion,
+      buildKind: source.buildKind,
+      feature: locales,
+      alt: locales,
+      caption: locales,
+    })
+  )
+  const receipt = await publish(directory, { copyFile })
+  assert.equal(receipt.uploaded, false)
+  assert.equal(receipt.media.type, "image")
+  assert.match(receipt.media.src, /[a-f0-9]{64}\/screenshot\.webp$/)
+  assert.equal(receipt.files.length, 1)
+  assert.equal(receipt.media.poster, undefined)
+  await appendFile(asset, "changed")
+  await assert.rejects(
+    publish(directory, { copyFile }),
+    /Media changed after review/
+  )
+
+  // Exercise the local composer with synthetic successful read-back evidence.
+  const file = receipt.files[0]
+  const verified = {
+    ...receipt,
+    uploaded: true,
+    verifiedAt: "2026-11-19T00:00:00Z",
+    checks: {
+      files: [
+        {
+          url: file.url,
+          sha256: file.sha256,
+          contentType: file.type,
+          status: 200,
+          cacheControl: "immutable",
+        },
+      ],
+    },
+  }
+  const receiptPath = join(directory, "published-media.json")
+  const headings = join(directory, "headings.json")
+  await writeFile(receiptPath, JSON.stringify(verified))
+  await writeFile(headings, JSON.stringify({ [source.scenarioId]: locales }))
+  for (const [locale, filename] of [
+    ["en", "RELEASE_NOTES.md"],
+    ["zh", "RELEASE_NOTES.zh-CN.md"],
+  ])
+    await writeFile(
+      join(directory, filename),
+      `## Improvements\n\n### ${locales[locale]}\n\nRelease fixture.\n`
+    )
+  const out = join(directory, "out")
+  const compose = [
+    script("lite-release.mjs"),
+    "compose",
+    "--tag",
+    verified.releaseTag,
+    "--notes-dir",
+    directory,
+    "--out-dir",
+    out,
+    "--sections",
+    headings,
+  ]
+  execFileSync(process.execPath, [...compose, "--demo", receiptPath])
+  const notes = await readFile(join(out, "RELEASE_NOTES.md"), "utf8")
+  assert.ok(notes.includes(`[![Layout](${file.url})](${file.url})`))
+  const tooMany = spawnSync(
+    process.execPath,
+    [
+      ...compose,
+      ...Array.from({ length: 5 }, () => ["--demo", receiptPath]).flat(),
+    ],
+    { encoding: "utf8" }
+  )
+  assert.notEqual(tooMany.status, 0)
+  assert.match(tooMany.stderr, /at most 4 screenshots and videos combined/)
 })

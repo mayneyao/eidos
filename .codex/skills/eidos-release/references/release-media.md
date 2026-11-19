@@ -1,16 +1,23 @@
 # Release demo media
 
-Read `scripts/release-media/README.md` and the actual scene, recorder, review
-and uploader in the selected checkout. Use this reference for authentic Lite
-demos, shortcut annotations and their release-changelog handoff.
+Read `scripts/release-media/README.md` for capture, review and upload commands
+in the selected checkout. Read the selected scene and recorder when recording
+video.
+
+## Choose what to show
+
+Choose media after drafting the release notes. Use a screenshot when one real
+state explains the change clearly, such as a new layout, panel, or menu. Use a
+short video when timing, gestures, state changes, or a sequence of actions are
+important. Use text alone when the notes already explain the change.
+
+Use at most four screenshots and videos combined per release. A video's poster
+is part of that video. For a substantial release, prioritize the most useful
+examples. When related changes make one coherent workflow, show them together
+in one short video and place it under the feature heading that introduces
+that workflow.
 
 ## Order and ownership
-
-Select media-worthy changes before drafting scenes. Use release demos for new
-features or substantial user workflows; routine bug fixes remain text unless
-the user explicitly requests a video. A tooling pilot does not automatically
-belong in public release notes. Removing its changelog reference does not
-authorize deleting the original footage or published media objects.
 
 For a release with media:
 
@@ -18,16 +25,16 @@ For a release with media:
    draft evidence-backed English and Chinese release notes.
 2. Validate the feature candidate. Prepare real scenes, synthetic fixtures and
    an isolated profile; freeze the feature/capture SHAs and actual app version.
-3. Record real native interactions and their shortcut timings. Produce the
-   final video with the bottom shortcut labels described below.
-4. Watch the complete annotated video at normal speed, inspect its poster and
-   verify behavior, privacy, encoding, actual dimensions/duration and unchanged
-   fixtures. Approve the exact final video/poster hashes.
+3. Capture the real app with the shared frame profile. For videos, record native
+   input timings and add the applicable shortcut labels.
+4. Inspect the final screenshot or watch the complete annotated video and
+   inspect its poster. Verify behavior, privacy, dimensions, encoding and
+   unchanged fixtures. Approve the exact final file hashes.
 5. Upload those files to the existing media service; verify public bytes,
-   MIME/cache/CORS and HTTP 206 Range playback.
+   MIME/cache/CORS, plus HTTP 206 Range playback for videos.
 6. Compose the bilingual app notes, English GitHub body and four-language
-   website candidate from the verified upload receipts. Verify placement
-   and playback after the corresponding feature text.
+   website candidate from the verified upload receipts. Verify that each
+   screenshot loads or each video plays after the corresponding feature text.
 7. Follow the surface runbook to merge the release PR, tag and verify public
    product artifacts. Complete the website entry with the actual publication
    timestamp and sources, verify and deploy it, then check the public pages.
@@ -42,27 +49,27 @@ Keep the target release distinct from `capturedAppVersion`, build kind and
 Locate the current owning eidos.space checkout and read its `AGENTS.md` and
 `docs/changelog-maintenance.md` before editing website data.
 
-## Standard macOS recording profile
+## Standard macOS capture profile
 
 `scripts/release-media/capture-profile.mjs` is the executable source of these
 defaults (`lite-macos-2528x1768-v1`). Mobile capture needs its own adapter.
 
-| Setting                   | Required value                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| Native app window         | 1200 × 820 logical points                                                       |
-| Real desktop padding      | 32 logical points on each side                                                  |
-| Captured rectangle        | 1264 × 884 logical points                                                       |
-| Display scale             | 2×; verify before recording                                                     |
-| Final video and poster    | 2528 × 1768 pixels, original aspect ratio                                       |
-| Container / video codec   | MP4 / H.264 (`libx264`)                                                         |
-| Encoding quality          | CRF 18, preset `medium`                                                         |
-| Pixel format / frame rate | `yuv420p`, constant 30fps                                                       |
-| Playback / audio          | 1× original speed; no audio stream                                              |
-| MP4 layout                | `-movflags +faststart`                                                          |
-| Poster                    | Real successful frame from final MP4; WebP, quality 90                          |
-| Shortcut text             | Horizontal center, Y=1620px, font size 50px                                     |
-| Shortcut styling          | SF system font, white text, dark `#202327` box at 94% opacity, 14px box padding |
-| Shortcut lifetime         | 1.5 seconds minimum, superseded immediately by a newer relevant key             |
+| Setting                   | Required value                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| Native app window         | 1200 × 820 logical points                                                                  |
+| Real desktop padding      | 32 logical points on each side                                                             |
+| Captured rectangle        | 1264 × 884 logical points                                                                  |
+| Display scale             | 2×; verify before capture                                                                  |
+| Video, poster, screenshot | 2528 × 1768 pixels, original aspect ratio                                                  |
+| Container / video codec   | MP4 / H.264 (`libx264`)                                                                    |
+| Encoding quality          | CRF 18, preset `medium`                                                                    |
+| Pixel format / frame rate | `yuv420p`, constant 30fps                                                                  |
+| Playback / audio          | 1× original speed; no audio stream                                                         |
+| MP4 layout                | `-movflags +faststart`                                                                     |
+| Screenshot and poster     | WebP, quality 90. Take the screenshot from the real app and the poster from the final MP4. |
+| Shortcut text             | Horizontal center, Y=1620px, font size 50px                                                |
+| Shortcut styling          | SF system font, white text, dark `#202327` box at 94% opacity, 14px box padding            |
+| Shortcut lifetime         | 1.5 seconds minimum, superseded immediately by a newer relevant key                        |
 
 The 32-point padding must be captured desktop, not fabricated framing. Preserve
 the native window controls. Do not resize, crop the app, append a footer or add
@@ -208,6 +215,16 @@ shortcut-label coverage or synchronization. Record that review separately.
 Any later annotation, encoding or poster change requires review and new hashes.
 Never upload an annotated derivative under the original file's approval.
 
+### Screenshot capture
+
+Capture the isolated app's successful state with the same window, padding,
+scale and dimensions used for video. Inspect the full image for readable text
+and private content. Encode that frame as `screenshot.webp` at quality 90.
+Record the same capture provenance and assertions in `source.manifest.json`.
+Set `mediaType: "image"` and supply `output.width` and `output.height`.
+Use the usual `review.mjs --approve` command and pass four-language copy to
+the uploader. A screenshot has one reviewed file.
+
 ## Upload and changelog handoff
 
 Inspect the current uploader's scene metadata and copy. The original uploader
@@ -221,7 +238,7 @@ node scripts/release-media/upload.mjs --dir <final-reviewed-take-directory> \
   --upload --credentials-file <absolute-ignored-credentials-file>
 ```
 
-Upload only the exact reviewed final MP4 and poster. Keep raw footage, fixtures,
+Upload the exact reviewed screenshot or the final MP4 and poster. Keep raw captures, fixtures,
 private manifests and credentials local. Use immutable bundle-hash keys, reuse
 identical bytes and verify public files plus Range responses. Adding labels to
 already-published footage creates a new bundle/URL; never overwrite its old key.
@@ -242,7 +259,7 @@ node scripts/release-media/lite-release.mjs check --tag "$tag" \
   --notes-dir "$candidate" --entry "$candidate/changelog-entry.json"
 ```
 
-Repeat `--demo` for each video. The command reads the drafts from the Lite app
+Repeat `--demo` for each screenshot or video. The command reads the drafts from the Lite app
 directory by default. Pass `--notes-dir` to read a separate draft directory.
 `--entry` is optional until the website translations are ready. The draft
 entry contains the target `tag` and `version`, Japanese and Korean notes, and
@@ -251,14 +268,13 @@ the public Release is verified. Use a local preview snapshot for unpublished
 candidates.
 
 Commit the generated `RELEASE_NOTES.md`, `RELEASE_NOTES.zh-CN.md` and
-`release-demos.json` alongside the Lite version. The notes contain a linked
-cover and a visible play link beneath the feature text. Lite replaces the
-cover with a native, click-to-play video. If playback fails, the poster and
-external link remain available when the media service is reachable. Bundled
-notes remain readable offline. GitHub publishes the committed English file
-on first creation. It renders the cover and opens the same MP4 through the
-link. The website keeps the tagged notes as source and renders the matching
-player in all four locales.
+`release-demos.json` alongside the Lite version. Screenshots appear directly
+in each surface. Each video appears in Lite and the website as a click-to-play
+player. GitHub renders its linked cover and a visible link to the same MP4.
+If playback fails in Lite, the poster and external link remain available when
+the media service is reachable. Bundled notes remain readable offline. GitHub
+publishes the committed English file on first creation. The website keeps the
+tagged notes as source and places the matching media in all four locales.
 
 The receipt binds an immutable URL to the intended release and scenario.
 Demo receipts currently target stable Lite tags. Use the exact release tag.
@@ -273,10 +289,10 @@ that array alongside them.
 
 Before tagging, run `check` against the committed source and draft website
 entry. Preview the website list and series detail, both Lite windows and
-both Lite languages. Check the current feature heading, identical MP4 and
-poster URLs, playback, and Lite's fallback with the media request blocked.
-Preview the English Markdown with GitHub's Markdown API. Verify that the cover
-and play link resolve to the reviewed media.
+both Lite languages. Check feature placement, identical asset URLs, screenshot
+loading or video playback, and Lite's fallback with the media request blocked.
+Preview the English Markdown with GitHub's Markdown API and verify that the
+screenshot or linked cover and play link resolve to the reviewed assets.
 
 After the Release exists, add the generated entry to `src/data/changelog.json`
 with the actual publication timestamp and verified source URLs. Run `check`

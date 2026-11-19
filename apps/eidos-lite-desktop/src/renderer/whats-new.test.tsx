@@ -33,21 +33,32 @@ const fixture = vi.hoisted(() => {
     },
   }
 })
+const screenshot = vi.hoisted(() => ({
+  ...fixture,
+  scenarioId: "layout",
+  afterSection: { ...fixture.afterSection, en: "Next heading", zh: "布局" },
+  media: {
+    ...fixture.media,
+    type: "image",
+    src: `https://media.eidos.space/releases/lite/9.9.9/layout/${"c".repeat(64)}/screenshot.webp`,
+    alt: { ...fixture.media.alt, en: "Layout screenshot", zh: "布局截图" },
+  },
+}))
 
 vi.mock("../../package.json", () => ({ default: { version: "9.9.9" } }))
 vi.mock("../../release-demos.json", () => ({
-  default: [fixture, { ...fixture, releaseTag: "lite-v9.9.8" }],
+  default: [fixture, screenshot, { ...fixture, releaseTag: "lite-v9.9.8" }],
 }))
 vi.mock("../../RELEASE_NOTES.md?raw", async () => {
   const { demoMarkdown } = await import("../shared/release-demos")
   return {
-    default: `## English release fixture\n\n### Feature fixture\n\nEnglish fixture body.\n\n${demoMarkdown(fixture as ReleaseDemo, "en")}\n\n### Next heading\n\n<video src="https://example.com/unsafe.mp4"></video>`,
+    default: `## English release fixture\n\n### Feature fixture\n\nEnglish fixture body.\n\n${demoMarkdown(fixture as ReleaseDemo, "en")}\n\n### Next heading\n\n<video src="https://example.com/unsafe.mp4"></video>\n\n${demoMarkdown(screenshot as ReleaseDemo, "en")}`,
   }
 })
 vi.mock("../../RELEASE_NOTES.zh-CN.md?raw", async () => {
   const { demoMarkdown } = await import("../shared/release-demos")
   return {
-    default: `## 中文日志测试标题\n\n### 功能示例\n\n中文测试正文。\n\n${demoMarkdown(fixture as ReleaseDemo, "zh")}`,
+    default: `## 中文日志测试标题\n\n### 功能示例\n\n中文测试正文。\n\n${demoMarkdown(fixture as ReleaseDemo, "zh")}\n\n### 布局\n\n${demoMarkdown(screenshot as ReleaseDemo, "zh")}`,
   }
 })
 import type { ReleaseDemo } from "../shared/release-demos"
@@ -106,6 +117,10 @@ it.each([false, true])(
       expect(host.textContent).toContain("English fixture body.")
       const video = host.querySelector("video")!
       expect(host.querySelectorAll("video")).toHaveLength(1)
+      expect(host.querySelectorAll("figure img")).toHaveLength(1)
+      expect(host.querySelector("figure img")?.getAttribute("src")).toBe(
+        screenshot.media.src
+      )
       expect(video.src).toBe(fixture.media.src)
       expect(video.poster).toBe(fixture.media.poster)
       expect(video.controls).toBe(true)
@@ -135,6 +150,14 @@ it.each([false, true])(
       expect(host.querySelector("video")?.getAttribute("aria-label")).toBe(
         "功能预览"
       )
+      const image = host.querySelector<HTMLImageElement>(
+        'figure img[alt="布局截图"]'
+      )!
+      expect(
+        image.closest("figure")?.querySelector("figcaption a")?.textContent
+      ).toBe("打开截图")
+      await act(async () => image.dispatchEvent(new Event("error")))
+      expect(image.hidden).toBe(true)
       await act(async () =>
         changePreferences({ ...preferences, language: "en" })
       )

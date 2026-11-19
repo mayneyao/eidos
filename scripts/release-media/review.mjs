@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
+import { captureFiles } from "./upload.mjs"
 
 const args = process.argv.slice(2)
 const directory = args.includes("--dir")
@@ -8,7 +9,7 @@ const directory = args.includes("--dir")
   : null
 if (!directory || !args.includes("--approve"))
   throw new Error(
-    "After viewing the video and poster: node scripts/release-media/review.mjs --dir <capture> --approve"
+    "After viewing the screenshot or video and poster: node scripts/release-media/review.mjs --dir <capture> --approve"
   )
 const manifestPath = resolve(directory, "source.manifest.json")
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
@@ -22,13 +23,11 @@ if (
     "Capture assertions and synthetic-data provenance must pass before review"
   )
 manifest.reviewedFiles = {}
-for (const name of ["demo.mp4", "poster.webp"])
+for (const [name] of captureFiles(manifest.mediaType))
   manifest.reviewedFiles[name] = createHash("sha256")
     .update(await readFile(resolve(directory, name)))
     .digest("hex")
 manifest.editorialReview = "approved"
 manifest.reviewedAt = new Date().toISOString()
 await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n")
-console.log(
-  "Recorded approval of the exact video/poster hashes; no upload performed."
-)
+console.log("Recorded approval of the exact media hashes.")

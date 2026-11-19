@@ -165,6 +165,22 @@ Scenario revision 2 records the display/window exclusion filter and its limits
 in the private manifest. Its bundle gets a new immutable URL; published earlier
 recordings are never overwritten.
 
+## Capture a screenshot
+
+Use the same isolated app, synthetic data and capture region as the video
+profile. Capture the real window at 2× with the 32-point desktop padding on
+each side. Keep the original 2528 × 1768 frame and native window controls.
+
+```bash
+ffmpeg -i "$raw_screenshot" -map_metadata -1 -frames:v 1 \
+  -c:v libwebp -quality 90 "$capture_directory/screenshot.webp"
+```
+
+Record the capture in `source.manifest.json` with `mediaType: "image"` and the
+same release, scenario, capture build, source, synthetic fixture and assertion
+fields used for videos. Set `output.width` and `output.height` to 2528 and 1768.
+Review the final WebP and run `review.mjs --approve` in the usual way.
+
 ## Upload and reference
 
 `config.json` contains only public deployment identifiers. The dedicated
@@ -181,7 +197,7 @@ authorization can be reused; credentials are never printed, copied into the
 repository, embedded in footage or uploaded. The script uses the workspace's
 Wrangler from `apps/download`; `--wrangler` accepts another installed CLI path.
 
-Dry run first, then upload only the two allowlisted reviewed files:
+Dry run first. Upload the reviewed screenshot or the reviewed video and poster.
 
 ```bash
 node scripts/release-media/upload.mjs --dir "$PWD/.artifacts/release-media"
@@ -196,10 +212,10 @@ The JSON must match the manifest's `releaseTag` (its `introducedInRelease`),
 Review the copy against the actual take. Only the historical
 `lite-v0.31.0` / `table-search-escape` scene retains its original default copy.
 
-Keys include release, scenario and a hash of the complete video/poster bundle.
+Keys include release, scenario and a hash of the approved screenshot or video bundle.
 Existing identical objects are reused. Differing content at an immutable URL
 fails. After upload, the script reads back exact public bytes, MIME/cache headers
-and a 206 Range response. `published-media.json` is the input for the Lite,
+and a 206 Range response for video. `published-media.json` is the input for the Lite,
 GitHub and website release notes. Raw files, seed data, private manifest
 and credentials are never uploaded. Big video files do not enter Git.
 
@@ -211,12 +227,13 @@ a fresh seed. The capture independently verifies its own before/after bytes.
 Object existence checks use the authenticated R2 API. Do not probe missing
 objects through the public media URL before uploading: the CDN can cache that
 404 and temporarily hide a newly uploaded object. Public reads start only
-after upload, and the public verification includes a real 206 Range response.
+after upload, and video verification includes a real 206 Range response.
 
 Use `lite-release.mjs compose` with the verified receipt and localized feature
 headings to prepare all three surfaces. Preserve the actual capture version
 in the caption. Use `lite-release.mjs check` to verify the same release tag,
-video, poster and feature placement before publication. See the
+asset URLs and feature placement before publication. Keep at most four
+screenshots and videos combined in a release. See the
 [release media runbook](../../.codex/skills/eidos-release/references/release-media.md#compose-the-release-candidate)
 for the commands and preview checks.
 
