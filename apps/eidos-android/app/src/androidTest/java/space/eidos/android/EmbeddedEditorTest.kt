@@ -23,6 +23,36 @@ class EmbeddedEditorTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private var previousHardwareKeyboardIme: String? = null
 
+    @Test
+    fun webEditorFollowsBrazilianPortuguese() {
+        val app = compose.activity.application
+        val original = AppLanguage.selected()
+        val id = "locale-" + UUID.randomUUID()
+        val repository = SpaceRepository(app, id)
+        val root = File(app.filesDir, "spaces/$id")
+        var model: EidosModel? = null
+        try {
+            compose.runOnUiThread { AppLanguage.set(app, "pt-BR") }
+            val path = runBlocking { repository.create("", "Arquivo de teste", "eidos") }
+            val activeModel = EidosModel(app, repository)
+            model = activeModel
+            compose.runOnUiThread {
+                compose.activity.setContent { EidosApp(activeModel) }
+            }
+            compose.waitUntil(15000) { !activeModel.state.value.busy }
+            compose.runOnUiThread { activeModel.open(runBlocking { repository.file(path) }) }
+            waitJs("document.documentElement.lang === 'pt-BR' && typeof window.eidosFlush === 'function'")
+            waitJs("document.querySelector('button[aria-label=\"Novo registro\"]') !== null")
+        } finally {
+            compose.runOnUiThread {
+                model?.viewModelScope?.cancel()
+                AppLanguage.set(app, original)
+            }
+            runBlocking { repository.close() }
+            root.deleteRecursively()
+        }
+    }
+
     @Before
     fun enableSoftwareKeyboardForViewportChecks() {
         val instrumentation =

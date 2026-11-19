@@ -817,7 +817,7 @@ export function registerIpc(
     const locale = await controller.locale()
     return shell.openExternal(
       new URL(
-        locale === "zh" ? "/zh/account/spark" : "/account/spark",
+        locale === "en" ? "/account/spark" : `/${locale}/account/spark`,
         services.accountOrigin
       ).href
     )

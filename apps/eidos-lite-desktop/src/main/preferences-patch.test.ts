@@ -2,6 +2,15 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts all supported language choices through IPC", () => {
+    for (const language of ["en", "zh", "pt-BR", "system"]) {
+      expect(eidosLitePreferencesPatch({ language })).toEqual({ language })
+    }
+    expect(() => eidosLitePreferencesPatch({ language: "pt-PT" })).toThrow(
+      "Invalid language preference"
+    )
+  })
+
   it("accepts explicit record system field defaults and rejects non-Boolean input", () => {
     for (const hideSystemFieldsInRecords of [true, false]) {
       expect(eidosLitePreferencesPatch({ hideSystemFieldsInRecords })).toEqual({

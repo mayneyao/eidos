@@ -76,7 +76,7 @@ internal fun SyncOverview(
                 when {
                     direct && state.graft?.dirty == true -> tr("有本地修改，等待同步")
                     direct && peer?.lastSynced != null ->
-                        tr("上次同步 · {0}", java.text.SimpleDateFormat("MM-dd HH:mm", locale).format(java.util.Date(peer.lastSynced)))
+                        tr("上次同步 · {0}", java.text.SimpleDateFormat(if (locale.toLanguageTag() == "pt-BR") "dd/MM HH:mm" else "MM-dd HH:mm", locale).format(java.util.Date(peer.lastSynced)))
                     direct -> tr("连接同一 Wi-Fi，并保持电脑上的 Space 打开")
                     connected -> tr("将本机修改上传，并接收云端更新")
                     else -> tr("连接电脑，或从下方选择云端 Space")

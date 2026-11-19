@@ -34,6 +34,13 @@ const EidosLiteI18nContext = createContext<EidosLiteI18nContextValue>({
 
 export function EidosLiteI18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<EidosLiteLanguage>("system")
+  const [systemLocale, setSystemLocale] = useState(browserLocale)
+
+  useEffect(() => {
+    const update = () => setSystemLocale(browserLocale())
+    window.addEventListener("languagechange", update)
+    return () => window.removeEventListener("languagechange", update)
+  }, [])
 
   useEffect(() => {
     void window.eidosLite
@@ -44,7 +51,7 @@ export function EidosLiteI18nProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
-  const locale = resolveEidosLiteLocale(language, browserLocale())
+  const locale = resolveEidosLiteLocale(language, systemLocale)
   const value = useMemo<EidosLiteI18nContextValue>(
     () => ({
       locale,
@@ -55,7 +62,7 @@ export function EidosLiteI18nProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en"
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : locale
   }, [locale])
 
   return (

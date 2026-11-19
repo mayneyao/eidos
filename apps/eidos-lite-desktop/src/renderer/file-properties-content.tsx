@@ -659,7 +659,7 @@ export const FilePropertiesContent = forwardRef<
                         ? sizeText
                         : name === "_created_at" || name === "_updated_at"
                           ? new Date(String(raw)).toLocaleString(
-                              locale === "zh" ? "zh-CN" : "en-US",
+                              locale === "zh" ? "zh-CN" : locale,
                               { dateStyle: "full", timeStyle: "short" }
                             )
                           : name === "extension" &&

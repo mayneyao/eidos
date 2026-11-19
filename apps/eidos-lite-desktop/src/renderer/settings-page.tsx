@@ -71,7 +71,13 @@ const APPEARANCE_OPTIONS: Array<{
 
 const LANGUAGE_OPTIONS: Array<{
   value: EidosLiteLanguage
-}> = [{ value: "system" }, { value: "en" }, { value: "zh" }]
+  label: string
+}> = [
+  { value: "system", label: "System" },
+  { value: "en", label: "English" },
+  { value: "zh", label: "Chinese" },
+  { value: "pt-BR", label: "Português (Brasil)" },
+]
 
 const MARKDOWN_EDITOR_OPTIONS: Array<{
   label: string
@@ -810,33 +816,28 @@ export function SettingsPage() {
                 >
                   <div className="settings-row-copy">
                     <strong>{t(SETTINGS.language.title)}</strong>
-                    <small>{t(SETTINGS.language.summary)}</small>
+                    <small id="settings-language-description">
+                      {t(SETTINGS.language.summary)}
+                    </small>
                   </div>
-                  <div
-                    className="settings-segmented-control"
-                    role="radiogroup"
+                  <select
+                    className="settings-shell-select"
                     aria-label={t(SETTINGS.language.title)}
+                    aria-describedby="settings-language-description"
+                    value={preferences.language}
+                    onChange={(event) =>
+                      void updatePreferences({
+                        language: event.currentTarget
+                          .value as EidosLiteLanguage,
+                      })
+                    }
                   >
                     {LANGUAGE_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={preferences.language === option.value}
-                        key={option.value}
-                        onClick={() =>
-                          void updatePreferences({ language: option.value })
-                        }
-                      >
-                        {t(
-                          option.value === "system"
-                            ? "System"
-                            : option.value === "en"
-                              ? "English"
-                              : "Chinese"
-                        )}
-                      </button>
+                      <option key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
                 <div
                   className="settings-row settings-row-stacked"

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { normalizeEidosLiteMenuOrders } from "../shared/menu-orders"
+import { isEidosLiteLanguage } from "../shared/contracts"
 
 import type {
   EidosLiteAppearance,
@@ -46,7 +47,7 @@ function appearance(value: unknown): EidosLiteAppearance {
 }
 
 function language(value: unknown): EidosLitePreferences["language"] {
-  return value === "system" || value === "en" || value === "zh"
+  return isEidosLiteLanguage(value)
     ? value
     : DEFAULT_EIDOS_LITE_PREFERENCES.language
 }

@@ -17,6 +17,15 @@ export function eidosLiteApplicationMenuTemplate(
   locale: EidosLiteLocale = "en"
 ): MenuItemConstructorOptions[] {
   const t = (message: string) => translateEidosLite(locale, message)
+  const native = (
+    role: NonNullable<MenuItemConstructorOptions["role"]>,
+    message: string
+  ): MenuItemConstructorOptions => ({
+    role,
+    ...(locale === "pt-BR"
+      ? { label: translateEidosLite(locale, message, { name: appName }) }
+      : {}),
+  })
   const settings: MenuItemConstructorOptions = {
     label: t("Settings…"),
     accelerator: "CmdOrCtrl+,",
@@ -28,17 +37,17 @@ export function eidosLiteApplicationMenuTemplate(
           {
             label: appName,
             submenu: [
-              { role: "about" as const },
+              native("about", "About {name}"),
               { type: "separator" as const },
               settings,
               { type: "separator" as const },
               { role: "services" as const },
               { type: "separator" as const },
-              { role: "hide" as const },
-              { role: "hideOthers" as const },
-              { role: "unhide" as const },
+              native("hide", "Hide {name}"),
+              native("hideOthers", "Hide Others"),
+              native("unhide", "Show All"),
               { type: "separator" as const },
-              { role: "quit" as const },
+              native("quit", "Quit {name}"),
             ],
           },
         ]
@@ -47,14 +56,14 @@ export function eidosLiteApplicationMenuTemplate(
       label: t("File"),
       submenu:
         platform === "darwin"
-          ? [{ role: "close" }]
-          : [settings, { type: "separator" }, { role: "quit" }],
+          ? [native("close", "Close Window")]
+          : [settings, { type: "separator" }, native("quit", "Quit {name}")],
     },
     {
       label: t("Edit"),
       submenu: [
-        { role: "undo" },
-        { role: "redo" },
+        native("undo", "Undo"),
+        native("redo", "Redo"),
         { type: "separator" },
         ...(
           [
@@ -69,11 +78,11 @@ export function eidosLiteApplicationMenuTemplate(
           click: () => handlers.clipboardCommand(command),
         })),
         ...(platform === "darwin"
-          ? [{ role: "pasteAndMatchStyle" as const }]
+          ? [native("pasteAndMatchStyle", "Paste and Match Style")]
           : []),
-        { role: "delete" },
+        native("delete", "Delete"),
         { type: "separator" },
-        { role: "selectAll" },
+        native("selectAll", "Select All"),
         ...(platform === "darwin"
           ? [
               { type: "separator" as const },
@@ -93,7 +102,7 @@ export function eidosLiteApplicationMenuTemplate(
         { label: t("Eidos Website"), click: handlers.openWebsite },
         ...(platform === "darwin"
           ? []
-          : [{ type: "separator" as const }, { role: "about" as const }]),
+          : [{ type: "separator" as const }, native("about", "About {name}")]),
       ],
     },
   ]

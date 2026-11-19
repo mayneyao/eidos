@@ -6,6 +6,21 @@ describe("Eidos Lite internationalization", () => {
     expect(resolveEidosLiteLocale("system", "en-US")).toBe("en")
     expect(resolveEidosLiteLocale("system", "fr-FR")).toBe("en")
     expect(resolveEidosLiteLocale("en", "zh-CN")).toBe("en")
+    for (const system of ["pt-BR", "pt", "pt-PT", "PT_br"]) {
+      expect(resolveEidosLiteLocale("system", system)).toBe("pt-BR")
+    }
+    expect(resolveEidosLiteLocale("pt-BR", "zh-CN")).toBe("pt-BR")
+    expect(resolveEidosLiteLocale("zh", "pt-BR")).toBe("zh")
+  })
+
+  it("translates common actions and interpolates record counts in Brazilian Portuguese", () => {
+    expect(translateEidosLite("pt-BR", "Settings")).toBe("Configurações")
+    expect(translateEidosLite("pt-BR", "{count} record", { count: 1 })).toBe(
+      "1 registro"
+    )
+    expect(translateEidosLite("pt-BR", "{count} records", { count: 2 })).toBe(
+      "2 registros"
+    )
   })
 
   it("translates Chinese copy and interpolates values", () => {

@@ -93,7 +93,11 @@ function markup(label: string): string {
 }
 
 export function startupDocument(locale: string): string {
-  const label = locale.startsWith("zh") ? "正在打开…" : "Opening…"
+  const label = locale.startsWith("zh")
+    ? "正在打开…"
+    : locale.startsWith("pt")
+      ? "Abrindo…"
+      : "Opening…"
   const hash = createHash("sha256").update(animation).digest("base64")
   return `<!doctype html>
 <html><head><meta charset="utf-8">
@@ -108,7 +112,8 @@ export function withStartupShell(html: string): string {
 if (!/^#\\/(?:settings|release-notes)(?:\\/|$)/.test(location.hash)) {
   const appearance = new URLSearchParams(location.search).get("appearance");
   if (appearance === "light" || appearance === "dark") document.documentElement.style.colorScheme = appearance;
-  document.getElementById("lite-startup").setAttribute("aria-label", navigator.language.startsWith("zh") ? "正在打开…" : "Opening…");
+  const language = navigator.language.toLowerCase().split(/[-_]/)[0];
+  document.getElementById("lite-startup").setAttribute("aria-label", language === "zh" ? "正在打开…" : language === "pt" ? "Abrindo…" : "Opening…");
   ${animation}
 } else document.getElementById("lite-startup").remove();
 `

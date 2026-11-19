@@ -263,6 +263,8 @@ export interface MarkdownEditorProps {
   onError?(error: Error): void
   onEfmDiagnostics?(diagnostics: readonly EfmDiagnostic[]): void
   onUnsupportedMarkdown?(features: readonly MarkdownUnsupportedFeature[]): void
+  /** Language tag for the editor's default interface labels. */
+  locale?: string
   labels?: Partial<MarkdownEditorLabels> & MarkdownFileCompletionLabels
   placeholder?: ReactNode
   ariaLabel?: string

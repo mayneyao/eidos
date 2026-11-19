@@ -138,7 +138,7 @@ internal fun PeerSyncScreen(state: AppState, model: EidosModel, onVersions: (Str
                     Icon(Icons.Outlined.Folder, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(local.name, style = MaterialTheme.typography.titleSmall)
-                        Text(local.lastSynced?.let { tr("已下载 · ") + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(it)) }
+                        Text(local.lastSynced?.let { tr("已下载 · ") + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, java.util.Locale.forLanguageTag(AppLanguage.localeTag())).format(java.util.Date(it)) }
                             ?: tr("已下载 · 等待同步"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (availability?.reachable == true && local.remoteId !in availability.spaces)
                             Text(tr("电脑尚未开放此 Space"), style = MaterialTheme.typography.bodySmall)

@@ -126,12 +126,16 @@ export function WhatsNewPage({
       window.removeEventListener(NAVIGATION_EVENT, refresh)
     }
   }, [])
-  const notesLocale = selectedLocale ?? locale
+  const notesLocale = selectedLocale ?? (locale === "zh" ? "zh" : "en")
   const languages =
     notesLocale === "zh"
       ? "**中文** · [English](#whats-new-en)"
       : "[中文](#whats-new-zh) · **English**"
-  const content = `# Eidos Lite ${releaseVersion}\n\n${t("Current version")} · ${languages}\n\n${notesLocale === "zh" ? chineseNotes : notes}\n\n[${t("View full release notes")} ↗](https://github.com/mayneyao/eidos/releases/tag/lite-v${releaseVersion})\n`
+  const fallback =
+    locale === "pt-BR" && selectedLocale === null
+      ? `${t("Release notes are available in English and Chinese.")}\n\n`
+      : ""
+  const content = `# Eidos Lite ${releaseVersion}\n\n${t("Current version")} · ${languages}\n\n${fallback}${notesLocale === "zh" ? chineseNotes : notes}\n\n[${t("View full release notes")} ↗](https://github.com/mayneyao/eidos/releases/tag/lite-v${releaseVersion})\n`
   return (
     <section
       className="whats-new-page"

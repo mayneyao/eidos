@@ -446,7 +446,7 @@ interface EidosFileGridSelectOption {
 }
 declare function eidosFileGridColumn(field: EidosFileFieldInfo): GridColumn;
 declare function eidosFileGridSelectOptions(field: EidosFileFieldInfo): EidosFileGridSelectOption[];
-declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string, allowWrapping?: boolean, timeZone?: string, codeFontFamily?: string, calendarTimeZoneData?: string | null): GridCell;
+declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string, allowWrapping?: boolean, timeZone?: string, codeFontFamily?: string, calendarTimeZoneData?: string | null, locale?: string): GridCell;
 declare function gridCellToEidosFileValue(field: EidosFileFieldInfo, cell: EditableGridCell): EidosFileSqlPrimitive;
 //#endregion
 //#region src/eidos-file-grid-menus.d.ts
@@ -1169,6 +1169,7 @@ interface DatePickerCellProps {
   readonly kind: "date-picker-cell";
   readonly date: Date | undefined;
   readonly displayDate: string;
+  readonly locale?: string;
   readonly format: "date" | "datetime-local";
   readonly timeZone?: string;
   readonly calendarTimeZoneData?: string | null;

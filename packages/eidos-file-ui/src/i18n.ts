@@ -1,7 +1,11 @@
-export type EidosFileUILocale = "en" | "zh"
+import brazilianPortuguese from "./locales/pt-BR.json"
+
+export type EidosFileUILocale = "en" | "zh" | "pt-BR"
 
 export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
+
+const ptBR: EidosFileUIMessageOverrides = brazilianPortuguese
 
 const en: EidosFileUIMessageOverrides = {
   "Past (relative date)": "Past",
@@ -903,7 +907,12 @@ export function translateEidosFileUI(
 ): string {
   const template =
     overrides[message] ??
-    (locale === "zh" ? zh[message] : en[message]) ??
+    (locale === "zh"
+      ? zh[message]
+      : locale === "pt-BR"
+        ? ptBR[message]
+        : undefined) ??
+    en[message] ??
     message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),

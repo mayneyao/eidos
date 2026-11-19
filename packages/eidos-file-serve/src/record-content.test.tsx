@@ -24,10 +24,13 @@ describe("browser record content integration", () => {
   it("uses English editor defaults or Chinese mobile labels without changing interaction options", () => {
     const english = getMobileMarkdownOptions("en")
     const chinese = getMobileMarkdownOptions("zh")
+    const portuguese = getMobileMarkdownOptions("pt-BR")
     expect(english.labels).toBeUndefined()
     expect(chinese.labels?.hideKeyboard).toBe("收起键盘")
     expect(chinese.labels?.imageSettings).toBe("图片设置")
     expect(english.interactions).toEqual(chinese.interactions)
+    expect(portuguese.locale).toBe("pt-BR")
+    expect(portuguese.interactions).toEqual(english.interactions)
   })
   it("focuses the existing editor on each explicit title navigation request", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)

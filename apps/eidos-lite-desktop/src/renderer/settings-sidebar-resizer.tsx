@@ -15,6 +15,7 @@ export const SETTINGS_SIDEBAR_WIDTH_KEY = "eidos-lite:settings-sidebar-width"
 const RESIZE_LABELS = {
   en: "Resize settings sidebar",
   zh: "调整设置侧边栏宽度",
+  "pt-BR": "Ajustar a largura da barra lateral de configurações",
 } as const
 
 function storedWidth(): number {

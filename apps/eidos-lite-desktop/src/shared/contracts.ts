@@ -877,7 +877,15 @@ export interface EidosLiteAppInfo {
 }
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
-export type EidosLiteLanguage = "system" | "en" | "zh"
+export type EidosLiteLanguage = "system" | "en" | "zh" | "pt-BR"
+
+export function isEidosLiteLanguage(
+  value: unknown
+): value is EidosLiteLanguage {
+  return (
+    value === "system" || value === "en" || value === "zh" || value === "pt-BR"
+  )
+}
 export type EidosLiteAutomaticSync = "off" | "interval" | "on-change"
 export type EidosLiteTerminalLayout = "bottom" | "side"
 export type EidosLiteMarkdownEditingMode = "source" | "wysiwyg"

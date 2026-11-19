@@ -1,8 +1,12 @@
 import english from "../locales/en.json"
+import brazilianPortuguese from "../locales/pt-BR.json"
 
-export type MobileLocale = "zh" | "en"
+export type MobileLocale = "zh" | "en" | "pt-BR"
 export function resolveMobileLocale(language: string): MobileLocale {
-  return language.toLowerCase().split(/[-_]/)[0] === "zh" ? "zh" : "en"
+  const primary = language.toLowerCase().split(/[-_]/)[0]
+  if (primary === "zh") return "zh"
+  if (primary === "pt") return "pt-BR"
+  return "en"
 }
 
 let locale = resolveMobileLocale(
@@ -35,8 +39,14 @@ export function getMobileLocale(): MobileLocale {
   return locale
 }
 
+export function getMobileLocaleTag(): string {
+  return locale === "zh" ? "zh-CN" : locale
+}
+
+const ptBR: Record<string, string> = brazilianPortuguese
+
 export function mobileText(source: string): string {
-  return locale === "en"
-    ? ((english as Record<string, string>)[source] ?? source)
-    : source
+  if (locale === "zh") return source
+  const fallback = (english as Record<string, string>)[source] ?? source
+  return locale === "pt-BR" ? (ptBR[source] ?? fallback) : fallback
 }

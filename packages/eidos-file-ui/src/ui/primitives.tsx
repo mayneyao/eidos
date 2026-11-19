@@ -345,6 +345,8 @@ export function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  const { locale, translate } = useEidosFileUI()
+  const portuguese = locale === "pt-BR"
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -396,6 +398,33 @@ export function Calendar({
         ),
       }}
       {...props}
+      labels={
+        props.labels ??
+        (portuguese
+          ? {
+              labelDay: (date) =>
+                date.toLocaleDateString(locale, { dateStyle: "full" }),
+              labelWeekday: (date) =>
+                date.toLocaleDateString(locale, { weekday: "long" }),
+              labelPrevious: () => translate("Previous month"),
+              labelNext: () => translate("Next month"),
+            }
+          : undefined)
+      }
+      formatters={
+        props.formatters ??
+        (portuguese
+          ? {
+              formatCaption: (date) =>
+                date.toLocaleDateString(locale, {
+                  month: "long",
+                  year: "numeric",
+                }),
+              formatWeekdayName: (date) =>
+                date.toLocaleDateString(locale, { weekday: "short" }),
+            }
+          : undefined)
+      }
     />
   )
 }

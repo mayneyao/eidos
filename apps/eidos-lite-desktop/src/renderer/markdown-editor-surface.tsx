@@ -134,7 +134,7 @@ export function MarkdownEditorSurface({
     },
     [imageAttachments]
   )
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const documentFileDrop = useMemo(
     () => ({
       ...spaceFileDocumentDrop,
@@ -378,6 +378,7 @@ export function MarkdownEditorSurface({
               inputProfile === "document" ? relativePath : undefined
             }
             shortcuts={markdownShortcuts}
+            locale={locale}
             labels={{
               findInDocument: t("Find in document"),
               noTextMatches: t("No matches"),

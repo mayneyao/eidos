@@ -1,7 +1,10 @@
 import type { EidosLiteLanguage } from "./contracts"
+import brazilianPortuguese from "./locales/pt-BR.json"
 
 export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
+
+const ptBR: Record<string, string> = brazilianPortuguese
 
 const zh: Record<string, string> = {
   "Always hide system fields in records": "始终在记录页中隐藏系统字段",
@@ -2131,7 +2134,10 @@ export function resolveEidosLiteLocale(
   systemLocale: string
 ): EidosLiteLocale {
   if (preference !== "system") return preference
-  return systemLocale.toLowerCase().startsWith("zh") ? "zh" : "en"
+  const language = systemLocale.toLowerCase().split(/[-_]/)[0]
+  if (language === "zh") return "zh"
+  if (language === "pt") return "pt-BR"
+  return "en"
 }
 
 export function translateEidosLite(
@@ -2139,7 +2145,8 @@ export function translateEidosLite(
   message: string,
   values: EidosLiteMessageValues = {}
 ): string {
-  const template = locale === "zh" ? (zh[message] ?? message) : message
+  const catalog = locale === "zh" ? zh : locale === "pt-BR" ? ptBR : undefined
+  const template = catalog?.[message] ?? message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
     template

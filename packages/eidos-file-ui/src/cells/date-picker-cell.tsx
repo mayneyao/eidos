@@ -37,6 +37,7 @@ interface DatePickerCellProps {
   readonly kind: "date-picker-cell"
   readonly date: Date | undefined
   readonly displayDate: string
+  readonly locale?: string
   readonly format: "date" | "datetime-local"
   readonly timeZone?: string
   readonly calendarTimeZoneData?: string | null
@@ -328,7 +329,8 @@ export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
               finalDate,
               format,
               timeZone,
-              calendarTimeZoneData
+              calendarTimeZoneData,
+              cellData.locale
             )
           : "",
       },
@@ -383,7 +385,8 @@ const renderer: CustomRenderer<DatePickerCell> = {
             newDate,
             format,
             d.timeZone,
-            d.calendarTimeZoneData
+            d.calendarTimeZoneData,
+            d.locale
           )
         : "",
     }

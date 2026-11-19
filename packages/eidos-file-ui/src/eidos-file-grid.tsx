@@ -446,7 +446,8 @@ function viewColumnStats(
 
 function columnStatHint(
   result: EidosFileColumnStatResult,
-  field: EidosFileFieldInfo
+  field: EidosFileFieldInfo,
+  locale?: string
 ): string {
   const label = eidosFileColumnStatLabel(result.type)
   if (result.value === null) return `${label}: —`
@@ -454,7 +455,7 @@ function columnStatHint(
   const percentage =
     result.type === "percent-checked" || result.type === "percent-unchecked"
   const maximumFractionDigits = result.type === "average" || percentage ? 2 : 12
-  const value = new Intl.NumberFormat(undefined, {
+  const value = new Intl.NumberFormat(locale, {
     maximumFractionDigits,
   }).format(result.value)
   if (
@@ -518,12 +519,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     assetSession,
     keyboardShortcuts,
     interactionMode,
+    locale,
     onPendingEditChange,
     themeName,
     timeZone,
     translate: t,
     calendarTimeZoneData,
   } = useEidosFileUI()
+  const displayLocale = locale === "pt-BR" ? locale : undefined
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
   const {
@@ -1564,14 +1567,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           ...(stat && configured?.type === stat.type
             ? {
                 trailingRowOptions: {
-                  hint: columnStatHint(stat, field),
+                  hint: columnStatHint(stat, field, displayLocale),
                   addIcon: EIDOS_FILE_EMPTY_STAT_ICON,
                 },
               }
             : {}),
         }
       }),
-    [columnStatConfigs, columnStatResults, fields, widths]
+    [columnStatConfigs, columnStatResults, displayLocale, fields, widths]
   )
   const gridConfig = useMemo(
     () => ({
@@ -1669,7 +1672,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         view?.properties?.textWrapping === true,
         timeZone,
         codeFontFamily,
-        calendarTimeZoneData
+        calendarTimeZoneData,
+        displayLocale
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -1788,6 +1792,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       activateUrl,
       cacheRevision,
       codeFontFamily,
+      displayLocale,
       fields,
       gridWriteLocked,
       onImportFiles,

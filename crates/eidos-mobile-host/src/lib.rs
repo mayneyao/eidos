@@ -241,14 +241,14 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
             Ok(json!({"snapshot": snapshot, "objects": objects}))
         }
         "create" => {
-            let chinese = request["locale"]
+            let language = request["locale"]
                 .as_str()
                 .and_then(|locale| locale.split(['-', '_']).next())
-                .is_some_and(|language| language.eq_ignore_ascii_case("zh"));
-            let (table_name, title_name, notes_name) = if chinese {
-                ("记录", "标题", "笔记")
-            } else {
-                ("Records", "Title", "Notes")
+                .map(str::to_ascii_lowercase);
+            let (table_name, title_name, notes_name) = match language.as_deref() {
+                Some("zh") => ("记录", "标题", "笔记"),
+                Some("pt") => ("Registros", "Título", "Notas"),
+                _ => ("Records", "Title", "Notes"),
             };
             let snapshot = call(&host, "getSnapshot", json!({}))?;
             let plan = call(

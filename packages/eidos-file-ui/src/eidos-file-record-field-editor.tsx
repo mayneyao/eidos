@@ -117,6 +117,7 @@ function FieldEditorControl({
   const {
     activateUrl,
     timeZone,
+    locale,
     interactionMode,
     translate: t,
     calendarTimeZoneData,
@@ -129,7 +130,18 @@ function FieldEditorControl({
   const value = row[field.tableColumnName]
   const formattedNumber =
     inspector && field.type === "number" && !focused
-      ? eidosFileValueToGridCell(field, value)
+      ? eidosFileValueToGridCell(
+          field,
+          value,
+          false,
+          row,
+          undefined,
+          false,
+          timeZone,
+          undefined,
+          calendarTimeZoneData,
+          locale === "pt-BR" ? locale : undefined
+        )
       : null
   const [draft, setDraft] = useState(
     field.type === "datetime"

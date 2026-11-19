@@ -1,4 +1,7 @@
-import type { EidosLitePreferences } from "../shared/contracts"
+import {
+  isEidosLiteLanguage,
+  type EidosLitePreferences,
+} from "../shared/contracts"
 import { isEidosLiteBuiltInPlugins } from "../shared/built-in-plugins"
 import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import { isEidosLiteMenuOrders } from "../shared/menu-orders"
@@ -41,11 +44,7 @@ export function eidosLitePreferencesPatch(
     patch.appearance = candidate.appearance
   }
   if ("language" in candidate) {
-    if (
-      candidate.language !== "system" &&
-      candidate.language !== "en" &&
-      candidate.language !== "zh"
-    ) {
+    if (!isEidosLiteLanguage(candidate.language)) {
       throw new Error("Invalid language preference")
     }
     patch.language = candidate.language

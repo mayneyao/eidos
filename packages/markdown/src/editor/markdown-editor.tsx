@@ -57,6 +57,7 @@ import type {
   MarkdownFileCompletionLabels,
 } from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
+import { ptBRLabels } from "../locales/pt-BR"
 
 const DEFAULT_LABELS: MarkdownEditorLabels & MarkdownFileCompletionLabels = {
   imageSettings: "Image settings",
@@ -266,9 +267,12 @@ function MarkdownEditorImplementation({
   onImportFiles,
   resolveImageUrl,
   onError,
+  locale,
   labels,
-  placeholder = "Write with Markdown…",
-  ariaLabel = "Markdown editor",
+  placeholder = locale === "pt-BR"
+    ? "Escreva em Markdown…"
+    : "Write with Markdown…",
+  ariaLabel = locale === "pt-BR" ? "Editor Markdown" : "Markdown editor",
   readOnly = false,
   autoFocus = false,
   focusRequestToken = 0,
@@ -295,8 +299,11 @@ function MarkdownEditorImplementation({
     cancelled: boolean
   } | null>(null)
   const resolvedLabels = useMemo(
-    () => ({ ...DEFAULT_LABELS, ...labels }),
-    [labels]
+    () => ({
+      ...(locale === "pt-BR" ? ptBRLabels : DEFAULT_LABELS),
+      ...labels,
+    }),
+    [locale, labels]
   )
   const handleError = useCallback(
     (error: Error) => {

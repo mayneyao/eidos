@@ -160,7 +160,12 @@ function RecordPropertyPicker({
   onSearchRelation,
   onError,
 }: RecordPropertyEditorProps) {
-  const { translate: t, timeZone, calendarTimeZoneData } = useEidosFileUI()
+  const {
+    translate: t,
+    locale,
+    timeZone,
+    calendarTimeZoneData,
+  } = useEidosFileUI()
   const control = useRef<HTMLButtonElement>(null)
   const [session, setSession] = useState<Session | null>(null)
   const sessionToken = useRef(0)
@@ -204,7 +209,8 @@ function RecordPropertyPicker({
     true,
     timeZone,
     undefined,
-    calendarTimeZoneData
+    calendarTimeZoneData,
+    locale === "pt-BR" ? locale : undefined
   )
   const finish = (next?: GridCell, restoreFocus = closeFocus.current) => {
     const active = sessionRef.current

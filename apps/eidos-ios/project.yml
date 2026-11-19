@@ -47,7 +47,7 @@ targets:
         CFBundleDisplayName: Eidos
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        CFBundleLocalizations: [en, zh]
+        CFBundleLocalizations: [en, zh, pt-BR]
         CFBundleDevelopmentRegion: en
         UILaunchScreen: {}
         UIApplicationSceneManifest:
@@ -107,7 +107,7 @@ targets:
         CFBundleDisplayName: Eidos
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        CFBundleLocalizations: [en, zh]
+        CFBundleLocalizations: [en, zh, pt-BR]
         CFBundleDevelopmentRegion: en
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
