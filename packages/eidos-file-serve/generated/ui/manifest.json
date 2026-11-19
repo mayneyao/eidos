@@ -176,7 +176,7 @@
       "packages/eidos-file-ui/src/eidos-file-cell-actions.test.tsx": "2baa1f96c5d9d7df292b1faf38d4cb01059391645a1e641d509d6e4a57930824",
       "packages/eidos-file-ui/src/eidos-file-cell-actions.tsx": "87000a0107affdbb9d75eaf07efb40d407fa409c2dc49bd3e16475d589203006",
       "packages/eidos-file-ui/src/eidos-file-command-combobox.tsx": "eaedf149efe879be0ffd6d8e61fc1ee2bdbe5d14807e3fe3f546476906826e7a",
-      "packages/eidos-file-ui/src/eidos-file-create-record-button.test.tsx": "61a619beee94c3237c3b27ddcdfac49c2141d2846c7144c1fc888f53d7c6749e",
+      "packages/eidos-file-ui/src/eidos-file-create-record-button.test.tsx": "9974d72b5785c56d87a083c410cdc1a27458f95e55db8ac7160f7fd24c907e5f",
       "packages/eidos-file-ui/src/eidos-file-create-record-button.tsx": "1dc438cd194e79b72377d910a521647559391895ccb6160f0be1182428bfd427",
       "packages/eidos-file-ui/src/eidos-file-csv-export.test.ts": "22dfb674f8b62e0c9debd1b2fc23e130b5c0ed8909ea9bbbadca155f9e894934",
       "packages/eidos-file-ui/src/eidos-file-csv-export.ts": "c404be55b847728c51ea883d41e5f0c4858e15d84157feb050d0c7c3d71dbd85",
