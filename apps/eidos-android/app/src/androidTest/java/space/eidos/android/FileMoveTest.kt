@@ -118,16 +118,27 @@ class FileMoveTest {
         val app = compose.activity.application
         val id = SpaceCatalog(app).create("Move editor ${UUID.randomUUID()}").id
         val repository = SpaceRepository(app, id)
+        val root = File(app.filesDir, "spaces/$id")
         lateinit var model: EidosModel
         var initialized = false
         try {
             repository.create("", "Target", "folder")
-            val path = repository.create("", "Draft", "markdown")
-            repository.saveText(repository.readText(path).copy(text = "# Initial\n"))
+            repository.create("", "Source Notes", "folder")
+            val path = repository.create("Source Notes", "Draft", "markdown")
+            val image = File(root, "Source Notes/assets/My photo.png")
+            check(image.parentFile!!.mkdirs())
+            val bitmap = Bitmap.createBitmap(2, 3, Bitmap.Config.ARGB_8888)
+            try {
+                image.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            } finally { bitmap.recycle() }
+            val imageBytes = image.readBytes()
+            val imageLoaded = "document.querySelector('img[alt=Attachment]')?.naturalWidth === 2"
+            repository.saveText(repository.readText(path).copy(text = "# Initial\n\n![Attachment](assets/My%20photo.png)\n"))
             compose.runOnUiThread { model = EidosModel(app, repository); initialized = true; compose.activity.setContent { EidosApp(model) } }
             idle(model)
             compose.runOnUiThread { model.open(SpaceFile(path, "Draft.md", false, 0, 0)) }
             waitJs("document.querySelector('.eme-content-editable h1')?.textContent === 'Initial' && typeof window.eidosFlush === 'function'")
+            waitJs(imageLoaded)
             compose.waitUntil(15_000) { compose.onAllNodes(hasContentDescription(tr("文件操作")) and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
             js("""(() => { const root = document.querySelector('.eme-content-editable'); root.focus();
                 const range = document.createRange(); range.selectNodeContents(root.querySelector('h1'));
@@ -139,12 +150,18 @@ class FileMoveTest {
             compose.onNodeWithContentDescription(tr("文件操作")).performClick()
             compose.onNodeWithText(tr("移动到…")).performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("move-file-sheet").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(tr("Space 根目录")).performClick()
             selectFolder("Target")
             confirmMove()
             compose.waitUntil(15_000) { !model.state.value.busy && model.state.value.webFile?.path == "Target/Draft.md" }
             waitJs("document.querySelector('.eme-content-editable')?.textContent.includes('Latest offline content')")
-            assertTrue(repository.readText("Target/Draft.md").text.contains("Latest offline content"))
-            assertFalse(File(app.filesDir, "spaces/$id/Draft.md").exists())
+            val moved = repository.readText("Target/Draft.md").text
+            assertTrue(moved.contains("Latest offline content"))
+            assertTrue(moved, moved.contains("![Attachment](../Source%20Notes/assets/My%20photo.png)"))
+            waitJs(imageLoaded)
+            assertFalse(File(root, path).exists())
+            assertArrayEquals(imageBytes, image.readBytes())
+            assertEquals(listOf("Draft.md"), File(root, "Target").list()!!.toList())
             compose.onNodeWithContentDescription(tr("返回文件")).performClick()
             compose.waitUntil(10_000) { model.state.value.webFile == null && !model.state.value.busy }
             compose.runOnUiThread { compose.activity.setContent {}; model.viewModelScope.cancel() }
@@ -153,6 +170,7 @@ class FileMoveTest {
             idle(model)
             compose.runOnUiThread { model.open(SpaceFile("Target/Draft.md", "Draft.md", false, 0, 0)) }
             waitJs("document.querySelector('.eme-content-editable')?.textContent.includes('Latest offline content')")
+            waitJs(imageLoaded)
             screenshot(app, "move-401-editor-reopen.png")
             assertNull(model.state.value.error)
         } finally {
@@ -182,6 +200,42 @@ class FileMoveTest {
                 assertEquals(path, repository.recent().single().path)
             } finally { directory.setWritable(true, true) }
         } finally { directory.setWritable(true, true); repository.deleteLocalSpace() }
+    }
+
+    @Test fun failedMarkdownRewriteKeepsOriginalDocumentAndAttachment(): Unit = runBlocking {
+        val app = compose.activity.application
+        val id = SpaceCatalog(app).create("Move rewrite failure ${UUID.randomUUID()}").id
+        var available = Long.MAX_VALUE
+        val repository = SpaceRepository(app, id, StorageSpace { available })
+        val root = File(app.filesDir, "spaces/$id")
+        try {
+            repository.create("", "Target", "folder")
+            repository.create("", "Source", "folder")
+            val path = repository.create("Source", "Note", "markdown")
+            val text = "![image](picture.png)\r\n"
+            val bytes = byteArrayOf(1, 2, 3, 4)
+            val attachment = File(root, "Source/picture.png").apply { writeBytes(bytes) }
+            repository.saveText(repository.readText(path).copy(text = text))
+            repository.setFavorite(Favorite(path, "Note.md"), true)
+            val existing = repository.create("Target", "Note", "markdown")
+            repository.saveText(repository.readText(existing).copy(text = "# existing destination"))
+            assertTrue(runCatching { repository.move(path, "Target") }.isFailure)
+            assertEquals("# existing destination", repository.readText(existing).text)
+            assertEquals(text, repository.readText(path).text)
+            assertArrayEquals(bytes, attachment.readBytes())
+
+            repository.create("", "Other", "folder")
+            available = 0
+            val failure = runCatching { repository.move(path, "Other") }.exceptionOrNull()
+            assertTrue(failure.toString(), failure is java.io.IOException)
+            assertEquals(text, File(root, path).readText())
+            assertTrue(repository.files("Other").isEmpty())
+            assertArrayEquals(bytes, attachment.readBytes())
+            assertEquals("# existing destination", repository.readText(existing).text)
+            assertEquals(path, repository.favorites().single().path)
+            assertTrue(repository.recent().any { it.path == path })
+            assertTrue(repository.recent().none { it.path == "Other/Note.md" })
+        } finally { repository.deleteLocalSpace() }
     }
 
     @Test fun nativeMovePickerCancelsRejectsCollisionAndReturnsFileToRoot(): Unit = runBlocking {
@@ -216,7 +270,6 @@ class FileMoveTest {
             assertEquals("# preserved\n", repository.readText("Note.md").text)
             compose.onNodeWithText(tr("Space 根目录")).performClick()
             selectFolder("Target")
-            compose.onNodeWithText(tr("单独移动文件可能使相对链接和附件失效。移动整个文件夹可保留内部相对关系。")).assertIsDisplayed()
             screenshot(app, "move-401-picker.png")
             confirmMove()
             compose.waitUntil(5000) { !model.state.value.busy && model.state.value.files.none { it.path == "Note.md" } }

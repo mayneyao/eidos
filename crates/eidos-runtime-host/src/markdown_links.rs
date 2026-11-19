@@ -1,10 +1,14 @@
-//! Link maintenance for same-folder Markdown renames in native hosts.
+//! Link maintenance for Markdown file operations in native hosts.
 use anyhow::{ensure, Result};
-use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, CONTROLS};
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use percent_encoding::{
+    percent_decode_str, utf8_percent_encode, AsciiSet, CONTROLS, NON_ALPHANUMERIC,
+};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use std::{fs, ops::Range, path::Path};
+
+const MAX_MARKDOWN_BYTES: u64 = 2 * 1024 * 1024;
 
 const URI: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -19,6 +23,12 @@ const URI: &AsciiSet = &CONTROLS
     .add(b'?')
     .add(b'%')
     .add(b'\\');
+const MOVED_URI: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~')
+    .remove(b'/');
 
 fn normalize(value: &str) -> Option<String> {
     let mut parts = vec![];
@@ -32,6 +42,19 @@ fn normalize(value: &str) -> Option<String> {
         }
     }
     Some(parts.join("/"))
+}
+
+fn parent(path: &str) -> &str {
+    path.rsplit_once('/').map_or("", |(parent, _)| parent)
+}
+
+fn relative_destination(from: &str, to: &str) -> String {
+    let from: Vec<_> = from.split('/').filter(|p| !p.is_empty()).collect();
+    let to: Vec<_> = to.split('/').collect();
+    let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    [vec![".."; from.len() - shared], to[shared..].to_vec()]
+        .concat()
+        .join("/")
 }
 
 fn destination(
@@ -52,10 +75,7 @@ fn destination(
     let suffix_start = value.find(['#', '?']).unwrap_or(value.len());
     let original = &value[..suffix_start];
     let decoded = percent_decode_str(original).decode_utf8().ok()?;
-    let parent = owner
-        .rsplit_once('/')
-        .map(|(parent, _)| parent)
-        .unwrap_or("");
+    let parent = parent(owner);
     let candidates = [
         normalize(decoded.trim_start_matches('/')),
         normalize(&format!("{parent}/{decoded}")),
@@ -108,12 +128,7 @@ fn destination(
     } else if decoded.starts_with('/') {
         format!("/{target}")
     } else {
-        let from: Vec<_> = parent.split('/').filter(|p| !p.is_empty()).collect();
-        let to: Vec<_> = target.split('/').collect();
-        let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
-        [vec![".."; from.len() - shared], to[shared..].to_vec()]
-            .concat()
-            .join("/")
+        relative_destination(parent, target)
     };
     if wiki && !decoded.ends_with(".md") && !decoded.ends_with(".markdown") {
         if let Some(stem) = next
@@ -239,7 +254,7 @@ pub fn prepare(root: &Path, request: &Value) -> Result<Value> {
         file.to_lowercase().ends_with(".md") || file.to_lowercase().ends_with(".markdown")
     }) {
         let path = root.join(file);
-        if fs::metadata(&path)?.len() > 2 * 1024 * 1024 {
+        if fs::metadata(&path)?.len() > MAX_MARKDOWN_BYTES {
             continue;
         }
         let bytes = fs::read(&path)?;
@@ -258,6 +273,194 @@ pub fn prepare(root: &Path, request: &Value) -> Result<Value> {
         }
     }
     Ok(json!({"changes":changes}))
+}
+
+/// Pulldown borrows plain destinations directly from the source. A destination with
+/// escapes or entities owns its decoded text, so locate its token after the label.
+fn raw_destination<'a>(dest: &CowStr<'a>, after_label: &'a str) -> Option<&'a str> {
+    if let CowStr::Borrowed(raw) = dest {
+        return Some(raw);
+    }
+    let tail = after_label.trim_start_matches(|c: char| c.is_ascii_whitespace());
+    if tail.is_empty() {
+        return None;
+    }
+    let angled = tail.starts_with('<');
+    let raw = if angled { &tail[1..] } else { tail };
+    let mut depth = 0;
+    let mut chars = raw.char_indices().peekable();
+    while let Some((index, c)) = chars.next() {
+        match c {
+            '\\' if chars.peek().is_some_and(|(_, c)| c.is_ascii_punctuation()) => {
+                chars.next();
+            }
+            '>' if angled => return Some(&raw[..index]),
+            ')' if !angled && depth == 0 => return Some(&raw[..index]),
+            c if !angled && c.is_ascii_whitespace() => return Some(&raw[..index]),
+            '(' if !angled => depth += 1,
+            ')' if !angled => depth -= 1,
+            _ => {}
+        }
+    }
+    (!angled).then_some(raw)
+}
+
+fn source_range(text: &str, slice: &str) -> Option<Range<usize>> {
+    let start = (slice.as_ptr() as usize).checked_sub(text.as_ptr() as usize)?;
+    let end = start.checked_add(slice.len())?;
+    (end <= text.len()).then_some(start..end)
+}
+
+fn moved_relative_destination(
+    root: &Path,
+    source: &str,
+    target: &str,
+    value: &str,
+) -> Option<String> {
+    let path = value.split(['#', '?']).next()?;
+    if path.is_empty() || path.starts_with('/') || path.split('/').next()?.contains(':') {
+        return None;
+    }
+    let decoded = percent_decode_str(path).decode_utf8().ok()?;
+    if decoded.starts_with('/')
+        || decoded.chars().any(|c| c == '\\' || c.is_ascii_control())
+        || decoded
+            .split('/')
+            .any(|part| part.starts_with('.') && part != "." && part != "..")
+    {
+        return None;
+    }
+    let before = normalize(&format!("{}/{decoded}", parent(source)))?;
+    let original = root.join(&before);
+    if !original.is_file() || original.canonicalize().ok()? != original {
+        return None;
+    }
+    let after = if before == source { target } else { &before };
+    if normalize(&format!("{}/{decoded}", parent(target))).as_deref() == Some(after) {
+        return None;
+    }
+    Some(utf8_percent_encode(&relative_destination(parent(target), after), MOVED_URI).to_string())
+}
+
+fn rewrite_document_move(text: &str, root: &Path, source: &str, target: &str) -> String {
+    let parser = Parser::new_ext(
+        text,
+        Options::ENABLE_TABLES | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS,
+    );
+    let mut replacements = vec![];
+    let mut collect = |dest: &CowStr<'_>, after_label: &str| {
+        let Some(next) = moved_relative_destination(root, source, target, dest) else {
+            return;
+        };
+        let Some(raw) = raw_destination(dest, after_label) else {
+            return;
+        };
+        let mut path_len = raw.find(['#', '?']).unwrap_or(raw.len());
+        if !matches!(dest, CowStr::Borrowed(_)) {
+            // Check the token against the parser before editing an escaped destination.
+            // Numeric entities in the path and entity-encoded URL delimiters are ambiguous
+            // here, so leave the source intact if the path token can't be isolated.
+            path_len = raw[..path_len].trim_end_matches('\\').len();
+            let candidate = format!("[x](<{}>)", &raw[..path_len]);
+            let parsed_path = dest.split(['#', '?']).next().unwrap_or_default();
+            if !Parser::new(&candidate).any(|event| {
+                matches!(event, Event::Start(Tag::Link { dest_url, .. }) if dest_url.as_ref() == parsed_path)
+            }) {
+                return;
+            }
+        }
+        if let Some(span) = source_range(text, &raw[..path_len]).filter(|span| !span.is_empty()) {
+            let next = if text[..span.start].ends_with('<') {
+                next.replace("%20", " ")
+            } else {
+                next
+            };
+            replacements.push((span, next));
+        }
+    };
+    for (_, definition) in parser.reference_definitions().iter() {
+        let raw = &text[definition.span.clone()];
+        let after_label = raw
+            .match_indices("]:")
+            .find(|&(index, _)| {
+                (index - raw[..index].trim_end_matches('\\').len()).is_multiple_of(2)
+            })
+            .map_or("", |(index, _)| &raw[index + 2..]);
+        collect(&definition.dest, after_label);
+    }
+    let mut links = vec![];
+    let mut last_end = 0;
+    for (event, range) in parser.into_offset_iter() {
+        match event {
+            Event::Start(
+                Tag::Link {
+                    link_type,
+                    dest_url,
+                    ..
+                }
+                | Tag::Image {
+                    link_type,
+                    dest_url,
+                    ..
+                },
+            ) => {
+                links.push((link_type, dest_url));
+                last_end = range.start;
+            }
+            Event::End(TagEnd::Link | TagEnd::Image) => {
+                if let Some((LinkType::Inline, dest)) = links.pop() {
+                    let after_label = text
+                        .get(last_end..range.end)
+                        .and_then(|tail| tail.split_once("]("))
+                        .map_or("", |(_, tail)| tail);
+                    collect(&dest, after_label);
+                }
+                last_end = range.end;
+            }
+            _ => last_end = range.end,
+        }
+    }
+    replacements.sort_by_key(|(span, _)| span.start);
+    let mut result = text.to_owned();
+    for (span, replacement) in replacements.into_iter().rev() {
+        result.replace_range(span, &replacement);
+    }
+    result
+}
+
+/// Prepare the moving document's outbound links before the host changes its location.
+pub fn prepare_document_move(root: &Path, request: &Value) -> Result<Value> {
+    let source = request["source"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("Missing source"))?;
+    let target = request["target"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("Missing target"))?;
+    ensure!(
+        [source, target]
+            .iter()
+            .all(|path| { !path.is_empty() && normalize(path).as_deref() == Some(path) }),
+        "Invalid link path"
+    );
+    let root = root.canonicalize()?;
+    let path = root.join(source).canonicalize()?;
+    ensure!(
+        path == root.join(source) && path.is_file(),
+        "Invalid document path"
+    );
+    if parent(source) == parent(target) || fs::metadata(&path)?.len() > MAX_MARKDOWN_BYTES {
+        return Ok(json!({}));
+    }
+    let bytes = fs::read(path)?;
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return Ok(json!({}));
+    };
+    let rewritten = rewrite_document_move(text, &root, source, target);
+    Ok(if rewritten == text {
+        json!({})
+    } else {
+        json!({"text":rewritten,"version":format!("{:x}",Sha256::digest(&bytes))})
+    })
 }
 
 #[cfg(test)]
@@ -282,5 +485,50 @@ mod tests {
             ),
             "[[Old]] [url](https://example.com/a/Old.md)"
         );
+    }
+
+    #[test]
+    fn document_move_rebases_only_resolved_relative_paths_from_the_old_folder() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let root = directory.path().canonicalize()?;
+        fs::create_dir_all(root.join("Notes with spaces/assets"))?;
+        fs::create_dir_all(root.join("Archive/2026"))?;
+        for name in ["photo one.png", "photo(2).png", "a&b.png"] {
+            fs::write(root.join("Notes with spaces/assets").join(name), b"fixture")?;
+        }
+        fs::write(root.join("table.eidos"), b"fixture")?;
+        let source = "Notes with spaces/Note.md";
+        let target = "Archive/2026/Note.md";
+        let text = concat!(
+            "![main](assets/photo%20one.png \"assets/photo%20one.png\")\r\n\r\n",
+            "![angle](<assets/photo one.png>) ![ref][photo]\r\n\r\n",
+            "[photo]: assets/photo%20one.png?v=1&amp;x=2#part 'Title'\r\n\r\n",
+            "![escaped](assets/photo\\(2\\).png) ![entity](assets/a&amp;b.png)\r\n\r\n",
+            "[other](../table.eidos#section) [self](./Note.md#section)\r\n\r\n",
+            "[web](https://example.test/assets/photo%20one.png) [email](mailto:a@b.test)\r\n",
+            "![root](/Notes%20with%20spaces/assets/photo%20one.png) ![missing](assets/no.png)\r\n",
+            "![outside](../../secret.png) [fragment](#section)\r\n",
+            "\x60![code](assets/photo%20one.png)\x60\r\n",
+        );
+        fs::write(root.join(source), text)?;
+        let plan = prepare_document_move(&root, &json!({"source": source, "target": target}))?;
+        assert_eq!(
+            plan["text"].as_str().unwrap(),
+            concat!(
+                "![main](../../Notes%20with%20spaces/assets/photo%20one.png \"assets/photo%20one.png\")\r\n\r\n",
+                "![angle](<../../Notes with spaces/assets/photo one.png>) ![ref][photo]\r\n\r\n",
+                "[photo]: ../../Notes%20with%20spaces/assets/photo%20one.png?v=1&amp;x=2#part 'Title'\r\n\r\n",
+                "![escaped](../../Notes%20with%20spaces/assets/photo%282%29.png) ![entity](../../Notes%20with%20spaces/assets/a%26b.png)\r\n\r\n",
+                "[other](../../table.eidos#section) [self](./Note.md#section)\r\n\r\n",
+                "[web](https://example.test/assets/photo%20one.png) [email](mailto:a@b.test)\r\n",
+                "![root](/Notes%20with%20spaces/assets/photo%20one.png) ![missing](assets/no.png)\r\n",
+                "![outside](../../secret.png) [fragment](#section)\r\n",
+                "\x60![code](assets/photo%20one.png)\x60\r\n",
+            )
+        );
+        assert_eq!(plan["version"], format!("{:x}", Sha256::digest(text)));
+        assert_eq!(fs::read_to_string(root.join(source))?, text);
+        assert!(!root.join(target).exists());
+        Ok(())
     }
 }

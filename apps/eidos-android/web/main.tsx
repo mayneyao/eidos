@@ -100,6 +100,9 @@ function Markdown({
   useMobilePlugins(request, true)
   const [text, setText] = useState(document.text ?? "")
   const [documentPath, setDocumentPath] = useState(document.path)
+  const imageRoot = `https://appassets.androidplatform.net/document/${session}/`
+  const folder = documentPath.split("/").slice(0, -1).map(encodeURIComponent)
+  const baseUri = folder.length ? `${imageRoot}${folder.join("/")}/` : imageRoot
   const [error, setError] = useState("")
   const digest = useRef(document.digest!)
   const latest = useRef(text)
@@ -215,16 +218,10 @@ function Markdown({
               mediaType: file.mediaType,
             }))
           }}
-          baseUri={`https://appassets.androidplatform.net/document/${session}/`}
+          baseUri={baseUri}
           resolveImageUrl={async ({ markdownUrl }) => {
-            const url = new URL(
-              markdownUrl,
-              `https://appassets.androidplatform.net/document/${session}/`
-            )
-            return url.origin === location.origin &&
-              url.pathname.startsWith(`/document/${session}/`)
-              ? url.href
-              : null
+            const url = new URL(markdownUrl, baseUri)
+            return url.href.startsWith(imageRoot) ? url.href : null
           }}
           onOpenExternalUrl={async (url) => {
             await finish()

@@ -19,10 +19,11 @@ Open a file or folder's **…** menu (or long-press its row), then choose
 An existing name blocks the move; files are never overwritten. Moving an open
 editor first saves its pending changes. Unresolved recovery drafts block moves.
 Files and nested folders retain their contents, favorites and recent-file paths.
-Moves appear in subsequent local checkpoints and sync; they work offline without
-an account. Relative links and attachment paths stored inside documents remain
-unchanged. Move the containing folder together with its `assets` folder to keep
-those relationships, or adjust references after moving an individual document.
+Moves appear in subsequent local checkpoints and sync and work offline. When
+you move an editable Markdown file, its relative Markdown links to existing
+files in the Space are updated to point to the same files. Attachments stay
+where they are. For a database that uses relative attachment paths, move its
+containing folder with its assets to keep those paths valid.
 
 Open a file's action menu and choose **Delete** to remove it from the Space.
 The editor saves pending changes before asking the host to remove an open file;
