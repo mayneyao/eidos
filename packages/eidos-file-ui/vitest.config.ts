@@ -7,12 +7,16 @@ const directory = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@eidos.space/eidos-file": path.resolve(
-        directory,
-        "../eidos-file/src/index.ts"
-      ),
-    },
+    alias: [
+      {
+        find: /^@eidos\.space\/eidos-file-ui$/,
+        replacement: path.resolve(directory, "src/index.ts"),
+      },
+      {
+        find: "@eidos.space/eidos-file",
+        replacement: path.resolve(directory, "../eidos-file/src/index.ts"),
+      },
+    ],
   },
   test: {
     environment: "jsdom",

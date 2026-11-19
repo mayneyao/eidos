@@ -71,7 +71,7 @@ async function fixture() {
 
 it("creates through the one trailing toolbar slot with applied filters and now defaults in all record Views", async () => {
   const f = await fixture(),
-    created = vi.fn(),
+    created = vi.fn<(result: EidosFileRowMutationResult) => void>(),
     error = vi.fn()
   try {
     for (const type of ["grid", "gallery", "calendar", "kanban", "feed"]) {
@@ -104,11 +104,15 @@ it("creates through the one trailing toolbar slot with applied filters and now d
         ),
       ]
       expect(buttons.map((b) => b.textContent)).toEqual(["Fields", "New"])
+      const expectedCreations = created.mock.calls.length + 1
       await act(async () => {
         buttons.at(-1)!.click()
-        await new Promise((r) => setTimeout(r, 0))
+        await vi.waitFor(() => {
+          expect(error).not.toHaveBeenCalled()
+          expect(created).toHaveBeenCalledTimes(expectedCreations)
+        })
       })
-      const result = created.mock.lastCall![0] as EidosFileRowMutationResult
+      const result = created.mock.lastCall![0]
       expect(result.row[f.flag.id], type).toBe(true)
       expect(result.row[f.day.id], type).toBe("2026-11-17")
       expect(

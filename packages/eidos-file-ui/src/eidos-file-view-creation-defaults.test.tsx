@@ -143,6 +143,14 @@ it("Grid, Gallery, Calendar and Kanban create through captured View filters and 
       capture.result = null
       capture.pending = null
       capture.field = field(type === "calendar" ? "Day" : "State")
+      let resolveToolbarCreation!: (result: EidosFileRowMutationResult) => void
+      let rejectToolbarCreation!: (error: unknown) => void
+      const toolbarCreation = new Promise<EidosFileRowMutationResult>(
+        (resolve, reject) => {
+          resolveToolbarCreation = resolve
+          rejectToolbarCreation = reject
+        }
+      )
       const view = {
         ...base,
         type,
@@ -184,10 +192,9 @@ it("Grid, Gallery, Calendar and Kanban create through captured View filters and 
                 view={view}
                 onCreated={(result) => {
                   capture.result = result
+                  resolveToolbarCreation(result)
                 }}
-                onError={(error) => {
-                  throw error
-                }}
+                onError={rejectToolbarCreation}
               />
             ) : (
               <EidosFileEditorView
@@ -206,7 +213,7 @@ it("Grid, Gallery, Calendar and Kanban create through captured View filters and 
       )
       await act(async () => {
         container.querySelector("button")!.click()
-        await capture.pending
+        await (type === "gallery" ? toolbarCreation : capture.pending)
       })
       expect(capture.result, type).not.toBeNull()
       const row = capture.result!.row
