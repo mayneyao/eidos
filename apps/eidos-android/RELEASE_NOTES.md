@@ -1,38 +1,29 @@
-# Eidos Android 0.7.0
+# Eidos Android 0.8.0
 
-This update improves Checkbox fields and image editing. Android 9 or newer is
-required.
+Open and edit tables that use the date features introduced in Eidos Lite
+0.35.1. Android 9 or newer is required.
 
-## Checkbox fields
+## Relative dates in saved views
 
-New Checkbox fields start unchecked and store checked or unchecked values.
-Clearing a new Checkbox returns it to unchecked. Existing nullable Checkbox
-fields and their empty cells remain unchanged.
+Saved filters such as **Past 7 days** and **This week** move forward with the
+calendar and use the configured time zone. You can open tables with these
+filters and create records from the filtered view.
 
-Converting a column to Checkbox shows how many empty cells will become
-unchecked and asks for confirmation. A changed column requires a fresh review
-before the conversion can proceed.
+## Editable date defaults
 
-## Editor fixes
+A Date or Datetime field can start with the current date or time when you
+create a record. You can edit the value afterward. New records also inherit
+field values when the active view's filters determine them.
 
-- Tapping an empty image block opens Android's image picker. Canceling leaves
-  the document unchanged.
-- Tapping an existing image opens its touch controls. Save, Cancel and Android
-  Back return to editing; image changes persist after leaving and reopening
-  the document.
-- The Custom server heading and description in Sync now follow the selected
-  English interface language.
-- The Save record button stays above share-form fields and can be tapped when
-  saving shared text or attachments to a table.
-- Checking or unchecking a Checkbox in a share form now saves correctly.
+Update each client that edits a shared file before applying these features.
+Older clients may reject files that require the new date rules.
 
 ## Install and testing scope
 
-Download `eidos-android-0.7.0.apk` and verify it against `SHA256SUMS`. Install over
-the previous stable APK to retain local data. Signed GitHub APKs support ARM64
-and x86-64. Google Play distribution is not configured.
+Download `eidos-android-0.8.0.apk` and verify it against `SHA256SUMS`. Install
+over the previous stable APK to retain local data. The GitHub APK supports
+ARM64 and x86-64.
 
-Acceptance uses Android emulators for native Runtime writes, Checkbox creation
-and conversion, image-picker and touch-editor exits, offline save/reopen, and
-an in-place upgrade from the public 0.6.0 APK. Physical-device testing and a full
-TalkBack pass are outside this release's verification scope.
+The date workflow was exercised in an Android emulator, including legacy
+records, relative views, creation defaults, and editing and reopening a
+record. Release validation checks the signed APK and 16 KB alignment.
