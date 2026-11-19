@@ -143,26 +143,55 @@ If the worktree contains unrelated changes, leave them untouched and determine
 whether the release can proceed safely. Stop if the branch is behind or
 diverged unless the user explicitly authorizes another source commit.
 
-## Recover an empty failed tag attempt
+## Retry an unpublished release
 
-Recreate a failed tag only when all conditions hold:
+Keep the planned version when a release attempt fails before public
+distribution. GitHub Actions build artifacts, internal candidates, and
+unpublished drafts are compatible with retrying the same tag.
 
-1. The tag was created during the current release attempt.
-2. Its workflow failed.
-3. The failed run has zero uploaded artifacts.
-4. No GitHub Release exists for the tag.
-5. No consumer could reasonably have received the tag.
+- If the commit is ready and only a runner, credential, or external service
+  failed, use `gh run rerun "$run_id" --failed`. GitHub Actions reruns use the
+  original SHA.
+- If the fix changes the commit, or the publisher needs a fresh trigger,
+  delete and recreate the same tag at the validated remote commit. Finish or
+  cancel any runs still active for that tag first. If the failed run left a
+  draft, discard that draft before publishing from a different commit so its
+  assets cannot carry over.
+- A published GitHub Release (including a prerelease), a public installer or
+  update for that version, or a published package version makes the tag
+  immutable. Investigate verification failures against the published version.
+  When the fix requires different distributed bytes, prepare a new version.
 
-Prove the conditions before deleting a tag:
+Record the existing ref before checking the failed run and the distribution
+channel. Use the authenticated GitHub Release list to see drafts and published
+Releases. A failed query leaves the publication state unresolved. If no run
+started, skip `gh run view` after checking that no run is active for the tag.
 
 ```bash
-gh run view <run-id> --json status,conclusion,headSha,url
-gh api repos/<owner>/<repo>/actions/runs/<run-id>/artifacts --jq '.total_count'
-gh release view <tag>
+set -euo pipefail
+ref="refs/tags/$tag"
+failed_ref="$(git ls-remote --exit-code --refs origin "$ref" | cut -f1)"
+test -n "$failed_ref"
+gh run view "$run_id" --json status,conclusion,headSha,url,jobs
+gh api --paginate "repos/$repo/releases?per_page=100" |
+  jq --arg tag "$tag" '.[] | select(.tag_name == $tag) | {id, draft, published_at, html_url}'
 ```
 
-Otherwise prepare a new version or prerelease number. Never move a tag with a
-Release, artifact, or plausible consumer.
+Record the failed run and old tag SHA. During an authorized release retry, use
+the exact ref and the validated remote `candidate_sha`. The lease protects
+against another operator updating the tag after it was checked.
+
+```bash
+git push --force-with-lease="$ref:$failed_ref" origin ":$ref"
+if git show-ref --verify --quiet "$ref"; then git tag -d "$tag"; fi
+git tag "$tag" "$candidate_sha"
+git push origin "$ref:$ref"
+test "$(git ls-remote --exit-code --refs origin "$ref" | cut -f1)" = "$candidate_sha"
+```
+
+Confirm the new remote SHA and monitor the run for that SHA. For a
+dispatch-driven publisher, dispatch it from the recreated tag. A retry of the
+same version keeps its release notes and media scoped to that version.
 
 ## Prove publication
 

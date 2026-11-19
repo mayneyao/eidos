@@ -89,6 +89,13 @@ merge commit immediately before publication; it does not read performance report
 the separate Intel acceptance job, the Worker deployment, and the final Release
 job.
 
+If the run fails before the version is publicly available, keep the same
+version. Rerun failed jobs for the same commit or recreate the unpublished
+tag when the fix needs a new commit. Internal build artifacts and release
+drafts allow a retry. Follow the
+[unpublished release retry](../../../.codex/skills/eidos-release/SKILL.md#retry-an-unpublished-release)
+procedure and keep tags for publicly available Releases and installers.
+
 The packaged smoke also typechecks a plugin against the SDK and TypeScript
 libraries inside the actual `app.asar`, rejects invalid source, and exercises
 the packaged native esbuild binary. Every development and release build first

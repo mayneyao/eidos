@@ -56,12 +56,15 @@ validates an artifact without publishing a GitHub Release.
 ## Publish and prove delivery
 
 After authorized preparation, commit and push the reviewed release inputs,
-then create and push the immutable lightweight `android-v<versionName>` tag
+then create and push the lightweight `android-v<versionName>` tag
 at that exact remote commit. Monitor `build-and-release-android.yml` for the
 tag SHA. It runs unit tests, release lint, editor typechecking, APK signature
 verification and 16 KB ZIP alignment, then publishes a GitHub Release with
 `eidos-android-<versionName>.apk` and `SHA256SUMS`. Google Play publication is
 not configured; do not claim Play availability.
+
+Use the [same-version retry](../SKILL.md#retry-an-unpublished-release) if the
+target version has no public Release or distributed APK.
 
 Verify `/android` selects the new stable APK and `/android?channel=beta`
 selects the newest eligible APK. A prerelease must never enter the stable route.

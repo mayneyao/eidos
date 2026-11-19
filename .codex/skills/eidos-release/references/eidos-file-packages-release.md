@@ -80,7 +80,7 @@ tar -xOf "$artifact_dir/eidos.space-eidos-file-ui-<version>.tgz" \
 
 Do not tag or publish after a failed plan or artifact audit.
 
-## Publish from an immutable tag
+## Publish from the validated tag
 
 After the plan passes, verify the branch is still clean, pushed, and at the
 planned commit. Confirm that the local and remote tag do not exist. Create a
@@ -122,10 +122,12 @@ When verifying the UI package's scoped Runtime dependency, read the complete
 Do not pass `dependencies.@eidos.space/eidos-file` as an npm field selector:
 npm parses the scoped package name as path segments and returns an empty value.
 
-If a publication workflow fails after an immutable package tag is pushed but
-before either package reaches npm, keep that tag in place, fix the workflow,
-bump both packages to the next patch version, and repeat plan, artifact review,
-tag, and publish. Never move or replace the failed tag.
+If a publication workflow fails before either package reaches npm, keep the
+planned version and use the [same-version retry](../SKILL.md#retry-an-unpublished-release).
+Check both package versions in the registry. If the fix requires a new commit,
+rerun plan and artifact review, then dispatch publication from the recreated tag.
+Once either package is public, keep the tag and use the workflow's exact-byte
+retry path for any remaining package.
 
 If an older, non-retry-safe workflow publishes only part of the cohort, repair
 the workflow and trusted-publisher configuration, then bump the complete cohort

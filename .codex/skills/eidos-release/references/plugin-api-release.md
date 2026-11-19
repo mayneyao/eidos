@@ -82,10 +82,14 @@ test results. A failing or untested affected plugin/template blocks completion.
 Prepare adapted plugin archives and registry changes alongside SDK/tools and
 host candidates, before the stable host cutover. Use
 `.github/workflows/publish-plugin-packages.yml` in `plan` mode to inspect the
-shared SDK/tools version; publish from the exact immutable
+shared SDK/tools version; publish from the exact
 `plugin-packages-v<version>` tag through its `publish` mode. SDK publishes before
 tools. Inspect npm dist-tag handling before any prerelease; never let a candidate
 accidentally become `latest`.
+
+Use the [same-version retry](../SKILL.md#retry-an-unpublished-release) if the
+publisher fails before either package reaches npm. Keep the tag once a package
+is public.
 
 Verify the actual public npm tarballs against the reviewed artifacts before
 installing consumer dependencies. Version metadata and dist-tags can become

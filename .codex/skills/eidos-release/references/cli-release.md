@@ -130,8 +130,9 @@ checks each binary version, audits the single-release notes, creates the
 checksum manifest, and publishes the Release with the committed body in the
 same operation.
 
-Use the main skill's empty failed-tag recovery rules. Never move a CLI tag that
-has a Release, uploaded asset, or plausible consumer.
+Use the [same-version retry](../SKILL.md#retry-an-unpublished-release) before
+public distribution. Keep the tag once the CLI Release or installer for that
+version is public.
 
 ## Prove publication
 
