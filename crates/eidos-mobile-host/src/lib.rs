@@ -175,6 +175,9 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
     if method == "prepareMarkdownRenameLinks" {
         return eidos_runtime_host::markdown_links::prepare(path, &request);
     }
+    if method == "prepareMarkdownDocumentMove" {
+        return eidos_runtime_host::markdown_links::prepare_document_move(path, &request);
+    }
     if method == "checkIntegrity" {
         let connection = rusqlite::Connection::open_with_flags(
             path,

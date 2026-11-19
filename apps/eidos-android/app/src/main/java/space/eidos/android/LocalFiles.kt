@@ -107,12 +107,11 @@ class LocalFiles(
                 .onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(bytes))
                 .toString()
-        val hash =
-            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
-                "%02x".format(it)
-            }
-        return text to hash
+        return text to digest(bytes)
     }
+
+    private fun digest(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     fun writeText(relative: String, text: String, expectedDigest: String? = null): String {
         val target = resolve(relative)
@@ -126,6 +125,7 @@ class LocalFiles(
         val bytes = text.toByteArray(Charsets.UTF_8)
         require(bytes.size <= MAX_TEXT_BYTES) { tr("内容超过 2 MB") }
         storageSpace.requireBytes(staging ?: target.parentFile!!, bytes.size.toLong())
+        val writtenDigest = digest(bytes)
         val temporary = File.createTempFile(".eidos-write-", ".tmp", staging ?: target.parentFile)
         try {
             FileOutputStream(temporary).use { output ->
@@ -141,7 +141,7 @@ class LocalFiles(
         } finally {
             temporary.delete()
         }
-        return digest(target)
+        return writtenDigest
     }
 
     fun validName(value: String): String {

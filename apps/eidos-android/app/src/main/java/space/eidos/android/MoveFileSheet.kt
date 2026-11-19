@@ -50,7 +50,9 @@ internal fun MoveFileSheet(file: SpaceFile, model: EidosModel, busy: Boolean, cl
                 Text(tr("移动 {0}", file.name), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 IconButton(enabled = !busy, onClick = close) { Icon(Icons.Outlined.Close, tr("取消")) }
             }
-            Text(tr("单独移动文件可能使相对链接和附件失效。移动整个文件夹可保留内部相对关系。"), Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
+            if (!file.directory && file.eidos) {
+                Text(tr("单独移动文件可能使相对链接和附件失效。移动整个文件夹可保留内部相对关系。"), Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
+            }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (folder.isNotEmpty()) IconButton(enabled = !busy, onClick = { folder = folder.substringBeforeLast('/', "") }) {
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, tr("上一级目录"))

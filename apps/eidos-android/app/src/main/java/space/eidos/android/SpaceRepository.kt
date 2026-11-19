@@ -240,11 +240,9 @@ class SpaceRepository(
         }
 
     internal suspend fun embeddedImage(
-        document: String,
-        relative: String,
+        path: String,
     ): Pair<String, ByteArray> = io {
-        val folder = document.substringBeforeLast('/', "")
-        val target = local.resolve(if (folder.isEmpty()) relative else "$folder/$relative")
+        val target = local.resolve(path)
         val mime =
             when (target.extension.lowercase()) {
                 "png" -> "image/png"
@@ -1313,27 +1311,46 @@ class SpaceRepository(
                     .also { table -> table.put("path", relocated(table.getString("path"))) }
                     .toString()
             }
+        val movedMarkdown =
+            if (destination != null && source.isFile && entry(source).markdown) {
+                NativeRuntime.call(
+                    root.path,
+                    "prepareMarkdownDocumentMove",
+                    JSONObject().put("source", path).put("target", nextPath),
+                ).takeIf { it.has("text") }
+            } else null
         if (destination == null) Files.move(source.toPath(), target.toPath())
         else local.move(path, destination)
-        if (
-            !preferences
-                .edit()
-                .putString("personal.favorites", favorites.toString())
-                .putString("recent", nextRecent.toString())
-                .putString(
-                    "share.folder",
-                    relocated(preferences.getString("share.folder", "") ?: ""),
-                )
-                .putString("share.table", nextShareTable)
-                .commit()
-        ) {
-            Files.move(target.toPath(), source.toPath())
+        try {
+            check(
+                preferences
+                    .edit()
+                    .putString("personal.favorites", favorites.toString())
+                    .putString("recent", nextRecent.toString())
+                    .putString(
+                        "share.folder",
+                        relocated(preferences.getString("share.folder", "") ?: ""),
+                    )
+                    .putString("share.table", nextShareTable)
+                    .commit()
+            ) { tr("无法保存文件位置，请重试") }
+            // A failed atomic write leaves the original bytes at the destination.
+            if (movedMarkdown != null) {
+                local.writeText(nextPath, movedMarkdown.getString("text"), movedMarkdown.getString("version"))
+            }
+        } catch (failure: Exception) {
+            try {
+                Files.move(target.toPath(), source.toPath())
+            } catch (rollback: Exception) {
+                failure.addSuppressed(rollback)
+                throw failure
+            }
             // A failed commit still updates SharedPreferences' in-memory map.
             // Restore it as well as the filesystem; disk may remain unwritable.
             val restored = preferences.edit()
             previousSettings.forEach { (key, value) -> restored.putString(key, value) }
             restored.commit()
-            error(tr("无法保存文件位置，请重试"))
+            throw failure
         }
         if (destination == null && target.isFile && target.extension.lowercase() in listOf("md", "markdown")) {
             try {

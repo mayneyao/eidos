@@ -645,11 +645,15 @@ internal fun EmbeddedEditorScreen(
                                         } else if (
                                             path.startsWith(imagePrefix) && pool.owns(channel)
                                         ) {
+                                            val relative = path.removePrefix(imagePrefix)
+                                            // Markdown URLs are rooted at the Space within the session.
+                                            // .eidos content assets are scoped to the database's folder.
+                                            val folder = file.path.substringBeforeLast('/', "")
+                                            val imagePath =
+                                                if (file.markdown || folder.isEmpty()) relative
+                                                else "$folder/$relative"
                                             val image = runBlocking {
-                                                repository.embeddedImage(
-                                                    file.path,
-                                                    path.removePrefix(imagePrefix),
-                                                )
+                                                repository.embeddedImage(imagePath)
                                             }
                                             WebResourceResponse(
                                                 image.first,

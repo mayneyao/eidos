@@ -126,7 +126,11 @@ impl SessionHost {
             // Schema discovery between pages must not invalidate their cursor.
             if !matches!(
                 method,
-                "schema" | "searchSchema" | "searchRows" | "allocateFileEntry"
+                "schema"
+                    | "searchSchema"
+                    | "searchRows"
+                    | "allocateFileEntry"
+                    | "prepareMarkdownDocumentMove"
             ) {
                 self.close();
             }
