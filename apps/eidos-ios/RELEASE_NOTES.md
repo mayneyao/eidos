@@ -1,37 +1,29 @@
-# Eidos iOS 0.3.0
+# Eidos iOS 0.4.0
 
-Build 7 adds automatic downloads of committed desktop updates for paired local
-Spaces. Requires iOS 17
-or later. This build is intended for the existing TestFlight testing groups.
+Build 8 requires iOS 17 or later. Use a copy of your Space when testing.
 
 ## What's new
 
-- Paired Spaces check for committed desktop updates after launch or resume and
-  while idle. With Eidos Lite 0.31.0 or later on the same local network, clean
-  local history can advance automatically without opening an editor or taking
-  focus. Save a desktop checkpoint to make pending desktop edits available.
-- iOS background opportunities can perform the same download. iOS controls
-  scheduling; updates are not immediate or guaranteed while suspended, offline,
-  force-quit, or restricted by system permissions.
-- Automatic downloads preserve local edits, recovery drafts and independent
-  commits. Opening an editor cancels the automatic operation. Automatic downloads
-  do not upload phone changes, create checkpoints, merge, or resolve conflicts;
-  use manual Sync for those workflows.
+- Open tables with relative date filters from Eidos Lite 0.35.1. Saved views
+  such as **Past 7 days** and **This week** follow the calendar in the
+  configured time zone.
+- Date and Datetime fields can start with the current date or time when you
+  create a record. These values remain editable. New records also inherit
+  field values when the active view's filters determine them. Update the apps
+  that edit the same file before enabling the new date features.
+- Connect to an encrypted repository on a compatible self-hosted Graft server
+  from Sync → Custom server. Access the repository with your server access key
+  and unlock it with the Space's sync password.
 
 ## What to test
 
-Update from the previous TestFlight build and confirm existing Spaces, notes,
-attachments, favorites and local history remain available. Edit and reopen a
-note while offline. Pair with Eidos Lite 0.31.0 or later, save a desktop
-checkpoint, then return to the iOS app and check that a clean paired Space
-receives it. Repeat with an unsaved recovery draft, an open editor, local file
-changes and an independent local checkpoint; those changes must remain intact.
+Update from TestFlight build 7 and confirm your existing Spaces and files are
+still available. Open a table with Date and Datetime fields, switch between
+relative date views, then create a record. Check its defaults, change a date,
+save, and reopen the file offline.
 
-This iteration uses simulator validation. Actual system background wakeups,
-locked-device file/Keychain protection and physical TestFlight installation are
-outside that coverage. Simulator execution of the foreground catch-up and native
-background task body does not establish natural BGProcessing scheduling.
+If you use self-hosted Sync, try a test repository over HTTPS. Confirm a
+correct sync password opens the encrypted repository and a wrong password
+leaves the local copy unchanged.
 
-This is a TestFlight build, not an App Store release. Apple processing and
-external testing review are reported separately from archive and upload status.
 This TestFlight build is not intended for distribution in France.
