@@ -25,6 +25,7 @@ import {
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
 import { useEidosFileUI } from "./context"
+import { getEidosFileUIFormattingLocale } from "./i18n"
 import { eidosFileValueEditor } from "./eidos-file-value-editor"
 import {
   eidosFileValueToGridCell,
@@ -210,7 +211,7 @@ function RecordPropertyPicker({
     timeZone,
     undefined,
     calendarTimeZoneData,
-    locale === "pt-BR" ? locale : undefined
+    getEidosFileUIFormattingLocale(locale)
   )
   const finish = (next?: GridCell, restoreFocus = closeFocus.current) => {
     const active = sessionRef.current

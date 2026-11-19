@@ -79,6 +79,15 @@ class AppLanguageUiTest {
             val portuguese = File(directory, "portuguese.eidos")
             NativeRuntime.call(portuguese.path, "create", request)
             assertEquals(setOf("Registros", "Título", "Notas"), names(portuguese).toSet())
+            for ((locale, expected) in listOf(
+                "ja" to setOf("レコード", "タイトル", "メモ"),
+                "ko" to setOf("레코드", "제목", "메모"),
+            )) {
+                compose.runOnUiThread { AppLanguage.set(context, locale) }
+                val localized = File(directory, "$locale.eidos")
+                NativeRuntime.call(localized.path, "create", request)
+                assertEquals(expected, names(localized).toSet())
+            }
             assertEquals(setOf("Records", "Title", "Notes"), names(english).toSet())
         } finally {
             compose.runOnUiThread { AppLanguage.set(context, original) }

@@ -63,6 +63,7 @@ import {
   useUndoRedo,
 } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
+import { getEidosFileUIFormattingLocale } from "./i18n"
 import { pendingEditEditor, useEidosFilePendingEdit } from "./use-pending-edit"
 import { useEidosFileUndo } from "./eidos-file-undo-scope"
 import { useEidosFileSearchFocus } from "./eidos-file-search-focus"
@@ -526,7 +527,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     translate: t,
     calendarTimeZoneData,
   } = useEidosFileUI()
-  const displayLocale = locale === "pt-BR" ? locale : undefined
+  const displayLocale = getEidosFileUIFormattingLocale(locale)
   useGlideDataGridPortal(themeName)
   const containerRef = useRef<HTMLDivElement>(null)
   const {

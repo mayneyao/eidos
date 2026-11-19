@@ -248,6 +248,8 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
             let (table_name, title_name, notes_name) = match language.as_deref() {
                 Some("zh") => ("记录", "标题", "笔记"),
                 Some("pt") => ("Registros", "Título", "Notas"),
+                Some("ja") => ("レコード", "タイトル", "メモ"),
+                Some("ko") => ("레코드", "제목", "메모"),
                 _ => ("Records", "Title", "Notes"),
             };
             let snapshot = call(&host, "getSnapshot", json!({}))?;
@@ -325,8 +327,10 @@ mod tests {
             (0, Some("en"), ["Records", "Title", "Notes"]),
             (1, Some("zh"), ["记录", "标题", "笔记"]),
             (2, Some("zh-Hant-TW"), ["记录", "标题", "笔记"]),
-            (3, Some("ja-JP"), ["Records", "Title", "Notes"]),
-            (4, None, ["Records", "Title", "Notes"]),
+            (3, Some("ja-JP"), ["レコード", "タイトル", "メモ"]),
+            (4, Some("ko-KR"), ["레코드", "제목", "메모"]),
+            (5, Some("pt-BR"), ["Registros", "Título", "Notas"]),
+            (6, None, ["Records", "Title", "Notes"]),
         ] {
             let path = directory.path().join(format!("{index}.eidos"));
             execute(

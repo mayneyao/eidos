@@ -877,14 +877,20 @@ export interface EidosLiteAppInfo {
 }
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
-export type EidosLiteLanguage = "system" | "en" | "zh" | "pt-BR"
+const EIDOS_LITE_LANGUAGES = [
+  "system",
+  "en",
+  "zh",
+  "pt-BR",
+  "ja",
+  "ko",
+] as const
+export type EidosLiteLanguage = (typeof EIDOS_LITE_LANGUAGES)[number]
 
 export function isEidosLiteLanguage(
   value: unknown
 ): value is EidosLiteLanguage {
-  return (
-    value === "system" || value === "en" || value === "zh" || value === "pt-BR"
-  )
+  return EIDOS_LITE_LANGUAGES.some((language) => language === value)
 }
 export type EidosLiteAutomaticSync = "off" | "interval" | "on-change"
 export type EidosLiteTerminalLayout = "bottom" | "side"

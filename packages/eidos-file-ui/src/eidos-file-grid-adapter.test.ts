@@ -163,6 +163,45 @@ describe("Eidos File Grid adapter", () => {
     })
   })
 
+  it.each([
+    ["ja-JP", "2025/12/31"],
+    ["ko-KR", "2025. 12. 31."],
+  ])(
+    "uses %s for visible dates and numbers while keeping canonical values",
+    (locale, localDate) => {
+      const instant = "2026-01-01T00:30:00Z"
+      const date = eidosFileValueToGridCell(
+        field("datetime"),
+        instant,
+        false,
+        undefined,
+        undefined,
+        false,
+        "America/Sao_Paulo",
+        undefined,
+        undefined,
+        locale
+      )
+      expect(date).toMatchObject({
+        copyData: instant,
+        data: { displayDate: `${localDate} 21:30:00` },
+      })
+      const numeric = eidosFileValueToGridCell(
+        field("number"),
+        1234.5,
+        false,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        locale
+      )
+      expect(numeric).toMatchObject({ data: 1234.5, displayData: "1,234.5" })
+    }
+  )
+
   it("adapts direct select values to the shared Grid cell shape", () => {
     const select = field("select", {
       options: [{ name: "Todo" }, { name: "Done", color: "green" }],

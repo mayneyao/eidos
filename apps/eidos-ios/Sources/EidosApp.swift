@@ -9,7 +9,9 @@ struct EidosApp: App {
     init() { BackgroundSync.register() }
     var body: some Scene { WindowGroup {
         SpaceView()
-            .environment(\.locale, Locale(identifier: AppLanguage.resolve(language, languages: systemLanguages)))
+            .environment(\.locale, Locale(identifier: AppLanguage.regionalTag(
+                AppLanguage.resolve(language, languages: systemLanguages)
+            )))
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { systemLanguages = Locale.preferredLanguages }
             }

@@ -1,12 +1,13 @@
 import type { EidosLiteLanguage } from "./contracts"
 import brazilianPortuguese from "./locales/pt-BR.json"
+import japanese from "./locales/ja.json"
+import korean from "./locales/ko.json"
 
 export type EidosLiteLocale = Exclude<EidosLiteLanguage, "system">
 export type EidosLiteMessageValues = Record<string, string | number>
 
-const ptBR: Record<string, string> = brazilianPortuguese
-
 const zh: Record<string, string> = {
+  "Markdown content for {path}": "{path} 的 Markdown 内容",
   "Always hide system fields in records": "始终在记录页中隐藏系统字段",
   "Hide Record ID, Created, and Updated in all open records on this device.":
     "在此设备的所有记录页中隐藏记录 ID、创建时间和更新时间。",
@@ -2129,13 +2130,21 @@ const zh: Record<string, string> = {
     "“{name}” 正在等待电脑授权。请在 Eidos Lite 中接受或拒绝。",
 }
 
+const catalogs: Partial<Record<EidosLiteLocale, Record<string, string>>> = {
+  zh,
+  "pt-BR": brazilianPortuguese,
+  ja: japanese,
+  ko: korean,
+}
+
 export function resolveEidosLiteLocale(
   preference: EidosLiteLanguage,
   systemLocale: string
 ): EidosLiteLocale {
   if (preference !== "system") return preference
   const language = systemLocale.toLowerCase().split(/[-_]/)[0]
-  if (language === "zh") return "zh"
+  if (language === "zh" || language === "ja" || language === "ko")
+    return language
   if (language === "pt") return "pt-BR"
   return "en"
 }
@@ -2145,8 +2154,7 @@ export function translateEidosLite(
   message: string,
   values: EidosLiteMessageValues = {}
 ): string {
-  const catalog = locale === "zh" ? zh : locale === "pt-BR" ? ptBR : undefined
-  const template = catalog?.[message] ?? message
+  const template = catalogs[locale]?.[message] ?? message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
     template

@@ -36,6 +36,7 @@ import {
 import { Dialog } from "radix-ui"
 
 import { useEidosFileUI } from "./context"
+import { getEidosFileUIFormattingLocale } from "./i18n"
 import {
   eidosFileDateKey,
   eidosFileInstantFromWallDate,
@@ -876,7 +877,8 @@ export function EidosFileCalendarView({
     )
   }
 
-  const displayLocale = mobile || locale === "pt-BR" ? locale : undefined
+  const displayLocale =
+    getEidosFileUIFormattingLocale(locale) ?? (mobile ? locale : undefined)
   const todayKey = eidosFileDateKey(new Date(), timeZone, calendarTimeZoneData)
   const createMode = eidosFileCalendarCreateMode(dateField)
   const weekdayLabels = Array.from({ length: 7 }, (_, index) => {

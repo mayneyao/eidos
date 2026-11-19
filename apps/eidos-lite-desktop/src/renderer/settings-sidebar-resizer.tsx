@@ -16,6 +16,8 @@ const RESIZE_LABELS = {
   en: "Resize settings sidebar",
   zh: "调整设置侧边栏宽度",
   "pt-BR": "Ajustar a largura da barra lateral de configurações",
+  ja: "設定サイドバーの幅を調整",
+  ko: "설정 사이드바 너비 조절",
 } as const
 
 function storedWidth(): number {

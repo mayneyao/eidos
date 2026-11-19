@@ -417,7 +417,7 @@ export function MarkdownEditorSurface({
             searchNotes={searchNotes}
             readOnly={disabled}
             autoFocus={autoFocus || focusAfterModeSwitch}
-            ariaLabel={`Markdown content for ${relativePath}`}
+            ariaLabel={t("Markdown content for {path}", { path: relativePath })}
             focusRequestToken={focusRequestToken}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}

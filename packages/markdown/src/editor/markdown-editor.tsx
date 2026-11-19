@@ -58,6 +58,8 @@ import type {
 } from "../types"
 import { EfmSourceBlockProvider } from "../ui/efm-source-block-context"
 import { ptBRLabels } from "../locales/pt-BR"
+import { jaLabels } from "../locales/ja"
+import { koLabels } from "../locales/ko"
 
 const DEFAULT_LABELS: MarkdownEditorLabels & MarkdownFileCompletionLabels = {
   imageSettings: "Image settings",
@@ -251,6 +253,30 @@ function RequestedInternalNavigationPlugin({
   return null
 }
 
+const editorTranslations = {
+  "pt-BR": {
+    labels: ptBRLabels,
+    placeholder: "Escreva em Markdown…",
+    ariaLabel: "Editor Markdown",
+  },
+  ja: {
+    labels: jaLabels,
+    placeholder: "Markdown で入力…",
+    ariaLabel: "Markdown エディター",
+  },
+  ko: {
+    labels: koLabels,
+    placeholder: "Markdown으로 작성…",
+    ariaLabel: "Markdown 편집기",
+  },
+}
+
+function markdownEditorTranslation(locale: string | undefined) {
+  if (locale === "pt-BR" || locale === "ja" || locale === "ko") {
+    return editorTranslations[locale]
+  }
+}
+
 function MarkdownEditorImplementation({
   documentKey,
   markdown,
@@ -269,10 +295,9 @@ function MarkdownEditorImplementation({
   onError,
   locale,
   labels,
-  placeholder = locale === "pt-BR"
-    ? "Escreva em Markdown…"
-    : "Write with Markdown…",
-  ariaLabel = locale === "pt-BR" ? "Editor Markdown" : "Markdown editor",
+  placeholder = markdownEditorTranslation(locale)?.placeholder ??
+    "Write with Markdown…",
+  ariaLabel = markdownEditorTranslation(locale)?.ariaLabel ?? "Markdown editor",
   readOnly = false,
   autoFocus = false,
   focusRequestToken = 0,
@@ -300,7 +325,7 @@ function MarkdownEditorImplementation({
   } | null>(null)
   const resolvedLabels = useMemo(
     () => ({
-      ...(locale === "pt-BR" ? ptBRLabels : DEFAULT_LABELS),
+      ...(markdownEditorTranslation(locale)?.labels ?? DEFAULT_LABELS),
       ...labels,
     }),
     [locale, labels]

@@ -70,7 +70,12 @@ export * from "./eidos-file-row-window"
 export * from "./eidos-file-virtual-scroll"
 export * from "./eidos-file-error-message"
 export * from "./context"
-export * from "./i18n"
+export {
+  translateEidosFileUI,
+  type EidosFileUILocale,
+  type EidosFileUIMessageOverrides,
+  type EidosFileUIMessageValues,
+} from "./i18n"
 export * from "./data-source"
 export * from "./kernel"
 export * from "./platform"

@@ -18,6 +18,7 @@ import {
 import { Check, ChevronDown, ExternalLink, Plus, Star, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { getEidosFileUIFormattingLocale } from "./i18n"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import {
   eidosFileValueToGridCell,
@@ -140,7 +141,7 @@ function FieldEditorControl({
           timeZone,
           undefined,
           calendarTimeZoneData,
-          locale === "pt-BR" ? locale : undefined
+          getEidosFileUIFormattingLocale(locale)
         )
       : null
   const [draft, setDraft] = useState(

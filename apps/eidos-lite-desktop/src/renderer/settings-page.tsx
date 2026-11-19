@@ -82,6 +82,8 @@ const LANGUAGE_OPTIONS: Array<{
   { value: "en", label: "English" },
   { value: "zh", label: "Chinese" },
   { value: "pt-BR", label: "Português (Brasil)" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
 ]
 
 const MARKDOWN_EDITOR_OPTIONS: Array<{

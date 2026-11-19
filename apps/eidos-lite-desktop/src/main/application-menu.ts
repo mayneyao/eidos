@@ -22,7 +22,7 @@ export function eidosLiteApplicationMenuTemplate(
     message: string
   ): MenuItemConstructorOptions => ({
     role,
-    ...(locale === "pt-BR"
+    ...(locale === "pt-BR" || locale === "ja" || locale === "ko"
       ? { label: translateEidosLite(locale, message, { name: appName }) }
       : {}),
   })

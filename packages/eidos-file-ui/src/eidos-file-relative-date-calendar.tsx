@@ -75,7 +75,11 @@ export function EidosFileRelativeDateCalendar({
                   ? ["日", "一", "二", "三", "四", "五", "六"][day]
                   : locale === "pt-BR"
                     ? ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][day]
-                    : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][day]
+                    : locale === "ja"
+                      ? ["日", "月", "火", "水", "木", "金", "土"][day]
+                      : locale === "ko"
+                        ? ["일", "월", "화", "수", "목", "금", "토"][day]
+                        : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][day]
               return (
                 <th key={day} scope="col">
                   {label}

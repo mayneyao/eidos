@@ -20,8 +20,15 @@ describe("mobile language", () => {
   it("resolves Chinese variants and falls back to English", () => {
     for (const language of ["zh", "zh-CN", "zh-Hant-TW", "ZH_hk"])
       expect(resolveMobileLocale(language)).toBe("zh")
-    for (const language of ["en-US", "ja-JP", "", "unknown"])
+    for (const language of ["en-US", "", "unknown"])
       expect(resolveMobileLocale(language)).toBe("en")
+    for (const [language, region] of [
+      ["ja", "ja-JP"],
+      ["ko", "ko-KR"],
+    ]) {
+      expect(resolveMobileLocale(language)).toBe(language)
+      expect(resolveMobileLocale(region)).toBe(language)
+    }
   })
   it("switches shared UI and shell text without replacing the draft input", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -75,6 +82,19 @@ describe("mobile language", () => {
       expect(document.documentElement.lang).toBe("pt-BR")
       expect(host.querySelector("input")).toBe(draft)
       expect(draft.value).toBe("my draft")
+      for (const [region, locale, record, language] of [
+        ["ja-JP", "ja", "新しいレコード", "言語"],
+        ["ko-KR", "ko", "새 레코드", "언어"],
+      ]) {
+        await act(async () => setMobileLocale(region))
+        expect(
+          host.querySelector(`button[aria-label="${record}"]`)
+        ).not.toBeNull()
+        expect(host.querySelector("span")!.textContent).toBe(language)
+        expect(document.documentElement.lang).toBe(locale)
+        expect(host.querySelector("input")).toBe(draft)
+        expect(draft.value).toBe("my draft")
+      }
       await act(async () => setMobileLocale("zh-Hant"))
       expect(host.querySelector("span")!.textContent).toBe("语言")
       expect(host.querySelector("input")).toBe(draft)

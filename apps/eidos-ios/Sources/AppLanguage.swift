@@ -3,13 +3,15 @@ import SwiftUI
 enum AppLanguage {
     static let key = "app-language"
     static let defaults = UserDefaults(suiteName: "group.space.eidos.ios") ?? .standard
-    static let choices = ["system", "zh", "en", "pt-BR"]
+    static let choices = ["system", "zh", "en", "pt-BR", "ja", "ko"]
     static func resolve(_ preference: String, languages: [String]) -> String {
         if preference != "system", choices.contains(preference) { return preference }
         let language = languages.first?.lowercased().split(whereSeparator: { $0 == "-" || $0 == "_" }).first
         switch language {
         case "zh": return "zh"
         case "pt": return "pt-BR"
+        case "ja": return "ja"
+        case "ko": return "ko"
         default: return "en"
         }
     }
@@ -17,11 +19,20 @@ enum AppLanguage {
         resolve(defaults.string(forKey: key) ?? "system", languages: Locale.preferredLanguages)
     }
     static var localeTag: String {
-        let selected = locale
-        return selected == "zh" ? "zh-CN" : selected
+        regionalTag(locale)
+    }
+    static func regionalTag(_ language: String) -> String {
+        switch language {
+        case "zh": return "zh-CN"
+        case "ja": return "ja-JP"
+        case "ko": return "ko-KR"
+        default: return language
+        }
     }
     static let english = catalog("en")
     static let portuguese = catalog("pt-BR")
+    static let japanese = catalog("ja")
+    static let korean = catalog("ko")
     private static func catalog(_ language: String) -> [String: String] {
         guard let url = Bundle.main.url(forResource: language, withExtension: "json", subdirectory: "locales"),
               let data = try? Data(contentsOf: url),
@@ -85,15 +96,15 @@ enum AppLanguage {
 }
 
 func tr(_ source: String, _ arguments: Any...) -> String {
-    let template: String
+    let translation: String?
     switch AppLanguage.locale {
-    case "pt-BR":
-        template = AppLanguage.portuguese[source] ?? AppLanguage.english[source] ?? AppLanguage.customSyncEnglish[source] ?? source
-    case "en":
-        template = AppLanguage.english[source] ?? AppLanguage.customSyncEnglish[source] ?? source
-    default:
-        template = source
+    case "zh": translation = source
+    case "pt-BR": translation = AppLanguage.portuguese[source]
+    case "ja": translation = AppLanguage.japanese[source]
+    case "ko": translation = AppLanguage.korean[source]
+    default: translation = nil
     }
+    let template = translation ?? AppLanguage.english[source] ?? AppLanguage.customSyncEnglish[source] ?? source
     let pattern = try! NSRegularExpression(pattern: "\\{(\\d+)\\}")
     let result = NSMutableString(string: template)
     for match in pattern.matches(in: template, range: NSRange(template.startIndex..., in: template)).reversed() {
@@ -114,6 +125,8 @@ struct LanguageSettings: View {
                     Text("中文").tag("zh")
                     Text("English").tag("en")
                     Text("Português (Brasil)").tag("pt-BR")
+                    Text("日本語").tag("ja")
+                    Text("한국어").tag("ko")
                 }.pickerStyle(.inline)
             }
             .navigationTitle(tr("语言"))

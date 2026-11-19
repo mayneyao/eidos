@@ -3,6 +3,7 @@ import type { SelectionRange } from "@glideapps/glide-data-grid"
 import { NumericFormat } from "react-number-format"
 import type { NumberFormatValues } from "react-number-format/types/types.js"
 import { useEidosFileUI } from "../context"
+import { getEidosFileUIFormattingLocale } from "../i18n"
 
 interface Props {
   readonly value: number | undefined
@@ -28,7 +29,7 @@ function getDecimalSeparator(locale?: string) {
 const NumberOverlayEditor: React.FunctionComponent<Props> = (p) => {
   const { locale } = useEidosFileUI()
   const defaultDecimalSeparator = getDecimalSeparator(
-    locale === "pt-BR" ? locale : undefined
+    getEidosFileUIFormattingLocale(locale)
   )
   const {
     value,

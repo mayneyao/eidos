@@ -1,11 +1,11 @@
 import brazilianPortuguese from "./locales/pt-BR.json"
+import japanese from "./locales/ja.json"
+import korean from "./locales/ko.json"
 
-export type EidosFileUILocale = "en" | "zh" | "pt-BR"
+export type EidosFileUILocale = "en" | "zh" | "pt-BR" | "ja" | "ko"
 
 export type EidosFileUIMessageValues = Record<string, string | number>
 export type EidosFileUIMessageOverrides = Record<string, string>
-
-const ptBR: EidosFileUIMessageOverrides = brazilianPortuguese
 
 const en: EidosFileUIMessageOverrides = {
   "Past (relative date)": "Past",
@@ -899,6 +899,30 @@ const zh: EidosFileUIMessageOverrides = {
   "row id": "记录 ID",
 }
 
+const catalogs: Partial<
+  Record<EidosFileUILocale, EidosFileUIMessageOverrides>
+> = {
+  zh,
+  "pt-BR": brazilianPortuguese,
+  ja: japanese,
+  ko: korean,
+}
+
+export function getEidosFileUIFormattingLocale(
+  locale: EidosFileUILocale
+): string | undefined {
+  switch (locale) {
+    case "pt-BR":
+      return locale
+    case "ja":
+      return "ja-JP"
+    case "ko":
+      return "ko-KR"
+    default:
+      return undefined
+  }
+}
+
 export function translateEidosFileUI(
   locale: EidosFileUILocale,
   message: string,
@@ -906,14 +930,7 @@ export function translateEidosFileUI(
   overrides: Partial<EidosFileUIMessageOverrides> = {}
 ): string {
   const template =
-    overrides[message] ??
-    (locale === "zh"
-      ? zh[message]
-      : locale === "pt-BR"
-        ? ptBR[message]
-        : undefined) ??
-    en[message] ??
-    message
+    overrides[message] ?? catalogs[locale]?.[message] ?? en[message] ?? message
   return Object.entries(values).reduce(
     (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
     template

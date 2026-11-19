@@ -1,4 +1,5 @@
 {
+  "Markdown content for {path}": "Conteúdo Markdown de {path}",
   "Always hide system fields in records": "Sempre ocultar campos do sistema nos registros",
   "Hide Record ID, Created, and Updated in all open records on this device.": "Oculta o ID do registro e as datas de criação e atualização nos registros abertos neste dispositivo.",
   "Cut": "Recortar",

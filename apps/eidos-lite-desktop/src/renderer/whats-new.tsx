@@ -132,7 +132,7 @@ export function WhatsNewPage({
       ? "**中文** · [English](#whats-new-en)"
       : "[中文](#whats-new-zh) · **English**"
   const fallback =
-    locale === "pt-BR" && selectedLocale === null
+    locale !== "en" && locale !== "zh" && selectedLocale === null
       ? `${t("Release notes are available in English and Chinese.")}\n\n`
       : ""
   const content = `# Eidos Lite ${releaseVersion}\n\n${t("Current version")} · ${languages}\n\n${fallback}${notesLocale === "zh" ? chineseNotes : notes}\n\n[${t("View full release notes")} ↗](https://github.com/mayneyao/eidos/releases/tag/lite-v${releaseVersion})\n`

@@ -24,7 +24,7 @@ class EmbeddedEditorTest {
     private var previousHardwareKeyboardIme: String? = null
 
     @Test
-    fun webEditorFollowsBrazilianPortuguese() {
+    fun webEditorsFollowTheSelectedLanguage() {
         val app = compose.activity.application
         val original = AppLanguage.selected()
         val id = "locale-" + UUID.randomUUID()
@@ -34,6 +34,7 @@ class EmbeddedEditorTest {
         try {
             compose.runOnUiThread { AppLanguage.set(app, "pt-BR") }
             val path = runBlocking { repository.create("", "Arquivo de teste", "eidos") }
+            val note = runBlocking { repository.create("", "Markdown", "markdown") }
             val activeModel = EidosModel(app, repository)
             model = activeModel
             compose.runOnUiThread {
@@ -43,6 +44,15 @@ class EmbeddedEditorTest {
             compose.runOnUiThread { activeModel.open(runBlocking { repository.file(path) }) }
             waitJs("document.documentElement.lang === 'pt-BR' && typeof window.eidosFlush === 'function'")
             waitJs("document.querySelector('button[aria-label=\"Novo registro\"]') !== null")
+            for ((locale, record) in listOf("ja" to "新しいレコード", "ko" to "새 레코드")) {
+                compose.runOnUiThread { AppLanguage.set(app, locale) }
+                waitJs("document.documentElement.lang === '$locale'")
+                waitJs("document.querySelector('button[aria-label=\"$record\"]') !== null")
+            }
+            compose.runOnUiThread { activeModel.open(runBlocking { repository.file(note) }) }
+            waitJs("document.querySelector('[aria-label=\"Markdown 편집기\"]') !== null")
+            compose.runOnUiThread { AppLanguage.set(app, "ja") }
+            waitJs("document.querySelector('[aria-label=\"Markdown エディタ\"]') !== null")
         } finally {
             compose.runOnUiThread {
                 model?.viewModelScope?.cancel()

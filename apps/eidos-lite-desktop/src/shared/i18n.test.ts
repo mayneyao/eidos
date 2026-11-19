@@ -23,6 +23,22 @@ describe("Eidos Lite internationalization", () => {
     )
   })
 
+  it.each([
+    ["ja", "JA_jp", "言語", "レコード 2 件"],
+    ["ko", "KO_kr", "언어", "레코드 2개"],
+  ] as const)(
+    "resolves %s and localizes settings and records",
+    (locale, system, language, records) => {
+      expect(resolveEidosLiteLocale("system", locale)).toBe(locale)
+      expect(resolveEidosLiteLocale("system", system)).toBe(locale)
+      expect(resolveEidosLiteLocale(locale, "pt-BR")).toBe(locale)
+      expect(translateEidosLite(locale, "Language")).toBe(language)
+      expect(translateEidosLite(locale, "{count} records", { count: 2 })).toBe(
+        records
+      )
+    }
+  )
+
   it("translates Chinese copy and interpolates values", () => {
     expect(translateEidosLite("zh", "Settings")).toBe("设置")
     expect(

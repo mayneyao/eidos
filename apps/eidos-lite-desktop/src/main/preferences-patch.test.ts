@@ -3,7 +3,7 @@ import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
   it("accepts all supported language choices through IPC", () => {
-    for (const language of ["en", "zh", "pt-BR", "system"]) {
+    for (const language of ["en", "zh", "pt-BR", "ja", "ko", "system"]) {
       expect(eidosLitePreferencesPatch({ language })).toEqual({ language })
     }
     expect(() => eidosLitePreferencesPatch({ language: "pt-PT" })).toThrow(

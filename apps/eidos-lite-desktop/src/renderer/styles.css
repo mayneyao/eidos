@@ -999,7 +999,7 @@ body {
   min-width: 0;
   max-width: 50%;
   min-height: 1.75rem;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   border: 0;
   border-radius: 0.25rem;
   color: var(--ink);
