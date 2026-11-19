@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.3.0"
-    CURRENT_PROJECT_VERSION: 7
+    MARKETING_VERSION: "0.4.0"
+    CURRENT_PROJECT_VERSION: 8
     "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
 targets:
   EidosIOS:
