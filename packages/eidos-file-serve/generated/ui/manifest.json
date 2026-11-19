@@ -96,7 +96,7 @@
       "packages/eidos-file/src/protocol-types.ts": "40b8bc5521720f19f610262421f69b6581e08faf9d5f8ad05b92ba460a4e32e7",
       "packages/eidos-file/src/query.test.ts": "b2cea1e5e5e0f35cda9a2e21dd7ab0b1062fe591882c77b564341813d6e11b59",
       "packages/eidos-file/src/query.ts": "60e139fa5f04d110711372d55186c6288bab78cfc884774a5377552c9c4ff087",
-      "packages/eidos-file/src/quickjs/bridge.test.ts": "aa30c0662ee08e10ddc9c00cbcc65206e220b1b6010614519206b75b680e6757",
+      "packages/eidos-file/src/quickjs/bridge.test.ts": "45624f182253595ec9d6bcd722cafec5fdd956fc132afe0dec7254d80f0d04c2",
       "packages/eidos-file/src/quickjs/checkbox-wire.test.ts": "a14a334282f81f9edab33cb00783f72852a407eb55511b858a50ee8e3e2dec71",
       "packages/eidos-file/src/quickjs/cli-host.test.ts": "8ebba63186b8ca08e543eb76b39ae1b45e14dcccaaea873339cab3114503cddb",
       "packages/eidos-file/src/quickjs/expect-shim.ts": "093abe743bf696c9e56eceb7b588389c35c3a55ccaf19b49733307586b0402df",

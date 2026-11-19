@@ -70,6 +70,8 @@ describe("QuickJS ConnectionPort bridge (Node reference host)", () => {
         "rename-lossless-rewrite",
         "mutate-rows-1002",
         "record-neighbors",
+        "row-index",
+        "exact-source-instant-comparison",
         "file-name-search",
         "group-rows-first-page",
         "group-rows-continue-cursor",
@@ -80,6 +82,12 @@ describe("QuickJS ConnectionPort bridge (Node reference host)", () => {
         "lookup-evaluation-int64",
         "validate-full",
         "snapshot",
+        "checkbox-null-to-false",
+        "calendar-day-portable-profile",
+        "calendar-period-query-conformance-vectors",
+        "calendar-window-query-conformance-vectors",
+        "temporal-defaults-create-context-and-null",
+        "view-filter-creation-defaults-and-adjacent-number",
       ])
       database.close()
     },
