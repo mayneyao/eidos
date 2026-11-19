@@ -67,7 +67,12 @@ import { SettingsSidebarResizer } from "./settings-sidebar-resizer"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
-}> = [{ value: "system" }, { value: "light" }, { value: "dark" }]
+  label: string
+}> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+]
 
 const LANGUAGE_OPTIONS: Array<{
   value: EidosLiteLanguage
@@ -759,6 +764,7 @@ export function SettingsPage() {
                     <small>{t(SETTINGS.uiScale.summary)}</small>
                   </div>
                   <select
+                    className="settings-inline-picker"
                     aria-label={t(SETTINGS.uiScale.title)}
                     value={preferences.uiZoom ?? 1}
                     onChange={(event) =>
@@ -775,43 +781,33 @@ export function SettingsPage() {
                   </select>
                 </div>
                 <div
-                  className="settings-row settings-row-stacked"
+                  className="settings-row"
                   {...settingTarget(SETTINGS.appearance.id)}
                 >
                   <div className="settings-row-copy">
                     <strong>{t(SETTINGS.appearance.title)}</strong>
                     <small>{t(SETTINGS.appearance.summary)}</small>
                   </div>
-                  <div
-                    className="settings-segmented-control"
-                    role="radiogroup"
+                  <select
+                    className="settings-inline-picker"
                     aria-label={t(SETTINGS.appearance.title)}
+                    value={preferences.appearance}
+                    onChange={(event) =>
+                      void updatePreferences({
+                        appearance: event.currentTarget
+                          .value as EidosLiteAppearance,
+                      })
+                    }
                   >
                     {APPEARANCE_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={preferences.appearance === option.value}
-                        key={option.value}
-                        onClick={() =>
-                          void updatePreferences({
-                            appearance: option.value,
-                          })
-                        }
-                      >
-                        {t(
-                          option.value === "system"
-                            ? "System"
-                            : option.value === "light"
-                              ? "Light"
-                              : "Dark"
-                        )}
-                      </button>
+                      <option key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
                 <div
-                  className="settings-row settings-row-stacked"
+                  className="settings-row"
                   {...settingTarget(SETTINGS.language.id)}
                 >
                   <div className="settings-row-copy">
@@ -821,7 +817,7 @@ export function SettingsPage() {
                     </small>
                   </div>
                   <select
-                    className="settings-shell-select"
+                    className="settings-inline-picker"
                     aria-label={t(SETTINGS.language.title)}
                     aria-describedby="settings-language-description"
                     value={preferences.language}
@@ -840,7 +836,7 @@ export function SettingsPage() {
                   </select>
                 </div>
                 <div
-                  className="settings-row settings-row-stacked"
+                  className="settings-row"
                   {...settingTarget(SETTINGS.timeZone.id)}
                 >
                   <div className="settings-row-copy">

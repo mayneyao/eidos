@@ -265,7 +265,7 @@ export function TimeZonePicker({
       <button
         ref={triggerRef}
         type="button"
-        className="time-zone-trigger"
+        className="settings-inline-picker time-zone-trigger"
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
