@@ -3459,6 +3459,35 @@ body {
   background: var(--canvas);
 }
 
+.whats-new-prose {
+  display: contents;
+}
+
+.whats-new-prose:first-child > :first-child {
+  margin-top: 0;
+}
+
+.whats-new-demo {
+  margin: 1rem 0 1.4rem;
+}
+
+.whats-new-demo video,
+.whats-new-demo img {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 0.35rem;
+}
+
+.whats-new-demo img[hidden] {
+  display: none;
+}
+
+.whats-new-demo figcaption {
+  margin-top: 0.4rem;
+  color: var(--ink-muted);
+}
+
 .whats-new-welcome {
   height: 100dvh;
   display: grid;

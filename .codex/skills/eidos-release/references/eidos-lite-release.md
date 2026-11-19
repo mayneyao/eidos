@@ -180,9 +180,11 @@ its own release history.
 
 If the release includes demo media, follow [release-media.md](release-media.md).
 Draft the notes, record with synchronized bottom-of-video shortcut labels,
-review the final annotated files, upload and verify media, then backfill the
-changelog candidate and finalize both app-note languages before merging and
-tagging. Publish the website entry only after the product Release exists, using
+review the final annotated files, then upload and verify the media once.
+Compose and check both app-note languages, the English GitHub body and the
+changelog candidate from the same receipts before merging and tagging.
+The tag workflow checks the receipts and the bilingual Markdown before building.
+Publish the website entry after the product Release exists, using
 its real publication timestamp and verified public assets.
 
 Performance reports do not determine release readiness. Merge the release PR, check out its exact merge commit on the

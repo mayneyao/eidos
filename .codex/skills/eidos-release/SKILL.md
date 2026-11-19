@@ -43,7 +43,7 @@ not complete this release gate. Record evidence for unaffected entries too.
   original footage, using the standard capture profile and directly recorded
   native key timeline. Draft notes → record and
   review → upload and verify media →
-  place demos beside their feature descriptions and review the changelog →
+  compose and verify demos beside their feature descriptions in Lite, GitHub and the changelog →
   publish. A local-only recording request
   ends with reviewed local files and does not authorize publication.
 - **Plugin SDK/tools, registry plugins and templates:** read

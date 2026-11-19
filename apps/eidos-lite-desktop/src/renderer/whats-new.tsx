@@ -2,10 +2,16 @@ import { useCallback, useEffect, useState } from "react"
 import notes from "../../RELEASE_NOTES.md?raw"
 import chineseNotes from "../../RELEASE_NOTES.zh-CN.md?raw"
 import metadata from "../../package.json"
+import demoReceipts from "../../release-demos.json"
+import {
+  demoLinkLabel,
+  demoSections,
+  isReleaseDemo,
+  type NotesLocale,
+  type ReleaseDemo,
+} from "../shared/release-demos"
 import { useEidosLiteI18n } from "./i18n"
-import { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { renderSafeMarkdown } from "./markdown-preview"
-import type { ResolvedAppearance } from "./app-appearance"
 import {
   closeCurrentPage,
   navigateCurrentWindow,
@@ -15,6 +21,57 @@ import {
 
 const storageKey = "eidos-lite:whats-new:acknowledged"
 export const releaseVersion = metadata.version
+const releaseDemos = (
+  Array.isArray(demoReceipts) ? (demoReceipts as unknown[]) : []
+).filter((demo): demo is ReleaseDemo =>
+  isReleaseDemo(demo, `lite-v${releaseVersion}`)
+)
+
+function DemoVideo({
+  demo,
+  locale,
+}: {
+  demo: ReleaseDemo
+  locale: NotesLocale
+}) {
+  const [failed, setFailed] = useState(false)
+  const { src, poster, width, height, alt, caption } = demo.media
+  return (
+    <figure className="whats-new-demo">
+      {failed ? (
+        <img
+          src={poster}
+          alt={alt[locale]}
+          width={width}
+          height={height}
+          referrerPolicy="no-referrer"
+          onError={(event) => {
+            event.currentTarget.hidden = true
+          }}
+        />
+      ) : (
+        <video
+          src={src}
+          poster={poster}
+          width={width}
+          height={height}
+          aria-label={alt[locale]}
+          controls
+          playsInline
+          preload="none"
+          onError={() => setFailed(true)}
+        />
+      )}
+      <figcaption>
+        <a href={src} data-markdown-external="true">
+          {demoLinkLabel[locale]}
+        </a>
+        {" · "}
+        {caption[locale]}
+      </figcaption>
+    </figure>
+  )
+}
 
 export function hasUnseenRelease(
   previous: string | null,
@@ -81,13 +138,7 @@ export function useWhatsNew() {
   }
 }
 
-export function WhatsNewPage({
-  theme = "light",
-  standalone = false,
-}: {
-  theme?: ResolvedAppearance
-  standalone?: boolean
-}) {
+export function WhatsNewPage({ standalone = false }: { standalone?: boolean }) {
   const { t, locale } = useEidosLiteI18n()
   useEffect(() => {
     if (!standalone) return
@@ -157,34 +208,39 @@ export function WhatsNewPage({
         )
       }}
     >
-      {standalone ? (
-        <div className="markdown-preview-scroll">
-          <article
-            className="markdown-document"
-            onClick={(event) => {
-              const link = (
-                event.target as HTMLElement
-              ).closest<HTMLAnchorElement>("a[data-markdown-external='true']")
-              if (!link) return
-              event.preventDefault()
-              void window.eidosLite.openExternalUrl(link.href)
-            }}
-            dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(content) }}
-          />
-        </div>
-      ) : (
-        <MarkdownEditorSurface
-          documentKey={`whats-new:${releaseVersion}:${notesLocale}`}
-          relativePath="RELEASE_NOTES.md"
-          content={content}
-          editingMode="wysiwyg"
-          theme={theme}
-          layout="document"
-          disabled
-          autoFocus={false}
-          onChange={() => {}}
-        />
-      )}
+      <div className="markdown-preview-scroll">
+        <article
+          className="markdown-document"
+          onClick={(event) => {
+            if (!(event.target instanceof Element)) return
+            const link = event.target.closest<HTMLAnchorElement>(
+              "a[data-markdown-external='true']"
+            )
+            if (!link) return
+            event.preventDefault()
+            void window.eidosLite.openExternalUrl(link.href)
+          }}
+        >
+          {demoSections(content, releaseDemos, notesLocale).map(
+            (section, index) =>
+              Array.isArray(section) ? (
+                <div
+                  className="whats-new-prose"
+                  key={index}
+                  dangerouslySetInnerHTML={{
+                    __html: renderSafeMarkdown(section),
+                  }}
+                />
+              ) : (
+                <DemoVideo
+                  key={section.scenarioId}
+                  demo={section}
+                  locale={notesLocale}
+                />
+              )
+          )}
+        </article>
+      </div>
     </section>
   )
 }

@@ -25,10 +25,9 @@ For a release with media:
    fixtures. Approve the exact final video/poster hashes.
 5. Upload those files to the existing media service; verify public bytes,
    MIME/cache/CORS and HTTP 206 Range playback.
-6. Add the verified URLs and metadata to the matching website changelog
-   candidate. Place each demo after the feature text it illustrates. Finalize
-   app notes and verify placement and playback in every locale on desktop and
-   narrow layouts.
+6. Compose the bilingual app notes, English GitHub body and four-language
+   website candidate from the verified upload receipts. Verify placement
+   and playback after the corresponding feature text.
 7. Follow the surface runbook to merge the release PR, tag and verify public
    product artifacts. Complete the website entry with the actual publication
    timestamp and sources, verify and deploy it, then check the public pages.
@@ -227,16 +226,61 @@ private manifests and credentials local. Use immutable bundle-hash keys, reuse
 identical bytes and verify public files plus Range responses. Adding labels to
 already-published footage creates a new bundle/URL; never overwrite its old key.
 
-Use `published-media.json.media` in the matching `releaseTag` entry's `media`
-array in eidos.space `src/data/changelog.json`. Preserve actual dimensions,
-duration, poster, provenance distinctions and translated feature/alt/caption
-for every locale required by that checkout. Add `afterSection` with the exact
-matching `###` heading in each locale. Readers should encounter the video
-after the relevant explanation and before the next feature or category.
-Check placement in both the changelog list and the series detail. Keep the
-source Markdown identical to the tagged release notes. Do not add false publication dates
-for an unpublished release or modify Desktop Legacy's `src/data/releases.json`.
-After product publication, use the real timestamp and tagged note sources,
-run the website's changelog/source/locale/build gates and verify the deployed
-pages and annotated video playback. Keep media, product and website publication
-as separate reportable statuses, then clean up only task-owned processes.
+### Compose the release candidate
+
+Prepare fresh bilingual Markdown drafts and a JSON object mapping each
+`scenarioId` to the exact, unique `###` feature heading in all four locales.
+For example, one key may be `cover-wall-undo` with `en`, `zh`, `ja` and `ko`
+values. Review those headings against the content of the video. Supply a
+four-language `--copy-file` to the uploader for new recordings.
+
+```bash
+node scripts/release-media/lite-release.mjs compose --tag "$tag" \
+  --demo "$receipt" --sections "$headings" \
+  --out-dir "$candidate" --entry "$draft_website_entry"
+node scripts/release-media/lite-release.mjs check --tag "$tag" \
+  --notes-dir "$candidate" --entry "$candidate/changelog-entry.json"
+```
+
+Repeat `--demo` for each video. The command reads the drafts from the Lite app
+directory by default. Pass `--notes-dir` to read a separate draft directory.
+`--entry` is optional until the website translations are ready. The draft
+entry contains the target `tag` and `version`, Japanese and Korean notes, and
+any known website metadata. Leave publication fields pending in the draft until
+the public Release is verified. Use a local preview snapshot for unpublished
+candidates.
+
+Commit the generated `RELEASE_NOTES.md`, `RELEASE_NOTES.zh-CN.md` and
+`release-demos.json` alongside the Lite version. The notes contain a linked
+cover and a visible play link beneath the feature text. Lite replaces the
+cover with a native, click-to-play video. If playback fails, the poster and
+external link remain available when the media service is reachable. Bundled
+notes remain readable offline. GitHub publishes the committed English file
+on first creation. It renders the cover and opens the same MP4 through the
+link. The website keeps the tagged notes as source and renders the matching
+player in all four locales.
+
+The receipt binds an immutable URL to the intended release and scenario.
+Demo receipts currently target stable Lite tags. Use the exact release tag.
+Preserve the actual `capturedAppVersion`,
+source commit and localized recording caption even when the capture and
+release builds differ. Keep the website `media` array from the generated
+entry. For a release with zero demos, compose without `--demo` or
+`--sections` to generate an empty receipt array. Use fresh notes and commit
+that array alongside them.
+
+### Verify each surface
+
+Before tagging, run `check` against the committed source and draft website
+entry. Preview the website list and series detail, both Lite windows and
+both Lite languages. Check the current feature heading, identical MP4 and
+poster URLs, playback, and Lite's fallback with the media request blocked.
+Preview the English Markdown with GitHub's Markdown API. Verify that the cover
+and play link resolve to the reviewed media.
+
+After the Release exists, add the generated entry to `src/data/changelog.json`
+with the actual publication timestamp and verified source URLs. Run `check`
+with `--notes-dir` pointing to the tagged Lite files and `--changelog` pointing
+to the website snapshot. Run the website source, locale and build checks.
+Check the public GitHub body against the tag and confirm the rendered cover
+and link. Check the deployed list and series detail for all four languages.

@@ -199,8 +199,8 @@ Review the copy against the actual take. Only the historical
 Keys include release, scenario and a hash of the complete video/poster bundle.
 Existing identical objects are reused. Differing content at an immutable URL
 fails. After upload, the script reads back exact public bytes, MIME/cache headers
-and a 206 Range response; `published-media.json` provides the media entry for
-the existing website changelog model. Raw files, seed data, private manifest
+and a 206 Range response. `published-media.json` is the input for the Lite,
+GitHub and website release notes. Raw files, seed data, private manifest
 and credentials are never uploaded. Big video files do not enter Git.
 
 For a subsequent recording of an already opened demo, rerun `capture.mjs`
@@ -213,11 +213,12 @@ objects through the public media URL before uploading: the CDN can cache that
 404 and temporarily hide a newly uploaded object. Public reads start only
 after upload, and the public verification includes a real 206 Range response.
 
-Pass the generated `media` object to the website owner for the matching
-`releaseTag` entry. It includes bilingual feature/alt/caption and actual
-width/height/duration. The caption explicitly identifies the newer capture
-version. This script does not rewrite website data, deploy the account service,
-create release tags or edit published release-note bodies.
+Use `lite-release.mjs compose` with the verified receipt and localized feature
+headings to prepare all three surfaces. Preserve the actual capture version
+in the caption. Use `lite-release.mjs check` to verify the same release tag,
+video, poster and feature placement before publication. See the
+[release media runbook](../../.codex/skills/eidos-release/references/release-media.md#compose-the-release-candidate)
+for the commands and preview checks.
 
 Checks:
 
