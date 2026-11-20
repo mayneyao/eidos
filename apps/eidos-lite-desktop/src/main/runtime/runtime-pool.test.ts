@@ -29,6 +29,10 @@ vi.mock("electron", () => ({
 class FakeRuntimeUtilityProcess extends EventEmitter {
   readonly requests: RuntimeWorkerRequest[] = []
 
+  constructor(private readonly readOnly = false) {
+    super()
+  }
+
   postMessage(request: RuntimeWorkerRequest): void {
     this.requests.push(request)
     queueMicrotask(() => {
@@ -37,7 +41,7 @@ class FakeRuntimeUtilityProcess extends EventEmitter {
         ok: true,
         result:
           request.type === "open"
-            ? { tables: [] }
+            ? { snapshot: { tables: [] }, readOnly: this.readOnly }
             : request.type === "inspectMergeTables"
               ? []
               : request.type === "explorerSummary"
@@ -67,6 +71,55 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("keeps negotiated file access isolated from the writable Space after eviction", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-file-compat-pool-"))
+    )
+    const protectedWorker = new FakeRuntimeUtilityProcess(true)
+    const editableWorker = new FakeRuntimeUtilityProcess()
+    const reopenedWorker = new FakeRuntimeUtilityProcess(true)
+    vi.mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(protectedWorker as unknown as UtilityProcess)
+      .mockReturnValueOnce(editableWorker as unknown as UtilityProcess)
+      .mockReturnValueOnce(reopenedWorker as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/worker.js", 1)
+    try {
+      await writeFile(path.join(root, "protected.eidos"), "fixture")
+      await writeFile(path.join(root, "editable.eidos"), "fixture")
+
+      const protectedFile = await pool.open("protected.eidos")
+      expect(protectedFile.readOnly).toBe(true)
+      await expect(
+        pool.writableRelativePathForSession(protectedFile.sessionId)
+      ).rejects.toThrow("Eidos File is read-only")
+      await expect(
+        pool.call(protectedFile.sessionId, "insertRow", ["table", {}])
+      ).rejects.toThrow("Eidos File is read-only")
+      expect(protectedWorker.requests.map(({ type }) => type)).toEqual(["open"])
+
+      const editable = await pool.open("editable.eidos")
+      expect(editable.readOnly).toBe(false)
+      await expect(
+        pool.writableRelativePathForSession(editable.sessionId)
+      ).resolves.toBe("editable.eidos")
+      expect(editableWorker.requests.at(-1)?.type).toBe("assertAssetWritable")
+      await pool.call(editable.sessionId, "insertRow", ["table", {}])
+      expect(editableWorker.requests.at(-1)).toMatchObject({
+        method: "insertRow",
+      })
+
+      await expect(pool.open("protected.eidos")).resolves.toMatchObject({
+        sessionId: protectedFile.sessionId,
+        readOnly: true,
+      })
+      expect(reopenedWorker.requests.map(({ type }) => type)).toEqual(["open"])
+    } finally {
+      await pool.destroy()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("preserves read-only mode when workers reopen and rejects mutations before dispatch", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-readonly-pool-"))
     const workers: FakeRuntimeUtilityProcess[] = []
@@ -212,7 +265,7 @@ describe("RuntimePool LRU policy", () => {
           this.emit("message", {
             requestId: request.requestId,
             ok: true,
-            result: { tables: [] },
+            result: { snapshot: { tables: [] }, readOnly: false },
           })
         )
       }

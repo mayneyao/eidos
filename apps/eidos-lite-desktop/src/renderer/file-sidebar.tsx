@@ -144,7 +144,9 @@ export function FileSidebar(props: {
                   ? { ...current, opened: { ...current.opened, snapshot } }
                   : current
               )
-            }
+            },
+            undefined,
+            opened.readOnly
           )
           setModel({
             type: "eidos",
@@ -303,7 +305,7 @@ export function FileSidebar(props: {
                       model.source,
                       instance.editor.key.split("/")[0]!,
                       request,
-                      loading || props.disabled
+                      loading || props.disabled || model.source.readOnly
                     )
                 : undefined
             }

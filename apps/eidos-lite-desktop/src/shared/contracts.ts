@@ -838,6 +838,11 @@ export interface OpenEidosFileResult {
   readOnly: boolean
 }
 
+export type RuntimeWorkerOpenResult = Pick<
+  OpenEidosFileResult,
+  "snapshot" | "readOnly"
+>
+
 export interface SpacePathMutationResult {
   /** IO completed, but the tree refresh failed; preserve existing visible contents. */
   refreshError?: string
@@ -1978,6 +1983,10 @@ export type RuntimeWorkerRequest =
       calendarQueryVersion?: 2
       calendarWindowVersion?: 1
       args: unknown[]
+    }
+  | {
+      type: "assertAssetWritable"
+      requestId: number
     }
   | {
       type: "mergeSystemMetadata"

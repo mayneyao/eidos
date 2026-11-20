@@ -5376,7 +5376,7 @@ function WorkspaceApp({
                       activeFile.source,
                       pluginEditor.editor.key.split("/")[0]!,
                       request,
-                      localInteractionBlocked
+                      localInteractionBlocked || activeFile.source.readOnly
                     )
                   }
                   onFallback={() => setPluginEditor(null)}

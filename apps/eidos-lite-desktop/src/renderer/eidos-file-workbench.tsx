@@ -27,9 +27,11 @@ import {
   EidosFileQueryToolbar,
   EidosFileRelatedRecordPanel,
   EidosFileSheetCreatePopover,
+  EidosFileSheetTabStrip,
   EidosFileSheetTabs,
   EidosFileUIProvider,
   EidosFileViewFieldsPopover,
+  EidosFileViewTabStrip,
   EidosFileViewTabs,
   exportEidosFileViewCsv,
   eidosFileCalendarExecution,
@@ -166,6 +168,8 @@ export function EidosFileWorkbench({
   onError,
 }: EidosFileWorkbenchProps) {
   const { locale } = useEidosLiteI18n()
+  const readOnly = source.readOnly
+  const mutationsDisabled = disabled || readOnly
   const tablePlugins = usePluginTableViews()
   const pluginRegistry = useMemo(
     () => createEidosFilePluginRegistry([...VIEW_PLUGINS, ...tablePlugins]),
@@ -556,7 +560,7 @@ export function EidosFileWorkbench({
       snapshot,
       activeTable,
       activeView,
-      disabled,
+      disabled: mutationsDisabled,
       onSnapshot,
       onTableSelect,
       onError,
@@ -564,7 +568,7 @@ export function EidosFileWorkbench({
   }, [
     activeTable,
     activeView,
-    disabled,
+    mutationsDisabled,
     onError,
     onSnapshot,
     onTableSelect,
@@ -573,6 +577,21 @@ export function EidosFileWorkbench({
   ])
 
   if (!activeTable) return null
+  const selectView = (viewId: string) => {
+    onViewSelect?.(viewId)
+    setActiveViews((current) => ({
+      ...current,
+      [activeTable.table.id]: viewId,
+    }))
+  }
+  const selectTable = (tableId: string) => {
+    onTableSelect(tableId)
+    setRelatedRecordTarget(null)
+    setSearch("")
+    setPropertyField(null)
+    setFormulaTarget(null)
+    setLookupTarget(null)
+  }
   const ViewSettings = activeView
     ? pluginRegistry.views[activeView.type]?.settings
     : undefined
@@ -784,80 +803,88 @@ export function EidosFileWorkbench({
           scopeKey: `${relativePath}:${activeTable.table.id}:${activeView?.id ?? "default"}:${metadataDirectory ?? ""}`,
         }}
         viewTabs={
-          <EidosFileViewTabs
-            plugins={tablePlugins}
-            views={activeTable.views}
-            pluginViews={tablePlugins.flatMap((plugin) =>
-              (plugin.views ?? []).map((view) => ({
-                id: eidosFilePluginContributionId(view.type) ?? view.type,
-                displayName: view.label,
-                pluginDisplayName: view.description,
-                icon: view.icon,
-              }))
-            )}
-            fields={activeTable.fields}
-            activeView={activeView}
-            disabled={disabled}
-            onSelect={(viewId) => {
-              onViewSelect?.(viewId)
-              setActiveViews((current) => ({
-                ...current,
-                [activeTable.table.id]: viewId,
-              }))
-            }}
-            onCreate={createView}
-            onRename={async (viewId, name) => {
-              await source.updateView(viewId, { name })
-            }}
-            onDuplicate={duplicateView}
-            onDelete={deleteView}
-            onReorder={(viewIds) =>
-              source
-                .reorderViews(activeTable.table.id, viewIds)
-                .then(() => undefined)
-            }
-            onUpdate={async (viewId, changes) => {
-              await source.updateView(viewId, changes)
-            }}
-            onExportCsv={(view) =>
-              exportTableCsv(
-                activeTable,
-                view,
-                view.id === activeView?.id ? search : ""
-              )
-            }
-            onExportError={onError}
-          />
+          readOnly ? (
+            <EidosFileViewTabStrip
+              plugins={tablePlugins}
+              views={activeTable.views}
+              activeViewId={activeView?.id}
+              disabled={disabled}
+              onSelect={selectView}
+            />
+          ) : (
+            <EidosFileViewTabs
+              plugins={tablePlugins}
+              views={activeTable.views}
+              pluginViews={tablePlugins.flatMap((plugin) =>
+                (plugin.views ?? []).map((view) => ({
+                  id: eidosFilePluginContributionId(view.type) ?? view.type,
+                  displayName: view.label,
+                  pluginDisplayName: view.description,
+                  icon: view.icon,
+                }))
+              )}
+              fields={activeTable.fields}
+              activeView={activeView}
+              disabled={disabled}
+              onSelect={selectView}
+              onCreate={createView}
+              onRename={async (viewId, name) => {
+                await source.updateView(viewId, { name })
+              }}
+              onDuplicate={duplicateView}
+              onDelete={deleteView}
+              onReorder={(viewIds) =>
+                source
+                  .reorderViews(activeTable.table.id, viewIds)
+                  .then(() => undefined)
+              }
+              onUpdate={async (viewId, changes) => {
+                await source.updateView(viewId, changes)
+              }}
+              onExportCsv={(view) =>
+                exportTableCsv(
+                  activeTable,
+                  view,
+                  view.id === activeView?.id ? search : ""
+                )
+              }
+              onExportError={onError}
+            />
+          )
         }
         recordCreator={
-          <EidosFileCreateRecordButton
-            source={source}
-            table={activeTable}
-            view={scopedView}
-            search={search}
-            disabled={disabled}
-            onCreated={(result) => {
-              setReloadToken((current) => current + 1)
-              const rowId = String(result.row._id)
-              sidebarRecords.rememberRecord(rowId, result.row)
-              ;(sidebarRecords.openRecord ?? onInspectedRowChange)?.(rowId)
-              focusRecordView()
-            }}
-            onError={onError}
-          />
+          !readOnly && (
+            <EidosFileCreateRecordButton
+              source={source}
+              table={activeTable}
+              view={scopedView}
+              search={search}
+              disabled={disabled}
+              onCreated={(result) => {
+                setReloadToken((current) => current + 1)
+                const rowId = String(result.row._id)
+                sidebarRecords.rememberRecord(rowId, result.row)
+                ;(sidebarRecords.openRecord ?? onInspectedRowChange)?.(rowId)
+                focusRecordView()
+              }}
+              onError={onError}
+            />
+          )
         }
         queryToolbar={
           activeView?.type === "form" ? (
-            <EidosFileFormModeToolbar
-              mode={disabled ? "preview" : activeFormMode}
-              disabled={disabled}
-              onModeChange={(mode) =>
-                setFormModes((current) => ({
-                  ...current,
-                  [activeView.id]: mode,
-                }))
-              }
-            />
+            !readOnly && (
+              <EidosFileFormModeToolbar
+                mode={disabled ? "preview" : activeFormMode}
+                disabled={disabled}
+                onModeChange={(mode) =>
+                  setFormModes((current) => ({
+                    ...current,
+                    [activeView.id]: mode,
+                  }))
+                }
+              />
+            )
           ) : (
             <EidosFileQueryToolbar
               fields={activeTable.fields}
@@ -867,6 +894,7 @@ export function EidosFileWorkbench({
               source={source}
               focusSearchToken={focusSearchToken}
               disabled={disabled || activeView?.queryStatus === "unsupported"}
+              mutationsDisabled={readOnly}
               onSearchChange={setSearch}
               onFilterChange={(filter) => updateActiveView({ filter })}
               onSortsChange={(sorts) => updateActiveView({ sorts })}
@@ -874,7 +902,7 @@ export function EidosFileWorkbench({
           )
         }
         fields={
-          activeView ? (
+          activeView && !readOnly ? (
             <>
               <EidosFileViewFieldsPopover
                 fields={activeTable.fields}
@@ -905,22 +933,24 @@ export function EidosFileWorkbench({
           ) : undefined
         }
         fieldCreator={
-          <EidosFileFieldCreatePopover
-            open={addPropertyOpen}
-            onOpenChange={(open) => {
-              setAddPropertyOpen(open)
-              if (!open) {
-                setFieldInsertIndex(null)
-                setFieldAllowedTypes(undefined)
-              }
-            }}
-            table={activeTable}
-            tables={snapshot.tables}
-            disabled={disabled}
-            allowedTypes={fieldAllowedTypes}
-            onCreate={addProperty}
-            onPreviewFormula={previewFormula}
-          />
+          !readOnly && (
+            <EidosFileFieldCreatePopover
+              open={addPropertyOpen}
+              onOpenChange={(open) => {
+                setAddPropertyOpen(open)
+                if (!open) {
+                  setFieldInsertIndex(null)
+                  setFieldAllowedTypes(undefined)
+                }
+              }}
+              table={activeTable}
+              tables={snapshot.tables}
+              disabled={disabled}
+              allowedTypes={fieldAllowedTypes}
+              onCreate={addProperty}
+              onPreviewFormula={previewFormula}
+            />
+          )
         }
         contentProps={{
           className: "eidos-file-content",
@@ -929,71 +959,73 @@ export function EidosFileWorkbench({
           onKeyDownCapture: sidebarRecords.onKeyDown,
         }}
         sheetTabs={
-          <EidosFileSheetTabs
-            tables={snapshot.tables.map((table) => table.table)}
-            tableSnapshots={snapshot.tables}
-            activeTableId={activeTable.table.id}
-            disabled={disabled}
-            createAction={
-              <EidosFileSheetCreatePopover
-                disabled={disabled}
-                onCreate={createTable}
-                importAction={
-                  pluginContext ? (
-                    <EidosFilePluginSlot
-                      context={pluginContext}
-                      plugins={editorPlugins}
-                      slot="sheet-create"
-                    />
-                  ) : undefined
+          readOnly ? (
+            <EidosFileSheetTabStrip
+              tables={snapshot.tables.map((table) => table.table)}
+              activeTableId={activeTable.table.id}
+              disabled={disabled}
+              onSelect={selectTable}
+            />
+          ) : (
+            <EidosFileSheetTabs
+              tables={snapshot.tables.map((table) => table.table)}
+              tableSnapshots={snapshot.tables}
+              activeTableId={activeTable.table.id}
+              disabled={disabled}
+              createAction={
+                <EidosFileSheetCreatePopover
+                  disabled={disabled}
+                  onCreate={createTable}
+                  importAction={
+                    pluginContext ? (
+                      <EidosFilePluginSlot
+                        context={pluginContext}
+                        plugins={editorPlugins}
+                        slot="sheet-create"
+                      />
+                    ) : undefined
+                  }
+                />
+              }
+              onSelect={selectTable}
+              onReorder={(tableIds) =>
+                source.reorderTables(tableIds).then(() => undefined)
+              }
+              onRename={async (table, name) => {
+                await source.updateTable(table.id, { name })
+              }}
+              onUpdateTableSettings={async (table, changes) => {
+                const next = await source.updateTable(table.table.id, changes)
+                onSnapshot(next)
+                setReloadToken((current) => current + 1)
+              }}
+              onDelete={async (table) => {
+                const next = await source.deleteTable(table.id)
+                if (table.id === activeTable.table.id) {
+                  const nextTableId =
+                    next.metadata.defaultTableId ??
+                    next.tables[0]?.table.id ??
+                    activeTable.table.id
+                  onTableSelect(nextTableId)
                 }
-              />
-            }
-            onSelect={(tableId) => {
-              onTableSelect(tableId)
-              setRelatedRecordTarget(null)
-              setSearch("")
-              setPropertyField(null)
-              setFormulaTarget(null)
-              setLookupTarget(null)
-            }}
-            onReorder={(tableIds) =>
-              source.reorderTables(tableIds).then(() => undefined)
-            }
-            onRename={async (table, name) => {
-              await source.updateTable(table.id, { name })
-            }}
-            onUpdateTableSettings={async (table, changes) => {
-              const next = await source.updateTable(table.table.id, changes)
-              onSnapshot(next)
-              setReloadToken((current) => current + 1)
-            }}
-            onDelete={async (table) => {
-              const next = await source.deleteTable(table.id)
-              if (table.id === activeTable.table.id) {
-                const nextTableId =
-                  next.metadata.defaultTableId ??
-                  next.tables[0]?.table.id ??
-                  activeTable.table.id
-                onTableSelect(nextTableId)
-              }
-              setActiveViews((current) => {
-                const nextViews = { ...current }
-                delete nextViews[table.id]
-                return nextViews
-              })
-            }}
-            onExportCsv={(table) => {
-              const tableSnapshot = snapshot.tables.find(
-                (candidate) => candidate.table.id === table.id
-              )
-              if (!tableSnapshot) {
-                return Promise.reject(new Error("Eidos File table not found"))
-              }
-              return exportTableCsv(tableSnapshot)
-            }}
-            onExportError={onError}
-          />
+                setActiveViews((current) => {
+                  const nextViews = { ...current }
+                  delete nextViews[table.id]
+                  return nextViews
+                })
+              }}
+              onExportCsv={(table) => {
+                const tableSnapshot = snapshot.tables.find(
+                  (candidate) => candidate.table.id === table.id
+                )
+                if (!tableSnapshot) {
+                  return Promise.reject(new Error("Eidos File table not found"))
+                }
+                return exportTableCsv(tableSnapshot)
+              }}
+              onExportError={onError}
+            />
+          )
         }
         overlays={
           <>
@@ -1030,7 +1062,7 @@ export function EidosFileWorkbench({
           table={activeTable}
           view={activeView}
           query={recordNavigationQuery ?? {}}
-          disabled={disabled}
+          disabled={mutationsDisabled}
           onSnapshot={onSnapshot}
           fileRelativePath={relativePath}
           onOpenSpaceFile={onOpenSpaceFile}
@@ -1063,14 +1095,14 @@ export function EidosFileWorkbench({
               tables={snapshot.tables}
               view={scopedView}
               search={search}
-              state={{ formMode: activeFormMode }}
+              state={{ formMode: readOnly ? "preview" : activeFormMode }}
               disabled={disabled}
               reloadToken={reloadToken}
               focusRequestToken={focusRequestToken}
               propertyField={currentPropertyField}
               capabilities={{
                 read: true,
-                mutate: !disabled,
+                mutate: !mutationsDisabled,
                 resolveAssets: true,
                 rawFile: false,
                 nativeFileSystem: false,
@@ -1082,16 +1114,16 @@ export function EidosFileWorkbench({
               onDeleteRows={deleteRows}
               onFieldOpen={setPropertyField}
               onFieldClose={() => setPropertyField(null)}
-              onEditFormula={openFormulaEditor}
-              onEditLookup={setLookupTarget}
+              onEditFormula={readOnly ? undefined : openFormulaEditor}
+              onEditLookup={readOnly ? undefined : setLookupTarget}
               onFieldAdd={(position, allowedTypes) => {
                 setFieldInsertIndex(position ?? null)
                 setFieldAllowedTypes(allowedTypes)
                 setAddPropertyOpen(true)
               }}
               onError={onError}
-              onImportFiles={importFiles}
-              onImportDroppedFiles={importDroppedFiles}
+              onImportFiles={readOnly ? undefined : importFiles}
+              onImportDroppedFiles={readOnly ? undefined : importDroppedFiles}
             />
             {inspectedRowId && activeView?.type !== "grid" ? (
               <EidosFileRelatedRecordPanel
@@ -1112,9 +1144,9 @@ export function EidosFileWorkbench({
                 onMutation={() => setReloadToken((current) => current + 1)}
                 onClose={() => onInspectedRowChange?.(null)}
                 onError={onError}
-                onImportFiles={importFiles}
-                onImportDroppedFiles={importDroppedFiles}
-                disabled={disabled}
+                onImportFiles={readOnly ? undefined : importFiles}
+                onImportDroppedFiles={readOnly ? undefined : importDroppedFiles}
+                disabled={mutationsDisabled}
               />
             ) : relatedRecordTarget && relatedRecordTable ? (
               <EidosFileRelatedRecordPanel
@@ -1130,12 +1162,12 @@ export function EidosFileWorkbench({
                 target={relatedRecordTarget}
                 presentation={recordOpenMode}
                 onPresentationToggle={toggleRecordPresentation}
-                disabled={disabled}
+                disabled={mutationsDisabled}
                 onClose={() => setRelatedRecordTarget(null)}
                 onMutation={() => setReloadToken((current) => current + 1)}
                 onError={onError}
-                onImportFiles={importFiles}
-                onImportDroppedFiles={importDroppedFiles}
+                onImportFiles={readOnly ? undefined : importFiles}
+                onImportDroppedFiles={readOnly ? undefined : importDroppedFiles}
               />
             ) : null}
           </div>
