@@ -6,6 +6,91 @@ import PhotosUI
 
 final class EditorWebTests: XCTestCase {
     @MainActor
+    func testTodayFormulaRendersAfterReopeningTheWKWebView() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        let file = try space.create(markdown: false)
+        let snapshot = try XCTUnwrap(try Runtime.call(file, "getSnapshot") as? [String: Any])
+        let revision = try XCTUnwrap(snapshot["revision"] as? String)
+        let schema = try XCTUnwrap(try Runtime.call(file, "getSchemaPage", ["revision": revision, "limit": 200]) as? [String: Any])
+        let table = try XCTUnwrap((schema["objects"] as? [[String: Any]])?.first { $0["object"] as? String == "table" })
+        let tableId = try XCTUnwrap(table["id"] as? String)
+        let label = try XCTUnwrap(table["labelFieldId"] as? String)
+        let plan = try XCTUnwrap(try Runtime.call(file, "preflightSchema", [
+            "expectedRevision": revision,
+            "change": [
+                "kind": "create-field", "tableId": tableId,
+                "field": [
+                    "clientKey": "today", "name": "Formula for the day", "kind": "formula", "position": "1",
+                    "definition": ["sourceText": "TODAY()", "resultType": "date"],
+                ],
+            ],
+        ]) as? [String: Any])
+        let saved = try XCTUnwrap(try Runtime.call(file, "mutateSchema", [
+            "expectedRevision": revision,
+            "planToken": try XCTUnwrap(plan["planToken"] as? String),
+            "actionsHash": try XCTUnwrap(plan["actionsHash"] as? String),
+        ]) as? [String: Any])
+        _ = try Runtime.call(file, "mutateRows", [
+            "tableId": tableId, "expectedRevision": try XCTUnwrap(saved["revision"] as? String),
+            "changes": [["kind": "create", "clientKey": "row", "values": [label: "Keep this record"]]],
+        ])
+        let page = try XCTUnwrap(try Runtime.call(file, "queryRows", [
+            "tableId": tableId, "query": [:], "limit": 10,
+            "projection": ["fields": [label], "resolveRelations": []],
+        ]) as? [String: Any])
+        let rowId = try XCTUnwrap((page["rows"] as? [[String: Any]])?.first?["id"] as? String)
+        _ = try Runtime.call(file, "close")
+
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            _ = try? Runtime.call(file, "close")
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        for _ in 0..<2 {
+            let editor = EditorController()
+            window.rootViewController = UIHostingController(rootView: EditorView(
+                file: file, space: space, dark: false, controller: editor, onLeave: {}
+            ))
+            window.makeKeyAndVisible()
+            let web = try await ready(editor, script: "!!document.querySelector('.eidos-file-detail-layout')")
+            _ = try await web.callAsyncJavaScript(
+                "location.hash='/records/'+[file,table,row].map(encodeURIComponent).join('/'); return true",
+                arguments: ["file": file.path, "table": tableId, "row": rowId], in: nil, contentWorld: .page
+            )
+            _ = try await ready(editor, script: """
+                document.querySelector('[data-mobile-record-page] h1 textarea')?.value === 'Keep this record'
+                """)
+            let rendered = try await web.evaluateJavaScript("""
+                (() => {
+                    const text = document.body.innerText;
+                    const now = new Date();
+                    const formats = new Intl.DateTimeFormat('en-CA', {
+                        year: 'numeric', month: '2-digit', day: '2-digit'
+                    }).formatToParts(now);
+                    const date = ['year', 'month', 'day'].map(k => formats.find(p => p.type === k).value).join('-');
+                    const visibleDates = [
+                        date,
+                        new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(now),
+                        new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(now),
+                    ];
+                    const dateShown = visibleDates.some(value => text.includes(value))
+                        || !!document.querySelector(`[title="${date}"]`);
+                    return { text, dateShown: text.includes('Formula for the day') && dateShown };
+                })()
+                """) as? [String: Any]
+            XCTAssertEqual(rendered?["dateShown"] as? Bool, true, String(describing: rendered?["text"]))
+            window.rootViewController = nil
+            _ = try Runtime.call(file, "close")
+        }
+    }
+
+    @MainActor
     func testMarkdownPreviewsSpaceRelativeImagesAfterReopening() async throws {
         let sandbox = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: sandbox.appendingPathComponent("Space"))

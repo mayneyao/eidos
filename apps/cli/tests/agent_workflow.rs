@@ -1492,7 +1492,7 @@ fn native_cli_writers_preserve_files_with_an_unavailable_formula() {
     let sql = Connection::open(&file).unwrap();
     sql.execute_batch(
         "BEGIN IMMEDIATE;
-        UPDATE eidos__formula_fields SET source_text = 'TODAY()';
+        UPDATE eidos__formula_fields SET source_text = 'FUTURE_DATE()';
         UPDATE eidos__meta SET revision = 5;
         COMMIT;",
     )

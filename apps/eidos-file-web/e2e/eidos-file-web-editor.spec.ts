@@ -2059,6 +2059,65 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   ).not.toHaveAttribute("data-disabled", "")
 })
 
+async function openFieldCreator(page: Page, name: string, type: string) {
+  const creator = page.locator("[data-eidos-file-field-create='true']")
+  const fieldsButton = page
+    .locator("[data-eidos-file-workbar-actions]")
+    .getByRole("button", { name: "Manage fields" })
+  await expect(async () => {
+    if (!(await creator.isVisible())) {
+      await fieldsButton.click()
+      await page.getByRole("button", { name: "New field" }).click()
+    }
+    await expect(creator).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000 })
+  await creator.getByLabel("Name").fill(name)
+  await creator.locator("[data-eidos-file-field-type-trigger]").click()
+  await expect(
+    page.locator(
+      `[data-eidos-file-field-type='${type}'] [data-eidos-file-field-type-icon='${type}']`
+    )
+  ).toBeVisible()
+  await page.locator(`[data-eidos-file-field-type='${type}']`).click()
+  return creator
+}
+
+test("saves TODAY in a browser editor and reopens the downloaded file", async ({
+  page,
+}, testInfo) => {
+  await installFallbackMode(page)
+  await page.goto("/")
+  await openFixture(page, "project-tracker")
+  const creator = await openFieldCreator(page, "Local date", "formula")
+  const expression = creator.getByLabel("Formula expression")
+  await creator.locator(".eidos-file-formula-display-select").click()
+  await page.getByRole("option", { name: "Date", exact: true }).click()
+  await expression.pressSequentially("TODAY()")
+  await expect(
+    creator.locator('[data-eidos-file-formula-status="valid"]')
+  ).toHaveText(/^\d{4}-\d{2}-\d{2}$/u)
+  await expression.press("ControlOrMeta+s")
+  await expect(creator).toBeHidden()
+
+  const downloading = page.waitForEvent("download")
+  await clickFileMenuItem(page, "Download a copy")
+  const copiedFile = testInfo.outputPath("today.eidos")
+  await (await downloading).saveAs(copiedFile)
+  const database = new DatabaseSync(copiedFile)
+  try {
+    const field = database
+      .prepare(
+        "SELECT source_text FROM eidos__formula_fields JOIN eidos__fields ON eidos__fields.id = field_id WHERE name = ?"
+      )
+      .get("Local date")
+    expect(field?.source_text).toBe("TODAY()")
+  } finally {
+    database.close()
+  }
+  await page.locator("input[type=file]").setInputFiles(copiedFile)
+  await expect(page.locator(".save-status")).toHaveText("Imported copy")
+})
+
 test("creates Formula, Relation, and Lookup fields through the shared editor UI", async ({
   page,
   browserName,
@@ -2088,30 +2147,11 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     state: "attached",
   })
 
-  const openFieldCreator = async (name: string, type: string) => {
-    const creator = page.locator("[data-eidos-file-field-create='true']")
-    const fieldsButton = page
-      .locator("[data-eidos-file-workbar-actions]")
-      .getByRole("button", { name: "Manage fields" })
-    await expect(async () => {
-      if (!(await creator.isVisible())) {
-        await fieldsButton.click()
-        await page.getByRole("button", { name: "New field" }).click()
-      }
-      await expect(creator).toBeVisible({ timeout: 2_000 })
-    }).toPass({ timeout: 15_000 })
-    await creator.getByLabel("Name").fill(name)
-    await creator.locator("[data-eidos-file-field-type-trigger]").click()
-    await expect(
-      page.locator(
-        `[data-eidos-file-field-type='${type}'] [data-eidos-file-field-type-icon='${type}']`
-      )
-    ).toBeVisible()
-    await page.locator(`[data-eidos-file-field-type='${type}']`).click()
-    return creator
-  }
-
-  const formulaCreator = await openFieldCreator("Double estimate", "formula")
+  const formulaCreator = await openFieldCreator(
+    page,
+    "Double estimate",
+    "formula"
+  )
   const formulaExpression = formulaCreator.getByLabel("Formula expression")
   const estimateReference = formulaCreator
     .locator("[data-formula-reference]")
@@ -2144,18 +2184,11 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   await formulaExpression.press("ControlOrMeta+s")
   await expect(formulaCreator).toBeHidden()
 
-  const todayCreator = await openFieldCreator("Local date", "formula")
-  const todayExpression = todayCreator.getByLabel("Formula expression")
-  await todayCreator.locator(".eidos-file-formula-display-select").click()
-  await page.getByRole("option", { name: "Date", exact: true }).click()
-  await todayExpression.fill("TODAY()")
-  await expect(
-    todayCreator.locator('[data-eidos-file-formula-status="valid"]')
-  ).toHaveText(/^\d{4}-\d{2}-\d{2}$/u)
-  await todayExpression.press("ControlOrMeta+s")
-  await expect(todayCreator).toBeHidden()
-
-  const relationCreator = await openFieldCreator("Related project", "relation")
+  const relationCreator = await openFieldCreator(
+    page,
+    "Related project",
+    "relation"
+  )
   await expect(relationCreator).toContainText("Related table")
   await relationCreator
     .locator("label")
@@ -2168,7 +2201,11 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   await relationCreator.getByRole("button", { name: "Create field" }).click()
   await expect(relationCreator).toBeHidden()
 
-  const lookupCreator = await openFieldCreator("Related estimate", "lookup")
+  const lookupCreator = await openFieldCreator(
+    page,
+    "Related estimate",
+    "lookup"
+  )
   await lookupCreator
     .locator("label")
     .filter({ hasText: "Relation" })

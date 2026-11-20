@@ -1,7 +1,7 @@
 FROM rust:1.91.1-bookworm AS builder
 
 WORKDIR /build
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock pnpm-lock.yaml ./
 COPY crates ./crates
 COPY apps/cli ./apps/cli
 COPY apps/plugin-sandbox ./apps/plugin-sandbox
