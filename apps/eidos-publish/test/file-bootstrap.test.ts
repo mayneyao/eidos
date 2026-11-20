@@ -64,6 +64,7 @@ it("mounts an API 3.0 file View through the serialized canonical guest bootstrap
         mount,
         document,
         window: {
+          name: "",
           parent,
           document,
           addEventListener: (
