@@ -204,8 +204,8 @@
         {
           "name": "eidos-publish-runtime-staging",
           "class_name": "EidosRuntimeContainer",
-          // Deploy the identical CI-built image through staging and production.
-          "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:e96906f575e5a9fa60d1b71f000e53526de278c427ec144947a3e1a2d04c3d17",
+          // Native AMD64 CI artifact: source fd944079e, build run 44679041747.
+          "image": "registry.cloudflare.com/b77bb32b49e596faa7a5092912181186/eidos-publish-runtime@sha256:09537b24fdbff92a0b15bab3ff415e4c987e4458373b65641165950a4c2c31d9",
           "max_instances": 100,
           "instance_type": "basic",
         },
