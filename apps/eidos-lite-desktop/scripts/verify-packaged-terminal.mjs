@@ -55,3 +55,10 @@ for (const [backend, options] of cases) {
   assert.ok(output.includes(marker), `${backend} returned no terminal output`)
   console.log(`PASS: packaged ${backend} terminal`)
 }
+
+if (windows) {
+  // Native PTY handles can keep this standalone smoke process alive after
+  // all three shells report exit. Drain the result before ending the probe.
+  await new Promise((resolve) => process.stdout.write("", resolve))
+  process.exit(0)
+}
