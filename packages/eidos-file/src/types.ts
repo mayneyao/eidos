@@ -98,6 +98,7 @@ export interface EidosFileFieldInfo {
   writable?: boolean
   /** The value depends on a Formula this Runtime cannot execute. */
   valueStatus?: "unsupported-formula"
+  todayDependent?: true
   isRecordLabel?: boolean
   position?: number
   settings?: Record<string, unknown>
@@ -296,6 +297,7 @@ export interface CreateEidosFileFormulaFieldInput {
 }
 
 export interface EidosFileFormulaPreviewInput {
+  calendar?: EidosFileCalendarContext
   name: string
   columnName: string
   formula: string

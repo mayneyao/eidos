@@ -2015,16 +2015,19 @@ Table. The resulting file-wide derived graph MUST be acyclic. The Formula
 Field itself is a graph node even if evaluation could short-circuit the
 reference. Conditional reachability never excuses a cycle.
 
-Formula 1.0 is the **Eidos SQLite 3.45 scalar-expression profile**. Its
-whitelisted functions and SQLite-derived expression constructs use the
-documented SQLite 3.45 meaning for the accepted argument types. Formula's
-statically typed arithmetic and comparison rules remain those in Section 9.3.
-This profile is versioned independently of the SQLite library used by a Host:
-upgrading a Host does not add Formula syntax or functions. Runtime parses the
-fixed grammar below and generates SQL; it never executes Formula source as
-SQL. Aggregate, window, table-valued, connection-state,
+Formula 1.0 uses the **Eidos SQLite 3.45 scalar-expression profile** and the
+Eidos Runtime context functions defined in §9.4. The profile is a typed subset
+of SQLite expressions. Whitelisted SQLite built-ins and SQLite-derived
+constructs use the documented SQLite 3.45 semantics for the accepted argument
+types. Section 9.3 defines Formula's static arithmetic and comparison rules.
+The profile and its function lists are independent of a Host's SQLite library
+version. Runtime parses the fixed grammar below and generates SQL from the
+parsed expression.
+
+The SQLite subset excludes aggregate, window, table-valued, connection-state,
 environment-dependent, non-deterministic, extension, and application-defined
-functions are outside this profile.
+functions. Eidos Runtime context functions can use only the execution inputs
+defined for them in this specification.
 
 ### 9.2 Lexical grammar
 
@@ -2158,12 +2161,16 @@ date/datetime coercion.
 
 ### 9.4 Function whitelist
 
-Only the following ASCII-case-insensitive SQLite 3.45 scalar functions exist
-in Formula 1.0. `T` means one exact Formula type, `numeric` means Integer or
-Number, and `scalar` means any Formula scalar operand. The static signatures
-below restrict which otherwise-valid SQLite calls Formula accepts; after a
-call is accepted, its value, null handling, conversion, indexing, formatting,
-and error behavior are SQLite 3.45 behavior.
+Function names are ASCII-case-insensitive in both lists below.
+
+#### SQLite built-in functions
+
+The SQLite subset allows only the built-in scalar functions listed here.
+`T` means one exact Formula type, `numeric` means Integer or Number, and
+`scalar` means any Formula scalar operand. The static signatures restrict
+which SQLite calls Formula accepts. For an accepted call, value, null
+handling, conversion, indexing, formatting, and error behavior follow
+SQLite 3.45.
 
 | Category          | Functions                  | Accepted Formula arguments                              | Formula result    |
 | ----------------- | -------------------------- | ------------------------------------------------------- | ----------------- |
@@ -2224,17 +2231,32 @@ Aggregate/window use of `MAX` or `MIN`, every table-valued function, `random`,
 `sqlite_source_id`, `sqlite_compileoption_get`, `sqlite_compileoption_used`,
 `sqlite_offset`, `load_extension`, `likely`, `likelihood`, `unlikely`,
 `soundex`, `unhex`, `zeroblob`, JSON functions, and all Host UDFs are outside
-Formula 1.0. So are every function added by a newer SQLite library. Formula
-evaluation remains a pure function of the row, referenced canonical state,
-and definition. Normal Runtime response and logical-value byte limits apply to
-all generated text.
+Formula 1.0. Functions introduced in newer SQLite versions are also outside
+the profile. Without a Runtime context function in its dependency graph, a
+Formula's result depends only on the row, referenced canonical state, and
+definition. Normal Runtime response and logical-value byte limits apply to all
+generated text.
 
-At Runtime construction, the Host MUST prove that every whitelisted function
-is callable. A SQLite build that omits a compile-time optional function MAY
-install a deterministic, direct-only scalar compatibility function under the
-same official SQLite name, but its accepted values and SQLite storage-class
-result MUST match SQLite 3.45. Runtime construction fails with
+At Runtime construction, the Host MUST prove that every whitelisted SQLite
+built-in is callable. A SQLite build that omits a compile-time optional
+function MAY install a deterministic, direct-only scalar compatibility
+function under the same official SQLite name. Its accepted values and SQLite
+storage-class result MUST match SQLite 3.45. Runtime construction fails with
 `unsupported-feature` when the complete profile is unavailable.
+
+#### Eidos Runtime context functions
+
+`TODAY()` is an Eidos Formula function with exactly zero arguments and a
+`date` result. It uses the same explicit calendar execution context and
+reference instant as §6's calendar predicates. Runtime projects the reference
+instant through the selected rules once per query and binds the resulting
+Gregorian date to generated SQL as a query parameter. Projection, predicates,
+derived dependencies, preview and associated reads share that reference.
+Pagination keeps the original reference and settings across local date
+changes. A new query captures a new reference. Missing calendar settings for
+a read that evaluates this input return `invalid-query`. Evaluation and
+clock changes never mutate the file. Runtime detects this capability from
+the Formula source for the read-only compatibility mode in §9.5.
 
 ### 9.5 Dependency plan, evaluation, and serializer
 

@@ -271,9 +271,11 @@ export function EidosFileDataGrid({
   const loadInspectorRow = useCallback(
     (rowId: string) =>
       source.getRow
-        ? source.getRow(table.table.id, rowId)
+        ? table.fields.some((field) => field.todayDependent)
+          ? source.getRow(table.table.id, rowId, query)
+          : source.getRow(table.table.id, rowId)
         : Promise.resolve(null),
-    [source, table.table.id]
+    [query, source, table.fields, table.table.id]
   )
 
   const addRow = useCallback((): EidosFileGridAppendResult => {
@@ -313,9 +315,16 @@ export function EidosFileDataGrid({
         const fieldKey = eidosFileFieldKey(field)
         const rowId = String(row._id)
         const fields = { [fieldKey]: value }
+        const contextual = table.fields.some(
+          (candidate) => candidate.todayDependent
+        )
+        const update = () =>
+          contextual
+            ? source.updateRow(table.table.id, rowId, fields, query)
+            : source.updateRow(table.table.id, rowId, fields)
         let result: EidosFileRowMutationResult
         try {
-          result = await source.updateRow(table.table.id, rowId, fields)
+          result = await update()
         } catch (error) {
           if (
             !isStaleRevision(error) ||
@@ -344,7 +353,9 @@ export function EidosFileDataGrid({
             ) {
               throw error
             }
-            currentRow = await source.getRow(table.table.id, rowId)
+            currentRow = contextual
+              ? await source.getRow(table.table.id, rowId, query)
+              : await source.getRow(table.table.id, rowId)
           } catch {
             throw error
           }
@@ -357,12 +368,20 @@ export function EidosFileDataGrid({
             throw error
           }
 
-          result = await source.updateRow(table.table.id, rowId, fields)
+          result = await update()
         }
         onMutation?.(result)
         return result
       }),
-    [enqueueRowWrite, onMutation, source, table.table.id, tables]
+    [
+      enqueueRowWrite,
+      onMutation,
+      query,
+      source,
+      table.fields,
+      table.table.id,
+      tables,
+    ]
   )
 
   const updateField = useCallback(

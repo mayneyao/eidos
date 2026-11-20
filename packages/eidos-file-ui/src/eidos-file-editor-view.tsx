@@ -29,6 +29,7 @@ import { useEidosFileUI } from "./context"
 import {
   EidosFileCalendarViewProvider,
   useEidosFileCalendarExecution,
+  useEidosFileFormulaDay,
 } from "./eidos-file-calendar-context"
 import { EidosFileDateQueryUpgrade } from "./eidos-file-date-query-upgrade"
 import { eidosFileMutationHistory } from "./eidos-file-mutation-history"
@@ -379,6 +380,10 @@ export function EidosFileEditorView({
   const reportSearchResultCount =
     onSearchResultCountChange ?? searchNavigation?.reportSearchResultCount
   const calendar = useEidosFileCalendarExecution()
+  const formulaDay = useEidosFileFormulaDay(
+    calendar,
+    table.fields.some((field) => field.todayDependent)
+  )
   const query = useMemo(
     () => ({
       ...eidosFileViewRowQuery(view, search),
@@ -395,7 +400,7 @@ export function EidosFileEditorView({
     searchResultIndex: resolvedSearchResultIndex,
     onSearchResultCountChange: reportSearchResultCount,
     disabled,
-    reloadToken: reloadToken + historyState.revision,
+    reloadToken: reloadToken + historyState.revision + formulaDay,
     focusRequestToken,
     commands,
     selection,

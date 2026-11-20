@@ -588,6 +588,8 @@ export interface CompiledEidosFileFormula {
     field: EidosFileFieldInfo;
     // (undocumented)
     references: EidosFileFormulaReference[];
+    // (undocumented)
+    usesToday?: true;
 }
 
 // @public (undocumented)
@@ -610,6 +612,7 @@ export function compileEidosFileFormulaFields(fields: EidosFileFieldInfo[]): Com
 export function compileEidosFileFormulaSource(source: string, fields: EidosFileFieldInfo[], resolve: (field: EidosFileFieldInfo) => string, declaredResultType?: string): {
     expression: string;
     dependencyFieldIds: string[];
+    usesToday?: true;
 };
 
 // @public (undocumented)
@@ -1466,7 +1469,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getRecordNeighbors?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
     // (undocumented)
-    getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
+    getRow?(tableId: string, rowId: string, query?: EidosFileRowQuery): Promise<EidosFileRow | null>;
     // (undocumented)
     getRowIndex?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
     // (undocumented)
@@ -1490,7 +1493,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>, query?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1615,6 +1618,8 @@ export interface EidosFileFieldInfo {
     // (undocumented)
     tableName: string;
     // (undocumented)
+    todayDependent?: true;
+    // (undocumented)
     type: EidosFileFieldType;
     // (undocumented)
     valueKind: EidosFileValueKind;
@@ -1734,6 +1739,8 @@ export interface EidosFileFormulaPreviewDependency {
 
 // @public (undocumented)
 export interface EidosFileFormulaPreviewInput {
+    // (undocumented)
+    calendar?: EidosFileCalendarContext;
     // (undocumented)
     columnName: string;
     // (undocumented)
@@ -2367,7 +2374,7 @@ export class EidosFileRuntime {
     // (undocumented)
     metadata(): EidosFileMetadata;
     // (undocumented)
-    mutateRows(input: EidosFileRowsMutation): {
+    mutateRows(input: EidosFileRowsMutation, returningFields?: string[]): {
         revision: number | bigint;
         rows: EidosFileLogicalRow[];
         deleted: string[]; /** @internal Exact Runtime affected-row composition, including detach. */
@@ -2434,7 +2441,7 @@ export class EidosFileRuntime {
     // (undocumented)
     setFieldNullable(fieldId: string, nullable: boolean): EidosFileFieldInfo;
     // @internal
-    setRequestInstant(instant?: string): void;
+    setRequestInstant(instant?: string, calendar?: EidosFileCalendarContext): void;
     // (undocumented)
     updateField(tableId: string, fieldKey: string, changes: UpdateEidosFileFieldInput): EidosFileFieldInfo;
     // (undocumented)
@@ -2876,6 +2883,8 @@ export class EidosRuntimeService implements RuntimeClient {
     getRowIndex(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
+        calendar?: EidosFileCalendarContext;
+        referenceInstant?: string;
         tableId: string;
         rowIds: string[];
         projection: ProjectionSpec;
@@ -3229,6 +3238,8 @@ export interface FieldDescriptor {
     // (undocumented)
     tableId: string;
     // (undocumented)
+    todayDependent?: true;
+    // (undocumented)
     valueStatus?: "unsupported-formula";
     // (undocumented)
     valueType: TypeRef;
@@ -3304,6 +3315,11 @@ export type FilterNode = ({
 // @public (undocumented)
 export type FilterOperand = Exclude<LogicalValue, null>;
 
+// Warning: (ae-internal-missing-underscore) The name "formulaCalendarBinding" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export const formulaCalendarBinding = "\"__eidos_formula_calendar\"(\"today\") AS (VALUES (?))";
+
 // @public (undocumented)
 export interface FormulaDefinition {
     // (undocumented)
@@ -3315,11 +3331,15 @@ export interface FormulaDefinition {
 // @public (undocumented)
 export interface FormulaPreviewRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     candidateName?: string;
     // (undocumented)
     declaredResultType: FormulaResultType;
     // (undocumented)
     fieldId?: string;
+    // (undocumented)
+    referenceInstant?: string;
     // (undocumented)
     rowIds?: string[];
     // (undocumented)
@@ -4143,6 +4163,8 @@ export interface RowBatch {
     // (undocumented)
     projectionHash: string;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     revision: string;
     // (undocumented)
     rows: ProjectedRow[];
@@ -4311,6 +4333,8 @@ export interface RuntimeClient {
     getRowIndex?(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
+        calendar?: EidosFileCalendarContext;
+        referenceInstant?: string;
         tableId: string;
         rowIds: string[];
         projection: ProjectionSpec;

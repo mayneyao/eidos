@@ -1,20 +1,17 @@
-# Eidos Android 0.9.1
+# Eidos Android 0.10.0
 
-## Open files with newer formulas
+## Use today's date in a formula
 
-Android opens Eidos Files that already contain an unavailable formula such
-as `TODAY()` in **Read only** mode. You can switch tables and read the
-original records. If a saved view depends on an unavailable formula, choose
-**Browse records** to see the stored values.
+Add a Formula field with `TODAY()` to show the current calendar date and
+use it in calculations such as `DATE(TODAY(), '+1 day')` for tomorrow.
+The value follows the editor's time zone and refreshes when you return to
+the app after the date changes.
 
-Android disables editing for these files and blocks attachment imports
-before any files are copied into the Space.
+Update the apps that edit or sync the same Space before adding the formula.
+An older editor may open the file read-only or be unable to finish a sync merge.
 
-## Install and testing scope
+## Install
 
-Download `eidos-android-0.9.1.apk` and verify it against `SHA256SUMS`. Install
-over 0.9.0 to retain local data. The APK supports ARM64 and x86-64 and requires
-Android 9 or later.
-
-The upgrade test covers offline browsing of a file containing `TODAY()`,
-blocked attachment imports, and saving and reopening an ordinary Eidos File.
+Download `eidos-android-0.10.0.apk` and verify it against
+`SHA256SUMS`. Install it over 0.9.1 to retain local data.
+The APK supports ARM64 and x86-64 and requires Android 9 or later.

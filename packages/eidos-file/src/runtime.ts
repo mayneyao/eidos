@@ -7,7 +7,11 @@ import {
   enableTemporalDefaultsFeature,
   type EidosFileCreationContext,
 } from "./temporal-defaults"
-import { hasEidosFileCalendarQuery } from "./calendar-period"
+import {
+  assertEidosFileCalendarContext,
+  hasEidosFileCalendarQuery,
+  type EidosFileCalendarContext,
+} from "./calendar-period"
 import {
   hasEidosFileCalendarWindowQuery,
   isEidosFileCalendarWindowValue,
@@ -22,6 +26,7 @@ import {
 import {
   isEidosFileCalendarDayValue,
   assertEidosFileCalendarZone,
+  projectEidosFileCalendarInstant,
   supportsEidosFileCalendarProfile,
 } from "./calendar-day"
 import { isEidosFileUriReference } from "./canonical-conversion"
@@ -49,6 +54,7 @@ import {
   compileEidosFileFormula,
   compileEidosFileFormulaSource,
   eidosFileFormulaReferences,
+  formulaCalendarBinding,
   rewriteEidosFileFormulaFieldReferences,
   UnsupportedFormulaFunctionError,
 } from "./formula"
@@ -271,6 +277,10 @@ interface RuntimeSchema {
   relations: Map<string, RelationRow>
   formulas: Map<string, FormulaRow>
   lookups: Map<string, LookupRow>
+}
+
+interface FormulaSqlScope {
+  usesToday?: true
 }
 
 interface PreparedField {
@@ -1419,6 +1429,7 @@ export class EidosFileRuntime {
     | undefined
   private readonly nowInstant: () => string
   private requestInstant: string | undefined
+  private requestCalendar: EidosFileCalendarContext | undefined
   private batchQuerySequence = 0
   private readonly allocateId: () => string
 
@@ -1824,17 +1835,22 @@ export class EidosFileRuntime {
     lookups: RuntimeSchema["lookups"]
   ): void {
     const unsupported: string[] = []
+    const today: string[] = []
     for (const [id] of formulas) {
       const field = fields.get(id)
       if (!field) continue
       try {
-        compileEidosFileFormula(field, fieldsByTable.get(field.tableId) ?? [])
+        const compiled = compileEidosFileFormula(
+          field,
+          fieldsByTable.get(field.tableId) ?? []
+        )
+        if (compiled.usesToday) today.push(id)
       } catch (error) {
         if (error instanceof UnsupportedFormulaFunctionError)
           unsupported.push(id)
       }
     }
-    if (unsupported.length === 0) return
+    if (unsupported.length === 0 && today.length === 0) return
 
     const dependents = new Map<string, string[]>()
     const dependOn = (dependent: string, dependency: string) => {
@@ -1864,6 +1880,12 @@ export class EidosFileRuntime {
       if (!field || field.valueStatus) continue
       field.valueStatus = "unsupported-formula"
       unsupported.push(...(dependents.get(id) ?? []))
+    }
+    for (const id of today) {
+      const field = fields.get(id)
+      if (!field || field.todayDependent || field.valueStatus) continue
+      field.todayDependent = true
+      today.push(...(dependents.get(id) ?? []))
     }
   }
 
@@ -1958,8 +1980,12 @@ export class EidosFileRuntime {
   }
 
   /** @internal Exact Runtime service transaction composition hook. */
-  setRequestInstant(instant?: string): void {
+  setRequestInstant(
+    instant?: string,
+    calendar?: EidosFileCalendarContext
+  ): void {
     this.requestInstant = instant
+    this.requestCalendar = calendar
   }
 
   /** @internal Exact Runtime service transaction composition hook. */
@@ -4183,6 +4209,7 @@ export class EidosFileRuntime {
     field: EidosFileFieldInfo,
     rowAlias: string,
     schema: RuntimeSchema,
+    scope: FormulaSqlScope,
     stack: string[] = []
   ): string {
     if (!field.id) throw new EidosFileError("invalid-schema", "Field has no ID")
@@ -4200,14 +4227,18 @@ export class EidosFileRuntime {
     const formula = schema.formulas.get(field.id)
     if (formula) {
       const ownerFields = schema.fieldsByTable.get(field.tableId!) ?? []
-      const expression = compileEidosFileFormulaSource(
+      const compiled = compileEidosFileFormulaSource(
         formula.source_text,
         ownerFields,
         (dependency) =>
-          this.fieldExpression(dependency, rowAlias, schema, nextStack),
+          this.fieldExpression(dependency, rowAlias, schema, scope, nextStack),
         formula.result_type
-      ).expression
-      return canonicalTemporalProjection(expression, formula.result_type)
+      )
+      if (compiled.usesToday) scope.usesToday = true
+      return canonicalTemporalProjection(
+        compiled.expression,
+        formula.result_type
+      )
     }
     const relation = schema.relations.get(field.id)
     if (relation?.direction === "inverse" && relation.inverse_of_field_id) {
@@ -4230,7 +4261,7 @@ export class EidosFileRuntime {
     }
     const lookup = schema.lookups.get(field.id)
     if (lookup)
-      return this.lookupExpression(lookup, rowAlias, schema, nextStack)
+      return this.lookupExpression(lookup, rowAlias, schema, scope, nextStack)
     throw new EidosFileError(
       "invalid-schema",
       `No logical projection for Field ${field.name}`
@@ -4241,6 +4272,7 @@ export class EidosFileRuntime {
     lookup: LookupRow,
     rowAlias: string,
     schema: RuntimeSchema,
+    scope: FormulaSqlScope,
     stack: string[]
   ): string {
     const relationField = schema.fields.get(uuid(lookup.relation_field_id))
@@ -4267,12 +4299,14 @@ export class EidosFileRuntime {
       relationField,
       rowAlias,
       schema,
+      scope,
       stack
     )
     const targetExpression = this.fieldExpression(
       targetField,
       targetAlias,
       schema,
+      scope,
       stack
     )
     const targetIsList =
@@ -4320,7 +4354,8 @@ export class EidosFileRuntime {
   private relationDisplayExpression(
     field: EidosFileFieldInfo,
     rowAlias: string,
-    schema: RuntimeSchema
+    schema: RuntimeSchema,
+    scope: FormulaSqlScope
   ): string {
     const relation = schema.relations.get(field.id!)
     if (!relation) return "'[]'"
@@ -4330,11 +4365,12 @@ export class EidosFileRuntime {
       (candidate) => candidate.isRecordLabel
     )
     if (!label) return "'[]'"
-    const ids = this.fieldExpression(field, rowAlias, schema)
+    const ids = this.fieldExpression(field, rowAlias, schema, scope)
     const labelExpression = this.fieldExpression(
       label,
       "relation_target",
-      schema
+      schema,
+      scope
     )
     return `coalesce((
       SELECT json_group_array(json_object('id', id, 'title', label)) FROM (
@@ -4369,9 +4405,10 @@ export class EidosFileRuntime {
   private recordLabelSearchExpression(
     field: EidosFileFieldInfo,
     rowAlias: string,
-    schema: RuntimeSchema
+    schema: RuntimeSchema,
+    scope: FormulaSqlScope
   ): string {
-    const expression = this.fieldExpression(field, rowAlias, schema)
+    const expression = this.fieldExpression(field, rowAlias, schema, scope)
     const type = eidosFileFieldValueType(field)
     if (typeof type !== "string") return "NULL"
     if (type === "checkbox") {
@@ -4384,7 +4421,8 @@ export class EidosFileRuntime {
   private rowIdSearchFragmentsExpression(
     field: EidosFileFieldInfo,
     rowAlias: string,
-    schema: RuntimeSchema
+    schema: RuntimeSchema,
+    scope: FormulaSqlScope
   ): string | null {
     const targetTableId = this.rowIdSearchTargetTableId(field, schema)
     if (!targetTableId) return null
@@ -4393,11 +4431,12 @@ export class EidosFileRuntime {
       (candidate) => candidate.isRecordLabel
     )
     if (!targetTable || !label) return null
-    const ids = this.fieldExpression(field, rowAlias, schema)
+    const ids = this.fieldExpression(field, rowAlias, schema, scope)
     const labelSearch = this.recordLabelSearchExpression(
       label,
       "search_target",
-      schema
+      schema,
+      scope
     )
     return `coalesce((
       SELECT json_group_array(fragment) FROM (
@@ -4464,8 +4503,9 @@ export class EidosFileRuntime {
     fields: EidosFileFieldInfo[]
     schema: RuntimeSchema
     externalInstants: boolean
-  } {
+  } & FormulaSqlScope {
     const schema = this.allSchema()
+    const scope: FormulaSqlScope = {}
     const table = schema.tables.get(tableId)
     if (!table)
       throw new EidosFileError("table-not-found", `Table not found: ${tableId}`)
@@ -4491,20 +4531,21 @@ export class EidosFileRuntime {
     const projections = fields
       .filter((field) => projected.has(field.id!))
       .flatMap((field) => {
-        const expression = this.fieldExpression(field, "base", schema)
+        const expression = this.fieldExpression(field, "base", schema, scope)
         const result = [
           `${expression} AS ${quoteIdentifier(field.tableColumnName)}`,
         ]
         if (includeRelationDisplays && field.type === "relation") {
           result.push(
-            `${this.relationDisplayExpression(field, "base", schema)} AS ${quoteIdentifier(`${field.tableColumnName}__display`)}`
+            `${this.relationDisplayExpression(field, "base", schema, scope)} AS ${quoteIdentifier(`${field.tableColumnName}__display`)}`
           )
         }
         if (searchFragmentFieldIds.has(field.id!)) {
           const fragments = this.rowIdSearchFragmentsExpression(
             field,
             "base",
-            schema
+            schema,
+            scope
           )
           if (fragments) {
             result.push(
@@ -4515,18 +4556,45 @@ export class EidosFileRuntime {
         return result
       })
     return {
-      sql: `SELECT base."_id" AS "__base_rowid", ${projections.join(", ")}
+      sql: `${scope.usesToday ? `WITH ${formulaCalendarBinding} ` : ""}SELECT base."_id" AS "__base_rowid", ${projections.join(", ")}
               FROM ${quoteIdentifier(table.physical_name)} base`,
       fields,
       schema,
       externalInstants: this.isVirtualTable(tableId),
+      ...scope,
     }
   }
 
+  private formulaCalendarParams(
+    scope: FormulaSqlScope,
+    calendar = this.requestCalendar,
+    referenceInstant?: string
+  ): string[] {
+    if (!scope.usesToday) return []
+    assertEidosFileCalendarContext(calendar)
+    const local = projectEidosFileCalendarInstant(
+      referenceInstant ?? this.nowInstant(),
+      calendar.timeZone,
+      calendar.timeZoneData
+    )
+    if (!local)
+      throw new EidosFileError(
+        "unsupported-feature",
+        "Calendar reference is outside profile years 1970–2499"
+      )
+    return [
+      `${local.year}-${String(local.month).padStart(2, "0")}-${String(local.day).padStart(2, "0")}`,
+    ]
+  }
+
   private compileRowQuery(
-    source: { fields: EidosFileFieldInfo[]; externalInstants: boolean },
+    source: {
+      fields: EidosFileFieldInfo[]
+      externalInstants: boolean
+    } & FormulaSqlScope,
     query: EidosFileRowQuery,
-    context: { referenceInstant?: string }
+    context: { referenceInstant?: string },
+    includeFormulaBinding = true
   ) {
     const queryFields = this.requiredQueryFieldKeys(source.fields, query)
     const unavailable = source.fields.find(
@@ -4539,10 +4607,23 @@ export class EidosFileRuntime {
         "unsupported-feature",
         `Field ${unavailable.name} requires a newer Eidos version`
       )
-    return compileEidosFileRowQuery(source.fields, query, {
+    const compiled = compileEidosFileRowQuery(source.fields, query, {
       ...context,
       externalInstants: source.externalInstants,
     })
+    return includeFormulaBinding && source.usesToday
+      ? {
+          ...compiled,
+          params: [
+            ...this.formulaCalendarParams(
+              source,
+              query.calendar,
+              context.referenceInstant
+            ),
+            ...compiled.params,
+          ],
+        }
+      : compiled
   }
 
   private compatibilityQuery(
@@ -4922,7 +5003,10 @@ export class EidosFileRuntime {
     const source = this.logicalSource(tableId)
     const row = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
       `WITH logical AS (${source.sql}) SELECT * FROM logical WHERE "__base_rowid" = ?`,
-      [this.assertRowId(tableId, rowId, "Row ID")]
+      [
+        ...this.formulaCalendarParams(source),
+        this.assertRowId(tableId, rowId, "Row ID"),
+      ]
     )
     if (!row) return null
     return Object.fromEntries(
@@ -5043,7 +5127,7 @@ export class EidosFileRuntime {
     )
     const referenceInstant = queries[0]?.referenceInstant ?? this.nowInstant()
     const compiled = compatible.map((query) =>
-      this.compileRowQuery(source, query, { referenceInstant })
+      this.compileRowQuery(source, query, { referenceInstant }, false)
     )
     // A fresh internal alias avoids collisions with user-defined physical names.
     // SQL-local aliases need no UUID allocation or second read of the ClockPort.
@@ -5059,7 +5143,11 @@ export class EidosFileRuntime {
     )
     const batchKey = `${prefix}_page`
     const countKey = `${prefix}_count`
-    const params: EidosFileSqlPrimitive[] = []
+    const params: EidosFileSqlPrimitive[] = this.formulaCalendarParams(
+      source,
+      compatible[0]?.calendar,
+      referenceInstant
+    )
     const selects = compiled.map((query, index) => {
       params.push(...query.params, limit)
       return `SELECT ${index} AS ${quoteIdentifier(batchKey)}, * FROM (
@@ -5126,7 +5214,7 @@ export class EidosFileRuntime {
       `WITH logical AS (${source.sql})
        SELECT * FROM logical
        WHERE "__base_rowid" IN (${ids.map(() => "?").join(", ")})`,
-      ids
+      [...this.formulaCalendarParams(source), ...ids]
     )
     const logicalRows = this.logicalRows(
       rowIdField,
@@ -6838,6 +6926,7 @@ export class EidosFileRuntime {
     }
     const compiled = compileEidosFileFormula(draft, fields)
     const schema = this.allSchema()
+    const scope: FormulaSqlScope = {}
     const expression = compileEidosFileFormulaSource(
       input.formula,
       fields,
@@ -6847,16 +6936,18 @@ export class EidosFileRuntime {
             "unsupported-feature",
             `Field ${dependency.name} requires a newer Eidos version`
           )
-        return this.fieldExpression(dependency, "base", schema)
+        return this.fieldExpression(dependency, "base", schema, scope)
       },
       input.displayType
     ).expression
+    if (compiled.usesToday) scope.usesToday = true
     const sampleExpression = canonicalTemporalProjection(
       expression,
       input.displayType
     )
     const table = this.getTable(tableId)
     const label = fields.find((field) => field.isRecordLabel)!
+    const labelExpression = this.fieldExpression(label, "base", schema, scope)
     const previewRowIds =
       input.rowIds === undefined
         ? undefined
@@ -6878,13 +6969,13 @@ export class EidosFileRuntime {
       title: EidosFileSqlPrimitive
       value: EidosFileSqlPrimitive
     }>(
-      `SELECT base."_id" AS row_id,
-              ${this.fieldExpression(label, "base", schema)} AS title,
+      `${scope.usesToday ? `WITH ${formulaCalendarBinding} ` : ""}SELECT base."_id" AS row_id,
+              ${labelExpression} AS title,
               ${sampleExpression} AS value
          FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} base
         ${rowFilter}
         ORDER BY base."_id" LIMIT ${previewRowIds?.length || 5}`,
-      previewRowIds ?? []
+      [...this.formulaCalendarParams(scope), ...(previewRowIds ?? [])]
     )
     return {
       expression,
@@ -7015,7 +7106,10 @@ export class EidosFileRuntime {
     return row as unknown as EidosFileRow
   }
 
-  mutateRows(input: EidosFileRowsMutation): {
+  mutateRows(
+    input: EidosFileRowsMutation,
+    returningFields?: string[]
+  ): {
     revision: number | bigint
     rows: EidosFileLogicalRow[]
     deleted: string[]
@@ -7272,7 +7366,9 @@ export class EidosFileRuntime {
       }
     }, input.expectedRevision)
     const requestedIds = [...new Set([...result.inserted, ...result.updated])]
-    const queried = this.getLogicalRowsByIds(input.tableId, requestedIds)
+    const queried = this.getLogicalRowsByIds(input.tableId, requestedIds, {
+      fields: returningFields,
+    })
     const rowsById = new Map(queried.map((row) => [row.id, row]))
     return {
       revision: this.info().revision ?? 0,

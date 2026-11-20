@@ -4291,6 +4291,10 @@ fn formula_preview(file: PathBuf, args: FormulaPreviewArgs) -> Result<CommandOut
     if !args.row_ids.is_empty() {
         request["rowIds"] = json!(args.row_ids);
     }
+    request
+        .as_object_mut()
+        .unwrap()
+        .extend(args.calendar.execution());
     with_runtime_session(&file, false, |session| {
         Ok(CommandOutput::success(
             session.call("previewFormula", &request)?,

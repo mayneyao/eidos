@@ -77,7 +77,11 @@ export interface EidosFileDataSource {
     cursor?: string,
     projection?: EidosFileRowPageProjection
   ): Promise<EidosFileRowPage>
-  getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>
+  getRow?(
+    tableId: string,
+    rowId: string,
+    query?: EidosFileRowQuery
+  ): Promise<EidosFileRow | null>
   getPages?(
     tableId: string,
     queries: EidosFileRowQuery[],
@@ -127,7 +131,8 @@ export interface EidosFileDataSource {
   updateRow(
     tableId: string,
     rowId: string,
-    fields: Record<string, EidosFileLogicalValue>
+    fields: Record<string, EidosFileLogicalValue>,
+    query?: EidosFileRowQuery
   ): Promise<EidosFileRowMutationResult>
   deleteRowRanges(
     tableId: string,

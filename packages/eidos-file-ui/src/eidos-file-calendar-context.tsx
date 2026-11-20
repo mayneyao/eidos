@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   assertEidosFileCalendarZone,
+  eidosFileCalendarPeriodBounds,
   hasEidosFileCalendarQuery,
   hasEidosFileCalendarWindowQuery,
   supportsEidosFileCalendarProfile,
@@ -72,6 +73,51 @@ export function useEidosFileCalendarExecution():
         : undefined,
     [profile, timeZone, weekStartsOnMonday]
   )
+}
+
+/** Refresh active Formula views after a local date change or a suspended tab. */
+export function useEidosFileFormulaDay(
+  calendar: EidosFileCalendarContext | undefined,
+  enabled: boolean
+): number {
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    if (!enabled || !calendar) return
+    let date: string | undefined
+    let timer: number | undefined
+    const check = () => {
+      window.clearTimeout(timer)
+      if (document.visibilityState === "hidden") return
+      const now = Date.now()
+      let delay = 60_000
+      try {
+        const bounds = eidosFileCalendarPeriodBounds(
+          { unit: "day", offset: 0 },
+          calendar,
+          new Date(now).toISOString()
+        )
+        if (date !== undefined && date !== bounds.startDate)
+          setRevision((value) => value + 1)
+        date = bounds.startDate
+        const current = bounds.intervals.find(
+          ([start, end]) => Date.parse(start) <= now && Date.parse(end) > now
+        )
+        if (current) delay = Math.min(delay, Date.parse(current[1]) - now)
+      } catch {
+        // The Runtime reports unsupported time zones and profile dates.
+      }
+      timer = window.setTimeout(check, delay)
+    }
+    check()
+    window.addEventListener("focus", check)
+    document.addEventListener("visibilitychange", check)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener("focus", check)
+      document.removeEventListener("visibilitychange", check)
+    }
+  }, [calendar, enabled])
+  return revision
 }
 
 export function EidosFileCalendarViewProvider({

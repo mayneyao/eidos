@@ -4,6 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,6 +14,78 @@ import org.junit.runner.RunWith
 class RuntimeDeviceTest {
     private val context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    @Test
+    fun sharingTargetsATableWithTodayWithoutQueryingItsRecords() = runBlocking {
+        val repository = SpaceRepository(context)
+        val folder = repository.create("", "share-today-${UUID.randomUUID()}", "folder")
+        val root = java.io.File(context.filesDir, "spaces/personal")
+        try {
+            val path = repository.create(folder, "Share", "eidos")
+            val file = java.io.File(root, path)
+            val original = repository.loadEidos(path)
+            val table = checkNotNull(original.table)
+            val field =
+                JSONObject()
+                    .put("clientKey", "today")
+                    .put("name", "Today")
+                    .put("kind", "formula")
+                    .put("position", "10")
+                    .put("definition", JSONObject().put("sourceText", "TODAY()").put("resultType", "date"))
+            val plan =
+                NativeRuntime.call(
+                    file.path,
+                    "web:preflightSchema",
+                    JSONObject()
+                        .put("expectedRevision", original.revision)
+                        .put(
+                            "change",
+                            JSONObject().put("kind", "create-field").put("tableId", table.id).put("field", field),
+                        ),
+                )
+            NativeRuntime.call(
+                file.path,
+                "web:mutateSchema",
+                JSONObject()
+                    .put("expectedRevision", original.revision)
+                    .put("planToken", plan.getString("planToken"))
+                    .put("actionsHash", plan.getString("actionsHash")),
+            )
+
+            val destination = repository.loadEidos(path, table.id, includeRecords = false)
+            val today = destination.fields.single { it.name == "Today" }
+            assertEquals(table.id, destination.table?.id)
+            assertTrue(destination.rows.isEmpty())
+            repository.mutate(destination, null, mapOf(table.labelFieldId to "Shared text"))
+
+            val rows =
+                NativeRuntime.call(
+                    file.path,
+                    "queryRows",
+                    JSONObject()
+                        .put("tableId", table.id)
+                        .put("query", JSONObject())
+                        .put("limit", 10)
+                        .put(
+                            "calendar",
+                            JSONObject().put("timeZone", "UTC").put("timeZoneData", "2026f").put("weekStartsOn", 1),
+                        )
+                        .put("referenceInstant", "2026-11-20T03:00:00.000Z")
+                        .put(
+                            "projection",
+                            JSONObject()
+                                .put("fields", JSONArray(listOf(table.labelFieldId, today.id)))
+                                .put("resolveRelations", JSONArray()),
+                        ),
+                ).getJSONArray("rows")
+            val values = rows.getJSONObject(0).getJSONArray("values")
+            assertEquals("Shared text", values.getString(0))
+            assertEquals("2026-11-20", values.getString(1))
+        } finally {
+            repository.close()
+            java.io.File(root, folder).deleteRecursively()
+        }
+    }
 
     @Test
     fun favoritesPersistAndUnavailableTargetsCanBeRemoved() = runBlocking {

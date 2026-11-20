@@ -746,11 +746,24 @@ export function EidosFileWorkbench({
     view?: EidosFileViewInfo,
     scopedSearch = ""
   ) => {
+    const context = eidosFileCalendarViewContext(
+      view,
+      snapshot.queryCapabilities?.calendarPeriodTimeZoneData
+    )
     const result = await exportEidosFileViewCsv({
       source,
       table,
       view: fileMetadataScopedView(table, view, metadataDirectory),
       search: scopedSearch,
+      ...(context.status === "supported"
+        ? {
+            calendar: eidosFileCalendarExecution(
+              context.timeZoneData,
+              timeZone,
+              weekStartsOnMonday
+            ),
+          }
+        : {}),
     })
     const fileBase = relativePath
       .split("/")

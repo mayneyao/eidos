@@ -257,6 +257,7 @@ export interface FieldDescriptor {
   settings: JsonObject
   writable: boolean
   valueStatus?: "unsupported-formula"
+  todayDependent?: true
   definition?: RelationDefinition | FormulaDefinition | LookupDefinition
 }
 
@@ -356,6 +357,7 @@ export interface RowPage {
 }
 
 export interface RowBatch {
+  referenceInstant?: string
   fileId: string
   tableId: string
   revision: string
@@ -577,6 +579,8 @@ export interface FormulaDefinition {
 }
 
 export interface FormulaPreviewRequest {
+  calendar?: EidosFileCalendarContext
+  referenceInstant?: string
   tableId: string
   fieldId?: string
   candidateName?: string
@@ -1089,7 +1093,13 @@ export interface RuntimeClient {
     context: RequestContext
   ): Promise<string | null>
   getRowsById(
-    request: { tableId: string; rowIds: string[]; projection: ProjectionSpec },
+    request: {
+      calendar?: EidosFileCalendarContext
+      referenceInstant?: string
+      tableId: string
+      rowIds: string[]
+      projection: ProjectionSpec
+    },
     context: RequestContext
   ): Promise<RowBatch>
   aggregate(

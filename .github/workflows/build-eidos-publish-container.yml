@@ -82,7 +82,7 @@ jobs:
           mkdir container-artifact
           docker image inspect "$image" > container-artifact/image-inspect.json
           printf '%s\n' "$source_sha" > container-artifact/source.txt
-          git ls-files -z Cargo.toml Cargo.lock crates apps/cli apps/plugin-sandbox \
+          git ls-files -z Cargo.toml Cargo.lock pnpm-lock.yaml crates apps/cli apps/plugin-sandbox \
             skills/eidos packages/eidos-file packages/eidos-file-ui \
             packages/eidos-file-serve packages/markdown packages/plugin-runtime \
             scripts/build-quickjs.mjs scripts/generated-assets.mjs \

@@ -33,7 +33,10 @@ import {
   type AssetPresenter,
 } from "./context"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
-import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
+import {
+  useEidosFileCalendarExecution,
+  useEidosFileFormulaDay,
+} from "./eidos-file-calendar-context"
 import { eidosFileDateKey } from "./eidos-file-date-time"
 
 export interface EidosUIRuntimeContextValue {
@@ -174,6 +177,10 @@ export function EidosStandardView({
     views.find((candidate) => candidate.type === "grid") ??
     views[0]
   const fields = table ? (schema?.fieldsByTable.get(table.id) ?? []) : []
+  const formulaDay = useEidosFileFormulaDay(
+    calendar,
+    fields.some((field) => field.todayDependent)
+  )
   const visibleFields = table ? eidosUIVisibleFields(table, fields, view) : []
   const calendarDateField =
     view?.type === "calendar" && typeof view.layout.dateField === "string"
@@ -202,7 +209,7 @@ export function EidosStandardView({
     }),
     [projectedFields]
   )
-  const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}:${JSON.stringify(calendar ?? null)}`
+  const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}:${JSON.stringify(calendar ?? null)}:${formulaDay}`
 
   useEffect(() => {
     setCursor(undefined)

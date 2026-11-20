@@ -1437,6 +1437,8 @@ pub struct FormulaPreviewArgs {
     /// Comma-separated row IDs used for sample evaluation.
     #[arg(long, value_delimiter = ',')]
     pub row_ids: Vec<String>,
+    #[command(flatten)]
+    pub calendar: CalendarQueryArgs,
 }
 
 #[derive(Debug, Args)]

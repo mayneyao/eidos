@@ -1881,14 +1881,16 @@ file-wide derived graph MUST acyclic。Formula Field 本身就是 graph node，�
 evaluation 可以 short-circuit 该 reference 亦然。conditional reachability 从不
 豁免 cycle。
 
-Formula 1.0 是 **Eidos SQLite 3.45 scalar-expression profile**。白名单函数与
-源自 SQLite 的 expression construct，对于允许的 argument type 使用 SQLite
-3.45 文档规定的语义；Formula 的 statically typed arithmetic 与 comparison
-仍按第 9.3 节执行。该 profile 独立于 Host 使用的 SQLite library 版本：升级
-Host 不会自动增加 Formula syntax 或 function。Runtime 解析下述固定 grammar
-并生成 SQL，绝不把 Formula source 直接作为 SQL 执行。aggregate、window、
-table-valued、connection-state、environment-dependent、non-deterministic、
-extension 与 application-defined function 均不属于该 profile。
+Formula 1.0 使用 **Eidos SQLite 3.45 scalar-expression profile**，也支持
+第 9.4 节规定的 Eidos Runtime 上下文函数。该 profile 是 SQLite 表达式的带类型
+约束子集。白名单内的 SQLite 内置函数与源自 SQLite 的表达式结构，在参数类型符合
+要求时遵循 SQLite 3.45 文档规定的语义。第 9.3 节定义 Formula 的静态算术和比较
+规则。该 profile 及其函数列表独立于 Host 的 SQLite library 版本。Runtime 按
+下述固定语法解析公式，再从解析后的表达式生成 SQL。
+
+SQLite 子集排除聚合函数、窗口函数、表值函数、连接状态函数、依赖环境的函数、
+非确定性函数、扩展函数和应用自定义函数。Eidos Runtime 上下文函数只能使用本规范
+为该函数定义的执行输入。
 
 ### 9.2 Lexical grammar
 
@@ -2016,11 +2018,14 @@ text/numeric 或 date/datetime coercion。
 
 ### 9.4 Function whitelist
 
-Formula 1.0 仅存在下列 ASCII-case-insensitive SQLite 3.45 scalar function。
-`T` 表示一个 exact Formula type，`numeric` 表示 Integer 或 Number，`scalar`
-表示任意 Formula scalar operand。下述 static signature 会限制 Formula 接受的
-SQLite call；call 一旦通过，value、null handling、conversion、indexing、
-formatting 与 error behavior 均按 SQLite 3.45 执行。
+以下两组函数名均按 ASCII 大小写不敏感规则匹配。
+
+#### SQLite 内置函数
+
+SQLite 子集只允许下表所列的内置标量函数。`T` 表示一种确切的 Formula 类型，
+`numeric` 表示 Integer 或 Number，`scalar` 表示任意 Formula 标量操作数。下表的
+静态函数签名限定 Formula 接受的 SQLite 调用。通过校验的调用，其值、空值处理、
+类型转换、索引、格式化和错误行为均遵循 SQLite 3.45。
 
 | Category          | Functions                  | Formula 接受的 argument                                   | Formula result    |
 | ----------------- | -------------------------- | --------------------------------------------------------- | ----------------- |
@@ -2080,16 +2085,25 @@ calendar semantics。
 `sqlite_version`、`sqlite_source_id`、`sqlite_compileoption_get`、
 `sqlite_compileoption_used`、`sqlite_offset`、`load_extension`、`likely`、
 `likelihood`、`unlikely`、`soundex`、`unhex`、`zeroblob`、JSON function 与
-所有 Host UDF 均不属于 Formula 1.0。newer SQLite library 新增的所有 function
-也不自动进入。Formula evaluation 仍然是 row、referenced canonical state 与
-definition 的 pure function。所有 generated text 均受普通 Runtime response 与
-logical-value byte limit 约束。
+所有 Host UDF 均不属于 Formula 1.0。新版 SQLite 新增的函数也不属于该 profile。
+当依赖图中没有 Runtime 上下文函数时，Formula 的结果只取决于行、引用的规范状态
+和公式定义。所有生成的文本均受普通 Runtime 响应和逻辑值字节数上限约束。
 
-Runtime 构造时，Host 必须证明每个 whitelist function 都可调用。如果 SQLite build
+Runtime 构造时，Host 必须证明白名单中的每个 SQLite 内置函数都可调用。如果 SQLite build
 省略了 compile-time optional function，Host 可以在同一个官方 SQLite name 下安装
 deterministic、direct-only scalar compatibility function，但其 accepted value 与
 SQLite storage-class result 必须匹配 SQLite 3.45。完整 profile 不可用时，Runtime
 构造以 `unsupported-feature` 失败。
+
+#### Eidos Runtime 上下文函数
+
+`TODAY()` 是 Eidos Formula 函数，接收零个参数并返回 `date`。它与第 6 节的日历
+谓词使用相同的显式日历执行上下文和参考时刻。Runtime 在每次查询中按所选规则将参考时刻
+投影为公历日期，并将该日期绑定为生成 SQL 的查询参数。投影、筛选、派生字段依赖、预览
+和关联读取共享该参考时刻。同一次分页查询跨过本地日期变化时保留原参考时刻与设置。
+新查询获取新的参考时刻。读取需要此输入但缺少日历设置时，返回 `invalid-query`。
+求值和时钟变化均不写入文件。Runtime 从 Formula 源码检测该能力，用于第 9.5 节的
+只读兼容模式。
 
 ### 9.5 Dependency plan、evaluation 与 serializer
 

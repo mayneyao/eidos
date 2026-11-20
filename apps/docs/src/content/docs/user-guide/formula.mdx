@@ -1,6 +1,6 @@
 ---
 title: Formula expressions
-description: SQLite-compatible expression syntax and the fixed Formula function whitelist.
+description: The SQLite expression subset, supported SQLite built-ins, and the TODAY() function provided by Eidos Runtime.
 sidebar:
   order: 4
 ---
@@ -28,9 +28,14 @@ If either input is empty, this expression returns null.
 
 ## Language boundary
 
-Formula uses quoted field names and a fixed set of SQLite 3.45 scalar functions.
-The Runtime parses the expression and checks data types before generating SQL.
-A Formula cannot execute a full SQL statement.
+Formula uses a typed subset of SQLite 3.45 scalar expressions. The Runtime parses
+and type-checks the expression before generating SQL. There are two sources of
+functions you can use in an expression.
+
+| Source           | Examples                   | Inputs                               |
+| ---------------- | -------------------------- | ------------------------------------ |
+| SQLite built-ins | `DATE`, `JULIANDAY`, `ABS` | Values supplied as arguments         |
+| Eidos Runtime    | `TODAY()`                  | The current query's calendar context |
 
 ## Expression syntax
 
@@ -44,7 +49,10 @@ A Formula cannot execute a full SQL statement.
 
 The declared result type must be one of: `text`, `number`, `integer`, `checkbox`, `date`, `datetime`, or `url`.
 
-## Supported SQLite functions
+## Supported SQLite built-in functions
+
+These SQLite built-ins follow SQLite 3.45 behavior for the argument types allowed
+in Formula.
 
 | Category        | Functions                                                                                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -55,18 +63,18 @@ The declared result type must be one of: `text`, `number`, `integer`, `checkbox`
 | Inspection      | `HEX`, `QUOTE`, `TYPEOF`                                                                                                                                                      |
 | Date and time   | `DATE`, `DATETIME`, `TIME`, `JULIANDAY`, `UNIXEPOCH`, `STRFTIME`, `TIMEDIFF`                                                                                                  |
 
-Function names are ASCII case-insensitive.
-Accepted calls use SQLite 3.45 evaluation rules:
+Function names are ASCII case-insensitive. The following rules apply to these
+built-ins.
 
 - `CONCAT` converts non-null values to text and skips null values.
 - `SUBSTR` and `SUBSTRING` use 1-based indexing like SQLite. Negative offsets follow SQLite rules.
 - Built-in `LOWER` and `UPPER` fold ASCII characters only.
 - `FORMAT` and `PRINTF` use standard SQLite format strings.
 - Date and time functions require a valid time value.
-- Formats and modifiers must be string literals. The Runtime rejects `now`, `localtime`, `utc`, and `auto` to guarantee reproducible calculations.
+- Formats and modifiers must be string literals. The `'now'` time value and the `'localtime'`, `'utc'`, and `'auto'` modifiers are outside the Formula subset. SQLite accepts `DATE('now', 'localtime')` in a SQL query. The Formula editor rejects it.
 - `UNIXEPOCH` rejects `subsec` and `subsecond` so its output remains an Integer.
 
-## Reading duration example
+### Reading duration example
 
 This expression formats `309299` seconds as `85小时55分钟`, rounding remaining seconds to the nearest minute:
 
@@ -85,11 +93,34 @@ IIF(
 Use `FLOOR` instead of `ROUND` for minutes if you want to discard remaining seconds.
 For `309299`, that result is `85小时54分钟`.
 
+## Eidos Runtime context functions
+
+### `TODAY()`
+
+`TODAY()` takes zero arguments and returns a **Date** in the application's time
+zone. The Runtime passes that date to SQLite as a query parameter. A new query
+uses the current calendar date. Subsequent pages of the same query keep the
+original date, even across midnight. The file stores the formula expression.
+
+For a Date field named **Due**, create a Formula with result type **checkbox** to
+check whether it is overdue.
+
+```sql
+"Due" < TODAY()
+```
+
+The result is empty when Due is empty.
+
+You can combine this Runtime function with the SQLite built-ins above.
+`DATE(TODAY(), '+1 day')` returns tomorrow as a **Date**.
+`JULIANDAY("Due") - JULIANDAY(TODAY())` returns the days until Due as a
+**Number**.
+
 ## Deliberately unsupported features
 
 Formula excludes full SQL statements, subqueries, and window functions.
 It excludes table-valued functions, randomness, and connection-state functions.
-It excludes extension loading and JSON functions.
+It excludes extension loading, custom SQLite functions, and JSON functions.
 Names like `IF`, `IS_NULL`, and `DATE_ADD_DAYS` are not aliases.
 Use standard SQLite function names:
 
