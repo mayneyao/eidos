@@ -7,7 +7,6 @@ import {
   getEidosLiteUpdateRoute,
   releaseArchitectureForPlatform,
   releaseExtensionForLiteDownload,
-  releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
 
@@ -94,17 +93,18 @@ test("Lite update routes isolate channel, architecture, and metadata assets", ()
   const route = getEidosLiteUpdateRoute("/lite/updates/beta/arm64/beta-mac.yml")
   assert.deepEqual(route, {
     channel: "beta",
-    architecture: "arm64",
-    assetName: "beta-mac.yml",
+    assetName: "beta-mac-arm64.yml",
+    releaseTag: null,
   })
-  assert.equal(releaseAssetNameForLiteUpdate(route), "beta-mac-arm64.yml")
-  assert.equal(
-    releaseAssetNameForLiteUpdate({
+  assert.deepEqual(
+    getEidosLiteUpdateRoute(
+      "/lite/updates/stable/x64/Eidos%20Lite-0.2.0-mac-x64.zip"
+    ),
+    {
       channel: "stable",
-      architecture: "x64",
       assetName: "Eidos Lite-0.2.0-mac-x64.zip",
-    }),
-    "Eidos Lite-0.2.0-mac-x64.zip"
+      releaseTag: "lite-v0.2.0",
+    }
   )
   assert.equal(getEidosLiteUpdateRoute("/lite/updates/stable/x64/../x"), null)
 })

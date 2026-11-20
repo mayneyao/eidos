@@ -13,6 +13,8 @@ export function getCliSource(pathname) {
 
 const LITE_TAG_PATTERN =
   /^lite-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
+const LITE_UPDATE_ASSET_PATTERN =
+  /^Eidos[ .]Lite-(\d+\.\d+\.\d+(?:-(alpha|beta|rc)\.\d+)?)-(mac|win|linux)-(arm64|x64|x86_64|amd64)\.(zip|dmg|exe|AppImage|deb)(\.blockmap)?$/u
 const ANDROID_TAG_PATTERN =
   /^android-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 
@@ -62,6 +64,12 @@ export function isStableEidosLiteRelease(release) {
   return liteVersion(release)?.prerelease === null
 }
 
+/**
+ * @template {{draft: boolean, prerelease: boolean, tag_name: string}} T
+ * @param {T[]} releases
+ * @param {string} channel
+ * @returns {T | null}
+ */
 export function selectEidosLiteRelease(releases, channel) {
   const candidates = releases
     .map((release) => ({ release, version: liteVersion(release) }))
@@ -116,24 +124,54 @@ export function getEidosLiteUpdateRoute(pathname) {
   } catch {
     return null
   }
+  const [, channel, architecture] = match
+  const metadata = /^(latest|beta)(-mac|-linux)?(-arm64)?\.yml$/u.exec(
+    assetName
+  )
+  if (metadata) {
+    if (metadata[1] !== (channel === "stable" ? "latest" : "beta")) return null
+    // GenericProvider appends the architecture on Linux arm64. The short
+    // Linux path is also used by the release workflow to probe this lane.
+    if (metadata[3] && (metadata[2] !== "-linux" || architecture !== "arm64")) {
+      return null
+    }
+    const platform = metadata[2]?.slice(1) ?? "win"
+    return {
+      channel,
+      assetName: `${metadata[1]}-${platform}-${architecture}.yml`,
+      releaseTag: null,
+    }
+  }
+
+  const asset = LITE_UPDATE_ASSET_PATTERN.exec(assetName)
+  if (!asset) return null
+  const [, version, prerelease, platform, assetArch, format, blockmap] = asset
+  if (channel === "stable" && prerelease) return null
+  const validTarget =
+    (platform === "mac" && (format === "zip" || format === "dmg")) ||
+    (platform === "win" && format === "exe") ||
+    (platform === "linux" &&
+      !blockmap &&
+      (format === "AppImage" || format === "deb"))
   if (
-    !assetName ||
-    assetName === "." ||
-    assetName === ".." ||
-    assetName.includes("/") ||
-    assetName.includes("\\")
+    !validTarget ||
+    assetArch !==
+      releaseArchitectureForPlatform(
+        platform,
+        architecture,
+        format.toLowerCase()
+      )
   ) {
     return null
   }
-  return { channel: match[1], architecture: match[2], assetName }
+  return { channel, assetName, releaseTag: `lite-v${version}` }
 }
 
-export function releaseAssetNameForLiteUpdate(route) {
-  const metadata = /^(latest|beta)(-mac|-linux)?\.yml$/u.exec(route.assetName)
-  if (!metadata) return route.assetName
-  const platform =
-    metadata[2] === "-mac" ? "mac" : metadata[2] === "-linux" ? "linux" : "win"
-  return `${metadata[1]}-${platform}-${route.architecture}.yml`
+export function isPublishedLiteUpdateRelease(release, releaseTag) {
+  return (
+    release?.tag_name === releaseTag &&
+    releaseVersion(release, LITE_TAG_PATTERN) !== null
+  )
 }
 
 /**
@@ -172,6 +210,12 @@ export function releaseArchitectureForPlatform(
   return architecture
 }
 
+/**
+ * @template {{name: string, label?: string}} T
+ * @param {T[]} assets
+ * @param {string} assetName
+ * @returns {T | undefined}
+ */
 export function findReleaseAsset(assets, assetName) {
   return assets.find(
     (candidate) => candidate.name === assetName || candidate.label === assetName
