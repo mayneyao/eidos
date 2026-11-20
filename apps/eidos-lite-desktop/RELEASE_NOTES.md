@@ -1,7 +1,7 @@
-## Improvements
+## What's new
 
-### Read files with newer formulas
+### Use today's date in formulas
 
-If an otherwise valid `.eidos` file uses a formula function that requires a newer version, Lite opens the file read-only. You can still read existing records, and Lite marks unavailable results while preserving the original formulas and saved views.
+Add a Formula field with `TODAY()` to return today's date in Lite's time zone. For example, `DATE(TODAY(), '+1 day')` returns tomorrow. Tables refresh after the local date changes or when you return to Lite.
 
-If a saved view depends on an unavailable formula, choose **Browse records** to see the underlying records. Use a version that supports the formula to edit the file. Formula creation in this release uses the existing set of functions.
+Update the apps that edit or sync the same Space before adding this formula. An older version may open the file read-only or be unable to finish a sync merge.

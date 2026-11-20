@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-file-ui",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "description": "Reusable React editor UI for the open Eidos File format",
   "type": "module",
   "main": "./dist/index.mjs",

@@ -1,14 +1,14 @@
-## Improvements
+## What's new
 
-### Read-only access to files with newer formulas
+### Use today's date in formulas
 
-Use `eidos data query` to read stored fields from a valid Eidos File that
-contains a formula this version cannot evaluate. The CLI protects the file
-from edits.
+Create a Formula field with `TODAY()` in the browser editor opened by
+`eidos serve`. Use `DATE(TODAY(), '+1 day')` to get tomorrow's date.
 
-`eidos serve` opens the file in read-only mode and marks unavailable
-formula values. If a saved view depends on an unavailable formula, choose
-**Browse records** to see the stored values.
+Pass `--time-zone Asia/Shanghai` to `eidos data query` or
+`eidos formula preview` to evaluate the formula in that time zone. Add
+`--reference-instant` to reproduce the result for a specific UTC instant.
+Update the apps that edit or sync the file before adding this formula.
 
 ## Use with an Agent
 
@@ -34,7 +34,7 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v3.4.1 and verify the archive against the release
+The installers select v3.5.0 and verify the archive against the release
 `SHA256SUMS` before replacing the binary.
 
 Create a local Eidos File with an initial table and open its browser editor:
