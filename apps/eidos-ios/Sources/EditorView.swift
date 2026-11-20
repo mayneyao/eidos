@@ -72,22 +72,28 @@ struct EditorView: UIViewRepresentable {
             let params = body["params"] as? [String: Any] ?? [:]
             if method == "files.import" {
                 guard importReply == nil else { replyHandler(nil,tr("正在选择文件")); return }
+                guard let web, controller.web === web else { replyHandler(nil, tr("文件会话已结束")); return }
                 importReply = replyHandler
-                var presenter = web?.window?.rootViewController
-                while let presented = presenter?.presentedViewController { presenter = presented }
-                guard let presenter else { importReply = nil; replyHandler(nil,tr("无法打开文件选择器")); return }
-                if params["imagesOnly"] as? Bool == true {
-                    var configuration = PHPickerConfiguration()
-                    configuration.filter = .images
-                    configuration.selectionLimit = 0
-                    let picker = PHPickerViewController(configuration: configuration)
-                    picker.delegate = self
-                    presenter.present(picker, animated: true)
+                let document = file
+                let imagesOnly = params["imagesOnly"] as? Bool == true
+                if document.pathExtension.lowercased() == "eidos" {
+                    queue.async {
+                        do {
+                            _ = try Runtime.call(document, "assertAssetWritable")
+                            DispatchQueue.main.async {
+                                guard self.importReply != nil, let web = self.web, self.controller.web === web else { return }
+                                self.presentImportPicker(imagesOnly: imagesOnly)
+                            }
+                        } catch {
+                            DispatchQueue.main.async {
+                                let reply = self.importReply
+                                self.importReply = nil
+                                reply?(nil, error.localizedDescription)
+                            }
+                        }
+                    }
                 } else {
-                    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: true)
-                    picker.allowsMultipleSelection = true
-                    picker.delegate = self
-                    presenter.present(picker, animated: true)
+                    presentImportPicker(imagesOnly: imagesOnly)
                 }
                 return
             }
@@ -188,6 +194,29 @@ struct EditorView: UIViewRepresentable {
                 } catch { DispatchQueue.main.async { replyHandler(nil, error.localizedDescription) } }
             }
         }
+        private func presentImportPicker(imagesOnly: Bool) {
+            var presenter = web?.window?.rootViewController
+            while let presented = presenter?.presentedViewController { presenter = presented }
+            guard let presenter else {
+                let reply = importReply
+                importReply = nil
+                reply?(nil, tr("无法打开文件选择器"))
+                return
+            }
+            if imagesOnly {
+                var configuration = PHPickerConfiguration()
+                configuration.filter = .images
+                configuration.selectionLimit = 0
+                let picker = PHPickerViewController(configuration: configuration)
+                picker.delegate = self
+                presenter.present(picker, animated: true)
+            } else {
+                let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: true)
+                picker.allowsMultipleSelection = true
+                picker.delegate = self
+                presenter.present(picker, animated: true)
+            }
+        }
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if navigationAction.targetFrame?.isMainFrame == false {
                 decisionHandler(navigationAction.request.url?.scheme == "about" ? .allow : .cancel)
@@ -201,6 +230,7 @@ struct EditorView: UIViewRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
             guard let reply = importReply else { return }
+            let database = file.pathExtension.lowercased() == "eidos" ? file : nil
             Task { @MainActor in
                 let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                 defer {
@@ -227,10 +257,13 @@ struct EditorView: UIViewRepresentable {
                         }
                         urls.append(url)
                     }
+                    if database != nil {
+                        guard importReply != nil, let web, controller.web === web else { return }
+                    }
                     let sources = urls
                     let entries: Any = try await withCheckedThrowingContinuation { continuation in
                         queue.async {
-                            do { continuation.resume(returning: try LocalSpace.importEditorFiles(document: self.file, sources: sources)) }
+                            do { continuation.resume(returning: try LocalSpace.importEditorFiles(document: database ?? self.file, sources: sources)) }
                             catch { continuation.resume(throwing: error) }
                         }
                     }
@@ -240,8 +273,9 @@ struct EditorView: UIViewRepresentable {
         }
         func documentPicker(_ controller: UIDocumentPickerViewController,didPickDocumentsAt urls: [URL]) {
             guard let reply = importReply else { return }; importReply = nil
+            let database = file.pathExtension.lowercased() == "eidos" ? file : nil
             queue.async {
-                do { let entries = try LocalSpace.importEditorFiles(document:self.file,sources:urls); DispatchQueue.main.async { reply(entries,nil) } }
+                do { let entries = try LocalSpace.importEditorFiles(document:database ?? self.file,sources:urls); DispatchQueue.main.async { reply(entries,nil) } }
                 catch { DispatchQueue.main.async { reply(nil,error.localizedDescription) } }
             }
         }

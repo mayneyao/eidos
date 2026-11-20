@@ -348,11 +348,13 @@ export function MobileTableSwitcher({
   tables,
   activeId,
   disabled,
+  readOnly,
   onReorder,
 }: {
   tables: { id: string; name: string }[]
   activeId?: string
   disabled?: boolean
+  readOnly?: boolean
   onReorder?(ids: string[]): Promise<void>
 }) {
   const t = useEidosFileUI().translate
@@ -378,34 +380,38 @@ export function MobileTableSwitcher({
               items={tables}
               activeId={activeId}
               disabled={disabled}
-              onReorder={onReorder}
+              onReorder={readOnly ? undefined : onReorder}
               onSelect={(id) => {
                 window.eidosSelectTable?.(id)
                 setOpen(false)
               }}
             />
           </div>
-          <button
-            className="mobile-create-view"
-            disabled={disabled}
-            onClick={() => {
-              setOpen(false)
-              window.eidosManageTables?.("create")
-            }}
-          >
-            <Plus size={20} />
-            <span>{t("New table")}</span>
-          </button>
-          <button
-            disabled={disabled || !activeId}
-            onClick={() => {
-              setOpen(false)
-              window.eidosManageTables?.("edit")
-            }}
-          >
-            <Table2 size={20} />
-            <span>{t("Table settings")}</span>
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                className="mobile-create-view"
+                disabled={disabled}
+                onClick={() => {
+                  setOpen(false)
+                  window.eidosManageTables?.("create")
+                }}
+              >
+                <Plus size={20} />
+                <span>{t("New table")}</span>
+              </button>
+              <button
+                disabled={disabled || !activeId}
+                onClick={() => {
+                  setOpen(false)
+                  window.eidosManageTables?.("edit")
+                }}
+              >
+                <Table2 size={20} />
+                <span>{t("Table settings")}</span>
+              </button>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>

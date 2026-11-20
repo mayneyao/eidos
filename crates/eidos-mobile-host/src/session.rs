@@ -66,6 +66,7 @@ impl SessionHost {
                     | "getSchemaPlanDependencies"
                     | "mutateSchema"
                     | "validate"
+                    | "assertAssetWritable"
                     | "allocateFileEntry"
             ),
             "Unsupported embedded Runtime operation"
@@ -87,6 +88,10 @@ impl SessionHost {
             self.query = Some((path, session));
         }
         let host = &self.query.as_ref().unwrap().1 .0;
+        if method == "assertAssetWritable" {
+            super::unwrap(&host.invoke("assertAssetWritable", &[])?)?;
+            return Ok(json!({}));
+        }
         if method == "allocateFileEntry" {
             return super::unwrap(&host.invoke("allocateFileEntry", &[request.to_string()])?);
         }
@@ -120,6 +125,9 @@ impl SessionHost {
                 ),
                 "Unsupported embedded Runtime operation"
             );
+            return self.execute_persistent(&path, method, request);
+        }
+        if method == "assertAssetWritable" {
             return self.execute_persistent(&path, method, request);
         }
         if method != "queryRows" {
@@ -356,6 +364,55 @@ mod tests {
         assert!(host.execute(&path, "web:create", json!({})).is_err());
         assert!(host.execute(&path, "web:executeSql", json!({})).is_err());
         host.close();
+        Ok(())
+    }
+
+    #[test]
+    fn embedded_asset_guard_reflects_the_current_file_and_formula_revision() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let file = directory.path().join("formula.eidos");
+        let ordinary = directory.path().join("ordinary.eidos");
+        super::super::execute(
+            &file,
+            "create",
+            json!({"fields": [
+                {"clientKey":"title","name":"Title","kind":"text","position":"0"},
+                {"clientKey":"day","name":"Day","kind":"formula","position":"1",
+                 "definition":{"sourceText":"DATE('2026-11-20')","resultType":"date"}}
+            ]}),
+        )?;
+        super::super::execute(&ordinary, "create", json!({"title":"Ordinary"}))?;
+        let mut host = SessionHost::default();
+        host.execute(&file, "assertAssetWritable", json!({}))?;
+        // Model an update from a newer writer while the mobile session is cached.
+        let connection = rusqlite::Connection::open(&file)?;
+        connection.execute_batch(
+            "BEGIN IMMEDIATE;
+             UPDATE eidos__formula_fields SET source_text = 'TODAY()';
+             UPDATE eidos__meta SET revision = revision + 1;
+             COMMIT;",
+        )?;
+        drop(connection);
+        let original = std::fs::read(&file)?;
+        let denied = host.execute(&file, "assertAssetWritable", json!({}));
+        assert!(denied.unwrap_err().to_string().contains("read-only"));
+
+        host.close();
+        let navigation = json!({"protocol":"eidos-runtime","versions":["1.0"]});
+        let negotiated = host.execute(&file, "web:negotiate", navigation)?;
+        assert_eq!(negotiated["capabilities"]["mutateRows"], false);
+        assert!(host
+            .execute(&file, "assertAssetWritable", json!({}))
+            .is_err());
+        assert!(host
+            .execute(&file, "web:assertAssetWritable", json!({}))
+            .is_err());
+
+        host.execute(&ordinary, "assertAssetWritable", json!({}))?;
+        assert!(host
+            .execute(&file, "assertAssetWritable", json!({}))
+            .is_err());
+        assert_eq!(std::fs::read(&file)?, original);
         Ok(())
     }
 

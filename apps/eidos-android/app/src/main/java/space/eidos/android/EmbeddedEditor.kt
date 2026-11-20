@@ -141,8 +141,10 @@ internal class EmbeddedEditorBridge(
                 }
                 null
             }
-            "files.import" ->
+            "files.import" -> {
+                repository.assertEditorAssetWritable(file.path)
                 repository.importEditorFiles(file.path, pickFiles(params.optBoolean("imagesOnly")))
+            }
             "plugin.catalog" ->
                 org.json.JSONArray().also { result ->
                     pluginStore

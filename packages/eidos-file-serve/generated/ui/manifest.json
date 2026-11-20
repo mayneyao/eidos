@@ -377,7 +377,7 @@
       "packages/eidos-file-ui/src/mobile-table-header.ts": "bb6ad834bbab6eadf0a5dc02b9f93f9ab6480571fabce89e43dfac6f1e95478b",
       "packages/eidos-file-ui/src/mobile-table-settings.tsx": "c861faec9b24250cf77cff7790faa34703de889aa07c7ae7780a18e1600fbcb4",
       "packages/eidos-file-ui/src/mobile-toolbar.test.tsx": "f4307b2408633cf291dc77cec37800c1600103c68026a15e5da55c10f444433c",
-      "packages/eidos-file-ui/src/mobile-toolbar.tsx": "f11deca2ebc7bce1c046d40154feded7c8de84f833b711d2898199b00bffc029",
+      "packages/eidos-file-ui/src/mobile-toolbar.tsx": "a3990d9a11fd801ac0af6e78ba0dae4a86fe73a974600cbbbe2df323122b81f6",
       "packages/eidos-file-ui/src/mobile-view-layout.test.tsx": "4fdcb6e330acab89add89dbb2abe920554f6cdf5eae8fa170139a36bb2cd9c13",
       "packages/eidos-file-ui/src/mobile-view-layout.tsx": "c7ac1919dbf3dca35f9d9e3570bac1c77aaf7c61225dfdb1b0f3a7376cd00382",
       "packages/eidos-file-ui/src/mobile-view-settings.tsx": "4bb3652cb076c69f4977f35ad8adc1f885d8ef0ca340cfc4a9310e5c094c1aaa",
