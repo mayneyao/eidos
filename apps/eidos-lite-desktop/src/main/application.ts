@@ -20,6 +20,7 @@ import {
   runtimeEnvironmentOverride,
 } from "../shared/service-environment"
 import { resolveEidosLiteLocale } from "../shared/i18n"
+import { getEidosLiteSystemLocale } from "./system-locale"
 import { eidosLiteUpdatesEnabledInBuild } from "../shared/update-environment"
 import { installElectronLogging } from "./electron-logging"
 import { eidosLiteApplicationMenuTemplate } from "./application-menu"
@@ -383,7 +384,10 @@ app.on("before-quit", (event) => {
 
 async function installApplicationMenu(): Promise<void> {
   const preferences = await controller.getPreferences()
-  const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+  const locale = resolveEidosLiteLocale(
+    preferences.language,
+    getEidosLiteSystemLocale()
+  )
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(
       eidosLiteApplicationMenuTemplate(

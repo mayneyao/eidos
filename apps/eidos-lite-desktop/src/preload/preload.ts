@@ -4,6 +4,7 @@ import type { TextSearchProgress } from "../shared/text-search"
 
 import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
+  EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT,
   IPC_CHANNELS,
   type EidosLiteApi,
   type EidosLiteClipboardCommand,
@@ -35,6 +36,9 @@ ipcRenderer.on(IPC_CHANNELS.clipboardCommand, (_event, command: unknown) => {
 })
 
 const api: EidosLiteApi = {
+  systemLocale: process.argv
+    .find((argument) => argument.startsWith(EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT))
+    ?.slice(EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT.length),
   setClipboardCommandState: (state) =>
     ipcRenderer.send(IPC_CHANNELS.clipboardCommandState, state),
   onClipboardCommand: (listener) => {
@@ -180,6 +184,16 @@ const api: EidosLiteApi = {
     ) => listener(value)
     ipcRenderer.on(PLUGIN_CHANNELS.event, handler)
     return () => ipcRenderer.removeListener(PLUGIN_CHANNELS.event, handler)
+  },
+  onPluginOpenFileInSidebar: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      spaceId: string,
+      relativePath: string
+    ) => listener(spaceId, relativePath)
+    ipcRenderer.on(PLUGIN_CHANNELS.openFileInSidebar, handler)
+    return () =>
+      ipcRenderer.removeListener(PLUGIN_CHANNELS.openFileInSidebar, handler)
   },
   pluginRequest: (ticket, request) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.request, ticket, request),

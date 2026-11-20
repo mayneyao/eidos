@@ -714,14 +714,21 @@ export type FileExportResult = {
   /** Browsers can confirm dispatch only, not whether the user saved the file. */
   status: "saved" | "download-started" | "cancelled"
 }
+export type OpenFileTarget = "main" | "sidebar"
+export interface OpenFileOptions {
+  /** Defaults to the main editor. Check openFileTargets before requesting a sidebar. */
+  target?: OpenFileTarget
+}
 export interface HostUI {
   /** Optional Lite composition capability; requires workspace.files read access. */
   resources?: HostResources
   notify(message: string): Promise<void>
   /** Optional host-mediated export: Lite save dialog or Serve browser download. */
   exportFile?(request: FileExportRequest): Promise<FileExportResult>
+  /** Locations supported by this host and contribution. Older hosts may omit this. */
+  readonly openFileTargets?: readonly OpenFileTarget[]
   /** Opens an existing file in the host editor or viewer. */
-  openFile?(relativePath: string): Promise<void>
+  openFile?(relativePath: string, options?: OpenFileOptions): Promise<void>
   navigate?(viewId: string, route?: string): Promise<void>
 }
 

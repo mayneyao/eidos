@@ -124,3 +124,63 @@ it("denies inherited desktop RPC additions before reaching the native mobile bri
     instance.dispose()
   }
 })
+
+it("accepts the main target and rejects the sidebar before opening a file", async () => {
+  Object.defineProperty(HTMLIFrameElement.prototype, "sandbox", {
+    configurable: true,
+    value: { add: vi.fn() },
+  })
+  const openFile = vi.fn()
+  const instance = new MobilePluginInstance(
+    {
+      manifest: {
+        apiVersion: 1,
+        id: "test.file-target",
+        name: "File target",
+        version: "1.0.0",
+        workspace: { files: true },
+      },
+      modules: {},
+    },
+    vi.fn(),
+    {
+      view: { id: "page", title: "Page", kind: "page", entry: "main.js" },
+      notify: vi.fn(),
+      navigate: vi.fn(),
+      openFile,
+      confirm: async () => true,
+    }
+  )
+  document.body.append(instance.frame)
+  const send = vi.spyOn(instance.frame.contentWindow!, "postMessage")
+  try {
+    for (const target of ["main", "sidebar"]) {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: instance.frame.contentWindow,
+          data: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            id: target,
+            method: "ui.openFile",
+            params: { relativePath: "notes/Research.md", target },
+          },
+        })
+      )
+    }
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+    expect(send.mock.calls.map(([response]) => response)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "main", result: null }),
+        expect.objectContaining({
+          id: "sidebar",
+          error: expect.objectContaining({ code: "PERMISSION_DENIED" }),
+        }),
+      ])
+    )
+    expect(openFile.mock.calls).toEqual([["notes/Research.md"]])
+  } finally {
+    instance.dispose()
+    instance.frame.remove()
+  }
+})

@@ -80,9 +80,37 @@ mount(element: HTMLElement, source: ResourceSource): Promise<ResourceMount>;
 
 关联类型: [ResourceViewInfo](/zh-cn/plugins/api/types/#resourceviewinfo), [ResourceSource](/zh-cn/plugins/api/types/#resourcesource), [ResourceMount](/zh-cn/plugins/api/ui/#resourcemount).
 
-## HostUI
+## OpenFileTarget
 
 [源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L717)
+
+支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+
+```ts
+export type OpenFileTarget = "main" | "sidebar";
+```
+
+
+## OpenFileOptions
+
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L718)
+
+### OpenFileOptions.target
+
+支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+
+```ts
+target?: OpenFileTarget;
+```
+
+
+关联类型: [OpenFileTarget](/zh-cn/plugins/api/ui/#openfiletarget).
+
+## HostUI
+
+[源码](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L722)
 
 ### HostUI.resources
 
@@ -128,20 +156,33 @@ exportFile?(request: FileExportRequest): Promise<FileExportResult>;
 
 返回值: `Promise<FileExportResult>`.
 
+### HostUI.openFileTargets
+
+支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+当前贡献可用的打开位置。请求右侧栏前请检查 `ui.openFileTargets?.includes("sidebar")`。旧宿主可能省略该列表并忽略第二个参数。需要在这些宿主打开主编辑区时，省略 `options`。
+
+
+```ts
+readonly openFileTargets?: readonly OpenFileTarget[];
+```
+
+
 ### HostUI.openFile
 
 支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
-在宿主中打开已有的 Space 相对路径文件。
+打开已有的 Space 相对路径文件，默认目标是主区域（`main`）。Lite API 3.13 的独立 View 和普通命令支持 `openFile(path, { target: "sidebar" })`，在右侧栏打开文件并保留主区域的 View。在右侧栏打开其他文件需要 `workspace.files` 读取权限。
 
 
 ```ts
-openFile?(relativePath: string): Promise<void>;
+openFile?(relativePath: string, options?: OpenFileOptions): Promise<void>;
 ```
 
 | 参数 | 类型 | 必填 |
 | --- | --- | --- |
 | `relativePath` | `string` | 是 |
+| `options` | `OpenFileOptions` | 否 |
 
 返回值: `Promise<void>`.
 
@@ -163,4 +204,4 @@ navigate?(viewId: string, route?: string): Promise<void>;
 
 返回值: `Promise<void>`.
 
-关联类型: [HostResources](/zh-cn/plugins/api/ui/#hostresources), [FileExportRequest](/zh-cn/plugins/api/types/#fileexportrequest), [FileExportResult](/zh-cn/plugins/api/types/#fileexportresult).
+关联类型: [HostResources](/zh-cn/plugins/api/ui/#hostresources), [FileExportRequest](/zh-cn/plugins/api/types/#fileexportrequest), [FileExportResult](/zh-cn/plugins/api/types/#fileexportresult), [OpenFileTarget](/zh-cn/plugins/api/ui/#openfiletarget), [OpenFileOptions](/zh-cn/plugins/api/ui/#openfileoptions).

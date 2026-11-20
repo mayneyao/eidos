@@ -8,6 +8,7 @@ interface UpdateInfoLike {
 
 interface DownloadProgressLike {
   percent?: unknown
+  transferred?: unknown
 }
 
 export interface EidosLiteAutoUpdater {
@@ -16,10 +17,16 @@ export interface EidosLiteAutoUpdater {
   allowPrerelease: boolean
   allowDowngrade: boolean
   channel: string | null
+  logger: {
+    info(message?: unknown): void
+    warn(message?: unknown): void
+    error(message?: unknown): void
+  } | null
   setFeedURL(options: {
     provider: "generic"
     url: string
     channel: "latest" | "beta"
+    useMultipleRangeRequest: false
   }): void
   on(event: string, listener: (value: unknown) => void): unknown
   checkForUpdates(): Promise<unknown> | null
@@ -211,10 +218,25 @@ export class EidosLiteUpdater {
         updater.autoInstallOnAppQuit = true
         updater.allowPrerelease = feed.channel === "beta"
         updater.channel = feed.channel
-        updater.setFeedURL({ provider: "generic", ...feed })
+        // GitHub's release asset CDN serves a single byte range per request.
+        updater.setFeedURL({
+          provider: "generic",
+          ...feed,
+          useMultipleRangeRequest: false,
+        })
         // Setting electron-updater's channel implicitly enables downgrades.
         // An update must never replace this release with an older feed entry.
         updater.allowDowngrade = false
+        // Keep native differential plans and fallback reasons in Lite's logs.
+        const logger = this.options.logger
+        updater.logger = {
+          info: (message) =>
+            logger.info("update.native", { message: String(message) }),
+          warn: (message) =>
+            logger.warn("update.native", { message: String(message) }),
+          error: (message) =>
+            logger.warn("update.native", { message: String(message) }),
+        }
         this.bindEvents(updater)
         this.options.logger.info("update.initialized", {
           channel: feed.channel,
@@ -249,14 +271,24 @@ export class EidosLiteUpdater {
         currentVersion: this.options.currentVersion,
       })
     )
-    updater.on("download-progress", (progress) =>
+    updater.on("download-progress", (progress) => {
+      const progressPercent = progressFrom(progress)
+      if (progressPercent === 100) {
+        const { transferred } = progress as DownloadProgressLike
+        if (typeof transferred === "number" && Number.isFinite(transferred)) {
+          this.options.logger.info("update.transfer.finished", {
+            version: this.status.version,
+            transferredBytes: transferred,
+          })
+        }
+      }
       this.update({
         state: "downloading",
         currentVersion: this.options.currentVersion,
         version: this.status.version,
-        progressPercent: progressFrom(progress),
+        progressPercent,
       })
-    )
+    })
     updater.on("update-downloaded", (info) =>
       this.update({
         state: "downloaded",

@@ -12,6 +12,26 @@ const workflow = (name) =>
   )
 const release = workflow("build-and-release-eidos-lite.yml")
 const mac = workflow("build-lite-macos-x64.yml")
+const builder = JSON.parse(
+  fs.readFileSync(new URL("../electron-builder.json", import.meta.url), "utf8")
+)
+
+test("release waits for final DMG blockmaps and checksums both macOS payloads", () => {
+  assert.deepEqual(builder.mac.target, ["dmg", "zip"])
+  assert.equal(builder.mac.notarize, true)
+  assert.equal(builder.dmg.writeUpdateInfo, false)
+  assert.equal(
+    builder.artifactBuildCompleted,
+    "./scripts/finalize-macos-dmg.mjs"
+  )
+  const prepare = release.jobs.release.steps.find(
+    (step) => step.id === "release"
+  )
+  assert.match(prepare.run, /for architecture in arm64 x64; do/)
+  assert.match(prepare.run, /for extension in dmg zip; do/)
+  assert.match(prepare.run, /\$\{architecture\}\.\$\{extension\}\.blockmap/)
+  assert.match(prepare.run, /sha256sum --check --strict SHA256SUMS/)
+})
 
 test("publication waits for both the ARM x64 build and Intel acceptance", () => {
   assert.ok(release.jobs.release.needs.includes("build-mac-x64"))

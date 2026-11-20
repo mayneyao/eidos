@@ -1,9 +1,16 @@
 ## What's new
 
-### Use today's date in formulas
+### Open Canvas source files in the sidebar
 
-Add a Formula field with `TODAY()` to return today's date in Lite's time zone. For example, `DATE(TODAY(), '+1 day')` returns tomorrow. Tables refresh after the local date changes or when you return to Lite.
+With Eidos Canvas 0.5.7, click a Markdown card's title to open the complete source file in Lite's right sidebar. You can read the note alongside the canvas and keep working from the same view.
 
-Update the apps that edit or sync the same Space before adding this formula. An older version may open the file read-only or be unable to finish a sync merge.
+## Improvements
 
-If you sync a Space with iOS, wait for an iOS update that supports `TODAY()` before adding it to files in that Space.
+### Smaller desktop packages
+
+Lite bundles fewer resources for a smaller download and a smaller installation. macOS disk images use LZMA compression to reduce the size of manual downloads.
+
+## Bug fixes
+
+- **App updates.** Lite can download only the changed parts of an update when a compatible previous package is cached. It downloads the full package when a differential update is unavailable.
+- **System language.** Follow System uses your first preferred system language and falls back to English when Lite has no translation for it.

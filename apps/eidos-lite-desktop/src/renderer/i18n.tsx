@@ -25,7 +25,11 @@ function browserLocale(): string {
   return navigator.languages[0] ?? navigator.language ?? "en"
 }
 
-const defaultLocale = resolveEidosLiteLocale("system", browserLocale())
+function initialSystemLocale(): string {
+  return globalThis.window?.eidosLite?.systemLocale ?? browserLocale()
+}
+
+const defaultLocale = resolveEidosLiteLocale("system", initialSystemLocale())
 const EidosLiteI18nContext = createContext<EidosLiteI18nContextValue>({
   locale: defaultLocale,
   language: "system",
@@ -34,10 +38,21 @@ const EidosLiteI18nContext = createContext<EidosLiteI18nContextValue>({
 
 export function EidosLiteI18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<EidosLiteLanguage>("system")
-  const [systemLocale, setSystemLocale] = useState(browserLocale)
+  const [systemLocale, setSystemLocale] = useState(initialSystemLocale)
 
   useEffect(() => {
-    const update = () => setSystemLocale(browserLocale())
+    const update = () => {
+      if (window.eidosLite?.systemLocale === undefined) {
+        setSystemLocale(browserLocale())
+        return
+      }
+      void window.eidosLite.getAppInfo().then(
+        ({ systemLocale }) => {
+          if (systemLocale !== undefined) setSystemLocale(systemLocale)
+        },
+        () => {}
+      )
+    }
     window.addEventListener("languagechange", update)
     return () => window.removeEventListener("languagechange", update)
   }, [])

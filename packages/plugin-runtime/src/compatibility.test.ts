@@ -95,7 +95,11 @@ it("checks every composed Eidos capability for each host", () => {
   })
 })
 it("checks minimum API independently of SDK and plugin versions", () => {
-  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.12.0")
+  expect(pluginHostInfo("eidos-lite").pluginApiVersion).toBe("3.13.0")
+  expect(pluginHostInfo("eidos-lite").features).toContain("ui.openFile.sidebar")
+  expect(pluginHostInfo("eidos-cli").features).not.toContain(
+    "ui.openFile.sidebar"
+  )
   for (const [version, compatible] of [
     ["1.0.0", false],
     ["1.1.0", false],
@@ -111,6 +115,8 @@ it("checks minimum API independently of SDK and plugin versions", () => {
     ["3.1.0", true],
     ["3.2.0", true],
     ["3.3.0", true],
+    ["3.12.0", true],
+    ["3.13.0", true],
   ] as const) {
     expect(
       checkPluginCompatibility(

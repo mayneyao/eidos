@@ -24,6 +24,7 @@ import {
 } from "electron"
 
 import {
+  EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT,
   IPC_CHANNELS,
   type EidosLiteAppearance,
   type EidosLiteDiagnostics,
@@ -109,6 +110,7 @@ import {
   type LiteWindowBounds,
   LiteWindowStateStore,
 } from "./window-state"
+import { getEidosLiteSystemLocale } from "./system-locale"
 
 const SPACE_WINDOW_SIZE = { width: 1320, height: 860 }
 const SPACE_WINDOW_MINIMUM = { width: 900, height: 600 }
@@ -1018,7 +1020,10 @@ export class WindowController {
   ): Promise<SpaceSnapshot | null> {
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const preferences = await this.preferences().get()
-    const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+    const locale = resolveEidosLiteLocale(
+      preferences.language,
+      getEidosLiteSystemLocale()
+    )
     const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.SaveDialogOptions = {
       title: t("Create Space"),
@@ -1618,7 +1623,10 @@ export class WindowController {
   ): Promise<EidosLitePreferences | null> {
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const current = await this.preferences().get()
-    const locale = resolveEidosLiteLocale(current.language, app.getLocale())
+    const locale = resolveEidosLiteLocale(
+      current.language,
+      getEidosLiteSystemLocale()
+    )
     const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.OpenDialogOptions = {
       title: t("Choose Default Location for New Spaces"),
@@ -2047,7 +2055,10 @@ export class WindowController {
   /** Resolved Settings language, shared with main-process copy and native dialogs. */
   async locale(): Promise<EidosLiteLocale> {
     const preferences = await this.preferences().get()
-    return resolveEidosLiteLocale(preferences.language, app.getLocale())
+    return resolveEidosLiteLocale(
+      preferences.language,
+      getEidosLiteSystemLocale()
+    )
   }
 
   private updateWindowControls(
@@ -2238,6 +2249,9 @@ export class WindowController {
       backgroundColor: process.platform === "darwin" ? "#00000000" : "#f7f7f5",
       webPreferences: {
         preload: fileURLToPath(new URL("./preload.js", import.meta.url)),
+        additionalArguments: [
+          `${EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT}${getEidosLiteSystemLocale()}`,
+        ],
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,

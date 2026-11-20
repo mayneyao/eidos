@@ -43,7 +43,11 @@ Configure these GitHub Actions secrets before the first tag:
   Worker.
 
 The workflow fails closed when macOS signing inputs are absent. macOS packages
-must pass `codesign` verification and stapler validation. Windows and Linux are
+must pass `codesign` verification and stapler validation. The manual-install DMG
+uses ULMO (LZMA), and both the app and the final disk image are signed and
+notarized. The packager generates the DMG blockmap and update metadata after
+stapling the image. The updater downloads the ZIP, which remains the primary
+entry in the macOS update manifest. Windows and Linux are
 published unsigned; the Windows job requires Authenticode status `NotSigned`
 before its artifacts can reach the Release job.
 

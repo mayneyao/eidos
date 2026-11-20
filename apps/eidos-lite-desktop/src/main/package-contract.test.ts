@@ -216,18 +216,17 @@ describe("Eidos Lite package identity", () => {
     expect(scripts["native:node"]).toBeUndefined()
     expect(scripts["native:electron"]).toBeUndefined()
     expect(JSON.stringify(builder)).not.toContain("better-sqlite3")
-    expect(builder.files).toContain("**/node_modules/node-pty/**/*")
     expect(builder.asarUnpack).toContain("**/node_modules/node-pty/**/*")
     expect(builder.extraResources).toEqual([
       {
         from: "resources/plugin-sandbox",
         to: "plugin-sandbox",
-        filter: ["**/*"],
+        filter: ["plugin-sandbox", "plugin-sandbox.exe"],
       },
       {
         from: "node_modules/typescript/lib",
         to: "app.asar.unpacked/node_modules/typescript/lib",
-        filter: ["*.d.ts"],
+        filter: ["lib*.d.ts"],
       },
       {
         from: "resources/publish-engine",

@@ -52,6 +52,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test macOS packaging and update metadata contract
+        run: node --test apps/eidos-lite-desktop/scripts/package-macos-release.test.mjs apps/eidos-lite-desktop/scripts/macos-release-workflow.test.mjs
+
       - name: Verify published Graft dependencies and E2EE profile
         run: pnpm --filter @eidos.space/eidos-lite-desktop verify:graft-release
 
@@ -122,7 +125,7 @@ jobs:
         run: pnpm test:eidos-lite
 
       - name: Test download and update routing
-        run: node --test apps/download/src/release-routing.test.mjs
+        run: pnpm --filter download test
 
       - name: Build production assets
         run: pnpm --filter @eidos.space/eidos-lite-desktop build:release
@@ -479,6 +482,11 @@ jobs:
           test -f "release-upload/Eidos Lite-${version}-mac-arm64.zip"
           test -f "release-upload/Eidos Lite-${version}-mac-x64.dmg"
           test -f "release-upload/Eidos Lite-${version}-mac-x64.zip"
+          for architecture in arm64 x64; do
+            for extension in dmg zip; do
+              test -s "release-upload/Eidos Lite-${version}-mac-${architecture}.${extension}.blockmap"
+            done
+          done
           test -f "release-upload/Eidos Lite-${version}-win-x64.exe"
           # electron-builder renders the Linux x64 `${arch}` macro as `x86_64`.
           test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"
@@ -494,7 +502,7 @@ jobs:
           grep -Fq "Eidos Lite-${version}-linux-amd64.deb" "release-upload/${channel}-linux-x64.yml"
           grep -Fq "Eidos Lite-${version}-linux-arm64.deb" "release-upload/${channel}-linux-arm64.yml"
 
-          (cd release-upload && sha256sum * > SHA256SUMS)
+          (cd release-upload && sha256sum * > SHA256SUMS && sha256sum --check --strict SHA256SUMS)
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           find release-upload -maxdepth 1 -type f -printf '%f\n' | sort

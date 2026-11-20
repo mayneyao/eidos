@@ -90,6 +90,8 @@ export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
 export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
 export const EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX = 64 * 1024 * 1024
 
+export const EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT = "--eidos-lite-system-locale="
+
 export const IPC_CHANNELS = {
   textDraftPrepareClose: "eidos-lite:text-draft-prepare-close",
   textDraftReleaseClose: "eidos-lite:text-draft-release-close",
@@ -874,6 +876,7 @@ export interface EidosLiteFileClipboardStatus {
 }
 
 export interface EidosLiteAppInfo {
+  systemLocale?: string
   name: string
   version: string
   platform: string
@@ -2051,6 +2054,7 @@ export interface PeerTransferDetail {
 }
 
 export interface EidosLiteApi extends PluginApi {
+  readonly systemLocale?: string
   getSparkStatus(refresh?: boolean): Promise<SparkStatus>
   activateSpark(licenseId: number): Promise<SparkStatus>
   deactivateSpark(): Promise<SparkStatus>

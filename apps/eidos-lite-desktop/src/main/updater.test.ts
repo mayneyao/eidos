@@ -10,6 +10,7 @@ class FakeAutoUpdater implements EidosLiteAutoUpdater {
   autoInstallOnAppQuit = false
   allowPrerelease = false
   allowDowngrade = false
+  logger: EidosLiteAutoUpdater["logger"] = null
   private updateChannel: string | null = null
 
   get channel() {
@@ -81,6 +82,7 @@ describe("Eidos Lite updater", () => {
         currentVersion.includes("beta") ? "beta" : "latest"
       )
       expect(native.allowDowngrade).toBe(false)
+      expect(native.feed?.useMultipleRangeRequest).toBe(false)
       expect(native.downloads).toBe(0)
     }
   )
@@ -152,6 +154,7 @@ describe("Eidos Lite updater", () => {
     const native = new FakeAutoUpdater()
     const states: string[] = []
     const lifecycle: string[] = []
+    const logger = { info: vi.fn(), warn: vi.fn() }
     const updater = new EidosLiteUpdater({
       currentVersion: "0.2.0-beta.1",
       platform: "darwin",
@@ -165,7 +168,7 @@ describe("Eidos Lite updater", () => {
         lifecycle.push("prepare")
       },
       broadcast: (status) => states.push(status.state),
-      logger: { info: () => undefined, warn: () => undefined },
+      logger,
     })
 
     await updater.start(false)
@@ -173,6 +176,7 @@ describe("Eidos Lite updater", () => {
       provider: "generic",
       url: "https://download.eidos.space/lite/updates/beta/arm64",
       channel: "beta",
+      useMultipleRangeRequest: false,
     })
     expect(native.allowPrerelease).toBe(true)
 
@@ -184,7 +188,23 @@ describe("Eidos Lite updater", () => {
     })
 
     await updater.download()
-    native.emit("download-progress", { percent: 42.5 })
+    native.emit("download-progress", { percent: 42.5, transferred: 425 })
+    expect(logger.info).not.toHaveBeenCalledWith(
+      "update.transfer.finished",
+      expect.anything()
+    )
+    native.logger?.error(
+      "Cannot download differentially, fallback to full download: checksum mismatch"
+    )
+    expect(logger.warn).toHaveBeenCalledWith("update.native", {
+      message:
+        "Cannot download differentially, fallback to full download: checksum mismatch",
+    })
+    native.emit("download-progress", { percent: 100, transferred: 1000 })
+    expect(logger.info).toHaveBeenCalledWith("update.transfer.finished", {
+      version: "0.2.0-beta.2",
+      transferredBytes: 1000,
+    })
     native.emit("update-downloaded", { version: "0.2.0-beta.2" })
     await updater.restartToInstall()
     await updater.restartToInstall()

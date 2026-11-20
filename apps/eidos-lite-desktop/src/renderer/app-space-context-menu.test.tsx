@@ -146,6 +146,7 @@ async function setup({
     } while (current !== pending)
   }
   const methods = {
+    systemLocale: "en-US",
     getPreferences: async () => ({
       ...DEFAULT_RENDERER_PREFERENCES,
       language,
@@ -154,6 +155,7 @@ async function setup({
     getAppInfo: async () => ({
       platform,
       version: "test",
+      systemLocale: "en-US",
       services: { name: "staging" },
     }),
     getSpace: () => session.snapshot(),

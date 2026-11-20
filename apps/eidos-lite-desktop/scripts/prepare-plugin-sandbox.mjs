@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdir, copyFile, chmod } from "node:fs/promises"
+import { mkdir, copyFile, chmod, rm } from "node:fs/promises"
 import path from "node:path"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
@@ -47,6 +47,9 @@ export async function preparePluginSandbox({
     path.join(destination, name)
   )
   await chmod(path.join(destination, name), 0o755)
+  const otherName =
+    platform === "win32" ? "plugin-sandbox" : "plugin-sandbox.exe"
+  await rm(path.join(destination, otherName), { force: true })
 }
 
 if (

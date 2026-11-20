@@ -1,13 +1,15 @@
 import {
-  findReleaseAsset,
   getCliSource,
-  getEidosLiteUpdateRoute,
   releaseArchitectureForPlatform,
   releaseExtensionForLiteDownload,
-  releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
 import { serveAndroidDownload } from "./android-download"
+import {
+  LITE_RELEASES_API,
+  serveLiteUpdate,
+  type GitHubRelease,
+} from "./lite-update"
 
 /**
  * Welcome to Cloudflare Workers! This is your first worker.
@@ -34,19 +36,6 @@ export interface Env {
 
   // GitHub personal access token for API requests
   GITHUB_TOKEN?: SecretsStoreSecret
-}
-
-interface GitHubAsset {
-  name: string
-  label?: string
-  browser_download_url: string
-}
-
-interface GitHubRelease {
-  assets: GitHubAsset[]
-  draft: boolean
-  prerelease: boolean
-  tag_name: string
 }
 
 async function serveCliFile(sourceUrl: string, pathname: string) {
@@ -103,18 +92,15 @@ export default {
       }
     }
 
-    const liteUpdateRoute = getEidosLiteUpdateRoute(url.pathname)
+    if (url.pathname.startsWith("/lite/updates/")) {
+      return serveLiteUpdate(request, () => env.GITHUB_TOKEN?.get())
+    }
 
     const platform = url.pathname.split("/").pop()?.toLowerCase()
     const arch = url.searchParams.get("arch")?.toLowerCase()
     const format = url.searchParams.get("format")?.toLowerCase() ?? null
 
-    if (
-      !liteUpdateRoute &&
-      platform !== "mac" &&
-      platform !== "win" &&
-      platform !== "linux"
-    ) {
+    if (platform !== "mac" && platform !== "win" && platform !== "linux") {
       return new Response(
         "Invalid platform. Use /mac, /win, /linux, or /android",
         {
@@ -123,22 +109,13 @@ export default {
       )
     }
 
-    const directDownloadExtension = liteUpdateRoute
-      ? null
-      : releaseExtensionForLiteDownload(platform, format)
-    if (!liteUpdateRoute && directDownloadExtension === null) {
+    const releaseExtension = releaseExtensionForLiteDownload(platform, format)
+    if (releaseExtension === null) {
       return new Response(
         "Invalid format. Use dmg for mac, exe for win, or appimage or deb for linux",
         { status: 400 }
       )
     }
-
-    const baseUrl = "https://api.github.com/repos"
-
-    const owner = "mayneyao"
-    const repo = "eidos"
-
-    const apiUrl = `${baseUrl}/${owner}/${repo}/releases`
 
     try {
       const headers: Record<string, string> = {
@@ -152,7 +129,7 @@ export default {
         headers["Authorization"] = `token ${apiKey}`
       }
 
-      const response = await fetch(apiUrl, { headers })
+      const response = await fetch(LITE_RELEASES_API, { headers })
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -183,34 +160,6 @@ export default {
       }
 
       const releases = (await response.json()) as GitHubRelease[]
-      if (liteUpdateRoute) {
-        const release = selectEidosLiteRelease(
-          releases,
-          liteUpdateRoute.channel
-        )
-        if (!release) {
-          return new Response("No Eidos Lite update is available", {
-            status: 404,
-          })
-        }
-        const assetName = releaseAssetNameForLiteUpdate(liteUpdateRoute)
-        const asset = findReleaseAsset(release.assets, assetName) as
-          | GitHubAsset
-          | undefined
-        if (!asset) {
-          return new Response("Eidos Lite update asset is unavailable", {
-            status: 404,
-          })
-        }
-        return Response.redirect(asset.browser_download_url, 302)
-      }
-
-      const releaseExtension = directDownloadExtension
-      if (releaseExtension === null) {
-        return new Response("Eidos Lite download format is unavailable", {
-          status: 404,
-        })
-      }
 
       const latestRelease = selectEidosLiteRelease(releases, "stable")
       if (!latestRelease) {
@@ -218,7 +167,7 @@ export default {
           status: 404,
         })
       }
-      const asset = latestRelease.assets.find((asset: GitHubAsset) => {
+      const asset = latestRelease.assets.find((asset) => {
         const name = asset.name.toLowerCase()
         if (arch) {
           const releaseArch = releaseArchitectureForPlatform(

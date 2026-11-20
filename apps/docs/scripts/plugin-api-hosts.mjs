@@ -48,5 +48,8 @@ export const apiHosts = {
   "HostUI.notify": ["Lite", "Serve", "Mobile"],
   "HostUI.exportFile": ["Lite", "Serve"],
   "HostUI.openFile": ["Lite", "Mobile"],
+  "HostUI.openFileTargets": ["Lite", "Mobile"],
+  OpenFileOptions: ["Lite", "Mobile"],
+  OpenFileTarget: ["Lite", "Mobile"],
   "HostUI.navigate": ["Lite", "Mobile"],
 }

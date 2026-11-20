@@ -608,6 +608,27 @@ describe("Settings search through original controls", () => {
     expect(host.querySelectorAll('[role="option"]')).toHaveLength(1)
   })
 
+  it("uses the first system language when Chromium selects a different locale", async () => {
+    saved.language = "system"
+    vi.spyOn(window.navigator, "languages", "get").mockReturnValue([
+      "ja",
+      "fr-FR",
+      "ja-JP",
+    ])
+    Object.assign(api, { systemLocale: "fr-FR" })
+    await mount()
+    expect(document.documentElement.lang).toBe("en")
+    expect(content().textContent).toContain("Language")
+
+    const appInfo = await api.getAppInfo()
+    api.getAppInfo.mockImplementation(async () => ({
+      ...appInfo,
+      systemLocale: "pt-PT",
+    }))
+    await act(async () => window.dispatchEvent(new Event("languagechange")))
+    expect(document.documentElement.lang).toBe("pt-BR")
+  })
+
   it("coalesces invalidations during a directory read and never navigates on a late response", async () => {
     const pending = deferred<PluginListing>()
     api.listPlugins.mockImplementationOnce(() => pending.promise)

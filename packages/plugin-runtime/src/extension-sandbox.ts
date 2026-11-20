@@ -110,6 +110,7 @@ function activateGuest(
     action: string
     kind: "workspace" | "document" | "file"
     path?: string
+    sidebarFileOpen?: boolean
   }) => {
     const controller = new AbortController(),
       subscriptions = new Set<Disposable>()
@@ -411,7 +412,16 @@ function activateGuest(
         },
         ui: {
           notify: (message) => invoke("ui.notify", { message }),
-          openFile: (relativePath) => invoke("ui.openFile", { relativePath }),
+          openFileTargets: value.sidebarFileOpen
+            ? ["main", "sidebar"]
+            : ["main"],
+          openFile: (relativePath, options) =>
+            invoke("ui.openFile", {
+              relativePath,
+              ...(options?.target === undefined
+                ? {}
+                : { target: options.target }),
+            }),
           navigate: (viewId, route) =>
             invoke("ui.navigate", {
               viewId,
