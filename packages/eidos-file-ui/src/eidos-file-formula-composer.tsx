@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { useEidosFileCalendarExecution } from "./eidos-file-calendar-context"
 import {
   eidosFileFieldTypeOptions,
   EidosFileFieldTypeIcon,
@@ -182,6 +183,7 @@ export function EidosFileFormulaComposer({
   disabled = false,
 }: EidosFileFormulaComposerProps) {
   const { translate: t } = useEidosFileUI()
+  const calendar = useEidosFileCalendarExecution()
   const internalEditorRef = useRef<EidosFileFormulaInputRef>(null)
   const editorRef = externalEditorRef ?? internalEditorRef
   const validationSequence = useRef(0)
@@ -193,8 +195,9 @@ export function EidosFileFormulaComposer({
     null
   )
   const completions = useMemo(
-    () => eidosFileFormulaCompletions(fields, columnName),
-    [columnName, fields]
+    () =>
+      eidosFileFormulaCompletions(fields, columnName, calendar !== undefined),
+    [calendar, columnName, fields]
   )
   const selectedCompletion =
     completions.find((completion) => completion.id === selectedReferenceId) ??
@@ -220,6 +223,7 @@ export function EidosFileFormulaComposer({
       columnName,
       formula: trimmedFormula,
       displayType,
+      ...(calendar ? { calendar } : {}),
     }
     let localPreview: EidosFileFormulaPreview
     try {
@@ -259,6 +263,7 @@ export function EidosFileFormulaComposer({
     }, 350)
     return () => window.clearTimeout(timer)
   }, [
+    calendar,
     columnName,
     displayType,
     field,

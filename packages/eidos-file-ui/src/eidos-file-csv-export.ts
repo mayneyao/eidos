@@ -1,4 +1,5 @@
 import type {
+  EidosFileCalendarContext,
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileTableSnapshot,
@@ -31,6 +32,7 @@ export interface ExportEidosFileViewCsvOptions {
   view?: EidosFileViewInfo
   search?: string
   pageSize?: number
+  calendar?: EidosFileCalendarContext
 }
 
 function arrayText(values: readonly string[]): string {
@@ -77,13 +79,20 @@ export async function exportEidosFileViewCsv({
   view,
   search = "",
   pageSize = DEFAULT_CSV_PAGE_SIZE,
+  calendar,
 }: ExportEidosFileViewCsvOptions): Promise<EidosFileViewCsvExport> {
   const fields = orderedEidosFileFields(table.fields, view)
+  if (fields.some((field) => field.valueStatus === "unsupported-formula")) {
+    throw new Error("A field in this export requires a newer Eidos version")
+  }
   if (fields.length === 0) {
     throw new Error("The current Eidos File view has no visible fields")
   }
   const limit = Math.max(1, Math.trunc(pageSize))
-  const query = eidosFileViewRowQuery(view, search)
+  const query = {
+    ...eidosFileViewRowQuery(view, search),
+    ...(calendar ? { calendar } : {}),
+  }
   const chunks = [
     "\uFEFF",
     encodeEidosFileCsvRecord(fields.map(eidosFileFieldDisplayName)),
@@ -91,13 +100,14 @@ export async function exportEidosFileViewCsv({
   let offset = 0
   let totalHint: number | undefined
   let cursor: string | undefined
+  let referenceInstant: string | undefined
 
   while (totalHint === undefined || offset < totalHint) {
     const page = await source.getPage(
       table.table.id,
       offset,
       limit,
-      query,
+      referenceInstant ? { ...query, referenceInstant } : query,
       totalHint,
       cursor,
       {
@@ -109,6 +119,7 @@ export async function exportEidosFileViewCsv({
     )
     totalHint = page.total
     cursor = page.nextCursor
+    referenceInstant ??= page.referenceInstant
     for (const row of page.rows) {
       chunks.push(
         encodeEidosFileCsvRecord(fields.map((field) => csvCellText(row, field)))

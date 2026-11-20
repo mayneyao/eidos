@@ -39,7 +39,7 @@ function isFormulaScalarField(field: EidosFileFieldInfo): boolean {
 
 const FUNCTION_DETAILS: Partial<
   Record<
-    (typeof EIDOS_FILE_FORMULA_FUNCTION_NAMES)[number],
+    (typeof EIDOS_FILE_FORMULA_FUNCTION_NAMES)[number] | "today",
     { info: string; example: string }
   >
 > = {
@@ -78,6 +78,10 @@ const FUNCTION_DETAILS: Partial<
   datetime: {
     info: "Returns a SQLite UTC date-time using literal safe modifiers.",
     example: "DATETIME(\"Starts\", '+1 hour')",
+  },
+  today: {
+    info: "Returns the current calendar date in the query's time zone.",
+    example: "TODAY()",
   },
   floor: {
     info: "SQLite floor of an Integer or Number.",
@@ -171,7 +175,8 @@ const FUNCTION_DETAILS: Partial<
 
 export function eidosFileFormulaCompletions(
   fields: readonly EidosFileFieldInfo[],
-  currentColumnName?: string
+  currentColumnName?: string,
+  supportsToday = false
 ): EidosFileFormulaCompletion[] {
   const fieldCompletions = fields
     .filter(
@@ -249,27 +254,28 @@ export function eidosFileFormulaCompletions(
       insert: "IS NOT NULL",
     },
   ]
-  const coreFunctionCompletions =
-    EIDOS_FILE_FORMULA_FUNCTION_NAMES.map<EidosFileFormulaCompletion>(
-      (name) => {
-        const label = name.toUpperCase()
-        const detail = FUNCTION_DETAILS[name] ?? {
-          info: `SQLite ${label} scalar function in the Eidos Formula profile.`,
-          example: `${label}()`,
-        }
-        return {
-          id: `function:${name}`,
-          kind: "function",
-          label,
-          type: "function",
-          detail: "function",
-          info: detail.info,
-          example: detail.example,
-          insert: `${label}()`,
-          cursorOffset: -1,
-        }
-      }
-    )
+  const coreFunctionCompletions = (
+    supportsToday
+      ? [...EIDOS_FILE_FORMULA_FUNCTION_NAMES, "today" as const]
+      : EIDOS_FILE_FORMULA_FUNCTION_NAMES
+  ).map<EidosFileFormulaCompletion>((name) => {
+    const label = name.toUpperCase()
+    const detail = FUNCTION_DETAILS[name] ?? {
+      info: `SQLite ${label} scalar function in the Eidos Formula profile.`,
+      example: `${label}()`,
+    }
+    return {
+      id: `function:${name}`,
+      kind: "function",
+      label,
+      type: "function",
+      detail: "function",
+      info: detail.info,
+      example: detail.example,
+      insert: `${label}()`,
+      cursorOffset: -1,
+    }
+  })
   return [
     ...fieldCompletions,
     ...fieldFunctionCompletions,

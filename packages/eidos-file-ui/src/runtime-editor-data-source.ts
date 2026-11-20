@@ -1,5 +1,6 @@
 import {
   type EidosFileCreationContext,
+  EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   assertEidosFileValues,
   isEidosFileCalendarPeriodValue,
   isEidosFileCalendarWindowValue,
@@ -338,7 +339,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const queryKey = canonicalizeEidosFileJson({
       tableId,
       query: runtimeQuery,
-      calendar: query.calendar ?? null,
+      calendar: this.executionCalendar(query) ?? null,
       projection: runtimeProjection,
       limit,
     })
@@ -391,7 +392,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const rows = await this.editorRows(
       page,
       selected,
-      projection?.includeRelationDisplays !== false
+      projection?.includeRelationDisplays !== false,
+      this.executionCalendar(query)
     )
     return {
       tableId,
@@ -547,6 +549,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const target = await this.runtime.getRowsById(
       {
         tableId,
+        ...this.queryExecution(tableId, query),
         rowIds: [rowId],
         projection: {
           fields: projectedFieldIds,
@@ -606,11 +609,20 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     )
   }
 
-  async getRow(tableId: string, rowId: string): Promise<EidosFileRow | null> {
+  async getRow(
+    tableId: string,
+    rowId: string,
+    query: EidosFileRowQuery = {}
+  ): Promise<EidosFileRow | null> {
     const fields = this.fieldsByTable.get(tableId) ?? []
     const projection = this.projection(fields)
     const batch = await this.runtime.getRowsById(
-      { tableId, rowIds: [rowId], projection },
+      {
+        tableId,
+        rowIds: [rowId],
+        projection,
+        ...this.queryExecution(tableId, query),
+      },
       this.context("row")
     )
     return (await this.editorRows(batch, fields))[0] ?? null
@@ -808,6 +820,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const result = await this.runtime.previewFormula(
       {
         tableId,
+        ...this.queryExecution(
+          tableId,
+          input.calendar ? { calendar: input.calendar } : {}
+        ),
         ...(existing
           ? { fieldId: existing.id }
           : { candidateName: input.name }),
@@ -876,17 +892,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       this.runtimeCapabilities?.viewCreationDefaultsVersion !== 1
     )
       throw new Error("This Runtime does not support view creation defaults")
+    const calendar = this.executionCalendar(creationQuery ?? {})
     const result = await this.runtime.mutateRows(
       {
         tableId,
+        ...(calendar ? { calendar } : {}),
         ...(creationQuery?.filter
           ? {
               creationQuery: this.runtimeQuery(tableId, {
                 filter: creationQuery.filter,
               }),
-              ...(creationQuery.calendar
-                ? { calendar: creationQuery.calendar }
-                : {}),
             }
           : {}),
         ...(creationContext &&
@@ -929,12 +944,15 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   async updateRow(
     tableId: string,
     rowId: string,
-    fields: Record<string, EidosFileLogicalValue>
+    fields: Record<string, EidosFileLogicalValue>,
+    query: EidosFileRowQuery = {}
   ): Promise<EidosFileRowMutationResult> {
     const projection = this.projection(this.fieldsByTable.get(tableId) ?? [])
+    const calendar = this.executionCalendar(query)
     const result = await this.runtime.mutateRows(
       {
         tableId,
+        ...(calendar ? { calendar } : {}),
         expectedRevision: this.revision(),
         returning: projection,
         changes: [
@@ -959,7 +977,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       : null
     const row = projected
       ? (returned ?? { _id: rowId })
-      : ((await this.getRow(tableId, rowId)) ?? { _id: rowId })
+      : ((await this.getRow(tableId, rowId, query)) ?? { _id: rowId })
     return this.rowMutationResult(tableId, row, result.revision)
   }
 
@@ -1687,6 +1705,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       {
         tableId,
         rowIds,
+        ...this.queryExecution(tableId, {}),
         projection: { fields: fieldIds, resolveRelations: [] },
       },
       this.context("action-read")
@@ -2433,6 +2452,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       nullable: field.nullable,
       writable: field.writable && !readOnly,
       ...(field.valueStatus ? { valueStatus: field.valueStatus } : {}),
+      ...(field.todayDependent ? { todayDependent: field.todayDependent } : {}),
       isRecordLabel: table.labelFieldId === field.id,
       position: Number(field.position),
       settings: field.settings,
@@ -2593,12 +2613,13 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   }
 
   private async editorRows(
-    page: Pick<RowPage, "columns" | "rows" | "revision">,
+    page: Pick<RowPage, "columns" | "rows" | "revision" | "referenceInstant">,
     fields: FieldDescriptor[],
-    resolveLookupLabels = true
+    resolveLookupLabels = true,
+    calendar?: EidosFileCalendarContext
   ): Promise<EidosFileRow[]> {
     const lookupLabels = resolveLookupLabels
-      ? await this.lookupRowIdLabels(page, fields)
+      ? await this.lookupRowIdLabels(page, fields, calendar)
       : new Map<string, Map<string, string>>()
     return page.rows.map((row) =>
       this.editorRow(row, page, fields, lookupLabels)
@@ -2606,8 +2627,9 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   }
 
   private async lookupRowIdLabels(
-    page: Pick<RowPage, "columns" | "rows" | "revision">,
-    fields: FieldDescriptor[]
+    page: Pick<RowPage, "columns" | "rows" | "revision" | "referenceInstant">,
+    fields: FieldDescriptor[],
+    calendar?: EidosFileCalendarContext
   ): Promise<Map<string, Map<string, string>>> {
     const lookups = page.columns.flatMap((column, columnIndex) => {
       const field = fields.find((candidate) => candidate.id === column.fieldId)
@@ -2662,6 +2684,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           {
             tableId: targetTableId,
             rowIds: ids.slice(offset, offset + rowsByIdMax),
+            ...this.queryExecution(targetTableId, {
+              calendar,
+              referenceInstant: page.referenceInstant,
+            }),
             projection: { fields: [labelFieldId], resolveRelations: [] },
           },
           this.context("lookup-labels")
@@ -3334,7 +3360,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return canonicalizeEidosFileJson({
       tableId,
       query: this.runtimeQuery(tableId, query),
-      calendar: query.calendar ?? null,
+      calendar: this.executionCalendar(query) ?? null,
     })
   }
 
@@ -3345,9 +3371,29 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const reference =
       query.referenceInstant ??
       this.queryReferences.get(this.executionKey(tableId, query))
+    const calendar = this.executionCalendar(query)
     return {
-      ...(query.calendar ? { calendar: query.calendar } : {}),
+      ...(calendar ? { calendar } : {}),
       ...(reference ? { referenceInstant: reference } : {}),
+    }
+  }
+
+  private executionCalendar(
+    query: EidosFileRowQuery
+  ): EidosFileCalendarContext | undefined {
+    if (query.calendar) return query.calendar
+    const profile = EIDOS_FILE_CALENDAR_TIME_ZONE_DATA
+    if (
+      !this.runtimeCapabilities?.calendarPeriodTimeZoneData?.includes(
+        profile
+      ) ||
+      ![...this.fields.values()].some((field) => field.todayDependent)
+    )
+      return undefined
+    return {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      timeZoneData: profile,
+      weekStartsOn: 1,
     }
   }
 

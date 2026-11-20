@@ -2144,6 +2144,17 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   await formulaExpression.press("ControlOrMeta+s")
   await expect(formulaCreator).toBeHidden()
 
+  const todayCreator = await openFieldCreator("Local date", "formula")
+  const todayExpression = todayCreator.getByLabel("Formula expression")
+  await todayCreator.locator(".eidos-file-formula-display-select").click()
+  await page.getByRole("option", { name: "Date", exact: true }).click()
+  await todayExpression.fill("TODAY()")
+  await expect(
+    todayCreator.locator('[data-eidos-file-formula-status="valid"]')
+  ).toHaveText(/^\d{4}-\d{2}-\d{2}$/u)
+  await todayExpression.press("ControlOrMeta+s")
+  await expect(todayCreator).toBeHidden()
+
   const relationCreator = await openFieldCreator("Related project", "relation")
   await expect(relationCreator).toContainText("Related table")
   await relationCreator
@@ -2215,6 +2226,7 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
             if (
               [
                 "Double estimate",
+                "Local date",
                 "Related project",
                 "Related estimate",
               ].includes(name)
@@ -2229,6 +2241,7 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     )
     .toEqual([
       { name: "Double estimate", type: "formula" },
+      { name: "Local date", type: "formula" },
       { name: "Related estimate", type: "lookup" },
       { name: "Related project", type: "relation" },
     ])

@@ -17,6 +17,7 @@ export interface CompiledEidosFileFormula {
   /** Stable structural dependencies used by the file-wide DAG. */
   dependencyFieldIds: string[]
   references: EidosFileFormulaReference[]
+  usesToday?: true
 }
 
 /** Eidos File 1.0 has no prop()/props() reference syntax. */
@@ -68,7 +69,13 @@ export const EIDOS_FILE_FORMULA_FUNCTION_NAMES = [
   "upper",
 ] as const
 
-const ALLOWED_FUNCTIONS = new Set<string>(EIDOS_FILE_FORMULA_FUNCTION_NAMES)
+const ALLOWED_FUNCTIONS = new Set<string>([
+  ...EIDOS_FILE_FORMULA_FUNCTION_NAMES,
+  "today",
+])
+
+/** @internal SQL-local binding shared by every TODAY() occurrence in a query. */
+export const formulaCalendarBinding = `"__eidos_formula_calendar"("today") AS (VALUES (?))`
 
 /** @internal An otherwise parsed expression names an unavailable function. */
 export class UnsupportedFormulaFunctionError extends EidosFileError {
@@ -876,6 +883,10 @@ function exactFormulaType(
         )
       }
     }
+    if (name === "today") {
+      arity(0)
+      return setFormulaType(node, "date")
+    }
     if (name === "iif") {
       arity(3)
       requireFormulaType(infer(args[0]!, "checkbox"), "checkbox", "IIF")
@@ -1217,10 +1228,11 @@ function formulaTypesComparable(
 function compileExactFormulaNode(
   node: ExactFormulaNode,
   fields: Map<string, EidosFileFieldInfo>,
-  resolve: (field: EidosFileFieldInfo) => string
+  resolve: (field: EidosFileFieldInfo) => string,
+  context: { usesToday?: true }
 ): string {
   const compile = (child: ExactFormulaNode) =>
-    compileExactFormulaNode(child, fields, resolve)
+    compileExactFormulaNode(child, fields, resolve, context)
   if (node.literal) return node.literal.sql
   if (node.type === "null") return "NULL"
   if (node.type === "boolean") return node.value === true ? "1" : "0"
@@ -1299,6 +1311,10 @@ function compileExactFormulaNode(
   }
   if (node.type === "call") {
     const name = String(node.function?.name).toLowerCase()
+    if (name === "today") {
+      context.usesToday = true
+      return '(SELECT "today" FROM "__eidos_formula_calendar")'
+    }
     const args = (node.args ?? []).map(compile)
     return `${name}(${args.join(", ")})`
   }
@@ -1440,7 +1456,7 @@ export function compileEidosFileFormulaSource(
   fields: EidosFileFieldInfo[],
   resolve: (field: EidosFileFieldInfo) => string,
   declaredResultType?: string
-): { expression: string; dependencyFieldIds: string[] } {
+): { expression: string; dependencyFieldIds: string[]; usesToday?: true } {
   const references = eidosFileFormulaReferences(source)
   const fieldsByExactName = new Map(fields.map((field) => [field.name, field]))
   const dependencyFieldIds: string[] = []
@@ -1469,14 +1485,14 @@ export function compileEidosFileFormulaSource(
       `Formula inferred ${inferred ?? "no type"}, expected ${expected ?? "a concrete type"}`
     )
   }
-  return {
-    expression: compileExactFormulaNode(
-      parsed.root,
-      fieldsByExactName,
-      resolve
-    ),
-    dependencyFieldIds,
-  }
+  const context: { usesToday?: true } = {}
+  const expression = compileExactFormulaNode(
+    parsed.root,
+    fieldsByExactName,
+    resolve,
+    context
+  )
+  return { expression, dependencyFieldIds, ...context }
 }
 
 export function rewriteEidosFileFormulaFieldReferences(
@@ -1525,7 +1541,7 @@ export function compileEidosFileFormula(
       dependencyFieldIds.push(dependencyId)
     }
   }
-  const { expression } = compileEidosFileFormulaSource(
+  const { expression, usesToday } = compileEidosFileFormulaSource(
     source,
     fields,
     (dependency) =>
@@ -1538,6 +1554,7 @@ export function compileEidosFileFormula(
     dependencies,
     dependencyFieldIds,
     references,
+    ...(usesToday ? { usesToday } : {}),
   }
 }
 

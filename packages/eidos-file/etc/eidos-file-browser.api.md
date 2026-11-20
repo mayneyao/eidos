@@ -1016,7 +1016,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     getRecordNeighbors?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<RecordNeighbors>;
     // (undocumented)
-    getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>;
+    getRow?(tableId: string, rowId: string, query?: EidosFileRowQuery): Promise<EidosFileRow | null>;
     // (undocumented)
     getRowIndex?(tableId: string, rowId: string, query: EidosFileRowQuery): Promise<number | null>;
     // (undocumented)
@@ -1040,7 +1040,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
+    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>, query?: EidosFileRowQuery): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1119,6 +1119,8 @@ export interface EidosFileFieldInfo {
     tableId: string;
     // (undocumented)
     tableName: string;
+    // (undocumented)
+    todayDependent?: true;
     // (undocumented)
     type: EidosFileFieldType;
     // (undocumented)
@@ -1211,6 +1213,8 @@ export interface EidosFileFormulaPreviewDependency {
 
 // @public (undocumented)
 export interface EidosFileFormulaPreviewInput {
+    // (undocumented)
+    calendar?: EidosFileCalendarContext;
     // (undocumented)
     columnName: string;
     // (undocumented)
@@ -1880,6 +1884,8 @@ export interface FieldDescriptor {
     // (undocumented)
     tableId: string;
     // (undocumented)
+    todayDependent?: true;
+    // (undocumented)
     valueStatus?: "unsupported-formula";
     // (undocumented)
     valueType: TypeRef;
@@ -1966,11 +1972,15 @@ export interface FormulaDefinition {
 // @public (undocumented)
 export interface FormulaPreviewRequest {
     // (undocumented)
+    calendar?: EidosFileCalendarContext;
+    // (undocumented)
     candidateName?: string;
     // (undocumented)
     declaredResultType: FormulaResultType;
     // (undocumented)
     fieldId?: string;
+    // (undocumented)
+    referenceInstant?: string;
     // (undocumented)
     rowIds?: string[];
     // (undocumented)
@@ -2640,6 +2650,8 @@ export interface RowBatch {
     // (undocumented)
     projectionHash: string;
     // (undocumented)
+    referenceInstant?: string;
+    // (undocumented)
     revision: string;
     // (undocumented)
     rows: ProjectedRow[];
@@ -2800,6 +2812,8 @@ export interface RuntimeClient {
     getRowIndex?(request: GetRecordNeighborsRequest, context: RequestContext): Promise<string | null>;
     // (undocumented)
     getRowsById(request: {
+        calendar?: EidosFileCalendarContext;
+        referenceInstant?: string;
         tableId: string;
         rowIds: string[];
         projection: ProjectionSpec;

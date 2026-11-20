@@ -1,6 +1,6 @@
 ---
 title: Formula 表达式
-description: 与 SQLite 兼容的表达式语法和固定 Formula 函数白名单。
+description: Formula 支持的 SQLite 表达式子集、SQLite 内置函数，以及 Eidos Runtime 提供的 TODAY()。
 sidebar:
   order: 4
 ---
@@ -26,9 +26,13 @@ Formula 公式字段根据同一张表中的其他字段计算值。
 
 ## 语言边界
 
-Formula 使用带双引号的字段名称和一组固定的 SQLite 3.45 标量函数。
-Runtime 会先解析表达式并检查数据类型，然后再生成 SQL 执行。
-Formula 不能执行任意 SQL 语句。
+Formula 使用 SQLite 3.45 标量表达式的一个子集。Runtime 先解析公式、检查类型，
+再生成 SQL。公式中可用的函数有两种来源。
+
+| 来源            | 示例                       | 输入                 |
+| --------------- | -------------------------- | -------------------- |
+| SQLite 内置函数 | `DATE`、`JULIANDAY`、`ABS` | 作为参数传入的值     |
+| Eidos Runtime   | `TODAY()`                  | 本次查询的日历上下文 |
 
 ## 表达式语法
 
@@ -42,7 +46,10 @@ Formula 不能执行任意 SQL 语句。
 
 声明的结果类型必须精确指定为：`text`、`number`、`integer`、`checkbox`、`date`、`datetime` 或 `url`。
 
-## 受支持的 SQLite 函数
+## 受支持的 SQLite 内置函数
+
+以下是 Formula 支持的 SQLite 内置函数。传入的参数符合 Formula 类型要求时，
+这些函数遵循 SQLite 3.45 的行为。
 
 | 分类       | 函数列表                                                                                                                                                                      |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,18 +60,17 @@ Formula 不能执行任意 SQL 语句。
 | 类型检查   | `HEX`、`QUOTE`、`TYPEOF`                                                                                                                                                      |
 | 日期时间   | `DATE`、`DATETIME`、`TIME`、`JULIANDAY`、`UNIXEPOCH`、`STRFTIME`、`TIMEDIFF`                                                                                                  |
 
-函数名大小写不敏感。
-所有函数均遵循 SQLite 3.45 标准行为：
+函数名按 ASCII 大小写不敏感。以下规则适用于这些内置函数。
 
 - `CONCAT` 将非空值转换为文本并忽略空值。
 - `SUBSTR` 与 `SUBSTRING` 索引从 1 开始。负数偏移量遵循 SQLite 标准规则。
 - 内置 `LOWER` 与 `UPPER` 仅处理 ASCII 字符。
 - `FORMAT` 与 `PRINTF` 使用 SQLite 格式化规则，不受系统区域设置影响。
 - 日期时间函数必须提供有效的时间值。
-- 格式修饰符必须是字符串常量。Runtime 禁止使用 `now`、`localtime`、`utc` 与 `auto`，以保证跨平台计算的一致性与可复现性。
+- 格式与修饰符必须是字符串常量。`'now'` 时间值以及 `'localtime'`、`'utc'` 和 `'auto'` 修饰符都超出了 Formula 支持的子集。SQLite 查询可以执行 `DATE('now', 'localtime')`，Formula 编辑器会拒绝这条表达式。
 - `UNIXEPOCH` 禁止传入 `subsec` 与 `subsecond`，确保输出结果始终为标准整数。
 
-## 阅读时长格式化示例
+### 阅读时长格式化示例
 
 以下表达式将 `309299` 秒格式化为 `85小时55分钟`，并将剩余秒数四舍五入到最近的分钟：
 
@@ -83,11 +89,32 @@ IIF(
 如果需要直接向下取整并忽略剩余秒数，请将分钟部分的 `ROUND` 替换为 `FLOOR`。
 对于 `309299` 秒，计算结果为 `85小时54分钟`。
 
+## Eidos Runtime 上下文函数
+
+### `TODAY()`
+
+`TODAY()` 无需参数，返回应用时区中的当天日期，类型是 **Date**。Runtime 将当天
+日期作为查询参数绑定给 SQLite。新查询使用当前日期，同一次查询的后续分页即使跨过
+午夜也沿用原日期。文件中保存的是公式表达式。
+
+假设有一个叫「截止日期」的 Date 字段，创建一个结果类型为 **checkbox** 的 Formula
+来判断是否逾期。
+
+```sql
+"截止日期" < TODAY()
+```
+
+截止日期为空时，结果也是空值。
+
+可以将 Runtime 函数和上面的 SQLite 内置函数组合起来。
+`DATE(TODAY(), '+1 day')` 返回明天，类型是 **Date**。
+`JULIANDAY("截止日期") - JULIANDAY(TODAY())` 返回距截止日期的天数，类型是 **Number**。
+
 ## 明确不支持的特性
 
 Formula 不支持完整 SQL 语句、子查询与窗口函数。
 它不支持表值函数、随机数生成与连接状态函数。
-它不支持扩展加载与 JSON 函数。
+它不支持扩展加载、自定义 SQLite 函数与 JSON 函数。
 旧版自定义函数名（如 `IF`、`IS_NULL`、`DATE_ADD_DAYS`）已废弃，请使用标准 SQLite 函数：
 
 | 旧版拼写                             | 标准 SQLite 拼写                                            |

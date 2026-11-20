@@ -827,7 +827,7 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             columns,
             rows,
-            ...(usesClockFilter(request.query.filter)
+            ...(this.usesCalendarRead(request.tableId, request.query, fields)
               ? {
                   total: String(this.core.countRows(request.tableId, query)),
                   referenceInstant: this.requestInstant,
@@ -940,7 +940,7 @@ export class EidosRuntimeService implements RuntimeClient {
                   columns
                 ),
                 total: String(page.total),
-                ...(usesClockFilter(query.filter)
+                ...(this.usesCalendarRead(request.tableId, query, fields)
                   ? { referenceInstant: this.requestInstant }
                   : {}),
                 nextCursor,
@@ -1000,6 +1000,8 @@ export class EidosRuntimeService implements RuntimeClient {
 
   getRowsById(
     request: {
+      calendar?: EidosFileCalendarContext
+      referenceInstant?: string
       tableId: string
       rowIds: string[]
       projection: ProjectionSpec
@@ -1044,7 +1046,9 @@ export class EidosRuntimeService implements RuntimeClient {
           )
         }),
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -1211,7 +1215,11 @@ export class EidosRuntimeService implements RuntimeClient {
             projectionHash: projectionDigest,
             columns,
             groupKey,
-            ...(usesClockFilter(source.query.filter)
+            ...(this.usesCalendarRead(
+              source.tableId,
+              source.query,
+              source.projection.fields
+            )
               ? { referenceInstant: this.requestInstant }
               : {}),
             rows: this.projectRows(
@@ -1340,7 +1348,9 @@ export class EidosRuntimeService implements RuntimeClient {
         })
       },
       false,
-      request
+      request,
+      true,
+      true
     )
   }
 
@@ -1371,6 +1381,7 @@ export class EidosRuntimeService implements RuntimeClient {
         if (request.calendar !== undefined) {
           assertEidosFileCalendarContext(request.calendar)
           this.requestCalendar = request.calendar
+          this.core.setRequestInstant(this.requestInstant, request.calendar)
         }
         if (
           request.creationQuery !== undefined &&
@@ -1547,22 +1558,25 @@ export class EidosRuntimeService implements RuntimeClient {
                 : null
             const result = reversibleDelete
               ? { ...reversibleDelete, rows: [] }
-              : this.core.mutateRows({
-                  tableId: request.tableId,
-                  ...(request.creationQuery
-                    ? {
-                        creationQuery: this.compatibilityQuery(
-                          request.tableId,
-                          request.creationQuery
-                        ),
-                      }
-                    : {}),
-                  creationContext: request.creationContext,
-                  insert: inserts,
-                  update: updates,
-                  delete: deletes,
-                  expectedRevision: parseRevision(request.expectedRevision),
-                })
+              : this.core.mutateRows(
+                  {
+                    tableId: request.tableId,
+                    ...(request.creationQuery
+                      ? {
+                          creationQuery: this.compatibilityQuery(
+                            request.tableId,
+                            request.creationQuery
+                          ),
+                        }
+                      : {}),
+                    creationContext: request.creationContext,
+                    insert: inserts,
+                    update: updates,
+                    delete: deletes,
+                    expectedRevision: parseRevision(request.expectedRevision),
+                  },
+                  request.returning?.fields ?? []
+                )
             const after = this.core.info()
             const createdChanges = request.changes.filter(
               (change) => change.kind === "create"
@@ -2898,7 +2912,7 @@ export class EidosRuntimeService implements RuntimeClient {
         tableId: request.tableId,
         revision: String(metadata.revision),
         results: request.items.map((item) => ({ key: item.key, value: count })),
-        ...(usesClockFilter(request.query?.filter)
+        ...(this.usesCalendarRead(request.tableId, request.query)
           ? { referenceInstant: this.requestInstant }
           : {}),
       }
@@ -2995,7 +3009,7 @@ export class EidosRuntimeService implements RuntimeClient {
       tableId: request.tableId,
       revision: String(metadata.revision),
       results,
-      ...(usesClockFilter(request.query?.filter)
+      ...(this.usesCalendarRead(request.tableId, request.query, fieldIds)
         ? { referenceInstant: this.requestInstant }
         : {}),
     }
@@ -3009,7 +3023,24 @@ export class EidosRuntimeService implements RuntimeClient {
     )
       throw runtimeError("invalid-query", "Cursor reference instant mismatch")
     this.requestInstant = instant
-    this.core.setRequestInstant(instant)
+    this.core.setRequestInstant(instant, this.requestCalendar)
+  }
+
+  private usesCalendarRead(
+    tableId: string,
+    query?: RowQuery,
+    projection: readonly string[] = []
+  ): boolean {
+    if (usesClockFilter(query?.filter)) return true
+    if (!this.requestCalendar) return false
+    const selected = new Set([...projection, ...runtimeQueryFieldIds(query)])
+    return this.core
+      .listFields(tableId)
+      .some(
+        (field) =>
+          field.todayDependent &&
+          (selected.has(field.id) || Boolean(query?.search))
+      )
   }
 
   private compatibilityQuery(tableId: string, query: RowQuery) {
@@ -3198,7 +3229,13 @@ export class EidosRuntimeService implements RuntimeClient {
       revision: String(metadata.revision),
       projectionHash: projectionDigest,
       columns,
-      ...(usesClockFilter(request.query.filter)
+      ...(this.usesCalendarRead(request.tableId, request.query, [
+        ...request.groupBy,
+        ...request.projection.fields,
+        ...request.aggregates.flatMap((item) =>
+          item.op === "count-all" ? [] : [item.fieldId]
+        ),
+      ])
         ? { referenceInstant: this.requestInstant }
         : {}),
       groups: selected.map((group) => {
@@ -3405,7 +3442,11 @@ export class EidosRuntimeService implements RuntimeClient {
       revision: String(metadata.revision),
       projectionHash: projectionDigest,
       columns,
-      ...(usesClockFilter(request.query.filter)
+      ...(this.usesCalendarRead(
+        request.tableId,
+        request.query,
+        request.projection.fields
+      )
         ? { referenceInstant: this.requestInstant }
         : {}),
       groups,
@@ -3440,6 +3481,9 @@ export class EidosRuntimeService implements RuntimeClient {
       columns,
       rows: this.projectRows(tableId, projection, rows, columns),
       missingRowIds: rowIds.filter((id) => !found.has(id)),
+      ...(this.requestCalendar
+        ? { referenceInstant: this.requestInstant }
+        : {}),
     }
   }
 
@@ -4959,7 +5003,7 @@ export class EidosRuntimeService implements RuntimeClient {
           )
         this.requestedReference = reference
         this.requestInstant = reference ?? checkedNowInstant(this.environment)
-        this.core.setRequestInstant(this.requestInstant)
+        this.core.setRequestInstant(this.requestInstant, calendar)
         const result = await operation()
         if (checkReadCompletion) this.checkControl(context, control, acceptedAt)
         if (result !== undefined && accountResponse) {
@@ -5098,6 +5142,7 @@ function fieldDescriptor(
     settings: objectValue(field.settings ?? {}),
     writable: fieldWritable(field),
     ...(field.valueStatus ? { valueStatus: field.valueStatus } : {}),
+    ...(field.todayDependent ? { todayDependent: true as const } : {}),
     ...(definition ? { definition } : {}),
   }
 }

@@ -51,7 +51,7 @@
       "packages/eidos-file/src/creation-defaults.ts": "cb482bc4f83ded099bb74d910edae803f743db2660212a020f5d5a10e984727c",
       "packages/eidos-file/src/csv.test.ts": "51a561fa05ebb7ad6ca3b98d35fc13a1259aba214e454dbf9643c986444e7b5c",
       "packages/eidos-file/src/csv.ts": "efd12f0ac4809a3efe8ebf207213e624357c43a217ba38e483fc19a50b720392",
-      "packages/eidos-file/src/data-source.ts": "03774ed35f54ad7d286f96846f0ddc607696170e00da2e192a2a0a3d23e073c9",
+      "packages/eidos-file/src/data-source.ts": "4c4b2cc4db0fee9685e84fd9d07eb18ceb0231c010f8e5795dbb7ffe825c518d",
       "packages/eidos-file/src/dependency-graph.test.ts": "3cc8a6abca7278cd61f45bd3bab8f74d86c9e60a12f99972c0051390f1907de5",
       "packages/eidos-file/src/dependency-graph.ts": "98a4956f78ef03bee29b586eb3687a7c4a471ac531ec42b303becd3b552e5c99",
       "packages/eidos-file/src/eidos-file-1.0-conformance.test.ts": "2892f66e8f32fe00199db1867de4b04194f35e44fccd8f93857caebb8b4adfc1",
@@ -65,11 +65,11 @@
       "packages/eidos-file/src/file-values.ts": "5f2a603143a130d2f4013990e382db8c14c3a3411e6f7fed736ee114b6c77019",
       "packages/eidos-file/src/form-view.test.ts": "f0dd39b27d5ec5d9f23ad96ed3029977209c55cfaae693d21f483006c9b410ce",
       "packages/eidos-file/src/form-view.ts": "d4ecc916d736d5484b8fc432df81800400f07201412900c730d2fe62ad78400c",
-      "packages/eidos-file/src/formula-compatibility.test.ts": "27759c9e107eebd4fa0c27deba938fe4e4d8a4625bdd291216ca5e962a29717e",
+      "packages/eidos-file/src/formula-compatibility.test.ts": "a0f7fa7c295b59dbe0c65b649ba0666216561a28369a8d479e508b4017296e8f",
       "packages/eidos-file/src/formula-functions.ts": "800833e2781688f6a2a711e78fc13931a2a667f1fb8105d0a34526f8128dca35",
       "packages/eidos-file/src/formula-rating.regression.test.ts": "93190a6d0d238ab43bf05e7bb71e69fe3932a695b226d0b91e605e682de92887",
       "packages/eidos-file/src/formula.test.ts": "098a94e3d51dba86c2dbc14fe4dc0867e6e4fbf1f0969958043a8417dea43fef",
-      "packages/eidos-file/src/formula.ts": "d88928a8163a9605c47529635d4abf41b18abe0272648d306aea6983fdd2f8df",
+      "packages/eidos-file/src/formula.ts": "77bf42882eff6e4f98c361f3b068accf48665e0c15093f4a69752c87e1761eae",
       "packages/eidos-file/src/host.test.ts": "3d088bf43f3fe66e29dcc74b73f608aa57b8425224b6a28e485d904c582f74db",
       "packages/eidos-file/src/host.ts": "9bc3f8b5621d9be69d3d68aef2cab046c855adb05c06ebe1c0aa787e9cdcb0a0",
       "packages/eidos-file/src/identifiers.ts": "08fd8282af3f60635af2c1e8789f0d125f875a0be709cfdc425c665b24e6ab88",
@@ -102,7 +102,7 @@
       "packages/eidos-file/src/relation-values.test.ts": "4516c924c96c9fd6eac8e32fb7017b33faca603a1b44c142a972a921a7d134fd",
       "packages/eidos-file/src/relation-values.ts": "9d6aee5fd267bab45e1162951aecb149a6888e5e32844ec38ee67289d1823f9d",
       "packages/eidos-file/src/runtime-cache.test.ts": "bac0ab1e01736be93d7905c8fc3c57bc87c962b9a4422f3a5f363e1e251cabac",
-      "packages/eidos-file/src/runtime-contract.ts": "cac9b5c040ffd89451df87919c0a69fac87a902168528ea359518be5b02d8527",
+      "packages/eidos-file/src/runtime-contract.ts": "ad8127daf0f4d0bc18c2108368f8c640d24a5cc9602866df811359d01adfbbb4",
       "packages/eidos-file/src/runtime-data-safety.regression.test.ts": "c47e07d14b0d4ea8ad1e583b31274a279b5ca111ed79c70f6e24773a19f64f85",
       "packages/eidos-file/src/runtime-host-read.conformance.ts": "663a895d153d4d0d1c951c8e02718182de580063405584235da33f80af6efa3c",
       "packages/eidos-file/src/runtime-page-read.adapters.test.ts": "4793d1384ae2d504cb7f4d59f284651c5d3f35e51c5f1d32157777b6a8eaf63c",
@@ -112,8 +112,8 @@
       "packages/eidos-file/src/runtime-search-fragments.test.ts": "3fa1932d23af80ca1c151ab9bc9efa05877181f228a42e056f004a8268698053",
       "packages/eidos-file/src/runtime-service-list-filter.regression.test.ts": "baf42a901a8b7d619ba0b59ddea2b586eb40af92c1af1bd8189944dd2e76e294",
       "packages/eidos-file/src/runtime-service-wasm.test.ts": "16d80fb4e8eca0518a6072631368d0a2426d1b2a5f2abcba17c12399ed5bac8c",
-      "packages/eidos-file/src/runtime-service.ts": "37847979012062dfc1f1a5bfc41667da92757db893ef4502ec80319003ade93b",
-      "packages/eidos-file/src/runtime.ts": "41867661f677301a6165b2fe7808e8e5fe89db5ee64216a04c58ed23411566a0",
+      "packages/eidos-file/src/runtime-service.ts": "2179d922057816834b7e436f8bbbd0d2508a5604ba40c7d4b2b1d4c184e9b04f",
+      "packages/eidos-file/src/runtime.ts": "481a00c5d1da9e5265de8d52c3712cc47e7dd5adcb9e1b0b85b1c6237cc3e68a",
       "packages/eidos-file/src/schema-merge.node-sqlite.test.ts": "27b9afc557a09d7f53f2d56b376ef8ec546dbf0bb5e562ddd58d17e684acd27d",
       "packages/eidos-file/src/schema.ts": "13f40952f3ef317211d21ac7ed804a61158260d3709d44751142722e61e79b21",
       "packages/eidos-file/src/select-options.ts": "60028e8f0cb59780f618130af3ca0b7423e99371514b4ac7bdd39d890edbfe7f",
@@ -130,7 +130,7 @@
       "packages/eidos-file/src/temporal-defaults.ts": "2990c49e5d7e06685e6fa7ccfd4f26c6b53b2c9050e620751a8fbd671d7b94ee",
       "packages/eidos-file/src/temporal.test.ts": "3b25470aaacdcbe994d2af51ca3126e38b0029af6f0e0e45fe580c093c47c11e",
       "packages/eidos-file/src/temporal.ts": "eaafd2f0dfcea644bc9457f8ce709be8cff4d130ba50aa2800b2507dbbccb884",
-      "packages/eidos-file/src/types.ts": "42cd736d3e328625915889a09a9486a05217213d57c53af7fa98ba05b6dddcfb",
+      "packages/eidos-file/src/types.ts": "718d1f731c84a4038d5d589298baeb098699d332140a0e703198d4a5a74feb98",
       "packages/eidos-file/src/validation.ts": "e92a538d55e5707dec29429e2a9a1b9e6404355037519a10b65628decdfc5b41",
       "packages/eidos-file/src/view-query-compatibility.test.ts": "361017921acea0a589a0117703b726ca01530b2241656525dc7bf1f0cc9c7f00",
       "packages/eidos-file/package.json": "28c1ea15dcb3cd8bf6b07dcdfaeea8fd27de247122f5711b316e0a89ddc0a41c",
@@ -144,7 +144,7 @@
       "packages/eidos-file/generated/quickjs"
     ],
     "files": {
-      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "8c8e57fe2d9a0f889d4a9968d02072dd2ca91bb875a21e08e403d977014ac3d1"
+      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "e0162106a903e776b6029f3f1238f9cad7e1bb3ca42a7b9b5c734f22592492da"
     }
   }
 }
