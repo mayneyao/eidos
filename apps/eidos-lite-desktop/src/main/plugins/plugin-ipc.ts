@@ -52,6 +52,7 @@ import {
   pluginLanguageData,
 } from "@eidos.space/plugin-runtime/i18n"
 import { resolveEidosLiteLocale } from "../../shared/i18n"
+import { getEidosLiteSystemLocale } from "../system-locale"
 import {
   ensureOwnerOnlyDirectory,
   migrateLegacyPluginsDirectory,
@@ -223,7 +224,10 @@ export function registerPluginIpc(controller: WindowController): {
   const updatePluginLocale = (preferences: {
     language: Parameters<typeof resolveEidosLiteLocale>[0]
   }) => {
-    const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+    const locale = resolveEidosLiteLocale(
+      preferences.language,
+      getEidosLiteSystemLocale()
+    )
     service.locale = locale === "zh" ? "zh-CN" : locale
     catalogChanged()
   }

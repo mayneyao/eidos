@@ -35,6 +35,7 @@ vi.mock("electron", () => ({
       name === "appData" ? `${mock.directory}-app-data` : mock.directory,
     getName: () => "Eidos Lite",
     getLocale: () => "en-US",
+    getPreferredSystemLanguages: () => ["en-US"],
     getAppPath: () => process.cwd(),
   },
   ipcMain: {

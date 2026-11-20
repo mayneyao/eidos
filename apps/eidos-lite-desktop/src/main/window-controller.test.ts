@@ -44,6 +44,7 @@ vi.mock("electron", () => ({
     getAppPath: () => "/tmp/eidos-window-controller-tests",
     getPath: () => "/tmp/eidos-window-controller-tests",
     getLocale: () => "en",
+    getPreferredSystemLanguages: () => ["en"],
   },
   BrowserWindow: {
     fromWebContents: () => mocks.window,

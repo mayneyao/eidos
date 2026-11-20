@@ -12,6 +12,7 @@ import type { EidosSyncStatus } from "../shared/contracts"
 import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { EidosSyncEncryption } from "../shared/contracts"
 import { registerPluginIpc } from "./plugins/plugin-ipc"
+import { getEidosLiteSystemLocale } from "./system-locale"
 import { PeerService } from "./peer/peer-service"
 import { PeerPreferencesStore } from "./peer/peer-preferences"
 import { PairingPrompt } from "./peer/pairing-prompt"
@@ -1063,14 +1064,17 @@ export function registerIpc(
   // Native dialogs and background services resolve copy synchronously, so cache
   // the Settings language and refresh it when the preference changes. English
   // source strings are the translation keys.
-  let mainLocale = resolveEidosLiteLocale("system", app.getLocale())
+  let mainLocale = resolveEidosLiteLocale("system", getEidosLiteSystemLocale())
   const mainText = (message: string, values?: EidosLiteMessageValues) =>
     translateEidosLite(mainLocale, message, values)
   void controller.locale().then((locale) => {
     mainLocale = locale
   })
   controller.onPreferencesChanged((preferences) => {
-    mainLocale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+    mainLocale = resolveEidosLiteLocale(
+      preferences.language,
+      getEidosLiteSystemLocale()
+    )
   })
   const pairingPrompt = new PairingPrompt(
     (allow, id) => devices.approve(allow, id),
@@ -1620,6 +1624,7 @@ export function registerIpc(
       version: app.getVersion(),
       platform,
       architecture: process.arch,
+      systemLocale: getEidosLiteSystemLocale(),
       services,
     }
   })

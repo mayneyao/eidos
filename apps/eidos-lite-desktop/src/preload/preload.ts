@@ -4,6 +4,7 @@ import type { TextSearchProgress } from "../shared/text-search"
 
 import {
   EIDOS_LITE_MARKDOWN_IMAGE_BYTES_MAX,
+  EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT,
   IPC_CHANNELS,
   type EidosLiteApi,
   type EidosLiteClipboardCommand,
@@ -35,6 +36,9 @@ ipcRenderer.on(IPC_CHANNELS.clipboardCommand, (_event, command: unknown) => {
 })
 
 const api: EidosLiteApi = {
+  systemLocale: process.argv
+    .find((argument) => argument.startsWith(EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT))
+    ?.slice(EIDOS_LITE_SYSTEM_LOCALE_ARGUMENT.length),
   setClipboardCommandState: (state) =>
     ipcRenderer.send(IPC_CHANNELS.clipboardCommandState, state),
   onClipboardCommand: (listener) => {
