@@ -17,14 +17,14 @@ const gridRowHeight = 36
 const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
   DatabaseSync: new (path: string) => {
     prepare(sql: string): {
-      get(): Record<string, unknown> | undefined
+      get(...values: string[]): Record<string, unknown> | undefined
       run(...values: string[]): unknown
     }
     close(): void
   }
 }
 
-test("opens files with an unknown Formula and can browse the original records", async ({
+test("opens files with an unknown Formula read-only and can browse and download the original records", async ({
   page,
 }, testInfo) => {
   const file = testInfo.outputPath("newer-formula.eidos")
@@ -54,11 +54,23 @@ test("opens files with an unknown Formula and can browse the original records", 
       JSON.stringify({ sort: [{ direction: "asc", fieldId: field.id }] }),
       field.table_id
     )
+  const revision = database
+    .prepare("SELECT revision FROM eidos__meta WHERE singleton = 1")
+    .get()?.revision
   database.close()
+  const original = await readFile(file)
 
   await installFallbackMode(page)
   await page.goto("/")
   await page.locator("input[type=file]").setInputFiles(file)
+  await expect(page.locator(".save-status")).toHaveText("Read only")
+  await expect(
+    page.getByRole("button", { name: "Add Eidos File table" })
+  ).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "New record" })).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "New view", exact: true })
+  ).toHaveCount(0)
   await expect(
     page
       .getByRole("status")
@@ -80,6 +92,41 @@ test("opens files with an unknown Formula and can browse the original records", 
   await expect(
     page.getByRole("button", { name: "Browse records", exact: true })
   ).toBeVisible()
+
+  const downloadPromise = page.waitForEvent("download")
+  await clickFileMenuItem(page, "Download a copy")
+  const copy = testInfo.outputPath("downloaded-read-only.eidos")
+  await (await downloadPromise).saveAs(copy)
+  expect((await readFile(file)).equals(original)).toBe(true)
+  const downloaded = new DatabaseSync(copy)
+  try {
+    expect(
+      downloaded
+        .prepare("SELECT revision FROM eidos__meta WHERE singleton = 1")
+        .get()?.revision
+    ).toBe(revision)
+    expect(
+      downloaded
+        .prepare(
+          "SELECT source_text FROM eidos__formula_fields WHERE field_id = ?"
+        )
+        .get(field.id)?.source_text
+    ).toBe("FUTURE_VALUE()")
+  } finally {
+    downloaded.close()
+  }
+
+  const chooserPromise = page.waitForEvent("filechooser")
+  await clickFileMenuItem(page, "Open .eidos file")
+  await (await chooserPromise).setFiles(fixturePath)
+  await expect(page.locator(".save-status")).toHaveText("Imported copy")
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("button", { name: /^New table/ }).click()
+  await page.getByLabel("Name").fill("Writable control")
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Writable control", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
 })
 
 test("keeps the appended record editor aligned with its cell", async ({

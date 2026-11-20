@@ -727,7 +727,7 @@
     padding: 0;
   }
 
-  .save-status span,
+  .save-status:not(.read-only) span,
   .file-table-name,
   .file-identity-separator {
     display: none;

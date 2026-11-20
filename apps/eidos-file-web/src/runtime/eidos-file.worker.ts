@@ -288,7 +288,11 @@ async function handleAction(action: EidosFileWorkerAction) {
             onCancel: () => () => undefined,
           },
         })
-        validatePublicationCandidate(context.sqlite, bytes)
+        validateExportCandidate(
+          context.sqlite,
+          bytes,
+          action.purpose === "read-only-copy"
+        )
         return { bytes, integrity: "ok" as const }
       } finally {
         await frozen.release()
@@ -297,9 +301,10 @@ async function handleAction(action: EidosFileWorkerAction) {
   }
 }
 
-function validatePublicationCandidate(
+function validateExportCandidate(
   sqlite: Sqlite3Static,
-  bytes: Uint8Array
+  bytes: Uint8Array,
+  allowUnsupportedFormulaFunctions: boolean
 ): void {
   const database = new sqlite.oo1.DB(":memory:", "c")
   const pointer = sqlite.wasm.allocFromTypedArray(bytes)
@@ -321,7 +326,7 @@ function validatePublicationCandidate(
     port = new SQLiteWasmConnectionPort(database, sqlite)
     const validation = validateEidosFile(
       new ConnectionPortEidosFileConnection(port),
-      { level: "full" }
+      { level: "full", allowUnsupportedFormulaFunctions }
     )
     if (!validation.valid) {
       throw new EidosFileError(
