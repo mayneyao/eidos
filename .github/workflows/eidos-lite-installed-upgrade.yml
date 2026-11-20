@@ -28,7 +28,7 @@ jobs:
           EVIDENCE: ${{ runner.temp }}/installed-upgrade-evidence
         run: >-
           node apps/eidos-lite-desktop/scripts/installed-upgrade-smoke.mjs
-          --previous-tag=lite-v0.35.1
+          --previous-tag=lite-v0.36.0
           "--target-tag=$TARGET_TAG"
           "--evidence=$EVIDENCE"
           --mode=in-app-mac
