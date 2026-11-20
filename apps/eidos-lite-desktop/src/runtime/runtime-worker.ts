@@ -486,6 +486,8 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         request.calendarQueryVersion,
         request.calendarWindowVersion
       )
+    case "assertAssetWritable":
+      return requireRuntime().assertAssetWritable()
     case "mergeSchema": {
       if (openedRuntime)
         throw new Error("Schema merge requires a private Runtime worker")

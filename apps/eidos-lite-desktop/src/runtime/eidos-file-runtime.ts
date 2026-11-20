@@ -700,6 +700,7 @@ export interface EidosLiteFileRuntime {
   initialSnapshot: Awaited<
     ReturnType<EidosRuntimeEditorDataSource["initialize"]>
   >
+  assertAssetWritable(): Promise<void>
   findFileEntry(entryId: string): Promise<FileEntry | null>
   allocateFileEntry(
     request: Parameters<RuntimeHostBridge["allocateFileEntry"]>[0]
@@ -744,6 +745,15 @@ async function bindRuntime(
     return {
       source,
       initialSnapshot,
+      async assertAssetWritable() {
+        const assertWritable = hostBridge.assertAssetWritable
+        if (!assertWritable || !hostBridge.queuedRead)
+          throw new Error("Attachment write verification is unavailable")
+        return hostBridge.queuedRead(
+          assertWritable,
+          context("eidos-lite-asset-write-check")
+        )
+      },
       findFileEntry: fileEntries.find,
       allocateFileEntry: (request) =>
         hostBridge.allocateFileEntry(

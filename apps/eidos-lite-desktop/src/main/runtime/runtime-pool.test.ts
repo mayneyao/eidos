@@ -103,6 +103,7 @@ describe("RuntimePool LRU policy", () => {
       await expect(
         pool.writableRelativePathForSession(editable.sessionId)
       ).resolves.toBe("editable.eidos")
+      expect(editableWorker.requests.at(-1)?.type).toBe("assertAssetWritable")
       await pool.call(editable.sessionId, "insertRow", ["table", {}])
       expect(editableWorker.requests.at(-1)).toMatchObject({
         method: "insertRow",

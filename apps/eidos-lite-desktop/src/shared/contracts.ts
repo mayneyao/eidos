@@ -1985,6 +1985,10 @@ export type RuntimeWorkerRequest =
       args: unknown[]
     }
   | {
+      type: "assertAssetWritable"
+      requestId: number
+    }
+  | {
       type: "mergeSystemMetadata"
       requestId: number
       basePath: string

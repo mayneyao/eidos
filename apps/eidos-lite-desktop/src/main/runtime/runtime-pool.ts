@@ -778,6 +778,10 @@ export class RuntimePool {
     return this.withResidencyLock(async () => {
       await this.ensureResidentLocked(entry)
       this.assertEntryWritable(entry)
+      await this.request(entry, {
+        type: "assertAssetWritable",
+        requestId: entry.nextRequestId++,
+      })
       return entry.relativePath
     })
   }
