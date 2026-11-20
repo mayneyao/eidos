@@ -215,12 +215,12 @@ export const notes = {
     "请求宿主导出生成的字节，取消是正常返回结果。",
   ],
   "HostUI.openFile": [
-    "Open an existing Space-relative file in the host.",
-    "在宿主中打开已有的 Space 相对路径文件。",
+    'Open an existing Space-relative file. The default target is `main`. Lite API 3.13 supports `openFile(path, { target: "sidebar" })` in standalone Views and ordinary actions. It opens the file in the right sidebar and keeps the main View active. Opening another file in the sidebar requires `workspace.files` read access.',
+    '打开已有的 Space 相对路径文件，默认目标是主区域（`main`）。Lite API 3.13 的独立 View 和普通命令支持 `openFile(path, { target: "sidebar" })`，在右侧栏打开文件并保留主区域的 View。在右侧栏打开其他文件需要 `workspace.files` 读取权限。',
   ],
-  "HostUI.openFileInSidebar": [
-    "Lite API 3.13. Opens an existing Space-relative file in the right sidebar and keeps the main View active. Available in standalone Views and ordinary actions. Opening another file requires workspace.files read access. Check whether the method is defined before calling it on older Lite versions or another host.",
-    "Lite API 3.13。在右侧栏打开已有的 Space 相对路径文件，保留主区域当前的 View。独立 View 和普通命令可调用，打开其他文件需要 workspace.files 读取权限。在旧版 Lite 或其他宿主中，调用前请检查该方法是否存在。",
+  "HostUI.openFileTargets": [
+    'Supported locations for the current contribution. Check `ui.openFileTargets?.includes("sidebar")` before passing a sidebar target. Older hosts can omit this list and ignore the second argument. Omit the options to request the main editor on those hosts.',
+    '当前贡献可用的打开位置。请求右侧栏前请检查 `ui.openFileTargets?.includes("sidebar")`。旧宿主可能省略该列表并忽略第二个参数。需要在这些宿主打开主编辑区时，省略 `options`。',
   ],
   "HostUI.navigate": [
     "Navigate to this plugin's declared page View. In Lite, omitting route reuses the same contribution's already open main page without disposing its iframe or changing its binding. Supplying any explicit route, including an empty string, creates a new binding and remounts. A different page contribution mounts normally. Stateful pages can update through existing subscriptions.",

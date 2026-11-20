@@ -207,8 +207,8 @@ it("routes a validated sidebar request only to the owning workbench", async () =
     protocol: "eidos-plugin",
     apiVersion: 1,
     id: "sidebar",
-    method: "ui.openFileInSidebar",
-    params: { relativePath: "data.csv" },
+    method: "ui.openFile",
+    params: { relativePath: "data.csv", target: "sidebar" },
   }
   expect(await call("request", 2, instance!.ticket, request)).toMatchObject({
     response: { error: { code: "INSTANCE_CLOSED" } },

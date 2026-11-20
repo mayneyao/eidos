@@ -80,9 +80,37 @@ Returns: `Promise<ResourceMount>`.
 
 Related types: [ResourceViewInfo](/plugins/api/types/#resourceviewinfo), [ResourceSource](/plugins/api/types/#resourcesource), [ResourceMount](/plugins/api/ui/#resourcemount).
 
-## HostUI
+## OpenFileTarget
 
 [Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L717)
+
+Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+
+```ts
+export type OpenFileTarget = "main" | "sidebar";
+```
+
+
+## OpenFileOptions
+
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L718)
+
+### OpenFileOptions.target
+
+Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+
+```ts
+target?: OpenFileTarget;
+```
+
+
+Related types: [OpenFileTarget](/plugins/api/ui/#openfiletarget).
+
+## HostUI
+
+[Source](https://github.com/mayneyao/eidos/blob/dev/packages/plugin-sdk/src/index.ts#L722)
 
 ### HostUI.resources
 
@@ -128,37 +156,33 @@ exportFile?(request: FileExportRequest): Promise<FileExportResult>;
 
 Returns: `Promise<FileExportResult>`.
 
+### HostUI.openFileTargets
+
+Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
+
+Supported locations for the current contribution. Check `ui.openFileTargets?.includes("sidebar")` before passing a sidebar target. Older hosts can omit this list and ignore the second argument. Omit the options to request the main editor on those hosts.
+
+
+```ts
+readonly openFileTargets?: readonly OpenFileTarget[];
+```
+
+
 ### HostUI.openFile
 
 Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />
 
-Open an existing Space-relative file in the host.
+Open an existing Space-relative file. The default target is `main`. Lite API 3.13 supports `openFile(path, { target: "sidebar" })` in standalone Views and ordinary actions. It opens the file in the right sidebar and keeps the main View active. Opening another file in the sidebar requires `workspace.files` read access.
 
 
 ```ts
-openFile?(relativePath: string): Promise<void>;
+openFile?(relativePath: string, options?: OpenFileOptions): Promise<void>;
 ```
 
 | Parameter | Type | Required |
 | --- | --- | --- |
 | `relativePath` | `string` | Yes |
-
-Returns: `Promise<void>`.
-
-### HostUI.openFileInSidebar
-
-Supported hosts: <Badge text="Lite" variant="note" />
-
-Lite API 3.13. Opens an existing Space-relative file in the right sidebar and keeps the main View active. Available in standalone Views and ordinary actions. Opening another file requires workspace.files read access. Check whether the method is defined before calling it on older Lite versions or another host.
-
-
-```ts
-openFileInSidebar?(relativePath: string): Promise<void>;
-```
-
-| Parameter | Type | Required |
-| --- | --- | --- |
-| `relativePath` | `string` | Yes |
+| `options` | `OpenFileOptions` | No |
 
 Returns: `Promise<void>`.
 
@@ -180,4 +204,4 @@ navigate?(viewId: string, route?: string): Promise<void>;
 
 Returns: `Promise<void>`.
 
-Related types: [HostResources](/plugins/api/ui/#hostresources), [FileExportRequest](/plugins/api/types/#fileexportrequest), [FileExportResult](/plugins/api/types/#fileexportresult).
+Related types: [HostResources](/plugins/api/ui/#hostresources), [FileExportRequest](/plugins/api/types/#fileexportrequest), [FileExportResult](/plugins/api/types/#fileexportresult), [OpenFileTarget](/plugins/api/ui/#openfiletarget), [OpenFileOptions](/plugins/api/ui/#openfileoptions).

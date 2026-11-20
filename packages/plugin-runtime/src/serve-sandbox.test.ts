@@ -31,7 +31,7 @@ it("exposes the Serve contract and disposes observers independently", async () =
     bootstrap((ctx) => {
       if (ctx.binding.kind !== 'file' || ctx.binding.location.tableId !== 'table') throw Error('Invalid binding');
       if ('table' in ctx || 'table' in ctx.binding || 'settings' in ctx.capabilities || 'fs' in ctx.capabilities) throw Error('Unexpected alias or placeholder');
-      if ('pluginConfig' in ctx.capabilities.eidos.table || 'navigate' in ctx.capabilities.ui || 'openFileInSidebar' in ctx.capabilities.ui) throw Error('Unsupported service exposed');
+      if ('pluginConfig' in ctx.capabilities.eidos.table || 'navigate' in ctx.capabilities.ui || 'openFile' in ctx.capabilities.ui || 'openFileTargets' in ctx.capabilities.ui) throw Error('Unsupported service exposed');
       for (const method of ['read', 'getPage', 'updateProperties', 'observe']) {
         if (method in ctx.capabilities.eidos.table) throw Error('Obsolete table API exposed');
       }

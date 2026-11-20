@@ -27,7 +27,7 @@
         "workspace.files",
         "filemeta",
         "sidebar.explorer",
-        "ui.openFileInSidebar",
+        "ui.openFile.sidebar",
         "browser.workers",
         "browser.network",
         "network.public",

@@ -79,7 +79,6 @@ export interface PluginRequest {
     | "resources.refresh"
     | "resources.dispose"
     | "ui.openFile"
-    | "ui.openFileInSidebar"
     | "ui.navigate"
     | "settings.get"
     | "settings.set"
@@ -190,7 +189,6 @@ export function parseRequest(value: unknown): PluginRequest {
       "resources.refresh",
       "resources.dispose",
       "ui.openFile",
-      "ui.openFileInSidebar",
       "ui.navigate",
       "settings.get",
       "settings.set",

@@ -672,7 +672,7 @@ export class PluginService {
               action,
               kind: declaration.context,
               ...(invocation.path ? { path: invocation.path } : {}),
-              openFileInSidebar: !!instance.session.statFile,
+              sidebarFileOpen: !!instance.session.statFile,
             },
       })
     } catch (error) {
@@ -740,7 +740,7 @@ export class PluginService {
         sidecar: !!pkg.manifest.sidecar && !embedded,
         embedded,
         exportFile: !!this.exportFile,
-        openFileInSidebar: !embedded && !!session.statFile,
+        sidebarFileOpen: !embedded && !!session.statFile,
         ...(table
           ? { kind: "table" as const, ...table }
           : { kind: "page" as const, route }),
@@ -866,7 +866,7 @@ export class PluginService {
         embedded,
         resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
         exportFile: !!this.exportFile,
-        openFileInSidebar: !embedded && !!session.statFile,
+        sidebarFileOpen: !embedded && !!session.statFile,
         ...(eidos
           ? { kind: "eidos" as const, file: fileInfo }
           : isFileContext
@@ -1812,8 +1812,7 @@ export class PluginService {
           (request.method.startsWith("settings.") ||
             request.method.startsWith("fs.") ||
             request.method.startsWith("filemeta.") ||
-            request.method === "ui.openFile" ||
-            request.method === "ui.openFileInSidebar") &&
+            request.method === "ui.openFile") &&
           binding.hash !== instance.hash
         )
           throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
@@ -2620,22 +2619,32 @@ export class PluginService {
             }
             break
           }
-          case "ui.openFile":
-          case "ui.openFileInSidebar": {
+          case "ui.openFile": {
             const p = object(params)
             if (
-              Object.keys(p).join() !== "relativePath" ||
+              Object.keys(p).some(
+                (key) => key !== "relativePath" && key !== "target"
+              ) ||
               typeof p.relativePath !== "string" ||
               Buffer.byteLength(p.relativePath) > 1024
             )
               throw new PluginError("INVALID_REQUEST", "Invalid file path")
+            if (
+              p.target !== undefined &&
+              p.target !== "main" &&
+              p.target !== "sidebar"
+            )
+              throw new PluginError(
+                "INVALID_REQUEST",
+                "Invalid file open target"
+              )
             let relativePath: string
             try {
               relativePath = normalizeMutableRelativePath(p.relativePath)
             } catch {
               throw new PluginError("INVALID_REQUEST", "Invalid file path")
             }
-            if (request.method === "ui.openFileInSidebar") {
+            if (p.target === "sidebar") {
               if (instance.embedded || !session.statFile)
                 throw new PluginError("UNSUPPORTED_API", "Sidebar unavailable")
               if (relativePath !== activeFilePath && !hasWorkspaceFiles)

@@ -53,7 +53,7 @@ export type BrowserBinding = {
   resources?: boolean
   embedded?: boolean
   exportFile?: boolean
-  openFileInSidebar?: boolean
+  sidebarFileOpen?: boolean
   capabilities?: ViewCapability[]
   connections?: boolean
   explorer?: ExplorerState
@@ -818,13 +818,16 @@ export function bootstrap(
               },
             }
           : {}),
-        openFile: (relativePath) => call("ui.openFile", { relativePath }),
-        ...(binding.openFileInSidebar
-          ? {
-              openFileInSidebar: (relativePath: string) =>
-                call<void>("ui.openFileInSidebar", { relativePath }),
-            }
-          : {}),
+        openFileTargets: binding.sidebarFileOpen
+          ? ["main", "sidebar"]
+          : ["main"],
+        openFile: (relativePath, options) =>
+          call("ui.openFile", {
+            relativePath,
+            ...(options?.target === undefined
+              ? {}
+              : { target: options.target }),
+          }),
         navigate: (viewId, route) =>
           call("ui.navigate", {
             viewId,

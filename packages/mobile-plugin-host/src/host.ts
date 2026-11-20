@@ -326,6 +326,8 @@ export class MobilePluginInstance {
       return null
     }
     if (method === "ui.openFile") {
+      if (p.target !== undefined && p.target !== "main")
+        throw new Error("此宿主仅支持在主区域打开文件")
       const path = spacePath(p.relativePath)
       if (!this.manifest.workspace?.files && path !== this.options.path)
         throw new Error("未授权访问其他文件")

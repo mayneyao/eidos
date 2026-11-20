@@ -1713,16 +1713,18 @@ describe("Lite document-view integration", () => {
         })
       ).response
     ).toMatchObject({ result: null })
-    expect(
-      await rpc(page.ticket, "ui.openFile", {
-        relativePath: "journals/2026-09-23.md",
-      })
-    ).toMatchObject({ openFile: "journals/2026-09-23.md" })
-    expect(
-      await rpc(page.ticket, "ui.openFileInSidebar", {
-        relativePath: "./journals/2026-09-23.md",
-      })
-    ).toEqual({
+    const note = "journals/2026-09-23.md"
+    for (const params of [
+      { relativePath: note },
+      { relativePath: note, target: "main" },
+    ]) {
+      const opened = await rpc(page.ticket, "ui.openFile", params)
+      expect(opened.openFile).toBe(note)
+      expect(opened.openFileInSidebar).toBeUndefined()
+    }
+    const sidebarOpen = (ticket: string, relativePath: string) =>
+      rpc(ticket, "ui.openFile", { relativePath, target: "sidebar" })
+    expect(await sidebarOpen(page.ticket, `./${note}`)).toEqual({
       openFileInSidebar: "journals/2026-09-23.md",
       response: {
         protocol: "eidos-plugin",
@@ -1732,14 +1734,12 @@ describe("Lite document-view integration", () => {
       },
     })
     for (const path of ["../secret.md", "/secret.md", ".graft/private.md"]) {
-      expect(
-        await rpc(page.ticket, "ui.openFileInSidebar", { relativePath: path })
-      ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+      expect(await sidebarOpen(page.ticket, path)).toMatchObject({
+        response: { error: { code: "INVALID_REQUEST" } },
+      })
     }
     for (const path of ["journals", "journals/missing.md"]) {
-      expect(
-        await rpc(page.ticket, "ui.openFileInSidebar", { relativePath: path })
-      ).toMatchObject({
+      expect(await sidebarOpen(page.ticket, path)).toMatchObject({
         response: { error: { code: "DOCUMENT_UNAVAILABLE" } },
       })
     }
@@ -1754,20 +1754,27 @@ describe("Lite document-view integration", () => {
         true
       )
     ).instance!
-    expect(
-      await rpc(embedded.ticket, "ui.openFileInSidebar", {
-        relativePath: "journals/2026-09-23.md",
-      })
-    ).toMatchObject({ response: { error: { code: "UNSUPPORTED_API" } } })
+    expect(await sidebarOpen(embedded.ticket, note)).toMatchObject({
+      response: { error: { code: "UNSUPPORTED_API" } },
+    })
     const bound = await open()
-    expect(
-      await rpc(bound, "ui.openFileInSidebar", { relativePath: "data.csv" })
-    ).toMatchObject({ openFileInSidebar: "data.csv" })
-    expect(
-      await rpc(bound, "ui.openFileInSidebar", {
-        relativePath: "journals/2026-09-23.md",
+    expect(await sidebarOpen(bound, "data.csv")).toMatchObject({
+      openFileInSidebar: "data.csv",
+    })
+    expect(await sidebarOpen(bound, note)).toMatchObject({
+      response: { error: { code: "PERMISSION_DENIED" } },
+    })
+    for (const target of ["other", null]) {
+      const opened = await rpc(page.ticket, "ui.openFile", {
+        relativePath: note,
+        target,
       })
-    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+      expect(opened).toMatchObject({
+        response: { error: { code: "INVALID_REQUEST" } },
+      })
+      expect(opened.openFile).toBeUndefined()
+      expect(opened.openFileInSidebar).toBeUndefined()
+    }
     expect(
       (
         await rpc(page.ticket, "ui.openFile", {
@@ -2057,8 +2064,9 @@ describe("Lite document-view integration", () => {
       openFile: "Journals/2026-09-23.md",
     })
     expect(
-      await actionRpc("ui.openFileInSidebar", {
+      await actionRpc("ui.openFile", {
         relativePath: "Journals/2026-09-23.md",
+        target: "sidebar",
       })
     ).toMatchObject({ openFileInSidebar: "Journals/2026-09-23.md" })
     await actionRpc("settings.set", { key: "folder", value: "Diary" })
