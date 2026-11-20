@@ -1035,11 +1035,20 @@ class SpaceRepository(
         file.readBytes()
     }
 
+    suspend fun assertEditorAssetWritable(document: String) {
+        if (document.endsWith(".eidos", true)) {
+            io { NativeRuntime.call(local.resolve(document).path, "assertAssetWritable") }
+        }
+    }
+
     suspend fun importEditorFiles(document: String, sources: List<Uri>): JSONArray = io {
         if (sources.isEmpty()) return@io JSONArray()
         require(sources.size <= 100 && sources.all { it.scheme == "content" }) { tr("请选择最多 100 个本地文件") }
         val target = local.resolve(document)
         require(target.isFile) { tr("文档不存在") }
+        if (document.endsWith(".eidos", true)) {
+            NativeRuntime.call(target.path, "assertAssetWritable")
+        }
         val parent = document.substringBeforeLast('/', "")
         val assetsPath = if (parent.isEmpty()) "assets" else "$parent/assets"
         var component = root
@@ -1717,6 +1726,7 @@ class SpaceRepository(
             tr("目标附件字段不可写入")
         }
         val database = local.resolve(page.path)
+        NativeRuntime.call(database.path, "assertAssetWritable")
         check(
             NativeRuntime.call(database.path, "getSnapshot").getString("revision") == page.revision
         ) {
