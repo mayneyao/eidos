@@ -216,6 +216,18 @@ try {
   if (pluginCompiler.error) throw pluginCompiler.error
   if (pluginCompiler.status !== 0)
     throw new Error("Packaged plugin compiler validation failed")
+  const terminalCheck = spawnSync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "scripts/run-electron-node.mjs"),
+      path.join(appRoot, "scripts/verify-packaged-terminal.mjs"),
+      path.join(packagedResources, "app.asar"),
+    ],
+    { stdio: "inherit", timeout: 30_000 }
+  )
+  if (terminalCheck.error) throw terminalCheck.error
+  if (terminalCheck.status !== 0)
+    throw new Error("Packaged terminal validation failed")
   const packagedCli = path.join(packagedResources, "graft")
   if (
     await fs.stat(packagedCli).then(

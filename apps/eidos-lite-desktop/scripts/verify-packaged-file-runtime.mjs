@@ -60,6 +60,18 @@ const runtime = await import(
     path.join(archive, "node_modules/@eidos.space/eidos-file/dist/index.mjs")
   ).href
 )
+const window = runtime.eidosFileCalendarWindowBounds(
+  { direction: "past", unit: "day", count: 1 },
+  {
+    timeZone: "America/New_York",
+    timeZoneData: runtime.EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
+    weekStartsOn: 1,
+  },
+  "2026-03-09T12:00:00.000Z"
+)
+assert.deepEqual(window.intervals, [
+  ["2026-03-08T05:00:00.000Z", "2026-03-10T04:00:00.000Z"],
+])
 assert.deepEqual(
   runtime.prepareEidosFileCsvImport({
     name: "packaged.csv",
@@ -91,5 +103,7 @@ console.log(
     nodePathProvided: Boolean(process.env.NODE_PATH),
     csvParsing: true,
     localDateDefaults: true,
+    dayWindowAcrossDst: true,
+    timeZoneData: runtime.EIDOS_FILE_CALENDAR_TIME_ZONE_DATA,
   })
 )

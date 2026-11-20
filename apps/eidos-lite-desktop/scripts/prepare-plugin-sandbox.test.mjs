@@ -1,5 +1,12 @@
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  readdir,
+  rm,
+} from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -38,16 +45,22 @@ for (const platform of ["win32", "darwin", "linux"]) {
         await writeFile(path.join(output, ${JSON.stringify(filename)}), 'native fixture');
       `
       )
-      await preparePluginSandbox({ repository, platform, architecture: "x64" })
-      assert.equal(
-        await readFile(
-          path.join(
-            repository,
-            "apps/eidos-lite-desktop/resources/plugin-sandbox",
-            filename
-          ),
-          "utf8"
+      const resources = path.join(
+        repository,
+        "apps/eidos-lite-desktop/resources/plugin-sandbox"
+      )
+      await mkdir(resources, { recursive: true })
+      await writeFile(
+        path.join(
+          resources,
+          platform === "win32" ? "plugin-sandbox" : "plugin-sandbox.exe"
         ),
+        "stale native fixture"
+      )
+      await preparePluginSandbox({ repository, platform, architecture: "x64" })
+      assert.deepEqual(await readdir(resources), [filename])
+      assert.equal(
+        await readFile(path.join(resources, filename), "utf8"),
         "native fixture"
       )
     } finally {

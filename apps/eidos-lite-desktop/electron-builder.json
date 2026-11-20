@@ -7,24 +7,26 @@
   "npmRebuild": false,
   "files": [
     "dist/**/*",
-    "dist-electron/**/*",
     "package.json",
     "!**/node_modules/**/*",
     "**/node_modules/@eidos.space/graft/**/*",
     "**/node_modules/@eidos.space/eidos-file/dist/**/*",
-    "**/node_modules/@eidos.space/eidos-file/package.json",
-    "**/node_modules/csv-parse/**/*",
-    "**/node_modules/moment/**/*",
-    "**/node_modules/moment-timezone/**/*",
+    "!**/node_modules/@eidos.space/eidos-file/dist/**/*.map",
+    "**/node_modules/@eidos.space/eidos-file/{package.json,LICENSE*}",
+    "**/node_modules/csv-parse/{package.json,LICENSE*,lib/**/*.js,dist/cjs/*.cjs,dist/esm/sync.js}",
+    "**/node_modules/moment/{package.json,LICENSE*,moment.js}",
+    "**/node_modules/moment-timezone/{package.json,LICENSE*,index.js,moment-timezone.js,data/packed/latest.json}",
     "**/node_modules/@eidos.space/graft-*/**/*",
     "**/node_modules/koffi/**/*",
     "**/node_modules/@koromix/koffi-*/**/*",
-    "**/node_modules/node-pty/**/*",
-    "**/node_modules/esbuild/**/*",
+    "**/node_modules/node-pty/{package.json,LICENSE*,deps/winpty/LICENSE,lib/**/*.js,build/{Release,Debug}/**/*,prebuilds/**/*}",
+    "!**/node_modules/node-pty/lib/**/*.test.js",
+    "**/node_modules/esbuild/{package.json,LICENSE*,lib/main.js}",
     "**/node_modules/@esbuild/**/*",
-    "**/node_modules/typescript/**/*",
+    "**/node_modules/typescript/{package.json,LICENSE*,ThirdPartyNoticeText.txt,lib/typescript.js}",
     "**/node_modules/selfsigned/**/*",
-    "**/node_modules/node-forge/**/*"
+    "**/node_modules/node-forge/**/*",
+    "!dist-app{,/**/*}"
   ],
   "asarUnpack": [
     "**/node_modules/typescript/**/*",
@@ -38,12 +40,12 @@
     {
       "from": "resources/plugin-sandbox",
       "to": "plugin-sandbox",
-      "filter": ["**/*"]
+      "filter": ["plugin-sandbox", "plugin-sandbox.exe"]
     },
     {
       "from": "node_modules/typescript/lib",
       "to": "app.asar.unpacked/node_modules/typescript/lib",
-      "filter": ["*.d.ts"]
+      "filter": ["lib*.d.ts"]
     },
     {
       "from": "resources/publish-engine",
@@ -84,6 +86,15 @@
     }
   ],
   "mac": {
+    "files": [
+      {
+        "filter": [
+          "dist-electron/**/*",
+          "!**/node_modules/@esbuild/!(darwin-${arch}){,/**/*}",
+          "!**/node_modules/node-pty/prebuilds/!(darwin-${arch}){,/**/*}"
+        ]
+      }
+    ],
     "target": ["dmg", "zip"],
     "icon": "assets/logo.icns",
     "forceCodeSigning": true,
@@ -103,11 +114,30 @@
     ]
   },
   "win": {
+    "files": [
+      {
+        "filter": [
+          "dist-electron/**/*",
+          "!**/node_modules/@esbuild/!(win32-${arch}){,/**/*}",
+          "!**/node_modules/node-pty/prebuilds/!(win32-${arch}){,/**/*}",
+          "!**/node_modules/node-pty/build{,/**/*}"
+        ]
+      }
+    ],
     "target": ["nsis"],
     "icon": "assets/logo.ico",
     "forceCodeSigning": false
   },
   "linux": {
+    "files": [
+      {
+        "filter": [
+          "dist-electron/**/*",
+          "!**/node_modules/@esbuild/!(linux-${arch}){,/**/*}",
+          "!**/node_modules/node-pty/prebuilds/!(linux-${arch}){,/**/*}"
+        ]
+      }
+    ],
     "target": ["AppImage", "deb"],
     "icon": "assets/icons",
     "executableName": "eidos-lite-desktop",

@@ -84,6 +84,16 @@ if (unexpectedFiles.length > 0) {
   errors.push(`unexpected outputs: ${unexpectedFiles.join(", ")}`)
 }
 
+// A statically resolved sandbox URL can cause Vite to re-embed the native
+// executable even though Lite always launches it from resources/plugin-sandbox.
+const inlinedExecutable =
+  /data:application\/octet-stream;base64,(?:z\/rt\/g|z\/q7\/g|yv66vg|TVq|f0VMRg)[A-Za-z0-9+/]{1024}/
+for (const fileName of files.filter((file) => file.endsWith(".js"))) {
+  const source = await fs.readFile(path.join(outputRoot, fileName), "utf8")
+  if (inlinedExecutable.test(source))
+    errors.push(`unexpected embedded native executable in ${fileName}`)
+}
+
 if (errors.length > 0) {
   throw new Error(
     `Eidos Lite Electron output is not clean:\n- ${errors.join("\n- ")}`

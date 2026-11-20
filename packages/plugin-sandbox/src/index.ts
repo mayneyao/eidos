@@ -49,11 +49,15 @@ function record(value: unknown): value is Record<string, unknown> {
 
 /** No PATH lookup or automatic download. The host selects its executable. */
 export function defaultBinaryPath(): string {
-  return fileURLToPath(
-    new URL(
-      `../bin/${process.platform}-${process.arch}/plugin-sandbox${process.platform === "win32" ? ".exe" : ""}`,
-      import.meta.url
-    )
+  const name =
+    process.platform === "win32" ? "plugin-sandbox.exe" : "plugin-sandbox"
+  // Resolve a filesystem executable at runtime. A URL relative to import.meta.url
+  // would let asset bundlers copy or inline the sandbox even when hosts pass binaryPath.
+  return path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../bin",
+    `${process.platform}-${process.arch}`,
+    name
   )
 }
 
