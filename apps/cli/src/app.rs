@@ -16,13 +16,13 @@ use eidos_file_core::query::{
 use eidos_file_core::rows::{
     RowChange, RowMutation, RowMutationResult, ensure_revision, mutate_rows_in_transaction,
 };
-use eidos_file_core::schema_ops::{SchemaLeafChange, apply_schema_change, preview_schema_change};
+use eidos_file_core::schema_ops::{SchemaLeafChange, apply_schema_change_in_transaction};
 use eidos_file_core::validate::{ValidationLevel, validate};
 use eidos_file_core::view_ops::{
-    SavedViewQuery, ViewChange, ViewMutationRequest, ViewPatch, mutate_views, preview_views,
+    SavedViewQuery, ViewChange, ViewMutationRequest, ViewPatch, mutate_views_in_transaction,
 };
 use eidos_file_core::{EidosError, Result as CoreResult};
-use rusqlite::{Connection, OpenFlags, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
@@ -43,7 +43,7 @@ use crate::cli::{
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
-use crate::runtime::with_session as with_runtime_session;
+use crate::runtime::{begin_compatible_write, with_session as with_runtime_session};
 
 pub struct CommandOutput {
     pub value: Value,
@@ -1330,9 +1330,7 @@ fn apply(args: ApplyArgs) -> Result<CommandOutput> {
     }
 
     let mut conn = open_file(&args.file, true)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(EidosError::from)?;
+    let tx = begin_compatible_write(&mut conn, &args.file)?;
     ensure_revision(&tx, &request.revision)?;
     let tables = load_tables(&tx)?;
     let table = resolve_table(&tables, &request.table)?.clone();
@@ -1698,9 +1696,7 @@ fn rows_upsert(file: PathBuf, args: RowUpsertArgs) -> Result<CommandOutput> {
     }
 
     let mut conn = open_file(&file, true)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(EidosError::from)?;
+    let tx = begin_compatible_write(&mut conn, &file)?;
     ensure_revision(&tx, &args.expected_revision)?;
     let table = resolve_table(&load_tables(&tx)?, &args.table)?.clone();
     let fields: Vec<FieldMeta> = load_fields(&tx)?
@@ -1869,9 +1865,7 @@ fn view_apply(args: ViewApplyArgs) -> Result<CommandOutput> {
         )?));
     }
     let mut conn = open_file(&args.file, true)?;
-    Ok(CommandOutput::success(json!(mutate_views(
-        &mut conn, &request
-    )?)))
+    execute_native_view_request(&args.file, &mut conn, &request, false).map(CommandOutput::success)
 }
 
 fn view(args: ViewArgs) -> Result<CommandOutput> {
@@ -2288,10 +2282,8 @@ fn execute_view_request(
         || view_source_requires_runtime(file, &request)?
     {
         canonical_view_mutation(file, &request, dry_run)?
-    } else if dry_run {
-        json!(preview_views(conn, &request)?)
     } else {
-        json!(mutate_views(conn, &request)?)
+        execute_native_view_request(file, conn, &request, dry_run)?
     };
     Ok(CommandOutput::success(json!({
         "dryRun": dry_run,
@@ -2300,6 +2292,22 @@ fn execute_view_request(
         "request": request_value,
         "result": result,
     })))
+}
+
+fn execute_native_view_request(
+    file: &Path,
+    conn: &mut Connection,
+    request: &ViewMutationRequest,
+    dry_run: bool,
+) -> Result<Value> {
+    let tx = begin_compatible_write(conn, file)?;
+    let result = mutate_views_in_transaction(&tx, request)?;
+    if !dry_run && result.changed {
+        tx.commit().map_err(EidosError::from)?;
+    } else {
+        tx.rollback().map_err(EidosError::from)?;
+    }
+    Ok(json!(result))
 }
 
 fn resolve_view<'a>(views: &'a [ViewMeta], reference: &str) -> Result<&'a ViewMeta> {
@@ -2771,13 +2779,15 @@ fn schema_apply(args: SchemaApplyArgs) -> Result<CommandOutput> {
         );
     }
     let mut conn = open_file(&args.file, true)?;
-    let change = normalize_schema_change(&conn, operation)?;
+    let tx = begin_compatible_write(&mut conn, &args.file)?;
+    let change = normalize_schema_change(&tx, operation)?;
     let public_change = public_schema_operation(serde_json::to_value(&change)?);
-    let result = if args.dry_run {
-        preview_schema_change(&mut conn, &change, Some(&args.expected_revision))?
+    let result = apply_schema_change_in_transaction(&tx, &change, Some(&args.expected_revision))?;
+    if !args.dry_run && result.changed {
+        tx.commit().map_err(EidosError::from)?;
     } else {
-        apply_schema_change(&mut conn, &change, Some(&args.expected_revision))?
-    };
+        tx.rollback().map_err(EidosError::from)?;
+    }
     Ok(CommandOutput::success(json!({
         "dryRun": args.dry_run,
         "createdIdsAreEphemeral": args.dry_run,
@@ -4478,15 +4488,17 @@ fn execute_schema_intent(
         return runtime_schema_intent(file, runtime_operation, expected_revision, dry_run);
     }
     let mut conn = open_file(&file, true)?;
-    let meta = load_file_meta(&conn)?;
+    let tx = begin_compatible_write(&mut conn, &file)?;
+    let meta = load_file_meta(&tx)?;
     let expected_revision = expected_revision.unwrap_or_else(|| meta.revision.to_string());
-    let change = normalize_schema_change(&conn, operation)?;
+    let change = normalize_schema_change(&tx, operation)?;
     let public_change = public_schema_operation(serde_json::to_value(&change)?);
-    let result = if dry_run {
-        preview_schema_change(&mut conn, &change, Some(&expected_revision))?
+    let result = apply_schema_change_in_transaction(&tx, &change, Some(&expected_revision))?;
+    if !dry_run && result.changed {
+        tx.commit().map_err(EidosError::from)?;
     } else {
-        apply_schema_change(&mut conn, &change, Some(&expected_revision))?
-    };
+        tx.rollback().map_err(EidosError::from)?;
+    }
     Ok(CommandOutput::success(json!({
         "dryRun": dry_run,
         "createdIdsAreEphemeral": dry_run,

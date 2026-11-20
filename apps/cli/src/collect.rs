@@ -10,13 +10,14 @@ use rand::RngCore;
 use reqwest::Url;
 use reqwest::blocking::{Client, RequestBuilder, Response};
 use reqwest::header::{AUTHORIZATION, HeaderValue};
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Transaction};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::cli::CollectArgs;
 use crate::error::{AppError, Result};
+use crate::runtime::begin_compatible_write;
 
 const COLLECT_FEATURE: &str = "x__eidos__publish_collect";
 const COLLECT_FEATURE_VERSION: &str = "1";
@@ -111,7 +112,8 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     )
     .map_err(eidos_file_core::EidosError::from)?;
     configure_connection(&conn)?;
-    verify_local_schema(&conn, &metadata.definition)?;
+    let tx = begin_compatible_write(&mut conn, &args.file)?;
+    verify_local_schema(&tx, &metadata.definition)?;
     let attachment_root = canonical_attachment_root(
         args.attachment_root
             .as_deref()
@@ -149,10 +151,13 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
             )?
         }
     };
+    tx.rollback().map_err(eidos_file_core::EidosError::from)?;
 
     let mut imported = 0_u64;
     let mut replayed = 0_u64;
     loop {
+        let tx = begin_compatible_write(&mut conn, &args.file)?;
+        verify_local_schema(&tx, &metadata.definition)?;
         let page: LeasePage = send_json(
             client
                 .post(endpoint(
@@ -167,6 +172,7 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
                     "limit": args.batch_size,
                 })),
         )?;
+        tx.rollback().map_err(eidos_file_core::EidosError::from)?;
         if page.submissions.is_empty() {
             break;
         }
@@ -175,6 +181,8 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
                 show_progress,
                 &format!("importing submission {}", submission.submission_id),
             );
+            let tx = begin_compatible_write(&mut conn, &args.file)?;
+            verify_local_schema(&tx, &metadata.definition)?;
             let values = materialize_values(
                 &client,
                 &origin,
@@ -185,7 +193,7 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
                 &attachment_root,
             )?;
             let created = import_submission(
-                &mut conn,
+                tx,
                 &args.publication,
                 &metadata.definition.source.table_id,
                 &submission,
@@ -472,15 +480,12 @@ fn create_contained_directories(root: &Path, target: &Path) -> Result<()> {
 }
 
 fn import_submission(
-    conn: &mut Connection,
+    tx: Transaction<'_>,
     publication_id: &str,
     table_id: &str,
     submission: &Submission,
     values: Map<String, Value>,
 ) -> Result<bool> {
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(eidos_file_core::EidosError::from)?;
     install_receipt_extension(&tx)?;
     let existing = tx
         .query_row(
@@ -807,7 +812,7 @@ mod tests {
             .clone();
         assert!(
             import_submission(
-                &mut conn,
+                begin_compatible_write(&mut conn, &path).expect("write transaction"),
                 "6300a083-df92-49d8-945d-1e0bae0eac18",
                 &initialized.table_id,
                 &submission,
@@ -817,7 +822,7 @@ mod tests {
         );
         assert!(
             !import_submission(
-                &mut conn,
+                begin_compatible_write(&mut conn, &path).expect("write transaction"),
                 "6300a083-df92-49d8-945d-1e0bae0eac18",
                 &initialized.table_id,
                 &submission,

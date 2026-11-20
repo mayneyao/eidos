@@ -1011,20 +1011,30 @@ fn run_change(
     commit: bool,
 ) -> Result<SchemaChangeResult> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let (current_revision, _) = check_revision(&tx, expected_revision)?;
-    let instant = now_instant();
-    let (changed, created_objects) = apply_inner(&tx, change, &instant)?;
-    let revision = if changed {
-        ensure_foreign_keys(&tx)?;
-        ddl::increment_revision(&tx, &instant)?
-    } else {
-        current_revision
-    };
-    if commit && changed {
+    let result = apply_schema_change_in_transaction(&tx, change, expected_revision)?;
+    if commit && result.changed {
         tx.commit()?;
     } else {
         tx.rollback()?;
     }
+    Ok(result)
+}
+
+/// Apply a schema change inside the caller's write transaction.
+pub fn apply_schema_change_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    change: &SchemaLeafChange,
+    expected_revision: Option<&str>,
+) -> Result<SchemaChangeResult> {
+    let (current_revision, _) = check_revision(tx, expected_revision)?;
+    let instant = now_instant();
+    let (changed, created_objects) = apply_inner(tx, change, &instant)?;
+    let revision = if changed {
+        ensure_foreign_keys(tx)?;
+        ddl::increment_revision(tx, &instant)?
+    } else {
+        current_revision
+    };
     Ok(SchemaChangeResult {
         revision: revision.to_string(),
         changed,
