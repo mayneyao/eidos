@@ -185,6 +185,16 @@ const api: EidosLiteApi = {
     ipcRenderer.on(PLUGIN_CHANNELS.event, handler)
     return () => ipcRenderer.removeListener(PLUGIN_CHANNELS.event, handler)
   },
+  onPluginOpenFileInSidebar: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      spaceId: string,
+      relativePath: string
+    ) => listener(spaceId, relativePath)
+    ipcRenderer.on(PLUGIN_CHANNELS.openFileInSidebar, handler)
+    return () =>
+      ipcRenderer.removeListener(PLUGIN_CHANNELS.openFileInSidebar, handler)
+  },
   pluginRequest: (ticket, request) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.request, ticket, request),
   closePluginEditor: (ticket) =>

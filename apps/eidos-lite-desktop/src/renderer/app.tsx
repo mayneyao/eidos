@@ -966,6 +966,14 @@ function WorkspaceApp({
     setSyncPanelMode(null)
     setSidebarFilePath(path)
   }, [])
+  const sidebarSpaceId = space?.id
+  useEffect(
+    () =>
+      window.eidosLite.onPluginOpenFileInSidebar?.((spaceId, relativePath) => {
+        if (spaceId === sidebarSpaceId) openFileInSidebar(relativePath)
+      }),
+    [openFileInSidebar, sidebarSpaceId]
+  )
   const releaseSidebarEidosFile = useCallback(async (sessionId: string) => {
     if (!cachedFilesRef.current.some((file) => file.sessionId === sessionId))
       await window.eidosLite.closeEidosFile(sessionId)

@@ -1556,9 +1556,11 @@ export function registerPluginIpc(controller: WindowController): {
       const owner = caller(event)
       if (typeof ticket !== "string")
         throw new PluginError("INVALID_REQUEST", "Invalid plugin ticket")
-      const result = await service.request(
+      const session = controller.requireSession(event.sender)
+      const spaceId = session.canonical.id
+      const { openFileInSidebar, ...result } = await service.request(
         owner,
-        controller.requireSession(event.sender),
+        session,
         ticket,
         request,
         (value) => {
@@ -1566,6 +1568,17 @@ export function registerPluginIpc(controller: WindowController): {
             event.sender.send(PLUGIN_CHANNELS.event, { ticket, event: value })
         }
       )
+      if (
+        openFileInSidebar &&
+        !event.sender.isDestroyed() &&
+        controller.sessionFor(event.sender) === session &&
+        service.instances.get(ticket)?.session === session
+      )
+        event.sender.send(
+          PLUGIN_CHANNELS.openFileInSidebar,
+          spaceId,
+          openFileInSidebar
+        )
       if (
         request &&
         typeof request === "object" &&

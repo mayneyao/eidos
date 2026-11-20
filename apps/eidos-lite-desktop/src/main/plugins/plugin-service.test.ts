@@ -1719,6 +1719,56 @@ describe("Lite document-view integration", () => {
       })
     ).toMatchObject({ openFile: "journals/2026-09-23.md" })
     expect(
+      await rpc(page.ticket, "ui.openFileInSidebar", {
+        relativePath: "./journals/2026-09-23.md",
+      })
+    ).toEqual({
+      openFileInSidebar: "journals/2026-09-23.md",
+      response: {
+        protocol: "eidos-plugin",
+        apiVersion: 1,
+        id: expect.any(String),
+        result: null,
+      },
+    })
+    for (const path of ["../secret.md", "/secret.md", ".graft/private.md"]) {
+      expect(
+        await rpc(page.ticket, "ui.openFileInSidebar", { relativePath: path })
+      ).toMatchObject({ response: { error: { code: "INVALID_REQUEST" } } })
+    }
+    for (const path of ["journals", "journals/missing.md"]) {
+      expect(
+        await rpc(page.ticket, "ui.openFileInSidebar", { relativePath: path })
+      ).toMatchObject({
+        response: { error: { code: "DOCUMENT_UNAVAILABLE" } },
+      })
+    }
+    const embedded = (
+      await service.openPage(
+        1,
+        session,
+        "example.journals/overview",
+        undefined,
+        undefined,
+        undefined,
+        true
+      )
+    ).instance!
+    expect(
+      await rpc(embedded.ticket, "ui.openFileInSidebar", {
+        relativePath: "journals/2026-09-23.md",
+      })
+    ).toMatchObject({ response: { error: { code: "UNSUPPORTED_API" } } })
+    const bound = await open()
+    expect(
+      await rpc(bound, "ui.openFileInSidebar", { relativePath: "data.csv" })
+    ).toMatchObject({ openFileInSidebar: "data.csv" })
+    expect(
+      await rpc(bound, "ui.openFileInSidebar", {
+        relativePath: "journals/2026-09-23.md",
+      })
+    ).toMatchObject({ response: { error: { code: "PERMISSION_DENIED" } } })
+    expect(
       (
         await rpc(page.ticket, "ui.openFile", {
           relativePath: "../secret.md",
@@ -2006,6 +2056,11 @@ describe("Lite document-view integration", () => {
     ).toMatchObject({
       openFile: "Journals/2026-09-23.md",
     })
+    expect(
+      await actionRpc("ui.openFileInSidebar", {
+        relativePath: "Journals/2026-09-23.md",
+      })
+    ).toMatchObject({ openFileInSidebar: "Journals/2026-09-23.md" })
     await actionRpc("settings.set", { key: "folder", value: "Diary" })
     expect(
       (await actionRpc("settings.get", { key: "folder" })).response

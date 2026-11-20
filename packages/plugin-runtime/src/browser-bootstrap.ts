@@ -53,6 +53,7 @@ export type BrowserBinding = {
   resources?: boolean
   embedded?: boolean
   exportFile?: boolean
+  openFileInSidebar?: boolean
   capabilities?: ViewCapability[]
   connections?: boolean
   explorer?: ExplorerState
@@ -818,6 +819,12 @@ export function bootstrap(
             }
           : {}),
         openFile: (relativePath) => call("ui.openFile", { relativePath }),
+        ...(binding.openFileInSidebar
+          ? {
+              openFileInSidebar: (relativePath: string) =>
+                call<void>("ui.openFileInSidebar", { relativePath }),
+            }
+          : {}),
         navigate: (viewId, route) =>
           call("ui.navigate", {
             viewId,

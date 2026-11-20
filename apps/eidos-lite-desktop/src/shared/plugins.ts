@@ -103,6 +103,7 @@ export interface PluginRpcResult {
   navigation?: { key: string; route: string; reuse?: boolean }
   notification?: string
   openFile?: string
+  openFileInSidebar?: string
   response: PluginResponse
   draft?: TextChange | null
 }
@@ -258,6 +259,9 @@ export interface PluginApi {
   onPluginEvent(
     listener: (event: { ticket: string; event: PluginEvent }) => void
   ): () => void
+  onPluginOpenFileInSidebar(
+    listener: (spaceId: string, relativePath: string) => void
+  ): () => void
   listPlugins(): Promise<PluginListing>
   installPlugin(development?: boolean): Promise<boolean>
   installDroppedPlugin(file: File): Promise<boolean>
@@ -318,6 +322,7 @@ export const PLUGIN_CHANNELS = {
   associate: "eidos-lite:plugins-associate",
   editors: "eidos-lite:plugins-editors",
   open: "eidos-lite:plugins-open",
+  openFileInSidebar: "eidos-lite:plugins-open-file-in-sidebar",
   request: "eidos-lite:plugins-request",
   close: "eidos-lite:plugins-close",
 } as const

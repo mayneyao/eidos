@@ -218,6 +218,10 @@ export const notes = {
     "Open an existing Space-relative file in the host.",
     "在宿主中打开已有的 Space 相对路径文件。",
   ],
+  "HostUI.openFileInSidebar": [
+    "Lite API 3.13. Opens an existing Space-relative file in the right sidebar and keeps the main View active. Available in standalone Views and ordinary actions. Opening another file requires workspace.files read access. Check whether the method is defined before calling it on older Lite versions or another host.",
+    "Lite API 3.13。在右侧栏打开已有的 Space 相对路径文件，保留主区域当前的 View。独立 View 和普通命令可调用，打开其他文件需要 workspace.files 读取权限。在旧版 Lite 或其他宿主中，调用前请检查该方法是否存在。",
+  ],
   "HostUI.navigate": [
     "Navigate to this plugin's declared page View. In Lite, omitting route reuses the same contribution's already open main page without disposing its iframe or changing its binding. Supplying any explicit route, including an empty string, creates a new binding and remounts. A different page contribution mounts normally. Stateful pages can update through existing subscriptions.",
     "跳转到本插件声明的页面 View。在 Lite 中，省略 route 会复用主区域已打开的同一贡献页面，不销毁 iframe 或改变绑定。显式传入任意 route（包括空字符串）会创建新绑定并重新挂载；不同页面贡献仍正常挂载。有状态页面可通过已有订阅更新内容。",

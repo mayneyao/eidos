@@ -672,6 +672,7 @@ export class PluginService {
               action,
               kind: declaration.context,
               ...(invocation.path ? { path: invocation.path } : {}),
+              openFileInSidebar: !!instance.session.statFile,
             },
       })
     } catch (error) {
@@ -739,6 +740,7 @@ export class PluginService {
         sidecar: !!pkg.manifest.sidecar && !embedded,
         embedded,
         exportFile: !!this.exportFile,
+        openFileInSidebar: !embedded && !!session.statFile,
         ...(table
           ? { kind: "table" as const, ...table }
           : { kind: "page" as const, route }),
@@ -864,6 +866,7 @@ export class PluginService {
         embedded,
         resources: !!pkg.manifest.workspace?.files && !!session.openEidosFile,
         exportFile: !!this.exportFile,
+        openFileInSidebar: !embedded && !!session.statFile,
         ...(eidos
           ? { kind: "eidos" as const, file: fileInfo }
           : isFileContext
@@ -1804,11 +1807,13 @@ export class PluginService {
         let result: unknown
         let navigation: PluginRpcResult["navigation"]
         let openFile: string | undefined
+        let openFileInSidebar: string | undefined
         if (
           (request.method.startsWith("settings.") ||
             request.method.startsWith("fs.") ||
             request.method.startsWith("filemeta.") ||
-            request.method === "ui.openFile") &&
+            request.method === "ui.openFile" ||
+            request.method === "ui.openFileInSidebar") &&
           binding.hash !== instance.hash
         )
           throw new PluginError("PERMISSION_DENIED", "Plugin revision changed")
@@ -2615,7 +2620,8 @@ export class PluginService {
             }
             break
           }
-          case "ui.openFile": {
+          case "ui.openFile":
+          case "ui.openFileInSidebar": {
             const p = object(params)
             if (
               Object.keys(p).join() !== "relativePath" ||
@@ -2629,7 +2635,25 @@ export class PluginService {
             } catch {
               throw new PluginError("INVALID_REQUEST", "Invalid file path")
             }
-            openFile = relativePath
+            if (request.method === "ui.openFileInSidebar") {
+              if (instance.embedded || !session.statFile)
+                throw new PluginError("UNSUPPORTED_API", "Sidebar unavailable")
+              if (relativePath !== activeFilePath && !hasWorkspaceFiles)
+                throw new PluginError(
+                  "PERMISSION_DENIED",
+                  "Opening another Space file in the sidebar requires workspace.files read access"
+                )
+              const invocation = instance.invocation
+              const file = await session.statFile(relativePath)
+              instance.scope.assertActive()
+              invocation?.scope.assertActive()
+              if (!file || file.isDirectory)
+                throw new PluginError(
+                  "DOCUMENT_UNAVAILABLE",
+                  "Space file unavailable"
+                )
+              openFileInSidebar = relativePath
+            } else openFile = relativePath
             result = null
             break
           }
@@ -2676,6 +2700,7 @@ export class PluginService {
           ...(state ? { draftPath } : {}),
           ...(navigation ? { navigation } : {}),
           ...(openFile ? { openFile } : {}),
+          ...(openFileInSidebar ? { openFileInSidebar } : {}),
           ...(state
             ? {
                 draft: state.dirty

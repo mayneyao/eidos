@@ -1,10 +1,22 @@
-# Eidos Plugins — API 3.12
+# Eidos Plugins — API 3.13
 
 状态：源码树实现契约；可用性以已安装宿主为准
 
-Plugin API：3.12.0
+Plugin API：3.13.0
 
 本文为信息性中文说明，[英文规范](./eidos-lite-plugins-1.0.md)为准。
+
+## 在右侧栏打开 Space 文件
+
+Lite API 3.13 新增可选方法 `ctx.capabilities.ui.openFileInSidebar(relativePath)`。
+Lite 声明 `ui.openFileInSidebar` 兼容特征，并向非嵌入式 View 和普通命令提供该方法。
+其他宿主和嵌入式 View 不提供该方法。依赖此能力的插件须声明最低 API 3.13.0，
+可在缺少该能力时继续工作的插件可在运行时检查方法是否存在。
+
+请求目标必须是调用方当前 Space 内的已有文件。宿主校验 Space 相对路径、
+拒绝受保护路径和符号链接，打开绑定文件之外的文件需要 `workspace.files` 读取权限。
+Lite 接受请求后，在所属窗口的右侧栏打开文件，同时保留主区域的 View、导航和状态。
+`ui.openFile(relativePath)` 沿用原有行为。
 
 ## 原子私有存储
 

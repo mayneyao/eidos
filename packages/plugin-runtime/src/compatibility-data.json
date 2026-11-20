@@ -1,7 +1,7 @@
 {
   "hosts": {
     "eidos-lite": {
-      "pluginApi": "3.12.0",
+      "pluginApi": "3.13.0",
       "features": [
         "data.file",
         "data.eidos/table",
@@ -27,6 +27,7 @@
         "workspace.files",
         "filemeta",
         "sidebar.explorer",
+        "ui.openFileInSidebar",
         "browser.workers",
         "browser.network",
         "network.public",

@@ -1,10 +1,25 @@
-# Eidos Plugins — API 3.12
+# Eidos Plugins — API 3.13
 
 Status: Normative source-tree contract; release availability is determined by the installed host
 
-Plugin API: 3.12.0
+Plugin API: 3.13.0
 
 Canonical language: English
+
+## Opening Space files in the right sidebar
+
+Lite API 3.13 adds the optional `ctx.capabilities.ui.openFileInSidebar(relativePath)`.
+Lite advertises `ui.openFileInSidebar` and exposes the method to non-embedded
+Views and ordinary actions. Other hosts and embedded Views MUST omit it.
+Plugins that require this method declare a minimum API of 3.13.0. Plugins
+that can work without it MAY check whether it is available at runtime.
+
+The request targets an existing file in the caller's current Space. The host
+MUST enforce Space-relative path validation, reject protected paths and symlink
+targets, and require `workspace.files` read access for any target other than
+the bound file. On acceptance Lite opens the file in the owner window's right
+sidebar, keeping the main View, its navigation and its state active.
+`ui.openFile(relativePath)` retains its existing behavior.
 
 ## Local native sidecars
 

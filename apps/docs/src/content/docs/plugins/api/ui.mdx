@@ -145,6 +145,23 @@ openFile?(relativePath: string): Promise<void>;
 
 Returns: `Promise<void>`.
 
+### HostUI.openFileInSidebar
+
+Supported hosts: <Badge text="Lite" variant="note" />
+
+Lite API 3.13. Opens an existing Space-relative file in the right sidebar and keeps the main View active. Available in standalone Views and ordinary actions. Opening another file requires workspace.files read access. Check whether the method is defined before calling it on older Lite versions or another host.
+
+
+```ts
+openFileInSidebar?(relativePath: string): Promise<void>;
+```
+
+| Parameter | Type | Required |
+| --- | --- | --- |
+| `relativePath` | `string` | Yes |
+
+Returns: `Promise<void>`.
+
 ### HostUI.navigate
 
 Supported hosts: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />

@@ -145,6 +145,23 @@ openFile?(relativePath: string): Promise<void>;
 
 返回值: `Promise<void>`.
 
+### HostUI.openFileInSidebar
+
+支持宿主: <Badge text="Lite" variant="note" />
+
+Lite API 3.13。在右侧栏打开已有的 Space 相对路径文件，保留主区域当前的 View。独立 View 和普通命令可调用，打开其他文件需要 workspace.files 读取权限。在旧版 Lite 或其他宿主中，调用前请检查该方法是否存在。
+
+
+```ts
+openFileInSidebar?(relativePath: string): Promise<void>;
+```
+
+| 参数 | 类型 | 必填 |
+| --- | --- | --- |
+| `relativePath` | `string` | 是 |
+
+返回值: `Promise<void>`.
+
 ### HostUI.navigate
 
 支持宿主: <Badge text="Lite" variant="note" /> <Badge text="Mobile" variant="note" />

@@ -149,6 +149,16 @@ beforeEach(async () => {
         },
         previewTextFile: (file: string) =>
           readTextFilePreview(mock.directory, file),
+        statFile: async (file: string) => {
+          const stats = await fs.stat(path.join(mock.directory, file))
+          return {
+            path: file,
+            name: path.basename(file),
+            extension: path.extname(file),
+            size: stats.size,
+            isDirectory: stats.isDirectory(),
+          }
+        },
         saveTextFile: (request: Parameters<typeof saveTextFile>[1]) =>
           saveTextFile(mock.directory, request),
       },
@@ -165,12 +175,14 @@ beforeEach(async () => {
       onReady?.(owner)
       return owner
     })
+  const sessionFor = (sender: { id: number }) => sessions.get(sender.id)
   registered = registerPluginIpc({
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
     showPluginInstall: mock.showPluginInstall,
+    sessionFor,
     requireSession: (sender: { id: number }) => {
-      const session = sessions.get(sender.id)
+      const session = sessionFor(sender)
       if (!session) throw new Error("No active Space")
       return session
     },
@@ -181,6 +193,46 @@ afterEach(async () => {
   registered?.close()
   events.clear()
   await fs.rm(mock.directory, { recursive: true, force: true })
+})
+
+it("routes a validated sidebar request only to the owning workbench", async () => {
+  expect(await call("install", 1)).toBe(true)
+  const { instance } = (await call(
+    "open",
+    1,
+    "data.csv",
+    `${id}/csv`
+  )) as PluginOpenResult
+  const request = {
+    protocol: "eidos-plugin",
+    apiVersion: 1,
+    id: "sidebar",
+    method: "ui.openFileInSidebar",
+    params: { relativePath: "data.csv" },
+  }
+  expect(await call("request", 2, instance!.ticket, request)).toMatchObject({
+    response: { error: { code: "INSTANCE_CLOSED" } },
+  })
+  expect(await call("request", 1, instance!.ticket, request)).toEqual({
+    response: {
+      protocol: "eidos-plugin",
+      apiVersion: 1,
+      id: "sidebar",
+      result: null,
+    },
+    draftPath: "data.csv",
+    draft: null,
+  })
+  expect(events.get(1)!.sender.send).toHaveBeenCalledWith(
+    PLUGIN_CHANNELS.openFileInSidebar,
+    "space-1",
+    "data.csv"
+  )
+  expect(events.get(2)!.sender.send).not.toHaveBeenCalledWith(
+    PLUGIN_CHANNELS.openFileInSidebar,
+    expect.anything(),
+    expect.anything()
+  )
 })
 
 it("marketplace installs reuse permission approval and Space isolation", async () => {

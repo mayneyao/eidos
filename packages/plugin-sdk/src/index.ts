@@ -722,6 +722,8 @@ export interface HostUI {
   exportFile?(request: FileExportRequest): Promise<FileExportResult>
   /** Opens an existing file in the host editor or viewer. */
   openFile?(relativePath: string): Promise<void>
+  /** Opens an existing Space file in Lite's right sidebar while keeping the main view active. */
+  openFileInSidebar?(relativePath: string): Promise<void>
   navigate?(viewId: string, route?: string): Promise<void>
 }
 
