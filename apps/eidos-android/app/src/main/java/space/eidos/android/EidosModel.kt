@@ -1764,7 +1764,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         val share = mutable.value.pendingShares.firstOrNull() ?: return@launchAction
         require(share.files.isNotEmpty() || !share.text.isNullOrBlank()) { tr("分享内容为空") }
 
-        val page = repository.loadEidos(path, tableId)
+        val page = repository.loadEidos(path, tableId, includeRecords = false)
         if (tableId == null) {
             mutable.update { it.copy(shareDatabase = page) }
         } else {

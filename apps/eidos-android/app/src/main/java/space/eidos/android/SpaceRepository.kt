@@ -1593,6 +1593,7 @@ class SpaceRepository(
         sort: EidosSort? = null,
         filters: List<EidosFilter> = emptyList(),
         viewId: String? = null,
+        includeRecords: Boolean = true,
     ): EidosPage = io {
         val file = local.resolve(path)
         val schema = NativeRuntime.call(file.path, "schema")
@@ -1642,16 +1643,20 @@ class SpaceRepository(
                 }
         val view = viewId?.let { id -> checkNotNull(views.find { it.id == id }) { tr("视图已不存在，请重新选择") } }
         check(view?.supported != false) { tr("此视图的查询或日历显示规则暂不受原生界面支持，请使用文件编辑器打开") }
-        if (table == null)
+        if (table == null || !includeRecords)
             return@io EidosPage(
                 path,
                 tables,
-                null,
+                table,
                 fields,
                 emptyList(),
                 schema.getJSONObject("snapshot").getString("revision"),
                 null,
                 query,
+                sort,
+                filters,
+                views,
+                view,
             )
         val rowQuery = effectiveViewQuery(view, filters, sort)
         if (query.isNotBlank())
