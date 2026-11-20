@@ -2149,6 +2149,15 @@ export function resolveEidosLiteLocale(
   return "en"
 }
 
+export function isEidosLiteReleaseNotesTitle(title: string): boolean {
+  return (
+    title === "Release notes" ||
+    Object.values(catalogs).some(
+      (catalog) => catalog["Release notes"] === title
+    )
+  )
+}
+
 export function translateEidosLite(
   locale: EidosLiteLocale,
   message: string,
