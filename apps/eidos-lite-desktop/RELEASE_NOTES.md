@@ -1,11 +1,7 @@
-## What's new
-
-### Brazilian Portuguese, Japanese, and Korean
-
-Open **Settings → Preferences → Language** to use Eidos Lite in Brazilian Portuguese, Japanese, or Korean. The app can also follow your system language. Dates and numbers follow the selected language's regional conventions, and dates still use your configured time zone.
-
 ## Improvements
 
-### Consistent preference controls
+### Read files with newer formulas
 
-Theme, language, time zone, and interface scale now use compact dropdowns. The time zone picker still supports searching by city.
+If an otherwise valid `.eidos` file uses a formula function that requires a newer version, Lite opens the file read-only. You can still read existing records, and Lite marks unavailable results while preserving the original formulas and saved views.
+
+If a saved view depends on an unavailable formula, choose **Browse records** to see the underlying records. Use a version that supports the formula to edit the file. Formula creation in this release uses the existing set of functions.
