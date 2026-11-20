@@ -5,11 +5,12 @@ The application shell uses Kotlin and Jetpack Compose. Markdown and `.eidos`
 files open in a bundled WebView editor by default. There is no local HTTP server.
 It builds independently of the Web and Electron applications.
 
-The native interface and bundled editors support English and Chinese. In the
-file browser, open **Folder actions → Language** and choose **Follow system**,
-**中文**, or **English**. The default is **Follow system**: Chinese for `zh`
-system languages and English for all others. The app remembers your choice and
-applies it without reopening the Space.
+The native interface and bundled editors support English, Simplified Chinese,
+Brazilian Portuguese, Japanese, and Korean. In the file browser, open
+**Folder actions → Language** and choose **Follow system**, **English**, **中文**,
+**Português (Brasil)**, **日本語**, or **한국어**. The default follows the primary
+system language when supported and otherwise uses English. The app remembers
+your choice and applies it without reopening the Space.
 
 This README uses English interface labels.
 
