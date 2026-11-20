@@ -75,6 +75,20 @@ class AppLanguageUiTest {
             val chinese = File(directory, "chinese.eidos")
             NativeRuntime.call(chinese.path, "create", request)
             assertEquals(setOf("记录", "标题", "笔记"), names(chinese).toSet())
+            compose.runOnUiThread { AppLanguage.set(context, "pt-BR") }
+            val portuguese = File(directory, "portuguese.eidos")
+            NativeRuntime.call(portuguese.path, "create", request)
+            assertEquals(setOf("Registros", "Título", "Notas"), names(portuguese).toSet())
+            for ((locale, expected) in listOf(
+                "ja" to setOf("レコード", "タイトル", "メモ"),
+                "ko" to setOf("레코드", "제목", "메모"),
+            )) {
+                compose.runOnUiThread { AppLanguage.set(context, locale) }
+                val localized = File(directory, "$locale.eidos")
+                NativeRuntime.call(localized.path, "create", request)
+                assertEquals(expected, names(localized).toSet())
+            }
+            assertEquals(setOf("Records", "Title", "Notes"), names(english).toSet())
         } finally {
             compose.runOnUiThread { AppLanguage.set(context, original) }
             directory.deleteRecursively()
@@ -118,6 +132,12 @@ class AppLanguageUiTest {
             assertEquals("en", context.getSharedPreferences("appearance", 0).getString("app-language", null))
             assertEquals("Open file", tr("打开文件"))
             assertEquals("Delete “{1}”?", tr("删除「{0}」？", "{1}"))
+            compose.onNodeWithText("Português (Brasil)").performClick()
+            compose.onNodeWithText("Usar idioma do sistema").assertIsDisplayed()
+            assertEquals("pt-BR", context.getSharedPreferences("appearance", 0).getString("app-language", null))
+            assertEquals("Excluir “{1}”?", tr("删除「{0}」？", "{1}"))
+            compose.runOnUiThread { AppLanguage.initialize(context) }
+            assertEquals("pt-BR", AppLanguage.selected())
             compose.onNodeWithText("中文").performClick()
             compose.onNodeWithText("跟随系统").assertIsDisplayed()
             assertEquals("zh", AppLanguage.selected())

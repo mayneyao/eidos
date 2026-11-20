@@ -7,6 +7,19 @@ describe("translateEidosFileUI", () => {
     expect(translateEidosFileUI("en", "Add field")).toBe("Add field")
   })
 
+  it("translates singular and plural property actions into Brazilian Portuguese", () => {
+    expect(
+      translateEidosFileUI("pt-BR", "Show {count} hidden property", {
+        count: 1,
+      })
+    ).toBe("Mostrar 1 propriedade oculta")
+    expect(
+      translateEidosFileUI("pt-BR", "Show {count} hidden properties", {
+        count: 2,
+      })
+    ).toBe("Mostrar 2 propriedades ocultas")
+  })
+
   it("translates Chinese UI copy and interpolates values", () => {
     expect(
       translateEidosFileUI("zh", "Delete {count} records?", { count: 3 })

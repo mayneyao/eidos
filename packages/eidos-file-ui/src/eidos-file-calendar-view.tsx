@@ -36,6 +36,7 @@ import {
 import { Dialog } from "radix-ui"
 
 import { useEidosFileUI } from "./context"
+import { getEidosFileUIFormattingLocale } from "./i18n"
 import {
   eidosFileDateKey,
   eidosFileInstantFromWallDate,
@@ -220,7 +221,8 @@ function calendarRowTimeLabel(
   row: EidosFileRow,
   field: EidosFileFieldInfo,
   timeZone?: string,
-  calendarTimeZoneData?: string | null
+  calendarTimeZoneData?: string | null,
+  locale?: string
 ): string | null {
   if (eidosFileCalendarFieldType(field) !== "datetime") return null
   const value = row[field.tableColumnName]
@@ -234,7 +236,7 @@ function calendarRowTimeLabel(
       calendarTimeZoneData
     )
     if (!parts) return instant.toISOString() + " · outside calendar profile"
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       hour: "numeric",
       minute: "2-digit",
       timeZone: "UTC",
@@ -251,7 +253,7 @@ function calendarRowTimeLabel(
       )
     )
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
     ...(timeZone ? { timeZone } : {}),
@@ -875,11 +877,13 @@ export function EidosFileCalendarView({
     )
   }
 
+  const displayLocale =
+    getEidosFileUIFormattingLocale(locale) ?? (mobile ? locale : undefined)
   const todayKey = eidosFileDateKey(new Date(), timeZone, calendarTimeZoneData)
   const createMode = eidosFileCalendarCreateMode(dateField)
   const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
     const firstWeekday = new Date(2026, 0, (weekStartsOnMonday ? 5 : 4) + index)
-    return new Intl.DateTimeFormat(mobile ? locale : undefined, {
+    return new Intl.DateTimeFormat(displayLocale, {
       weekday: "short",
     }).format(firstWeekday)
   })
@@ -1005,7 +1009,13 @@ export function EidosFileCalendarView({
   ) => {
     const title = eidosFileRecordTitle(row, table.fields)
     const timeLabel = showTime
-      ? calendarRowTimeLabel(row, dateField, timeZone, calendarTimeZoneData)
+      ? calendarRowTimeLabel(
+          row,
+          dateField,
+          timeZone,
+          calendarTimeZoneData,
+          displayLocale
+        )
       : null
     if (mobile)
       return (
@@ -1146,7 +1156,7 @@ export function EidosFileCalendarView({
                   anchorDate,
                   layout,
                   range,
-                  mobile ? locale : undefined,
+                  displayLocale,
                   mobile
                 )}
           </h2>
@@ -1388,7 +1398,7 @@ export function EidosFileCalendarView({
                   <div
                     key={key}
                     role="gridcell"
-                    aria-label={day.toLocaleDateString()}
+                    aria-label={day.toLocaleDateString(displayLocale)}
                     className={cn(
                       "group border-b border-r p-1.5 last:border-r-0",
                       layout === "month" ? "min-h-28" : "min-h-[24rem]"

@@ -408,7 +408,8 @@ function useResolvedImageUrl(
   markdownUrl?: string,
   fallbackUrl?: string
 ): string | undefined {
-  const { documentKey, onError, resolveImageUrl } = useEfmSourceBlockContext()
+  const { baseUri, documentKey, onError, resolveImageUrl } =
+    useEfmSourceBlockContext()
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
   const [resolution, setResolution] = useState<{
@@ -431,12 +432,10 @@ function useResolvedImageUrl(
       )
         .then((candidate) => {
           if (controller.signal.aborted || candidate === null) return
-          const resolved = resolveEfmImagePresentationUri(candidate)
+          const resolved = resolveEfmImagePresentationUri(candidate, baseUri)
           if (!resolved) {
             onErrorRef.current(
-              new Error(
-                "resolveImageUrl must return a blob, http, or https URL."
-              )
+              new Error("resolveImageUrl returned an unsupported image URL.")
             )
             return
           }
@@ -449,7 +448,7 @@ function useResolvedImageUrl(
       onErrorRef.current(errorFrom(cause))
     }
     return () => controller.abort()
-  }, [documentKey, markdownUrl, resolveImageUrl])
+  }, [baseUri, documentKey, markdownUrl, resolveImageUrl])
 
   // A callback rerender must not remove a loaded image and collapse the page.
   // Never reuse an image for a different document or Markdown target.

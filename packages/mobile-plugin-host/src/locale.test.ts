@@ -3,9 +3,33 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, expect, it } from "vitest"
 import english from "../locales/en.json"
-import { mobileText, setMobileLocale } from "./locale"
+import portuguese from "../locales/pt-BR.json"
+import japanese from "../locales/ja.json"
+import korean from "../locales/ko.json"
+import { getMobileLocaleTag, mobileText, setMobileLocale } from "./locale"
 
 afterEach(() => setMobileLocale("en"))
+
+it.each([
+  ["pt_PT", "pt-BR", "pt-BR", "Abrir arquivo", portuguese],
+  ["ja-JP", "ja", "ja-JP", "ファイルを開く", japanese],
+  ["ko-KR", "ko", "ko-KR", "파일 열기", korean],
+] as const)(
+  "loads the catalog for %s and preserves placeholders",
+  (locale, lang, region, label, translations) => {
+    const placeholders = (value: string) =>
+      value.match(/\{\d+\}/g)?.sort() ?? []
+    const catalog: Record<string, string> = translations
+    for (const [key, source] of Object.entries(english)) {
+      expect(catalog[key]?.trim(), key).toBeTruthy()
+      expect(placeholders(catalog[key]), key).toEqual(placeholders(source))
+    }
+    setMobileLocale(locale)
+    expect(getMobileLocaleTag()).toBe(region)
+    expect(document.documentElement.lang).toBe(lang)
+    expect(mobileText("打开文件")).toBe(label)
+  }
+)
 
 it("includes English translations for every native Android Sync message", () => {
   const directory = resolve(

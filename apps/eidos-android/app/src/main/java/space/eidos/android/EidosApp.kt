@@ -40,7 +40,9 @@ fun EidosApp(model: EidosModel) {
     SideEffect { AppLanguage.updateSystem(systemConfiguration.locales[0].toLanguageTag()) }
     val resolvedLanguage = AppLanguage.resolve(language, listOf(systemConfiguration.locales[0].toLanguageTag()))
     val localizedConfiguration = remember(systemConfiguration, resolvedLanguage) {
-        android.content.res.Configuration(systemConfiguration).apply { setLocale(java.util.Locale.forLanguageTag(resolvedLanguage)) }
+        android.content.res.Configuration(systemConfiguration).apply {
+            setLocale(java.util.Locale.forLanguageTag(AppLanguage.localeTag(resolvedLanguage)))
+        }
     }
     CompositionLocalProvider(androidx.compose.ui.platform.LocalConfiguration provides localizedConfiguration) {
         EidosLocalizedApp(model, chooseLanguage = { languageSheet = true })

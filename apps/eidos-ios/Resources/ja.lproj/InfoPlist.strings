@@ -1,0 +1,3 @@
+"NSLocalNetworkUsageDescription" = "ローカルネットワーク上の Eidos コンピューターを検出し、Space を同期します。";
+"NSCameraUsageDescription" = "コンピューター上の Eidos ペアリング用 QR コードを読み取り、ローカルネットワーク経由で接続します。";
+"NSFaceIDUsageDescription" = "ローカルの Space を削除する前に本人確認を行い、ファイルとバージョン履歴を保護します。";

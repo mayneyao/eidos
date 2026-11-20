@@ -173,12 +173,12 @@ export function EidosFileDateFilterValue({
         weekStartsOn={weekStartsOnMonday ? 1 : 0}
         formatters={{
           formatCaption: (date) =>
-            new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en", {
+            new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : locale, {
               year: "numeric",
               month: "long",
             }).format(date),
           formatWeekdayName: (date) =>
-            new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en", {
+            new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : locale, {
               weekday: "narrow",
             }).format(date),
         }}

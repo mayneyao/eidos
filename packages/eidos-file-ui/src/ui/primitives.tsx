@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
+import { getEidosFileUIFormattingLocale } from "../i18n"
 import { cn } from "../lib/cn"
 
 export const buttonVariants = cva(
@@ -345,6 +346,8 @@ export function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  const { locale, translate } = useEidosFileUI()
+  const formattingLocale = getEidosFileUIFormattingLocale(locale)
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -396,6 +399,35 @@ export function Calendar({
         ),
       }}
       {...props}
+      labels={
+        props.labels ??
+        (formattingLocale
+          ? {
+              labelDay: (date) =>
+                date.toLocaleDateString(formattingLocale, {
+                  dateStyle: "full",
+                }),
+              labelWeekday: (date) =>
+                date.toLocaleDateString(formattingLocale, { weekday: "long" }),
+              labelPrevious: () => translate("Previous month"),
+              labelNext: () => translate("Next month"),
+            }
+          : undefined)
+      }
+      formatters={
+        props.formatters ??
+        (formattingLocale
+          ? {
+              formatCaption: (date) =>
+                date.toLocaleDateString(formattingLocale, {
+                  month: "long",
+                  year: "numeric",
+                }),
+              formatWeekdayName: (date) =>
+                date.toLocaleDateString(formattingLocale, { weekday: "short" }),
+            }
+          : undefined)
+      }
     />
   )
 }

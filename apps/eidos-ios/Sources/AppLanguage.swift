@@ -3,21 +3,42 @@ import SwiftUI
 enum AppLanguage {
     static let key = "app-language"
     static let defaults = UserDefaults(suiteName: "group.space.eidos.ios") ?? .standard
-    static let choices = ["system", "zh", "en"]
+    static let choices = ["system", "zh", "en", "pt-BR", "ja", "ko"]
     static func resolve(_ preference: String, languages: [String]) -> String {
-        if ["zh", "en"].contains(preference) { return preference }
+        if preference != "system", choices.contains(preference) { return preference }
         let language = languages.first?.lowercased().split(whereSeparator: { $0 == "-" || $0 == "_" }).first
-        return language == "zh" ? "zh" : "en"
+        switch language {
+        case "zh": return "zh"
+        case "pt": return "pt-BR"
+        case "ja": return "ja"
+        case "ko": return "ko"
+        default: return "en"
+        }
     }
     static var locale: String {
         resolve(defaults.string(forKey: key) ?? "system", languages: Locale.preferredLanguages)
     }
-    static let english: [String: String] = {
-        guard let url = Bundle.main.url(forResource: "en", withExtension: "json", subdirectory: "locales"),
+    static var localeTag: String {
+        regionalTag(locale)
+    }
+    static func regionalTag(_ language: String) -> String {
+        switch language {
+        case "zh": return "zh-CN"
+        case "ja": return "ja-JP"
+        case "ko": return "ko-KR"
+        default: return language
+        }
+    }
+    static let english = catalog("en")
+    static let portuguese = catalog("pt-BR")
+    static let japanese = catalog("ja")
+    static let korean = catalog("ko")
+    private static func catalog(_ language: String) -> [String: String] {
+        guard let url = Bundle.main.url(forResource: language, withExtension: "json", subdirectory: "locales"),
               let data = try? Data(contentsOf: url),
               let result = try? JSONDecoder().decode([String: String].self, from: data) else { return [:] }
         return result
-    }()
+    }
     static let customSyncEnglish: [String: String] = [
         "自定义服务器": "Custom server",
         "使用自己部署的 Graft 服务器，无需登录账号。": "Use your own Graft server without signing in.",
@@ -75,7 +96,15 @@ enum AppLanguage {
 }
 
 func tr(_ source: String, _ arguments: Any...) -> String {
-    let template = AppLanguage.locale == "en" ? AppLanguage.english[source] ?? AppLanguage.customSyncEnglish[source] ?? source : source
+    let translation: String?
+    switch AppLanguage.locale {
+    case "zh": translation = source
+    case "pt-BR": translation = AppLanguage.portuguese[source]
+    case "ja": translation = AppLanguage.japanese[source]
+    case "ko": translation = AppLanguage.korean[source]
+    default: translation = nil
+    }
+    let template = translation ?? AppLanguage.english[source] ?? AppLanguage.customSyncEnglish[source] ?? source
     let pattern = try! NSRegularExpression(pattern: "\\{(\\d+)\\}")
     let result = NSMutableString(string: template)
     for match in pattern.matches(in: template, range: NSRange(template.startIndex..., in: template)).reversed() {
@@ -95,6 +124,9 @@ struct LanguageSettings: View {
                     Text(tr("跟随系统")).tag("system")
                     Text("中文").tag("zh")
                     Text("English").tag("en")
+                    Text("Português (Brasil)").tag("pt-BR")
+                    Text("日本語").tag("ja")
+                    Text("한국어").tag("ko")
                 }.pickerStyle(.inline)
             }
             .navigationTitle(tr("语言"))

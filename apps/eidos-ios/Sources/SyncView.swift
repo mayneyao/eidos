@@ -114,7 +114,7 @@ struct SyncView: View {
                                 Image(systemName: "folder").foregroundStyle(.secondary)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(local?.entry.name ?? remote.spaceName ?? remote.space).font(.subheadline).fontWeight(.medium)
-                                    Text(local.map { item in item.synced.map { tr("已下载 · ") + $0.formatted(date: .abbreviated, time: .shortened) } ?? tr("已下载 · 等待同步") } ?? tr("尚未下载到手机"))
+                                    Text(local.map { item in item.synced.map { tr("已下载 · ") + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(Locale(identifier: AppLanguage.localeTag))) } ?? tr("已下载 · 等待同步") } ?? tr("尚未下载到手机"))
                                         .font(.caption).foregroundStyle(.secondary)
                                     if local != nil, case .online(let offered)? = availability[device.fingerprint], !offered.contains(remote.space) {
                                         Text(tr("电脑尚未开放此 Space")).font(.caption).foregroundStyle(.secondary)

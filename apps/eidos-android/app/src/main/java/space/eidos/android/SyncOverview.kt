@@ -75,8 +75,16 @@ internal fun SyncOverview(
             Text(
                 when {
                     direct && state.graft?.dirty == true -> tr("有本地修改，等待同步")
-                    direct && peer?.lastSynced != null ->
-                        tr("上次同步 · {0}", java.text.SimpleDateFormat("MM-dd HH:mm", locale).format(java.util.Date(peer.lastSynced)))
+                    direct && peer?.lastSynced != null -> {
+                        val formatter = when (locale.language) {
+                            "ja", "ko" -> java.text.DateFormat.getDateTimeInstance(
+                                java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, locale,
+                            )
+                            "pt" -> java.text.SimpleDateFormat("dd/MM HH:mm", locale)
+                            else -> java.text.SimpleDateFormat("MM-dd HH:mm", locale)
+                        }
+                        tr("上次同步 · {0}", formatter.format(java.util.Date(peer.lastSynced)))
+                    }
                     direct -> tr("连接同一 Wi-Fi，并保持电脑上的 Space 打开")
                     connected -> tr("将本机修改上传，并接收云端更新")
                     else -> tr("连接电脑，或从下方选择云端 Space")

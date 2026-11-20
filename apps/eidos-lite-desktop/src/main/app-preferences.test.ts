@@ -10,6 +10,23 @@ import {
 import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 describe("Eidos Lite preferences", () => {
+  it("round-trips all explicit languages and the system preference", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-language-")
+    )
+    const filePath = path.join(directory, "preferences.json")
+    try {
+      for (const language of ["pt-BR", "en", "zh", "system"] as const) {
+        await new EidosLitePreferencesStore(filePath).update({ language })
+        await expect(
+          new EidosLitePreferencesStore(filePath).get()
+        ).resolves.toMatchObject({ language })
+      }
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("starts in rich text and retains an explicit source-mode preference", () => {
     expect(normalizeEidosLitePreferences({}).markdownFileEditingMode).toBe(
       "wysiwyg"

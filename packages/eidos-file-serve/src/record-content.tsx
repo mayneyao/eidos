@@ -4,6 +4,7 @@ import {
   useEidosFileUI,
   type EidosFileMarkdownEditorRequest,
 } from "@eidos.space/eidos-file-ui/context"
+import type { EidosFileUILocale } from "@eidos.space/eidos-file-ui"
 import { MarkdownEditor, type MarkdownEditorProps } from "@eidos.space/markdown"
 import { eidosPreset } from "@eidos.space/markdown/presets"
 import { renderMarkdownToHtml } from "@eidos.space/markdown/static"
@@ -56,10 +57,12 @@ export const mobileMarkdownOptions = {
   },
 } satisfies Partial<MarkdownEditorProps>
 
-export function getMobileMarkdownOptions(locale: "zh" | "en") {
-  return locale === "zh"
-    ? mobileMarkdownOptions
-    : { ...mobileMarkdownOptions, labels: undefined }
+export function getMobileMarkdownOptions(locale: EidosFileUILocale) {
+  return {
+    ...mobileMarkdownOptions,
+    locale,
+    labels: locale === "zh" ? mobileMarkdownOptions.labels : undefined,
+  }
 }
 
 type MobileEditorHost = Pick<
@@ -111,6 +114,7 @@ function RecordContentEditor({
         {...(interactionMode === "mobile"
           ? getMobileMarkdownOptions(locale)
           : {})}
+        locale={locale}
         onDismissKeyboard={onDismissKeyboard}
         onImportFiles={onImportFiles}
         preset={eidosPreset}

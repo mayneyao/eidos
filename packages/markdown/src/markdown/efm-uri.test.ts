@@ -45,6 +45,32 @@ describe("EFM resource URI policy", () => {
 })
 
 describe("EFM host image presentation URIs", () => {
+  it("accepts the iOS image route for a document with the matching app base", () => {
+    const base = "eidos://app/document/session/Target%20Folder/"
+    const image = "eidos://app/document/session/Source%20Notes/My%20photo.png"
+    expect(resolveEfmImagePresentationUri(image, base)).toBe(image)
+    expect(resolveEfmImagePresentationUri(image)).toBeNull()
+    expect(
+      resolveEfmImagePresentationUri("eidos://other/document/photo.png", base)
+    ).toBeNull()
+    expect(
+      resolveEfmImagePresentationUri(
+        "eidos://app/document/session/../../editor/photo.png",
+        base
+      )
+    ).toBeNull()
+    expect(
+      resolveEfmImagePresentationUri(
+        "eidos://app/document/other-session/photo.png",
+        base
+      )
+    ).toBeNull()
+    expect(
+      resolveEfmImagePresentationUri("other://app/document/photo.png", base)
+    ).toBeNull()
+    expect(resolveEfmResourceUri(image, base, { image: true })).toBeNull()
+  })
+
   it("allows transient blob URLs without allowing data or file URLs", () => {
     expect(
       resolveEfmImagePresentationUri("blob:https://eidos.space/asset")

@@ -1,4 +1,14 @@
-import { marked, Renderer } from "marked"
+import {
+  marked,
+  parser,
+  Renderer,
+  type MarkedOptions,
+  type MarkedToken,
+} from "marked"
+
+declare module "marked" {
+  export function parser(tokens: MarkedToken[], options?: MarkedOptions): string
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -36,7 +46,7 @@ function imageSource(href: string | null): string | null {
     : null
 }
 
-export function renderSafeMarkdown(markdown: string): string {
+export function renderSafeMarkdown(markdown: string | MarkedToken[]): string {
   const renderer = new Renderer()
   renderer.html = (html: string) => escapeHtml(html)
   renderer.link = (href: string | null, title: string | null, text: string) => {
@@ -59,10 +69,13 @@ export function renderSafeMarkdown(markdown: string): string {
       : escapeHtml(text)
   }
 
-  return marked.parse(markdown, {
+  const options = {
     gfm: true,
     headerIds: true,
     mangle: false,
     renderer,
-  })
+  }
+  return typeof markdown === "string"
+    ? marked.parse(markdown, options)
+    : parser(markdown, options)
 }

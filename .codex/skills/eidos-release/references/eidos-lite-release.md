@@ -132,10 +132,10 @@ Preview both languages in the app's read-only Markdown view and exercise the
 inline language switch. Confirm that switching notes does not change the app's
 language preference. Record these checks with the release proof.
 
-When a prior immutable tag has build artifacts but no GitHub Release, retain the
-tag, prepare a new version, and pass that prior tag with `--unpublished-tag`.
-The audit verifies the missing Release through `gh`; this is not an exception
-for correcting or hiding published notes.
+Use the [unpublished release retry](../SKILL.md#retry-an-unpublished-release)
+for a failed attempt at the target version. Use `--unpublished-tag` only when
+auditing history that still contains an earlier unpublished tag. The audit
+checks that the historical tag has no GitHub Release.
 
 Read the complete file, the previous three Lite Release bodies, and compare
 every claim with the scoped diff and test evidence. Treat missing, generic,
@@ -178,11 +178,13 @@ its own release history.
 
 ## Tag and monitor
 
-If the release includes demo media, follow [release-media.md](release-media.md).
-Draft the notes, record with synchronized bottom-of-video shortcut labels,
-review the final annotated files, upload and verify media, then backfill the
-changelog candidate and finalize both app-note languages before merging and
-tagging. Publish the website entry only after the product Release exists, using
+If the release includes screenshots or videos, follow [release-media.md](release-media.md).
+Draft the notes, choose the clearest format for each change, and review the
+captured files before uploading and verifying them once.
+Compose and check both app-note languages, the English GitHub body and the
+changelog candidate from the same receipts before merging and tagging.
+The tag workflow checks the receipts and the bilingual Markdown before building.
+Publish the website entry after the product Release exists, using
 its real publication timestamp and verified public assets.
 
 Performance reports do not determine release readiness. Merge the release PR, check out its exact merge commit on the
@@ -202,6 +204,21 @@ explicitly unsigned Windows/Linux packages, deploys the update router,
 normalizes update metadata, writes `SHA256SUMS`, audits the notes against recent
 Lite tags, and publishes the Release with the committed curated body in the
 same operation. Never run `gh release edit` as the normal publication path.
+
+### Retry a failed Lite release
+
+Use the [same-version retry](../SKILL.md#retry-an-unpublished-release) if the
+version never reached users. A successful download Worker deployment can
+precede the failed build or Release job. Lite's update router selects published
+GitHub Releases, so a router deploy, CI installer, or draft Release alone
+allows a retry. Confirm that the target version has no public Release and
+is absent from the relevant download and update routes.
+
+If a check fails after GitHub publishes the Release, keep its tag and inspect
+the body, assets and updater response. If the failure is in a separate
+component such as the download router, repair that component and verify the
+same published installer. A correction that needs different installers ships
+under a new version.
 
 ## Prove publication
 

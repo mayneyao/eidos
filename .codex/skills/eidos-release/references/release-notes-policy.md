@@ -153,10 +153,11 @@ The audit verifies that:
   (structural and token similarity check).
 - GitHub-generated monorepo-note boilerplate is rejected.
 
-If an immutable failed tag must remain but never created a GitHub Release, the
-next candidate may pass `--unpublished-tag <tag>`. Export `GH_TOKEN` in CI. Never
-use this for a tag that has a GitHub Release, and never use it to hide previously
-published release notes.
+Use the [unpublished release retry](../SKILL.md#retry-an-unpublished-release)
+to recover the current version. For an earlier unpublished tag retained in
+history, `--unpublished-tag <tag>` skips that tag in the notes audit after
+verifying that it has no GitHub Release. Export `GH_TOKEN` in CI. Include all
+published same-surface releases in the historical comparison.
 
 ## Require exact publication
 

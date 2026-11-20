@@ -134,7 +134,7 @@ export function MarkdownEditorSurface({
     },
     [imageAttachments]
   )
-  const { t } = useEidosLiteI18n()
+  const { t, locale } = useEidosLiteI18n()
   const documentFileDrop = useMemo(
     () => ({
       ...spaceFileDocumentDrop,
@@ -378,6 +378,7 @@ export function MarkdownEditorSurface({
               inputProfile === "document" ? relativePath : undefined
             }
             shortcuts={markdownShortcuts}
+            locale={locale}
             labels={{
               findInDocument: t("Find in document"),
               noTextMatches: t("No matches"),
@@ -416,7 +417,7 @@ export function MarkdownEditorSurface({
             searchNotes={searchNotes}
             readOnly={disabled}
             autoFocus={autoFocus || focusAfterModeSwitch}
-            ariaLabel={`Markdown content for ${relativePath}`}
+            ariaLabel={t("Markdown content for {path}", { path: relativePath })}
             focusRequestToken={focusRequestToken}
             onMarkdownChange={onChange}
             onOpenExternalUrl={(url) => window.eidosLite.openExternalUrl(url)}

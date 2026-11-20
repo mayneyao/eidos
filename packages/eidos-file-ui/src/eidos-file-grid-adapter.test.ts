@@ -104,6 +104,41 @@ describe("Eidos File Grid adapter", () => {
     expect(gridCellToEidosFileValue(field("number"), bar)).toBe(12)
   })
 
+  it("formats Brazilian numbers and dates without changing stored or copied values", () => {
+    const numericField = field("number")
+    const numeric = eidosFileValueToGridCell(
+      numericField,
+      1234.5,
+      false,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      undefined,
+      undefined,
+      "pt-BR"
+    )
+    expect(numeric).toMatchObject({ data: 1234.5, displayData: "1.234,5" })
+
+    const instant = "2026-01-01T00:30:00Z"
+    const date = eidosFileValueToGridCell(
+      field("datetime"),
+      instant,
+      false,
+      undefined,
+      undefined,
+      false,
+      "America/Sao_Paulo",
+      undefined,
+      undefined,
+      "pt-BR"
+    )
+    expect(date).toMatchObject({
+      copyData: instant,
+      data: { displayDate: "31/12/2025 21:30:00" },
+    })
+  })
+
   it("keeps cleared number values empty after rendering", () => {
     for (const value of [null, "", "   "]) {
       expect(eidosFileValueToGridCell(field("number"), value)).toMatchObject({
@@ -127,6 +162,45 @@ describe("Eidos File Grid adapter", () => {
       displayData: "",
     })
   })
+
+  it.each([
+    ["ja-JP", "2025/12/31"],
+    ["ko-KR", "2025. 12. 31."],
+  ])(
+    "uses %s for visible dates and numbers while keeping canonical values",
+    (locale, localDate) => {
+      const instant = "2026-01-01T00:30:00Z"
+      const date = eidosFileValueToGridCell(
+        field("datetime"),
+        instant,
+        false,
+        undefined,
+        undefined,
+        false,
+        "America/Sao_Paulo",
+        undefined,
+        undefined,
+        locale
+      )
+      expect(date).toMatchObject({
+        copyData: instant,
+        data: { displayDate: `${localDate} 21:30:00` },
+      })
+      const numeric = eidosFileValueToGridCell(
+        field("number"),
+        1234.5,
+        false,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        locale
+      )
+      expect(numeric).toMatchObject({ data: 1234.5, displayData: "1,234.5" })
+    }
+  )
 
   it("adapts direct select values to the shared Grid cell shape", () => {
     const select = field("select", {

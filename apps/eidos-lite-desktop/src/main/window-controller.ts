@@ -57,6 +57,7 @@ import {
   pluginShortcutForEvent,
 } from "../shared/plugin-shortcuts"
 import {
+  isEidosLiteReleaseNotesTitle,
   resolveEidosLiteLocale,
   translateEidosLite,
   type EidosLiteLocale,
@@ -904,11 +905,7 @@ export class WindowController {
     // workspace loading surface. Ignore the bootstrap document's generic title.
     window.on("page-title-updated", (event, title) => {
       event.preventDefault()
-      if (
-        title !== "Release notes" &&
-        title !== translateEidosLite("zh", "Release notes")
-      )
-        return
+      if (!isEidosLiteReleaseNotesTitle(title)) return
       window.setTitle(title)
       if (!window.isVisible()) window.show()
     })

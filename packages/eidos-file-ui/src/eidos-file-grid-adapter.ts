@@ -83,21 +83,25 @@ function localDateString(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function formatEidosFileNumber(value: number, format: string): string {
+function formatEidosFileNumber(
+  value: number,
+  format: string,
+  locale?: string
+): string {
   if (format === "percent") {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "percent",
       maximumFractionDigits: 2,
     }).format(value)
   }
   if (format === "currency") {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "USD",
       maximumFractionDigits: 2,
     }).format(value)
   }
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(locale, {
     maximumFractionDigits: 12,
   }).format(value)
 }
@@ -164,7 +168,8 @@ export function eidosFileValueToGridCell(
   allowWrapping = false,
   timeZone?: string,
   codeFontFamily?: string,
-  calendarTimeZoneData?: string | null
+  calendarTimeZoneData?: string | null,
+  locale?: string
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const elementType = eidosFileLookupListElementType(field)
@@ -178,7 +183,8 @@ export function eidosFileValueToGridCell(
         allowWrapping,
         timeZone,
         codeFontFamily,
-        calendarTimeZoneData
+        calendarTimeZoneData,
+        locale
       )
       return { ...cell, allowOverlay: false }
     }
@@ -192,7 +198,8 @@ export function eidosFileValueToGridCell(
         allowWrapping,
         timeZone,
         codeFontFamily,
-        calendarTimeZoneData
+        calendarTimeZoneData,
+        locale
       )
       return { ...cell, allowOverlay: false }
     }
@@ -254,7 +261,8 @@ export function eidosFileValueToGridCell(
       allowWrapping,
       timeZone,
       codeFontFamily,
-      calendarTimeZoneData
+      calendarTimeZoneData,
+      locale
     )
     return { ...cell, allowOverlay: false }
   }
@@ -369,10 +377,12 @@ export function eidosFileValueToGridCell(
               date,
               dateOnly ? "date" : "datetime-local",
               timeZone,
-              calendarTimeZoneData
+              calendarTimeZoneData,
+              locale
             )
           : "",
         format: dateOnly ? "date" : "datetime-local",
+        ...(locale ? { locale } : {}),
         ...(dateOnly || !timeZone ? {} : { timeZone }),
         ...(dateOnly || !calendarTimeZoneData ? {} : { calendarTimeZoneData }),
       },
@@ -413,7 +423,7 @@ export function eidosFileValueToGridCell(
           step: 1,
           value: data,
           label: property.showNumber
-            ? formatEidosFileNumber(data, property.format)
+            ? formatEidosFileNumber(data, property.format, locale)
             : undefined,
           color: property.color,
         },
@@ -425,7 +435,9 @@ export function eidosFileValueToGridCell(
       readonly,
       data,
       displayData:
-        data === undefined ? "" : formatEidosFileNumber(data, property.format),
+        data === undefined
+          ? ""
+          : formatEidosFileNumber(data, property.format, locale),
     }
   }
   const text = scalarText(value)

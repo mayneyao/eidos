@@ -31,7 +31,7 @@ export function EidosFileRelativeDateCalendar({
     if (date.getUTCFullYear() >= 1970 && date.getUTCFullYear() <= 2499)
       setMonth(date.toISOString().slice(0, 7))
   }
-  const language = locale === "zh" ? "zh-CN" : "en-US"
+  const language = locale === "zh" ? "zh-CN" : locale
   const title = new Intl.DateTimeFormat(language, {
     month: "short",
     year: "numeric",
@@ -73,7 +73,13 @@ export function EidosFileRelativeDateCalendar({
               const label =
                 locale === "zh"
                   ? ["日", "一", "二", "三", "四", "五", "六"][day]
-                  : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][day]
+                  : locale === "pt-BR"
+                    ? ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][day]
+                    : locale === "ja"
+                      ? ["日", "月", "火", "水", "木", "金", "土"][day]
+                      : locale === "ko"
+                        ? ["일", "월", "화", "수", "목", "금", "토"][day]
+                        : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][day]
               return (
                 <th key={day} scope="col">
                   {label}

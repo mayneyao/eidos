@@ -4,9 +4,20 @@ import { readFile, writeFile, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseEnv } from "node:util"
+import { CAPTURE_PROFILE } from "./capture-profile.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex")
+
+export function captureFiles(mediaType = "video") {
+  if (mediaType === "image") return [["screenshot.webp", "image/webp"]]
+  if (mediaType === "video")
+    return [
+      ["demo.mp4", "video/mp4"],
+      ["poster.webp", "image/webp"],
+    ]
+  throw new Error("Capture mediaType must be image or video")
+}
 export async function inspectExistingObject(
   config,
   file,
@@ -49,9 +60,7 @@ export function validateSourceManifest(source) {
   )
     throw new Error("Only a verified synthetic-data capture may be published")
   if (source.editorialReview !== "approved")
-    throw new Error(
-      "Review video and poster, then set editorialReview to approved in the local source manifest"
-    )
+    throw new Error("Review the captured media, then run review.mjs --approve")
   if (
     !source.assertions?.length ||
     source.assertions.some((a) => a.passed !== true)
@@ -95,6 +104,7 @@ export function resolveMediaCopy(source, copy) {
     return result
   }
   if (
+    source.mediaType === "image" ||
     source.scenarioId !== "table-search-escape" ||
     source.introducedInRelease !== "lite-v0.31.0"
   )
@@ -128,80 +138,83 @@ export async function publish(directory, options = {}) {
       ? JSON.parse(await readFile(options.copyFile, "utf8"))
       : undefined
   )
-  const video = await readFile(resolve(directory, "demo.mp4"))
-  const poster = await readFile(resolve(directory, "poster.webp"))
-  if (
-    video.length > 50 * 1024 * 1024 ||
-    video.length < 1000 ||
-    poster.length < 100 ||
-    poster.subarray(0, 4).toString() !== "RIFF" ||
-    poster.subarray(8, 12).toString() !== "WEBP"
+  const isImage = source.mediaType === "image"
+  const uploads = await Promise.all(
+    captureFiles(source.mediaType).map(async ([file, type]) => {
+      const bytes = await readFile(resolve(directory, file))
+      if (
+        bytes.length > 50 * 1024 * 1024 ||
+        (type === "image/webp"
+          ? bytes.length < 100 ||
+            bytes.subarray(0, 4).toString() !== "RIFF" ||
+            bytes.subarray(8, 12).toString() !== "WEBP"
+          : bytes.length < 1000)
+      )
+        throw new Error("Invalid or oversized media: " + file)
+      const sha256 = hash(bytes)
+      if (source.reviewedFiles?.[file] !== sha256)
+        throw new Error(
+          "Media changed after review; review the new files before uploading"
+        )
+      return { file, type, bytes, sha256 }
+    })
   )
-    throw new Error("Invalid or oversized media")
+  const [primary, poster] = uploads
   const probe = JSON.parse(
     execFileSync(
       "ffprobe",
       [
         "-v",
         "error",
+        ...(isImage ? ["-count_frames"] : []),
         "-show_streams",
         "-show_format",
         "-of",
         "json",
-        resolve(directory, "demo.mp4"),
+        resolve(directory, primary.file),
       ],
       { encoding: "utf8" }
     )
   )
   const stream = probe.streams.find((s) => s.codec_type === "video")
+  const duration = Number(probe.format.duration)
   if (
     !stream ||
-    stream.codec_name !== "h264" ||
-    probe.streams.some((s) => s.codec_type === "audio") ||
-    Number(probe.format.duration) > 60 ||
     stream.width !== source.output.width ||
     stream.height !== source.output.height ||
-    Math.abs(Number(probe.format.duration) - source.output.duration) > 0.1
+    (isImage
+      ? stream.codec_name !== "webp" ||
+        stream.nb_read_frames !== "1" ||
+        stream.width !== CAPTURE_PROFILE.width ||
+        stream.height !== CAPTURE_PROFILE.height
+      : stream.codec_name !== "h264" ||
+        probe.streams.some((s) => s.codec_type === "audio") ||
+        !Number.isFinite(duration) ||
+        duration > 60 ||
+        Math.abs(duration - source.output.duration) > 0.1)
   )
-    throw new Error("Video does not match the reviewed source manifest")
-  const sha = hash(video)
-  const posterSha = hash(poster)
-  if (
-    source.reviewedFiles?.["demo.mp4"] !== sha ||
-    source.reviewedFiles?.["poster.webp"] !== posterSha
-  )
-    throw new Error(
-      "Media changed after review; review the new files before uploading"
-    )
+    throw new Error("Media does not match the reviewed capture profile")
   const bundleHash = hash(
     JSON.stringify({
-      video: sha,
-      poster: posterSha,
+      ...(isImage
+        ? { image: primary.sha256 }
+        : { video: primary.sha256, poster: poster.sha256 }),
       sourceCommit: source.sourceCommit,
       scenarioRevision: source.scenarioRevision,
     })
   )
   const prefix = `releases/lite/${source.introducedInRelease.slice(6)}/${source.scenarioId}/${bundleHash}`
-  const files = [
-    { file: "demo.mp4", type: "video/mp4", bytes: video, sha256: sha },
-    {
-      file: "poster.webp",
-      type: "image/webp",
-      bytes: poster,
-      sha256: posterSha,
-    },
-  ].map((file) => ({
+  const files = uploads.map((file) => ({
     ...file,
     key: `${prefix}/${file.file}`,
     url: `${config.publicOrigin}/${prefix}/${file.file}`,
   }))
   const media = {
-    type: "video",
+    type: isImage ? "image" : "video",
     src: files[0].url,
-    poster: files[1].url,
+    ...(isImage ? {} : { poster: files[1].url, duration }),
     width: stream.width,
     height: stream.height,
-    duration: Number(probe.format.duration),
     ...copy,
   }
   const result = {
@@ -306,25 +319,23 @@ export async function publish(directory, options = {}) {
       sha256: file.sha256,
     })
   }
-  const range = await fetch(files[0].url, {
-    headers: { Range: "bytes=0-511" },
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (
-    range.status !== 206 ||
-    !range.headers.get("content-range")?.startsWith("bytes 0-511/") ||
-    Buffer.from(await range.arrayBuffer()).length !== 512
-  )
-    throw new Error("Video Range playback check failed")
+  result.checks = { files: checks }
+  if (!isImage) {
+    const range = await fetch(files[0].url, {
+      headers: { Range: "bytes=0-511" },
+      signal: AbortSignal.timeout(15_000),
+    })
+    const contentRange = range.headers.get("content-range")
+    if (
+      range.status !== 206 ||
+      !contentRange?.startsWith("bytes 0-511/") ||
+      Buffer.from(await range.arrayBuffer()).length !== 512
+    )
+      throw new Error("Video Range playback check failed")
+    result.checks.range = { status: range.status, contentRange }
+  }
   result.uploaded = true
   result.verifiedAt = new Date().toISOString()
-  result.checks = {
-    files: checks,
-    range: {
-      status: range.status,
-      contentRange: range.headers.get("content-range"),
-    },
-  }
   await writeFile(
     resolve(directory, "published-media.json"),
     JSON.stringify(result, null, 2) + "\n"

@@ -1,4 +1,4 @@
-import { mobileText, getMobileLocale } from "./locale"
+import { mobileText, getMobileLocaleTag } from "./locale"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
 import { HttpRuntimeClient } from "../../eidos-file-serve/src/client"
 import {
@@ -176,7 +176,7 @@ class Workbench {
     const program = await this.native<Program>("package", { id })
     program.manifest = validatePackage(
       JSON.stringify({ format: 2, ...program }),
-      getMobileLocale() === "zh" ? "zh-CN" : "en"
+      getMobileLocaleTag()
     )
     return program
   }

@@ -26,30 +26,60 @@ internal object AppLanguage {
     private const val KEY = "app-language"
     private var preference by mutableStateOf("system")
     private var systemLanguage by mutableStateOf(Locale.getDefault().toLanguageTag())
-    @Volatile private var english: Map<String, String> = emptyMap()
-    val choices = listOf("system", "zh", "en")
+    private val languageNames = linkedMapOf(
+        "zh" to "中文",
+        "en" to "English",
+        "pt-BR" to "Português (Brasil)",
+        "ja" to "日本語",
+        "ko" to "한국어",
+    )
+    @Volatile private var catalogs: Map<String, Map<String, String>> = emptyMap()
+    val choices = listOf("system") + languageNames.keys
 
     fun initialize(context: Context) {
         systemLanguage = context.resources.configuration.locales[0].toLanguageTag()
         preference = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
             .getString(KEY, "system").takeIf { it in choices } ?: "system"
-        val catalog = JSONObject(context.assets.open("en.json").bufferedReader().use { it.readText() })
-        english = catalog.keys().asSequence().associateWith { catalog.getString(it) }
+        catalogs = languageNames.keys.filterNot { it == "zh" }
+            .associateWith { readCatalog(context, it) }
+    }
+
+    private fun readCatalog(context: Context, language: String): Map<String, String> {
+        val catalog = JSONObject(context.assets.open("$language.json").bufferedReader().use { it.readText() })
+        return catalog.keys().asSequence().associateWith { catalog.getString(it) }
     }
 
     fun selected() = preference
     fun resolve(preference: String, languages: List<String>): String = when (preference) {
-        "zh", "en" -> preference
-        else -> if (languages.firstOrNull()?.substringBefore('-')?.substringBefore('_')?.lowercase(Locale.ROOT) == "zh") "zh" else "en"
+        in languageNames -> preference
+        else -> when (languages.firstOrNull()?.substringBefore('-')?.substringBefore('_')?.lowercase(Locale.ROOT)) {
+            "zh" -> "zh"
+            "pt" -> "pt-BR"
+            "ja" -> "ja"
+            "ko" -> "ko"
+            else -> "en"
+        }
     }
     fun locale(): String = resolve(preference, listOf(systemLanguage))
+    fun localeTag(language: String = locale()): String = when (language) {
+        "zh" -> "zh-CN"
+        "ja" -> "ja-JP"
+        "ko" -> "ko-KR"
+        else -> language
+    }
+    fun label(choice: String): String = languageNames[choice] ?: tr("跟随系统")
     fun updateSystem(language: String) { systemLanguage = language }
     fun set(context: Context, value: String) {
         require(value in choices)
         context.getSharedPreferences("appearance", Context.MODE_PRIVATE).edit().putString(KEY, value).apply()
         preference = value
     }
-    fun text(source: String): String = if (locale() == "en") english[source] ?: source else source
+    fun text(source: String): String {
+        val language = locale()
+        if (language == "zh") return source
+        val currentCatalogs = catalogs
+        return currentCatalogs[language]?.get(source) ?: currentCatalogs["en"]?.get(source) ?: source
+    }
 }
 
 internal fun tr(source: String, vararg arguments: Any?): String =
@@ -70,7 +100,10 @@ internal fun LanguageSheet(selected: String, select: (String) -> Unit, close: ()
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(selected == choice, onClick = null)
-                    Text(when (choice) { "zh" -> "中文"; "en" -> "English"; else -> tr("跟随系统") }, Modifier.padding(start = 12.dp))
+                    Text(
+                        AppLanguage.label(choice),
+                        Modifier.padding(start = 12.dp),
+                    )
                 }
             }
         }

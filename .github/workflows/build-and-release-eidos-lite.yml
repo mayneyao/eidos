@@ -100,6 +100,11 @@ jobs:
             --unpublished-tag lite-v0.24.0 \
             --unpublished-tag lite-v0.24.1
 
+      - name: Verify release demo receipts and bilingual notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/release-media/lite-release.mjs check --tag "$TAG"
+
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
 

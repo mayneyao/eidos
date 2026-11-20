@@ -2,6 +2,8 @@ import * as React from "react"
 import type { SelectionRange } from "@glideapps/glide-data-grid"
 import { NumericFormat } from "react-number-format"
 import type { NumberFormatValues } from "react-number-format/types/types.js"
+import { useEidosFileUI } from "../context"
+import { getEidosFileUIFormattingLocale } from "../i18n"
 
 interface Props {
   readonly value: number | undefined
@@ -15,20 +17,20 @@ interface Props {
   readonly decimalSeparator?: string
 }
 
-function getDecimalSeparator() {
+function getDecimalSeparator(locale?: string) {
   const numberWithDecimalSeparator = 1.1
-  const result = Intl.NumberFormat()
+  const result = Intl.NumberFormat(locale)
     ?.formatToParts(numberWithDecimalSeparator)
     ?.find((part) => part.type === "decimal")?.value
 
   return result ?? "."
 }
 
-function getThousandSeprator() {
-  return getDecimalSeparator() === "." ? "," : "."
-}
-
 const NumberOverlayEditor: React.FunctionComponent<Props> = (p) => {
+  const { locale } = useEidosFileUI()
+  const defaultDecimalSeparator = getDecimalSeparator(
+    getEidosFileUIFormattingLocale(locale)
+  )
   const {
     value,
     onChange,
@@ -68,8 +70,10 @@ const NumberOverlayEditor: React.FunctionComponent<Props> = (p) => {
         disabled={disabled === true}
         decimalScale={fixedDecimals}
         allowNegative={allowNegative}
-        thousandSeparator={thousandSeparator ?? getThousandSeprator()}
-        decimalSeparator={decimalSeparator ?? getDecimalSeparator()}
+        thousandSeparator={
+          thousandSeparator ?? (defaultDecimalSeparator === "." ? "," : ".")
+        }
+        decimalSeparator={decimalSeparator ?? defaultDecimalSeparator}
         value={Object.is(value, -0) ? "-" : (value ?? "")}
         // decimalScale={3}
         // prefix={"$"}

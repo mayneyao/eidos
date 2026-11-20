@@ -7,7 +7,7 @@ import { extensionHtml } from "../../plugin-runtime/src/extension-sandbox"
 import { parseRequest, type PluginRequest } from "../../plugin-runtime/src/rpc"
 import { validateSetting } from "../../plugin-runtime/src/manifest"
 import { pluginLanguageData } from "../../plugin-runtime/src/i18n"
-import { getMobileLocale } from "./locale"
+import { getMobileLocaleTag } from "./locale"
 import type {
   PluginManifest,
   ViewDeclaration,
@@ -138,7 +138,7 @@ export class MobilePluginInstance {
                 }
               : { kind: "file", ...metadata! }
     const languageData = pluginLanguageData(program.manifest, program.resources)
-    const locale = getMobileLocale() === "zh" ? "zh-CN" : "en"
+    const locale = getMobileLocaleTag()
     const html = options.extension
       ? extensionHtml(
           program.modules[this.manifest.extension!],

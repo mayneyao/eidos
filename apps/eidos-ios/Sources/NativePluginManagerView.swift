@@ -350,7 +350,7 @@ final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDel
     func webView(_ web: WKWebView,didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             do {
-                let result = try await web.callAsyncJavaScript("if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready',resolve,{once:true})); return window.eidosMobileValidate(raw, locale);",arguments:["raw":raw,"locale":AppLanguage.locale == "zh" ? "zh-CN" : "en"],in:nil,contentWorld:.page)
+                let result = try await web.callAsyncJavaScript("if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready',resolve,{once:true})); return window.eidosMobileValidate(raw, locale);",arguments:["raw":raw,"locale":AppLanguage.localeTag],in:nil,contentWorld:.page)
                 guard let manifest = result as? [String:Any] else { throw LocalError.message(tr("无效插件包")) }
                 finish(.success(manifest))
             } catch { finish(.failure(error)) }

@@ -1,8 +1,21 @@
 import english from "../locales/en.json"
+import brazilianPortuguese from "../locales/pt-BR.json"
+import japanese from "../locales/ja.json"
+import korean from "../locales/ko.json"
 
-export type MobileLocale = "zh" | "en"
+export type MobileLocale = "zh" | "en" | "pt-BR" | "ja" | "ko"
+const catalogs: Record<Exclude<MobileLocale, "zh">, Record<string, string>> = {
+  en: english,
+  "pt-BR": brazilianPortuguese,
+  ja: japanese,
+  ko: korean,
+}
+
 export function resolveMobileLocale(language: string): MobileLocale {
-  return language.toLowerCase().split(/[-_]/)[0] === "zh" ? "zh" : "en"
+  const primary = language.toLowerCase().split(/[-_]/)[0]
+  if (primary === "zh" || primary === "ja" || primary === "ko") return primary
+  if (primary === "pt") return "pt-BR"
+  return "en"
 }
 
 let locale = resolveMobileLocale(
@@ -35,8 +48,20 @@ export function getMobileLocale(): MobileLocale {
   return locale
 }
 
+export function getMobileLocaleTag(): string {
+  switch (locale) {
+    case "zh":
+      return "zh-CN"
+    case "ja":
+      return "ja-JP"
+    case "ko":
+      return "ko-KR"
+    default:
+      return locale
+  }
+}
+
 export function mobileText(source: string): string {
-  return locale === "en"
-    ? ((english as Record<string, string>)[source] ?? source)
-    : source
+  if (locale === "zh") return source
+  return catalogs[locale][source] ?? catalogs.en[source] ?? source
 }

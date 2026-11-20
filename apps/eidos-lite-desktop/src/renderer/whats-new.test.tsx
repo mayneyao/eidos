@@ -2,36 +2,66 @@
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { marked } from "marked"
-import type { ComponentProps } from "react"
-import type { MarkdownEditorSurface } from "./markdown-editor-surface"
 import { EidosLiteI18nProvider } from "./i18n"
 import type { EidosLitePreferences } from "../shared/contracts"
 
 // Release copy changes independently of the viewer behavior tested here.
-vi.mock("../../RELEASE_NOTES.md?raw", () => ({
-  default: "## English release fixture\n\nEnglish fixture body.",
-}))
-vi.mock("../../RELEASE_NOTES.zh-CN.md?raw", () => ({
-  default: "## 中文日志测试标题\n\n中文测试正文。",
-}))
-
-vi.mock("./markdown-editor-surface", () => ({
-  MarkdownEditorSurface: (
-    props: ComponentProps<typeof MarkdownEditorSurface>
-  ) => {
-    expect(props.disabled).toBe(true)
-    expect(props.editingMode).toBe("wysiwyg")
-    expect(props.autoFocus).toBe(false)
-    expect(props.layout).toBe("document")
-    return (
-      <div
-        data-document-key={props.documentKey}
-        dangerouslySetInnerHTML={{ __html: marked.parse(props.content) }}
-      />
-    )
+const fixture = vi.hoisted(() => {
+  const base = `https://media.eidos.space/releases/lite/9.9.9/example/${"a".repeat(64)}`
+  const local = (en: string, zh: string) => ({
+    en,
+    zh,
+    ja: "日本語",
+    ko: "한국어",
+  })
+  return {
+    releaseTag: "lite-v9.9.9",
+    scenarioId: "example",
+    capturedAppVersion: "9.9.8",
+    sourceCommit: "b".repeat(40),
+    afterSection: local("Feature fixture", "功能示例"),
+    media: {
+      type: "video",
+      src: `${base}/demo.mp4`,
+      poster: `${base}/poster.webp`,
+      width: 1200,
+      height: 800,
+      duration: 8,
+      feature: local("Demo", "演示"),
+      alt: local("Feature preview", "功能预览"),
+      caption: local("Recorded in 9.9.8", "录制于 9.9.8"),
+    },
+  }
+})
+const screenshot = vi.hoisted(() => ({
+  ...fixture,
+  scenarioId: "layout",
+  afterSection: { ...fixture.afterSection, en: "Next heading", zh: "布局" },
+  media: {
+    ...fixture.media,
+    type: "image",
+    src: `https://media.eidos.space/releases/lite/9.9.9/layout/${"c".repeat(64)}/screenshot.webp`,
+    alt: { ...fixture.media.alt, en: "Layout screenshot", zh: "布局截图" },
   },
 }))
+
+vi.mock("../../package.json", () => ({ default: { version: "9.9.9" } }))
+vi.mock("../../release-demos.json", () => ({
+  default: [fixture, screenshot, { ...fixture, releaseTag: "lite-v9.9.8" }],
+}))
+vi.mock("../../RELEASE_NOTES.md?raw", async () => {
+  const { demoMarkdown } = await import("../shared/release-demos")
+  return {
+    default: `## English release fixture\n\n### Feature fixture\n\nEnglish fixture body.\n\n${demoMarkdown(fixture as ReleaseDemo, "en")}\n\n### Next heading\n\n<video src="https://example.com/unsafe.mp4"></video>\n\n${demoMarkdown(screenshot as ReleaseDemo, "en")}`,
+  }
+})
+vi.mock("../../RELEASE_NOTES.zh-CN.md?raw", async () => {
+  const { demoMarkdown } = await import("../shared/release-demos")
+  return {
+    default: `## 中文日志测试标题\n\n### 功能示例\n\n中文测试正文。\n\n${demoMarkdown(fixture as ReleaseDemo, "zh")}\n\n### 布局\n\n${demoMarkdown(screenshot as ReleaseDemo, "zh")}`,
+  }
+})
+import type { ReleaseDemo } from "../shared/release-demos"
 import {
   hasUnseenRelease,
   releaseVersion,
@@ -61,10 +91,12 @@ it.each([false, true])(
       preferences: EidosLitePreferences
     ) => void = () => {}
     const preferences = { language: "en" } as EidosLitePreferences
+    const openExternalUrl = vi.fn()
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
       value: {
         getPreferences: async () => preferences,
+        openExternalUrl,
         onPreferencesChanged: (listener: typeof changePreferences) => {
           changePreferences = listener
           return () => {}
@@ -83,6 +115,28 @@ it.each([false, true])(
         )
       )
       expect(host.textContent).toContain("English fixture body.")
+      const video = host.querySelector("video")!
+      expect(host.querySelectorAll("video")).toHaveLength(1)
+      expect(host.querySelectorAll("figure img")).toHaveLength(1)
+      expect(host.querySelector("figure img")?.getAttribute("src")).toBe(
+        screenshot.media.src
+      )
+      expect(video.src).toBe(fixture.media.src)
+      expect(video.poster).toBe(fixture.media.poster)
+      expect(video.controls).toBe(true)
+      expect(video.preload).toBe("none")
+      expect(video.autoplay).toBe(false)
+      expect(
+        video.closest("figure")?.previousElementSibling?.textContent
+      ).toContain("English fixture body.")
+      expect(
+        video.closest("figure")?.nextElementSibling?.querySelector("h3")
+          ?.textContent
+      ).toBe("Next heading")
+      expect(host.textContent).toContain(
+        '<video src="https://example.com/unsafe.mp4">'
+      )
+      expect(host.querySelector('[contenteditable="true"]')).toBeNull()
       await act(async () =>
         changePreferences({ ...preferences, language: "zh" })
       )
@@ -93,12 +147,17 @@ it.each([false, true])(
         expect(localStorage.getItem(key)).toBe(releaseVersion)
       }
       expect(host.textContent).not.toContain("English fixture body.")
-      if (!standalone)
-        expect(
-          host
-            .querySelector("[data-document-key]")
-            ?.getAttribute("data-document-key")
-        ).toBe(`whats-new:${releaseVersion}:zh`)
+      expect(host.querySelector("video")?.getAttribute("aria-label")).toBe(
+        "功能预览"
+      )
+      const image = host.querySelector<HTMLImageElement>(
+        'figure img[alt="布局截图"]'
+      )!
+      expect(
+        image.closest("figure")?.querySelector("figcaption a")?.textContent
+      ).toBe("打开截图")
+      await act(async () => image.dispatchEvent(new Event("error")))
+      expect(image.hidden).toBe(true)
       await act(async () =>
         changePreferences({ ...preferences, language: "en" })
       )
@@ -106,6 +165,18 @@ it.each([false, true])(
       await act(async () =>
         changePreferences({ ...preferences, language: "system" })
       )
+      expect(host.textContent).toContain("中文测试正文。")
+      await act(async () => {
+        host.querySelector("video")!.dispatchEvent(new Event("error"))
+      })
+      expect(host.querySelector("video")).toBeNull()
+      expect(host.querySelector("figure img")?.getAttribute("src")).toBe(
+        fixture.media.poster
+      )
+      const link = host.querySelector<HTMLAnchorElement>("figcaption a")!
+      expect(link.textContent).toBe("观看演示")
+      link.click()
+      expect(openExternalUrl).toHaveBeenCalledWith(fixture.media.src)
       expect(host.textContent).toContain("中文测试正文。")
       await act(async () =>
         host

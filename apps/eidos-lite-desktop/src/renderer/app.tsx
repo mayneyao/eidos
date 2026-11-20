@@ -3964,7 +3964,7 @@ function WorkspaceApp({
               <X />
             </button>
           </header>
-          <WhatsNewPage theme={theme} />
+          <WhatsNewPage />
         </main>
       )
     return (
@@ -5605,7 +5605,7 @@ function WorkspaceApp({
             </div>
           </div>
         </div>
-        {whatsNew.open && <WhatsNewPage theme={theme} />}
+        {whatsNew.open && <WhatsNewPage />}
       </main>
       {workbenchSurfaces.content === "diff" ? (
         versionInspection ? (
@@ -6292,7 +6292,7 @@ export function App() {
   ) : window.location.hash === "#/release-notes" ? (
     <>
       <StartupComplete />
-      <WhatsNewPage theme={theme} standalone />
+      <WhatsNewPage standalone />
     </>
   ) : /^#\/settings(?:\/|$)/.test(window.location.hash) ? (
     <SettingsPage />

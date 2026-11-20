@@ -241,14 +241,16 @@ pub fn execute(path: &Path, method: &str, request: Value) -> Result<Value> {
             Ok(json!({"snapshot": snapshot, "objects": objects}))
         }
         "create" => {
-            let chinese = request["locale"]
+            let language = request["locale"]
                 .as_str()
                 .and_then(|locale| locale.split(['-', '_']).next())
-                .is_some_and(|language| language.eq_ignore_ascii_case("zh"));
-            let (table_name, title_name, notes_name) = if chinese {
-                ("记录", "标题", "笔记")
-            } else {
-                ("Records", "Title", "Notes")
+                .map(str::to_ascii_lowercase);
+            let (table_name, title_name, notes_name) = match language.as_deref() {
+                Some("zh") => ("记录", "标题", "笔记"),
+                Some("pt") => ("Registros", "Título", "Notas"),
+                Some("ja") => ("レコード", "タイトル", "メモ"),
+                Some("ko") => ("레코드", "제목", "메모"),
+                _ => ("Records", "Title", "Notes"),
             };
             let snapshot = call(&host, "getSnapshot", json!({}))?;
             let plan = call(
@@ -325,8 +327,10 @@ mod tests {
             (0, Some("en"), ["Records", "Title", "Notes"]),
             (1, Some("zh"), ["记录", "标题", "笔记"]),
             (2, Some("zh-Hant-TW"), ["记录", "标题", "笔记"]),
-            (3, Some("ja-JP"), ["Records", "Title", "Notes"]),
-            (4, None, ["Records", "Title", "Notes"]),
+            (3, Some("ja-JP"), ["レコード", "タイトル", "メモ"]),
+            (4, Some("ko-KR"), ["레코드", "제목", "메모"]),
+            (5, Some("pt-BR"), ["Registros", "Título", "Notas"]),
+            (6, None, ["Records", "Title", "Notes"]),
         ] {
             let path = directory.path().join(format!("{index}.eidos"));
             execute(
