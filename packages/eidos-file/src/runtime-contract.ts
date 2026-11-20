@@ -91,6 +91,8 @@ export interface RuntimeBinding {
 }
 
 export interface RuntimeHostBridge {
+  /** @internal A native host calls this while holding its write transaction. */
+  assertAssetWritable?(): void
   /** @internal Same-session host reads; callbacks must complete synchronously. */
   queuedRead?<T>(
     operation: (() => T) &
@@ -254,6 +256,7 @@ export interface FieldDescriptor {
   position: string
   settings: JsonObject
   writable: boolean
+  valueStatus?: "unsupported-formula"
   definition?: RelationDefinition | FormulaDefinition | LookupDefinition
 }
 
@@ -268,7 +271,11 @@ export type ViewDescriptor = {
 } & (
   | { queryStatus?: "supported"; query: SavedViewQuery }
   /** Opaque original document. It must never be replaced with an empty query. */
-  | { queryStatus: "unsupported"; query: JsonObject }
+  | {
+      queryStatus: "unsupported"
+      queryUnavailableReason?: "unsupported-formula"
+      query: JsonObject
+    }
 )
 
 export interface FeatureDescriptor {
@@ -312,6 +319,7 @@ export interface ColumnDescriptor {
   valueType: TypeRef
   source: "stored" | "formula" | "lookup" | "inverse-relation"
   writable: boolean
+  valueStatus?: "unsupported-formula"
 }
 
 export interface ProjectedRow {

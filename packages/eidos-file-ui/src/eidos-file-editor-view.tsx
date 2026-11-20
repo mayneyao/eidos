@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useState,
   useSyncExternalStore,
   type ComponentType,
   type ReactNode,
@@ -18,6 +19,7 @@ import type {
   FileEntry,
 } from "@eidos.space/eidos-file"
 import { Puzzle } from "lucide-react"
+import { Button } from "./ui/primitives"
 
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
 import type { EidosFileRecordFocus } from "./eidos-file-record-focus"
@@ -239,7 +241,13 @@ export function EidosFileUnsupportedView({
   )
 }
 
-export function EidosFileUnsupportedQuery({ name }: { name: string }) {
+export function EidosFileUnsupportedQuery({
+  name,
+  onBrowseRecords,
+}: {
+  name: string
+  onBrowseRecords?: () => void
+}) {
   const { translate: t } = useEidosFileUI()
   return (
     <div
@@ -253,10 +261,19 @@ export function EidosFileUnsupportedQuery({ name }: { name: string }) {
         </span>
         <p className="text-sm font-medium">{name}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {t(
-            "This view uses filter or sort rules from a newer Eidos version. Update Eidos to open it. Its saved configuration has been preserved."
-          )}
+          {onBrowseRecords
+            ? t(
+                "This view depends on a formula that requires a newer Eidos version."
+              )
+            : t(
+                "This view uses filter or sort rules from a newer Eidos version. Update Eidos to open it. Its saved configuration has been preserved."
+              )}
         </p>
+        {onBrowseRecords ? (
+          <Button className="mt-3" variant="outline" onClick={onBrowseRecords}>
+            {t("Browse records")}
+          </Button>
+        ) : null}
       </div>
     </div>
   )
@@ -269,7 +286,7 @@ export function EidosFileUnsupportedQuery({ name }: { name: string }) {
 export function EidosFileEditorView({
   source,
   table,
-  view,
+  view: savedView,
   search = "",
   searchResultIndex,
   onSearchResultCountChange,
@@ -291,6 +308,12 @@ export function EidosFileEditorView({
   renderUnsupportedView,
   ...callbacks
 }: EidosFileEditorViewProps) {
+  const { translate: t } = useEidosFileUI()
+  const [browseViewId, setBrowseViewId] = useState<string>()
+  const browsing =
+    savedView?.queryUnavailableReason === "unsupported-formula" &&
+    savedView.id === browseViewId
+  const view = browsing ? undefined : savedView
   const history = useMemo(() => eidosFileMutationHistory(source), [source])
   const historyState = useSyncExternalStore(
     history.subscribe,
@@ -392,6 +415,13 @@ export function EidosFileEditorView({
     pluginRegistry.viewRenderers[type] ??
     builtInEidosFileViewRenderers[type]
   if (view?.queryStatus === "unsupported") {
+    if (view.queryUnavailableReason === "unsupported-formula")
+      return (
+        <EidosFileUnsupportedQuery
+          name={view.name}
+          onBrowseRecords={() => setBrowseViewId(view.id)}
+        />
+      )
     return (
       <EidosFileDateQueryUpgrade
         source={source}
@@ -425,7 +455,27 @@ export function EidosFileEditorView({
             onSnapshot: callbacks.onSnapshot,
           }}
         >
-          <Renderer {...props} />
+          {browsing ? (
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex items-center justify-between gap-2 border-b px-3 py-1">
+                <span className="text-xs text-muted-foreground" role="status">
+                  {t("Browsing records without the saved view")}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setBrowseViewId(undefined)}
+                >
+                  {t("Back to view")}
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <Renderer {...props} disabled />
+              </div>
+            </div>
+          ) : (
+            <Renderer {...props} />
+          )}
         </EidosFileCalendarViewProvider>
       </EidosFileUndoScope>
     )

@@ -2106,6 +2106,13 @@ Runtime MUST 以 set-wise 方式对 page 与 aggregate 求值。它可以编译 
 `OR` 可避免未选择 branch 的 row
 error，但不改变 static type/dependency check。
 
+打开文件时，若结构有效的 Formula 调用了无法识别的函数，编辑器可进入只读兼容模式。
+Schema 和投影描述符用 `valueStatus: "unsupported-formula"` 标记该 Formula 及其派生依赖项。
+不可用值以带此状态的 null 占位。显式依赖该值的筛选、排序、分组和聚合不受支持。
+依赖不可用字段的保存视图会保留原查询，并返回
+`queryUnavailableReason: "unsupported-formula"`。编辑器可以提供独立的原始记录浏览入口。
+此模式保留原始 Formula 和已保存查询，且不写入文件。
+
 standard serializer 输出 uppercase keyword/function、canonical Integer
 literal、双写的 string 与 identifier quote、comma 后一个 space，以及 infix
 operator 两侧各一个 space。Number 使用 ECMA-262 `Number::toString`（即 RFC 8785

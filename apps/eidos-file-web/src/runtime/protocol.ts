@@ -43,7 +43,7 @@ export type EidosFileWorkerAction =
       access?: "read" | "readwrite"
     }
   | { type: "discard-recovery"; recoveryId: string }
-  | { type: "export"; maxBytes: string }
+  | { type: "export"; maxBytes: string; purpose?: "read-only-copy" }
   | { type: "close" }
 
 export interface EidosFileWorkerRequest {

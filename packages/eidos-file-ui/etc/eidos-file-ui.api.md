@@ -925,6 +925,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
     calendarQueryVersion?: 2;
     calendarWindowVersion?: 1;
   });
+  get readOnly(): boolean;
   private calendarConsumer;
   initialize(): Promise<EidosFileSnapshot>;
   getSnapshot(): Promise<EidosFileSnapshot>;

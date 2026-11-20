@@ -1314,6 +1314,12 @@ postconditions; an EF-only Writer preserves `source_text` byte-for-byte and
 refuses an affected rename rather than
 guessing with textual replacement.
 
+A Runtime that recognizes the storage shape but encounters a Formula function
+from a newer profile may open the file in read-only compatibility mode under
+Runtime §9.5. It preserves the original definition and exposes the
+unavailable Field and any dependents explicitly. This rule does not relax
+unknown required feature validation or grant canonical write access.
+
 ## 12. Lookup and Dependency Definition Storage
 
 A Lookup Field has `type='lookup'`, `physical_name=NULL`, and exactly one
@@ -1573,6 +1579,10 @@ implementation that does not know it. Unknown optional feature state must be
 preserved byte-semantically or the Writer refuses the write. A feature that
 changes a core raw value, query result, mutation postcondition, or other
 non-ignorable meaning MUST be `required=1`.
+
+A Formula language extension that preserves the physical format may declare
+its semantics in the Formula source under §11. Unknown functions in an
+otherwise known Formula expression are handled by read-only compatibility.
 
 Extensions use unregistered `x__<vendor>__*` names, where `vendor` is a
 non-empty lowercase ASCII token of letters, digits, and underscores beginning

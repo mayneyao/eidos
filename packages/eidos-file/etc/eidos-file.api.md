@@ -501,6 +501,8 @@ export interface ColumnDescriptor {
     // (undocumented)
     source: "stored" | "formula" | "lookup" | "inverse-relation";
     // (undocumented)
+    valueStatus?: "unsupported-formula";
+    // (undocumented)
     valueType: TypeRef;
     // (undocumented)
     writable: boolean;
@@ -1616,6 +1618,7 @@ export interface EidosFileFieldInfo {
     type: EidosFileFieldType;
     // (undocumented)
     valueKind: EidosFileValueKind;
+    valueStatus?: "unsupported-formula";
     writable?: boolean;
 }
 
@@ -2331,6 +2334,8 @@ export class EidosFileRuntime {
     getRowPage(tableId: string, offset: number, limit: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
     // (undocumented)
     getTable(tableId: string): EidosFileTableInfo;
+    // @internal
+    hasUnsupportedDerivedFields(): boolean;
     // (undocumented)
     importField(tableId: string, input: ImportEidosFileFieldInput): EidosFileFieldInfo;
     // @internal
@@ -2831,6 +2836,8 @@ export interface EidosFileViewInfo {
     query: string;
     queryStatus?: "supported" | "unsupported";
     // (undocumented)
+    queryUnavailableReason?: "unsupported-formula";
+    // (undocumented)
     sorts: EidosFileSort[];
     // (undocumented)
     tableId: string;
@@ -3221,6 +3228,8 @@ export interface FieldDescriptor {
     systemRole: "row-id" | "created-time" | "updated-time" | null;
     // (undocumented)
     tableId: string;
+    // (undocumented)
+    valueStatus?: "unsupported-formula";
     // (undocumented)
     valueType: TypeRef;
     // (undocumented)
@@ -4475,6 +4484,8 @@ export interface RuntimeHostBridge {
         uri: string;
         extensions?: Record<string, JsonValue>;
     }, context: RequestContext): Promise<FileEntry>;
+    // @internal
+    assertAssetWritable?(): void;
     // (undocumented)
     createPublicationSnapshot(request: {
         maxBytes: string;
@@ -4954,6 +4965,13 @@ export type TypeRef = ScalarType | "row-id" | "file-entry" | {
     element: AtomicType;
 };
 
+// Warning: (ae-internal-missing-underscore) The name "UnsupportedFormulaFunctionError" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export class UnsupportedFormulaFunctionError extends EidosFileError {
+    constructor(name: string);
+}
+
 // @public (undocumented)
 export interface UpdateEidosFileFieldInput {
     confirmLossy?: boolean;
@@ -5032,7 +5050,8 @@ export function validateAdapterEnvelope(envelope: unknown): asserts envelope is 
 
 // @public (undocumented)
 export function validateEidosFile(connection: EidosFileConnection, options?: {
-    level?: EidosFileValidationLevel;
+    level?: EidosFileValidationLevel; /** Allow a read-only editor to open a file with opaque Formula definitions. */
+    allowUnsupportedFormulaFunctions?: boolean;
 }): EidosFileValidationResult;
 
 // @public (undocumented)
@@ -5104,6 +5123,7 @@ export type ViewDescriptor = {
     query: SavedViewQuery;
 } /** Opaque original document. It must never be replaced with an empty query. */ | {
     queryStatus: "unsupported";
+    queryUnavailableReason?: "unsupported-formula";
     query: JsonObject;
 });
 

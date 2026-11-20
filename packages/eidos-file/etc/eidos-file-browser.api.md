@@ -400,6 +400,8 @@ export interface ColumnDescriptor {
     // (undocumented)
     source: "stored" | "formula" | "lookup" | "inverse-relation";
     // (undocumented)
+    valueStatus?: "unsupported-formula";
+    // (undocumented)
     valueType: TypeRef;
     // (undocumented)
     writable: boolean;
@@ -1121,6 +1123,7 @@ export interface EidosFileFieldInfo {
     type: EidosFileFieldType;
     // (undocumented)
     valueKind: EidosFileValueKind;
+    valueStatus?: "unsupported-formula";
     writable?: boolean;
 }
 
@@ -1819,6 +1822,8 @@ export interface EidosFileViewInfo {
     query: string;
     queryStatus?: "supported" | "unsupported";
     // (undocumented)
+    queryUnavailableReason?: "unsupported-formula";
+    // (undocumented)
     sorts: EidosFileSort[];
     // (undocumented)
     tableId: string;
@@ -1874,6 +1879,8 @@ export interface FieldDescriptor {
     systemRole: "row-id" | "created-time" | "updated-time" | null;
     // (undocumented)
     tableId: string;
+    // (undocumented)
+    valueStatus?: "unsupported-formula";
     // (undocumented)
     valueType: TypeRef;
     // (undocumented)
@@ -2972,6 +2979,8 @@ export interface RuntimeHostBridge {
         uri: string;
         extensions?: Record<string, JsonValue>;
     }, context: RequestContext): Promise<FileEntry>;
+    // @internal
+    assertAssetWritable?(): void;
     // (undocumented)
     createPublicationSnapshot(request: {
         maxBytes: string;
@@ -3587,6 +3596,7 @@ export type ViewDescriptor = {
     query: SavedViewQuery;
 } /** Opaque original document. It must never be replaced with an empty query. */ | {
     queryStatus: "unsupported";
+    queryUnavailableReason?: "unsupported-formula";
     query: JsonObject;
 });
 

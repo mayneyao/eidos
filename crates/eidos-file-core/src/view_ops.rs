@@ -290,13 +290,27 @@ fn run_views(
     request: &ViewMutationRequest,
     commit: bool,
 ) -> Result<ViewMutationResult> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result = mutate_views_in_transaction(&tx, request)?;
+    if commit && result.changed {
+        tx.commit()?;
+    } else {
+        tx.rollback()?;
+    }
+    Ok(result)
+}
+
+/// Apply view changes inside the caller's write transaction.
+pub fn mutate_views_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    request: &ViewMutationRequest,
+) -> Result<ViewMutationResult> {
     if request.changes.is_empty() {
         return Err(EidosError::InvalidRequest(
             "View mutation changes are required".into(),
         ));
     }
-    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    ensure_revision(&tx, &request.expected_revision)?;
+    ensure_revision(tx, &request.expected_revision)?;
     validate_request(request)?;
     if tx.query_row(
         "SELECT COUNT(*) FROM eidos__features WHERE name IN ('eidos:calendar-query','eidos:calendar-window')",
@@ -308,9 +322,9 @@ fn run_views(
             "View changes in this file require the canonical Runtime".into(),
         ));
     }
-    let before = load_file_meta(&tx)?;
-    let tables = load_tables(&tx)?;
-    let fields = load_fields(&tx)?;
+    let before = load_file_meta(tx)?;
+    let tables = load_tables(tx)?;
+    let fields = load_fields(tx)?;
     let instant = now_instant();
     let mut changed = false;
     let mut created_views = Vec::new();
@@ -330,7 +344,7 @@ fn run_views(
                 let table = table_by_id(&tables, table_id)?;
                 assert_display_name(name, "View name")?;
                 validate_view_type(view_type)?;
-                let current_views = load_views(&tx)?;
+                let current_views = load_views(tx)?;
                 ensure_unique_name(&current_views, table_id, name, None)?;
                 let query_json = canonical_query(table, &fields, query)?;
                 let layout_json = canonical_object(layout, "View layout")?;
@@ -360,7 +374,7 @@ fn run_views(
                 changed = true;
             }
             ViewChange::UpdateView { view_id, patch } => {
-                let current_views = load_views(&tx)?;
+                let current_views = load_views(tx)?;
                 let current = view_by_id(&current_views, view_id)?.clone();
                 if patch.query.is_some() {
                     let original = serde_json::from_str::<SavedViewQuery>(&current.query_json);
@@ -429,7 +443,7 @@ fn run_views(
                 ));
             }
             ViewChange::DeleteView { view_id } => {
-                let current_views = load_views(&tx)?;
+                let current_views = load_views(tx)?;
                 view_by_id(&current_views, view_id)?;
                 tx.execute("DELETE FROM eidos__views WHERE id=?", [view_id])?;
                 affected_view_ids.insert(view_id.clone());
@@ -439,16 +453,11 @@ fn run_views(
     }
 
     let revision = if changed {
-        ensure_foreign_keys(&tx)?;
-        ddl::increment_revision(&tx, &instant)?
+        ensure_foreign_keys(tx)?;
+        ddl::increment_revision(tx, &instant)?
     } else {
         before.revision
     };
-    if commit && changed {
-        tx.commit()?;
-    } else {
-        tx.rollback()?;
-    }
     Ok(ViewMutationResult {
         file_id: before.file_id,
         revision: revision.to_string(),

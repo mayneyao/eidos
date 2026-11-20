@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { dirname } from "node:path"
+import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 
 import { expect, test, type Locator, type Page } from "@playwright/test"
@@ -12,6 +14,120 @@ const featureLabFixturePath = fileURLToPath(
 const fixtureRowCount = 2_500
 const gridHeaderHeight = 36
 const gridRowHeight = 36
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
+  DatabaseSync: new (path: string) => {
+    prepare(sql: string): {
+      get(...values: string[]): Record<string, unknown> | undefined
+      run(...values: string[]): unknown
+    }
+    close(): void
+  }
+}
+
+test("opens files with an unknown Formula read-only and can browse and download the original records", async ({
+  page,
+}, testInfo) => {
+  const file = testInfo.outputPath("newer-formula.eidos")
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, await readFile(fixturePath))
+  const database = new DatabaseSync(file)
+  const field = database
+    .prepare(
+      "SELECT id, table_id FROM eidos__fields WHERE name = 'Effort score'"
+    )
+    .get()
+  if (typeof field?.id !== "string" || typeof field.table_id !== "string")
+    throw new Error("Fixture is missing its Formula")
+  database
+    .prepare(
+      "UPDATE eidos__formula_fields SET source_text = ? WHERE field_id = ?"
+    )
+    .run("FUTURE_VALUE()", field.id)
+  database
+    .prepare("UPDATE eidos__fields SET position = 1 WHERE id = ?")
+    .run(field.id)
+  database
+    .prepare(
+      "UPDATE eidos__views SET query_json = ? WHERE table_id = ? AND name = 'Grid'"
+    )
+    .run(
+      JSON.stringify({ sort: [{ direction: "asc", fieldId: field.id }] }),
+      field.table_id
+    )
+  const revision = database
+    .prepare("SELECT revision FROM eidos__meta WHERE singleton = 1")
+    .get()?.revision
+  database.close()
+  const original = await readFile(file)
+
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.locator("input[type=file]").setInputFiles(file)
+  await expect(page.locator(".save-status")).toHaveText("Read only")
+  await expect(
+    page.getByRole("button", { name: "Add Eidos File table" })
+  ).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "New record" })).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "New view", exact: true })
+  ).toHaveCount(0)
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "This view depends on a formula" })
+  ).toBeVisible()
+  await page
+    .getByRole("button", { name: "Browse records", exact: true })
+    .click()
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Browsing records without the saved view" })
+  ).toBeVisible()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).not.toBeEmpty()
+  await expect(
+    page.getByText("Requires a newer Eidos version", { exact: true }).first()
+  ).toBeAttached()
+  await page.getByRole("button", { name: "Back to view", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Browse records", exact: true })
+  ).toBeVisible()
+
+  const downloadPromise = page.waitForEvent("download")
+  await clickFileMenuItem(page, "Download a copy")
+  const copy = testInfo.outputPath("downloaded-read-only.eidos")
+  await (await downloadPromise).saveAs(copy)
+  expect((await readFile(file)).equals(original)).toBe(true)
+  const downloaded = new DatabaseSync(copy)
+  try {
+    expect(
+      downloaded
+        .prepare("SELECT revision FROM eidos__meta WHERE singleton = 1")
+        .get()?.revision
+    ).toBe(revision)
+    expect(
+      downloaded
+        .prepare(
+          "SELECT source_text FROM eidos__formula_fields WHERE field_id = ?"
+        )
+        .get(field.id)?.source_text
+    ).toBe("FUTURE_VALUE()")
+  } finally {
+    downloaded.close()
+  }
+
+  const chooserPromise = page.waitForEvent("filechooser")
+  await clickFileMenuItem(page, "Open .eidos file")
+  await (await chooserPromise).setFiles(fixturePath)
+  await expect(page.locator(".save-status")).toHaveText("Imported copy")
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("button", { name: /^New table/ }).click()
+  await page.getByLabel("Name").fill("Writable control")
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Writable control", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+})
 
 test("keeps the appended record editor aligned with its cell", async ({
   page,

@@ -304,6 +304,12 @@ function FieldValue({
     calendarTimeZoneData,
   } = useEidosFileUI()
   const value = row[field.tableColumnName]
+  if (field.valueStatus === "unsupported-formula")
+    return (
+      <span className="text-sm text-muted-foreground">
+        {t("Requires a newer Eidos version")}
+      </span>
+    )
   if (field.type === "select" || field.type === "multi-select")
     return <RecordChoiceValue field={field} value={value} />
   if (field.type === "checkbox") {

@@ -51,6 +51,10 @@ export class EidosFileWorkerClient {
   private editor: EidosRuntimeEditorDataSource | null = null
   private inFlightMutations = 0
 
+  get readOnly(): boolean {
+    return this.editor?.readOnly ?? true
+  }
+
   constructor(
     private readonly consumer: {
       calendarQueryVersion?: 2
@@ -362,6 +366,12 @@ export class EidosFileWorkerClient {
 
   exportFile(maxBytes = "268435456"): Promise<EidosFileWorkerExportResult> {
     return this.call({ type: "export", maxBytes })
+  }
+
+  exportReadOnlyCopy(
+    maxBytes = "268435456"
+  ): Promise<EidosFileWorkerExportResult> {
+    return this.call({ type: "export", maxBytes, purpose: "read-only-copy" })
   }
 
   async close(): Promise<void> {
