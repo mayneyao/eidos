@@ -93,9 +93,15 @@ final class EditorWebTests: XCTestCase {
         _ = try await web.evaluateJavaScript("document.execCommand('insertText', false, ' 2')")
         _ = try await ready(editor, script: "document.querySelector('[data-eidos-file-formula-status=valid]')?.textContent.trim() === '10'")
         _ = try await ready(editor, script: """
-            (() => { const button = document.querySelector('.eidos-mobile-fields-create button[type=submit]');
-              const rect = button.getBoundingClientRect();
-              return !button.disabled && button.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+            (() => { const controls = [
+                document.querySelector('.eidos-mobile-fields-create button[type=submit]:not(:disabled)'),
+                document.querySelector('textarea[aria-label="Formula expression"]'),
+                document.querySelector('[data-eidos-file-formula-status=valid]'),
+              ];
+              return controls.every(control => {
+                const rect = control?.getBoundingClientRect();
+                return rect && control.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+              });
             })()
             """)
         capture(window, name: "t01-formula-ios-preview-20261121")
@@ -500,7 +506,7 @@ final class EditorWebTests: XCTestCase {
             if let web = controller.web, (try? await web.evaluateJavaScript(script)) as? Bool == true { return web }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-        XCTFail("Web editor did not become ready")
+        XCTFail("Web editor did not meet readiness check \(script)")
         return try XCTUnwrap(controller.web)
     }
     @MainActor private func capture(_ window: UIWindow, name: String) {

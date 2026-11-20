@@ -10,6 +10,7 @@ import {
 import { ArrowLeft, Columns3, X, ChevronRight } from "lucide-react"
 import type {
   CreateEidosFileFieldInput,
+  EidosFileFormulaPreviewInput,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
@@ -70,6 +71,11 @@ export function MobileFields({
   const field = table.fields.find(
     (item) => eidosFileFieldKey(item) === selected
   )
+  const previewFormula = useCallback(
+    (input: EidosFileFormulaPreviewInput) =>
+      source.previewFormula!(table.table.id, input),
+    [source, table.table.id]
+  )
   const mutate = async (action: () => Promise<EidosFileSnapshot>) => {
     if (locked.current)
       throw new Error(t("A field update is already in progress"))
@@ -100,7 +106,8 @@ export function MobileFields({
     const dialog = sheetElement?.closest<HTMLElement>(
       ".eidos-mobile-settings-sheet"
     )
-    if (!viewport || !dialog) return
+    if (!viewport || !dialog || !sheetElement) return
+    let frame = 0
     // Some WebViews resize the visual viewport without resizing fixed sheets.
     const resize = () => {
       const inset =
@@ -120,6 +127,34 @@ export function MobileFields({
         dialog.style.removeProperty("--field-create-bottom-inset")
         dialog.style.removeProperty("--field-create-viewport-height")
       }
+      cancelAnimationFrame(frame)
+      if (viewport.scale !== 1) return
+      frame = requestAnimationFrame(() => {
+        const input = document.activeElement
+        if (
+          !(input instanceof HTMLTextAreaElement) ||
+          !sheetElement.contains(input)
+        )
+          return
+        const body = input.closest<HTMLElement>(
+          ".eidos-mobile-field-create-body"
+        )
+        const status = input
+          .closest("[data-eidos-file-formula-composer]")
+          ?.querySelector("[data-eidos-file-formula-status]")
+        if (!body || !status) return
+        const visible = body.getBoundingClientRect()
+        const expression = input.getBoundingClientRect()
+        const statusBottom = status.getBoundingClientRect().bottom
+        const bottom =
+          statusBottom - expression.top <= visible.height
+            ? statusBottom
+            : expression.bottom
+        if (expression.top < visible.top)
+          body.scrollTop += expression.top - visible.top
+        else if (bottom > visible.bottom)
+          body.scrollTop += bottom - visible.bottom
+      })
     }
     resize()
     viewport.addEventListener("resize", resize)
@@ -127,6 +162,7 @@ export function MobileFields({
     return () => {
       viewport.removeEventListener("resize", resize)
       viewport.removeEventListener("scroll", resize)
+      cancelAnimationFrame(frame)
       dialog.style.removeProperty("--field-create-bottom-inset")
       dialog.style.removeProperty("--field-create-viewport-height")
     }
@@ -312,10 +348,7 @@ export function MobileFields({
                       if (!value) setDerived(null)
                     }}
                     onPreview={
-                      source.previewFormula
-                        ? (input) =>
-                            source.previewFormula!(table.table.id, input)
-                        : undefined
+                      source.previewFormula ? previewFormula : undefined
                     }
                     onSave={(property) =>
                       mutate(() =>
@@ -374,9 +407,7 @@ export function MobileFields({
                     )
                   }
                   onPreviewFormula={
-                    source.previewFormula
-                      ? (input) => source.previewFormula!(table.table.id, input)
-                      : undefined
+                    source.previewFormula ? previewFormula : undefined
                   }
                 />
               </div>

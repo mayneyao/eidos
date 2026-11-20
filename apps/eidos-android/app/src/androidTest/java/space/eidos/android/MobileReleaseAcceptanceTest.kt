@@ -341,22 +341,39 @@ class MobileReleaseAcceptanceTest {
             tap(".eidos-file-formula-display-select")
             tap("[role=option]:has([data-eidos-file-field-type-icon=integer])")
             tap("[data-formula-reference$=':$quantity']")
-            waitJs("document.querySelector('textarea[aria-label=\"Formula expression\"]')?.value === '\"Quantity\"'")
+            val expression = "textarea[aria-label=\"Formula expression\"]"
+            waitJs("document.querySelector(${JSONObject.quote(expression)})?.value === '\"Quantity\"'")
+            tap(expression)
+            compose.waitUntil(15_000) {
+                var visible = false
+                compose.runOnUiThread {
+                    visible = androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                        ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+                }
+                visible
+            }
             fun appendExpression(text: String) {
-                js("(()=>{const e=document.querySelector('textarea[aria-label=\"Formula expression\"]');e.focus();e.setSelectionRange(e.value.length,e.value.length);return document.execCommand('insertText',false,${JSONObject.quote(text)});})()")
+                js("(()=>{const e=document.querySelector(${JSONObject.quote(expression)});e.focus();e.setSelectionRange(e.value.length,e.value.length);return document.execCommand('insertText',false,${JSONObject.quote(text)});})()")
             }
             appendExpression(" *")
             waitJs("!!document.querySelector('[data-eidos-file-formula-status=error]')")
             assertEquals("true", js("document.querySelector('.eidos-mobile-fields-create button[type=submit]')?.disabled"))
             appendExpression(" 2")
             waitJs("document.querySelector('[data-eidos-file-formula-status=valid]')?.textContent.trim() === '10'")
-            waitJs("(()=>{const b=document.querySelector('.eidos-mobile-fields-create button[type=submit]');const r=b.getBoundingClientRect();return !b.disabled && b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})()")
+            waitJs("""
+                [document.querySelector('.eidos-mobile-fields-create button[type=submit]:not(:disabled)'),
+                 document.querySelector(${JSONObject.quote(expression)}),
+                 document.querySelector('[data-eidos-file-formula-status=valid]')].every(control=>{
+                    const rect=control?.getBoundingClientRect();
+                    return rect && control.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+                })
+            """.trimIndent())
             screenshot("formula-preview-valid.png")
             tap(".eidos-mobile-fields-create button[type=submit]")
             waitJs("!!document.querySelector('button[aria-label=编辑Doubled属性]')")
             tap("[data-mobile-page]:not([hidden]) > header button[aria-label=关闭]")
             waitJs("!document.querySelector('.eidos-mobile-fields-content')")
-            val recordRoute = "#/records/" + listOf(path, table.id, row.id).joinToString("/") { android.net.Uri.encode(it) }
+            val recordRoute = "#/records/" + listOf("$id/$path", table.id, row.id).joinToString("/") { android.net.Uri.encode(it) }
             js("location.hash=${JSONObject.quote(recordRoute)}")
             waitJs("document.querySelector('[data-mobile-record-page]')?.innerText.includes('Doubled') === true")
             waitJs("[...document.querySelectorAll('.eidos-mobile-record-value')].some(e=>e.textContent.trim()==='10')")

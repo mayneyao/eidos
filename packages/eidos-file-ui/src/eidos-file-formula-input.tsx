@@ -301,7 +301,7 @@ const MobileFormulaInput = forwardRef<
       const textarea = input.current
       if (!textarea || textarea.disabled) return
       const start = textarea.selectionStart
-      textarea.focus({ preventScroll: true })
+      textarea.focus()
       textarea.setRangeText(text, start, textarea.selectionEnd, "end")
       const caret = Math.max(start, start + text.length + cursorOffset)
       textarea.setSelectionRange(caret, caret)
