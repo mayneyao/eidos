@@ -11,6 +11,10 @@ const require = createRequire(import.meta.url)
 const builderRequire = createRequire(
   require.resolve("electron-builder/package.json")
 )
+const appBuilderRequire = createRequire(
+  builderRequire.resolve("app-builder-lib/package.json")
+)
+const { log: builderLog } = appBuilderRequire("builder-util")
 const { getConfig } = builderRequire(
   "app-builder-lib/out/util/config/config.js"
 )
@@ -24,7 +28,9 @@ const { expandMacro } = builderRequire(
   "app-builder-lib/out/util/macroExpander.js"
 )
 
-test("Lite packaging keeps the supported Chromium language families", async () => {
+test("Lite packaging keeps the supported Chromium language families", async (t) => {
+  // The builder writes each info line in pieces to the test runner's report stream.
+  t.mock.method(builderLog, "info", () => {})
   for (const config of [
     "electron-builder.json",
     "electron-builder.dev.mjs",
@@ -68,7 +74,8 @@ for (const [os, platform, arch] of [
   ["linux", "linux", "x64"],
   ["linux", "linux", "arm64"],
 ]) {
-  test(`builder keeps runtime files for ${platform}-${arch}`, async () => {
+  test(`builder keeps runtime files for ${platform}-${arch}`, async (t) => {
+    t.mock.method(builderLog, "info", () => {})
     const config = await getConfig(
       appRoot,
       os === "linux" ? "electron-builder.linux.json" : "electron-builder.json"
@@ -194,6 +201,7 @@ for (const [os, platform, arch] of [
 
 for (const sourceSnapshot of [false, true]) {
   test(`builder merges complete, unique ${sourceSnapshot ? "snapshot" : "registry"} resources`, async (t) => {
+    t.mock.method(builderLog, "info", () => {})
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-builder-config-")
     )
