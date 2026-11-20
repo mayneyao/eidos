@@ -9,6 +9,8 @@ the app after the date changes.
 
 Update the apps that edit or sync the same Space before adding the formula.
 An older editor may open the file read-only or be unable to finish a sync merge.
+If you sync a Space with iOS, wait for an iOS update that supports `TODAY()`
+before adding it to files in that Space.
 
 ## Install
 

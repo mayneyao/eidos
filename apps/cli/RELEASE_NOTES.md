@@ -9,6 +9,8 @@ Pass `--time-zone Asia/Shanghai` to `eidos data query` or
 `eidos formula preview` to evaluate the formula in that time zone. Add
 `--reference-instant` to reproduce the result for a specific UTC instant.
 Update the apps that edit or sync the file before adding this formula.
+If you sync the file with iOS, wait for an iOS update that supports `TODAY()`
+before adding the formula.
 
 ## Use with an Agent
 
