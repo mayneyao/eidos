@@ -164,11 +164,7 @@ struct NativePluginManagerView: View {
             if action.remove { removing = action.plugin } else { opened = action.plugin }
         }) { plugin in detailSheet(plugin) }
         .fullScreenCover(item:$opened,onDismiss:{ Task { try? await model.refresh() } }) { plugin in
-            NavigationStack {
-                MobilePluginView(space:space,dark:colorScheme == .dark,open:open,pluginId:plugin.id,showManager:{ opened = nil })
-                    .navigationTitle(plugin.name).navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement:.cancellationAction) { Button(tr("返回")) { opened = nil } } }
-            }
+            MobilePluginCover(space: space, title: plugin.name, plugin: plugin.id, open: open, close: { opened = nil })
         }
         .fullScreenCover(item:$readme, onDismiss: {
             if let id = readmeInstall {

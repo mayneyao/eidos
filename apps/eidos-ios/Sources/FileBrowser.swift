@@ -42,7 +42,6 @@ struct FileBrowser: View {
     @State private var inbox = false
     @State private var languageSettings = false
     @State private var actionTarget: FileActionTarget?
-    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         List {
             if directory == nil || directory == space.root {
@@ -209,12 +208,9 @@ struct FileBrowser: View {
             if let updated = try? FileActivity.load(space) { activity = updated }
         }
         .fullScreenCover(item: $filePlugin, onDismiss: reload) { target in
-            NavigationStack {
-                MobilePluginView(space: space, dark: colorScheme == .dark, open: { file in filePlugin = nil; onOpen(file) },
-                    pluginId: target.view.plugin, viewId: target.view.view, filePath: FileActivity.path(target.file, space: space))
-                .navigationTitle(target.file.lastPathComponent).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("返回")) { filePlugin = nil } } }
-            }
+            MobilePluginCover(space: space, title: target.file.lastPathComponent, plugin: target.view.plugin,
+                view: target.view.view, filePath: FileActivity.path(target.file, space: space),
+                open: { file in filePlugin = nil; onOpen(file) }, close: { filePlugin = nil })
         }
         .onChange(of: scenePhase) { _, phase in if phase == .active && !busy { reload() } }
     }

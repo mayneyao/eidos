@@ -321,6 +321,9 @@ static UTF-8 text limited to 256 KiB; `.eidos` is reserved. The host MUST list
 only enabled plugins' templates, create files exclusively without overwriting,
 and open the declared View after creation. Creating a file MUST NOT execute
 plugin code. The filename and destination remain user choices.
+Android and iOS accept valid template declarations in packages and offer
+existing files through the associated `file/open` placement. Creation from
+templates is available in Lite.
 
 File Views with Space file read access MAY receive `ui.resources` with
 `listViews(path)` and `mount(element, source)`. A source is `{ kind: "file", path }`
@@ -648,6 +651,13 @@ this with direct filesystem writes simply because its context path changed.
 A formatter registers through `capabilities.formatters`; it receives text/path/
 signal and returns text. The host checks version/context before applying an
 undoable edit. Formatters do not receive a document write handle.
+
+On Android and iOS, a document file View binds to one ordinary UTF-8 file of
+up to 2 MiB. Mutations require the View to declare `access: "write"`. The host
+keeps the working copy and its history for the current editor, offers Save,
+and asks before closing with unsaved changes. The native file write compares
+the persisted revision before replacing the bound file. This permission does
+not grant writes to other Space files.
 
 ## 9. Structured data and output
 

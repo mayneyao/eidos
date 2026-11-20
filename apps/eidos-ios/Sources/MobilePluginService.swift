@@ -339,6 +339,19 @@ final class MobilePluginService {
             return items
         case "stat": return (try? stat(path(p["path"]))) ?? NSNull() as Any
         case "readText": return try LocalSpace.readMarkdown(path(p["path"]))
+        case "saveDocument":
+            let url = try path(p["path"])
+            guard url.pathExtension.lowercased() != "eidos", let text = p["text"] as? String,
+                  text.utf8.count <= 2*1024*1024, let digest = p["expectedDigest"] as? String else {
+                throw LocalError.message(tr("无效文本写入"))
+            }
+            return try LocalSpace.io.sync {
+                do {
+                    var result = try LocalSpace.saveMarkdown(url, text:text, expectedDigest:digest)
+                    result["status"] = "saved"
+                    return result
+                } catch LocalError.staleDocument { return ["status":"conflict"] }
+            }
         case "readBinary":
             let url = try path(p["path"])
             guard (try url.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? Int.max) <= 16*1024*1024 else { throw LocalError.message(tr("文件超过 16 MiB")) }

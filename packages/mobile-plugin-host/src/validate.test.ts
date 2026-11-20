@@ -28,6 +28,41 @@ const archive = {
 }
 
 describe("mobile package installation", () => {
+  it("accepts a writable document view with a desktop file template", () => {
+    const canvas = {
+      ...archive,
+      manifest: {
+        ...manifest,
+        workspace: { files: { read: true } },
+        views: [
+          {
+            ...manifest.views[0],
+            kind: "file",
+            capabilities: ["document"],
+            access: "write",
+          },
+        ],
+        placements: [
+          { location: "file/open", view: "main", extensions: [".canvas"] },
+        ],
+        fileTemplates: [
+          {
+            id: "blank",
+            title: "Blank",
+            extension: ".canvas",
+            view: "main",
+            content: '{"nodes":[],"edges":[]}',
+          },
+        ],
+      },
+    }
+    const result = validatePackage(JSON.stringify(canvas))
+    expect(result.views?.[0]).toMatchObject({
+      access: "write",
+      capabilities: ["document"],
+    })
+    expect(result.fileTemplates?.[0].extension).toBe(".canvas")
+  })
   it("validates format 3 and resolves display text without running guest code", () => {
     const localized = validatePackage(JSON.stringify(archive), "zh-CN")
     expect(localized.name).toBe("示例")

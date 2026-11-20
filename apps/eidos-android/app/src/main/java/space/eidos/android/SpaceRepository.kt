@@ -981,6 +981,16 @@ class SpaceRepository(
         Unit
     }
 
+    suspend fun pluginSaveDocument(path: String, text: String, expectedDigest: String): String? = io {
+        require(!path.endsWith(".eidos", ignoreCase = true)) { tr("请通过 Runtime 修改 Eidos 文件") }
+        require(local.resolve(path) == File(root.canonicalFile, path).normalize()) { tr("不支持隐藏路径或符号链接") }
+        try {
+            local.writeText(path, text, expectedDigest)
+        } catch (_: LocalFiles.TextConflict) {
+            null
+        }
+    }
+
     suspend fun pluginReadBinary(path: String): ByteArray = io {
         val file = local.resolve(path)
         require(file.isFile && visible(file)) { tr("文件暂时不可用") }

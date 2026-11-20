@@ -6,6 +6,94 @@ import zlib
 
 final class MobilePluginTests: XCTestCase {
     @MainActor
+    func testPublishedCanvasEditsAndReopensInWKWebView() async throws {
+        let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-t02-canvas-fixtures")
+        let archive = fixtures.appendingPathComponent("eidos.canvas-0.5.7.eidos-plugin")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: archive.path), "Provide the published Canvas 0.5.7 archive")
+        XCTAssertEqual(LocalSpace.digest(try Data(contentsOf: archive)), "18eccc992758156c3be6a1efb85d2c1b6e1556087432e13871a3320a149462c2")
+        let space = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let service = MobilePluginService(space: space)
+        let preferences = UserDefaults.standard
+        let previous = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
+        let prepared = try service.prepareImport(archive)
+        let revision = try XCTUnwrap(prepared["revision"] as? String)
+        let stored = service.directory.appendingPathComponent(revision + ".json")
+        let previousArchive = try? Data(contentsOf: stored)
+        defer {
+            for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey: key) }
+            for (key, value) in previous { preferences.set(value, forKey: key) }
+            if let previousArchive { try? previousArchive.write(to: stored) } else { try? FileManager.default.removeItem(at: stored) }
+            try? FileManager.default.removeItem(at: space.root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+        try service.reviewManifest(manifest, revision: revision)
+        _ = try service.handle("install", ["revision": revision])
+        let file = space.root.appendingPathComponent("Canvas.canvas")
+        let fixture = #"{"nodes":[{"id":"a","type":"text","text":"Mobile canvas","x":0,"y":0,"width":260,"height":150},{"id":"b","type":"text","text":"Second card","x":340,"y":0,"width":260,"height":150}],"edges":[{"id":"edge","fromNode":"a","toNode":"b","label":"Connected"}]}"#
+        try Data(("\u{FEFF}" + fixture).utf8).write(to: file)
+        let view = try XCTUnwrap(service.fileViews(file).first)
+        XCTAssertEqual(view.id, "eidos.canvas:viewer")
+
+        let host = UIHostingController(rootView: MobilePluginView(space: space, dark: false, open: { _ in }, pluginId: view.plugin, viewId: view.view, filePath: file.lastPathComponent))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; window.rootViewController = nil }
+        func findWeb(_ view: UIView) -> WKWebView? {
+            if let web = view as? WKWebView { return web }
+            return view.subviews.compactMap(findWeb).first
+        }
+        host.view.layoutIfNeeded()
+        let web = try XCTUnwrap(findWeb(host.view))
+        let inspect = "window.canvasProof=null;addEventListener('message',e=>{if(e.data?.type==='canvas-test-proof')window.canvasProof=e.data;});"
+        let edit = #"""
+          const timer = setInterval(() => {
+            const card = document.querySelector('[data-node-id="a"]');
+            const edge = document.querySelector('[data-edge-id="edge"] .edge-line');
+            if (!card || !edge) return;
+            clearInterval(timer);
+            parent.postMessage({type:'canvas-test-proof', text:card.innerText, nodes:document.querySelectorAll('[data-node-id]').length, edges:document.querySelectorAll('.edge-line').length}, '*');
+            card.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));
+            const input = document.querySelector('.inline-draft textarea');
+            if (input) { input.value = 'Saved from iOS'; input.dispatchEvent(new FocusEvent('blur')); }
+          }, 100);
+        """#
+        web.configuration.userContentController.addUserScript(WKUserScript(source: inspect, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        web.configuration.userContentController.addUserScript(WKUserScript(source: edit, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        func waitFor(_ expression: String) async throws {
+            for _ in 0..<200 {
+                if (try? await web.evaluateJavaScript(expression)) as? Bool == true { return }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            let diagnostics = try? await web.evaluateJavaScript("JSON.stringify({text:document.body.innerText,proof:window.canvasProof})")
+            throw LocalError.message("Timed out: \(expression). Page: \(String(describing: diagnostics))")
+        }
+        web.reload()
+        try await waitFor("window.canvasProof?.nodes === 2 && window.canvasProof.edges === 1 && window.canvasProof.text.includes('Mobile canvas')")
+        try await waitFor("document.querySelector('.document-actions button')?.disabled === false")
+        _ = try await web.evaluateJavaScript("document.querySelector('.document-actions button').click()")
+        var bytes = try Data(contentsOf: file)
+        for _ in 0..<100 {
+            if String(decoding: bytes, as: UTF8.self).contains("Saved from iOS") { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+            bytes = try Data(contentsOf: file)
+        }
+        XCTAssertTrue(bytes.starts(with: [0xEF, 0xBB, 0xBF]))
+        XCTAssertTrue(String(decoding: bytes, as: UTF8.self).contains("Saved from iOS"))
+        web.reload()
+        try await waitFor("window.canvasProof?.nodes === 2 && window.canvasProof.edges === 1 && window.canvasProof.text.includes('Saved from iOS')")
+        let capture = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        })
+        capture.name = "Published Canvas saved and reopened on iOS"
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    @MainActor
     func testPublishedPackagesValidateAndInstallInSimulator() async throws {
         let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-mobile-plugin-fixtures")
         guard FileManager.default.fileExists(atPath: fixtures.appendingPathComponent("registry.json").path) else { throw XCTSkip("Download SHA-256 verified registry archives to EIDOS_PLUGIN_FIXTURES") }

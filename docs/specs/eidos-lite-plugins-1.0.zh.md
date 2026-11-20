@@ -242,6 +242,8 @@ Lite API 3.2 支持可选的 `fileTemplates`，每项包含 `id、title、extens
 模板必须引用具有 document 能力、且 file/open 扩展名匹配的 file View。
 内容为最多 256 KiB 的静态 UTF-8 文本，`.eidos` 为保留扩展名。
 宿主只展示已启用插件的模板，由用户选择名称和目录，以不覆盖方式创建并打开声明的 View；创建时不执行插件代码。
+Android 和 iOS 接受插件包中有效的模板声明，并通过关联的 `file/open` 入口打开已有文件。
+从模板创建文件由 Lite 提供。
 
 具有 Space 文件读取权限的 file View 可获得 `ui.resources.listViews(path)` 和
 `ui.resources.mount(element, source)`。source 为 `{ kind: "file", path }` 或
@@ -434,6 +436,11 @@ save 返回 saved/conflict 与快照。过期修改不能覆盖新内容，磁�
 宿主拥有共享撤销和可恢复草稿。不能因上下文路径变化就用直接文件写入替代。
 Formatter 通过 capabilities.formatters 注册，接收 text/path/signal 并返回 text；
 宿主检查版本／上下文后应用可撤销编辑，不给 formatter 文档写句柄。
+
+Android 和 iOS 上的 document 文件 View 绑定一个不超过 2 MiB 的普通 UTF-8 文件。
+修改需在 View 声明 `access: "write"`。宿主在当前编辑器内保留工作副本和编辑历史，
+提供保存按钮，并在有未保存修改时确认是否关闭。原生写入先比较磁盘版本，再替换绑定文件。
+此权限不授予对 Space 中其他文件的写入权限。
 
 ## 9. 结构化数据与输出
 

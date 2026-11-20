@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto"
 import type {
   TextDocument,
   TextSnapshot,
@@ -6,6 +5,8 @@ import type {
 } from "./contracts"
 import { PluginError, TEXT_LIMIT } from "./errors"
 import type { Scope } from "./lifecycle"
+
+const utf8 = new TextEncoder()
 
 export interface DiskSnapshot {
   text: string
@@ -41,7 +42,7 @@ export class WorkingCopy {
   persistedRevision(): string {
     return this.disk.revision
   }
-  private version = randomUUID()
+  private version = crypto.randomUUID()
   private text: string
   private conflicted = false
   private readonly observers = new Set<Observer>()
@@ -60,10 +61,10 @@ export class WorkingCopy {
   }
   private encodedSize(text: string, format = this.disk): number {
     return (
-      Buffer.byteLength(
-        text,
-        format.encoding === "utf-8" ? "utf8" : "utf16le"
-      ) + (format.bom ? (format.encoding === "utf-8" ? 3 : 2) : 0)
+      (format.encoding === "utf-8"
+        ? utf8.encode(text).length
+        : text.length * 2) +
+      (format.bom ? (format.encoding === "utf-8" ? 3 : 2) : 0)
     )
   }
   private checkSize(text: string, format = this.disk) {
@@ -120,7 +121,7 @@ export class WorkingCopy {
   private change(text: string) {
     if (text !== this.text) {
       this.text = text
-      this.version = randomUUID()
+      this.version = crypto.randomUUID()
     }
     this.publish()
   }
@@ -141,7 +142,7 @@ export class WorkingCopy {
     }
   }
   bind(scope: Scope, access: "read" | "write"): TextDocument {
-    const owner = randomUUID()
+    const owner = crypto.randomUUID()
     const requireWrite = () => {
       scope.assertActive()
       if (access !== "write")

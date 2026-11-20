@@ -172,6 +172,13 @@ internal class MobilePluginService(
                 repository.pluginWriteText(p.getString("path"), p.getString("text"))
                 null
             }
+            "saveDocument" -> {
+                val digest = repository.pluginSaveDocument(
+                    p.getString("path"), p.getString("text"), p.getString("expectedDigest"),
+                )
+                if (digest == null) JSONObject().put("status", "conflict")
+                else JSONObject().put("status", "saved").put("digest", digest)
+            }
             "runtime" ->
                 repository.embeddedRuntime(
                     p.getString("path"),

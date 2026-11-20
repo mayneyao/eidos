@@ -7,9 +7,17 @@ import { extensionHtml } from "../../plugin-runtime/src/extension-sandbox"
 import { parseRequest, type PluginRequest } from "../../plugin-runtime/src/rpc"
 import { validateSetting } from "../../plugin-runtime/src/manifest"
 import { pluginLanguageData } from "../../plugin-runtime/src/i18n"
+import { PluginError } from "../../plugin-runtime/src/errors"
+import { Scope } from "../../plugin-runtime/src/lifecycle"
+import {
+  WorkingCopy,
+  type DiskSnapshot,
+} from "../../plugin-runtime/src/working-copy"
 import { getMobileLocaleTag } from "./locale"
 import type {
   PluginManifest,
+  TextDocument,
+  TextSnapshot,
   ViewDeclaration,
 } from "../../plugin-runtime/src/contracts"
 import { fileViewRequest } from "../../eidos-file-ui/src/plugin-file-request"
@@ -58,11 +66,33 @@ export function spacePath(value: unknown, folder = false): string {
   return path
 }
 
+export function joinAbortSignals(signals: Iterable<AbortSignal>): AbortSignal {
+  const sources = [...signals]
+  if (sources.some((signal) => !(signal instanceof AbortSignal)))
+    throw new TypeError("Expected AbortSignal instances")
+  const controller = new AbortController()
+  const aborted = sources.find((signal) => signal.aborted)
+  if (aborted) controller.abort(aborted.reason)
+  else {
+    for (const source of sources)
+      source.addEventListener("abort", () => controller.abort(source.reason), {
+        once: true,
+        signal: controller.signal,
+      })
+  }
+  return controller.signal
+}
+
 /** Guest code has an opaque origin and only receives this instance's RPC authority. */
 export class MobilePluginInstance {
   private disposed = false
   private pending = 0
   private observers = new Map<string, ReturnType<typeof setInterval>>()
+  private documentObservers = new Map<string, Scope>()
+  private readonly documentScope = new Scope()
+  private documentCopy?: Promise<{ copy: WorkingCopy; document: TextDocument }>
+  private documentPoll?: ReturnType<typeof setInterval>
+  private documentDirty = false
   private run: {
     id: string
     action: string
@@ -95,6 +125,7 @@ export class MobilePluginInstance {
       confirm(message: string): Promise<boolean>
       openRecord?(id: string): Promise<void>
       canMutate?(): boolean
+      documentChanged?(snapshot: TextSnapshot): void
     }
   ) {
     this.manifest = program.manifest
@@ -166,8 +197,10 @@ export class MobilePluginInstance {
       ""
     )
     const diagnostics = `<script>addEventListener('error',e=>parent.postMessage({protocol:'eidos-mobile-diagnostic',message:e.message},'*'));addEventListener('unhandledrejection',e=>parent.postMessage({protocol:'eidos-mobile-diagnostic',message:String(e.reason)},'*'));</script>`
+    // Older Android system WebViews lack this DOM API already used by installed plugins.
+    const compatibility = `<script>if (!AbortSignal.any) Object.defineProperty(AbortSignal, 'any', {configurable:true,writable:true,value:(${joinAbortSignals.toString()})});</script>`
     this.frame.srcdoc = html
-      .replace("</head>", diagnostics + "</head>")
+      .replace("</head>", diagnostics + compatibility + "</head>")
       .replace(
         "<head>",
         '<head><meta http-equiv="Content-Security-Policy" content="' +
@@ -230,7 +263,8 @@ export class MobilePluginInstance {
         (result) => ({ result: result ?? null }),
         (error) => ({
           error: {
-            code: "PERMISSION_DENIED",
+            code:
+              error instanceof PluginError ? error.code : "PERMISSION_DENIED",
             message: error instanceof Error ? error.message : String(error),
           },
         })
@@ -249,13 +283,109 @@ export class MobilePluginInstance {
           )
       })
   }
-  private async textSnapshot() {
-    if (!this.options.path) throw new Error("没有绑定文件")
-    const value = await this.native<{ text: string; digest: string }>(
-      "readText",
-      { path: this.options.path }
-    )
-    return { text: value.text, revision: value.digest, dirty: false }
+  private get documentPath() {
+    const { path, view } = this.options
+    return path &&
+      view?.kind === "file" &&
+      view.capabilities?.includes("document") &&
+      !/\.eidos$/i.test(path)
+      ? path
+      : undefined
+  }
+  get hasUnsavedDocument() {
+    return this.documentDirty
+  }
+  private updateDocument(copy: WorkingCopy) {
+    const snapshot = copy.snapshot()
+    this.documentDirty = snapshot.dirty
+    if (!this.disposed) this.options.documentChanged?.(snapshot)
+  }
+  private openDocument() {
+    this.documentScope.assertActive()
+    const path = this.documentPath
+    if (!path) throw new Error("没有文档权限")
+    if (this.documentCopy) return this.documentCopy
+    const read = async (): Promise<DiskSnapshot> => {
+      const value = await this.native<{
+        text: string
+        digest: string
+        bom?: boolean
+      }>("readText", { path })
+      const prefixed = value.text.startsWith("\uFEFF")
+      return {
+        text:
+          value.bom === undefined && prefixed
+            ? value.text.slice(1)
+            : value.text,
+        revision: value.digest,
+        encoding: "utf-8",
+        bom: value.bom ?? prefixed,
+      }
+    }
+    this.documentCopy = read()
+      .then((initial) => {
+        this.documentScope.assertActive()
+        const copy: WorkingCopy = new WorkingCopy(initial, {
+          read,
+          write: async (text, expectedRevision) => {
+            const { bom } = copy.snapshot()
+            const result = await this.native<
+              { status: "saved"; digest: string } | { status: "conflict" }
+            >("saveDocument", {
+              path,
+              text: bom ? "\uFEFF" + text : text,
+              expectedDigest: expectedRevision,
+            })
+            return result.status === "saved"
+              ? {
+                  status: "saved",
+                  snapshot: {
+                    text,
+                    revision: result.digest,
+                    encoding: "utf-8",
+                    bom,
+                  },
+                }
+              : result
+          },
+        })
+        let refreshing = false
+        this.documentPoll = setInterval(() => {
+          if (refreshing) return
+          refreshing = true
+          void copy
+            .refresh()
+            .then(
+              () => this.updateDocument(copy),
+              () => {}
+            )
+            .finally(() => {
+              refreshing = false
+            })
+        }, 1500)
+        return {
+          copy,
+          document: copy.bind(
+            this.documentScope,
+            this.options.view?.access ?? "read"
+          ),
+        }
+      })
+      .catch((error) => {
+        this.documentCopy = undefined
+        throw error
+      })
+    return this.documentCopy
+  }
+  async saveDocument() {
+    const { copy, document } = await this.openDocument()
+    if (this.options.canMutate?.() === false)
+      throw new Error("此插件入口为只读")
+    try {
+      return await document.save()
+    } finally {
+      this.updateDocument(copy)
+    }
   }
   private async handle(request: PluginRequest): Promise<unknown> {
     const method = request.method
@@ -308,6 +438,13 @@ export class MobilePluginInstance {
     }
     const capabilities = this.options.view?.capabilities ?? []
     const table = this.options.table
+    const workspaceFiles = this.manifest.workspace?.files
+    const workspaceRead =
+      workspaceFiles === true ||
+      (workspaceFiles && workspaceFiles.read !== false)
+    const workspaceWrite =
+      workspaceFiles === true ||
+      (workspaceFiles && workspaceFiles.write === true)
     if (method === "ui.notify") {
       this.options.notify(String(p.message).slice(0, 1000))
       return null
@@ -329,7 +466,7 @@ export class MobilePluginInstance {
       if (p.target !== undefined && p.target !== "main")
         throw new Error("此宿主仅支持在主区域打开文件")
       const path = spacePath(p.relativePath)
-      if (!this.manifest.workspace?.files && path !== this.options.path)
+      if (!workspaceRead && path !== this.options.path)
         throw new Error("未授权访问其他文件")
       await this.options.openFile(path)
       return null
@@ -371,37 +508,40 @@ export class MobilePluginInstance {
       )
     }
     if (method.startsWith("document.")) {
-      if (!capabilities.includes("document") || !this.options.path)
-        throw new Error("没有文档权限")
-      if (method === "document.read") return this.textSnapshot()
+      const { copy, document } = await this.openDocument()
+      if (method === "document.read") return document.read()
       if (method === "document.observe") {
         const id = String(p.id)
-        if (this.observers.size >= 16 || this.observers.has(id))
-          throw new Error("订阅过多")
-        let previous = ""
-        this.observers.set(
-          id,
-          setInterval(
-            () =>
-              void this.textSnapshot()
-                .then((value) => {
-                  if (value.revision !== previous) {
-                    previous = value.revision
-                    this.send(id, value)
-                  }
-                })
-                .catch(() => {}),
-            1500
-          )
+        if (
+          this.observers.size + this.documentObservers.size >= 16 ||
+          this.documentObservers.has(id)
         )
-        return this.textSnapshot()
+          throw new Error("订阅过多")
+        const scope = new Scope()
+        this.documentObservers.set(id, scope)
+        const { snapshot } = await copy
+          .bind(scope, "read")
+          .observe((value) => this.send(id, value))
+        return snapshot
       }
       if (method === "document.unobserve") {
-        clearInterval(this.observers.get(String(p.id)))
-        this.observers.delete(String(p.id))
+        this.documentObservers.get(String(p.id))?.dispose()
+        this.documentObservers.delete(String(p.id))
         return null
       }
-      throw new Error("移动端插件文档当前只读")
+      requireWrite()
+      if (method === "document.save") return this.saveDocument()
+      try {
+        if (method === "document.edit")
+          return await document.edit(
+            p as unknown as Parameters<TextDocument["edit"]>[0]
+          )
+        if (method === "document.undo") return await document.undo()
+        if (method === "document.redo") return await document.redo()
+      } finally {
+        this.updateDocument(copy)
+      }
+      throw new Error("不支持的文档操作")
     }
     if (method.startsWith("fs.")) {
       if (method === "fs.unwatch") {
@@ -413,18 +553,16 @@ export class MobilePluginInstance {
         p.path ?? "",
         method === "fs.list" || method === "fs.watch"
       )
-      if (!this.manifest.workspace?.files) {
-        if (
-          !this.options.path ||
-          ![this.options.path, this.options.path.split("/").pop()].includes(
-            path
-          )
-        )
-          throw new Error("未授权访问其他文件")
-      }
-      const boundPath = this.manifest.workspace?.files
-        ? path
-        : this.options.path!
+      const bound =
+        this.options.path &&
+        [this.options.path, this.options.path.split("/").pop()].includes(path)
+      if (
+        !workspaceRead &&
+        !bound &&
+        !(method === "fs.writeText" && workspaceWrite)
+      )
+        throw new Error("未授权访问其他文件")
+      const boundPath = !workspaceRead && bound ? this.options.path! : path
       if (method === "fs.readText")
         return (
           await this.native<{ text: string }>("readText", { path: boundPath })
@@ -453,13 +591,23 @@ export class MobilePluginInstance {
       if (method === "fs.stat") return this.native("stat", { path: boundPath })
       if (method === "fs.writeText") {
         requireWrite()
+        if (!workspaceWrite && boundPath !== this.options.path)
+          throw new Error("未授权写入其他文件")
+        if (boundPath === this.documentPath)
+          throw new PluginError(
+            "BUSY",
+            "File has a host working copy; use document editing and save"
+          )
         if (/\.eidos$/i.test(boundPath))
           throw new Error("Eidos 文件必须通过 Runtime 修改")
         return this.native("writeText", { path: boundPath, text: p.content })
       }
       if (method === "fs.watch") {
         const id = String(p.id)
-        if (this.observers.size >= 16 || this.observers.has(id))
+        if (
+          this.observers.size + this.documentObservers.size >= 16 ||
+          this.observers.has(id)
+        )
           throw new Error("订阅过多")
         let previous = ""
         this.observers.set(
@@ -693,6 +841,10 @@ export class MobilePluginInstance {
   }
   dispose() {
     this.disposed = true
+    clearInterval(this.documentPoll)
+    this.documentScope.dispose()
+    for (const scope of this.documentObservers.values()) scope.dispose()
+    this.documentObservers.clear()
     this.run?.session?.dispose()
     if (this.actionResult) {
       clearTimeout(this.actionResult.timer)

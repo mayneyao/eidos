@@ -50,8 +50,8 @@ export const pages = [
     "document",
     ["TextDocument"],
     "files",
-    "Available to document file Views and document actions. Declare document; writes require access: write. observe returns the initial snapshot and a subscription. edit changes the working copy and returns stale on a version mismatch; save returns conflict on a disk conflict. Neither result is an exception. Preserve drafts and serialize edits.",
-    "提供给 document 文件 View 和文档命令。声明 document，写入还需 access: write。observe 返回初始快照与订阅。edit 修改工作副本，版本不匹配返回 stale；save 遇到磁盘冲突返回 conflict。这两种结果不是异常。应保留草稿并串行编辑。",
+    "Declare document on file Views and access: write for editing. Lite also supports document actions. On Android and iOS, file Views bind to UTF-8 text files up to 2 MiB. The mobile host provides a Save button for writable Views and keeps the draft while the editor is open. observe returns the initial snapshot and a subscription. edit returns stale on a version mismatch and save returns conflict when the disk version changes. Preserve drafts and serialize edits.",
+    "文件 View 需声明 document，可写 View 还需声明 access: write。Lite 也支持文档命令。Android 和 iOS 可绑定不超过 2 MiB 的 UTF-8 文本文件，为可写 View 提供保存按钮，并在编辑器打开期间保留草稿。observe 返回初始快照与订阅。edit 遇到版本不匹配时返回 stale，save 遇到磁盘版本变化时返回 conflict。应保留草稿并串行编辑。",
   ],
   [
     "fs",

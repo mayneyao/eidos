@@ -9,7 +9,6 @@ struct FileRouteMenu: View {
     let renamed: (URL) -> Void
     let removed: () -> Void
     let refresh: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var favorite = false
     @State private var views: [PluginNavigationPage] = []
     @State private var plugin: PluginNavigationPage?
@@ -66,12 +65,9 @@ struct FileRouteMenu: View {
             if let export { ShareFileView(url: export) }
         }
         .fullScreenCover(item: $plugin, onDismiss: refresh) { view in
-            NavigationStack {
-                MobilePluginView(space: space, dark: colorScheme == .dark, open: { url in plugin = nil; renamed(url) },
-                    pluginId: view.plugin, viewId: view.view, filePath: FileActivity.path(file, space: space))
-                .navigationTitle(file.lastPathComponent).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("返回")) { plugin = nil } } }
-            }
+            MobilePluginCover(space: space, title: file.lastPathComponent, plugin: view.plugin,
+                view: view.view, filePath: FileActivity.path(file, space: space),
+                open: { url in plugin = nil; renamed(url) }, close: { plugin = nil })
         }
     }
 
