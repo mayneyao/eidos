@@ -1869,6 +1869,13 @@ export class EidosFileRuntime {
 
   /** @internal Whether this session must preserve opaque definitions read-only. */
   hasUnsupportedDerivedFields(): boolean {
+    if (
+      !this.connection.get(
+        `SELECT 1 FROM ${EIDOS_FILE_FORMULA_FIELDS_TABLE} LIMIT 1`
+      )
+    ) {
+      return false
+    }
     return Array.from(this.allSchema().fields.values()).some(
       (field) => field.valueStatus === "unsupported-formula"
     )
@@ -1990,6 +1997,12 @@ export class EidosFileRuntime {
           throw new EidosFileError(
             "stale-revision",
             `Expected revision ${expectedRevision}, found ${revision}`
+          )
+        }
+        if (this.hasUnsupportedDerivedFields()) {
+          throw new EidosFileError(
+            "unsupported-feature",
+            "This file requires a newer Eidos version and is available read-only"
           )
         }
         const totalChangesBefore =

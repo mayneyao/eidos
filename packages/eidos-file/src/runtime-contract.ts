@@ -91,6 +91,8 @@ export interface RuntimeBinding {
 }
 
 export interface RuntimeHostBridge {
+  /** @internal A native host calls this while holding its write transaction. */
+  assertAssetWritable?(): void
   /** @internal Same-session host reads; callbacks must complete synchronously. */
   queuedRead?<T>(
     operation: (() => T) &

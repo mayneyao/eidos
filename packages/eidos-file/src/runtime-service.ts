@@ -334,10 +334,12 @@ function createRuntimeBinding(
   })
   const writable =
     mode === "readwrite" &&
-    !connection.transaction("read", () => core.hasUnsupportedDerivedFields())
-  if (writable) {
-    connection.transaction("write", () => core.optimizeViewQueries())
-  }
+    !connection.transaction("read", () => core.hasUnsupportedDerivedFields()) &&
+    connection.transaction("write", () => {
+      if (core.hasUnsupportedDerivedFields()) return false
+      core.optimizeViewQueries()
+      return true
+    })
   const service = new EidosRuntimeService(
     connection,
     core,
@@ -410,6 +412,15 @@ export class EidosRuntimeService implements RuntimeClient {
       )
     }
     this.hostBridge = {
+      assertAssetWritable: () => {
+        this.assertWritable("uploadAsset")
+        if (this.core.hasUnsupportedDerivedFields()) {
+          throw runtimeError(
+            "unsupported",
+            "This file requires a newer Eidos version and is available read-only"
+          )
+        }
+      },
       queuedRead: (operation, context) =>
         this.invoke(
           context,

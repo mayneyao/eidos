@@ -1505,12 +1505,10 @@ fn native_cli_writers_preserve_files_with_an_unavailable_formula() {
 
     let schema = [
         "schema",
-        "table",
+        "apply",
         &file,
-        "update",
-        "Tasks",
-        "--name",
-        "Renamed",
+        "--op",
+        r#"{"kind":"rename-table","table":"Tasks","name":"Renamed"}"#,
         "--expected-revision",
         "5",
     ];
@@ -1559,6 +1557,10 @@ fn native_cli_writers_preserve_files_with_an_unavailable_formula() {
         let error: Value = serde_json::from_slice(&output.stderr).unwrap();
         assert_eq!(
             error["error"]["code"], "unsupported",
+            "{command:?}: {error}"
+        );
+        assert_eq!(
+            error["error"]["currentRevision"], "5",
             "{command:?}: {error}"
         );
         assert_eq!(fs::read(&file).unwrap(), original, "{command:?}");

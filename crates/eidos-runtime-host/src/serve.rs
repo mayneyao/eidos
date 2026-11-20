@@ -20,10 +20,11 @@ use base64::{
 };
 use chrono::{SecondsFormat, Utc};
 use rand::RngCore;
+use rusqlite::{Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
 use crate::relay::{RelayBrowserAccess, RelayConfig, RelayConnector};
-use crate::{open_host_state, open_host_state_read_only, QjsHost, ACTIVE_CTX};
+use crate::{open_host_state, open_host_state_read_only, HostState, QjsHost, ACTIVE_CTX};
 
 // Runtime calls can carry a base64-encoded CSV. Keep the HTTP boundary
 // bounded while still allowing the runtime's 256 MiB file/export ceiling plus
@@ -1291,6 +1292,7 @@ fn upload_asset_response(
     request: &mut tiny_http::Request,
     request_url: &str,
     mount: &AssetMount,
+    state: &HostState,
     host: &QjsHost,
 ) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
     let result = (|| -> Result<AssetEntry, (u16, String)> {
@@ -1312,6 +1314,21 @@ fn upload_asset_response(
             .root
             .as_ref()
             .ok_or_else(|| (404, "no assets folder is mounted".to_string()))?;
+        // A native writer cannot replace the Formula schema between this
+        // compatibility check and persisting the uploaded asset.
+        let _write_guard = Transaction::new_unchecked(&state.conn, TransactionBehavior::Immediate)
+            .map_err(|error| (409, format!("reserve file for asset upload: {error}")))?;
+        let check = host
+            .invoke("assertAssetWritable", &[])
+            .map_err(|error| (500, error.to_string()))?;
+        let envelope: serde_json::Value = serde_json::from_str(&check)
+            .map_err(|error| (500, format!("decode asset writability: {error}")))?;
+        if envelope["ok"].as_bool() != Some(true) {
+            let message = envelope["error"]["message"]
+                .as_str()
+                .unwrap_or("Asset uploads are unavailable read-only");
+            return Err((403, message.to_string()));
+        }
         let (name, path, mut file) = create_asset_file(root, &requested_name)?;
         let write_result = (|| -> Result<u64, (u16, String)> {
             let mut reader = request.as_reader().take(ASSET_BYTES_MAX + 1);
@@ -2098,7 +2115,7 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
             let response = if publish {
                 error_response(403, "asset uploads are unavailable in Publish mode")
             } else if assets_mounted {
-                upload_asset_response(&mut request, &request_url, &assets, &host)
+                upload_asset_response(&mut request, &request_url, &assets, &state, &host)
             } else {
                 error_response(404, "no assets folder is mounted")
             };
