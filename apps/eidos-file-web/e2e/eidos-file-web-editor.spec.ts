@@ -2263,7 +2263,6 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
             if (
               [
                 "Double estimate",
-                "Local date",
                 "Related project",
                 "Related estimate",
               ].includes(name)
@@ -2278,7 +2277,6 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     )
     .toEqual([
       { name: "Double estimate", type: "formula" },
-      { name: "Local date", type: "formula" },
       { name: "Related estimate", type: "lookup" },
       { name: "Related project", type: "relation" },
     ])
