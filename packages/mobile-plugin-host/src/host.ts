@@ -564,9 +564,11 @@ export class MobilePluginInstance {
         throw new Error("未授权访问其他文件")
       const boundPath = !workspaceRead && bound ? this.options.path! : path
       if (method === "fs.readText")
-        return (
-          await this.native<{ text: string }>("readText", { path: boundPath })
-        ).text
+        return {
+          text: (
+            await this.native<{ text: string }>("readText", { path: boundPath })
+          ).text,
+        }
       if (method === "fs.readBinary")
         return {
           data: await this.native<string>("readBinary", { path: boundPath }),

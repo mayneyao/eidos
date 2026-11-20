@@ -23,9 +23,11 @@ it("combines guest abort signals on WebViews without AbortSignal.any", () => {
   expect(joinAbortSignals([]).aborted).toBe(false)
 })
 
-it("returns binary data in the shared guest RPC envelope", async () => {
-  const data = btoa("<?xml version='1.0'?><gpx/>")
-  const native: NativeRequest = async <T>() => data as T
+it("returns file text and binary data in the shared guest RPC envelopes", async () => {
+  const text = "<?xml version='1.0'?><gpx/>"
+  const data = btoa(text)
+  const native: NativeRequest = async <T>(method: string) =>
+    (method === "readText" ? { text, digest: "gpx" } : data) as T
   Object.defineProperty(HTMLIFrameElement.prototype, "sandbox", {
     configurable: true,
     value: { add: vi.fn() },
@@ -59,21 +61,23 @@ it("returns binary data in the shared guest RPC envelope", async () => {
   document.body.append(instance.frame)
   try {
     const send = vi.spyOn(instance.frame.contentWindow!, "postMessage")
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        source: instance.frame.contentWindow,
-        data: {
-          protocol: "eidos-plugin",
-          apiVersion: 1,
-          id: "binary",
-          method: "fs.readBinary",
-          params: { path: "test.gpx" },
-        },
-      })
+    for (const method of ["fs.readBinary", "fs.readText"])
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: instance.frame.contentWindow,
+          data: {
+            protocol: "eidos-plugin",
+            apiVersion: 1,
+            id: method,
+            method,
+            params: { path: "test.gpx" },
+          },
+        })
+      )
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+    expect(send.mock.calls.map(([response]) => response.result)).toEqual(
+      expect.arrayContaining([{ data }, { text }])
     )
-    await vi.waitFor(() => expect(send).toHaveBeenCalled())
-    const response = send.mock.calls[0][0] as { result: { data: string } }
-    expect(atob(response.result.data)).toBe("<?xml version='1.0'?><gpx/>")
   } finally {
     instance.dispose()
     instance.frame.remove()
