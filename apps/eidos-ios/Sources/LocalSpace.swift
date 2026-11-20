@@ -182,6 +182,8 @@ final class LocalSpace {
     static func importEditorFiles(document: URL, sources: [URL]) throws -> [Any] {
         guard sources.count <= 100 else { throw LocalError.message(tr("请选择最多 100 个文件")) }
         if sources.isEmpty { return [] }
+        let isDatabase = document.pathExtension.lowercased() == "eidos"
+        if isDatabase { _ = try Runtime.call(document, "assertAssetWritable") }
         let local = try LocalSpace(root:document.deletingLastPathComponent())
         let assets = try local.checked(local.root.appendingPathComponent("assets"))
         try FileManager.default.createDirectory(at:assets,withIntermediateDirectories:true)
@@ -198,7 +200,7 @@ final class LocalSpace {
                 let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn:"-._~"))
                 let uri = ["assets",batch.lastPathComponent,copied.lastPathComponent].map { $0.addingPercentEncoding(withAllowedCharacters:allowed)! }.joined(separator:"/")
                 let entry: [String:Any] = ["name":copied.lastPathComponent,"size":String(size),"mediaType":UTType(filenameExtension:copied.pathExtension)?.preferredMIMEType ?? "application/octet-stream","uri":uri]
-                entries.append(document.pathExtension.lowercased() == "eidos" ? try Runtime.call(document,"allocateFileEntry",entry) : entry)
+                entries.append(isDatabase ? try Runtime.call(document,"allocateFileEntry",entry) : entry)
             }
             return entries
         } catch { try? FileManager.default.removeItem(at:batch); throw error }

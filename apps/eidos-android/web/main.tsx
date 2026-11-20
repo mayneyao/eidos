@@ -46,7 +46,7 @@ import {
   RecordContentProvider,
   getMobileMarkdownOptions,
 } from "@eidos.space/eidos-file-serve/record-content"
-import { MarkdownEditor } from "@eidos.space/markdown"
+import { MarkdownEditor, type MarkdownEditorProps } from "@eidos.space/markdown"
 import { useMobilePlugins } from "@eidos.space/eidos-file-ui/mobile-plugins"
 import { eidosPreset } from "@eidos.space/markdown/presets"
 import {
@@ -72,6 +72,13 @@ type Document = {
 }
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
+const readOnlyLabels = {
+  en: "Read only",
+  zh: "只读",
+  "pt-BR": "Somente leitura",
+  ja: "読み取り専用",
+  ko: "읽기 전용",
+}
 const viewPlugins = [
   eidosFileGalleryPlugin,
   eidosFileKanbanPlugin,
@@ -270,6 +277,18 @@ function Database({
   const [error, setError] = useState("")
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false)
+  const readOnly = source.readOnly
+  const importRecordContentFiles: MarkdownEditorProps["onImportFiles"] =
+    readOnly
+      ? undefined
+      : async ({ kind }) => {
+          const files = await importFiles({ imagesOnly: kind === "image" })
+          return files.map((file) => ({
+            markdownUrl: file.uri,
+            name: file.name,
+            mediaType: file.mediaType,
+          }))
+        }
   const recordRoute = useMobileRecordRoute(
     filePath,
     (active) => request("editor.recordPage", { active }),
@@ -312,7 +331,8 @@ function Database({
     : snapshot.tables[0]
   const createdInitial = useRef(false)
   useEffect(() => {
-    if (!navigation.addRecord || !table || createdInitial.current) return
+    if (readOnly || !navigation.addRecord || !table || createdInitial.current)
+      return
     createdInitial.current = true
     setBusy(true)
     void source
@@ -324,7 +344,7 @@ function Database({
       })
       .catch((error) => setError(errorText(error)))
       .finally(() => setBusy(false))
-  }, [navigation.addRecord, table?.table.id])
+  }, [navigation.addRecord, readOnly, table?.table.id])
   const recordTable = snapshot.tables.find(
     (item) => item.table.id === recordRoute.route?.tableId
   )
@@ -381,14 +401,7 @@ function Database({
           onDismissKeyboard={() => {
             void request("keyboard.hide").catch(() => {})
           }}
-          onImportFiles={async ({ kind }) => {
-            const files = await importFiles({ imagesOnly: kind === "image" })
-            return files.map((file) => ({
-              markdownUrl: file.uri,
-              name: file.name,
-              mediaType: file.mediaType,
-            }))
-          }}
+          onImportFiles={importRecordContentFiles}
         >
           <MobileRecordPage>
             <EidosFileCalendarViewProvider
@@ -400,7 +413,8 @@ function Database({
               ) : recordTable ? (
                 <EidosFileRelatedRecordPanel
                   onSnapshot={setSnapshot}
-                  onImportFiles={importFiles}
+                  disabled={readOnly}
+                  onImportFiles={readOnly ? undefined : importFiles}
                   source={source}
                   table={recordTable}
                   view={view}
@@ -429,32 +443,39 @@ function Database({
           </MobileRecordPage>
         </RecordContentProvider>
       )}
-      <MobileTableSettings
-        key={table?.table.id ?? "empty"}
-        source={source}
-        table={table}
-        onSnapshot={setSnapshot}
-        onSelect={(id) => {
-          setTable(id)
-          setViewId("")
-          setSearch("")
-          setRecord(null)
-        }}
-      />
+      {!readOnly && (
+        <MobileTableSettings
+          key={table?.table.id ?? "empty"}
+          source={source}
+          table={table}
+          onSnapshot={setSnapshot}
+          onSelect={(id) => {
+            setTable(id)
+            setViewId("")
+            setSearch("")
+            setRecord(null)
+          }}
+        />
+      )}
       <div className="view-tools">
         <MobileTableSwitcher
           tables={snapshot.tables.map(({ table }) => table)}
           activeId={table?.table.id}
           disabled={busy}
-          onReorder={async (ids) => {
-            setTable(table?.table.id ?? "")
-            setBusy(true)
-            try {
-              setSnapshot(await source.reorderTables(ids))
-            } finally {
-              setBusy(false)
-            }
-          }}
+          readOnly={readOnly}
+          onReorder={
+            readOnly
+              ? undefined
+              : async (ids) => {
+                  setTable(table?.table.id ?? "")
+                  setBusy(true)
+                  try {
+                    setSnapshot(await source.reorderTables(ids))
+                  } finally {
+                    setBusy(false)
+                  }
+                }
+          }
         />
         {table && (
           <>
@@ -470,94 +491,114 @@ function Database({
               activeId={view?.id}
               disabled={busy}
               onSelect={setViewId}
-              onReorder={async (ids) => {
-                setViewId(view?.id ?? "")
-                setBusy(true)
-                try {
-                  setSnapshot(await source.reorderViews(table.table.id, ids))
-                } finally {
-                  setBusy(false)
-                }
-              }}
+              onReorder={
+                readOnly
+                  ? undefined
+                  : async (ids) => {
+                      setViewId(view?.id ?? "")
+                      setBusy(true)
+                      try {
+                        setSnapshot(
+                          await source.reorderViews(table.table.id, ids)
+                        )
+                      } finally {
+                        setBusy(false)
+                      }
+                    }
+              }
             >
-              <MobileNewViewButton
-                disabled={busy}
-                options={Object.entries(availableViewTypes).map(
-                  ([type, name]) => ({
-                    type,
-                    name,
-                    pluginName: type.startsWith("plugin:")
-                      ? viewRegistry.views[type]?.description
-                      : undefined,
-                    icon: viewRegistry.views[type]?.icon,
-                    disabled:
-                      viewRegistry.views[type]?.create?.isAvailable?.(
-                        table.fields
-                      ) === false,
-                  })
-                )}
-                onCreate={async (value) => {
-                  const type = value as keyof typeof viewTypes
+              {!readOnly && (
+                <MobileNewViewButton
+                  disabled={busy}
+                  options={Object.entries(availableViewTypes).map(
+                    ([type, name]) => ({
+                      type,
+                      name,
+                      pluginName: type.startsWith("plugin:")
+                        ? viewRegistry.views[type]?.description
+                        : undefined,
+                      icon: viewRegistry.views[type]?.icon,
+                      disabled:
+                        viewRegistry.views[type]?.create?.isAvailable?.(
+                          table.fields
+                        ) === false,
+                    })
+                  )}
+                  onCreate={async (value) => {
+                    const type = value as keyof typeof viewTypes
+                    setBusy(true)
+                    try {
+                      const created = await source.createView(table.table.id, {
+                        name: nextEidosFileViewName(
+                          availableViewTypes[type],
+                          table.views
+                        ),
+                        type,
+                        properties: viewRegistry.views[
+                          type
+                        ]?.create?.properties?.(table.fields),
+                      })
+                      setSnapshot(created)
+                      setViewId(
+                        created.tables
+                          .find((value) => value.table.id === table.table.id)
+                          ?.views.find(
+                            (value) =>
+                              !table.views.some((old) => old.id === value.id)
+                          )?.id ?? ""
+                      )
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                />
+              )}
+            </MobileViewSwitcher>
+            <MobileRecordSearch value={search} onChange={setSearch} />
+            {!readOnly && (
+              <MobileViewSettings
+                key={`view-settings:${table.table.id}`}
+                source={source}
+                table={table}
+                tables={snapshot.tables}
+                view={view}
+                plugin={view ? viewRegistry.views[view.type] : undefined}
+                onSnapshot={(next) => {
+                  setSnapshot(next)
+                  setReload((value) => value + 1)
+                }}
+              />
+            )}
+            {!readOnly && (
+              <MobileNewRecordButton
+                aria-label={mobileText("新记录")}
+                title={mobileText("新记录")}
+                disabled={!table || busy}
+                onClick={async () => {
+                  if (!table) return
                   setBusy(true)
                   try {
-                    const created = await source.createView(table.table.id, {
-                      name: nextEidosFileViewName(
-                        availableViewTypes[type],
-                        table.views
-                      ),
-                      type,
-                      properties: viewRegistry.views[
-                        type
-                      ]?.create?.properties?.(table.fields),
-                    })
-                    setSnapshot(created)
-                    setViewId(
-                      created.tables
-                        .find((value) => value.table.id === table.table.id)
-                        ?.views.find(
-                          (value) =>
-                            !table.views.some((old) => old.id === value.id)
-                        )?.id ?? ""
-                    )
+                    const result = await source.insertRow(table.table.id, {})
+                    setSnapshot(await source.getSnapshot())
+                    setRecord(String(result.row._id))
+                    setReload((value) => value + 1)
+                  } catch (error) {
+                    setError(errorText(error))
                   } finally {
                     setBusy(false)
                   }
                 }}
               />
-            </MobileViewSwitcher>
-            <MobileRecordSearch value={search} onChange={setSearch} />
-            <MobileViewSettings
-              key={`view-settings:${table.table.id}`}
-              source={source}
-              table={table}
-              tables={snapshot.tables}
-              view={view}
-              plugin={view ? viewRegistry.views[view.type] : undefined}
-              onSnapshot={(next) => {
-                setSnapshot(next)
-                setReload((value) => value + 1)
-              }}
-            />
-            <MobileNewRecordButton
-              aria-label={mobileText("新记录")}
-              title={mobileText("新记录")}
-              disabled={!table || busy}
-              onClick={async () => {
-                if (!table) return
-                setBusy(true)
-                try {
-                  const result = await source.insertRow(table.table.id, {})
-                  setSnapshot(await source.getSnapshot())
-                  setRecord(String(result.row._id))
-                  setReload((value) => value + 1)
-                } catch (error) {
-                  setError(errorText(error))
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            />
+            )}
           </>
+        )}
+        {readOnly && (
+          <span
+            className="shrink-0 px-2 text-xs text-muted-foreground"
+            role="status"
+          >
+            {readOnlyLabels[getMobileLocale()]}
+          </span>
         )}
       </div>
       {error && (
@@ -582,19 +623,10 @@ function Database({
             onDismissKeyboard={() => {
               void request("keyboard.hide").catch(() => {})
             }}
-            onImportFiles={async ({ kind }) => {
-              const files = await importFiles({
-                imagesOnly: kind === "image",
-              })
-              return files.map((file) => ({
-                markdownUrl: file.uri,
-                name: file.name,
-                mediaType: file.mediaType,
-              }))
-            }}
+            onImportFiles={importRecordContentFiles}
           >
             <BrowserEidosFileEditorView
-              onImportFiles={importFiles}
+              onImportFiles={readOnly ? undefined : importFiles}
               key={table.table.id}
               source={source}
               table={table}
@@ -605,27 +637,36 @@ function Database({
               recordPresentation="page"
               search={search}
               reloadToken={reload}
-              disabled={busy}
+              disabled={busy || readOnly}
+              state={readOnly ? { formMode: "preview" } : undefined}
               showRowMarkers={false}
               allowFrozenColumns={false}
               onError={(error) => setError(errorText(error))}
               onSnapshot={setSnapshot}
               onMutation={() => setReload((value) => value + 1)}
-              onDeleteRows={async (ranges, query) => {
-                const result = await source.deleteRowRanges(
-                  table.table.id,
-                  ranges,
-                  query
-                )
-                setSnapshot(await source.getSnapshot())
-                setReload((value) => value + 1)
-                return result
-              }}
-              onDeleteRow={async (row) => {
-                await source.deleteRows(table.table.id, [String(row._id)])
-                setSnapshot(await source.getSnapshot())
-                setReload((value) => value + 1)
-              }}
+              onDeleteRows={
+                readOnly
+                  ? undefined
+                  : async (ranges, query) => {
+                      const result = await source.deleteRowRanges(
+                        table.table.id,
+                        ranges,
+                        query
+                      )
+                      setSnapshot(await source.getSnapshot())
+                      setReload((value) => value + 1)
+                      return result
+                    }
+              }
+              onDeleteRow={
+                readOnly
+                  ? undefined
+                  : async (row) => {
+                      await source.deleteRows(table.table.id, [String(row._id)])
+                      setSnapshot(await source.getSnapshot())
+                      setReload((value) => value + 1)
+                    }
+              }
             />
           </RecordContentProvider>
         </div>
@@ -733,7 +774,7 @@ function App({
     >
       {document.kind === "markdown" ? (
         <Markdown document={document} request={request} session={session} />
-      ) : document.share && database ? (
+      ) : document.share && database && !database.source.readOnly ? (
         <ShareRecordEditor
           {...database}
           request={request}
