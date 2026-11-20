@@ -289,6 +289,9 @@ fn cli_batches_upserts_and_previews_preserve_checkbox_constraints_and_source_byt
     assert_eq!(preview["dryRun"], true);
     assert_eq!(preview["revision"], "2");
     assert_eq!(fs::read(&path).unwrap(), before);
+    let queried = success(&["data", "query", file, "--table", "Checks"]);
+    assert_eq!(queried["revision"], "1");
+    assert!(queried["rows"].as_array().unwrap().is_empty());
     let rows = success(&[
         "data",
         "mutate",
