@@ -10,13 +10,14 @@ use rand::RngCore;
 use reqwest::Url;
 use reqwest::blocking::{Client, RequestBuilder, Response};
 use reqwest::header::{AUTHORIZATION, HeaderValue};
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Transaction};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::cli::CollectArgs;
 use crate::error::{AppError, Result};
+use crate::runtime::begin_compatible_write;
 
 const COLLECT_FEATURE: &str = "x__eidos__publish_collect";
 const COLLECT_FEATURE_VERSION: &str = "1";
@@ -86,6 +87,12 @@ struct SubmissionAttachment {
     sha256: String,
 }
 
+struct PreparedAttachment {
+    relative: String,
+    sha256: String,
+    temporary: tempfile::NamedTempFile,
+}
+
 pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     validate_publication_id(&args.publication)?;
     let origin = publish_origin(&args.publish_origin)?;
@@ -111,7 +118,6 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     )
     .map_err(eidos_file_core::EidosError::from)?;
     configure_connection(&conn)?;
-    verify_local_schema(&conn, &metadata.definition)?;
     let attachment_root = canonical_attachment_root(
         args.attachment_root
             .as_deref()
@@ -125,6 +131,7 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     }
     let collector_id = supplied_collector_id.unwrap_or_else(|| random_collector_id("eidos-cli"));
     validate_collector_id(&collector_id)?;
+    check_collector_target(&mut conn, &args.file, &metadata.definition)?;
     let collector = match args.collector_generation {
         Some(collector_generation) => {
             progress(show_progress, "resuming the active Form Collector");
@@ -153,6 +160,7 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     let mut imported = 0_u64;
     let mut replayed = 0_u64;
     loop {
+        check_collector_target(&mut conn, &args.file, &metadata.definition)?;
         let page: LeasePage = send_json(
             client
                 .post(endpoint(
@@ -175,17 +183,26 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
                 show_progress,
                 &format!("importing submission {}", submission.submission_id),
             );
-            let values = materialize_values(
+            let (values, prepared) = prepare_submission_values(
                 &client,
                 &origin,
                 &authorization,
                 &args.publication,
                 &metadata.definition,
                 &submission,
-                &attachment_root,
             )?;
+            let tx = begin_compatible_write(&mut conn, &args.file)?;
+            verify_local_schema(&tx, &metadata.definition)?;
+            for attachment in prepared {
+                persist_content_addressed(
+                    &attachment_root,
+                    &attachment.relative,
+                    &fs::read(attachment.temporary.path())?,
+                    &attachment.sha256,
+                )?;
+            }
             let created = import_submission(
-                &mut conn,
+                tx,
                 &args.publication,
                 &metadata.definition.source.table_id,
                 &submission,
@@ -237,6 +254,17 @@ pub fn run(args: CollectArgs, show_progress: bool) -> Result<Value> {
     }))
 }
 
+fn check_collector_target(
+    conn: &mut Connection,
+    file: &Path,
+    definition: &FormDefinition,
+) -> Result<()> {
+    let tx = begin_compatible_write(conn, file)?;
+    verify_local_schema(&tx, definition)?;
+    tx.rollback().map_err(eidos_file_core::EidosError::from)?;
+    Ok(())
+}
+
 fn verify_local_schema(conn: &Connection, definition: &FormDefinition) -> Result<()> {
     let meta = load_file_meta(conn)?;
     if meta.file_id != definition.source.file_id {
@@ -266,15 +294,14 @@ fn verify_local_schema(conn: &Connection, definition: &FormDefinition) -> Result
     Ok(())
 }
 
-fn materialize_values(
+fn prepare_submission_values(
     client: &Client,
     origin: &Url,
     authorization: &HeaderValue,
     publication_id: &str,
     definition: &FormDefinition,
     submission: &Submission,
-    attachment_root: &Path,
-) -> Result<Map<String, Value>> {
+) -> Result<(Map<String, Value>, Vec<PreparedAttachment>)> {
     if submission.schema_fingerprint != definition.source.schema_fingerprint {
         return Err(AppError::publish_failed(format!(
             "submission {} targets an incompatible Form schema",
@@ -295,6 +322,7 @@ fn materialize_values(
         .iter()
         .map(|attachment| (attachment.attachment_id.as_str(), attachment))
         .collect::<HashMap<_, _>>();
+    let mut prepared = Vec::new();
     for (field_id, field_type) in fields {
         if field_type != "file" {
             continue;
@@ -322,27 +350,28 @@ fn materialize_values(
                         "submission attachment belongs to another Field",
                     ));
                 }
-                let uri = download_attachment(
+                let staged = download_attachment(
                     client,
                     origin,
                     authorization,
                     publication_id,
                     &submission.submission_id,
                     attachment,
-                    attachment_root,
                 )?;
-                Ok(json!({
+                let entry = json!({
                     "id": eidos_file_core::id::generate_uuidv7(),
                     "name": attachment.name,
                     "mediaType": attachment.media_type,
                     "size": attachment.bytes,
-                    "uri": uri,
-                }))
+                    "uri": staged.relative,
+                });
+                prepared.push(staged);
+                Ok(entry)
             })
             .collect::<Result<Vec<_>>>()?;
         values.insert(field_id.to_string(), Value::Array(entries));
     }
-    Ok(values)
+    Ok((values, prepared))
 }
 
 fn download_attachment(
@@ -352,8 +381,7 @@ fn download_attachment(
     publication_id: &str,
     submission_id: &str,
     attachment: &SubmissionAttachment,
-    root: &Path,
-) -> Result<String> {
+) -> Result<PreparedAttachment> {
     let expected_bytes = attachment
         .bytes
         .parse::<u64>()
@@ -383,13 +411,18 @@ fn download_attachment(
             "downloaded attachment differs from its Inbox descriptor",
         ));
     }
+    let mut temporary = tempfile::NamedTempFile::new()?;
+    temporary.write_all(&body)?;
     let relative = format!(
         ".eidos-assets/publish/sha256/{}/{}",
         &attachment.sha256[..2],
         attachment.sha256
     );
-    persist_content_addressed(root, &relative, &body, &attachment.sha256)?;
-    Ok(relative)
+    Ok(PreparedAttachment {
+        relative,
+        sha256: attachment.sha256.clone(),
+        temporary,
+    })
 }
 
 fn persist_content_addressed(
@@ -472,15 +505,12 @@ fn create_contained_directories(root: &Path, target: &Path) -> Result<()> {
 }
 
 fn import_submission(
-    conn: &mut Connection,
+    tx: Transaction<'_>,
     publication_id: &str,
     table_id: &str,
     submission: &Submission,
     values: Map<String, Value>,
 ) -> Result<bool> {
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(eidos_file_core::EidosError::from)?;
     install_receipt_extension(&tx)?;
     let existing = tx
         .query_row(
@@ -807,7 +837,7 @@ mod tests {
             .clone();
         assert!(
             import_submission(
-                &mut conn,
+                begin_compatible_write(&mut conn, &path).expect("write transaction"),
                 "6300a083-df92-49d8-945d-1e0bae0eac18",
                 &initialized.table_id,
                 &submission,
@@ -817,7 +847,7 @@ mod tests {
         );
         assert!(
             !import_submission(
-                &mut conn,
+                begin_compatible_write(&mut conn, &path).expect("write transaction"),
                 "6300a083-df92-49d8-945d-1e0bae0eac18",
                 &initialized.table_id,
                 &submission,

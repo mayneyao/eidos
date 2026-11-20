@@ -358,7 +358,7 @@ export function ServeApp() {
     const requested = activeViews[activeTable.table.id]
     return resolveServeView(activeTable.views, requested)
   }, [activeTable, activeViews])
-  const readOnly = manifest?.access === "read"
+  const readOnly = manifest?.access === "read" || client?.readOnly === true
   const published = manifest?.mode === "publish"
   const compactPublishViewport = useCompactPublishViewport()
   const interactionOverride = new URLSearchParams(window.location.search).get(
@@ -389,10 +389,10 @@ export function ServeApp() {
             manifest.assets,
             `cli-assets:${snapshot.metadata.fileId}`,
             snapshot.metadata.fileId,
-            manifest.access
+            readOnly ? "read" : "readwrite"
           )
         : undefined,
-    [manifest?.access, manifest?.assets, snapshot?.metadata.fileId]
+    [manifest?.assets, readOnly, snapshot?.metadata.fileId]
   )
 
   const contentImageBaseUrl = manifest?.assets?.mounted

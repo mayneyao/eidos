@@ -7,10 +7,13 @@
 use std::path::Path;
 use std::rc::Rc;
 
+use eidos_file_core::EidosError;
+use eidos_file_core::model::{load_file_meta, load_formula_fields};
 use eidos_runtime_host::{
     QjsHost, clear_active_context, open_host_state, open_host_state_read_only,
     open_host_state_snapshot,
 };
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde_json::{Value, json};
 
 use crate::error::{AppError, Result};
@@ -70,6 +73,55 @@ pub fn with_preview_session<T>(
     action: impl FnOnce(&RuntimeSession) -> Result<T>,
 ) -> Result<T> {
     with_session_mode(file, true, true, action)
+}
+
+/// Check the canonical Formula profile after acquiring the native write lock.
+/// A separate read-only Runtime connection sees exactly the committed revision
+/// that this transaction is about to mutate.
+pub fn begin_compatible_write<'a>(
+    conn: &'a mut Connection,
+    file: &Path,
+) -> Result<Transaction<'a>> {
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(EidosError::from)?;
+    if load_formula_fields(&tx)?.is_empty() {
+        return Ok(tx);
+    }
+
+    let meta = load_file_meta(&tx)?;
+    let revision = meta.revision.to_string();
+    with_session(file, false, |session| {
+        let mut request = json!({ "revision": revision, "limit": 100 });
+        loop {
+            let page = session.call("getSchemaPage", &request)?;
+            if page["fileId"].as_str() != Some(meta.file_id.as_str()) {
+                return Err(AppError::runtime(
+                    "conflict",
+                    "The file changed while checking Formula compatibility",
+                    Some(revision),
+                ));
+            }
+            let objects = page["objects"]
+                .as_array()
+                .ok_or_else(|| AppError::internal("Runtime returned no schema objects"))?;
+            if objects
+                .iter()
+                .any(|field| field["valueStatus"] == "unsupported-formula")
+            {
+                return Err(AppError::runtime(
+                    "unsupported",
+                    "This file requires a newer Eidos version and is available read-only",
+                    Some(revision),
+                ));
+            }
+            let Some(cursor) = page["nextCursor"].as_str() else {
+                return Ok(());
+            };
+            request["cursor"] = json!(cursor);
+        }
+    })?;
+    Ok(tx)
 }
 
 fn with_session_mode<T>(

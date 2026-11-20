@@ -21,7 +21,10 @@ import type {
   CreateEidosFileViewInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
-import { exportEidosFileViewCsv } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import {
+  EidosFileViewTabStrip,
+  exportEidosFileViewCsv,
+} from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import {
   EidosFileEditorShell,
   type EidosFileEditorShellProps,
@@ -75,6 +78,7 @@ import {
   FilePlus2,
   FolderOpen,
   LoaderCircle,
+  LockKeyhole,
   RotateCcw,
   ShieldCheck,
   X,
@@ -463,8 +467,10 @@ export function App() {
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
-  const activeFormMode: EidosFileFormEditorMode =
-    activeView?.type === "form"
+  const readOnly = editorSource?.readOnly === true
+  const activeFormMode: EidosFileFormEditorMode = readOnly
+    ? "preview"
+    : activeView?.type === "form"
       ? (formModes[activeView.id] ?? "build")
       : "build"
 
@@ -1165,6 +1171,18 @@ export function App() {
   const saveAs = useCallback(async () => {
     const client = clientRef.current
     if (!client || !session) return
+    if (client.readOnly) {
+      try {
+        const { bytes } =
+          client.kind === "worker"
+            ? await client.exportReadOnlyCopy()
+            : await client.exportFile()
+        downloadEidosFileCopy(bytes, session.fileName)
+      } catch (error) {
+        setNotice(errorMessage(error))
+      }
+      return
+    }
     let handle: FileSystemFileHandle | null = null
     if (supportsSavePicker()) {
       handle = await pickSaveHandle(session.fileName)
@@ -1214,7 +1232,7 @@ export function App() {
   const saveOriginal = useCallback(
     async (overwrite = false) => {
       const client = clientRef.current
-      if (!client || !session) return
+      if (!client || client.readOnly || !session) return
       if (client.kind === "http") {
         // The CLI server already persists every commit; save is a checkpoint.
         dispatch({ type: "SAVE_START" })
@@ -2065,7 +2083,9 @@ export function App() {
     }
   }, [t, updateServiceWorker])
 
-  const status = statusPresentation(saveState.phase, saveState.mode, t)
+  const status = readOnly
+    ? { label: t("editorReadOnly"), tone: "read-only", icon: LockKeyhole }
+    : statusPresentation(saveState.phase, saveState.mode, t)
   const StatusIcon = status.icon
   const directSupported = supportsDirectFileAccess()
   const pwaUpdatePrompt = (
@@ -2213,6 +2233,12 @@ export function App() {
     )
   }
 
+  const selectView = (viewId: string) =>
+    setActiveViews((current) => ({
+      ...current,
+      [activeTable.table.id]: viewId,
+    }))
+
   return (
     <main className="editor-shell" id="main-content">
       <a className="skip-link" href="#eidos-file-grid">
@@ -2228,16 +2254,22 @@ export function App() {
           statusTone={status.tone}
           StatusIcon={StatusIcon}
           statusSpinning={
-            saveState.phase === "saving" || saveState.phase === "opening"
+            !readOnly &&
+            (saveState.phase === "saving" || saveState.phase === "opening")
           }
           needsPermission={
+            !readOnly &&
             session.mode === "direct" &&
             (session.permission !== "granted" || needsOriginalRelink)
           }
           permissionActionLabel={
             needsOriginalRelink ? t("locateOriginalFile") : t("grantWrite")
           }
-          canSave={hasUnsavedChanges(saveState) && saveState.phase !== "saving"}
+          canSave={
+            !readOnly &&
+            hasUnsavedChanges(saveState) &&
+            saveState.phase !== "saving"
+          }
           saveLabel={canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
           recentFiles={recentFiles}
           theme={theme}
@@ -2267,13 +2299,15 @@ export function App() {
             >
               {t("saveAs")}
             </button>
-            <button
-              className="secondary-button danger"
-              type="button"
-              onClick={() => void saveOriginal(true)}
-            >
-              {t("overwriteOriginal")}
-            </button>
+            {!readOnly && (
+              <button
+                className="secondary-button danger"
+                type="button"
+                onClick={() => void saveOriginal(true)}
+              >
+                {t("overwriteOriginal")}
+              </button>
+            )}
             <button
               className="text-button"
               type="button"
@@ -2316,65 +2350,72 @@ export function App() {
           scopeKey: `${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id ?? "default"}`,
         }}
         viewTabs={
-          <EidosFileViewTabs
-            views={activeTable.views}
-            fields={activeTable.fields}
-            activeView={activeView}
-            disabled={saveState.phase === "saving"}
-            onSelect={(viewId) =>
-              setActiveViews((current) => ({
-                ...current,
-                [activeTable.table.id]: viewId,
-              }))
-            }
-            onCreate={createView}
-            onRename={renameView}
-            onDuplicate={duplicateView}
-            onDelete={deleteView}
-            onReorder={reorderViews}
-            onExportCsv={(view) =>
-              exportTableCsv(
-                activeTable,
-                view,
-                view.id === activeView?.id ? search : ""
-              )
-            }
-            onExportError={(error) => setNotice(errorMessage(error))}
-            onUpdate={async (viewId, changes) => {
-              const client = clientRef.current
-              if (!client) return
-              await runStructureMutation(client, () =>
-                client.updateView(viewId, changes)
-              )
-            }}
-          />
+          readOnly ? (
+            <EidosFileViewTabStrip
+              views={activeTable.views}
+              activeViewId={activeView?.id}
+              onSelect={selectView}
+            />
+          ) : (
+            <EidosFileViewTabs
+              views={activeTable.views}
+              fields={activeTable.fields}
+              activeView={activeView}
+              disabled={saveState.phase === "saving"}
+              onSelect={selectView}
+              onCreate={createView}
+              onRename={renameView}
+              onDuplicate={duplicateView}
+              onDelete={deleteView}
+              onReorder={reorderViews}
+              onExportCsv={(view) =>
+                exportTableCsv(
+                  activeTable,
+                  view,
+                  view.id === activeView?.id ? search : ""
+                )
+              }
+              onExportError={(error) => setNotice(errorMessage(error))}
+              onUpdate={async (viewId, changes) => {
+                const client = clientRef.current
+                if (!client) return
+                await runStructureMutation(client, () =>
+                  client.updateView(viewId, changes)
+                )
+              }}
+            />
+          )
         }
         recordCreator={
-          <EidosFileCreateRecordButton
-            source={editorSource}
-            table={activeTable}
-            view={activeView}
-            search={search}
-            disabled={saveState.phase === "saving"}
-            onCreated={(result) => {
-              onRowMutation(result)
-              setViewReloadToken((current) => current + 1)
-            }}
-            onError={(error) => setNotice(errorMessage(error))}
-          />
+          readOnly ? undefined : (
+            <EidosFileCreateRecordButton
+              source={editorSource}
+              table={activeTable}
+              view={activeView}
+              search={search}
+              disabled={saveState.phase === "saving"}
+              onCreated={(result) => {
+                onRowMutation(result)
+                setViewReloadToken((current) => current + 1)
+              }}
+              onError={(error) => setNotice(errorMessage(error))}
+            />
+          )
         }
         queryToolbar={
           activeView?.type === "form" ? (
-            <EidosFileFormModeToolbar
-              mode={activeFormMode}
-              disabled={saveState.phase === "saving"}
-              onModeChange={(mode) =>
-                setFormModes((current) => ({
-                  ...current,
-                  [activeView.id]: mode,
-                }))
-              }
-            />
+            readOnly ? undefined : (
+              <EidosFileFormModeToolbar
+                mode={activeFormMode}
+                disabled={saveState.phase === "saving"}
+                onModeChange={(mode) =>
+                  setFormModes((current) => ({
+                    ...current,
+                    [activeView.id]: mode,
+                  }))
+                }
+              />
+            )
           ) : (
             <EidosFileQueryToolbar
               fields={activeTable.fields}
@@ -2387,6 +2428,7 @@ export function App() {
                 saveState.phase === "saving" ||
                 activeView?.queryStatus === "unsupported"
               }
+              mutationsDisabled={readOnly}
               onSearchChange={setSearch}
               onFilterChange={(filter) => updateActiveView({ filter })}
               onSortsChange={(sorts) => updateActiveView({ sorts })}
@@ -2394,7 +2436,7 @@ export function App() {
           )
         }
         fields={
-          activeView ? (
+          activeView && !readOnly ? (
             <EidosFileViewFieldsPopover
               fields={activeTable.fields}
               view={activeView}
@@ -2410,22 +2452,24 @@ export function App() {
           ) : undefined
         }
         fieldCreator={
-          <EidosFileFieldCreatePopover
-            open={addPropertyOpen}
-            onOpenChange={(open) => {
-              setAddPropertyOpen(open)
-              if (!open) {
-                setFieldInsertIndex(null)
-                setFieldAllowedTypes(undefined)
-              }
-            }}
-            table={activeTable}
-            tables={snapshot.tables}
-            disabled={saveState.phase === "saving"}
-            allowedTypes={fieldAllowedTypes}
-            onCreate={addProperty}
-            onPreviewFormula={previewActiveFormula}
-          />
+          readOnly ? undefined : (
+            <EidosFileFieldCreatePopover
+              open={addPropertyOpen}
+              onOpenChange={(open) => {
+                setAddPropertyOpen(open)
+                if (!open) {
+                  setFieldInsertIndex(null)
+                  setFieldAllowedTypes(undefined)
+                }
+              }}
+              table={activeTable}
+              tables={snapshot.tables}
+              disabled={saveState.phase === "saving"}
+              allowedTypes={fieldAllowedTypes}
+              onCreate={addProperty}
+              onPreviewFormula={previewActiveFormula}
+            />
+          )
         }
         contentProps={{
           className: "eidos-file-content",
@@ -2438,19 +2482,21 @@ export function App() {
             activeTableId={activeTable.table.id}
             disabled={saveState.phase === "saving"}
             createAction={
-              <EidosFileSheetCreatePopover
-                disabled={saveState.phase === "saving"}
-                onCreate={createTable}
-                importAction={
-                  pluginContext ? (
-                    <EidosFilePluginSlot
-                      context={pluginContext}
-                      plugins={editorPlugins}
-                      slot="sheet-create"
-                    />
-                  ) : undefined
-                }
-              />
+              readOnly ? undefined : (
+                <EidosFileSheetCreatePopover
+                  disabled={saveState.phase === "saving"}
+                  onCreate={createTable}
+                  importAction={
+                    pluginContext ? (
+                      <EidosFilePluginSlot
+                        context={pluginContext}
+                        plugins={editorPlugins}
+                        slot="sheet-create"
+                      />
+                    ) : undefined
+                  }
+                />
+              )
             }
             onSelect={(tableId) => {
               setActiveTableId(tableId)
@@ -2458,16 +2504,27 @@ export function App() {
               setFormulaTarget(null)
               setLookupTarget(null)
             }}
-            onReorder={reorderTables}
-            onRename={(table, name) => renameTable(table.id, name)}
-            onUpdateTableSettings={async (table, changes) => {
-              const client = clientRef.current
-              if (!client) throw new Error("No active Eidos File")
-              const next = await client.updateTable(table.table.id, changes)
-              onStructureSnapshot(next)
-              setViewReloadToken((current) => current + 1)
-            }}
-            onDelete={(table) => deleteTable(table.id)}
+            onReorder={readOnly ? undefined : reorderTables}
+            onRename={
+              readOnly
+                ? undefined
+                : (table, name) => renameTable(table.id, name)
+            }
+            onUpdateTableSettings={
+              readOnly
+                ? undefined
+                : async (table, changes) => {
+                    const client = clientRef.current
+                    if (!client) throw new Error("No active Eidos File")
+                    const next = await client.updateTable(
+                      table.table.id,
+                      changes
+                    )
+                    onStructureSnapshot(next)
+                    setViewReloadToken((current) => current + 1)
+                  }
+            }
+            onDelete={readOnly ? undefined : (table) => deleteTable(table.id)}
             onExportCsv={(table) => {
               const tableSnapshot = snapshot.tables.find(
                 (candidate) => candidate.table.id === table.id
@@ -2514,32 +2571,36 @@ export function App() {
           />
         }
         overlays={
-          <>
-            <EidosFileFormulaEditorPopover
-              field={formulaTarget?.field ?? null}
-              fields={activeTable.fields}
-              previewRowId={formulaTarget?.previewRowId}
-              anchor={formulaTarget?.anchor}
-              open={formulaTarget !== null}
-              onOpenChange={(open) => {
-                if (!open) setFormulaTarget(null)
-              }}
-              onPreview={previewActiveFormula}
-              onSave={(property) =>
-                saveDerivedProperty(formulaTarget?.field ?? null, property)
-              }
-            />
-            <EidosFileLookupEditorPopover
-              field={lookupTarget}
-              fields={activeTable.fields}
-              tables={snapshot.tables}
-              open={lookupTarget !== null}
-              onOpenChange={(open) => {
-                if (!open) setLookupTarget(null)
-              }}
-              onSave={(property) => saveDerivedProperty(lookupTarget, property)}
-            />
-          </>
+          readOnly ? undefined : (
+            <>
+              <EidosFileFormulaEditorPopover
+                field={formulaTarget?.field ?? null}
+                fields={activeTable.fields}
+                previewRowId={formulaTarget?.previewRowId}
+                anchor={formulaTarget?.anchor}
+                open={formulaTarget !== null}
+                onOpenChange={(open) => {
+                  if (!open) setFormulaTarget(null)
+                }}
+                onPreview={previewActiveFormula}
+                onSave={(property) =>
+                  saveDerivedProperty(formulaTarget?.field ?? null, property)
+                }
+              />
+              <EidosFileLookupEditorPopover
+                field={lookupTarget}
+                fields={activeTable.fields}
+                tables={snapshot.tables}
+                open={lookupTarget !== null}
+                onOpenChange={(open) => {
+                  if (!open) setLookupTarget(null)
+                }}
+                onSave={(property) =>
+                  saveDerivedProperty(lookupTarget, property)
+                }
+              />
+            </>
+          )
         }
       >
         <SharedEidosFileEditorView
@@ -2554,28 +2615,32 @@ export function App() {
           state={{ formMode: activeFormMode }}
           capabilities={{
             read: true,
-            mutate: true,
+            mutate: !readOnly,
             resolveAssets: true,
             rawFile: false,
             nativeFileSystem: false,
           }}
-          disabled={saveState.phase === "saving"}
+          disabled={readOnly || saveState.phase === "saving"}
           reloadToken={viewReloadToken}
           propertyField={propertyField}
           onMutation={onRowMutation}
           onSnapshot={onStructureSnapshot}
-          onDeleteRow={deleteSingleRow}
-          onDeleteRowIds={deleteRowIds}
-          onDeleteRows={deleteRowRanges}
-          onFieldOpen={setPropertyField}
+          onDeleteRow={readOnly ? undefined : deleteSingleRow}
+          onDeleteRowIds={readOnly ? undefined : deleteRowIds}
+          onDeleteRows={readOnly ? undefined : deleteRowRanges}
+          onFieldOpen={readOnly ? undefined : setPropertyField}
           onFieldClose={() => setPropertyField(null)}
-          onEditFormula={openFormulaEditor}
-          onEditLookup={setLookupTarget}
-          onFieldAdd={(position, allowedTypes) => {
-            setFieldInsertIndex(position ?? null)
-            setFieldAllowedTypes(allowedTypes)
-            setAddPropertyOpen(true)
-          }}
+          onEditFormula={readOnly ? undefined : openFormulaEditor}
+          onEditLookup={readOnly ? undefined : setLookupTarget}
+          onFieldAdd={
+            readOnly
+              ? undefined
+              : (position, allowedTypes) => {
+                  setFieldInsertIndex(position ?? null)
+                  setFieldAllowedTypes(allowedTypes)
+                  setAddPropertyOpen(true)
+                }
+          }
           onError={(error) => setNotice(errorMessage(error))}
         />
       </ThemedEidosFileEditorShell>

@@ -4484,6 +4484,8 @@ export interface RuntimeHostBridge {
         uri: string;
         extensions?: Record<string, JsonValue>;
     }, context: RequestContext): Promise<FileEntry>;
+    // @internal
+    assertAssetWritable?(): void;
     // (undocumented)
     createPublicationSnapshot(request: {
         maxBytes: string;

@@ -37,6 +37,7 @@ interface EidosQuickJsRuntime {
   mergeSystemMetadata(requestJson: string): Promise<string>
   selfTest(): Promise<string>
   open(requestJson: string): Promise<string>
+  assertAssetWritable(): Promise<string>
   allocateFileEntry(requestJson: string): Promise<string>
   call(
     method: string,
@@ -237,6 +238,19 @@ globalThis.__eidos_runtime = {
         ok: true,
         capabilities: negotiation.capabilities,
       })
+    } catch (error) {
+      return errorEnvelope(error)
+    }
+  },
+
+  async assertAssetWritable(): Promise<string> {
+    try {
+      const { hostBridge } = requireSession()
+      if (!hostBridge.assertAssetWritable) {
+        throw new Error("Runtime cannot check asset writability")
+      }
+      hostBridge.assertAssetWritable()
+      return JSON.stringify({ ok: true })
     } catch (error) {
       return errorEnvelope(error)
     }

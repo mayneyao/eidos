@@ -139,15 +139,38 @@ it.each(["FUTURE_DATE()", "TODAY()", "DATE(ToDaY(), '+1 day')"])(
       },
       ctx()
     )
-    await writer.close(ctx())
-
     // A fixture for bytes written by a newer client. No current writer may create it.
-    database
-      .prepare(
-        "UPDATE eidos__formula_fields SET source_text = ? WHERE field_id = ?"
-      )
-      .run(source, today)
+    database.transaction(() => {
+      database
+        .prepare(
+          "UPDATE eidos__formula_fields SET source_text = ? WHERE field_id = ?"
+        )
+        .run(source, today)
+      database.prepare("UPDATE eidos__meta SET revision = revision + 1").run()
+    })()
     const before = database.serialize()
+    const futureRevision = (BigInt(saved.revision) + 1n).toString()
+    // A writable binding may survive a newer writer committing its Schema.
+    // Reject even a no-op request at that new revision, inside the write transaction.
+    await expect(
+      writer.mutateRows(
+        {
+          tableId,
+          expectedRevision: futureRevision,
+          changes: [
+            {
+              kind: "update",
+              rowId: rows.created[0]!.rowId,
+              values: { [title]: "Original row" },
+            },
+          ],
+        },
+        ctx()
+      )
+    ).rejects.toMatchObject({ code: "unsupported" })
+    expect(database.serialize()).toEqual(before)
+    expect((await writer.getSnapshot({}, ctx())).revision).toBe(futureRevision)
+    await writer.close(ctx())
     const connection = new ConnectionPortEidosFileConnection(port)
     expect(validateEidosFile(connection).valid).toBe(false)
     expect(
@@ -163,7 +186,7 @@ it.each(["FUTURE_DATE()", "TODAY()", "DATE(ToDaY(), '+1 day')"])(
       .service
     try {
       const schema = await reader.getSchemaPage(
-        { revision: saved.revision, limit: 100 },
+        { revision: futureRevision, limit: 100 },
         ctx()
       )
       expect(
@@ -205,7 +228,7 @@ it.each(["FUTURE_DATE()", "TODAY()", "DATE(ToDaY(), '+1 day')"])(
         reader.mutateRows(
           {
             tableId,
-            expectedRevision: saved.revision,
+            expectedRevision: futureRevision,
             changes: [],
           },
           ctx()

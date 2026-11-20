@@ -700,6 +700,10 @@ export class EidosFileHttpClient {
   private inFlightMutations = 0
   private terminated = false
 
+  get readOnly(): boolean {
+    return this.editor?.readOnly ?? true
+  }
+
   async openEditorSource(
     fileName: string,
     recoveryId: string,

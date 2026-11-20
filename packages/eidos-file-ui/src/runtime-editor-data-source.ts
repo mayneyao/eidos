@@ -255,6 +255,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     } = {}
   ) {}
 
+  get readOnly(): boolean {
+    return this.runtimeCapabilities?.mutateRows !== true
+  }
+
   private calendarConsumer(): {
     calendarQueryVersion?: 2
     calendarWindowVersion?: 1

@@ -1428,6 +1428,147 @@ fn relation_schema_uses_agent_friendly_camel_case() {
 }
 
 #[test]
+fn native_cli_writers_preserve_files_with_an_unavailable_formula() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("future-formula.eidos"));
+    let source = path_string(&dir.path().join("attachment.txt"));
+    fs::write(&source, b"test attachment").unwrap();
+    success(&[
+        "create",
+        &file,
+        "--table",
+        "Tasks",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Files","type":"file"}]"#,
+    ]);
+    let row = success(&[
+        "data",
+        "mutate",
+        &file,
+        "--table",
+        "Tasks",
+        "--insert",
+        r#"{"Title":"Original"}"#,
+        "--expected-revision",
+        "1",
+    ]);
+    let row_id = row["created"][0]["rowId"].as_str().unwrap();
+    success(&[
+        &file,
+        "formula",
+        "add",
+        "--table",
+        "Tasks",
+        "--name",
+        "Day",
+        "--formula",
+        "DATE('2026-11-20')",
+        "--type",
+        "date",
+        "--expected-revision",
+        "2",
+    ]);
+    let match_row = json!({"_id": row_id}).to_string();
+    let apply = |revision| {
+        [
+            "data",
+            "mutate",
+            &file,
+            "--table",
+            "Tasks",
+            "--match",
+            &match_row,
+            "--set",
+            r#"{"Title":"Updated"}"#,
+            "--expect",
+            "1",
+            "--expected-revision",
+            revision,
+        ]
+    };
+    assert_eq!(success(&apply("3"))["revision"], "4");
+
+    // Simulate a future writer on an isolated fixture.
+    let sql = Connection::open(&file).unwrap();
+    sql.execute_batch(
+        "BEGIN IMMEDIATE;
+        UPDATE eidos__formula_fields SET source_text = 'TODAY()';
+        UPDATE eidos__meta SET revision = 5;
+        COMMIT;",
+    )
+    .unwrap();
+    drop(sql);
+    let original = fs::read(&file).unwrap();
+    let rows = success(&["data", "query", &file, "Tasks"]);
+    assert_eq!(rows["rows"][0]["Title"], "Updated");
+    assert_eq!(rows["rows"][0]["Day"], Value::Null);
+
+    let schema = [
+        "schema",
+        "apply",
+        &file,
+        "--op",
+        r#"{"kind":"rename-table","table":"Tasks","name":"Renamed"}"#,
+        "--expected-revision",
+        "5",
+    ];
+    let view = [
+        "schema",
+        "view",
+        &file,
+        "create",
+        "--name",
+        "Another Grid",
+        "--type",
+        "grid",
+        "--expected-revision",
+        "5",
+    ];
+    let asset = [
+        "data",
+        "asset",
+        &file,
+        "import",
+        "--table",
+        "Tasks",
+        "--row",
+        row_id,
+        "--field",
+        "Files",
+        "--source",
+        &source,
+        "--expected-revision",
+        "5",
+    ];
+    let mut schema_preview = schema.to_vec();
+    schema_preview.push("--dry-run");
+    let mut view_preview = view.to_vec();
+    view_preview.push("--dry-run");
+    for command in [
+        &apply("5")[..],
+        &schema,
+        &schema_preview,
+        &view,
+        &view_preview,
+        &asset,
+    ] {
+        let output = run_json(command);
+        assert!(!output.status.success(), "{command:?}");
+        let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+        assert_eq!(
+            error["error"]["code"], "unsupported",
+            "{command:?}: {error}"
+        );
+        assert_eq!(
+            error["error"]["currentRevision"], "5",
+            "{command:?}: {error}"
+        );
+        assert_eq!(fs::read(&file).unwrap(), original, "{command:?}");
+    }
+    assert!(!dir.path().join("assets").exists());
+}
+
+#[test]
 fn agent_can_use_runtime_formula_and_lookup_fields() {
     let dir = tempfile::tempdir().unwrap();
     let file = path_string(&dir.path().join("derived.eidos"));

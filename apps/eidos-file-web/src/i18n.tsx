@@ -139,6 +139,7 @@ const en = {
   editorAttention: "Save needs attention",
   editorConflict: "Original changed",
   editorImported: "Imported copy",
+  editorReadOnly: "Read only",
   updateAvailableTitle: "Update ready",
   updateAvailableBody: "A newer Eidos File editor is ready. Refresh to use it.",
   updateUnsavedBody:
@@ -343,6 +344,7 @@ const zh: Record<MessageKey, string> = {
   editorAttention: "保存需要处理",
   editorConflict: "原文件已变化",
   editorImported: "导入的副本",
+  editorReadOnly: "只读",
   updateAvailableTitle: "新版本已就绪",
   updateAvailableBody: "新版 Eidos File 编辑器已准备好，刷新即可使用。",
   updateUnsavedBody: "请先保存或下载当前修改，再刷新到新版本。",

@@ -11,7 +11,7 @@ use eidos_file_core::model::{
 use eidos_file_core::query::{FilterNode, ReadRowsOptions, RowQuery, read_rows};
 use eidos_file_core::rows::{RowChange, RowMutation, ensure_revision, mutate_rows_in_transaction};
 use eidos_file_core::values::{coerce_value, normalize_relative_file_uri};
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, Transaction};
 use serde_json::{Map, Value, json};
 
 use crate::app::{CommandOutput, open_file};
@@ -20,6 +20,7 @@ use crate::cli::{
     AttachmentImportArgs, AttachmentVerifyArgs,
 };
 use crate::error::{AppError, Result};
+use crate::runtime::begin_compatible_write;
 
 const ASSET_BYTES_MAX: u64 = 256 * 1024 * 1024;
 const ASSET_IMPORT_COUNT_MAX: usize = 64;
@@ -55,9 +56,7 @@ struct PreparedAsset {
 }
 
 struct AttachmentMutation<'a> {
-    table: &'a str,
     row_id: &'a str,
-    field: &'a str,
     expected_revision: &'a str,
     replace: bool,
     operation: &'a str,
@@ -75,8 +74,9 @@ pub(crate) fn run(args: AttachmentArgs) -> Result<CommandOutput> {
 fn import(file: PathBuf, args: AttachmentImportArgs) -> Result<CommandOutput> {
     require_count(args.sources.len())?;
     let mut conn = open_file(&file, true)?;
-    load_target_cell(
-        &conn,
+    let tx = begin_compatible_write(&mut conn, &file)?;
+    let target = load_target_cell(
+        &tx,
         &args.table,
         &args.row,
         &args.field,
@@ -98,11 +98,10 @@ fn import(file: PathBuf, args: AttachmentImportArgs) -> Result<CommandOutput> {
     }
 
     let result = apply_prepared(
-        &mut conn,
+        tx,
+        target,
         AttachmentMutation {
-            table: &args.table,
             row_id: &args.row,
-            field: &args.field,
             expected_revision: &args.expected_revision,
             replace: args.replace,
             operation: "import",
@@ -119,8 +118,9 @@ fn attach(file: PathBuf, args: AttachmentAttachArgs) -> Result<CommandOutput> {
     require_count(args.uris.len())?;
     let context = attachment_file_context(&file, false)?;
     let mut conn = open_file(&file, true)?;
-    load_target_cell(
-        &conn,
+    let tx = begin_compatible_write(&mut conn, &file)?;
+    let target = load_target_cell(
+        &tx,
         &args.table,
         &args.row,
         &args.field,
@@ -132,11 +132,10 @@ fn attach(file: PathBuf, args: AttachmentAttachArgs) -> Result<CommandOutput> {
         .map(|uri| prepare_existing_uri(&context, uri))
         .collect::<Result<Vec<_>>>()?;
     apply_prepared(
-        &mut conn,
+        tx,
+        target,
         AttachmentMutation {
-            table: &args.table,
             row_id: &args.row,
-            field: &args.field,
             expected_revision: &args.expected_revision,
             replace: args.replace,
             operation: "attach",
@@ -162,9 +161,7 @@ fn detach(file: PathBuf, args: AttachmentDetachArgs) -> Result<CommandOutput> {
     }
 
     let mut conn = open_file(&file, true)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(EidosError::from)?;
+    let tx = begin_compatible_write(&mut conn, &file)?;
     let target = load_target_cell(
         &tx,
         &args.table,
@@ -554,20 +551,11 @@ fn file_entry(uri: &str, name: &str, inspected: &Inspection) -> Value {
 }
 
 fn apply_prepared(
-    conn: &mut Connection,
+    tx: Transaction<'_>,
+    target: TargetCell,
     request: AttachmentMutation<'_>,
     prepared: &[PreparedAsset],
 ) -> Result<CommandOutput> {
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(EidosError::from)?;
-    let target = load_target_cell(
-        &tx,
-        request.table,
-        request.row_id,
-        request.field,
-        Some(request.expected_revision),
-    )?;
     let detached = if request.replace {
         target.entries.clone()
     } else {
