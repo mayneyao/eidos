@@ -321,14 +321,18 @@ fn extract_archive(
 ) -> Result<PathBuf> {
     let extract_directory = temporary_directory.join("extract");
     let script_path = temporary_directory.join("extract.ps1");
-    fs::write(
-        &script_path,
-        "param([string]$Archive, [string]$Destination)\n$ErrorActionPreference = 'Stop'\nExpand-Archive -LiteralPath $Archive -DestinationPath $Destination -Force\n",
-    )
-    .map_err(|error| {
+    // A Windows PowerShell child can inherit PowerShell 7's module search path.
+    // Use the framework ZIP API directly to avoid loading that Archive module.
+    let script = r#"param([string]$Archive, [string]$Destination)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory($Archive, $Destination)
+"#;
+    fs::write(&script_path, script).map_err(|error| {
         AppError::upgrade_failed(format!("cannot prepare archive extractor: {error}"))
     })?;
     let status = Command::new("powershell.exe")
+        .env_remove("PSModulePath")
         .arg("-NoProfile")
         .arg("-NonInteractive")
         .arg("-File")

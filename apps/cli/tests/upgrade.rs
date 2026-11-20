@@ -246,7 +246,7 @@ fn upgrades_a_copy_from_a_verified_release() {
 }
 
 #[test]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn checksum_failure_preserves_the_existing_binary() {
     if release_target().is_none() {
         return;
@@ -256,6 +256,7 @@ fn checksum_failure_preserves_the_existing_binary() {
     let (download_base, server) = start_file_server(release.path().to_path_buf(), 2);
     let installation = TempDir::new().unwrap();
     let installed = installed_copy(&installation);
+    let original_sha256 = Sha256::digest(fs::read(&installed).unwrap());
 
     let output = Command::new(&installed)
         .args([
@@ -277,6 +278,10 @@ fn checksum_failure_preserves_the_existing_binary() {
             .as_str()
             .unwrap()
             .contains("checksum mismatch")
+    );
+    assert_eq!(
+        Sha256::digest(fs::read(&installed).unwrap()),
+        original_sha256
     );
 
     let preserved = Command::new(&installed).arg("--version").output().unwrap();
