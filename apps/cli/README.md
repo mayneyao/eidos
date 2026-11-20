@@ -310,6 +310,12 @@ writes straight to the file — there is no separate save step.
 target/debug/eidos serve tracker.eidos --port 8420 --open
 ```
 
+Files that use Formula functions from a newer Eidos version open in read-only
+mode. If a saved View depends on an unavailable Formula, choose **Browse
+records** to see the stored records. Use `eidos schema dump tracker.eidos` to
+inspect the saved Formula definitions. Update Eidos to edit the file or run
+the saved View.
+
 For shared mobile UI testing, use a viewport at most 42rem wide or append
 `?interaction=mobile` to force touch interactions at any width. Use
 `?interaction=desktop` to compare desktop behavior. This covers shared editor

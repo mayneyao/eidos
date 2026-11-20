@@ -1130,7 +1130,9 @@ export function ServeApp() {
 
   const StatusIcon = readOnly ? LockKeyhole : saving ? LoaderCircle : Check
   const statusLabel = readOnly
-    ? "Published · Read only"
+    ? published
+      ? "Published · Read only"
+      : "Read only"
     : saving
       ? "Saving"
       : "Saved"
