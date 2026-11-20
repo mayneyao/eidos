@@ -60,6 +60,7 @@
     }
   ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "artifactBuildCompleted": "./scripts/finalize-macos-dmg.mjs",
   "publish": {
     "provider": "generic",
     "url": "https://download.eidos.space/lite/updates/stable",
@@ -113,6 +114,9 @@
         "filter": ["eidos-file-clipboard"]
       }
     ]
+  },
+  "dmg": {
+    "writeUpdateInfo": false
   },
   "win": {
     "files": [

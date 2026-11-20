@@ -1,8 +1,12 @@
 import { spawn } from "node:child_process"
+import { createHash } from "node:crypto"
+import { createReadStream } from "node:fs"
+import { readFile, stat } from "node:fs/promises"
 import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { setTimeout } from "node:timers/promises"
+import { gunzipSync } from "node:zlib"
 
 const appRoot = fileURLToPath(new URL("../", import.meta.url))
 const transientNetworkFailure =
@@ -32,6 +36,59 @@ export async function packageWithRetry({
     }
     warn(`Transient macOS packaging network failure; retry ${attempt}/2`)
     await delay(attempt * 10_000)
+  }
+}
+
+export async function verifyMacUpdateInfo(
+  directory,
+  productName,
+  version,
+  architecture
+) {
+  const { parse } = await import("yaml")
+  const metadata = parse(
+    await readFile(path.join(directory, "latest-mac.yml"), "utf8")
+  )
+  const stem = `${productName}-${version}-mac-${architecture}`
+  const zip = `${stem}.zip`
+  const dmg = `${stem}.dmg`
+  if (
+    metadata?.version !== version ||
+    metadata.path !== zip ||
+    !Array.isArray(metadata.files) ||
+    metadata.files.length !== 2 ||
+    metadata.files[0]?.url !== zip ||
+    metadata.files[1]?.url !== dmg ||
+    metadata.sha512 !== metadata.files[0].sha512
+  ) {
+    throw new Error(
+      `Invalid macOS update metadata for ${stem}; expected ZIP then DMG`
+    )
+  }
+
+  for (const entry of metadata.files) {
+    const file = path.join(directory, entry.url)
+    const { size } = await stat(file)
+    const hash = createHash("sha512")
+    for await (const chunk of createReadStream(file)) hash.update(chunk)
+    if (entry.size !== size || entry.sha512 !== hash.digest("base64")) {
+      throw new Error(`macOS update metadata does not match ${entry.url}`)
+    }
+
+    const blockmap = JSON.parse(gunzipSync(await readFile(`${file}.blockmap`)))
+    const block = blockmap?.files?.[0]
+    if (
+      blockmap?.version !== "2" ||
+      !Array.isArray(blockmap.files) ||
+      blockmap.files.length !== 1 ||
+      block?.offset !== 0 ||
+      !Array.isArray(block.sizes) ||
+      !Array.isArray(block.checksums) ||
+      block.sizes.length !== block.checksums.length ||
+      block.sizes.reduce((total, length) => total + length, 0) !== size
+    ) {
+      throw new Error(`macOS blockmap does not cover ${entry.url}`)
+    }
   }
 }
 
@@ -71,4 +128,16 @@ if (
   if (process.platform !== "darwin" || !["arm64", "x64"].includes(architecture))
     throw new Error("macOS release packaging requires darwin and arm64 or x64")
   await packageWithRetry({ run: () => runBuilder(architecture) })
+  const config = JSON.parse(
+    await readFile(path.join(appRoot, "electron-builder.json"), "utf8")
+  )
+  const { version } = JSON.parse(
+    await readFile(path.join(appRoot, "package.json"), "utf8")
+  )
+  await verifyMacUpdateInfo(
+    path.resolve(appRoot, config.directories.output),
+    config.productName,
+    version,
+    architecture
+  )
 }
