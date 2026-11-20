@@ -17,6 +17,7 @@ import type {
   RuntimeMethod,
   RuntimeSystemMetadataMergeOptions,
   RuntimeSystemMetadataMergeResult,
+  RuntimeWorkerOpenResult,
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
@@ -46,6 +47,7 @@ interface RuntimeEntry {
   pending: Map<number, PendingRequest>
   nextRequestId: number
   crashed: boolean
+  readOnly?: boolean
   closed?: boolean
   lastAccess: number
 }
@@ -182,7 +184,7 @@ export class RuntimePool {
         snapshot:
           reopenedSnapshot ??
           (await this.call(entry.sessionId, "getSnapshot", [])),
-        readOnly: this.readOnly,
+        readOnly: entry.readOnly !== false,
       }
     }
 
@@ -207,7 +209,7 @@ export class RuntimePool {
         sessionId: entry.sessionId,
         relativePath,
         snapshot,
-        readOnly: this.readOnly,
+        readOnly: entry.readOnly !== false,
       }
     } catch (error) {
       this.entriesBySession.delete(entry.sessionId)
@@ -272,7 +274,7 @@ export class RuntimePool {
         sessionId: entry.sessionId,
         relativePath,
         snapshot,
-        readOnly: false,
+        readOnly: entry.readOnly !== false,
       }
     } catch (error) {
       await this.closeEntry(entry).catch(() => undefined)
@@ -288,33 +290,29 @@ export class RuntimePool {
     args: RuntimeCalls[M]["args"],
     consumer?: { calendarQueryVersion?: 2; calendarWindowVersion?: 1 }
   ): Promise<RuntimeCalls[M]["result"]> {
-    if (
-      this.readOnly &&
-      (RUNTIME_MUTATION_METHODS as readonly string[]).includes(method)
+    const mutation = (RUNTIME_MUTATION_METHODS as readonly string[]).includes(
+      method
     )
-      throw new Error("Space is read-only")
+    if (mutation && this.readOnly) throw new Error("Space is read-only")
     const entry = this.requireEntry(sessionId)
     if (entry.closed || this.closingEntries.has(entry)) {
       throw new Error("Unknown or closed Eidos File session")
     }
-    const issue = await runtimeReadTrace.span(
+    await runtimeReadTrace.span(
       "main-file-check",
       {
         sessionKey: runtimeReadTrace.enabled
           ? readTraceKey(sessionId)
           : undefined,
       },
-      () => this.entryIssue(entry)
+      () => this.requireCurrentEntryPath(entry)
     )
-    if (issue) {
-      await this.invalidateSession(sessionId)
-      throw new EidosFileRuntimeError(issue)
-    }
     this.touch(entry)
     let call: Promise<RuntimeCalls[M]["result"]> | null = null
     runtimeReadTrace.point("main-residency-wait", { method })
     await this.withResidencyLock(async () => {
       await this.ensureResidentLocked(entry)
+      if (mutation) this.assertEntryWritable(entry)
       runtimeReadTrace.point("main-residency-ready", { method })
       call = this.request(entry, {
         type: "call",
@@ -773,6 +771,28 @@ export class RuntimePool {
     return this.requireEntry(sessionId).relativePath
   }
 
+  async writableRelativePathForSession(sessionId: string): Promise<string> {
+    if (this.readOnly) throw new Error("Space is read-only")
+    const entry = this.requireEntry(sessionId)
+    await this.requireCurrentEntryPath(entry)
+    return this.withResidencyLock(async () => {
+      await this.ensureResidentLocked(entry)
+      this.assertEntryWritable(entry)
+      return entry.relativePath
+    })
+  }
+
+  private async requireCurrentEntryPath(entry: RuntimeEntry): Promise<void> {
+    const issue = await this.entryIssue(entry)
+    if (!issue) return
+    await this.invalidateSession(entry.sessionId)
+    throw new EidosFileRuntimeError(issue)
+  }
+
+  private assertEntryWritable(entry: RuntimeEntry): void {
+    if (entry.readOnly !== false) throw new Error("Eidos File is read-only")
+  }
+
   async verifyCrashRecoveryForTesting(sessionId: string): Promise<boolean> {
     if (!process.env.EIDOS_LITE_SMOKE_RESULT) {
       throw new Error("Runtime crash recovery probe is available only to smoke")
@@ -1061,7 +1081,7 @@ export class RuntimePool {
   ): Promise<RuntimeCalls["getSnapshot"]["result"]> {
     const child = this.spawnChild(entry)
     try {
-      return (await this.request(
+      const opened = (await this.request(
         entry,
         createTitle === undefined
           ? {
@@ -1079,7 +1099,9 @@ export class RuntimePool {
               metadataSchema,
               contentFieldName,
             }
-      )) as RuntimeCalls["getSnapshot"]["result"]
+      )) as RuntimeWorkerOpenResult
+      entry.readOnly = readOnly || opened.readOnly !== false
+      return opened.snapshot
     } catch (error) {
       child.kill()
       entry.child = null

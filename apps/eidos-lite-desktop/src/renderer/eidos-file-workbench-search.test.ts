@@ -50,11 +50,15 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
     onOpenRecord,
     onInspectedRowChange,
     recordFocus,
+    capabilities,
+    onImportFiles,
   }: {
     view?: { id: string }
     onOpenRecord?: (rowId: string) => void
     onInspectedRowChange?: (rowId: string | null) => void
     recordFocus?: { row: { _id?: unknown }; index?: number | null }
+    capabilities?: { mutate: boolean }
+    onImportFiles?: unknown
   }) {
     const navigation = actual.useEidosFileSearchNavigation()
     const {
@@ -68,6 +72,10 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
       React.Fragment,
       null,
       React.createElement("span", { "data-testid": "selected-view" }, view?.id),
+      React.createElement("span", {
+        "data-can-mutate": String(capabilities?.mutate),
+        "data-can-import": String(Boolean(onImportFiles)),
+      }),
       React.createElement("span", {
         "data-record-focus": recordFocus ? String(recordFocus.row._id) : "",
         "data-record-index": recordFocus?.index ?? "",
@@ -283,6 +291,66 @@ describe("Eidos Lite Eidos File search navigation", () => {
     relatedRecordFixture.useActualPanel = false
     host.remove()
     Reflect.deleteProperty(window, "eidosLite")
+  })
+
+  it("keeps view and table navigation available while disabling file mutations", async () => {
+    const table = snapshot.tables[0]!
+    const protectedSnapshot = {
+      ...snapshot,
+      tables: [
+        {
+          ...table,
+          views: [
+            ...table.views,
+            { ...table.views[0]!, id: "archive", name: "Archive" },
+          ],
+        },
+        snapshot.tables[1]!,
+      ],
+    }
+    const source = new IpcEidosFileDataSource(
+      "protected",
+      protectedSnapshot,
+      undefined,
+      {},
+      true
+    )
+    const onTableSelect = vi.fn()
+    await act(async () =>
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "protected.eidos",
+          snapshot: protectedSnapshot,
+          source,
+          activeTableId: "tasks",
+          disabled: false,
+          theme: "light",
+          onTableSelect,
+          onSnapshot: vi.fn(),
+          onError: vi.fn(),
+        })
+      )
+    )
+    expect(
+      host.querySelector('[data-can-mutate="false"][data-can-import="false"]')
+    ).not.toBeNull()
+    expect(observeQueryToolbar).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mutationsDisabled: true })
+    )
+    const archive = host.querySelector<HTMLButtonElement>(
+      '[data-eidos-file-view-id="archive"]'
+    )!
+    expect(archive.disabled).toBe(false)
+    await act(async () => archive.click())
+    expect(
+      host.querySelector('[data-testid="selected-view"]')?.textContent
+    ).toBe("archive")
+    const people = host.querySelector<HTMLButtonElement>(
+      '[data-eidos-file-table-id="people"]'
+    )!
+    expect(people.disabled).toBe(false)
+    await act(async () => people.click())
+    expect(onTableSelect).toHaveBeenCalledWith("people")
   })
 
   it("saves chosen and dropped local attachments in a Gallery record", async () => {

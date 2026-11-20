@@ -2957,15 +2957,14 @@ export class SpaceSession {
     sessionId: string,
     sourcePaths: readonly string[]
   ): Promise<FileEntry[]> {
-    this.assertRuntimeAvailable()
-    this.prioritizeLocalWork()
-    const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
-    const imported = await this.gate.withMutation(() =>
-      importEidosFileAttachments(
-        this.canonical.root,
-        eidosRelativePath,
-        sourcePaths
-      )
+    const imported = await this.withEidosFileAssetMutation(
+      sessionId,
+      (relativePath) =>
+        importEidosFileAttachments(
+          this.canonical.root,
+          relativePath,
+          sourcePaths
+        )
     )
     return this.trackImportedEidosFileAssets(sessionId, imported)
   }
@@ -2974,17 +2973,27 @@ export class SpaceSession {
     sessionId: string,
     sources: readonly EidosFileAttachmentDataSource[]
   ): Promise<FileEntry[]> {
-    this.assertRuntimeAvailable()
-    this.prioritizeLocalWork()
-    const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
-    const imported = await this.gate.withMutation(() =>
-      importEidosFileAttachmentData(
-        this.canonical.root,
-        eidosRelativePath,
-        sources
-      )
+    const imported = await this.withEidosFileAssetMutation(
+      sessionId,
+      (relativePath) =>
+        importEidosFileAttachmentData(
+          this.canonical.root,
+          relativePath,
+          sources
+        )
     )
     return this.trackImportedEidosFileAssets(sessionId, imported)
+  }
+
+  private withEidosFileAssetMutation<T>(
+    sessionId: string,
+    action: (relativePath: string) => Promise<T>
+  ): Promise<T> {
+    this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
+    return this.gate.withMutation(async () =>
+      action(await this.runtimePool.writableRelativePathForSession(sessionId))
+    )
   }
 
   private trackImportedEidosFileAssets(
@@ -3025,7 +3034,7 @@ export class SpaceSession {
     requestedName?: string
   ): Promise<FileEntry> {
     this.assertRuntimeAvailable()
-    this.runtimePool.relativePathForSession(sessionId)
+    await this.runtimePool.writableRelativePathForSession(sessionId)
     const inspected = await acquireEidosFileRemoteAsset(uri, requestedName)
     const entry = await this.callRuntime(sessionId, "allocateFileEntry", [
       {
@@ -3040,10 +3049,8 @@ export class SpaceSession {
   }
 
   eidosFileAssetsPath(sessionId: string): Promise<string> {
-    this.assertRuntimeAvailable()
-    return eidosFileAssetDirectory(
-      this.canonical.root,
-      this.runtimePool.relativePathForSession(sessionId)
+    return this.withEidosFileAssetMutation(sessionId, (relativePath) =>
+      eidosFileAssetDirectory(this.canonical.root, relativePath)
     )
   }
 

@@ -838,6 +838,11 @@ export interface OpenEidosFileResult {
   readOnly: boolean
 }
 
+export type RuntimeWorkerOpenResult = Pick<
+  OpenEidosFileResult,
+  "snapshot" | "readOnly"
+>
+
 export interface SpacePathMutationResult {
   /** IO completed, but the tree refresh failed; preserve existing visible contents. */
   refreshError?: string

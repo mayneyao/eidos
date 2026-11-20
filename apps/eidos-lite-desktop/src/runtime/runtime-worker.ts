@@ -22,6 +22,7 @@ import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime
 import type {
   RuntimeCalls,
   RuntimeMethod,
+  RuntimeWorkerOpenResult,
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../shared/contracts"
@@ -444,7 +445,10 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       source = openedRuntime.source
       calendarSource = null
       calendarWindowSource = null
-      return openedRuntime.initialSnapshot
+      return {
+        snapshot: openedRuntime.initialSnapshot,
+        readOnly: source.readOnly,
+      } satisfies RuntimeWorkerOpenResult
     }
     case "inspectMergeTables": {
       if (openedRuntime)
@@ -470,7 +474,10 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       source = openedRuntime.source
       calendarSource = null
       calendarWindowSource = null
-      return openedRuntime.initialSnapshot
+      return {
+        snapshot: openedRuntime.initialSnapshot,
+        readOnly: source.readOnly,
+      } satisfies RuntimeWorkerOpenResult
     }
     case "call":
       return runtimeCall(

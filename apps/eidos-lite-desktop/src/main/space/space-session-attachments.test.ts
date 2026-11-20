@@ -39,6 +39,53 @@ function graftStub(): GraftClient {
 }
 
 describe("SpaceSession attachment drafts", () => {
+  it("rejects attachment preparation for a read-only file before touching the Space", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "lite-readonly-assets-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "lite-assets-state-")
+    )
+    let session: SpaceSession | undefined
+    try {
+      await fs.writeFile(path.join(root, "data.eidos"), "fixture")
+      const source = path.join(root, "photo.png")
+      await fs.writeFile(source, PNG)
+      session = await SpaceSession.create(root, userData, {
+        graft: graftStub(),
+      })
+      vi.spyOn(
+        session.runtimePool,
+        "writableRelativePathForSession"
+      ).mockRejectedValue(new Error("Eidos File is read-only"))
+
+      await expect(session.eidosFileAssetsPath("runtime-1")).rejects.toThrow(
+        /read-only/
+      )
+      await expect(
+        session.importEidosFileAssets("runtime-1", [source])
+      ).rejects.toThrow(/read-only/)
+      await expect(
+        session.importEidosFileAssetData("runtime-1", [
+          { name: "pasted.png", data: PNG },
+        ])
+      ).rejects.toThrow(/read-only/)
+      await expect(
+        session.acquireRemoteEidosFileAsset("runtime-1", "about:blank")
+      ).rejects.toThrow(/read-only/)
+      expect((await fs.readdir(root)).sort()).toEqual([
+        "data.eidos",
+        "photo.png",
+      ])
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("marks read-gate admission before the pool call without bypassing quiescence or changing result/error identity", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-asset-gate-"))
     const userData = await fs.mkdtemp(
@@ -119,6 +166,10 @@ describe("SpaceSession attachment drafts", () => {
       vi.spyOn(session.runtimePool, "relativePathForSession").mockReturnValue(
         "data.eidos"
       )
+      vi.spyOn(
+        session.runtimePool,
+        "writableRelativePathForSession"
+      ).mockResolvedValue("data.eidos")
       const callRuntime = vi
         .spyOn(session, "callRuntime")
         .mockResolvedValue(null as never)
