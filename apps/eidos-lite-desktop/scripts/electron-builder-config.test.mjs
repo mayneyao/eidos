@@ -24,6 +24,23 @@ const { expandMacro } = builderRequire(
   "app-builder-lib/out/util/macroExpander.js"
 )
 
+test("Lite packaging keeps the supported Chromium language families", async () => {
+  for (const config of [
+    "electron-builder.json",
+    "electron-builder.dev.mjs",
+    "electron-builder.linux.json",
+  ]) {
+    const effective = await getConfig(appRoot, config)
+    for (const platform of ["mac", "win", "linux"]) {
+      assert.deepEqual(
+        effective[platform]?.electronLanguages ?? effective.electronLanguages,
+        ["en", "zh", "pt", "ja", "ko"],
+        `${config} (${platform})`
+      )
+    }
+  }
+})
+
 const inheritedResources = [
   {
     from: "resources/plugin-sandbox",

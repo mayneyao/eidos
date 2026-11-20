@@ -5,6 +5,7 @@
     "output": "dist-app"
   },
   "npmRebuild": false,
+  "electronLanguages": ["en", "zh", "pt", "ja", "ko"],
   "files": [
     "dist/**/*",
     "package.json",
