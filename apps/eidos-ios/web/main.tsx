@@ -58,6 +58,7 @@ import {
 
 type Document = {
   path: string
+  imageRoot?: string
   recordPath?: string
   kind: "markdown" | "eidos"
   text?: string
@@ -91,6 +92,11 @@ function Markdown({ document }: { document: Document }) {
   useMobilePlugins(request, true)
   const [text, setText] = useState(document.text ?? "")
   const [documentPath, setDocumentPath] = useState(document.path)
+  const folder = documentPath.split("/").slice(0, -1).map(encodeURIComponent)
+  const baseUri =
+    document.imageRoot && folder.length
+      ? `${document.imageRoot}${folder.join("/")}/`
+      : document.imageRoot
   const [discarding, setDiscarding] = useState(false)
   const [error, setError] = useState("")
   const digest = useRef(document.digest!)
@@ -240,13 +246,11 @@ function Markdown({ document }: { document: Document }) {
               mediaType: file.mediaType,
             }))
           }}
-          baseUri="eidos://app/document/"
+          baseUri={baseUri}
           resolveImageUrl={async ({ markdownUrl }) => {
-            const url = new URL(markdownUrl, "eidos://app/document/")
-            return url.origin === location.origin &&
-              url.pathname.startsWith("/document/")
-              ? url.href
-              : null
+            if (!baseUri || !document.imageRoot) return null
+            const url = new URL(markdownUrl, baseUri)
+            return url.href.startsWith(document.imageRoot) ? url.href : null
           }}
           onOpenExternalUrl={(url) => request<void>("openLink", { url })}
           onError={(error) => setError(error.message)}

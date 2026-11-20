@@ -6,6 +6,94 @@ import PhotosUI
 
 final class EditorWebTests: XCTestCase {
     @MainActor
+    func testMarkdownPreviewsSpaceRelativeImagesAfterReopening() async throws {
+        let sandbox = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: sandbox.appendingPathComponent("Space"))
+        defer {
+            try? FileManager.default.removeItem(at: sandbox)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        let manager = FileManager.default
+        let source = space.root.appendingPathComponent("Source Notes/assets")
+        let target = space.root.appendingPathComponent("Target Folder")
+        let nested = target.appendingPathComponent("assets")
+        let hidden = space.root.appendingPathComponent(".hidden")
+        for directory in [source, nested, hidden] {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 12), format: format).pngData { renderer in
+            UIColor.systemTeal.setFill()
+            renderer.fill(CGRect(x: 0, y: 0, width: 16, height: 12))
+        }
+        let original = source.appendingPathComponent("My photo.png")
+        let outside = sandbox.appendingPathComponent("outside.png")
+        for path in [original, target.appendingPathComponent("local.png"), nested.appendingPathComponent("local.png"),
+                     hidden.appendingPathComponent("hidden.png"), outside, space.root.appendingPathComponent("not-an-image.txt")] {
+            try image.write(to: path)
+        }
+        try manager.createSymbolicLink(at: space.root.appendingPathComponent("inside-link.png"), withDestinationURL: original)
+        try manager.createSymbolicLink(at: space.root.appendingPathComponent("outside-link.png"), withDestinationURL: outside)
+        try manager.createSymbolicLink(at: space.root.appendingPathComponent("root-link"), withDestinationURL: space.root)
+        let oversize = space.root.appendingPathComponent("oversize.png")
+        try image.write(to: oversize)
+        let handle = try FileHandle(forWritingTo: oversize)
+        try handle.truncate(atOffset: 16 * 1024 * 1024 + 1)
+        try handle.close()
+        let file = target.appendingPathComponent("Draft.md")
+        let markdown = """
+        # Attachment preview
+
+        ![Moved](../Source%20Notes/assets/My%20photo.png)
+
+        ![Same folder](local.png)
+
+        ![Child folder](assets/local.png)
+        """
+        try Data(markdown.utf8).write(to: file)
+
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        defer { window.isHidden = true; window.rootViewController = nil }
+        for pass in 1...2 {
+            let editor = EditorController()
+            window.rootViewController = UIHostingController(rootView: EditorView(file: file, space: space, dark: false, controller: editor, onLeave: {}))
+            window.makeKeyAndVisible(); window.rootViewController?.view.layoutIfNeeded()
+            let decoded = """
+            ['Moved', 'Same folder', 'Child folder'].every(alt => {
+              const img = document.querySelector('img[alt="' + alt + '"]');
+              return img?.complete && img.naturalWidth === 16 && img.naturalHeight === 12
+                && img.getBoundingClientRect().width > 0;
+            })
+            """
+            let web = try await ready(editor, script: decoded)
+            let displayed = try await web.evaluateJavaScript(decoded) as? Bool
+            XCTAssertEqual(displayed, true, "All local images must decode on open \(pass)")
+            if pass == 1 && displayed == true {
+                let denied = ["outside-link.png", "inside-link.png", "root-link/Source%20Notes/assets/My%20photo.png",
+                              ".hidden/hidden.png", "not-an-image.txt", "oversize.png",
+                              "Target%20Folder/%2e%2e%2f%2e%2e%2foutside.png"]
+                let outcomes = try await web.callAsyncJavaScript("""
+                const { imageRoot } = await window.webkit.messageHandlers.eidos.postMessage({ method: 'init' });
+                return await Promise.all(paths.map(path => new Promise(resolve => {
+                  const image = new Image();
+                  image.onload = () => resolve('loaded');
+                  image.onerror = () => resolve('blocked');
+                  setTimeout(() => resolve('timeout'), 3000);
+                  image.src = imageRoot + path;
+                })));
+                """, arguments: ["paths": denied], in: nil, contentWorld: .page) as? [String]
+                XCTAssertEqual(outcomes, denied.map { _ in "blocked" })
+            }
+            window.rootViewController = nil
+        }
+        XCTAssertEqual(try Data(contentsOf: file), Data(markdown.utf8))
+        XCTAssertEqual(try Data(contentsOf: original), image)
+    }
+
+    @MainActor
     func testRecordURLReplacesFileChromeAndReturnsToRetainedTable() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: root)
@@ -225,14 +313,9 @@ final class EditorWebTests: XCTestCase {
         window.rootViewController = host; window.makeKeyAndVisible()
         defer { window.isHidden = true; window.rootViewController = nil; try? FileManager.default.removeItem(at: root) }
         host.loadViewIfNeeded(); host.view.layoutIfNeeded()
-        for _ in 0..<100 {
-            if let web = editor.web, (try? await web.evaluateJavaScript("!!document.querySelector('[contenteditable=true]')")) as? Bool == true { break }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        let web = try XCTUnwrap(editor.web)
-        let ready = try await web.evaluateJavaScript("!!document.querySelector('[contenteditable=true]')")
-        XCTAssertEqual(ready as? Bool, true)
+        let web = try await ready(editor, script: "!!document.querySelector('[contenteditable=true]') && typeof window.eidosFlush === 'function'")
         _ = try await web.evaluateJavaScript("const editor=document.querySelector('[contenteditable=true]'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor); range.collapse(false); const selection=getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('insertText',false,' iOS persisted'); true")
+        _ = try await ready(editor, script: "document.querySelector('[contenteditable=true]')?.textContent.includes('iOS persisted') && typeof window.eidosFlush === 'function'")
         _ = try await web.callAsyncJavaScript("await window.eidosFlush(); return true", arguments: [:], in: nil, contentWorld: .page)
         XCTAssertTrue(try String(contentsOf: file).contains("iOS persisted"))
         let sourceButton = try await web.evaluateJavaScript("[...document.querySelectorAll('button')].some(e=>e.textContent==='源码')")

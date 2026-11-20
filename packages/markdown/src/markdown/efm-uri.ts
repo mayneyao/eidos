@@ -1,4 +1,5 @@
 const DENIED_URI_SCHEME = /^(?:javascript|vbscript|data|file):/iu
+const EIDOS_DOCUMENT_IMAGE_SCOPE = /^eidos:\/\/app\/document\/[a-z0-9-]+\//iu
 
 export function normalizeEfmUri(uri: string): string {
   // Browsers ignore whitespace and C0 controls while resolving schemes.
@@ -40,13 +41,21 @@ export function resolveEfmResourceUri(
  * URLs are accepted here because they are presentation-only and are never
  * serialized into Markdown.
  */
-export function resolveEfmImagePresentationUri(uri: string): string | null {
+export function resolveEfmImagePresentationUri(
+  uri: string,
+  documentBaseUri?: string
+): string | null {
   const normalized = normalizeEfmUri(uri)
   if (!normalized) return null
   const scheme = normalized.match(/^([A-Za-z][A-Za-z0-9+.-]*):/u)?.[1]
-  return scheme && ["blob", "http", "https"].includes(scheme.toLowerCase())
-    ? uri
-    : null
+  if (scheme && ["blob", "http", "https"].includes(scheme.toLowerCase()))
+    return uri
+  // The iOS WebView serves session-scoped raster resources through its own
+  // handler. Only accept this route for an editor that declares that base.
+  const scope = documentBaseUri?.match(EIDOS_DOCUMENT_IMAGE_SCOPE)?.[0]
+  if (!scope || !uri.startsWith(scope)) return null
+  const resolved = new URL(uri).href
+  return resolved.startsWith(scope) ? resolved : null
 }
 
 export function isDeniedEfmUri(uri: string): boolean {

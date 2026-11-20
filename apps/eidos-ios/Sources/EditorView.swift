@@ -56,6 +56,7 @@ struct EditorView: UIViewRepresentable {
         let controller: EditorController
         let queue = LocalSpace.io
         let pluginNonce = UUID().uuidString
+        private let markdownImagePrefix = "/document/\(UUID().uuidString)/"
         var initialTable = ""
         var initialQuery = ""
         var shareBatch: SharedBatch?
@@ -134,7 +135,12 @@ struct EditorView: UIViewRepresentable {
                             document["share"] = ["id": batch.id, "text": batch.text, "files": batch.files]
                         }
                         document["recordDraft"] = (try RecordDraftStore.read(self.file, space: self.space, share: self.shareBatch?.id)) as Any? ?? NSNull()
-                        if document["kind"] as? String == "markdown" { document.merge(try DraftStore.shared.read(self.file)) { _, new in new } }
+                        if document["kind"] as? String == "markdown" {
+                            let markdown = try self.space.checked(self.file)
+                            document["path"] = FileActivity.path(markdown, space: self.space)
+                            document["imageRoot"] = "eidos://app\(self.markdownImagePrefix)"
+                            document.merge(try DraftStore.shared.read(markdown)) { _, new in new }
+                        }
                         result = document
                     case "recordDraft.read":
                         result = (try RecordDraftStore.read(self.file, space: self.space, share: self.shareBatch?.id)) as Any? ?? NSNull()
@@ -239,24 +245,55 @@ struct EditorView: UIViewRepresentable {
                 catch { DispatchQueue.main.async { reply(nil,error.localizedDescription) } }
             }
         }
+        private func documentImage(_ url: URL) throws -> URL {
+            let target: URL
+            let path: String
+            let isDatabase = file.pathExtension.lowercased() == "eidos"
+            if isDatabase {
+                path = String(url.path.dropFirst("/document/".count))
+                target = try LocalSpace.resource(path, under: file.deletingLastPathComponent())
+            } else {
+                // The WebView resolves relative URLs against the note directory in this
+                // session. Validate the resulting Space-relative path again before reading.
+                let encodedPath = url.path(percentEncoded: true)
+                guard encodedPath.hasPrefix(markdownImagePrefix),
+                      let relative = encodedPath.dropFirst(markdownImagePrefix.count).removingPercentEncoding,
+                      relative.split(separator: "/", omittingEmptySubsequences: false)
+                        .allSatisfy({ !$0.isEmpty && !$0.hasPrefix(".") }),
+                      !relative.contains("\\"),
+                      relative.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else {
+                    throw LocalError.message(tr("无效资源"))
+                }
+                path = relative
+                let requested = space.root.appendingPathComponent(relative)
+                target = try space.checked(requested)
+                // Also reject a symlink that resolves directly to the Space root.
+                guard target.path == requested.path,
+                      try target.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+                    throw LocalError.message(tr("资源不存在或路径越界"))
+                }
+            }
+            guard ["png", "jpg", "jpeg", "gif", "webp", "avif"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) else {
+                throw LocalError.message(tr("不支持的图片类型"))
+            }
+            if (try target.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max) > 16 * 1024 * 1024 {
+                throw LocalError.message(tr("图片超过 16 MB"))
+            }
+            return target
+        }
         func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
             do {
                 guard let url = urlSchemeTask.request.url, url.host == "app" else { throw LocalError.message(tr("无效资源")) }
-                let root: URL
-                let path: String
+                let target: URL
                 if url.path.hasPrefix("/editor/") {
                     guard let bundleRoot = Bundle.main.resourceURL else { throw LocalError.message(tr("编辑器资源缺失")) }
-                    root = bundleRoot.appendingPathComponent("editor")
-                    path = String(url.path.dropFirst("/editor/".count))
+                    target = try LocalSpace.resource(
+                        String(url.path.dropFirst("/editor/".count)),
+                        under: bundleRoot.appendingPathComponent("editor")
+                    )
                 } else if url.path.hasPrefix("/document/") {
-                    root = file.deletingLastPathComponent()
-                    path = String(url.path.dropFirst("/document/".count))
-                    guard ["png", "jpg", "jpeg", "gif", "webp", "avif"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) else { throw LocalError.message(tr("不支持的图片类型")) }
+                    target = try documentImage(url)
                 } else { throw LocalError.message(tr("资源不存在")) }
-                let target = try LocalSpace.resource(path, under: root)
-                if url.path.hasPrefix("/document/"), (try target.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max) > 16 * 1024 * 1024 {
-                    throw LocalError.message(tr("图片超过 16 MB"))
-                }
                 var data = try Data(contentsOf: target)
                 if url.path == "/editor/index.html" {
                     data = Data(String(decoding:data,as:UTF8.self).replacingOccurrences(of:"__EIDOS_PLUGIN_NONCE__",with:pluginNonce).utf8)
