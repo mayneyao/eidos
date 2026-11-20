@@ -2252,6 +2252,17 @@ cannot issue one query per row. Short-circuiting `IIF`, `CASE`, `COALESCE`,
 `IFNULL`, `AND`, and `OR` avoids
 unselected branch row errors but does not change static type/dependency checks.
 
+An editor opening a file may enter read-only compatibility mode for a
+structurally valid Formula that calls an unavailable function. Schema and
+projection descriptors mark the Formula and its dependent derived Fields with
+`valueStatus: "unsupported-formula"`. A projected unavailable value is a null
+placeholder with this status. Filters, sorts, grouping and aggregates that
+explicitly depend on it are unsupported. Saved Views that depend on an
+unavailable Field expose their original query and a
+`queryUnavailableReason: "unsupported-formula"`. Editors can offer a separate
+unfiltered records view. The Formula source and saved query are preserved
+without mutation.
+
 The standard serializer emits uppercase keywords/functions, canonical Integer
 literals, doubled string and identifier quotes, comma followed by one space,
 and one space around infix operators. A Number uses the shortest

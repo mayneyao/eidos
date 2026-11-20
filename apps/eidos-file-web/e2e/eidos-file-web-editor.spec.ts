@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { dirname } from "node:path"
+import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 
 import { expect, test, type Locator, type Page } from "@playwright/test"
@@ -12,6 +14,73 @@ const featureLabFixturePath = fileURLToPath(
 const fixtureRowCount = 2_500
 const gridHeaderHeight = 36
 const gridRowHeight = 36
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
+  DatabaseSync: new (path: string) => {
+    prepare(sql: string): {
+      get(): Record<string, unknown> | undefined
+      run(...values: string[]): unknown
+    }
+    close(): void
+  }
+}
+
+test("opens files with an unknown Formula and can browse the original records", async ({
+  page,
+}, testInfo) => {
+  const file = testInfo.outputPath("newer-formula.eidos")
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, await readFile(fixturePath))
+  const database = new DatabaseSync(file)
+  const field = database
+    .prepare(
+      "SELECT id, table_id FROM eidos__fields WHERE name = 'Effort score'"
+    )
+    .get()
+  if (typeof field?.id !== "string" || typeof field.table_id !== "string")
+    throw new Error("Fixture is missing its Formula")
+  database
+    .prepare(
+      "UPDATE eidos__formula_fields SET source_text = ? WHERE field_id = ?"
+    )
+    .run("FUTURE_VALUE()", field.id)
+  database
+    .prepare("UPDATE eidos__fields SET position = 1 WHERE id = ?")
+    .run(field.id)
+  database
+    .prepare(
+      "UPDATE eidos__views SET query_json = ? WHERE table_id = ? AND name = 'Grid'"
+    )
+    .run(
+      JSON.stringify({ sort: [{ direction: "asc", fieldId: field.id }] }),
+      field.table_id
+    )
+  database.close()
+
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.locator("input[type=file]").setInputFiles(file)
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "This view depends on a formula" })
+  ).toBeVisible()
+  await page
+    .getByRole("button", { name: "Browse records", exact: true })
+    .click()
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Browsing records without the saved view" })
+  ).toBeVisible()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).not.toBeEmpty()
+  await expect(
+    page.getByText("Requires a newer Eidos version", { exact: true }).first()
+  ).toBeAttached()
+  await page.getByRole("button", { name: "Back to view", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Browse records", exact: true })
+  ).toBeVisible()
+})
 
 test("keeps the appended record editor aligned with its cell", async ({
   page,

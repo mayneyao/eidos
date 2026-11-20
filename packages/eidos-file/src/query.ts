@@ -493,6 +493,7 @@ function searchableFields(
   return fields.filter(
     (field) =>
       (!selection || (!!field.id && selection.has(field.id))) &&
+      field.valueStatus !== "unsupported-formula" &&
       (!field.isHidden || selection !== null) &&
       eidosFileFieldQueryCapabilities(field).searchable &&
       (field.isRecordLabel ||

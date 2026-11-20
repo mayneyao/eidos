@@ -96,6 +96,8 @@ export interface EidosFileFieldInfo {
   nullable?: boolean
   /** Runtime-authoritative cell writability. Older editor sources may omit it. */
   writable?: boolean
+  /** The value depends on a Formula this Runtime cannot execute. */
+  valueStatus?: "unsupported-formula"
   isRecordLabel?: boolean
   position?: number
   settings?: Record<string, unknown>
@@ -115,6 +117,7 @@ export interface EidosFileViewInfo {
   tableId: string
   /** Whether this Runtime can execute the complete saved query. */
   queryStatus?: "supported" | "unsupported"
+  queryUnavailableReason?: "unsupported-formula"
   query: string
   properties: Record<string, unknown> | null
   filter: EidosFileFilterGroup | null

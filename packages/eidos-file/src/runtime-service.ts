@@ -332,14 +332,17 @@ function createRuntimeBinding(
     nowInstant: () => checkedNowInstant(environment),
     allocateId: () => generator.next(),
   })
-  if (mode === "readwrite") {
+  const writable =
+    mode === "readwrite" &&
+    !connection.transaction("read", () => core.hasUnsupportedDerivedFields())
+  if (writable) {
     connection.transaction("write", () => core.optimizeViewQueries())
   }
   const service = new EidosRuntimeService(
     connection,
     core,
     environment,
-    mode === "readwrite",
+    writable,
     generator
   )
   return {
@@ -2702,6 +2705,9 @@ export class EidosRuntimeService implements RuntimeClient {
           hasEidosFileCalendarPeriodQuery(JSON.parse(view.query)))
           ? {
               queryStatus: "unsupported" as const,
+              ...(view.queryUnavailableReason
+                ? { queryUnavailableReason: view.queryUnavailableReason }
+                : {}),
               query: objectValue(
                 parseEidosFileJson(view.query) as Record<string, unknown>
               ),
@@ -2771,6 +2777,7 @@ export class EidosRuntimeService implements RuntimeClient {
         fieldId,
         name: field.name,
         valueType: fieldValueType(field),
+        ...(field.valueStatus ? { valueStatus: field.valueStatus } : {}),
         source:
           field.type === "formula"
             ? "formula"
@@ -2794,12 +2801,15 @@ export class EidosRuntimeService implements RuntimeClient {
     return rows.map((row) => {
       const projected: ProjectedRow = {
         id: row.id,
-        values: projection.fields.map((fieldId, index) =>
-          compatibilityLogicalValue(
-            row.fields[fieldId] ?? null,
-            columns[index]!.valueType
-          )
-        ),
+        values: projection.fields.map((fieldId, index) => {
+          const column = columns[index]!
+          return column.valueStatus === "unsupported-formula"
+            ? null
+            : compatibilityLogicalValue(
+                row.fields[fieldId] ?? null,
+                column.valueType
+              )
+        }),
       }
       const resolvedRelations = projection.resolveRelations.flatMap(
         (fieldId) => {
@@ -5076,6 +5086,7 @@ function fieldDescriptor(
     position: String(field.position ?? 0),
     settings: objectValue(field.settings ?? {}),
     writable: fieldWritable(field),
+    ...(field.valueStatus ? { valueStatus: field.valueStatus } : {}),
     ...(definition ? { definition } : {}),
   }
 }

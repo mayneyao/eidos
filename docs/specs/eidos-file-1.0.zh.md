@@ -1139,6 +1139,10 @@ AST、resolved Field-ID refs、dependency edges、compiled SQL、sample 和 resu
 generated state。Field rename 的 AST rewrite 与 atomic postcondition 由 Runtime 定义；
 EF-only Writer 必须 byte-for-byte 保留 `source_text`，遇到受影响 rename 就拒绝，不能猜测。
 
+若 Runtime 识别存储形状，但遇到新版配置才支持的 Formula 函数，可按 Runtime §9.5
+以只读兼容模式打开文件。Runtime 保留原始定义，明确标记不可用字段和依赖项。
+该规则不放宽未知必需特性的校验，也不授予规范写入权限。
+
 ## 12. Lookup 与 dependency definition storage
 
 Lookup Field 必须 `type='lookup'`、`physical_name=NULL`，并在
@@ -1341,6 +1345,9 @@ canonical Eidos data。
 `required=0` feature 必须能被未知实现 semantic-ignore，并由 Writer byte-semantically
 preserve，否则拒绝写。改变 core raw value、query result、mutation postcondition 或其他
 不可忽略 meaning 的 feature 必须 `required=1`。
+
+保持物理格式不变的 Formula 语言扩展可按第 11 节在 Formula 源码中声明语义。
+已有表达式形状中的未知函数适用只读兼容模式。
 
 未注册的 extension object 使用 `x__<vendor>__*`；vendor 是 letter 开头、仅 lowercase
 ASCII letter/digit/underscore 的非空 token。注册在 `eidos__tables` 中的 `x__*` table 是

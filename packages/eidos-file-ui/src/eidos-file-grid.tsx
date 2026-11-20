@@ -1664,6 +1664,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           skeletonHeight: 10,
         }
       }
+      if (field.valueStatus === "unsupported-formula") {
+        const message = t("Requires a newer Eidos version")
+        return {
+          kind: GridCellKind.Text,
+          data: message,
+          displayData: message,
+          readonly: true,
+          allowOverlay: false,
+        }
+      }
       const cell = eidosFileValueToGridCell(
         field,
         row[field.tableColumnName],

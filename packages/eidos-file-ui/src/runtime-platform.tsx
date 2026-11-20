@@ -529,7 +529,7 @@ function RuntimeValue({
   field: FieldDescriptor
   value: LogicalValue
 }) {
-  const { timeZone } = useEidosFileUI()
+  const { timeZone, translate: t } = useEidosFileUI()
   const calendar = useEidosFileCalendarExecution()
   const fileEntries =
     field.valueType === "file" ||
@@ -541,6 +541,8 @@ function RuntimeValue({
       : field.valueType === "file-entry" && isRuntimeFileEntry(value)
         ? [value]
         : null
+  if (field.valueStatus === "unsupported-formula")
+    return <>{t("Requires a newer Eidos version")}</>
   if (fileEntries) {
     return fileEntries.length > 0 ? (
       <div className="grid gap-1">

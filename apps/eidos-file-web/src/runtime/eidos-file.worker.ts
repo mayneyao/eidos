@@ -104,7 +104,9 @@ async function installPool(
 function validateAndMigrate(
   connection: ConnectionPortEidosFileConnection
 ): boolean {
-  const result = validateEidosFile(connection)
+  const result = validateEidosFile(connection, {
+    allowUnsupportedFormulaFunctions: true,
+  })
   if (!result.valid) {
     throw new EidosFileError(
       "not-eidos-file",

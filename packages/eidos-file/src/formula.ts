@@ -69,6 +69,14 @@ export const EIDOS_FILE_FORMULA_FUNCTION_NAMES = [
 ] as const
 
 const ALLOWED_FUNCTIONS = new Set<string>(EIDOS_FILE_FORMULA_FUNCTION_NAMES)
+
+/** @internal An otherwise parsed expression names an unavailable function. */
+export class UnsupportedFormulaFunctionError extends EidosFileError {
+  constructor(name: string) {
+    super("invalid-formula", `Unsupported Eidos File formula function: ${name}`)
+  }
+}
+
 const ALLOWED_KEYWORDS = new Set([
   "and",
   "as",
@@ -205,14 +213,10 @@ export function eidosFileFormulaReferences(
         index += 1
       }
       const token = source.slice(start, index).toLowerCase()
-      if (nextNonWhitespace(source, index) === "(" && token !== "cast") {
-        if (!ALLOWED_FUNCTIONS.has(token)) {
-          throw new EidosFileError(
-            "invalid-schema",
-            `Unsupported Eidos File formula function: ${token}`
-          )
-        }
-      } else if (!ALLOWED_KEYWORDS.has(token)) {
+      if (
+        (nextNonWhitespace(source, index) !== "(" || token === "cast") &&
+        !ALLOWED_KEYWORDS.has(token)
+      ) {
         throw new EidosFileError(
           "invalid-schema",
           `Field references must be double-quoted: ${source.slice(start, index)}`
@@ -548,12 +552,6 @@ function parseExactFormula(source: string): ParsedExactFormula {
           `Field references must be double-quoted: ${token.text}`
         )
       }
-      if (!ALLOWED_FUNCTIONS.has(token.text.toLowerCase())) {
-        throw new EidosFileError(
-          "invalid-formula",
-          `Unsupported Formula function: ${token.text}`
-        )
-      }
       take()
       const args: ExactFormulaNode[] = []
       if (peek().kind !== "right") {
@@ -639,9 +637,12 @@ function parseExactFormula(source: string): ParsedExactFormula {
 function assertExactFormulaAst(root: ExactFormulaNode): void {
   let nodes = 0
   let maximumDepth = 0
+  let unsupportedFunction: string | undefined
   const visit = (node: ExactFormulaNode, depth: number): void => {
     nodes += 1
     maximumDepth = Math.max(maximumDepth, depth)
+    const name = node.function?.name
+    if (name && !ALLOWED_FUNCTIONS.has(name)) unsupportedFunction ??= name
     if (node.left) visit(node.left, depth + 1)
     if (node.right) visit(node.right, depth + 1)
     if (node.operand) visit(node.operand, depth + 1)
@@ -654,6 +655,8 @@ function assertExactFormulaAst(root: ExactFormulaNode): void {
       "Eidos File formula exceeds the AST complexity limit"
     )
   }
+  if (unsupportedFunction !== undefined)
+    throw new UnsupportedFormulaFunctionError(unsupportedFunction)
 }
 
 function formulaOperandType(field: EidosFileFieldInfo): FormulaStaticType {

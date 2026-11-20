@@ -43,7 +43,10 @@ import {
   EIDOS_FILE_TABLES_TABLE,
   EIDOS_FILE_VIEWS_TABLE,
 } from "./constants"
-import { compileEidosFileFormula } from "./formula"
+import {
+  compileEidosFileFormula,
+  UnsupportedFormulaFunctionError,
+} from "./formula"
 import { smallestDependencyCycle } from "./dependency-graph"
 import { decodeEidosFileValues } from "./file-values"
 import {
@@ -580,7 +583,11 @@ function declaredColumnCollation(
 
 export function validateEidosFile(
   connection: EidosFileConnection,
-  options: { level?: EidosFileValidationLevel } = {}
+  options: {
+    level?: EidosFileValidationLevel
+    /** Allow a read-only editor to open a file with opaque Formula definitions. */
+    allowUnsupportedFormulaFunctions?: boolean
+  } = {}
 ): EidosFileValidationResult {
   const level = options.level ?? "full"
   const errors: EidosFileValidationIssue[] = []
@@ -1880,11 +1887,18 @@ export function validateEidosFile(
               const compiled = compileEidosFileFormula(field, fields)
               dependencyGraph.set(fieldId, compiled.dependencyFieldIds)
             } catch (error) {
-              add(
-                errors,
-                "invalid-schema",
-                error instanceof Error ? error.message : "Invalid Formula"
-              )
+              if (
+                options.allowUnsupportedFormulaFunctions &&
+                error instanceof UnsupportedFormulaFunctionError
+              ) {
+                add(warnings, "unsupported-formula", error.message, table.name)
+              } else {
+                add(
+                  errors,
+                  "invalid-schema",
+                  error instanceof Error ? error.message : "Invalid Formula"
+                )
+              }
             }
           }
         } else if (field.type === "lookup") {

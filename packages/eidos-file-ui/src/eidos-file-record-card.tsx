@@ -165,6 +165,13 @@ function CardFieldValue({
   const { field, optionByValue } = layout
   const value = row[field.tableColumnName]
 
+  if (field.valueStatus === "unsupported-formula")
+    return (
+      <span className="text-muted-foreground">
+        {translate("Requires a newer Eidos version")}
+      </span>
+    )
+
   if (field.type === "checkbox") {
     const checked = value === true || value === 1 || value === "1"
     return checked ? (

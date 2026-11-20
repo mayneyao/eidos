@@ -48,7 +48,9 @@ import {
   assertEidosFileFormulaProfile,
   compileEidosFileFormula,
   compileEidosFileFormulaSource,
+  eidosFileFormulaReferences,
   rewriteEidosFileFormulaFieldReferences,
+  UnsupportedFormulaFunctionError,
 } from "./formula"
 import {
   assertEidosFileDisplayName,
@@ -1802,6 +1804,7 @@ export class EidosFileRuntime {
       }
       if (!changed) break
     }
+    this.markFormulaDependencies(fields, fieldsByTable, formulas, lookups)
     const schema = {
       tables,
       fields,
@@ -1812,6 +1815,63 @@ export class EidosFileRuntime {
     }
     if (this.mutationDepth === 0) this.schemaCache = { dataVersion, schema }
     return schema
+  }
+
+  private markFormulaDependencies(
+    fields: RuntimeSchema["fields"],
+    fieldsByTable: RuntimeSchema["fieldsByTable"],
+    formulas: RuntimeSchema["formulas"],
+    lookups: RuntimeSchema["lookups"]
+  ): void {
+    const unsupported: string[] = []
+    for (const [id] of formulas) {
+      const field = fields.get(id)
+      if (!field) continue
+      try {
+        compileEidosFileFormula(field, fieldsByTable.get(field.tableId) ?? [])
+      } catch (error) {
+        if (error instanceof UnsupportedFormulaFunctionError)
+          unsupported.push(id)
+      }
+    }
+    if (unsupported.length === 0) return
+
+    const dependents = new Map<string, string[]>()
+    const dependOn = (dependent: string, dependency: string) => {
+      const next = dependents.get(dependency) ?? []
+      next.push(dependent)
+      dependents.set(dependency, next)
+    }
+    for (const tableFields of fieldsByTable.values()) {
+      const byName = new Map(tableFields.map((field) => [field.name, field.id]))
+      for (const field of tableFields) {
+        const formula = formulas.get(field.id)
+        if (!formula) continue
+        try {
+          for (const ref of eidosFileFormulaReferences(formula.source_text)) {
+            const dependency = byName.get(ref.fieldName)
+            if (dependency) dependOn(field.id, dependency)
+          }
+        } catch {
+          // Malformed definitions remain subject to normal validation.
+        }
+      }
+    }
+    for (const [id, lookup] of lookups)
+      dependOn(id, uuid(lookup.target_field_id))
+    for (const id of unsupported) {
+      const field = fields.get(id)
+      if (!field || field.valueStatus) continue
+      field.valueStatus = "unsupported-formula"
+      unsupported.push(...(dependents.get(id) ?? []))
+    }
+  }
+
+  /** @internal Whether this session must preserve opaque definitions read-only. */
+  hasUnsupportedDerivedFields(): boolean {
+    return Array.from(this.allSchema().fields.values()).some(
+      (field) => field.valueStatus === "unsupported-formula"
+    )
   }
 
   listTables(): EidosFileTableInfo[] {
@@ -3598,8 +3658,25 @@ export class EidosFileRuntime {
     if (hasEidosFileCalendarWindowQuery(query))
       requireCalendarWindowFeature(this.connection)
     const layout = jsonObject(row.layout_json)
-    const queryStatus = storedViewQueryStatus(query, fields)
+    const storedStatus = storedViewQueryStatus(query, fields)
     const storedSorts = sortsFromStorage(query.sort)
+    const filter =
+      storedStatus === "supported"
+        ? filterFromStorage(query.filter, fields)
+        : null
+    const queryFields = this.requiredQueryFieldKeys(fields, {
+      filter,
+      sorts: storedSorts,
+    })
+    const unsupportedFormula = fields.some(
+      (field) =>
+        field.valueStatus === "unsupported-formula" &&
+        (queryFields.has(field.id) ||
+          queryFields.has(field.tableColumnName) ||
+          layout.groupField === field.id ||
+          layout.dateField === field.id)
+    )
+    const queryStatus = unsupportedFormula ? "unsupported" : storedStatus
     const fieldIds = new Set(
       fields.flatMap((field) => (field.id ? [field.id] : []))
     )
@@ -3615,12 +3692,12 @@ export class EidosFileRuntime {
       type: row.type,
       tableId,
       queryStatus,
+      ...(unsupportedFormula
+        ? { queryUnavailableReason: "unsupported-formula" as const }
+        : {}),
       query: row.query_json,
       properties,
-      filter:
-        queryStatus === "supported"
-          ? filterFromStorage(query.filter, fields)
-          : null,
+      filter: queryStatus === "supported" ? filter : null,
       sorts:
         queryStatus === "supported"
           ? storedSorts.filter((sort) => fieldIds.has(sort.field))
@@ -4096,6 +4173,7 @@ export class EidosFileRuntime {
     stack: string[] = []
   ): string {
     if (!field.id) throw new EidosFileError("invalid-schema", "Field has no ID")
+    if (field.valueStatus === "unsupported-formula") return "NULL"
     if (stack.includes(field.id)) {
       throw new EidosFileError(
         "dependency-cycle",
@@ -4437,6 +4515,17 @@ export class EidosFileRuntime {
     query: EidosFileRowQuery,
     context: { referenceInstant?: string }
   ) {
+    const queryFields = this.requiredQueryFieldKeys(source.fields, query)
+    const unavailable = source.fields.find(
+      (field) =>
+        field.valueStatus === "unsupported-formula" &&
+        (queryFields.has(field.id) || queryFields.has(field.tableColumnName))
+    )
+    if (unavailable)
+      throw new EidosFileError(
+        "unsupported-feature",
+        `Field ${unavailable.name} requires a newer Eidos version`
+      )
     return compileEidosFileRowQuery(source.fields, query, {
       ...context,
       externalInstants: source.externalInstants,
@@ -5128,6 +5217,14 @@ export class EidosFileRuntime {
     fieldIds: string[],
     query: EidosFileRowQuery
   ): EidosFileLogicalRow[] {
+    for (const fieldId of fieldIds) {
+      const field = this.fieldByKey(tableId, fieldId)
+      if (field.valueStatus === "unsupported-formula")
+        throw new EidosFileError(
+          "unsupported-feature",
+          `Field ${field.name} requires a newer Eidos version`
+        )
+    }
     const compatibleQuery = this.compatibilityQuery(tableId, query)
     const fields = this.listFields(tableId)
     const source = this.logicalSource(
@@ -6731,7 +6828,14 @@ export class EidosFileRuntime {
     const expression = compileEidosFileFormulaSource(
       input.formula,
       fields,
-      (dependency) => this.fieldExpression(dependency, "base", schema),
+      (dependency) => {
+        if (dependency.valueStatus === "unsupported-formula")
+          throw new EidosFileError(
+            "unsupported-feature",
+            `Field ${dependency.name} requires a newer Eidos version`
+          )
+        return this.fieldExpression(dependency, "base", schema)
+      },
       input.displayType
     ).expression
     const sampleExpression = canonicalTemporalProjection(

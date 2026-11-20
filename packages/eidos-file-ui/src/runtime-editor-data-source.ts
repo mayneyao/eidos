@@ -2428,6 +2428,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       systemRole: field.systemRole,
       nullable: field.nullable,
       writable: field.writable && !readOnly,
+      ...(field.valueStatus ? { valueStatus: field.valueStatus } : {}),
       isRecordLabel: table.labelFieldId === field.id,
       position: Number(field.position),
       settings: field.settings,
@@ -2460,6 +2461,9 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       type: view.type,
       tableId: view.tableId,
       queryStatus: retired ? "unsupported" : view.queryStatus,
+      ...(view.queryStatus === "unsupported" && view.queryUnavailableReason
+        ? { queryUnavailableReason: view.queryUnavailableReason }
+        : {}),
       query: canonicalizeEidosFileJson(view.query),
       properties: { ...view.layout },
       filter:
