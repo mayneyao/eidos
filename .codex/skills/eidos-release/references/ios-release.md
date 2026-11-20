@@ -26,6 +26,52 @@ against its own distributed builds. Do not invent an `ios-v*` tag, workflow or
 `--surface ios` helper contract. Distinguish TestFlight distribution from an
 App Store release; publishing to the store is a separate scope.
 
+## App Store Connect declaration without attachments
+
+For routine Eidos iOS releases, use the App Store Connect path that requires
+no encryption attachment. CCATS and French encryption declarations are outside
+this workflow. Record the exact build and intended distribution channel and
+storefronts. The current rollout excludes the French App Store. Check the
+intended scope before answering the France question.
+
+For the existing Graft encrypted remote protocol, use the developer's
+classification of the shipped public algorithms and protocol. Check the
+candidate's app, share extension, locked Graft SDK, native library and bundled
+dependencies against that assessment. Record XChaCha20-Poly1305 for repository
+encryption, Argon2id for password-based key derivation and Rustls if bundled
+for transport. Use the published Graft protocol at the locked SDK commit and
+the [archived XChaCha IRTF draft](https://datatracker.ietf.org/doc/draft-irtf-cfrg-xchacha/).
+Record reproducible evidence of any change to the encryption footprint.
+
+For a matching candidate whose assessment supports the industry-standard
+category, select only **Standard encryption algorithms implemented outside
+the Apple operating system** or the equivalent wording in App Store Connect.
+Bundling an implementation outside the OS is covered by that answer.
+Select the Apple OS-only answer only for a build that limits all encryption
+to Apple's system implementations. See
+[Apple's materials table](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
+and the [EAR definition](https://www.bis.gov/regulations/ear/772), which also
+considers publication by other means.
+
+When the build is already uploaded, use that build's TestFlight compliance
+questionnaire. If the form requests an attachment, first verify the category,
+the France answer and whether a previous draft preselected an additional
+algorithm category. Correct answers supported by the candidate's assessment.
+Save when the reviewed answers permit the attachment-free path. If the
+correct answers still require an attachment, leave the declaration pending
+and report the build, selected answers and requested file. File submission
+requires a separate release decision. A questionnaire correction alone can
+use the existing build. Rebuild only when the binary or its metadata needs
+to change.
+
+Use `ITSAppUsesNonExemptEncryption=NO` in `project.yml` only when the reviewed
+build qualifies for that declaration, including its third-party libraries.
+Otherwise answer the questionnaire in App Store Connect and verify the exact
+build's compliance state before TestFlight distribution. See
+[Apple's plist guidance](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)
+and
+[TestFlight compliance instructions](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-export-compliance-information-for-beta-builds).
+
 ## Validate and rebuild resources
 
 For a Markdown fix, run its shared package tests, including the mobile preset
@@ -70,9 +116,11 @@ the release archive with an ad-hoc or simulator build.
 ## Prove tester availability
 
 Record the uploaded build's App Store Connect identity and source provenance.
-Verify Apple processing completion, export-compliance status, TestFlight group
-assignment and tester availability. External testers may require Beta App
-Review. An archive or accepted upload is not proof of available distribution.
+Verify Apple processing completion, the exact build's export-compliance status
+and declaration, TestFlight group assignment and tester availability. Record the
+specific missing document or review status when compliance is still pending.
+External testers may require Beta App Review. An archive or accepted upload is
+not proof of available distribution.
 
 Install the candidate from TestFlight on a physical device and verify startup,
 offline editing, save/reopen and changed flows. For shared list fixes, check

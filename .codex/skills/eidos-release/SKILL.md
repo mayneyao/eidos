@@ -56,7 +56,9 @@ not complete this release gate. Record evidence for unaffected entries too.
 - **Android:** read
   [references/android-release.md](references/android-release.md).
 - **iOS / TestFlight:** read
-  [references/ios-release.md](references/ios-release.md).
+  [references/ios-release.md](references/ios-release.md). Use the App Store
+  Connect declaration path that requires no encryption attachment. Verify
+  TestFlight availability for the intended group.
 - **Eidos File Web:** read
   [references/web-editor-release.md](references/web-editor-release.md).
 - **Eidos Publish:** read
