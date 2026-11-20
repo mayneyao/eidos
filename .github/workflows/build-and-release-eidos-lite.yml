@@ -125,7 +125,7 @@ jobs:
         run: pnpm test:eidos-lite
 
       - name: Test download and update routing
-        run: node --test apps/download/src/release-routing.test.mjs
+        run: pnpm --filter download test
 
       - name: Build production assets
         run: pnpm --filter @eidos.space/eidos-lite-desktop build:release
