@@ -44,11 +44,11 @@ export async function serveLiteUpdate(
     }
     const githubToken = await getGitHubToken()
     if (githubToken) headers.Authorization = `Bearer ${githubToken}`
-    // Keep the API credential on api.github.com. Only send the client the
-    // public asset URL, so its original Range header follows the redirect.
+    // Inspect API redirects without following them with the credential.
+    // The client follows the separate public asset redirect with its Range.
     const requestOptions = {
       headers,
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     } as const
     let selected: GitHubRelease | null = null
