@@ -133,7 +133,7 @@
       "packages/eidos-file/src/types.ts": "42cd736d3e328625915889a09a9486a05217213d57c53af7fa98ba05b6dddcfb",
       "packages/eidos-file/src/validation.ts": "e92a538d55e5707dec29429e2a9a1b9e6404355037519a10b65628decdfc5b41",
       "packages/eidos-file/src/view-query-compatibility.test.ts": "361017921acea0a589a0117703b726ca01530b2241656525dc7bf1f0cc9c7f00",
-      "packages/eidos-file/package.json": "fcd7a4065d89705396906be6b5bcf37d6839b61d16f5df6402a8e8a5c5a98a99",
+      "packages/eidos-file/package.json": "28c1ea15dcb3cd8bf6b07dcdfaeea8fd27de247122f5711b316e0a89ddc0a41c",
       "pnpm-lock.yaml": "432aeb81339978908d0338cbb1cac43bb632b379f7c5b1f9bf070d36a14be091",
       "scripts/build-quickjs.mjs": "c8da25b2f9f668c82cdaf45a694afe36080e88994275deaccd3f2d9ababab617",
       "scripts/generated-assets.mjs": "763a5765d04d1686ac016999c2e0e3ab8ced03e034ececf93956ae79e6a1bc8f"
