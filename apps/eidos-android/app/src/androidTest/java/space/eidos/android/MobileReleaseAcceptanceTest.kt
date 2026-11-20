@@ -308,6 +308,86 @@ class MobileReleaseAcceptanceTest {
         }
     }
 
+    @Test
+    fun createsFormulaFromMobileFieldsAndRecalculatesOnRecordEdit() {
+        val app = compose.activity.application
+        val id = "formula-mobile-${UUID.randomUUID()}"
+        val repository = SpaceRepository(app, id)
+        val root = File(app.filesDir, "spaces/$id")
+        check(root.exists() || root.mkdirs())
+        val path = "Formula.eidos"
+        NativeRuntime.call(File(root, path).path, "create", JSONObject(
+            """{"title":"Formula QA","fields":[{"clientKey":"title","name":"标题","kind":"text","position":"0"},{"clientKey":"quantity","name":"Quantity","kind":"integer","position":"1"}]}"""
+        ))
+        val initial = runBlocking { repository.loadEidos(path) }
+        val table = checkNotNull(initial.table)
+        val quantity = initial.fields.single { it.name == "Quantity" }.id
+        runBlocking { repository.mutate(initial, null, mapOf(table.labelFieldId to "One item", quantity to "5")) }
+        val row = runBlocking { repository.loadEidos(path) }.rows.single()
+        lateinit var model: EidosModel
+        try {
+            compose.runOnUiThread { model = EidosModel(app, repository); compose.activity.setContent { EidosApp(model) } }
+            compose.waitUntil(15_000) { !model.state.value.busy }
+            compose.runOnUiThread { model.open(runBlocking { repository.file(path) }) }
+            tap("button[aria-label=视图设置]")
+            tap("button[aria-label=管理字段]")
+            waitJs("!![...document.querySelectorAll('.eidos-mobile-fields-list button')].find(b=>b.textContent.trim()==='新建字段' && !b.disabled)")
+            js("[...document.querySelectorAll('.eidos-mobile-fields-list button')].find(b=>b.textContent.trim()==='新建字段').setAttribute('data-create-formula-test','')")
+            tap("[data-create-formula-test]")
+            tap(".eidos-mobile-fields-create [data-eidos-file-field-type-trigger]")
+            tap("[data-eidos-file-field-type=formula]")
+            waitJs("!!document.querySelector('[data-eidos-file-formula-composer]')")
+            js("(()=>{const input=document.querySelector('.eidos-mobile-fields-create form input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Doubled');input.dispatchEvent(new Event('input',{bubbles:true}));})()")
+            tap(".eidos-file-formula-display-select")
+            tap("[role=option]:has([data-eidos-file-field-type-icon=integer])")
+            tap("[data-formula-reference$=':$quantity']")
+            waitJs("document.querySelector('textarea[aria-label=\"Formula expression\"]')?.value === '\"Quantity\"'")
+            fun appendExpression(text: String) {
+                js("(()=>{const e=document.querySelector('textarea[aria-label=\"Formula expression\"]');e.focus();e.setSelectionRange(e.value.length,e.value.length);return document.execCommand('insertText',false,${JSONObject.quote(text)});})()")
+            }
+            appendExpression(" *")
+            waitJs("!!document.querySelector('[data-eidos-file-formula-status=error]')")
+            assertEquals("true", js("document.querySelector('.eidos-mobile-fields-create button[type=submit]')?.disabled"))
+            appendExpression(" 2")
+            waitJs("document.querySelector('[data-eidos-file-formula-status=valid]')?.textContent.trim() === '10'")
+            waitJs("(()=>{const b=document.querySelector('.eidos-mobile-fields-create button[type=submit]');const r=b.getBoundingClientRect();return !b.disabled && b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})()")
+            screenshot("formula-preview-valid.png")
+            tap(".eidos-mobile-fields-create button[type=submit]")
+            waitJs("!!document.querySelector('button[aria-label=编辑Doubled属性]')")
+            tap("[data-mobile-page]:not([hidden]) > header button[aria-label=关闭]")
+            waitJs("!document.querySelector('.eidos-mobile-fields-content')")
+            val recordRoute = "#/records/" + listOf(path, table.id, row.id).joinToString("/") { android.net.Uri.encode(it) }
+            js("location.hash=${JSONObject.quote(recordRoute)}")
+            waitJs("document.querySelector('[data-mobile-record-page]')?.innerText.includes('Doubled') === true")
+            waitJs("[...document.querySelectorAll('.eidos-mobile-record-value')].some(e=>e.textContent.trim()==='10')")
+
+            tap("input[aria-label=Quantity]")
+            js("(()=>{const input=document.querySelector('input[aria-label=Quantity]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'7');input.dispatchEvent(new Event('input',{bubbles:true}));})()")
+            js("document.querySelector('input[aria-label=Quantity]').blur()")
+            waitJs("[...document.querySelectorAll('.eidos-mobile-record-value')].some(e=>e.textContent.trim()==='14')")
+            screenshot("formula-record-recalculated.png")
+            js("location.hash=''")
+            waitJs("!!document.querySelector('button[aria-label=视图设置]')")
+            compose.onNodeWithContentDescription("返回文件").performClick()
+            compose.waitUntil(15_000) { model.state.value.webFile == null }
+            compose.runOnUiThread { model.open(runBlocking { repository.file(path) }) }
+            waitJs("!!document.querySelector('button[aria-label=视图设置]')")
+            js("location.hash=${JSONObject.quote(recordRoute)}")
+            waitJs("document.querySelector('[data-mobile-record-page]')?.innerText.includes('Doubled') === true")
+            waitJs("[...document.querySelectorAll('.eidos-mobile-record-value')].some(e=>e.textContent.trim()==='14')")
+            val reopened = runBlocking { repository.loadEidos(path) }
+            val formula = reopened.fields.single { it.name == "Doubled" }
+            assertEquals("formula", formula.kind)
+            assertEquals("14", reopened.rows.single().values[formula.id].toString())
+            screenshot("formula-reopened.png")
+        } finally {
+            compose.runOnUiThread { compose.activity.setContent {}; model.viewModelScope.cancel() }
+            runBlocking { repository.close() }
+            root.deleteRecursively()
+            app.deleteSharedPreferences("space-$id")
+        }
+    }
+
     private fun findWeb(view: View): WebView? {
         if (view is WebView) return view
         if (view is ViewGroup) for (i in 0 until view.childCount) findWeb(view.getChildAt(i))?.let { return it }

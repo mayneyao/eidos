@@ -378,6 +378,10 @@
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   }
 
+  [data-mobile-formula-references] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .eidos-file-formula-reference-list {
     max-height: 12.5rem;
   }
@@ -1605,6 +1609,36 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
+}
+.eidos-mobile-settings-sheet:has([data-mobile-field-create]) {
+  bottom: var(--field-create-bottom-inset, 0px);
+  max-height: calc(var(--field-create-viewport-height, 100dvh) - 16px);
+  min-height: 0;
+}
+.eidos-mobile-settings-body:has(> [data-mobile-field-create]) {
+  overflow: hidden;
+  padding-block: 0;
+}
+.eidos-mobile-fields-content[data-mobile-field-create] {
+  height: 100%;
+  min-height: 0;
+}
+[data-mobile-field-create] > .eidos-mobile-fields-create {
+  overflow: hidden;
+}
+.eidos-mobile-settings-body .eidos-mobile-field-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+}
+.eidos-mobile-field-create-body {
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 .mobile-view-settings h3,
 .mobile-layout-settings h3 {

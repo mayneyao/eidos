@@ -15,6 +15,8 @@ import {
   eidosFileFormulaCompletionSource,
   type EidosFileFormulaCompletion,
 } from "./eidos-file-formula-completions"
+import { useEidosFileUI } from "./context"
+import { Textarea } from "./ui/primitives"
 
 const formulaHighlightStyle = HighlightStyle.define([
   {
@@ -52,7 +54,7 @@ export interface EidosFileFormulaInputProps {
   onCurrentTokenChange?: (token: string | null) => void
 }
 
-export const EidosFileFormulaInput = forwardRef<
+const DesktopFormulaInput = forwardRef<
   EidosFileFormulaInputRef,
   EidosFileFormulaInputProps
 >(
@@ -281,4 +283,70 @@ export const EidosFileFormulaInput = forwardRef<
   }
 )
 
-EidosFileFormulaInput.displayName = "EidosFileFormulaInput"
+DesktopFormulaInput.displayName = "DesktopFormulaInput"
+
+const MobileFormulaInput = forwardRef<
+  EidosFileFormulaInputRef,
+  EidosFileFormulaInputProps
+>(function MobileFormulaInput(
+  { value, disabled, placeholder, onChange, onEscape, onSave },
+  ref
+) {
+  const input = useRef<HTMLTextAreaElement>(null)
+  useImperativeHandle(ref, () => ({
+    focus() {
+      input.current?.focus({ preventScroll: true })
+    },
+    insertText(text, cursorOffset = 0) {
+      const textarea = input.current
+      if (!textarea || textarea.disabled) return
+      const start = textarea.selectionStart
+      textarea.focus({ preventScroll: true })
+      textarea.setRangeText(text, start, textarea.selectionEnd, "end")
+      const caret = Math.max(start, start + text.length + cursorOffset)
+      textarea.setSelectionRange(caret, caret)
+      onChange(textarea.value)
+    },
+  }))
+  return (
+    <Textarea
+      ref={input}
+      value={value}
+      disabled={disabled}
+      rows={3}
+      aria-label="Formula expression"
+      autoCapitalize="off"
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
+      className="min-h-0 resize-none font-mono text-base"
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return
+        if (event.key === "Escape" && onEscape) {
+          event.preventDefault()
+          event.stopPropagation()
+          onEscape()
+        } else if (
+          onSave &&
+          (event.metaKey || event.ctrlKey) &&
+          (event.key === "s" || event.key === "Enter")
+        ) {
+          event.preventDefault()
+          onSave()
+        }
+      }}
+    />
+  )
+})
+
+export const EidosFileFormulaInput = forwardRef<
+  EidosFileFormulaInputRef,
+  EidosFileFormulaInputProps
+>(function EidosFileFormulaInput(props, ref) {
+  const { interactionMode } = useEidosFileUI()
+  const Input =
+    interactionMode === "mobile" ? MobileFormulaInput : DesktopFormulaInput
+  return <Input {...props} ref={ref} />
+})

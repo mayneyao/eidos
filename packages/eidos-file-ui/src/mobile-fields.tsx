@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 import {
   MobilePopoverLayer,
@@ -61,7 +61,12 @@ export function MobileFields({
   const locked = useRef(false)
   const pending = useRef<Promise<void> | null>(null)
   const initialized = useRef(false)
-  const sheet = useRef<HTMLDivElement>(null)
+  const sheet = useRef<HTMLDivElement | null>(null)
+  const [sheetElement, setSheetElement] = useState<HTMLDivElement | null>(null)
+  const attachSheet = useCallback((element: HTMLDivElement | null) => {
+    sheet.current = element
+    setSheetElement(element)
+  }, [])
   const field = table.fields.find(
     (item) => eidosFileFieldKey(item) === selected
   )
@@ -89,6 +94,43 @@ export function MobileFields({
       setError(cause instanceof Error ? cause.message : String(cause))
     )
   }, [initial, view, source, table.table.id])
+  useEffect(() => {
+    if (!creating) return
+    const viewport = window.visualViewport
+    const dialog = sheetElement?.closest<HTMLElement>(
+      ".eidos-mobile-settings-sheet"
+    )
+    if (!viewport || !dialog) return
+    // Some WebViews resize the visual viewport without resizing fixed sheets.
+    const resize = () => {
+      const inset =
+        viewport.scale === 1
+          ? Math.max(
+              0,
+              window.innerHeight - viewport.height - viewport.offsetTop
+            )
+          : 0
+      if (inset > 0) {
+        dialog.style.setProperty("--field-create-bottom-inset", `${inset}px`)
+        dialog.style.setProperty(
+          "--field-create-viewport-height",
+          `${viewport.height}px`
+        )
+      } else {
+        dialog.style.removeProperty("--field-create-bottom-inset")
+        dialog.style.removeProperty("--field-create-viewport-height")
+      }
+    }
+    resize()
+    viewport.addEventListener("resize", resize)
+    viewport.addEventListener("scroll", resize)
+    return () => {
+      viewport.removeEventListener("resize", resize)
+      viewport.removeEventListener("scroll", resize)
+      dialog.style.removeProperty("--field-create-bottom-inset")
+      dialog.style.removeProperty("--field-create-viewport-height")
+    }
+  }, [creating, sheetElement])
   const back = async (close = false) => {
     if (document.activeElement instanceof HTMLElement)
       document.activeElement.blur()
@@ -149,7 +191,7 @@ export function MobileFields({
           </PopoverTrigger>
         )}
         <PopoverContent
-          ref={sheet}
+          ref={attachSheet}
           style={{ zIndex: layer + 1 }}
           data-eidos-file-root=""
           data-theme={themeName}
@@ -206,7 +248,10 @@ export function MobileFields({
             </header>
           }
         >
-          <div className="eidos-mobile-fields-sheet eidos-mobile-fields-content">
+          <div
+            className="eidos-mobile-fields-sheet eidos-mobile-fields-content"
+            data-mobile-field-create={creating ? "" : undefined}
+          >
             <div
               className="eidos-mobile-fields-list"
               hidden={Boolean(field) || creating}

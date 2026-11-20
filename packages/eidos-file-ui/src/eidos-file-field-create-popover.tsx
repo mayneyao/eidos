@@ -24,6 +24,7 @@ import {
 } from "./eidos-file-field-properties"
 import { useEidosFileUI } from "./context"
 import { columnNameFor } from "./eidos-file-field-column-name"
+import { cn } from "./lib/cn"
 import { useEidosFilePendingEdit } from "./use-pending-edit"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
@@ -94,7 +95,8 @@ export function EidosFileFieldCreatePopover({
   onChooseFormula,
   onPreviewFormula,
 }: EidosFileFieldCreatePopoverProps) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = embedded && interactionMode === "mobile"
   const [name, setName] = useState("")
   const [nameIsAutomatic, setNameIsAutomatic] = useState(false)
   const [fieldType, setFieldType] =
@@ -292,23 +294,34 @@ export function EidosFileFieldCreatePopover({
 
   const content = (
     <>
-      <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold">{title ?? t("New field")}</h2>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-          {description ??
-            t("Add a stored, related, or computed field to {table}.", {
-              table: table.table.name,
-            })}
-        </p>
-      </div>
-      <form ref={formRef} onSubmit={(event) => void submit(event)}>
-        <div className="grid gap-4 px-4 py-3">
+      {!mobile ? (
+        <div className="border-b px-4 py-3">
+          <h2 className="text-sm font-semibold">{title ?? t("New field")}</h2>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+            {description ??
+              t("Add a stored, related, or computed field to {table}.", {
+                table: table.table.name,
+              })}
+          </p>
+        </div>
+      ) : null}
+      <form
+        ref={formRef}
+        className={mobile ? "eidos-mobile-field-create-form" : undefined}
+        onSubmit={(event) => void submit(event)}
+      >
+        <div
+          className={cn(
+            "grid gap-4 px-4 py-3",
+            mobile && "eidos-mobile-field-create-body"
+          )}
+        >
           <label className="grid gap-1.5 text-xs font-medium" htmlFor={nameId}>
             {t("Name")}
             <Input
               id={nameId}
               value={name}
-              autoFocus
+              autoFocus={!mobile}
               disabled={busy}
               placeholder={t("Status")}
               onChange={(event) => {
@@ -527,7 +540,12 @@ export function EidosFileFieldCreatePopover({
             </p>
           ) : null}
         </div>
-        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t bg-popover px-4 py-2.5">
+        <div
+          className={cn(
+            "flex items-center justify-end gap-2 border-t bg-popover px-4 py-2.5",
+            mobile ? "shrink-0" : "sticky bottom-0 z-10"
+          )}
+        >
           <Button
             type="button"
             variant="ghost"

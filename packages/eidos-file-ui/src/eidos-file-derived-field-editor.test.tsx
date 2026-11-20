@@ -133,43 +133,46 @@ describe("EidosFileFormulaEditorPopover", () => {
     expect(anchor?.style.height).toBe("36px")
   })
 
-  it("saves with Mod-S through the public editor contract", async () => {
-    const onOpenChange = vi.fn()
-    const onSave = vi.fn(() => Promise.resolve())
-    await act(async () => {
-      root.render(
-        <EidosFileFormulaEditorPopover
-          field={total}
-          fields={[estimate, total]}
-          open
-          onOpenChange={onOpenChange}
-          onSave={onSave}
-        />
+  it.each(["number", "integer"] as const)(
+    "preserves a saved %s result when saving with Mod-S",
+    async (displayType) => {
+      const onOpenChange = vi.fn()
+      const onSave = vi.fn(() => Promise.resolve())
+      await act(async () => {
+        root.render(
+          <EidosFileFormulaEditorPopover
+            field={{ ...total, property: { ...total.property, displayType } }}
+            fields={[{ ...estimate, type: displayType }, total]}
+            open
+            onOpenChange={onOpenChange}
+            onSave={onSave}
+          />
+        )
+        await Promise.resolve()
+      })
+      const expression = document.body.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Formula expression"]'
       )
-      await Promise.resolve()
-    })
-    const expression = document.body.querySelector<HTMLTextAreaElement>(
-      '[aria-label="Formula expression"]'
-    )
-    expect(expression?.value).toBe('"Estimate" * 2')
+      expect(expression?.value).toBe('"Estimate" * 2')
 
-    await act(async () => {
-      expression?.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "s",
-          metaKey: true,
-          bubbles: true,
-        })
-      )
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    expect(onSave).toHaveBeenCalledWith({
-      formula: '"Estimate" * 2',
-      displayType: "number",
-    })
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
+      await act(async () => {
+        expression?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "s",
+            metaKey: true,
+            bubbles: true,
+          })
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(onSave).toHaveBeenCalledWith({
+        formula: '"Estimate" * 2',
+        displayType,
+      })
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    }
+  )
 
   it("preserves a draft when the host refreshes its field snapshot", async () => {
     const renderEditor = (fields: EidosFileFieldInfo[]) => (

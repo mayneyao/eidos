@@ -72,7 +72,7 @@ export function EidosFileFormulaEditorPopover({
   ) => Promise<EidosFileFormulaPreview>
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
   const editorRef = useRef<EidosFileFormulaInputRef>(null)
   const initializedSessionRef = useRef<string | null>(null)
   const savingRef = useRef(false)
@@ -116,6 +116,7 @@ export function EidosFileFormulaEditorPopover({
     const savedDisplayType = field.property?.displayType
     setDisplayType(
       savedDisplayType === "number" ||
+        savedDisplayType === "integer" ||
         savedDisplayType === "checkbox" ||
         savedDisplayType === "date" ||
         savedDisplayType === "datetime" ||
@@ -126,8 +127,9 @@ export function EidosFileFormulaEditorPopover({
     setFormulaValid(false)
     setSaving(false)
     setError(null)
-    window.setTimeout(() => editorRef.current?.focus(), 0)
-  }, [field, open, sessionKey])
+    if (interactionMode === "desktop")
+      window.setTimeout(() => editorRef.current?.focus(), 0)
+  }, [field, open, sessionKey, interactionMode])
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && savingRef.current) return
