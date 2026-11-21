@@ -47,6 +47,7 @@ const PluginDetailView = lazy(async () => {
 
 export function PluginManager({
   spaceAvailable = false,
+  spaceId,
   spaceName,
   onOpenPage,
   variant = "page",
@@ -57,6 +58,7 @@ export function PluginManager({
   installRequest,
 }: {
   spaceAvailable?: boolean
+  spaceId?: string
   spaceName?: string
   onOpenPage?(key: string): void
   variant?: "page" | "settings"
@@ -440,6 +442,13 @@ export function PluginManager({
     (builtin || plugin || matchedMarketplacePlugin || packagePreview)
   ) {
     const manifest = plugin?.manifest
+    const fileDefaults =
+      spaceId && manifest
+        ? Object.entries(listing?.space?.associations ?? {})
+            .filter(([, editor]) => editor.startsWith(`${manifest.id}/`))
+            .map(([extension]) => extension)
+            .sort()
+        : []
     return withDropZone(
       <div ref={surface}>
         <Suspense
@@ -457,6 +466,7 @@ export function PluginManager({
             marketplacePlugin={matchedMarketplacePlugin}
             spaceAvailable={spaceAvailable}
             installSpaceName={spaceName}
+            fileDefaults={fileDefaults}
             busy={
               busy ||
               Boolean(
@@ -484,6 +494,15 @@ export function PluginManager({
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
+            onResetFileDefaults={() => {
+              if (!spaceId || !manifest) return
+              return run(() =>
+                window.eidosLite.resetSpacePluginEditorDefaults(
+                  spaceId,
+                  manifest.id
+                )
+              )
+            }}
             onInstall={() => {
               if (packagePreview) {
                 setError(null)

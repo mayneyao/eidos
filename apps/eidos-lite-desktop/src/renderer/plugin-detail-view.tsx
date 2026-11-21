@@ -63,12 +63,14 @@ export interface PluginDetailViewProps {
   marketplacePlugin?: MarketplacePlugin | null
   spaceAvailable?: boolean
   installSpaceName?: string
+  fileDefaults?: string[]
   busy?: boolean
   installTask?: PluginInstallTask
   installing?: boolean
   installDisabled?: boolean
   error?: string | null
   onBack(): void
+  onResetFileDefaults?(): Promise<void> | void
   onInstall?(): Promise<void> | void
   onToggleEnable(): Promise<void> | void
   onSelectTheme?(): Promise<void> | void
@@ -92,12 +94,14 @@ export function PluginDetailView({
   marketplacePlugin,
   spaceAvailable = false,
   installSpaceName,
+  fileDefaults,
   busy = false,
   installTask,
   installing = false,
   installDisabled = false,
   error = null,
   onBack,
+  onResetFileDefaults,
   onInstall,
   onToggleEnable,
   onSelectTheme,
@@ -953,6 +957,27 @@ export function PluginDetailView({
               </button>
             )}
           </div>
+          {!previewPending && fileDefaults?.length && onResetFileDefaults ? (
+            <div className="plugin-detail-actions">
+              <span
+                className="plugin-manager-caption"
+                id={`${id}-file-defaults`}
+              >
+                {t("Default editor in this Space for {extensions}", {
+                  extensions: fileDefaults.join(", "),
+                })}
+              </span>
+              <button
+                type="button"
+                className="settings-button"
+                aria-describedby={`${id}-file-defaults`}
+                disabled={busy}
+                onClick={() => void onResetFileDefaults()}
+              >
+                {t("Use device default")}
+              </button>
+            </div>
+          ) : null}
           {packagePreview && (
             <p className="plugin-manager-caption">
               {t("Local package: {filename}", {

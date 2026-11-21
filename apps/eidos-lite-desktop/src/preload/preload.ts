@@ -172,6 +172,12 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(PLUGIN_CHANNELS.selectTheme, id),
   setPluginDefault: (extension, editor) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
+  resetSpacePluginEditorDefaults: (spaceId, pluginId) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.resetSpaceEditorDefaults,
+      spaceId,
+      pluginId
+    ),
   pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),
   reportFileOpened: (spaceId, path) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.fileOpened, spaceId, path),

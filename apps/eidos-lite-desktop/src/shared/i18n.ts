@@ -1217,6 +1217,13 @@ const zh: Record<string, string> = {
   Global: "全局",
   "This Space": "当前 Space",
   "Install plugin…": "安装插件…",
+  "Open {extensions} files with this plugin by default in this Space":
+    "在此 Space 中默认使用此插件打开 {extensions} 文件",
+  "Default editor in this Space for {extensions}":
+    "此 Space 中 {extensions} 文件的默认编辑器",
+  "Use device default": "使用设备默认设置",
+  "This plugin offers multiple editors for {extensions}. Use Open with to choose an editor for those files.":
+    "此插件为 {extensions} 提供多个编辑器。你可以通过「打开方式」为这些文件选择编辑器。",
   "OpenAI-compatible Chat Completions endpoint":
     "OpenAI 兼容接口，请填写完整的 Chat Completions URL",
   "Drop to install or update": "松开以安装或更新插件",

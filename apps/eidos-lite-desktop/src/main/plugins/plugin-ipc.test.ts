@@ -11,11 +11,13 @@ import type {
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
 import { readTextFilePreview, saveTextFile } from "../space/text-file-preview"
+import type { PluginManifest } from "@eidos.space/plugin-sdk"
 
 const mock = vi.hoisted(() => ({
   directory: "",
   selected: "",
   response: 1,
+  checkboxChecked: false,
   messageOptions: [] as unknown[],
   showPluginInstall: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -56,7 +58,7 @@ vi.mock("electron", () => ({
     }),
     showMessageBox: async (...args: unknown[]) => {
       mock.messageOptions.push(args.at(-1))
-      return { response: mock.response }
+      return { response: mock.response, checkboxChecked: mock.checkboxChecked }
     },
   },
 }))
@@ -64,6 +66,7 @@ import { registerPluginIpc } from "./plugin-ipc"
 import { PluginRegistry } from "./plugin-registry"
 import { PluginService } from "./plugin-service"
 import { PluginConnections } from "./plugin-connections"
+import { PluginStore } from "./plugin-store"
 const id = "example.csv"
 let registered: ReturnType<typeof registerPluginIpc>
 let switchTestSpace: (owner: number, spaceId: string) => void
@@ -87,7 +90,11 @@ const call = (
 ) => mock.handlers.get(PLUGIN_CHANNELS[channel])!(events.get(owner), ...args)
 const listing = async (owner: number) =>
   (await call("list", owner)) as PluginListing
-async function packageVersion(version: string) {
+async function packageVersion(
+  version: string,
+  manifest: Partial<PluginManifest> = {},
+  modules: Record<string, string> = {}
+) {
   await fs.writeFile(
     mock.selected,
     encodePackage(
@@ -109,8 +116,9 @@ async function packageVersion(version: string) {
         placements: [
           { location: "file/open", view: "csv", extensions: [".csv"] },
         ],
+        ...manifest,
       },
-      { "./csv.ts": "export default function mount() {}" }
+      { "./csv.ts": "export default function mount() {}", ...modules }
     )
   )
 }
@@ -118,6 +126,7 @@ beforeEach(async () => {
   mock.directory = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-ipc-"))
   mock.selected = path.join(mock.directory, "example.eidos-plugin")
   mock.response = 1
+  mock.checkboxChecked = false
   mock.messageOptions = []
   mock.windows = [1, 2, 3].map((id) => ({
     webContents: { id, send: vi.fn(), once: vi.fn(), isDestroyed: () => false },
@@ -474,13 +483,17 @@ it("previews shell-opened packages in the main window and installs only after co
   )
   // The confirmed bytes stay the same even if the source file changes after preview.
   await packageVersion("2.0.0")
+  mock.checkboxChecked = true
   mock.response = 0
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
   expect(await call("packagePreviews", 1)).toEqual([preview])
   expect(mock.messageOptions.at(-1)).toMatchObject({
     message: expect.stringContaining("Space: Space 1"),
+    checkboxLabel: "Open .csv files with this plugin by default in this Space",
+    checkboxChecked: false,
   })
   expect((await listing(3)).plugins).toHaveLength(0)
+  expect((await listing(1)).space?.associations).toEqual({})
   mock.response = 1
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
   expect(await call("packagePreviews", 1)).toEqual([])
@@ -488,6 +501,13 @@ it("previews shell-opened packages in the main window and installs only after co
     enabled: true,
     manifest: { version: "1.0.0" },
   })
+  expect((await listing(1)).space?.associations).toEqual({
+    ".csv": `${id}/csv`,
+  })
+  expect(await call("open", 1, "data.csv")).toMatchObject({
+    instance: { editor: { key: `${id}/csv` } },
+  })
+  expect(await call("open", 2, "data.csv")).toEqual({ instance: null })
   await expect(call("installPrepared", 1, preview.token)).rejects.toThrow(
     /preview/
   )
@@ -498,11 +518,13 @@ it("previews shell-opened packages in the main window and installs only after co
     -1
   )![1] as PluginPackagePreview
   expect(await call("installPrepared", 1, update.token)).toBe(true)
+  expect(mock.messageOptions.at(-1)).not.toHaveProperty("checkboxLabel")
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: false,
     manifest: { version: "2.0.0" },
   })
   expect((await listing(2)).plugins[0].enabled).toBe(true)
+  expect((await listing(2)).space?.associations).toEqual({})
   await fs.writeFile(file, "invalid archive")
   await expect(registered.openPackage(file)).rejects.toThrow()
   await expect(registered.openPackage("relative.eidos-plugin")).rejects.toThrow(
@@ -521,6 +543,8 @@ it("installs marketplace packages into the target Space and isolates its progres
   expect(download).toHaveBeenCalledOnce()
   expect((await listing(1)).plugins[0].enabled).toBe(true)
   expect((await listing(2)).plugins[0].enabled).toBe(false)
+  expect(mock.messageOptions.at(-1)).toMatchObject({ checkboxChecked: false })
+  expect((await listing(1)).space?.associations).toEqual({})
   expect(await call("installTasks", 1)).toMatchObject({
     [id]: { status: "installed" },
   })
@@ -531,6 +555,97 @@ it("installs marketplace packages into the target Space and isolates its progres
   await expect(call("installMarketplace", 1, "../invalid")).rejects.toThrow(
     /Invalid marketplace/
   )
+})
+
+it("opts into unambiguous marketplace file editors while protecting Eidos Files", async () => {
+  await packageVersion("1.0.0", {
+    views: [
+      { id: "drawing", title: "Drawing", kind: "file", entry: "./csv.ts" },
+      { id: "outline", title: "Outline", kind: "file", entry: "./csv.ts" },
+    ],
+    placements: [
+      {
+        location: "file/open",
+        view: "drawing",
+        extensions: [".canvas", ".eidos", ".svg"],
+      },
+      {
+        location: "file/open",
+        view: "drawing",
+        extensions: [".canvas", ".sketch"],
+      },
+      { location: "file/open", view: "outline", extensions: [".svg"] },
+    ],
+  })
+  vi.spyOn(PluginRegistry.prototype, "download").mockResolvedValue(
+    await fs.readFile(mock.selected)
+  )
+  mock.checkboxChecked = true
+  const store = new PluginStore(path.join(mock.directory, "plugins"))
+  await store.associate(".canvas", "builtin", "space-1")
+  await store.associate(".canvas", "builtin", "space-2")
+  expect(await call("installMarketplace", 1, id)).toBe(true)
+  expect(mock.messageOptions.at(-1)).toMatchObject({
+    checkboxLabel:
+      "Open .canvas, .sketch files with this plugin by default in this Space",
+    detail: expect.stringContaining("multiple editors for .svg. Use Open with"),
+  })
+  expect((await listing(1)).space?.associations).toEqual({
+    ".canvas": `${id}/drawing`,
+    ".sketch": `${id}/drawing`,
+  })
+  expect((await listing(1)).associations).toEqual({})
+  expect((await listing(2)).space?.associations).toEqual({
+    ".canvas": "builtin",
+  })
+  expect(await store.resolve("diagram.CANVAS", "space-1")).toMatchObject({
+    editor: { key: `${id}/drawing` },
+  })
+  expect(await store.resolve("data.eidos", "space-1")).toEqual({ editor: null })
+  expect(await store.resolve("diagram.svg", "space-1")).toEqual({
+    editor: null,
+  })
+  expect(await call("editors", 1, "diagram.svg")).toHaveLength(2)
+  await store.associate(".svg", "builtin", "space-1")
+  await store.associate(".canvas", "builtin")
+  await expect(
+    call("resetSpaceEditorDefaults", 2, "space-1", id)
+  ).rejects.toThrow("Space changed before resetting file defaults")
+  expect(await store.resolve("diagram.canvas", "space-1")).toMatchObject({
+    editor: { key: `${id}/drawing` },
+  })
+  await call("resetSpaceEditorDefaults", 1, "space-1", id)
+  expect((await listing(1)).space?.associations).toEqual({ ".svg": "builtin" })
+  expect((await listing(1)).associations).toEqual({ ".canvas": "builtin" })
+  expect((await listing(2)).space?.associations).toEqual({
+    ".canvas": "builtin",
+  })
+  expect(await store.resolve("diagram.canvas", "space-1")).toEqual({
+    editor: null,
+  })
+})
+
+it("preserves the Space's previous default when the install fails after review", async () => {
+  await packageVersion(
+    "1.0.0",
+    {
+      background: { entry: "./background.js" },
+    },
+    { "./background.js": "globalThis.onmessage = () => {}" }
+  )
+  vi.spyOn(PluginRegistry.prototype, "download").mockResolvedValue(
+    await fs.readFile(mock.selected)
+  )
+  vi.spyOn(PluginStore.prototype, "approveBackground").mockRejectedValueOnce(
+    new Error("Grant write failed")
+  )
+  const store = new PluginStore(path.join(mock.directory, "plugins"))
+  await store.associate(".csv", "builtin", "space-1")
+  mock.checkboxChecked = true
+  await expect(call("installMarketplace", 1, id)).rejects.toThrow(
+    "Grant write failed"
+  )
+  expect((await listing(1)).space?.associations).toEqual({ ".csv": "builtin" })
 })
 
 it("opens file-picker and dropped package previews without reviewing or installing them", async () => {

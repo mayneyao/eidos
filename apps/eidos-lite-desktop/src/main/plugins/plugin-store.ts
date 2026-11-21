@@ -25,7 +25,7 @@ import type {
   PluginListing,
   PluginSpaceConfig,
 } from "../../shared/plugins"
-import type { SettingValue } from "@eidos.space/plugin-sdk"
+import type { PluginManifest, SettingValue } from "@eidos.space/plugin-sdk"
 
 interface Configuration {
   routes?: Record<string, Record<string, string>>
@@ -42,6 +42,46 @@ export const emptyScope = (): PluginSpaceConfig => ({
 })
 const validHash = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
+
+function canAssociateEditor(extension: string): boolean {
+  return /^\.[a-z0-9]{1,16}$/.test(extension) && extension !== ".eidos"
+}
+
+function* fileOpenViews(manifest: PluginManifest, extension?: string) {
+  for (const placement of manifest.placements ?? []) {
+    if (placement.location !== "file/open") continue
+    const view = manifest.views?.find(({ id }) => id === placement.view)
+    if (!view) continue
+    const resource = viewResource(view)
+    for (const declared of placement.extensions) {
+      const ext = declared.toLowerCase()
+      if (extension !== undefined && ext !== extension) continue
+      if (
+        resource === "file" ||
+        resource === (ext === ".eidos" ? "eidos" : "document")
+      )
+        yield { extension: ext, view }
+    }
+  }
+}
+
+export function reviewFileEditorDefaults(manifest: PluginManifest) {
+  const editors = new Map<string, Set<string>>()
+  for (const { extension, view } of fileOpenViews(manifest)) {
+    if (!canAssociateEditor(extension)) continue
+    if (!editors.has(extension)) editors.set(extension, new Set())
+    editors.get(extension)!.add(`${manifest.id}/${view.id}`)
+  }
+  const defaults: Record<string, string> = {}
+  const ambiguous: string[] = []
+  for (const extension of [...editors.keys()].sort()) {
+    const [editor, other] = editors.get(extension)!
+    if (other) ambiguous.push(extension)
+    else if (editor) defaults[extension] = editor
+  }
+  return { defaults, ambiguous }
+}
+
 function parseScope(value: unknown): PluginSpaceConfig {
   const scope = object(value)
   const plugins: PluginSpaceConfig["plugins"] = {}
@@ -610,7 +650,7 @@ export class PluginStore {
   }
 
   async associate(extension: string, editor: string | null, spaceId?: string) {
-    if (!/^\.[a-z0-9]{1,16}$/.test(extension) || extension === ".eidos")
+    if (!canAssociateEditor(extension))
       throw new PluginError("INVALID_REQUEST", "Invalid file extension")
     if (spaceId === "")
       throw new PluginError(
@@ -628,13 +668,51 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Editor is unavailable for this extension"
       )
+    await this.writeAssociations({ [extension]: editor }, spaceId)
+  }
+  async associateReviewedEditors(
+    manifest: PluginManifest,
+    hash: string,
+    spaceId: string,
+    isCurrentSpace: () => boolean
+  ) {
+    const { defaults } = reviewFileEditorDefaults(manifest)
+    await this.writeAssociations(defaults, spaceId, (config) => {
+      if (!isCurrentSpace())
+        throw new PluginError(
+          "INSTANCE_CLOSED",
+          "Space changed during installation"
+        )
+      const id = manifest.id
+      if (
+        !config.spaces[spaceId]?.plugins[id]?.enabled ||
+        (this.trials.get(id) ?? config.installed[id]?.hash) !== hash
+      )
+        throw new PluginError(
+          "STALE_REVISION",
+          "Plugin changed during installation"
+        )
+    })
+  }
+  async clearSpaceEditorDefaults(spaceId: string, pluginId: string) {
     await this.update((config) => {
-      if (spaceId) {
-        const scope = (config.spaces[spaceId] ??= emptyScope())
-        if (editor === null) delete scope.associations[extension]
-        else scope.associations[extension] = editor
-      } else {
-        const defaults = (config.associations ??= {})
+      const defaults = config.spaces[spaceId]?.associations
+      if (!defaults) return
+      for (const [extension, editor] of Object.entries(defaults))
+        if (editor.startsWith(`${pluginId}/`)) delete defaults[extension]
+    })
+  }
+  private writeAssociations(
+    associations: Record<string, string | null>,
+    spaceId?: string,
+    verify?: (config: Configuration) => void
+  ) {
+    return this.update((config) => {
+      verify?.(config)
+      const defaults = spaceId
+        ? (config.spaces[spaceId] ??= emptyScope()).associations
+        : (config.associations ??= {})
+      for (const [extension, editor] of Object.entries(associations)) {
         if (editor === null) delete defaults[extension]
         else defaults[extension] = editor
       }
@@ -746,26 +824,13 @@ export class PluginStore {
         if (manifest.id !== id) continue
         if (!checkPluginCompatibility(manifest, "eidos-lite").compatible)
           continue
-        for (const placement of manifest.placements ?? []) {
-          if (
-            placement.location !== "file/open" ||
-            !placement.extensions.includes(extension)
-          )
-            continue
-          const editor = manifest.views?.find(
-            (view) =>
-              view.id === placement.view &&
-              (viewResource(view) === "file" ||
-                viewResource(view) ===
-                  (extension === ".eidos" ? "eidos" : "document"))
-          )
-          if (editor)
-            choices.push({
-              key: `${id}/${editor.id}`,
-              label: editor.title,
-              pluginName: manifest.name,
-              icon: editor.icon ?? manifest.icon ?? null,
-            })
+        for (const { view } of fileOpenViews(manifest, extension)) {
+          choices.push({
+            key: `${id}/${view.id}`,
+            label: view.title,
+            pluginName: manifest.name,
+            icon: view.icon ?? manifest.icon ?? null,
+          })
         }
       } catch {
         /* Unavailable packages do not change Space enablement or defaults. */

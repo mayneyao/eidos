@@ -3899,6 +3899,7 @@ function WorkspaceApp({
       <PluginManager
         key={space?.id ?? "device"}
         spaceAvailable={Boolean(space)}
+        spaceId={space?.id}
         spaceName={space?.name}
         installRequest={pluginInstallRequest}
         builtins={[

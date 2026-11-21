@@ -85,6 +85,42 @@ async function click(text: string) {
   await act(async () => button!.click())
 }
 
+it("resets only the selected plugin's file defaults in the viewing Space", async () => {
+  const listing = await window.eidosLite.listPlugins()
+  listing.space!.associations = {
+    ".csv": "example.csv/csv",
+    ".svg": "example.other/vector",
+  }
+  const reset = vi.fn(async () => {
+    delete listing.space!.associations[".csv"]
+  })
+  Object.assign(window.eidosLite, {
+    listPlugins: async () => ({
+      ...listing,
+      space: { ...listing.space },
+    }),
+    resetSpacePluginEditorDefaults: reset,
+  })
+  await act(async () => {
+    root.render(
+      <PluginManager
+        spaceId="space-a"
+        spaceAvailable
+        selectedPluginId="example.csv"
+      />
+    )
+  })
+  await vi.waitFor(() => {
+    expect(container.textContent).toContain(
+      "Default editor in this Space for .csv"
+    )
+  })
+  expect(container.textContent).not.toContain(".svg")
+  await click("Use device default")
+  expect(reset).toHaveBeenCalledWith("space-a", "example.csv")
+  expect(container.textContent).not.toContain("Use device default")
+})
+
 it("shows public page requests, API connections and legacy background origins independently", async () => {
   await act(async () =>
     root.render(

@@ -269,6 +269,10 @@ export interface PluginApi {
   setPluginEnabled(id: string, enabled: boolean): Promise<void>
   selectPluginTheme(id: string | null): Promise<void>
   setPluginDefault(extension: string, editor: string | null): Promise<void>
+  resetSpacePluginEditorDefaults(
+    spaceId: string,
+    pluginId: string
+  ): Promise<void>
   pluginEditors(relativePath: string): Promise<PluginEditorChoice[]>
   openPluginEditor(
     relativePath: string,
@@ -320,6 +324,7 @@ export const PLUGIN_CHANNELS = {
   enable: "eidos-lite:plugins-enable",
   selectTheme: "eidos-lite:plugins-select-theme",
   associate: "eidos-lite:plugins-associate",
+  resetSpaceEditorDefaults: "eidos-lite:plugins-reset-space-editor-defaults",
   editors: "eidos-lite:plugins-editors",
   open: "eidos-lite:plugins-open",
   openFileInSidebar: "eidos-lite:plugins-open-file-in-sidebar",

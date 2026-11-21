@@ -29,7 +29,7 @@ import {
 import { PluginInstallQueue } from "./plugin-install-queue"
 import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
-import { PluginStore } from "./plugin-store"
+import { PluginStore, reviewFileEditorDefaults } from "./plugin-store"
 import { PluginBackgroundHost } from "./plugin-background"
 import { PluginSidecarHost } from "./plugin-sidecar"
 import {
@@ -51,7 +51,7 @@ import {
   localizePluginManifest,
   pluginLanguageData,
 } from "@eidos.space/plugin-runtime/i18n"
-import { resolveEidosLiteLocale } from "../../shared/i18n"
+import { resolveEidosLiteLocale, translateEidosLite } from "../../shared/i18n"
 import { getEidosLiteSystemLocale } from "../system-locale"
 import {
   ensureOwnerOnlyDirectory,
@@ -1043,6 +1043,25 @@ export function registerPluginIpc(controller: WindowController): {
       noLink: true,
     }
     if (execution.detail) reviewOptions.detail += `\n\n${execution.detail}`
+    if (targetSpaceId && !isUpdate && !development) {
+      const locale = resolveEidosLiteLocale("system", service.locale)
+      const { defaults, ambiguous } = reviewFileEditorDefaults(pkg.manifest)
+      const extensions = Object.keys(defaults)
+      if (extensions.length) {
+        reviewOptions.checkboxLabel = translateEidosLite(
+          locale,
+          "Open {extensions} files with this plugin by default in this Space",
+          { extensions: extensions.join(", ") }
+        )
+        reviewOptions.checkboxChecked = false
+      }
+      if (ambiguous.length)
+        reviewOptions.detail += `\n\n${translateEidosLite(
+          locale,
+          "This plugin offers multiple editors for {extensions}. Use Open with to choose an editor for those files.",
+          { extensions: ambiguous.join(", ") }
+        )}`
+    }
     const review = await dialog.showMessageBox(owner, reviewOptions)
     if (review.response !== 1) return false
     if (
@@ -1071,7 +1090,9 @@ export function registerPluginIpc(controller: WindowController): {
         reviewRoot
       )
     reloadPlugin(pkg.manifest.id)
-    catalogChanged()
+    const useFileDefaults =
+      targetSpaceId && reviewOptions.checkboxLabel && review.checkboxChecked
+    if (!useFileDefaults) catalogChanged()
     if (
       targetSpaceId &&
       pkg.manifest.background?.autoStart &&
@@ -1235,6 +1256,18 @@ export function registerPluginIpc(controller: WindowController): {
         void watcher.close()
         watchers.delete(key)
       })
+    }
+    if (useFileDefaults) {
+      await store.associateReviewedEditors(
+        pkg.manifest,
+        hash,
+        targetSpaceId,
+        () =>
+          !owner.isDestroyed() &&
+          !event.sender.isDestroyed() &&
+          currentSpace(event) === targetSpaceId
+      )
+      catalogChanged()
     }
     return true
   }
@@ -1524,6 +1557,26 @@ export function registerPluginIpc(controller: WindowController): {
       )
         throw new PluginError("INVALID_REQUEST", "Invalid association")
       await store.associate(extension, editor)
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.resetSpaceEditorDefaults,
+    async (event, spaceId: unknown, pluginId: unknown) => {
+      caller(event)
+      if (
+        typeof pluginId !== "string" ||
+        pluginId.length > 128 ||
+        !/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/.test(pluginId)
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid plugin")
+      const space = controller.requireSession(event.sender).canonical.id
+      if (space !== spaceId)
+        throw new PluginError(
+          "INSTANCE_CLOSED",
+          "Space changed before resetting file defaults"
+        )
+      await store.clearSpaceEditorDefaults(space, pluginId)
+      catalogChanged()
     }
   )
   ipcMain.handle(PLUGIN_CHANNELS.editors, (event, file: unknown) => {
