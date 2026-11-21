@@ -11,6 +11,33 @@ private struct ManagedPlugin: Identifiable {
     var isTheme: Bool { manifest["kind"] as? String == "theme" }
 }
 
+private struct PluginInstallReview {
+    let manifest: [String: Any]
+    let revision: String
+    let origin: String
+    let fileExtensions: [String]
+}
+
+private struct PluginInstallCheckbox: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button { configuration.isOn.toggle() } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(configuration.isOn ? Color.accentColor : Color.secondary)
+                    .accessibilityHidden(true)
+                configuration.label
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+        }
+    }
+}
+
 private func pluginPermissions(_ manifest: [String:Any]) -> String {
     var lines = [tr("可读取所选文件或数据表。")]
     if let files = (manifest["workspace"] as? [String:Any])?["files"], files as? Bool == true || files is [String:Any] {
@@ -34,7 +61,8 @@ private final class NativePluginManagerModel: ObservableObject {
     @Published var loadingMarket = false
     @Published var marketLoaded = false
     @Published var error: String?
-    @Published var review: [String:Any]?
+    @Published var review: PluginInstallReview?
+    @Published var setFileDefaults = false
     private let service: MobilePluginService
     private let queue = DispatchQueue(label:"space.eidos.plugins.manager")
     private let validator = NativePluginValidator()
@@ -86,20 +114,24 @@ private final class NativePluginManagerModel: ObservableObject {
         }
     }
     private func reviewPackage(_ value: Any) async throws {
-        guard var prepared = value as? [String:Any], let raw = prepared["raw"] as? String, let revision = prepared["revision"] as? String else { throw LocalError.message(tr("无效插件包")) }
+        guard let prepared = value as? [String:Any], let raw = prepared["raw"] as? String, let revision = prepared["revision"] as? String else { throw LocalError.message(tr("无效插件包")) }
         let manifest = try await validator.validate(raw)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let fileExtensions = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String], Error>) in
             queue.async {
-                do { try self.service.reviewManifest(manifest, revision: revision); continuation.resume() }
+                do { continuation.resume(returning: try self.service.reviewManifest(manifest, revision: revision)) }
                 catch { continuation.resume(throwing: error) }
             }
         }
-        prepared["manifest"] = manifest
-        review = prepared
+        setFileDefaults = false
+        review = PluginInstallReview(manifest: manifest, revision: revision, origin: prepared["origin"] as? String ?? "", fileExtensions: fileExtensions)
     }
     func install() {
-        guard let revision = review?["revision"] else { return }
-        run { _ = try await self.call("install",["revision":revision]); self.review = nil }
+        guard let review else { return }
+        let setFileDefaults = self.setFileDefaults && !review.fileExtensions.isEmpty
+        run {
+            _ = try await self.call("install", ["revision": review.revision, "setFileDefaults": setFileDefaults])
+            self.review = nil
+        }
     }
     func enable(_ plugin: ManagedPlugin, _ enabled: Bool) {
         run { _ = try await self.call("enable",["id":plugin.id,"enabled":enabled]) }
@@ -295,15 +327,24 @@ struct NativePluginManagerView: View {
     }
     private var reviewSheet: some View {
         NavigationStack {
-            let manifest = model.review?["manifest"] as? [String:Any] ?? [:]
-            Form {
-                Section { Text(manifest["name"] as? String ?? tr("插件")); Text(manifest["version"] as? String ?? ""); Text(model.review?["origin"] as? String ?? "") }
-                Section(tr("权限")) { Text(pluginPermissions(manifest)) }
-                Section { Text(tr("安装后将在发起安装的 Space 启用。更新后需重新在其他 Space 启用。")) }
-                if let error = model.error { Text(error).foregroundStyle(.red) }
-                Button(tr("安装")) { model.install() }.disabled(model.busy)
-            }.navigationTitle(tr("确认安装")).navigationBarTitleDisplayMode(.inline)
+            if let review = model.review {
+                Form {
+                    Section { Text(review.manifest["name"] as? String ?? tr("插件")); Text(review.manifest["version"] as? String ?? ""); Text(review.origin) }
+                    Section(tr("权限")) { Text(pluginPermissions(review.manifest)) }
+                    Section {
+                        Text(tr("安装后将在发起安装的 Space 启用。更新后需重新在其他 Space 启用。"))
+                        if !review.fileExtensions.isEmpty {
+                            Toggle(tr("设为此 Space 中 {0} 文件的默认打开方式", review.fileExtensions.joined(separator: ", ")), isOn: $model.setFileDefaults)
+                                .toggleStyle(PluginInstallCheckbox())
+                                .accessibilityIdentifier("plugin-install-file-defaults")
+                                .disabled(model.busy)
+                        }
+                    }
+                    if let error = model.error { Text(error).foregroundStyle(.red) }
+                    Button(tr("安装")) { model.install() }.disabled(model.busy)
+                }.navigationTitle(tr("确认安装")).navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement:.cancellationAction) { Button(tr("取消")) { model.review = nil }.disabled(model.busy) } }
+            }
         }.interactiveDismissDisabled(model.busy)
     }
     private func detailSheet(_ plugin: ManagedPlugin) -> some View {

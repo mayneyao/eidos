@@ -46,6 +46,8 @@ private final class PluginDownload: NSObject, URLSessionDataDelegate {
 }
 
 final class MobilePluginService {
+    private static let installationLock = NSLock()
+    private static let fileDefaultsSuffix = ".file-defaults"
     let space: LocalSpace
     let directory: URL
     var prepared: [String: Any]?
@@ -72,7 +74,10 @@ final class MobilePluginService {
         return value
     }
     private func records() -> [[String: Any]] { preferences.array(forKey: "plugins.installed") as? [[String: Any]] ?? [] }
-    private func key(_ id: String, _ name: String) -> String { "plugins." + LocalSpace.digest(Data(LocalSpace.storageIdentity(space.root).utf8)) + "." + id + "." + name }
+    private var spaceKey: String { "plugins." + LocalSpace.digest(Data(LocalSpace.storageIdentity(space.root).utf8)) }
+    private func key(_ id: String, _ name: String) -> String { spaceKey + "." + id + "." + name }
+    private var fileDefaultsKey: String { spaceKey + Self.fileDefaultsSuffix }
+    private var fileDefaults: [String: String] { preferences.dictionary(forKey: fileDefaultsKey) as? [String: String] ?? [:] }
     private func program(_ id: String) throws -> [String: Any] {
         guard let record = records().first(where: { ($0["manifest"] as? [String:Any])?["id"] as? String == id }),
               (record["manifest"] as? [String:Any])?["kind"] as? String != "theme",
@@ -138,22 +143,44 @@ final class MobilePluginService {
         }
         return nil
     }
+    private func fileHandlers(_ manifest: [String: Any]) -> [String: Set<PluginNavigationPage>] {
+        guard manifest["kind"] as? String != "theme", let plugin = manifest["id"] as? String else { return [:] }
+        let views = manifest["views"] as? [[String: Any]] ?? []
+        var handlers: [String: Set<PluginNavigationPage>] = [:]
+        for placement in manifest["placements"] as? [[String: Any]] ?? [] {
+            guard placement["location"] as? String == "file/open", let viewID = placement["view"] as? String,
+                  let view = views.first(where: { $0["id"] as? String == viewID && $0["kind"] as? String == "file" }),
+                  let title = view["title"] as? String else { continue }
+            let handler = PluginNavigationPage(plugin: plugin, view: viewID, title: title)
+            for fileExtension in placement["extensions"] as? [String] ?? [] {
+                handlers[fileExtension, default: []].insert(handler)
+            }
+        }
+        return handlers
+    }
+    private func extensionKey(_ file: URL) -> String { "." + file.pathExtension.lowercased() }
     func fileViews(_ file: URL) throws -> [PluginNavigationPage] {
         guard !LocalSpace.isDirectory(file) else { return [] }
         let installed = try handle("list", [:]) as? [[String: Any]] ?? []
         return installed.filter { $0["enabled"] as? Bool == true }.flatMap { record -> [PluginNavigationPage] in
-            guard let manifest = record["manifest"] as? [String: Any], let plugin = manifest["id"] as? String else { return [] }
-            let views = manifest["views"] as? [[String: Any]] ?? []
-            return views.compactMap { view in
-                guard view["kind"] as? String == "file", let id = view["id"] as? String,
-                      let title = view["title"] as? String,
-                      (manifest["placements"] as? [[String: Any]] ?? []).contains(where: {
-                          $0["location"] as? String == "file/open" && $0["view"] as? String == id &&
-                          ($0["extensions"] as? [String] ?? []).contains("." + file.pathExtension.lowercased())
-                      }) else { return nil }
-                return PluginNavigationPage(plugin: plugin, view: id, title: title)
-            }
+            guard let manifest = record["manifest"] as? [String: Any] else { return [] }
+            return Array(fileHandlers(manifest)[extensionKey(file)] ?? [])
         }.sorted { $0.id < $1.id }
+    }
+    func hasFileDefault(_ file: URL) -> Bool { fileDefaults[extensionKey(file)] != nil }
+    func defaultFileView(_ file: URL) -> PluginNavigationPage? {
+        let fileExtension = extensionKey(file)
+        guard fileExtension != ".eidos", let id = fileDefaults[fileExtension], (try? space.checked(file)) != nil,
+              let view = try? fileViews(file).first(where: { $0.id == id }),
+              (try? program(view.plugin)) != nil else { return nil }
+        return view
+    }
+    func clearFileDefault(_ file: URL) {
+        Self.installationLock.withLock {
+            var defaults = fileDefaults
+            defaults.removeValue(forKey: extensionKey(file))
+            preferences.set(defaults.isEmpty ? nil : defaults, forKey: fileDefaultsKey)
+        }
     }
     private func path(_ value: Any?, allowRoot: Bool = false) throws -> URL {
         guard let path = value as? String, !path.hasPrefix("/"), !path.contains("\\"), !path.contains(":"),
@@ -225,11 +252,19 @@ final class MobilePluginService {
         return ["manifest":manifest,"raw":String(decoding:data,as:UTF8.self),"revision":LocalSpace.digest(data),"origin":tr("本地文件（未通过市场校验）")]
     }
     // Called only after the trusted native manager has validated these exact bytes.
-    func reviewManifest(_ manifest: [String:Any], revision: String) throws {
+    @discardableResult
+    func reviewManifest(_ manifest: [String:Any], revision: String) throws -> [String] {
         guard let data = prepared?["data"] as? Data, LocalSpace.digest(data) == revision,
               let original = prepared?["manifest"] as? [String:Any],
-              original["id"] as? String == manifest["id"] as? String else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
+              let plugin = manifest["id"] as? String,
+              original["id"] as? String == plugin else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
         prepared?["manifest"] = manifest
+        prepared?["fileDefaults"] = nil
+        guard !records().contains(where: { ($0["manifest"] as? [String: Any])?["id"] as? String == plugin }) else { return [] }
+        var defaults = fileHandlers(manifest).compactMapValues { handlers in handlers.count == 1 ? handlers.first?.id : nil }
+        defaults.removeValue(forKey: ".eidos")
+        prepared?["fileDefaults"] = defaults
+        return defaults.keys.sorted()
     }
     func handle(_ method: String, _ p: [String:Any]) throws -> Any {
         switch method {
@@ -290,19 +325,29 @@ final class MobilePluginService {
             guard let prepared, let data = prepared["data"] as? Data, let manifest = prepared["manifest"] as? [String:Any] else { throw LocalError.message(tr("请先检查插件包")) }
             let pluginId = try id(manifest["id"]), revision = LocalSpace.digest(data)
             guard p["revision"] as? String == revision else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
+            let installed = records()
+            var records = installed.filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId }
+            let fresh = records.count == installed.count
             try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
             try data.write(to:directory.appendingPathComponent(revision+".json"),options:[.atomic,.completeFileProtectionUnlessOpen])
-            var records = records().filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId }
             records.append(["manifest":manifest,"revision":revision])
             preferences.set(records,forKey:"plugins.installed"); self.prepared = nil
             // This service retains the originating LocalSpace; selection changes cannot
             // redirect the permission grant. Grants remain bound to reviewed bytes.
             if manifest["kind"] as? String != "theme" {
                 preferences.set(revision,forKey:key(pluginId,"enabled"))
+                if fresh, p["setFileDefaults"] as? Bool == true,
+                   let selected = prepared["fileDefaults"] as? [String: String], !selected.isEmpty {
+                    preferences.set(fileDefaults.merging(selected) { _, new in new }, forKey: fileDefaultsKey)
+                }
             }
             return NSNull()
         case "enable":
             let pluginId = try id(p["id"])
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
             guard let record = records().first(where: { ($0["manifest"] as? [String:Any])?["id"] as? String == pluginId }) else { throw LocalError.message(tr("插件未安装")) }
             if (record["manifest"] as? [String:Any])?["kind"] as? String == "theme", p["enabled"] as? Bool == true {
                 throw LocalError.message(tr("移动端不支持插件主题"))
@@ -311,9 +356,17 @@ final class MobilePluginService {
             return NSNull()
         case "uninstall":
             let pluginId = try id(p["id"])
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
             preferences.set(records().filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId },forKey:"plugins.installed")
             preferences.removeObject(forKey:key(pluginId,"enabled"))
             for name in preferences.dictionaryRepresentation().keys where name.hasPrefix(key(pluginId,"")) { preferences.removeObject(forKey:name) }
+            for name in preferences.dictionaryRepresentation().keys where name.hasPrefix("plugins.") &&
+                name.hasSuffix(Self.fileDefaultsSuffix) && name.split(separator: ".").count == 3 {
+                guard let defaults = preferences.dictionary(forKey: name) as? [String: String] else { continue }
+                let kept = defaults.filter { !$0.value.hasPrefix(pluginId + ":") }
+                if kept.count != defaults.count { preferences.set(kept.isEmpty ? nil : kept, forKey: name) }
+            }
             let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"space.eidos.plugins",kSecReturnAttributes as String:true,kSecMatchLimit as String:kSecMatchLimitAll]
             var credentials: CFTypeRef?
             if SecItemCopyMatching(query as CFDictionary,&credentials) == errSecSuccess {

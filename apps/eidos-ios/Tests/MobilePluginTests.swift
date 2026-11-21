@@ -27,12 +27,12 @@ final class MobilePluginTests: XCTestCase {
             try? FileManager.default.removeItem(at: space.privateRoot)
         }
         let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
-        try service.reviewManifest(manifest, revision: revision)
-        _ = try service.handle("install", ["revision": revision])
+        XCTAssertEqual(try service.reviewManifest(manifest, revision: revision), [".canvas"])
+        _ = try service.handle("install", ["revision": revision, "setFileDefaults": true])
         let file = space.root.appendingPathComponent("Canvas.canvas")
         let fixture = #"{"nodes":[{"id":"a","type":"text","text":"Mobile canvas","x":0,"y":0,"width":260,"height":150},{"id":"b","type":"text","text":"Second card","x":340,"y":0,"width":260,"height":150}],"edges":[{"id":"edge","fromNode":"a","toNode":"b","label":"Connected"}]}"#
         try Data(("\u{FEFF}" + fixture).utf8).write(to: file)
-        let view = try XCTUnwrap(service.fileViews(file).first)
+        let view = try XCTUnwrap(service.defaultFileView(file))
         XCTAssertEqual(view.id, "eidos.canvas:viewer")
 
         let host = UIHostingController(rootView: MobilePluginView(space: space, dark: false, open: { _ in }, pluginId: view.plugin, viewId: view.view, filePath: file.lastPathComponent))
@@ -202,6 +202,103 @@ final class MobilePluginTests: XCTestCase {
         let theme = try prepare("4.0.0",theme:true)
         _ = try origin.handle("install",["revision":theme["revision"]!])
         XCTAssertFalse(try enabled(origin))
+    }
+
+    @MainActor
+    func testFileDefaultsRequireFreshReviewedInstallAndStayInOriginatingSpace() async throws {
+        let first = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let second = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let origin = MobilePluginService(space: first)
+        let other = MobilePluginService(space: second)
+        let preferences = UserDefaults.standard
+        let saved = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
+        var packages: [URL] = []
+        defer {
+            for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey: key) }
+            for (key, value) in saved { preferences.set(value, forKey: key) }
+            for url in packages { try? FileManager.default.removeItem(at: url) }
+            for space in [first, second] { try? FileManager.default.removeItem(at: space.root) }
+        }
+        func sample(_ space: LocalSpace, _ name: String) throws -> URL {
+            let file = space.root.appendingPathComponent(name)
+            try Data().write(to: file)
+            return file
+        }
+        func review(_ service: MobilePluginService, _ name: String, version: String = "1.0.0", reviewed: Bool = true) async throws -> (revision: String, extensions: [String]) {
+            let raw = """
+            {
+              "format": 2,
+              "manifest": {
+                "apiVersion": 1, "id": "test.\(name)", "name": "Test", "version": "\(version)",
+                "requires": {"pluginApi": "3.0.0"},
+                "views": [
+                  {"id": "view", "title": "Main", "kind": "file", "entry": "./main.js"},
+                  {"id": "alt", "title": "Alternative", "kind": "file", "entry": "./main.js"},
+                  {"id": "page", "title": "Page", "kind": "page", "entry": "./main.js"}
+                ],
+                "placements": [
+                  {"location": "file/open", "view": "view", "extensions": [".canvas", ".eidos", ".txt", ".other"]},
+                  {"location": "file/open", "view": "view", "extensions": [".canvas", ".xml"]},
+                  {"location": "file/open", "view": "alt", "extensions": [".other"]},
+                  {"location": "navigation", "view": "page"}
+                ]
+              },
+              "modules": {"./main.js": "export function mount() { return () => {} }"}
+            }
+            """
+            let data = Data(raw.utf8)
+            let original = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let revision = LocalSpace.digest(data)
+            service.prepared = ["data": data, "manifest": try XCTUnwrap(original["manifest"])]
+            packages.append(service.directory.appendingPathComponent(revision + ".json"))
+            guard reviewed else { return (revision, []) }
+            let manifest = try await NativePluginValidator().validate(raw)
+            return (revision, try service.reviewManifest(manifest, revision: revision))
+        }
+        let canvas = try sample(first, "Sketch.CANVAS")
+        let otherCanvas = try sample(second, "Sketch.canvas")
+        let ambiguous = try sample(first, "Ambiguous.other")
+        let eidos = try sample(first, "Data.eidos")
+
+        let unchecked = try await review(origin, "unchecked")
+        XCTAssertEqual(unchecked.extensions, [".canvas", ".txt", ".xml"])
+        _ = try origin.handle("install", ["revision": unchecked.revision])
+        XCTAssertNil(origin.defaultFileView(canvas))
+        XCTAssertEqual(try origin.fileViews(canvas).map(\.id), ["test.unchecked:view"])
+
+        let accepted = try await review(origin, "accepted")
+        XCTAssertThrowsError(try origin.handle("install", ["revision": "stale", "setFileDefaults": true]))
+        XCTAssertNil(origin.defaultFileView(canvas))
+        _ = try origin.handle("install", ["revision": accepted.revision, "setFileDefaults": true])
+        XCTAssertEqual(MobilePluginService(space: first).defaultFileView(canvas)?.id, "test.accepted:view")
+        XCTAssertNil(origin.defaultFileView(ambiguous))
+        XCTAssertNil(origin.defaultFileView(eidos))
+        XCTAssertTrue(try origin.fileViews(eidos).contains { $0.id == "test.accepted:view" })
+        XCTAssertNil(other.defaultFileView(otherCanvas))
+
+        let replacement = try await review(other, "replacement")
+        _ = try other.handle("install", ["revision": replacement.revision, "setFileDefaults": true])
+        XCTAssertEqual(origin.defaultFileView(canvas)?.id, "test.accepted:view")
+        XCTAssertEqual(other.defaultFileView(otherCanvas)?.id, "test.replacement:view")
+
+        let update = try await review(origin, "replacement", version: "2.0.0")
+        XCTAssertTrue(update.extensions.isEmpty)
+        _ = try origin.handle("install", ["revision": update.revision, "setFileDefaults": true])
+        let unreviewed = try await review(origin, "unreviewed", reviewed: false)
+        _ = try origin.handle("install", ["revision": unreviewed.revision, "setFileDefaults": true])
+        XCTAssertEqual(origin.defaultFileView(canvas)?.id, "test.accepted:view")
+        XCTAssertNil(other.defaultFileView(otherCanvas))
+
+        _ = try origin.handle("enable", ["id": "test.accepted", "enabled": false])
+        XCTAssertNil(origin.defaultFileView(canvas))
+        _ = try origin.handle("enable", ["id": "test.accepted", "enabled": true])
+        XCTAssertEqual(origin.defaultFileView(canvas)?.id, "test.accepted:view")
+        try Data("damaged".utf8).write(to: origin.directory.appendingPathComponent(accepted.revision + ".json"))
+        XCTAssertNil(origin.defaultFileView(canvas))
+        origin.clearFileDefault(canvas)
+        XCTAssertFalse(origin.hasFileDefault(canvas))
+        _ = try origin.handle("uninstall", ["id": "test.replacement"])
+        XCTAssertFalse(other.hasFileDefault(otherCanvas))
     }
 
     @MainActor
