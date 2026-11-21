@@ -7,6 +7,16 @@ import PhotosUI
 final class EditorWebTests: XCTestCase {
     @MainActor
     func testCreatesFormulaFromMobileFieldsAndRendersAfterReopen() async throws {
+        try await verifyMobileFormulaCreation(fromGrid: false)
+    }
+
+    @MainActor
+    func testCreatesFormulaFromGridAddFieldAndRendersAfterReopen() async throws {
+        try await verifyMobileFormulaCreation(fromGrid: true)
+    }
+
+    @MainActor
+    private func verifyMobileFormulaCreation(fromGrid: Bool) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: root)
         let file = root.appendingPathComponent("Formula.eidos")
@@ -59,43 +69,58 @@ final class EditorWebTests: XCTestCase {
             )
         }
         let (editor, web) = try await openEditor()
-        _ = try await web.evaluateJavaScript("document.querySelector('button[aria-label=\"View settings\"], button[aria-label=\"视图设置\"]').click(); true")
-        _ = try await ready(editor, script: "!!document.querySelector('.mobile-fields-trigger')")
-        _ = try await web.evaluateJavaScript("document.querySelector('.mobile-fields-trigger').click(); true")
-        _ = try await ready(editor, script: "!!document.querySelector('.eidos-mobile-fields-list button')")
-        _ = try await web.evaluateJavaScript("[...document.querySelectorAll('.eidos-mobile-fields-list button')].find(b=>['New field','新建字段'].includes(b.textContent.trim())).click(); true")
-        _ = try await ready(editor, script: "!!document.querySelector('.eidos-mobile-fields-create [data-eidos-file-field-type-trigger]')")
-        _ = try await web.evaluateJavaScript("document.querySelector('.eidos-mobile-fields-create [data-eidos-file-field-type-trigger]').click(); true")
-        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-field-type=formula]')")
-        _ = try await web.evaluateJavaScript("document.querySelector('[data-eidos-file-field-type=formula]').click(); true")
-        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-formula-composer]')")
+        func click(_ selector: String) async throws {
+            _ = try await web.callAsyncJavaScript("document.querySelector(selector).click(); return true",
+                arguments: ["selector": selector], in: nil, contentWorld: .page)
+        }
+        if fromGrid {
+            let addField = "button[aria-label=\"Add field\"], button[aria-label=添加字段]"
+            _ = try await ready(editor, script: "!!document.querySelector('\(addField)')")
+            try await click(addField)
+        } else {
+            try await click("button[aria-label=\"View settings\"], button[aria-label=\"视图设置\"]")
+            _ = try await ready(editor, script: "!!document.querySelector('.mobile-fields-trigger')")
+            try await click(".mobile-fields-trigger")
+            _ = try await ready(editor, script: "!!document.querySelector('.eidos-mobile-fields-list button')")
+            _ = try await web.evaluateJavaScript("[...document.querySelectorAll('.eidos-mobile-fields-list button')].find(b=>['New field','新建字段'].includes(b.textContent.trim())).click(); true")
+        }
+        let entry = fromGrid ? "grid" : "settings"
+        let form = "form.eidos-mobile-field-create-form"
+        let formula = "[data-eidos-mobile-formula-editor]"
+        let back = "[data-mobile-page]:not([hidden]):has(\(formula)) > header :is(button[aria-label=Back], button[aria-label=返回])"
+        let done = "[data-eidos-mobile-formula-done]"
+        let expression = "\(formula) textarea[aria-label=\"Formula expression\"]"
+        let submit = "\(form) button[type=submit]"
+        _ = try await ready(editor, script: "!!document.querySelector('\(form) [data-eidos-file-field-type-trigger]:not(:disabled)')")
         _ = try await web.evaluateJavaScript("""
-            (() => { const name = document.querySelector('.eidos-mobile-fields-create form input');
+            (() => { const name = document.querySelector('\(form) input');
               Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(name, 'Doubled');
               name.dispatchEvent(new Event('input', {bubbles:true}));
-              document.querySelector('.eidos-file-formula-display-select').click();
               return true;
             })()
             """)
+        try await click("\(form) [data-eidos-file-field-type-trigger]")
+        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-field-type=formula]')")
+        try await click("[data-eidos-file-field-type=formula]")
+        _ = try await ready(editor, script: "!!document.querySelector('\(expression)')")
+        try await click("\(formula) .eidos-file-formula-display-select")
         _ = try await ready(editor, script: "!!document.querySelector('[role=option]:has([data-eidos-file-field-type-icon=integer])')")
-        _ = try await web.evaluateJavaScript("document.querySelector('[role=option]:has([data-eidos-file-field-type-icon=integer])').click(); true")
+        try await click("[role=option]:has([data-eidos-file-field-type-icon=integer])")
         _ = try await web.callAsyncJavaScript("""
             document.querySelector(`[data-formula-reference$=":${quantity}"]`).click();
-            const expression = document.querySelector('textarea[aria-label="Formula expression"]');
+            const expression = document.querySelector(selector);
             expression.focus();
             expression.setSelectionRange(expression.value.length, expression.value.length);
             return document.execCommand('insertText', false, ' *');
-            """, arguments: ["quantity": quantityId], in: nil, contentWorld: .page)
-        _ = try await ready(editor, script: """
-            !!document.querySelector('[data-eidos-file-formula-status=error]')
-                && document.querySelector('.eidos-mobile-fields-create button[type=submit]')?.disabled === true
-            """)
+            """, arguments: ["quantity": quantityId, "selector": expression], in: nil, contentWorld: .page)
+        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-formula-status=error]') && document.querySelector('\(submit)')?.disabled === true")
         _ = try await web.evaluateJavaScript("document.execCommand('insertText', false, ' 2')")
         _ = try await ready(editor, script: "document.querySelector('[data-eidos-file-formula-status=valid]')?.textContent.trim() === '10'")
         _ = try await ready(editor, script: """
             (() => { const controls = [
-                document.querySelector('.eidos-mobile-fields-create button[type=submit]:not(:disabled)'),
-                document.querySelector('textarea[aria-label="Formula expression"]'),
+                document.querySelector('\(back)'),
+                document.querySelector('\(done):not(:disabled)'),
+                document.querySelector('\(expression)'),
                 document.querySelector('[data-eidos-file-formula-status=valid]'),
               ];
               return controls.every(control => {
@@ -104,10 +129,29 @@ final class EditorWebTests: XCTestCase {
               });
             })()
             """)
-        capture(window, name: "t01-formula-ios-preview-20261121")
-        _ = try await web.evaluateJavaScript("document.querySelector('.eidos-mobile-fields-create button[type=submit]').click(); true")
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-editor")
+        if fromGrid {
+            editor.leave()
+        } else {
+            try await click(back)
+        }
+        let parentWithDraft = """
+            !document.querySelector('\(formula)') && document.querySelector('\(form) input')?.value === 'Doubled'
+                && document.querySelector('\(form) [data-eidos-file-field-type-trigger=formula]') !== null
+                && document.querySelector('\(form)').textContent.includes('"Quantity" * 2')
+            """
+        _ = try await ready(editor, script: parentWithDraft)
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-parent")
+        _ = try await web.evaluateJavaScript("""
+            [...document.querySelectorAll('\(form) button')].find(button=>['Edit formula','编辑公式'].includes(button.getAttribute('aria-label') ?? button.textContent.trim())).click(); true
+            """)
+        _ = try await ready(editor, script: "document.querySelector('\(expression)')?.value === '\"Quantity\" * 2'")
+        try await click(done)
+        _ = try await ready(editor, script: parentWithDraft + " && document.querySelector('\(submit)')?.disabled === false")
+        try await click(submit)
         _ = try await ready(editor, script: "!!document.querySelector('button[aria-label=\"Edit Doubled properties\"],button[aria-label=\"编辑Doubled属性\"]')")
-        _ = try await web.evaluateJavaScript("document.querySelector('[data-mobile-page]:not([hidden]) > header button[aria-label=\"Close\"], [data-mobile-page]:not([hidden]) > header button[aria-label=\"关闭\"]').click(); true")
+        let fieldsPage = fromGrid ? ".eidos-mobile-settings-sheet > .eidos-mobile-settings-page" : "[data-mobile-page]"
+        try await click("\(fieldsPage):not([hidden]) > header :is(button[aria-label=Close], button[aria-label=关闭])")
         _ = try await ready(editor, script: "!document.querySelector('.eidos-mobile-fields-content')")
         try await showRecord(web)
         func renderedValue(_ value: String) -> String {
@@ -131,7 +175,7 @@ final class EditorWebTests: XCTestCase {
         let (reopenedEditor, reopenedWeb) = try await openEditor()
         try await showRecord(reopenedWeb)
         _ = try await ready(reopenedEditor, script: renderedValue("14"))
-        capture(window, name: "t01-formula-ios-reopen-20261121")
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-reopened")
     }
 
     @MainActor

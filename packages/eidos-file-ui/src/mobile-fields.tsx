@@ -63,11 +63,6 @@ export function MobileFields({
   const pending = useRef<Promise<void> | null>(null)
   const initialized = useRef(false)
   const sheet = useRef<HTMLDivElement | null>(null)
-  const [sheetElement, setSheetElement] = useState<HTMLDivElement | null>(null)
-  const attachSheet = useCallback((element: HTMLDivElement | null) => {
-    sheet.current = element
-    setSheetElement(element)
-  }, [])
   const field = table.fields.find(
     (item) => eidosFileFieldKey(item) === selected
   )
@@ -100,73 +95,6 @@ export function MobileFields({
       setError(cause instanceof Error ? cause.message : String(cause))
     )
   }, [initial, view, source, table.table.id])
-  useEffect(() => {
-    if (!creating) return
-    const viewport = window.visualViewport
-    const dialog = sheetElement?.closest<HTMLElement>(
-      ".eidos-mobile-settings-sheet"
-    )
-    if (!viewport || !dialog || !sheetElement) return
-    let frame = 0
-    // Some WebViews resize the visual viewport without resizing fixed sheets.
-    const resize = () => {
-      const inset =
-        viewport.scale === 1
-          ? Math.max(
-              0,
-              window.innerHeight - viewport.height - viewport.offsetTop
-            )
-          : 0
-      if (inset > 0) {
-        dialog.style.setProperty("--field-create-bottom-inset", `${inset}px`)
-        dialog.style.setProperty(
-          "--field-create-viewport-height",
-          `${viewport.height}px`
-        )
-      } else {
-        dialog.style.removeProperty("--field-create-bottom-inset")
-        dialog.style.removeProperty("--field-create-viewport-height")
-      }
-      cancelAnimationFrame(frame)
-      if (viewport.scale !== 1) return
-      frame = requestAnimationFrame(() => {
-        const input = document.activeElement
-        if (
-          !(input instanceof HTMLTextAreaElement) ||
-          !sheetElement.contains(input)
-        )
-          return
-        const body = input.closest<HTMLElement>(
-          ".eidos-mobile-field-create-body"
-        )
-        const status = input
-          .closest("[data-eidos-file-formula-composer]")
-          ?.querySelector("[data-eidos-file-formula-status]")
-        if (!body || !status) return
-        const visible = body.getBoundingClientRect()
-        const expression = input.getBoundingClientRect()
-        const statusBottom = status.getBoundingClientRect().bottom
-        const bottom =
-          statusBottom - expression.top <= visible.height
-            ? statusBottom
-            : expression.bottom
-        if (expression.top < visible.top)
-          body.scrollTop += expression.top - visible.top
-        else if (bottom > visible.bottom)
-          body.scrollTop += bottom - visible.bottom
-      })
-    }
-    resize()
-    viewport.addEventListener("resize", resize)
-    viewport.addEventListener("scroll", resize)
-    return () => {
-      viewport.removeEventListener("resize", resize)
-      viewport.removeEventListener("scroll", resize)
-      cancelAnimationFrame(frame)
-      dialog.style.removeProperty("--field-create-bottom-inset")
-      dialog.style.removeProperty("--field-create-viewport-height")
-    }
-  }, [creating, sheetElement])
   const back = async (close = false) => {
     if (document.activeElement instanceof HTMLElement)
       document.activeElement.blur()
@@ -227,7 +155,7 @@ export function MobileFields({
           </PopoverTrigger>
         )}
         <PopoverContent
-          ref={attachSheet}
+          ref={sheet}
           style={{ zIndex: layer + 1 }}
           data-eidos-file-root=""
           data-theme={themeName}

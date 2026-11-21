@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react"
+import { ArrowLeft } from "lucide-react"
 import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
@@ -36,6 +37,10 @@ import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
 import { EidosFileTemporalDefaultEditor } from "./eidos-file-temporal-default-editor"
 import { EidosFileOptionsEditor } from "./eidos-file-select-options-editor"
+import {
+  Popover as AdaptivePopover,
+  PopoverContent as AdaptivePopoverContent,
+} from "./ui/adaptive-popover"
 import {
   Button,
   Input,
@@ -109,6 +114,8 @@ export function EidosFileFieldCreatePopover({
   const [targetTableId, setTargetTableId] = useState("")
   const [multiple, setMultiple] = useState(true)
   const [formula, setFormula] = useState("")
+  const [editingFormula, setEditingFormula] = useState(false)
+  const [formulaPage, setFormulaPage] = useState<HTMLDivElement | null>(null)
   const [formulaDisplayType, setFormulaDisplayType] =
     useState<EidosFileFormulaResultType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
@@ -155,6 +162,7 @@ export function EidosFileFieldCreatePopover({
     setTargetTableId("")
     setMultiple(true)
     setFormula("")
+    setEditingFormula(false)
     setFormulaDisplayType("text")
     setFormulaValid(false)
     setLookupRelationField("")
@@ -163,6 +171,66 @@ export function EidosFileFieldCreatePopover({
     setSubmitting(false)
     setError(null)
   }, [initialFieldType, open, table.table.id])
+
+  useEffect(() => {
+    if (!mobile || !open) return
+    const surface = editingFormula ? formulaPage : formRef.current
+    const viewport = window.visualViewport
+    const sheet = surface?.closest<HTMLElement>(".eidos-mobile-settings-sheet")
+    if (!surface || !viewport || !sheet) return
+    let frame = 0
+    // Some WebViews resize only the visual viewport when the keyboard opens.
+    const resize = () => {
+      const inset =
+        viewport.scale === 1
+          ? Math.max(
+              0,
+              window.innerHeight - viewport.height - viewport.offsetTop
+            )
+          : 0
+      if (inset > 0) {
+        sheet.style.setProperty("--field-create-bottom-inset", `${inset}px`)
+        sheet.style.setProperty(
+          "--field-create-viewport-height",
+          `${viewport.height}px`
+        )
+      } else {
+        sheet.style.removeProperty("--field-create-bottom-inset")
+        sheet.style.removeProperty("--field-create-viewport-height")
+      }
+      cancelAnimationFrame(frame)
+      if (!editingFormula || viewport.scale !== 1) return
+      frame = requestAnimationFrame(() => {
+        const input = document.activeElement
+        if (!(input instanceof HTMLTextAreaElement) || !surface.contains(input))
+          return
+        const body = input.closest<HTMLElement>(".eidos-mobile-settings-body")
+        const status = surface.querySelector("[data-eidos-file-formula-status]")
+        if (!body || !status) return
+        const visible = body.getBoundingClientRect()
+        const expression = input.getBoundingClientRect()
+        const statusBottom = status.getBoundingClientRect().bottom
+        const bottom =
+          statusBottom - expression.top <= visible.height
+            ? statusBottom
+            : expression.bottom
+        if (expression.top < visible.top)
+          body.scrollTop += expression.top - visible.top
+        else if (bottom > visible.bottom)
+          body.scrollTop += bottom - visible.bottom
+      })
+    }
+    resize()
+    viewport.addEventListener("resize", resize)
+    viewport.addEventListener("scroll", resize)
+    return () => {
+      viewport.removeEventListener("resize", resize)
+      viewport.removeEventListener("scroll", resize)
+      cancelAnimationFrame(frame)
+      sheet.style.removeProperty("--field-create-bottom-inset")
+      sheet.style.removeProperty("--field-create-viewport-height")
+    }
+  }, [mobile, open, editingFormula, formulaPage])
 
   const columnName = useMemo(
     () => columnNameFor(name.trim() || "field", table.fields),
@@ -292,6 +360,34 @@ export function EidosFileFieldCreatePopover({
     }
   }
 
+  const finishFormula = () => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && formulaPage?.contains(active))
+      active.blur()
+    setEditingFormula(false)
+  }
+  const formulaComposer = (
+    <EidosFileFormulaComposer
+      field={null}
+      fields={table.fields}
+      name={name.trim() || t("Formula")}
+      columnName={columnName}
+      formula={formula}
+      displayType={formulaDisplayType}
+      onFormulaChange={(value) => {
+        setFormula(value)
+        setError(null)
+      }}
+      onDisplayTypeChange={setFormulaDisplayType}
+      onPreview={onPreviewFormula}
+      onValidityChange={setFormulaValid}
+      onEscape={mobile ? finishFormula : () => onOpenChange(false)}
+      onSaveShortcut={
+        mobile ? finishFormula : () => formRef.current?.requestSubmit()
+      }
+      disabled={busy}
+    />
+  )
   const content = (
     <>
       {!mobile ? (
@@ -342,6 +438,7 @@ export function EidosFileFieldCreatePopover({
                   return
                 }
                 setFieldType(type)
+                if (mobile && type === "formula") setEditingFormula(true)
                 if (!name.trim() || nameIsAutomatic) {
                   const option = EIDOS_FILE_FIELD_TYPE_OPTIONS.find(
                     (option) => option.value === type
@@ -432,26 +529,25 @@ export function EidosFileFieldCreatePopover({
             </div>
           ) : null}
           {fieldType === "formula" ? (
-            <div className="-mx-4 border-y">
-              <EidosFileFormulaComposer
-                field={null}
-                fields={table.fields}
-                name={name.trim() || "Formula"}
-                columnName={columnName}
-                formula={formula}
-                displayType={formulaDisplayType}
-                onFormulaChange={(value) => {
-                  setFormula(value)
-                  setError(null)
-                }}
-                onDisplayTypeChange={setFormulaDisplayType}
-                onPreview={onPreviewFormula}
-                onValidityChange={setFormulaValid}
-                onEscape={() => onOpenChange(false)}
-                onSaveShortcut={() => formRef.current?.requestSubmit()}
-                disabled={busy}
-              />
-            </div>
+            mobile ? (
+              <div className="grid gap-2">
+                {formula.trim() ? (
+                  <code className="break-words text-xs text-muted-foreground">
+                    {formula}
+                  </code>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setEditingFormula(true)}
+                >
+                  {t("Edit formula")}
+                </Button>
+              </div>
+            ) : (
+              <div className="-mx-4 border-y">{formulaComposer}</div>
+            )
           ) : null}
           {fieldType === "lookup" ? (
             <div className="grid gap-3">
@@ -572,6 +668,45 @@ export function EidosFileFieldCreatePopover({
           </Button>
         </div>
       </form>
+      {mobile && fieldType === "formula" ? (
+        <AdaptivePopover
+          open={editingFormula}
+          onOpenChange={(next) => {
+            if (!next) finishFormula()
+          }}
+        >
+          <AdaptivePopoverContent
+            ref={setFormulaPage}
+            forceMount
+            aria-label={t("Edit formula")}
+            mobileHeader={
+              <header>
+                <button
+                  type="button"
+                  aria-label={t("Back")}
+                  onClick={finishFormula}
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <h2 tabIndex={-1}>{t("Edit formula")}</h2>
+                <button
+                  type="button"
+                  data-eidos-mobile-formula-done=""
+                  onClick={finishFormula}
+                >
+                  {t("Done")}
+                </button>
+              </header>
+            }
+          >
+            <div
+              data-eidos-mobile-formula-editor={editingFormula ? "" : undefined}
+            >
+              {formulaComposer}
+            </div>
+          </AdaptivePopoverContent>
+        </AdaptivePopover>
+      ) : null}
     </>
   )
   if (embedded) return content

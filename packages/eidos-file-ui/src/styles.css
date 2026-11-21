@@ -1409,6 +1409,11 @@
   background: transparent;
   border-radius: 8px;
 }
+.eidos-mobile-settings-page > header [data-eidos-mobile-formula-done] {
+  width: auto;
+  min-width: 44px;
+  padding-inline: 12px;
+}
 .eidos-mobile-settings-page > .eidos-mobile-settings-body {
   flex: 1;
   display: block;
@@ -1610,12 +1615,15 @@
   flex-direction: column;
   min-height: 100%;
 }
-.eidos-mobile-settings-sheet:has([data-mobile-field-create]) {
+.eidos-mobile-settings-sheet:has(.eidos-mobile-field-create-form) {
   bottom: var(--field-create-bottom-inset, 0px);
   max-height: calc(var(--field-create-viewport-height, 100dvh) - 16px);
   min-height: 0;
 }
-.eidos-mobile-settings-body:has(> [data-mobile-field-create]) {
+.eidos-mobile-settings-body:has(
+  > [data-mobile-field-create],
+  > .eidos-mobile-field-create-form
+) {
   overflow: hidden;
   padding-block: 0;
 }
