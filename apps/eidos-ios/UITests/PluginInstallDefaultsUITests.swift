@@ -17,8 +17,11 @@ final class PluginInstallDefaultsUITests: XCTestCase {
             attachment.lifetime = .keepAlways
             add(attachment)
         }
+        func openMenu(_ name: String) {
+            app.buttons[name].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         func importCanvas() {
-            app.buttons["插件更多操作"].tap()
+            openMenu("插件更多操作")
             app.buttons["导入插件包"].tap()
             let archive = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "eidos.canvas-0.5.7")).firstMatch
             if !archive.waitForExistence(timeout: 3) {
@@ -34,7 +37,7 @@ final class PluginInstallDefaultsUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 40), app.debugDescription)
         }
 
-        app.buttons["Space 操作"].tap()
+        openMenu("Space 操作")
         app.buttons["插件"].tap()
         XCTAssertTrue(app.buttons["已安装"].waitForExistence(timeout: 8))
         importCanvas()
@@ -67,7 +70,7 @@ final class PluginInstallDefaultsUITests: XCTestCase {
         let actions = app.buttons["更多 Default Handler.canvas"].firstMatch
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
         actions.tap()
-        app.buttons["打开方式"].tap()
+        openMenu("打开方式")
         XCTAssertTrue(app.buttons["内置打开方式"].exists)
         let restore = app.buttons["为 .canvas 文件恢复内置打开方式"]
         XCTAssertTrue(restore.exists)
@@ -76,7 +79,7 @@ final class PluginInstallDefaultsUITests: XCTestCase {
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
         canvas.tap()
         XCTAssertFalse(canvasSave.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Save to Files"].waitForExistence(timeout: 5), app.debugDescription)
         capture("File row uses built-in after reset")
     }
 }
