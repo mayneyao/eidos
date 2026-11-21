@@ -54,6 +54,7 @@ export function PluginManager({
   builtins = [],
   selectedPluginId,
   onSelectPlugin,
+  onUninstalled,
   onPluginNameChange,
   installRequest,
 }: {
@@ -71,6 +72,7 @@ export function PluginManager({
   }[]
   selectedPluginId?: string | null
   onSelectPlugin?(id: string | null, name?: string | null): void
+  onUninstalled?(id: string): void
   onPluginNameChange?(name: string | null): void
   installRequest?: PluginInstallIntent | null
 }) {
@@ -87,9 +89,14 @@ export function PluginManager({
     message: string
   } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uninstallingPlugin, setUninstallingPlugin] = useState<
+    PluginListing["plugins"][number] | null
+  >(null)
   const [internalSelected, setInternalSelected] = useState<string | null>(null)
   const selected =
     selectedPluginId !== undefined ? selectedPluginId : internalSelected
+  const currentSelection = useRef(selected)
+  currentSelection.current = selected
   const setSelected = useCallback(
     (nextId: string | null, name?: string | null) => {
       if (selectedPluginId === undefined) {
@@ -277,7 +284,11 @@ export function PluginManager({
       : filteredBuiltins
 
   const builtin = builtins.find((item) => item.id === selected)
-  const plugin = plugins.find((item) => item.manifest.id === selected)
+  const plugin =
+    plugins.find((item) => item.manifest.id === selected) ??
+    (uninstallingPlugin?.manifest.id === selected
+      ? uninstallingPlugin
+      : undefined)
   const packagePreview =
     packagePreviews.find(
       (preview) =>
@@ -576,8 +587,30 @@ export function PluginManager({
               )
             }}
             onUninstall={() => {
-              if (!plugin || !manifest) return
-              return run(() => window.eidosLite.uninstallPlugin(manifest.id))
+              if (!plugin) return
+              const id = plugin.manifest.id
+              return run(async () => {
+                // The catalog event can arrive before uninstall IPC resolves.
+                setUninstallingPlugin(plugin)
+                try {
+                  if (!(await window.eidosLite.uninstallPlugin(id))) return
+                  setListing(
+                    (current) =>
+                      current && {
+                        ...current,
+                        plugins: current.plugins.filter(
+                          (item) => item.manifest.id !== id
+                        ),
+                      }
+                  )
+                  if (currentSelection.current !== id || !surface.current)
+                    return
+                  if (onUninstalled) onUninstalled(id)
+                  else setSelected(null)
+                } finally {
+                  setUninstallingPlugin(null)
+                }
+              })
             }}
           />
         </Suspense>

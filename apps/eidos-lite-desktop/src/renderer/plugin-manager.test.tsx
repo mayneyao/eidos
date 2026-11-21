@@ -535,6 +535,97 @@ it("shows one installation list with Space-only enablement and device-wide unins
   expect(enable).toHaveBeenCalledWith("example.csv", true)
   await click("Uninstall")
   expect(uninstall).toHaveBeenCalledWith("example.csv")
+  expect(container.querySelector("h1")?.textContent).toBe("Plugins")
+})
+
+it("keeps the detail visible until uninstall succeeds even if the catalog refreshes first", async () => {
+  let listing = await window.eidosLite.listPlugins()
+  let catalogChanged:
+    | Parameters<typeof window.eidosLite.onPluginEvent>[0]
+    | undefined
+  let finishUninstall!: (value: boolean) => void
+  uninstall.mockImplementationOnce(
+    () => new Promise((resolve) => (finishUninstall = resolve))
+  )
+  Object.assign(window.eidosLite, {
+    listPlugins: async () => listing,
+    onPluginEvent: (listener: typeof catalogChanged) => {
+      catalogChanged = listener
+      return () => {}
+    },
+  })
+
+  const onUninstalled = vi.fn(() => showManager(null))
+  const showManager = (selectedPluginId: string | null) =>
+    root.render(
+      <PluginManager
+        selectedPluginId={selectedPluginId}
+        onUninstalled={onUninstalled}
+      />
+    )
+  await act(async () => showManager("example.csv"))
+  await click("Uninstall")
+  listing = { ...listing, plugins: [] }
+  await act(async () =>
+    catalogChanged?.({
+      ticket: "",
+      event: {
+        protocol: "eidos-plugin",
+        apiVersion: 1,
+        observation: "host.catalog",
+        value: null,
+      },
+    })
+  )
+  expect(container.querySelector("h1")?.textContent).toBe("CSV")
+  await act(async () => finishUninstall(true))
+  expect(onUninstalled).toHaveBeenCalledExactlyOnceWith("example.csv")
+  expect(container.querySelector("h1")?.textContent).toBe("Plugins")
+  expect(container.textContent).not.toContain("Plugin unavailable")
+  expect(document.activeElement).toBe(
+    container.querySelector('input[type="search"]')
+  )
+})
+
+it("stays on the plugin detail when uninstall is cancelled or fails", async () => {
+  uninstall.mockResolvedValueOnce(false)
+  uninstall.mockRejectedValueOnce(new Error("Could not remove the plugin"))
+  const onUninstalled = vi.fn()
+  await act(async () =>
+    root.render(
+      <PluginManager
+        selectedPluginId="example.csv"
+        onUninstalled={onUninstalled}
+      />
+    )
+  )
+  await click("Uninstall")
+  expect(container.querySelector("h1")?.textContent).toBe("CSV")
+  await click("Uninstall")
+  expect(container.querySelector("h1")?.textContent).toBe("CSV")
+  expect(container.textContent).toContain("Could not remove the plugin")
+  expect(onUninstalled).not.toHaveBeenCalled()
+})
+
+it("leaves a newer plugin selection open when an earlier uninstall completes", async () => {
+  const onUninstalled = vi.fn()
+  let finishUninstall!: (value: boolean) => void
+  uninstall.mockImplementationOnce(
+    () => new Promise((resolve) => (finishUninstall = resolve))
+  )
+  const render = (id: string) =>
+    act(async () =>
+      root.render(
+        <PluginManager selectedPluginId={id} onUninstalled={onUninstalled} />
+      )
+    )
+
+  await render("example.csv")
+  await click("Uninstall")
+  await render("eidos.map")
+  await act(async () => finishUninstall(true))
+  expect(container.querySelector("h1")?.textContent).toBe("Map")
+  expect(onUninstalled).not.toHaveBeenCalled()
 })
 
 it("application settings can install but cannot enable a plugin without a Space", async () => {

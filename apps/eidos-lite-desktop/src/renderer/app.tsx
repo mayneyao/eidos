@@ -1468,6 +1468,31 @@ function WorkspaceApp({
     [recordNavigationLocation]
   )
 
+  const handlePluginUninstalled = useCallback(
+    (id: string) => {
+      const current = navigationSnapshotRef.current
+      const location = current?.location
+      if (
+        !space ||
+        !current ||
+        typeof location !== "object" ||
+        location?.type !== "plugins" ||
+        location.pluginId !== id
+      )
+        return
+
+      setPluginInstallRequest(null)
+      setPluginDetailId(null)
+      setPluginDetailName(null)
+      const next = replaceNavigationLocation(current, space.id, {
+        type: "plugins",
+      })
+      navigationSnapshotRef.current = next
+      setNavigationSnapshot(next)
+    },
+    [space?.id]
+  )
+
   useEffect(() => {
     let active = true
     const receive = () => {
@@ -3916,6 +3941,7 @@ function WorkspaceApp({
         onOpenPage={space ? navigatePluginPage : undefined}
         selectedPluginId={pluginDetailId}
         onSelectPlugin={handleSelectPlugin}
+        onUninstalled={handlePluginUninstalled}
         onPluginNameChange={(name) => {
           if (name && pluginDetailId) pluginNameCache.set(pluginDetailId, name)
           setPluginDetailName(name)
