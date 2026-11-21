@@ -297,6 +297,26 @@ installation request, use Plugin Manager or
 the installed revision in the target host. Installation is device-wide while
 executable enablement is per Space. Do not uninstall shared plugins as cleanup.
 
-Building a plugin does not itself request public release. If publishing is
-requested, the tool's `registry --help` describes a local registry-draft helper;
-generating a draft does not upload a release or submit it to a registry.
+## 6. Prepare a marketplace submission
+
+Use the [Plugin Submission Guide](https://docs.eidos.space/plugins/publishing/)
+when preparing a listing or update. Validate the exact `.eidos-plugin` archive
+and record its SHA-256. For Lite, iOS, Android, and CLI Serve, record the support
+status, tested build and environment, entry point, core operation, and any
+limitations. A plugin may target Lite only.
+
+- `check --target lite` and `check --target cli` check their own host profiles.
+  For a mobile support claim, install the release archive in the corresponding
+  iOS or Android app and complete the core operation there. Mark unavailable
+  validation as unverified. Identify phone, tablet, simulator, and physical
+  device evidence accurately.
+- Exercise optional capability fallbacks and check narrow screens, touch, and
+  keyboard behavior for the mobile interfaces you support.
+- Verify the default language and the listing, interface, README, and fallback
+  for each claimed translation. Include permissions, external dependencies,
+  reproducible steps, and limitations in the submission notes.
+
+Use `eidos-plugin registry --help` to draft the entry from the exact archive.
+Check its tag, asset filename, version, SHA-256, and compatibility text against
+the release. Packaging and drafting are local steps. Publish or submit a
+registry pull request when the user has authorized that external action.

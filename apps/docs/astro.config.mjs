@@ -182,6 +182,7 @@ export default defineConfig({
                     "plugins/guide",
                     "plugins/workflow",
                     "plugins/i18n",
+                    "plugins/publishing",
                   ],
                 },
                 {
