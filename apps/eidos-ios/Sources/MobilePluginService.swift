@@ -170,9 +170,14 @@ final class MobilePluginService {
     func hasFileDefault(_ file: URL) -> Bool { fileDefaults[extensionKey(file)] != nil }
     func defaultFileView(_ file: URL) -> PluginNavigationPage? {
         let fileExtension = extensionKey(file)
-        guard fileExtension != ".eidos", let id = fileDefaults[fileExtension], (try? space.checked(file)) != nil,
+        guard fileExtension != ".eidos", let id = fileDefaults[fileExtension], let checked = try? space.checked(file),
+              (try? checked.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
               let view = try? fileViews(file).first(where: { $0.id == id }),
-              (try? program(view.plugin)) != nil else { return nil }
+              let package = try? program(view.plugin), let manifest = package["manifest"] as? [String: Any],
+              fileHandlers(manifest)[fileExtension]?.contains(where: { $0.id == id }) == true,
+              let declaration = (manifest["views"] as? [[String: Any]])?.first(where: { $0["id"] as? String == view.view }) else { return nil }
+        if (declaration["capabilities"] as? [String])?.contains("document") == true,
+           (try? LocalSpace.readMarkdown(checked)) == nil { return nil }
         return view
     }
     func clearFileDefault(_ file: URL) {

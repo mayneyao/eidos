@@ -27,7 +27,7 @@ private struct PluginInstallCheckbox: ToggleStyle {
                     .accessibilityHidden(true)
                 configuration.label
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

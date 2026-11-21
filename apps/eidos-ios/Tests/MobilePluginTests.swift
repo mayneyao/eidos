@@ -232,14 +232,14 @@ final class MobilePluginTests: XCTestCase {
                 "apiVersion": 1, "id": "test.\(name)", "name": "Test", "version": "\(version)",
                 "requires": {"pluginApi": "3.0.0"},
                 "views": [
-                  {"id": "view", "title": "Main", "kind": "file", "entry": "./main.js"},
+                  {"id": "view", "title": "Main", "kind": "file", "entry": "./main.js", "capabilities": ["document"]},
                   {"id": "alt", "title": "Alternative", "kind": "file", "entry": "./main.js"},
                   {"id": "page", "title": "Page", "kind": "page", "entry": "./main.js"}
                 ],
                 "placements": [
-                  {"location": "file/open", "view": "view", "extensions": [".canvas", ".eidos", ".txt", ".other"]},
+                  {"location": "file/open", "view": "view", "extensions": [".canvas", ".txt", ".other"]},
                   {"location": "file/open", "view": "view", "extensions": [".canvas", ".xml"]},
-                  {"location": "file/open", "view": "alt", "extensions": [".other"]},
+                  {"location": "file/open", "view": "alt", "extensions": [".other", ".eidos"]},
                   {"location": "navigation", "view": "page"}
                 ]
               },
@@ -273,7 +273,7 @@ final class MobilePluginTests: XCTestCase {
         XCTAssertEqual(MobilePluginService(space: first).defaultFileView(canvas)?.id, "test.accepted:view")
         XCTAssertNil(origin.defaultFileView(ambiguous))
         XCTAssertNil(origin.defaultFileView(eidos))
-        XCTAssertTrue(try origin.fileViews(eidos).contains { $0.id == "test.accepted:view" })
+        XCTAssertTrue(try origin.fileViews(eidos).contains { $0.id == "test.accepted:alt" })
         XCTAssertNil(other.defaultFileView(otherCanvas))
 
         let replacement = try await review(other, "replacement")
@@ -293,6 +293,11 @@ final class MobilePluginTests: XCTestCase {
         XCTAssertNil(origin.defaultFileView(canvas))
         _ = try origin.handle("enable", ["id": "test.accepted", "enabled": true])
         XCTAssertEqual(origin.defaultFileView(canvas)?.id, "test.accepted:view")
+        try Data(count: 2 * 1024 * 1024 + 1).write(to: canvas)
+        XCTAssertNil(origin.defaultFileView(canvas))
+        try Data([0xff]).write(to: canvas)
+        XCTAssertNil(origin.defaultFileView(canvas))
+        try Data().write(to: canvas)
         try Data("damaged".utf8).write(to: origin.directory.appendingPathComponent(accepted.revision + ".json"))
         XCTAssertNil(origin.defaultFileView(canvas))
         origin.clearFileDefault(canvas)
