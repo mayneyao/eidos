@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -539,6 +541,10 @@ fun PluginMarketScreen(
     review?.let { (prepared, targetSpace) ->
         val manifest = prepared.manifest
         val browser = manifest.optJSONObject("browser")
+        val defaultExtensions = remember(prepared, targetSpace, installed) {
+            store.installDefaultExtensions(prepared)
+        }
+        var makeDefault by remember(prepared, targetSpace) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { if (!busy) review = null },
             title = { Text(tr("安装 {0}", manifest.getString("name"))) },
@@ -558,13 +564,30 @@ fun PluginMarketScreen(
                     message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (browser?.optBoolean("workers") == true) Text(tr("允许本地 Worker"))
                     Text(tr("安装后将在发起安装的 Space 启用。"))
+                    if (defaultExtensions.isNotEmpty()) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .toggleable(
+                                    value = makeDefault,
+                                    enabled = !busy,
+                                    role = Role.Checkbox,
+                                    onValueChange = { makeDefault = it },
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = makeDefault, onCheckedChange = null, enabled = !busy)
+                            Text(tr("设为此 Space 中 {0} 文件的默认打开方式", defaultExtensions.joinToString()))
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         action {
-                            store.install(prepared, targetSpace)
+                            store.install(prepared, targetSpace, makeDefault && defaultExtensions.isNotEmpty())
                             review = null
                             message = tr("安装完成，已在发起安装的 Space 启用。")
                         }

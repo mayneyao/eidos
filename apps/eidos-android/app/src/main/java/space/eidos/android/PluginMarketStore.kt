@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.util.AtomicFile
 import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -185,6 +187,36 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
 
     private fun records() = JSONObject(preferences.getString("installed", "{}")!!)
 
+    private fun fileDefaults(space: String) =
+        JSONObject(preferences.getString("file-open-defaults:$space", "{}")!!)
+
+    private fun defaultFileViews(prepared: PreparedPlugin): Map<String, String> =
+        manifestFileViews(prepared.manifest, prepared.revision)
+            .flatMap { view -> view.extensions.map { extension -> extension to view.id } }
+            .filter { (extension, _) -> extension != ".eidos" }
+            .groupBy({ it.first }, { it.second })
+            .mapNotNull { (extension, ids) -> ids.singleOrNull()?.let { extension to it } }
+            .toMap()
+
+    fun installDefaultExtensions(prepared: PreparedPlugin): List<String> =
+        if (records().has(prepared.manifest.getString("id"))) emptyList()
+        else defaultFileViews(prepared).keys.sorted()
+
+    fun defaultFor(space: String, file: SpaceFile): PluginFileView? {
+        val extension = fileOpenExtension(file) ?: return null
+        if (!fileDefaults(space).has(extension)) return null
+        return registry(space).defaultFor(file)
+    }
+
+    suspend fun clearFileDefault(space: String, file: SpaceFile) = withContext(Dispatchers.IO) {
+        synchronized(mutationLock) {
+            val extension = fileOpenExtension(file) ?: return@synchronized
+            val defaults = fileDefaults(space)
+            if (defaults.remove(extension) == null) return@synchronized
+            check(preferences.edit().putString("file-open-defaults:$space", defaults.toString()).commit())
+        }
+    }
+
     fun installed(space: String): List<InstalledPlugin> {
         val records = records()
         return records
@@ -229,9 +261,15 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             .sortedBy { it.key }
 
     // Callers pass the Space captured before preparation, after permission review.
-    suspend fun install(prepared: PreparedPlugin, enableInSpace: String? = null) =
+    suspend fun install(
+        prepared: PreparedPlugin,
+        enableInSpace: String? = null,
+        makeDefault: Boolean = false,
+    ) =
         withContext(Dispatchers.IO) {
+            val operation = currentCoroutineContext()
             synchronized(mutationLock) {
+                operation.ensureActive()
                 check(directory.isDirectory || directory.mkdirs())
                 val file = AtomicFile(File(directory, "${prepared.revision}.json"))
                 val stream = file.startWrite()
@@ -242,23 +280,33 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                     file.failWrite(stream)
                     throw error
                 }
-                val records =
-                    records()
-                        .put(
-                            prepared.manifest.getString("id"),
-                            JSONObject()
-                                .put("revision", prepared.revision)
-                                .put("manifest", prepared.manifest),
-                        )
-                val edit = preferences.edit().putString("installed", records.toString())
+                val id = prepared.manifest.getString("id")
+                val records = records()
+                val updated = mutableMapOf<String, String>()
                 if (enableInSpace != null && prepared.manifest.optString("kind") != "theme") {
-                    edit.putString(
-                        "enabled:$enableInSpace:${prepared.manifest.getString("id")}",
-                        prepared.revision,
-                    )
+                    updated["enabled:$enableInSpace:$id"] = prepared.revision
+                    if (makeDefault && !records.has(id)) {
+                        val handlers = defaultFileViews(prepared)
+                        if (handlers.isNotEmpty()) {
+                            val defaults = fileDefaults(enableInSpace)
+                            handlers.forEach { (extension, viewId) -> defaults.put(extension, viewId) }
+                            updated["file-open-defaults:$enableInSpace"] = defaults.toString()
+                        }
+                    }
                 }
-                check(edit.commit()) {
-                    tr("无法保存插件安装信息")
+                updated["installed"] = records.put(
+                    id,
+                    JSONObject().put("revision", prepared.revision).put("manifest", prepared.manifest),
+                ).toString()
+                operation.ensureActive()
+                val previous = updated.keys.associateWith { preferences.getString(it, null) }
+                val edit = preferences.edit()
+                updated.forEach { (key, value) -> edit.putString(key, value) }
+                if (!edit.commit()) {
+                    val rollback = preferences.edit()
+                    previous.forEach { (key, value) -> rollback.putString(key, value) }
+                    rollback.apply()
+                    error(tr("无法保存插件安装信息"))
                 }
                 prunePackages()
             }
@@ -285,9 +333,19 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
         synchronized(mutationLock) {
             val records = records().apply { remove(id) }
             val edit = preferences.edit().putString("installed", records.toString())
-            preferences.all.keys
-                .filter { it.startsWith("enabled:") && it.endsWith(":$id") }
-                .forEach { edit.remove(it) }
+            preferences.all.forEach { (key, value) ->
+                if (key.startsWith("enabled:") && key.endsWith(":$id")) edit.remove(key)
+                if (key.startsWith("file-open-defaults:") && value is String) {
+                    val defaults = JSONObject(value)
+                    val matching = defaults.keys().asSequence().filter {
+                        defaults.getString(it).substringBefore('/') == id
+                    }.toList()
+                    if (matching.isNotEmpty()) {
+                        matching.forEach(defaults::remove)
+                        edit.putString(key, defaults.toString())
+                    }
+                }
+            }
             check(edit.commit())
             prunePackages()
         }
@@ -313,54 +371,12 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             PluginOpenWithRegistry.bundled(context.assets).allViews().filter {
                 it.id.substringBefore('/') !in overridden
             }
+        val defaults = fileDefaults(space)
         return PluginOpenWithRegistry(
-            bundled +
-                installed
-                    .filter { it.enabled }
-                    .flatMap { plugin ->
-                        val manifest = plugin.manifest
-                        val views = manifest.optJSONArray("views") ?: org.json.JSONArray()
-                        val placements = manifest.optJSONArray("placements") ?: org.json.JSONArray()
-                        val browser = manifest.optJSONObject("browser")
-                        (0 until views.length()).mapNotNull { index ->
-                            val view = views.getJSONObject(index)
-                            if (
-                                view.optString("kind") != "file"
-                            )
-                                return@mapNotNull null
-                            val extensions =
-                                (0 until placements.length())
-                                    .map { placements.getJSONObject(it) }
-                                    .filter {
-                                        it.optString("location") == "file/open" &&
-                                            it.optString("view") == view.getString("id")
-                                    }
-                                    .flatMap { p ->
-                                        p.getJSONArray("extensions").let { values ->
-                                            (0 until values.length()).map(values::getString)
-                                        }
-                                    }
-                                    .toSet()
-                            if (extensions.isEmpty())
-                                return@mapNotNull null
-                            PluginFileView(
-                                "${plugin.id}/${view.getString("id")}",
-                                view.getString("title"),
-                                "installed.${plugin.revision}.js",
-                                extensions,
-                                view
-                                    .optJSONArray("capabilities")
-                                    ?.toString()
-                                    ?.contains("\"document\"") == true,
-                                browser?.optBoolean("workers", false) ?: false,
-                                browser?.optJSONArray("networkOrigins")?.let { origins ->
-                                    (0 until origins.length()).map(origins::getString).toSet()
-                                } ?: emptySet(),
-                                plugin.revision,
-                                view.getString("entry"),
-                            )
-                        }
-                    }
+            bundled + installed.filter { it.enabled }.flatMap {
+                manifestFileViews(it.manifest, it.revision)
+            },
+            defaults.keys().asSequence().associateWith(defaults::getString),
         )
     }
 

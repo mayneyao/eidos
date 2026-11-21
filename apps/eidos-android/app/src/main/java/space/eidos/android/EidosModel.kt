@@ -1203,9 +1203,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         }
     }
 
-    fun openFavorite(favorite: Favorite, addRecord: Boolean = false, done: () -> Unit = {}) =
+    fun openFavorite(
+        favorite: Favorite,
+        addRecord: Boolean = false,
+        usePluginDefault: Boolean = true,
+        done: () -> Unit = {},
+    ) =
         launchAction {
-            openTarget(favorite.path, favorite.tableId, addRecord)
+            openTarget(favorite.path, favorite.tableId, addRecord, usePluginDefault = usePluginDefault)
             done()
         }
 
@@ -1393,17 +1398,35 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun openWithPlugin(file: SpaceFile, viewId: String) = launchAction {
-        val current = mutable.value
-        check((current.webFile == null || current.webFile.path == file.path) && current.pluginFile == null)
         val actual = repository.file(file.path)
         val view = pluginOpenWith.resolve(actual, viewId)
+        openPluginFile(actual, view)
+    }
+
+    private suspend fun openPluginFile(
+        actual: SpaceFile,
+        view: PluginFileView,
+        fallback: Boolean = false,
+    ): Boolean {
+        val current = mutable.value
+        check((current.webFile == null || current.webFile.path == actual.path) && current.pluginFile == null)
         require(actual.eidos || actual.bytes <= if (view.document) 2 * 1024 * 1024 else 16 * 1024 * 1024) {
             tr("文件超过插件读取大小限制")
         }
         val snapshot = if (view.document) repository.pluginTextSnapshot(actual.path) else null
-        val source = pluginMarket.source(current.spaceId, view)
-        require(pluginMarket.authorized(current.spaceId, view)) { tr("插件授权已变更") }
+        val source = try {
+            val code = pluginMarket.source(current.spaceId, view)
+            require(pluginMarket.authorized(current.spaceId, view)) { tr("插件授权已变更") }
+            code
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (!fallback) throw error
+            android.util.Log.w("EidosPluginOpen", "Default file view is unavailable: ${view.id}", error)
+            return false
+        }
         mutable.update { it.copy(pluginFile = PluginFileSession(view, actual, snapshot, source)) }
+        return true
     }
 
     fun closePluginFile() {
@@ -1412,8 +1435,17 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     }
 
     fun open(file: SpaceFile) = launchAction {
+        openTarget(file.path, usePluginDefault = true)
+        documentHistory.clear()
+    }
+
+    fun openWithBuiltIn(file: SpaceFile) = launchAction {
         openTarget(file.path)
         documentHistory.clear()
+    }
+
+    fun clearPluginFileDefault(file: SpaceFile) = launchAction {
+        pluginMarket.clearFileDefault(repository.spaceId, file)
     }
 
     internal fun editorFileRelocated(owner: SpaceRepository, previousPath: String, file: SpaceFile) {
@@ -1496,9 +1528,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
         tableId: String? = null,
         addRecord: Boolean = false,
         query: String = "",
+        usePluginDefault: Boolean = false,
     ) {
         navigationVersion++
         val file = repository.file(path)
+        if (usePluginDefault && tableId == null && !addRecord) {
+            val view = pluginMarket.defaultFor(repository.spaceId, file)
+            if (view != null && openPluginFile(file, view, fallback = true)) return
+        }
         when {
             file.markdown || file.eidos ->
                 mutable.update {
@@ -1941,9 +1978,9 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             }
     }
 
-    fun openSearchMatch(match: SearchMatch) = launchAction {
+    fun openSearchMatch(match: SearchMatch, usePluginDefault: Boolean = true) = launchAction {
         searchJob?.cancelAndJoinSafely()
-        openTarget(match.file.path, match.tableId, query = match.query)
+        openTarget(match.file.path, match.tableId, query = match.query, usePluginDefault = usePluginDefault)
         documentHistory.clear()
     }
 }

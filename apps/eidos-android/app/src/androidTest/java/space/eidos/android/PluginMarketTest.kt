@@ -92,18 +92,23 @@ class PluginMarketTest {
             input.writeBytes(archive("1.0.0", "export default function mount() {}"))
             val prepared = store.prepare(Uri.fromFile(input))
             assertTrue(store.installed("a").isEmpty()) // Review is not installation.
+            val file = SpaceFile("ride.GPX", "ride.GPX", false, 0, 0)
+            assertEquals(listOf(".gpx"), store.installDefaultExtensions(prepared))
             val blockedDirectory = File(context.filesDir, "$name-packages")
             blockedDirectory.writeText("block package persistence")
-            assertTrue(runCatching { store.install(prepared, "a") }.isFailure)
+            assertTrue(runCatching { store.install(prepared, "a", makeDefault = true) }.isFailure)
             assertTrue(store.installed("a").isEmpty())
+            assertNull(store.registry("a").configuredExtension(file))
             blockedDirectory.delete()
             store.install(prepared, "a")
+            assertNull(store.registry("a").defaultFor(file))
+            assertTrue(store.installDefaultExtensions(prepared).isEmpty())
             assertTrue(store.installed("a").single().enabled)
             assertFalse(store.installed("b").single().enabled)
             store.setEnabled("b", store.installed("b").single(), true)
-            store.install(prepared, "a") // Reinstalling identical bytes preserves other grants.
+            store.install(prepared, "a", makeDefault = true) // Reinstall preserves preferences and grants.
+            assertNull(store.registry("a").configuredExtension(file))
             assertTrue(store.installed("b").single().enabled)
-            val file = SpaceFile("ride.gpx", "ride.gpx", false, 0, 0)
             val view = store.registry("a").resolve(file, "test.android-market/main")
             assertEquals("export default function mount() {}", store.source("a", view))
             input.writeBytes(
@@ -124,6 +129,97 @@ class PluginMarketTest {
             assertTrue(store.installed("a").single().enabled)
             store.uninstall("test.android-market")
             assertTrue(store.installed("a").isEmpty())
+        } finally {
+            input.delete()
+            File(context.filesDir, "$name-packages").deleteRecursively()
+            context.deleteSharedPreferences(name)
+        }
+    }
+
+    @Test
+    fun checkedInstallUsesOnlyUnambiguousExtensionsInTheTargetSpace() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "plugin-default-test-${UUID.randomUUID()}"
+        val store = PluginMarketStore(context, name)
+        val input = File(context.cacheDir, "$name.eidos-plugin")
+        suspend fun prepare(
+            id: String,
+            version: String,
+            vararg handlers: Pair<String, List<String>>,
+        ): PreparedPlugin {
+            val views = JSONArray()
+            val placements = JSONArray()
+            handlers.map { it.first }.distinct().forEach { view ->
+                views.put(JSONObject().put("id", view).put("title", view).put("kind", "file")
+                    .put("access", "read").put("entry", "./main.js"))
+            }
+            handlers.forEach { (view, extensions) ->
+                placements.put(JSONObject().put("location", "file/open").put("view", view)
+                    .put("extensions", JSONArray(extensions)))
+            }
+            val manifest = JSONObject().put("apiVersion", 1).put("id", id).put("name", id)
+                .put("version", version).put("requires", JSONObject().put("pluginApi", "3.0.0"))
+                .put("views", views).put("placements", placements)
+            val payload = JSONObject().put("format", 2).put("manifest", manifest)
+                .put("modules", JSONObject().put("./main.js", "export default function mount() {}"))
+            GZIPOutputStream(input.outputStream()).use { it.write(payload.toString().toByteArray()) }
+            return store.prepare(Uri.fromFile(input))
+        }
+        fun file(name: String) = SpaceFile(name, name, false, 0, 0)
+        val canvas = file("Sketch.CANVAS")
+        val gpx = file("Trail.gpx")
+        val fit = file("Trail.fit")
+        val eidos = file("Contacts.eidos")
+        try {
+            val first = prepare(
+                "test.first", "1.0.0",
+                "main" to listOf(".canvas", ".fit"),
+            )
+            store.install(first, "a", makeDefault = true)
+            assertEquals("test.first/main", store.registry("a").defaultFor(canvas)?.id)
+            assertEquals("test.first/main", store.registry("a").defaultFor(fit)?.id)
+            store.setEnabled("b", store.installed("b").single(), true)
+            assertNull(store.registry("b").defaultFor(canvas))
+
+            val second = prepare(
+                "test.second", "1.0.0",
+                "main" to listOf(".canvas"),
+                "main" to listOf(".gpx"),
+                "alternate" to listOf(".gpx", ".fit"),
+                "extra" to listOf(".fit"),
+                "database" to listOf(".eidos"),
+            )
+            assertEquals(listOf(".canvas"), store.installDefaultExtensions(second))
+            store.install(second, "a", makeDefault = true)
+            assertEquals("test.second/main", PluginMarketStore(context, name).registry("a").defaultFor(canvas)?.id)
+            assertEquals("test.first/main", store.registry("a").defaultFor(fit)?.id)
+            assertNull(store.registry("a").configuredExtension(gpx))
+            assertNull(store.registry("a").configuredExtension(eidos))
+            assertEquals(setOf("test.second/main", "test.second/alternate"), store.registry("a")
+                .candidates(gpx).map { it.id }.filter { it.startsWith("test.second/") }.toSet())
+            assertEquals("test.second/database", store.registry("a").resolve(eidos, "test.second/database").id)
+
+            val installed = store.installed("a").single { it.id == "test.second" }
+            store.setEnabled("a", installed, false)
+            assertNull(store.registry("a").defaultFor(canvas))
+            assertEquals(".canvas", store.registry("a").configuredExtension(canvas))
+            store.setEnabled("a", installed, true)
+            assertEquals("test.second/main", store.registry("a").defaultFor(canvas)?.id)
+
+            val update = prepare("test.second", "1.1.0", "new-view" to listOf(".canvas"))
+            assertTrue(store.installDefaultExtensions(update).isEmpty())
+            store.install(update, "a")
+            assertNull(store.registry("a").defaultFor(canvas))
+            assertEquals(".canvas", store.registry("a").configuredExtension(canvas))
+            store.clearFileDefault("a", canvas)
+            assertNull(store.registry("a").configuredExtension(canvas))
+            assertEquals("test.first/main", store.registry("a").defaultFor(fit)?.id)
+
+            store.uninstall("test.first")
+            assertNull(store.registry("a").defaultFor(fit))
+            assertNull(store.registry("a").configuredExtension(fit))
+            store.install(first, "a")
+            assertNull(store.registry("a").defaultFor(fit))
         } finally {
             input.delete()
             File(context.filesDir, "$name-packages").deleteRecursively()
