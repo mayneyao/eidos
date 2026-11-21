@@ -89,7 +89,7 @@ internal class MobilePluginService(
                 )
             "market" ->
                 JSONArray(
-                    store.market().map {
+                    store.market().plugins.map {
                         JSONObject()
                             .put("id", it.id)
                             .put("name", it.name)
@@ -101,7 +101,7 @@ internal class MobilePluginService(
                 )
             "prepare" -> {
                 synchronized(this) { prepared = null }
-                val value = store.prepare(store.market().single { it.id == p.getString("id") })
+                val value = store.prepare(store.marketEntry(p.getString("id")))
                 synchronized(this) { prepared = value }
                 JSONObject()
                     .put("manifest", value.manifest)

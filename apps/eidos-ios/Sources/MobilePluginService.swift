@@ -45,9 +45,35 @@ private final class PluginDownload: NSObject, URLSessionDataDelegate {
     }
 }
 
+struct MobileMarketRelease: Sendable {
+    let id: String
+    let version: String
+    let hash: String
+    let url: URL
+    var key: String { id + "@" + version + ":" + hash }
+
+    init(_ entry: [String: Any]) throws {
+        guard let id = entry["id"] as? String, id.range(of: "^[a-z][a-z0-9.-]{1,127}$", options: .regularExpression) != nil,
+              let version = entry["version"] as? String, version.range(of: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$", options: .regularExpression) != nil,
+              let repo = entry["repo"] as? String, repo.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$", options: .regularExpression) != nil,
+              let tag = entry["tag"] as? String, tag.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]*$", options: .regularExpression) != nil,
+              let asset = entry["asset"] as? String, asset == id + "-" + version + ".eidos-plugin",
+              let hash = entry["sha256"] as? String, hash.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
+              let url = URL(string: "https://github.com/\(repo)/releases/download/\(tag)/\(asset)") else {
+            throw LocalError.message(tr("无效市场条目"))
+        }
+        self.id = id; self.version = version; self.hash = hash; self.url = url
+    }
+}
+
 final class MobilePluginService {
     private static let installationLock = NSLock()
     private static let fileDefaultsSuffix = ".file-defaults"
+    private static let marketArchives: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = 16*1024*1024
+        return cache
+    }()
     let space: LocalSpace
     let directory: URL
     var prepared: [String: Any]?
@@ -218,11 +244,32 @@ final class MobilePluginService {
         guard status == errSecSuccess, let data = result as? Data else { throw LocalError.message(tr("无法读取连接密钥")) }
         return String(data:data,encoding:.utf8)
     }
-    private func registry() throws -> [[String:Any]] {
+    func registry() throws -> [[String:Any]] {
         let url = URL(string:"https://raw.githubusercontent.com/eidos-space/registry/main/plugins.registry.json")!
         let registry = try json(PluginDownload.request(URLRequest(url:url),limit:2*1024*1024,package:true))
         guard registry["schemaVersion"] as? Int == 1, let entries = registry["plugins"] as? [[String:Any]], entries.count <= 1000 else { throw LocalError.message(tr("无效插件市场")) }
         return entries
+    }
+    static func marketArchive(_ release: MobileMarketRelease) throws -> Data {
+        if let cached = marketArchives.object(forKey: release.hash as NSString) { return cached as Data }
+        let data = try PluginDownload.request(URLRequest(url: release.url),limit:16*1024*1024,package:true)
+        guard LocalSpace.digest(data) == release.hash else { throw LocalError.message(tr("插件校验和不匹配")) }
+        marketArchives.setObject(data as NSData, forKey: release.hash as NSString, cost: data.count)
+        return data
+    }
+    func inspectMarketArchive(_ bytes: Data, release: MobileMarketRelease) throws -> (data: Data, raw: String, manifest: [String:Any]) {
+        let data = try unpack(bytes), value = try json(data)
+        guard let raw = String(data:data,encoding:.utf8), let manifest = value["manifest"] as? [String:Any],
+              manifest["id"] as? String == release.id, manifest["version"] as? String == release.version else {
+            throw LocalError.message(tr("插件身份不匹配"))
+        }
+        return (data, raw, manifest)
+    }
+    func prepareMarket(_ release: MobileMarketRelease) throws -> [String:Any] {
+        prepared = nil
+        let archive = try inspectMarketArchive(Self.marketArchive(release), release: release)
+        prepared = ["data":archive.data,"manifest":archive.manifest]
+        return ["manifest":archive.manifest,"raw":archive.raw,"revision":LocalSpace.digest(archive.data),"origin":tr("插件市场（SHA-256 已匹配）")]
     }
     private func unpack(_ data: Data) throws -> Data {
         guard data.count <= 16*1024*1024 else { throw LocalError.message(tr("插件超过 16 MiB")) }
@@ -308,24 +355,11 @@ final class MobilePluginService {
                 record["enabled"] = (record["manifest"] as? [String:Any])?["kind"] as? String != "theme" && preferences.string(forKey:key(id,"enabled")) == record["revision"] as? String
                 return record
             }
-        case "market": return try registry()
         case "prepare":
             prepared = nil
             let pluginId = try id(p["id"])
-            guard let entry = try registry().first(where: { $0["id"] as? String == pluginId }),
-                  let repo = entry["repo"] as? String, let tag = entry["tag"] as? String,
-                  let asset = entry["asset"] as? String, let hash = entry["sha256"] as? String,
-                  repo.range(of:"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",options:.regularExpression) != nil,
-                  tag.range(of:"^[A-Za-z0-9_.-]+$",options:.regularExpression) != nil,
-                  asset == pluginId + "-" + (entry["version"] as? String ?? "") + ".eidos-plugin",
-                  let url = URL(string:"https://github.com/\(repo)/releases/download/\(tag)/\(asset)") else { throw LocalError.message(tr("无效市场条目")) }
-            let bytes = try PluginDownload.request(URLRequest(url:url),limit:16*1024*1024,package:true)
-            guard LocalSpace.digest(bytes) == hash else { throw LocalError.message(tr("插件校验和不匹配")) }
-            let data = try unpack(bytes), value = try json(data)
-            guard String(data:data,encoding:.utf8) != nil, let manifest = value["manifest"] as? [String:Any],
-                  manifest["id"] as? String == pluginId, manifest["version"] as? String == entry["version"] as? String else { throw LocalError.message(tr("插件身份不匹配")) }
-            prepared = ["data":data,"manifest":manifest]
-            return ["manifest":manifest,"raw":String(decoding:data,as:UTF8.self),"revision":LocalSpace.digest(data),"origin":tr("插件市场（SHA-256 已匹配）")]
+            guard let entry = try registry().first(where: { $0["id"] as? String == pluginId }) else { throw LocalError.message(tr("无效市场条目")) }
+            return try prepareMarket(MobileMarketRelease(entry))
         case "install":
             guard let prepared, let data = prepared["data"] as? Data, let manifest = prepared["manifest"] as? [String:Any] else { throw LocalError.message(tr("请先检查插件包")) }
             let pluginId = try id(manifest["id"]), revision = LocalSpace.digest(data)

@@ -1,5 +1,6 @@
 package space.eidos.android
 
+import android.content.Context
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -11,11 +12,46 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
+internal fun fixtureMarketStore(context: Context, name: String, directory: File) =
+    PluginMarketStore(context, name) { url, limit ->
+        val file = if (url == PluginMarketTransport.registryUrl) "registry.json" else url.substringAfterLast('/')
+        require(file.isNotBlank() && File(file).name == file)
+        File(directory, file).inputStream().use { PluginMarketTransport.bounded(it, limit) }
+    }
+
 @RunWith(AndroidJUnit4::class)
 class PluginMarketTest {
+    @Test
+    fun marketOnlyOffersReleasesAcceptedByInstaller() = runBlocking {
+        val arguments = InstrumentationRegistry.getArguments()
+        val fixtureDirectory = arguments.getString("marketFixtures")?.let(::File)
+        assumeTrue(fixtureDirectory != null || arguments.getString("marketLive") == "true")
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "market-compatibility-${UUID.randomUUID()}"
+        val store = if (fixtureDirectory == null) PluginMarketStore(app, name)
+            else fixtureMarketStore(app, name, fixtureDirectory)
+        try {
+            val catalog = store.market()
+            assertFalse(catalog.incomplete)
+            val ids = catalog.plugins.map { it.id }
+            assertTrue(ids.containsAll(listOf("eidos.canvas", "eidos.journals")))
+            assertFalse(ids.any { it in listOf("eidos.recent-history", "eidos.forest-theme", "eidos.maple-theme") })
+            assertTrue(store.installed("test").isEmpty())
+            for (entry in catalog.plugins) {
+                val review = store.prepare(entry)
+                assertEquals(entry.id, review.manifest.getString("id"))
+                assertEquals(entry.version, review.manifest.getString("version"))
+            }
+            assertEquals(ids, store.market().plugins.map { it.id })
+        } finally {
+            app.deleteSharedPreferences(name)
+        }
+    }
+
     @Test
     fun localizedPackageCanBeReviewedInstalledAndLoaded() = runBlocking {
         val app = InstrumentationRegistry.getInstrumentation().targetContext

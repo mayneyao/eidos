@@ -1,6 +1,44 @@
 import XCTest
 
 final class PluginInstallDefaultsUITests: XCTestCase {
+    func testMarketplaceHidesUnsupportedReleaseAndOffersCanvasReview() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["EIDOS_MARKET_LIVE"] == "1", "Requires GitHub marketplace access")
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-app-language", "zh"]
+        app.launch()
+        let menu = app.buttons["Space 操作"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["插件"].tap()
+        let browse = app.buttons["浏览插件市场"]
+        XCTAssertTrue(browse.waitForExistence(timeout: 10))
+        browse.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let canvasInstall = app.buttons["mobile-market-install-eidos.canvas"]
+        XCTAssertTrue(canvasInstall.waitForExistence(timeout: 75))
+        let search = app.textFields["mobile-market-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        search.typeText("Recent History")
+        XCTAssertTrue(app.staticTexts["没有匹配的插件"].waitForExistence(timeout: 75))
+        XCTAssertFalse(app.buttons["mobile-market-install-eidos.recent-history"].exists)
+        let filtered = XCTAttachment(screenshot: app.screenshot())
+        filtered.name = "Unsupported release is filtered from search"
+        filtered.lifetime = .keepAlways
+        add(filtered)
+        app.buttons["清空插件搜索"].tap()
+        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        search.typeText("Canvas")
+        XCTAssertTrue(canvasInstall.waitForExistence(timeout: 10))
+        canvasInstall.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 40))
+        XCTAssertTrue(app.switches["plugin-install-file-defaults"].exists)
+        let review = XCTAttachment(screenshot: app.screenshot())
+        review.name = "Verified Canvas installation review"
+        review.lifetime = .keepAlways
+        add(review)
+    }
+
     /// Seed Default Handler.canvas in the selected Space and Canvas 0.5.7 in the app's Documents folder.
     func testCanvasInstallConfirmationAndDefaultFileOpening() throws {
         continueAfterFailure = false

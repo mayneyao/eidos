@@ -42,8 +42,8 @@ import org.json.JSONObject
 @Composable
 internal fun NativePluginManager(model: EidosModel, spaceName: String, close: () -> Unit) {
     var opened by remember { mutableStateOf<String?>(null) }
-    var readme by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var installRequest by remember { mutableStateOf<String?>(null) }
+    var readme by remember { mutableStateOf<Triple<String, String, MarketPlugin?>?>(null) }
+    var installRequest by remember { mutableStateOf<MarketPlugin?>(null) }
     Box(Modifier.fillMaxSize()) {
         if (opened != null)
             MobilePluginScreen(
@@ -59,7 +59,7 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                 spaceName,
                 close,
                 openPlugin = { opened = it },
-                openReadme = { id, name -> readme = id to name },
+                openReadme = { id, name, entry -> readme = Triple(id, name, entry) },
                 installRequest = installRequest,
                 installHandled = { installRequest = null },
                 uninstall = { id ->
@@ -73,7 +73,7 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                         .handle("uninstall", JSONObject().put("id", id))
                 },
             )
-        readme?.let { (id, name) ->
+        readme?.let { (id, name, entry) ->
             MobilePluginScreen(
                 model,
                 pluginId = id,
@@ -81,9 +81,9 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                 title = name,
                 headerActions = {
                     val installed = model.pluginMarket.installed(model.repository.spaceId).any { it.id == id }
-                    TextButton(enabled = !installed, onClick = {
+                    TextButton(enabled = !installed && entry != null, onClick = {
                         readme = null
-                        installRequest = id
+                        installRequest = entry
                     }) { Text(if (installed) tr("已安装") else tr("安装")) }
                 },
                 close = { readme = null },
@@ -166,9 +166,9 @@ fun PluginMarketScreen(
     spaceName: String,
     close: () -> Unit,
     openPlugin: (String) -> Unit = {},
-    openReadme: (String, String) -> Unit = { _, _ -> },
+    openReadme: (String, String, MarketPlugin?) -> Unit = { _, _, _ -> },
     uninstall: (suspend (String) -> Unit)? = null,
-    installRequest: String? = null,
+    installRequest: MarketPlugin? = null,
     installHandled: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -221,8 +221,10 @@ fun PluginMarketScreen(
             loadingCatalog = true
             marketError = null
             try {
-                catalog = store.market().filter { it.category != "themes" }
+                val result = store.market { verified -> catalog = verified }
+                catalog = result.plugins
                 catalogLoaded = true
+                if (result.incomplete) marketError = tr("部分插件暂时无法校验，请重试。")
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -233,10 +235,10 @@ fun PluginMarketScreen(
         }
     }
     LaunchedEffect(installRequest) {
-        val id = installRequest ?: return@LaunchedEffect
+        val entry = installRequest ?: return@LaunchedEffect
         if (!busy) {
             action {
-                review = store.prepare(store.market().single { it.id == id }) to spaceId
+                review = store.prepare(entry) to spaceId
             }
             installHandled()
         }
@@ -392,7 +394,7 @@ fun PluginMarketScreen(
                             Row(
                                 Modifier.weight(1f)
                                     .clickable(enabled = !busy) {
-                                        openReadme(plugin.id, plugin.manifest.getString("name"))
+                                        openReadme(plugin.id, plugin.manifest.getString("name"), null)
                                     }
                                     .padding(vertical = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -473,7 +475,7 @@ fun PluginMarketScreen(
                             TextButton(onClick = { refreshMarket() }) { Text(tr("重试")) }
                         }
                     }
-                    item {
+                    if (catalogLoaded || matches.isNotEmpty()) item {
                         Text(
                             matches.size.toString() + tr(" 个插件"),
                             Modifier.padding(vertical = 12.dp),
@@ -481,7 +483,7 @@ fun PluginMarketScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (catalogLoaded && matches.isEmpty())
+                    if (catalogLoaded && !loadingCatalog && matches.isEmpty())
                         item {
                             Text(
                                 tr("没有匹配的插件"),
@@ -494,7 +496,7 @@ fun PluginMarketScreen(
                         val upToDate = current?.manifest?.optString("version") == entry.version
                         Row(
                             Modifier.fillMaxWidth()
-                                .clickable(enabled = !busy) { openReadme(entry.id, entry.name) }
+                                .clickable(enabled = !busy) { openReadme(entry.id, entry.name, entry) }
                                 .padding(vertical = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically,

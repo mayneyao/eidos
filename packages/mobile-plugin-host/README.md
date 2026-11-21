@@ -19,6 +19,9 @@ a WebView. Markdown images and links resolve relative to the repository; links
 open in the system browser. Previously loaded READMEs remain available offline.
 For installed plugins, use the row's **管理** button to review permissions, open
 tools, or uninstall. Refresh the market to compare versions and install updates.
+Discover lists releases whose archives pass the mobile installer's checks.
+If some archives cannot be verified, retry from Discover. It can still display
+the releases it verified successfully.
 Android's file menu
 **打开方式 → Markmap** immediately renders that note using the shared host.
 On either mobile app, **打开方式 → Canvas** opens an existing `.canvas` file.

@@ -13,16 +13,18 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 /** Dedicated trusted validator. Guest JavaScript is only parsed, never executed here. */
 object PluginPackageValidation {
+    class Rejected(message: String) : IllegalStateException(message)
+
     suspend fun validate(context: Context, json: String): JSONObject =
         withContext(Dispatchers.Main) {
             val web = WebView(context)
             try {
-                withTimeout(60_000) {
+                withTimeoutOrNull(60_000) {
                     suspendCancellableCoroutine { continuation ->
                         val delivered = AtomicBoolean(false)
                         web.settings.javaScriptEnabled = true
@@ -65,6 +67,7 @@ object PluginPackageValidation {
                                     try {
                                         require(value.length < 256 * 1024) { tr("插件元数据过大") }
                                         val result = JSONObject(value)
+                                        if (result.has("rejected")) throw Rejected(result.getString("rejected"))
                                         if (result.has("error")) error(result.getString("error"))
                                         continuation.resume(result.getJSONObject("manifest"))
                                     } catch (error: Exception) {
@@ -81,7 +84,7 @@ object PluginPackageValidation {
                         <script src="https://package-validator.invalid/validator.js"></script>
                         <script>fetch('https://package-validator.invalid/input').then(r=>r.text()).then(text=>{
                           try { AndroidValidationResult.complete(JSON.stringify({manifest:AndroidPackageValidator.validatePackage(text, '${AppLanguage.localeTag()}')})); }
-                          catch(error) { AndroidValidationResult.complete(JSON.stringify({error:String(error.message)})); }
+                          catch(error) { AndroidValidationResult.complete(JSON.stringify({rejected:String(error.message)})); }
                         }).catch(error=>AndroidValidationResult.complete(JSON.stringify({error:String(error)})));</script>
                     """
                                 .trimIndent(),
@@ -90,7 +93,7 @@ object PluginPackageValidation {
                             null,
                         )
                     }
-                }
+                } ?: error(tr("插件校验超时"))
             } finally {
                 web.removeJavascriptInterface("AndroidValidationResult")
                 web.stopLoading()

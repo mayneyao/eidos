@@ -55,24 +55,33 @@ private func pluginPermissions(_ manifest: [String:Any]) -> String {
 
 @MainActor
 private final class NativePluginManagerModel: ObservableObject {
+    private static let marketChecks: NSCache<NSString, NSNumber> = {
+        let cache = NSCache<NSString, NSNumber>()
+        cache.countLimit = 1000
+        return cache
+    }()
     @Published var installed: [ManagedPlugin] = []
     @Published var market: [[String:Any]] = []
     @Published var busy = false
     @Published var loadingMarket = false
     @Published var marketLoaded = false
+    @Published var marketError: String?
     @Published var error: String?
     @Published var review: PluginInstallReview?
     @Published var setFileDefaults = false
     private let service: MobilePluginService
     private let queue = DispatchQueue(label:"space.eidos.plugins.manager")
     init(space: LocalSpace) { service = MobilePluginService(space:space) }
-    private func call(_ method: String, _ params: [String:Any] = [:]) async throws -> Any {
+    private func background<T>(_ operation: @escaping () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                do { continuation.resume(returning:try self.service.handle(method,params)) }
+                do { continuation.resume(returning:try operation()) }
                 catch { continuation.resume(throwing:error) }
             }
         }
+    }
+    private func call(_ method: String, _ params: [String:Any] = [:]) async throws -> Any {
+        try await background { try self.service.handle(method,params) }
     }
     func refresh() async throws {
         installed = (try await call("list") as? [[String:Any]] ?? []).compactMap { record in
@@ -89,15 +98,72 @@ private final class NativePluginManagerModel: ObservableObject {
         }
     }
     func browse() {
-        guard !loadingMarket else { return }; loadingMarket = true; error = nil
+        guard !loadingMarket else { return }; loadingMarket = true; marketError = nil
         Task {
             defer { loadingMarket = false }
-            do { market = (try await call("market") as? [[String:Any]] ?? []).filter { $0["category"] as? String != "themes" }; marketLoaded = true }
-            catch { self.error = error.localizedDescription }
+            do { try await loadMarket(); marketLoaded = true }
+            catch { self.marketError = error.localizedDescription }
         }
     }
-    func prepare(id: String) {
-        run { try await self.reviewPackage(try await self.call("prepare",["id":id])) }
+    private func loadMarket() async throws {
+        let entries = try await background { try self.service.registry() }
+        var seen = Set<String>()
+        let candidates = try entries.map { entry in
+            let release = try MobileMarketRelease(entry)
+            guard seen.insert(release.id).inserted else { throw LocalError.message(tr("无效市场条目")) }
+            return (entry, release)
+        }
+        var visible: [[String:Any]] = []
+        var incomplete = false
+        for start in stride(from: 0, to: candidates.count, by: 3) {
+            let batch = candidates[start..<min(start + 3, candidates.count)]
+            let cached = batch.compactMap { _, release in
+                Self.marketChecks.object(forKey: release.key as NSString).map { (release.key, $0.boolValue) }
+            }
+            let checked = Dictionary(uniqueKeysWithValues: cached)
+            let downloads = await withTaskGroup(of: (String, Data?).self) { group in
+                for (_, release) in batch where checked[release.key] == nil {
+                    group.addTask {
+                        let data: Data? = await withCheckedContinuation { continuation in
+                            DispatchQueue.global(qos: .utility).async {
+                                continuation.resume(returning: try? MobilePluginService.marketArchive(release))
+                            }
+                        }
+                        return (release.key, data)
+                    }
+                }
+                var archives: [String: Data] = [:]
+                for await (key, data) in group { archives[key] = data }
+                return archives
+            }
+            for (entry, release) in batch {
+                if let accepted = checked[release.key] {
+                    if accepted { visible.append(entry) }
+                    continue
+                }
+                guard let archive = downloads[release.key] else { incomplete = true; continue }
+                do {
+                    let raw = try await background { try self.service.inspectMarketArchive(archive, release:release).raw }
+                    try await NativePluginValidator().validate(raw)
+                    Self.marketChecks.setObject(true, forKey: release.key as NSString)
+                    visible.append(entry)
+                } catch is NativePluginValidator.Rejected {
+                    Self.marketChecks.setObject(false, forKey: release.key as NSString)
+                } catch {
+                    incomplete = true
+                }
+            }
+            if !visible.isEmpty { market = visible }
+        }
+        market = visible
+        if incomplete { marketError = tr("部分插件暂时无法校验，请重试。") }
+    }
+    func prepare(entry: [String: Any]) {
+        run {
+            let release = try MobileMarketRelease(entry)
+            let prepared = try await self.background { try self.service.prepareMarket(release) }
+            try await self.reviewPackage(prepared)
+        }
     }
     func importFile(_ url: URL) {
         run {
@@ -152,7 +218,7 @@ struct NativePluginManagerView: View {
     @State private var removing: ManagedPlugin?
     @State private var details: ManagedPlugin?
     @State private var readme: ManagedPlugin?
-    @State private var readmeInstall: String?
+    @State private var readmeInstall: [String: Any]?
     @State private var opened: ManagedPlugin?
     @State private var detailAction: (plugin: ManagedPlugin, remove: Bool)?
     init(space: LocalSpace, open: @escaping (URL) -> Void) {
@@ -198,9 +264,9 @@ struct NativePluginManagerView: View {
             MobilePluginCover(space: space, title: plugin.name, plugin: plugin.id, open: open, close: { opened = nil })
         }
         .fullScreenCover(item:$readme, onDismiss: {
-            if let id = readmeInstall {
+            if let entry = readmeInstall {
                 readmeInstall = nil
-                model.prepare(id: id)
+                model.prepare(entry: entry)
             }
         }) { plugin in
             NavigationStack {
@@ -210,9 +276,9 @@ struct NativePluginManagerView: View {
                     .toolbar { ToolbarItem(placement:.topBarTrailing) {
                         let installed = model.installed.contains { $0.id == plugin.id }
                         Button(installed ? tr("已安装") : tr("安装")) {
-                            readmeInstall = plugin.id
+                            readmeInstall = plugin.manifest
                             readme = nil
-                        }.disabled(installed || model.busy)
+                        }.disabled(installed || model.busy || plugin.manifest["sha256"] == nil)
                     } }
             }
         }
@@ -279,7 +345,7 @@ struct NativePluginManagerView: View {
         VStack(spacing:0) {
             HStack(spacing:10) {
                 Image(systemName:"magnifyingglass").foregroundStyle(.secondary)
-                TextField(tr("搜索插件"),text:$query).autocorrectionDisabled()
+                TextField(tr("搜索插件"),text:$query).autocorrectionDisabled().accessibilityIdentifier("mobile-market-search")
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName:"xmark.circle.fill").foregroundStyle(.secondary) }.accessibilityLabel(tr("清空插件搜索")) }
             }.padding(12).background(Color.primary.opacity(0.045),in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,20).padding(.vertical,14)
             ScrollView(.horizontal,showsIndicators:false) {
@@ -298,12 +364,17 @@ struct NativePluginManagerView: View {
                     (category == "全部" || categoryName(entry) == category) && (query.isEmpty || ((entry["name"] as? String ?? "") + " " + (entry["description"] as? String ?? "")).localizedCaseInsensitiveContains(query))
                 }
                 LazyVStack(alignment:.leading,spacing:0) {
-                    Text(tr("{0} 个插件", matches.count)).font(.caption2).foregroundStyle(.secondary).padding(.vertical,20)
-                    if model.marketLoaded && matches.isEmpty { Text(tr("没有匹配的插件")).font(.subheadline).foregroundStyle(.secondary).padding(.vertical,24) }
+                    if let error = model.marketError {
+                        Text(error).font(.caption).foregroundStyle(.red).padding(.top,16)
+                        Button(tr("重试")) { model.browse() }
+                    }
+                    if model.marketLoaded || !matches.isEmpty { Text(tr("{0} 个插件", matches.count)).font(.caption2).foregroundStyle(.secondary).padding(.vertical,20) }
+                    if model.marketLoaded && !model.loadingMarket && matches.isEmpty { Text(tr("没有匹配的插件")).font(.subheadline).foregroundStyle(.secondary).padding(.vertical,24) }
                     ForEach(matches.indices,id:\.self) { index in
                         let entry = matches[index]
+                        let pluginID = entry["id"] as? String ?? ""
                         HStack(spacing:12) {
-                            glyph(entry["id"] as? String ?? "")
+                            glyph(pluginID)
                             VStack(alignment:.leading,spacing:4) {
                                 Text(entry["name"] as? String ?? tr("插件")).font(.subheadline.weight(.semibold))
                                 Text(entry["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -311,11 +382,11 @@ struct NativePluginManagerView: View {
                             }.frame(maxWidth:.infinity,alignment:.leading)
                                 .contentShape(Rectangle()).onTapGesture { readme = ManagedPlugin(manifest:entry,enabled:false) }
                                 .accessibilityAddTraits(.isButton)
-                            Button(marketAction(entry)) { model.prepare(id:entry["id"] as? String ?? "") }.buttonStyle(.bordered).tint(.primary).disabled(model.busy || marketAction(entry) == tr("已安装"))
+                            Button(marketAction(entry)) { model.prepare(entry:entry) }.buttonStyle(.bordered).tint(.primary).disabled(model.busy || marketAction(entry) == tr("已安装"))
+                                .accessibilityIdentifier("mobile-market-install-" + pluginID)
                         }.padding(.vertical,20)
                         Divider()
                     }
-                    if model.error != nil { Button(tr("重试")) { model.browse() }.padding(.vertical,16) }
                 }.padding(.horizontal,20).padding(.bottom,24)
             }
         }
@@ -361,6 +432,10 @@ struct NativePluginManagerView: View {
 
 /** Validates package source with the shared parser without displaying or running a plugin. */
 final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDelegate {
+    struct Rejected: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
     private var web: WKWebView?
     private var reply: CheckedContinuation<[String:Any],Error>?
     private var raw = ""
@@ -386,8 +461,13 @@ final class NativePluginValidator: NSObject, WKURLSchemeHandler, WKNavigationDel
     func webView(_ web: WKWebView,didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             do {
-                let result = try await web.callAsyncJavaScript("if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready',resolve,{once:true})); return window.eidosMobileValidate(raw, locale);",arguments:["raw":raw,"locale":AppLanguage.localeTag],in:nil,contentWorld:.page)
-                guard let manifest = result as? [String:Any] else { throw LocalError.message(tr("无效插件包")) }
+                let result = try await web.callAsyncJavaScript("""
+                    if (!window.eidosMobileValidate) await new Promise(resolve => addEventListener('eidos-mobile-ready', resolve, {once:true}));
+                    try { return {manifest: window.eidosMobileValidate(raw, locale)}; }
+                    catch (error) { return {rejected: String(error.message)}; }
+                    """,arguments:["raw":raw,"locale":AppLanguage.localeTag],in:nil,contentWorld:.page) as? [String:Any]
+                if let message = result?["rejected"] as? String { throw Rejected(message: message) }
+                guard let manifest = result?["manifest"] as? [String:Any] else { throw LocalError.message(tr("无效插件包")) }
                 finish(.success(manifest))
             } catch { finish(.failure(error)) }
         }

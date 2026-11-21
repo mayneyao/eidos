@@ -478,6 +478,7 @@
   "链接将无法访问。本地文件不会被删除。": "O link ficará indisponível. Os arquivos locais permanecerão.",
   "已取消发布，本地文件仍保留。": "Arquivos locais permanecem.",
   "重试": "Tentar novamente",
+  "部分插件暂时无法校验，请重试。": "Não foi possível verificar alguns plugins. Tente novamente.",
   "重新加载": "Recarregar",
   "重新检测连接": "Verificar novamente a ligação",
   "操作失败": "Operação falhou",

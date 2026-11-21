@@ -3,7 +3,12 @@ package space.eidos.android
 import android.content.Context
 import android.net.Uri
 import android.util.AtomicFile
+import android.util.LruCache
 import java.io.File
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -19,7 +24,11 @@ data class MarketPlugin(
     val hash: String,
     val category: String = "",
     val icon: JSONObject? = null,
-)
+) {
+    internal val releaseKey get() = "$id@$version:$hash"
+}
+
+internal data class MarketCatalog(val plugins: List<MarketPlugin>, val incomplete: Boolean)
 
 data class PreparedPlugin(
     val json: String,
@@ -43,9 +52,20 @@ data class PluginNavigationPage(
         get() = "$pluginId/$viewId"
 }
 
-class PluginMarketStore(private val context: Context, storageName: String = "plugin-market") {
+class PluginMarketStore internal constructor(
+    private val context: Context,
+    storageName: String,
+    private val downloadMarket: (String, Int) -> ByteArray,
+) {
+    constructor(context: Context, storageName: String = "plugin-market") :
+        this(context, storageName, PluginMarketTransport::download)
+
     companion object {
         private val mutationLock = Any()
+        private val marketChecks = LruCache<String, Boolean>(1000)
+        private val marketArchives = object : LruCache<String, ByteArray>(16 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: ByteArray) = value.size
+        }
     }
 
     private val preferences = context.getSharedPreferences(storageName, Context.MODE_PRIVATE)
@@ -64,12 +84,12 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                 it.enabled && it.id == view.id.substringBefore('/') && it.revision == view.revision
             }
 
-    suspend fun market(): List<MarketPlugin> =
+    private suspend fun marketEntries(): List<MarketPlugin> =
         withContext(Dispatchers.IO) {
             val root =
                 JSONObject(
                     String(
-                        PluginMarketTransport.download(
+                        downloadMarket(
                             PluginMarketTransport.registryUrl,
                             2 * 1024 * 1024,
                         ),
@@ -109,6 +129,50 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             }
         }
 
+    internal suspend fun market(onProgress: (List<MarketPlugin>) -> Unit = {}): MarketCatalog {
+        val plugins = mutableListOf<MarketPlugin>()
+        var incomplete = false
+        for (batch in marketEntries().chunked(3)) {
+            val checked = batch.associateWith { marketChecks.get(it.releaseKey) }
+            val archives = coroutineScope {
+                batch.map { entry ->
+                    async {
+                        if (checked[entry] != null) return@async null
+                        try {
+                            Result.success(marketArchive(entry))
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            Result.failure(error)
+                        }
+                    }
+                }.awaitAll()
+            }
+            batch.zip(archives).forEach { (entry, archive) ->
+                if (archive == null) {
+                    if (checked[entry] == true) plugins.add(entry)
+                    return@forEach
+                }
+                try {
+                    prepareMarketArchive(entry, archive.getOrThrow())
+                    marketChecks.put(entry.releaseKey, true)
+                    plugins.add(entry)
+                } catch (rejected: PluginPackageValidation.Rejected) {
+                    marketChecks.put(entry.releaseKey, false)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    incomplete = true
+                }
+            }
+            if (plugins.isNotEmpty()) onProgress(plugins.toList())
+        }
+        return MarketCatalog(plugins, incomplete)
+    }
+
+    internal suspend fun marketEntry(id: String): MarketPlugin =
+        marketEntries().firstOrNull { it.id == id } ?: error(tr("无效市场条目"))
+
     suspend fun readme(id: String): JSONObject? =
         withContext(Dispatchers.IO) {
             require(id.matches(Regex("[a-z][a-z0-9.-]{1,127}")))
@@ -120,7 +184,7 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
                 return@withContext cached.put("cached", true)
             }
             try {
-                if (!preferences.contains("readme-repo:$id")) market()
+                if (!preferences.contains("readme-repo:$id")) marketEntries()
                 val repo = preferences.getString("readme-repo:$id", null) ?: return@withContext null
                 var failure: Exception? = null
                 for (branch in listOf("main", "master")) {
@@ -149,12 +213,19 @@ class PluginMarketStore(private val context: Context, storageName: String = "plu
             }
         }
 
-    suspend fun prepare(entry: MarketPlugin): PreparedPlugin {
-        val bytes =
-            withContext(Dispatchers.IO) {
-                PluginMarketTransport.download(entry.url, PluginMarketTransport.packageLimit)
-            }
-        require(PluginMarketTransport.hash(bytes) == entry.hash) { tr("插件校验和与市场目录不一致") }
+    private suspend fun marketArchive(entry: MarketPlugin): ByteArray =
+        withContext(Dispatchers.IO) {
+            marketArchives.get(entry.hash) ?: downloadMarket(entry.url, PluginMarketTransport.packageLimit)
+                .also { bytes ->
+                    require(PluginMarketTransport.hash(bytes) == entry.hash) { tr("插件校验和与市场目录不一致") }
+                    marketArchives.put(entry.hash, bytes)
+                }
+        }
+
+    suspend fun prepare(entry: MarketPlugin): PreparedPlugin =
+        prepareMarketArchive(entry, marketArchive(entry))
+
+    private suspend fun prepareMarketArchive(entry: MarketPlugin, bytes: ByteArray): PreparedPlugin {
         val prepared = prepareBytes(bytes)
         require(
             prepared.manifest.getString("id") == entry.id &&

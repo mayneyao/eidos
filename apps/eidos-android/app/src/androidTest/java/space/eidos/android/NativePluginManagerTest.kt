@@ -1,5 +1,6 @@
 package space.eidos.android
 
+import android.graphics.Bitmap
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -7,14 +8,54 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
 import java.util.UUID
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 
 class NativePluginManagerTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun discoverHidesUnsupportedReleaseAndOffersCanvasReview() {
+        val fixtures = InstrumentationRegistry.getArguments().getString("marketFixtures")
+        assumeTrue(fixtures != null)
+        val app = compose.activity.application
+        val name = "market-ui-${UUID.randomUUID()}"
+        val store = fixtureMarketStore(app, name, File(fixtures!!))
+        fun capture(filename: String) {
+            val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            File(compose.activity.getExternalFilesDir(null), filename).outputStream().use {
+                screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+            screenshot.recycle()
+        }
+        try {
+            compose.runOnUiThread {
+                compose.activity.setContent { MaterialTheme { PluginMarketScreen(store, "test", "Test Space", {}) } }
+            }
+            compose.onNodeWithText("浏览插件市场").performClick()
+            compose.waitUntil(30_000) { compose.onAllNodesWithText("Canvas").fetchSemanticsNodes().isNotEmpty() }
+            val search = compose.onNode(hasSetTextAction())
+            search.performTextReplacement("Recent History")
+            compose.waitUntil(30_000) { compose.onAllNodesWithText("没有匹配的插件").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("安装").assertDoesNotExist()
+            capture("market-unsupported-hidden.png")
+            search.performTextReplacement("Canvas")
+            compose.onNodeWithText("安装").performClick()
+            compose.waitUntil(15_000) { compose.onAllNodesWithText("eidos.canvas", substring = true).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("插件市场（SHA-256 已匹配）", substring = true).assertExists()
+            capture("market-canvas-review.png")
+            assertTrue(store.installed("test").isEmpty())
+        } finally {
+            compose.runOnUiThread { compose.activity.setContent {} }
+            app.deleteSharedPreferences(name)
+        }
+    }
 
     @Test
     fun nativeSwitchReviewsPermissionsAndUninstallWorksWithoutWebView() {
