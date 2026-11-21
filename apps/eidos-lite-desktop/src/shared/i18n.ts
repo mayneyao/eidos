@@ -1055,6 +1055,7 @@ const zh: Record<string, string> = {
   "Install for Space: {space}": "安装到 Space：{space}",
   "Plugin unavailable": "插件暂不可用",
   "Local packages awaiting review": "待确认的本地安装包",
+  "Packages awaiting review": "待确认的安装包",
   "Choose a package…": "选择安装包…",
   Update: "更新",
   "Update available": "有新版本",
@@ -1245,6 +1246,15 @@ const zh: Record<string, string> = {
   "Plugin instance closed. Retry or use the built-in editor.":
     "插件实例已关闭。请重试或使用内置编辑器。",
   "Search commands": "搜索命令",
+  "Install Plugin from GitHub…": "从 GitHub 安装插件…",
+  "GitHub plugin link": "GitHub 插件链接",
+  "Paste a GitHub plugin link": "粘贴 GitHub 插件链接",
+  "Paste a GitHub repository, release, or plugin package link.":
+    "请粘贴 GitHub 仓库、发行版或插件安装包的链接。",
+  "Preview {repository}": "预览 {repository}",
+  "Loading GitHub plugin…": "正在加载 GitHub 插件…",
+  "GitHub release: {repository} / {filename}":
+    "GitHub Releases：{repository} / {filename}",
   "No matching commands": "没有匹配的命令",
   "Run a command…": "运行命令…",
   "Running…": "正在运行…",

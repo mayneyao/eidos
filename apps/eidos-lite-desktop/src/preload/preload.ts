@@ -132,6 +132,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale, packageToken),
   installMarketplacePlugin: (id) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.installMarketplace, id),
+  previewGitHubPlugin: (url) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.previewGitHubPackage, url),
+  cancelGitHubPluginPreview: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.cancelGitHubPackagePreview),
   onPluginInstallProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

@@ -11,6 +11,73 @@ import type { PluginOpenResult } from "../shared/plugins"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
+it("previews a pasted GitHub link from the keyboard and leaves a failed link ready to retry", async () => {
+  HTMLDialogElement.prototype.showModal = vi.fn()
+  HTMLDialogElement.prototype.close = vi.fn()
+  const previewGitHubPlugin = vi
+    .fn()
+    .mockRejectedValueOnce(
+      new Error("This GitHub release has no .eidos-plugin package")
+    )
+    .mockResolvedValueOnce(true)
+  vi.stubGlobal("eidosLite", { previewGitHubPlugin })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const onClose = vi.fn()
+  const onInvoke = vi.fn()
+  try {
+    await act(async () =>
+      root.render(
+        <PluginCommandPalette
+          githubInstallation
+          actions={[]}
+          onClose={onClose}
+          onInvoke={onInvoke}
+        />
+      )
+    )
+    const input = container.querySelector("input")!
+    const url = "https://github.com/eidos-space/eidos-canvas"
+    const enter = () =>
+      act(async () => {
+        input.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Enter",
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+      })
+    await enter()
+    expect(input).toHaveProperty("placeholder", "Paste a GitHub plugin link")
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(input, url)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(
+      container.querySelector('[aria-selected="true"]')?.textContent
+    ).toContain("Preview eidos-space/eidos-canvas")
+    await enter()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "no .eidos-plugin package"
+    )
+    expect(onClose).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+    await enter()
+    expect(previewGitHubPlugin.mock.calls).toEqual([[url], [url]])
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onInvoke).not.toHaveBeenCalled()
+  } finally {
+    await act(async () => root.unmount())
+    container.remove()
+    vi.unstubAllGlobals()
+  }
+})
+
 it("navigates commands visibly, wraps, scrolls and executes from the search input", async () => {
   HTMLDialogElement.prototype.showModal = vi.fn()
   HTMLDialogElement.prototype.close = vi.fn()

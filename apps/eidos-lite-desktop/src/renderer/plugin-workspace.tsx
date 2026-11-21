@@ -17,8 +17,10 @@ import {
   Puzzle,
   Terminal,
   FileText,
+  GitFork,
 } from "lucide-react"
 import type { PluginListing, PluginOpenResult } from "../shared/plugins"
+import { parseGitHubPluginLink } from "../shared/github-plugin-link"
 import type { TextChange } from "@eidos.space/plugin-runtime/rpc"
 import { PluginEditor } from "./plugin-editor"
 import { SidebarPages } from "./sidebar-pages"
@@ -41,7 +43,9 @@ const commandIcons: Record<string, typeof Command> = {
   "host/format": FileText,
   "host/format-with": FileText,
   "host/default-formatter": FileText,
+  "host/install-github-plugin": GitFork,
 }
+const githubInstallCommand = "host/install-github-plugin"
 export function PluginWorkspace({
   onPage,
   document,
@@ -403,6 +407,8 @@ export function PluginWorkspace({
         )}
       {palette && !disabled && (
         <PluginCommandPalette
+          key={spaceId}
+          githubInstallation={Boolean(spaceId)}
           actions={[
             ...commands,
             ...(document
@@ -613,8 +619,10 @@ export function PluginCommandPalette({
   onClose,
   onInvoke,
   title,
+  githubInstallation = false,
 }: {
   title?: string
+  githubInstallation?: boolean
   actions: {
     key: string
     title: string
@@ -629,11 +637,35 @@ export function PluginCommandPalette({
     input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState(0)
-  const matches = actions.filter((action) =>
-    `${action.title} ${action.plugin?.name ?? t("Built-in")} ${action.plugin?.id ?? ""}`
-      .toLowerCase()
-      .includes(query.trim().toLowerCase())
-  )
+  const [githubInput, setGithubInput] = useState(false)
+  const [githubBusy, setGithubBusy] = useState(false)
+  const [githubError, setGithubError] = useState<string | null>(null)
+  const request = useRef<symbol | null>(null)
+  const previousSearch = useRef({ query: "", selected: 0 })
+  const githubCommand: (typeof actions)[number] = {
+    key: githubInstallCommand,
+    title: t("Install Plugin from GitHub…"),
+  }
+  const githubLink = githubInstallation ? parseGitHubPluginLink(query) : null
+  const matches: typeof actions = githubBusy
+    ? []
+    : githubLink
+      ? [
+          {
+            ...githubCommand,
+            title: t("Preview {repository}", {
+              repository: githubLink.repository,
+            }),
+          },
+        ]
+      : githubInput
+        ? []
+        : (githubInstallation ? [...actions, githubCommand] : actions).filter(
+            (action) =>
+              `${action.title} ${action.plugin?.name ?? t("Built-in")} ${action.plugin?.id ?? ""}`
+                .toLowerCase()
+                .includes(query.trim().toLowerCase())
+          )
   const groups = new Map<string, typeof matches>()
   for (const action of matches) {
     const source = action.plugin?.id ?? ""
@@ -644,6 +676,72 @@ export function PluginCommandPalette({
   const items = Array.from(groups.values()).flat()
   const selection = Math.min(selected, Math.max(0, items.length - 1))
   const selectedKey = items[selection]?.key
+  const inputLabel = githubInput
+    ? t("GitHub plugin link")
+    : t("Search commands")
+
+  function cancelPreview() {
+    if (!request.current) return
+    request.current = null
+    void window.eidosLite.cancelGitHubPluginPreview().catch(() => {})
+  }
+  useEffect(() => cancelPreview, [])
+
+  function close() {
+    cancelPreview()
+    onClose()
+  }
+
+  function escape() {
+    if (!githubInput || githubBusy) return close()
+    setGithubInput(false)
+    setGithubError(null)
+    setQuery(previousSearch.current.query)
+    setSelected(previousSearch.current.selected)
+  }
+
+  async function previewGitHubPlugin() {
+    if (request.current) return
+    if (!githubLink) {
+      setGithubError(
+        t("Paste a GitHub repository, release, or plugin package link.")
+      )
+      return
+    }
+    const active = Symbol()
+    request.current = active
+    setGithubBusy(true)
+    setGithubError(null)
+    try {
+      const opened = await window.eidosLite.previewGitHubPlugin(query.trim())
+      if (request.current === active && opened) onClose()
+    } catch (error) {
+      if (request.current === active) {
+        const message = error instanceof Error ? error.message : String(error)
+        setGithubError(
+          message.replace(
+            /^Error invoking remote method '[^']+': (?:Error: )?/,
+            ""
+          )
+        )
+      }
+    } finally {
+      if (request.current === active) {
+        request.current = null
+        setGithubBusy(false)
+      }
+    }
+  }
+
+  function invokeCommand(key: string) {
+    if (key !== githubInstallCommand) return onInvoke(key)
+    if (githubLink) return void previewGitHubPlugin()
+    previousSearch.current = { query, selected }
+    setGithubInput(true)
+    setQuery("")
+    setSelected(0)
+    setGithubError(null)
+  }
   useLayoutEffect(() => {
     dialog.current
       ?.querySelector<HTMLElement>('[data-selected="true"]')
@@ -662,19 +760,27 @@ export function PluginCommandPalette({
       aria-label={title ?? t("Command palette")}
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        escape()
       }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) close()
       }}
     >
       <div className="quick-open-panel command-palette-panel">
         <div className="quick-open-input-row">
-          <Search aria-hidden="true" />
+          {githubInput ? (
+            <GitFork aria-hidden="true" />
+          ) : (
+            <Search aria-hidden="true" />
+          )}
           <input
             ref={input}
-            aria-label={t("Search commands")}
-            placeholder={title ?? t("Search commands")}
+            aria-label={inputLabel}
+            placeholder={
+              githubInput
+                ? t("Paste a GitHub plugin link")
+                : (title ?? inputLabel)
+            }
             role="combobox"
             aria-expanded="true"
             aria-controls="plugin-command-results"
@@ -682,9 +788,11 @@ export function PluginCommandPalette({
               items[selection] ? `plugin-command-${selection}` : undefined
             }
             value={query}
+            readOnly={githubBusy}
             onChange={(event) => {
               setQuery(event.target.value)
               setSelected(0)
+              setGithubError(null)
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return
@@ -697,12 +805,17 @@ export function PluginCommandPalette({
                         items.length
                     : 0
                 )
-              } else if (event.key === "Enter" && items[selection]) {
+              } else if (
+                event.key === "Enter" &&
+                (items[selection] || githubInput)
+              ) {
                 event.preventDefault()
-                onInvoke(items[selection]!.key)
+                const item = items[selection]
+                if (item) invokeCommand(item.key)
+                else void previewGitHubPlugin()
               } else if (event.key === "Escape") {
                 event.preventDefault()
-                onClose()
+                escape()
               }
             }}
           />
@@ -711,7 +824,7 @@ export function PluginCommandPalette({
           className="quick-open-results"
           id="plugin-command-results"
           role="listbox"
-          aria-label={t("Search commands")}
+          aria-label={inputLabel}
         >
           {items.map((item, index) => {
             const groupStart =
@@ -743,25 +856,36 @@ export function PluginCommandPalette({
                   tabIndex={-1}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setSelected(index)}
-                  onClick={() => onInvoke(item.key)}
+                  onClick={() => invokeCommand(item.key)}
                 >
                   <Icon aria-hidden="true" />
                   <span className="quick-open-item-name">{item.title}</span>
-                  {item.shortcut && (
+                  {(item.shortcut ||
+                    (item.key === githubInstallCommand && githubLink)) && (
                     <kbd className="command-palette-shortcut">
-                      {item.shortcut}
+                      {item.shortcut || "↵"}
                     </kbd>
                   )}
                 </button>
               </li>
             )
           })}
-          {!items.length && (
+          {!items.length && !githubInput && !githubBusy && (
             <li className="quick-open-empty" role="presentation">
               {t("No matching commands")}
             </li>
           )}
         </ul>
+        {githubBusy && (
+          <p className="quick-open-empty" role="status">
+            {t("Loading GitHub plugin…")}
+          </p>
+        )}
+        {githubError && (
+          <p className="quick-open-empty" role="alert">
+            {githubError}
+          </p>
+        )}
       </div>
     </dialog>
   )

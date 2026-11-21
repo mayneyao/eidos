@@ -27,6 +27,8 @@ import {
   type PluginPackagePreview,
 } from "../../shared/plugins"
 import { PluginInstallQueue } from "./plugin-install-queue"
+import { downloadGitHubPlugin } from "./github-plugin-download"
+import { parseGitHubPluginLink } from "../../shared/github-plugin-link"
 import { isPublishableFileView } from "../../shared/publish-file-view"
 import type { WindowController } from "../window-controller"
 import { PluginStore, reviewFileEditorDefaults } from "./plugin-store"
@@ -100,8 +102,14 @@ export function registerPluginIpc(controller: WindowController): {
   const store = new PluginStore(home.plugins)
   const preparedPackages = new Map<
     string,
-    { owner: number; bytes: Uint8Array; preview: PluginPackagePreview }
+    {
+      owner: number
+      bytes: Uint8Array
+      preview: PluginPackagePreview
+      spaceId?: string
+    }
   >()
+  const githubPreviews = new Map<number, AbortController>()
   const installs = new PluginInstallQueue(() => {
     for (const window of BrowserWindow.getAllWindows())
       if (!window.webContents.isDestroyed())
@@ -278,6 +286,8 @@ export function registerPluginIpc(controller: WindowController): {
       const owner = event.sender.id
       event.sender.once("destroyed", () => {
         bluetoothPicker.cancel(owner)
+        githubPreviews.get(owner)?.abort()
+        githubPreviews.delete(owner)
         service.closeOwner(owner)
         owners.delete(owner)
         for (const [token, prepared] of preparedPackages)
@@ -805,7 +815,8 @@ export function registerPluginIpc(controller: WindowController): {
     marketplaceId: unknown,
     droppedPath: unknown,
     preparedBytes?: Uint8Array,
-    targetSpaceId?: string
+    targetSpaceId?: string,
+    githubRepository?: string
   ) {
     const spaceId = currentSpace(event)
     if (targetSpaceId !== undefined && spaceId !== targetSpaceId)
@@ -1042,6 +1053,8 @@ export function registerPluginIpc(controller: WindowController): {
       cancelId: 0,
       noLink: true,
     }
+    if (githubRepository)
+      reviewOptions.detail = `GitHub release: ${githubRepository}\n\n${reviewOptions.detail}`
     if (execution.detail) reviewOptions.detail += `\n\n${execution.detail}`
     if (targetSpaceId && !isUpdate && !development) {
       const locale = resolveEidosLiteLocale("system", service.locale)
@@ -1280,35 +1293,103 @@ export function registerPluginIpc(controller: WindowController): {
       path.extname(filePath).toLowerCase() !== ".eidos-plugin"
     )
       throw new PluginError("INVALID_REQUEST", "Invalid plugin package path")
-    const bytes = await store.readBytes(filePath)
+    return showPackagePreview(
+      await store.readBytes(filePath),
+      path.basename(filePath),
+      preferred
+    )
+  }
+  async function showPackagePreview(
+    bytes: Uint8Array,
+    filename: string,
+    preferred?: BrowserWindow,
+    github?: {
+      repository: string
+      spaceId: string
+      verifyOwner(owner: BrowserWindow): void
+    }
+  ): Promise<boolean> {
     const pkg = decodePackage(bytes)
     assertPluginCompatibility(pkg.manifest, "eidos-lite")
     const preview: PluginPackagePreview = {
       token: randomUUID(),
-      filename: path.basename(filePath),
+      filename,
       hash: packageHash(bytes),
       manifest: pkg.manifest,
       localization: pluginLanguageData(pkg.manifest, pkg.resources),
+      ...(github ? { githubRepository: github.repository } : {}),
     }
     await controller.showPluginInstall(
       pkg.manifest.id,
       preview,
       preferred,
       (owner) => {
+        github?.verifyOwner(owner)
         if (preparedPackages.size >= 8)
           throw new PluginError(
             "INVALID_REQUEST",
-            "Up to 8 local packages can await review. Finish reviewing an open package, then try again."
+            "Up to 8 packages can await review. Finish reviewing an open package, then try again."
           )
         preparedPackages.set(preview.token, {
           owner: owner.webContents.id,
           bytes,
           preview,
+          spaceId: github?.spaceId,
         })
       }
     )
     return true
   }
+  ipcMain.handle(
+    PLUGIN_CHANNELS.previewGitHubPackage,
+    async (event, url: unknown) => {
+      const ownerId = caller(event)
+      const link = typeof url === "string" ? parseGitHubPluginLink(url) : null
+      if (!link)
+        throw new PluginError("INVALID_REQUEST", "Invalid GitHub plugin link")
+      const owner = BrowserWindow.fromWebContents(event.sender)
+      const spaceId = controller.requireSession(event.sender).canonical.id
+      if (!owner || owner.isDestroyed())
+        throw new PluginError("INSTANCE_CLOSED", "Workbench is closed")
+      githubPreviews.get(ownerId)?.abort()
+      const request = new AbortController()
+      githubPreviews.set(ownerId, request)
+      const verifyOwner = (destination: BrowserWindow) => {
+        request.signal.throwIfAborted()
+        if (
+          destination !== owner ||
+          owner.isDestroyed() ||
+          event.sender.isDestroyed() ||
+          currentSpace(event) !== spaceId
+        )
+          throw new PluginError(
+            "INSTANCE_CLOSED",
+            "Space changed before review"
+          )
+      }
+      try {
+        const { bytes, filename } = await downloadGitHubPlugin(
+          link,
+          request.signal
+        )
+        verifyOwner(owner)
+        return await showPackagePreview(bytes, filename, owner, {
+          repository: link.repository,
+          spaceId,
+          verifyOwner,
+        })
+      } catch (error) {
+        if (request.signal.aborted) return false
+        throw error
+      } finally {
+        if (githubPreviews.get(ownerId) === request)
+          githubPreviews.delete(ownerId)
+      }
+    }
+  )
+  ipcMain.handle(PLUGIN_CHANNELS.cancelGitHubPackagePreview, (event) => {
+    githubPreviews.get(caller(event))?.abort()
+  })
   ipcMain.handle(PLUGIN_CHANNELS.getInstallIntent, (event) => {
     caller(event)
     return controller.getPluginInstallIntent(event.sender)
@@ -1368,6 +1449,11 @@ export function registerPluginIpc(controller: WindowController): {
           "INVALID_REQUEST",
           "Plugin package preview is no longer available"
         )
+      if (prepared.spaceId !== undefined && prepared.spaceId !== spaceId)
+        throw new PluginError(
+          "INSTANCE_CLOSED",
+          "Space changed before installation"
+        )
       const id = prepared.preview.manifest.id
       return installs.run(
         id,
@@ -1379,7 +1465,8 @@ export function registerPluginIpc(controller: WindowController): {
             undefined,
             undefined,
             prepared.bytes,
-            spaceId
+            spaceId,
+            prepared.preview.githubRepository
           )
           if (installed) {
             for (const [candidateToken, candidate] of preparedPackages) {
@@ -1672,6 +1759,8 @@ export function registerPluginIpc(controller: WindowController): {
       return encodePackage(pkg.manifest, pkg.modules, pkg.resources)
     },
     close() {
+      for (const request of githubPreviews.values()) request.abort()
+      githubPreviews.clear()
       preparedPackages.clear()
       stopLocale()
       controller.pluginSpaceOpened = undefined

@@ -663,6 +663,67 @@ it("opens file-picker and dropped package previews without reviewing or installi
   ).rejects.toThrow(/Invalid plugin/)
 })
 
+it("opens a GitHub package in the requesting Space and installs the exact reviewed bytes", async () => {
+  const url =
+    "https://github.com/example/csv/releases/download/v1.0.0/example.eidos-plugin"
+  const bytes = new Uint8Array(await fs.readFile(mock.selected))
+  const network = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response(bytes))
+  expect(await call("previewGitHubPackage", 1, url)).toBe(true)
+  const preview = mock.showPluginInstall.mock.calls.at(
+    -1
+  )![1] as PluginPackagePreview
+  expect(preview).toMatchObject({
+    githubRepository: "example/csv",
+    filename: "example.eidos-plugin",
+    manifest: { id, version: "1.0.0" },
+  })
+  expect((await listing(1)).plugins).toHaveLength(0)
+  expect(mock.messageOptions).toHaveLength(0)
+  await expect(call("installPrepared", 2, preview.token)).rejects.toThrow(
+    /preview/
+  )
+  switchTestSpace(1, "space-2")
+  await expect(call("installPrepared", 1, preview.token)).rejects.toThrow(
+    /Space changed/
+  )
+  switchTestSpace(1, "space-1")
+  mock.response = 0
+  expect(await call("installPrepared", 1, preview.token)).toBe(false)
+  expect(mock.messageOptions.at(-1)).toMatchObject({
+    detail: expect.stringContaining("GitHub release: example/csv"),
+  })
+  mock.response = 1
+  expect(await call("installPrepared", 1, preview.token)).toBe(true)
+  expect((await listing(1)).plugins[0]).toMatchObject({
+    enabled: true,
+    manifest: { version: "1.0.0" },
+  })
+  expect(network).toHaveBeenCalledTimes(1)
+})
+
+it("discards a cancelled GitHub download before opening the main workbench detail", async () => {
+  const bytes = new Uint8Array(await fs.readFile(mock.selected))
+  let finish!: (response: Response) => void
+  const network = vi.spyOn(globalThis, "fetch").mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve
+    })
+  )
+  const preview = call(
+    "previewGitHubPackage",
+    1,
+    "https://github.com/example/csv/releases/download/v1.0.0/example.eidos-plugin"
+  )
+  await call("cancelGitHubPackagePreview", 1)
+  expect(network.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
+  finish(new Response(bytes))
+  expect(await preview).toBe(false)
+  expect(mock.showPluginInstall).not.toHaveBeenCalled()
+  expect(await call("packagePreviews", 1)).toEqual([])
+})
+
 it("removes only successfully installed copies of a preview", async () => {
   await call("previewPackage", 1, mock.selected)
   const first = mock.showPluginInstall.mock.calls.at(

@@ -148,6 +148,7 @@ export interface PluginPackagePreview {
   hash: string
   manifest: PluginManifest
   localization?: PluginLanguageData
+  githubRepository?: string
 }
 export interface PluginInstallIntent {
   id: string
@@ -202,6 +203,8 @@ export interface PluginApi {
     packageToken?: string
   ): Promise<PluginReadme | string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
+  previewGitHubPlugin(url: string): Promise<boolean>
+  cancelGitHubPluginPreview(): Promise<void>
   onPluginInstallProgress(
     listener: (progress: PluginInstallProgress) => void
   ): () => void
@@ -316,6 +319,9 @@ export const PLUGIN_CHANNELS = {
   acknowledgeInstallIntent: "eidos-lite:plugins-acknowledge-install-intent",
   installPrepared: "eidos-lite:plugins-install-prepared",
   previewPackage: "eidos-lite:plugins-preview-package",
+  previewGitHubPackage: "eidos-lite:plugins-preview-github-package",
+  cancelGitHubPackagePreview:
+    "eidos-lite:plugins-cancel-github-package-preview",
   packagePreviews: "eidos-lite:plugins-package-previews",
   installMarketplace: "eidos-lite:plugins-install-marketplace",
   installTasks: "eidos-lite:plugins-install-tasks",

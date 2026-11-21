@@ -184,16 +184,21 @@ export async function registryDownload(
   url: string,
   limit: number,
   fetcher: Fetcher,
-  onProgress?: (loaded: number, total: number) => void
+  onProgress?: (loaded: number, total: number) => void,
+  options?: { signal?: AbortSignal; allowGitHubApi?: boolean }
 ): Promise<Uint8Array> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 30000)
+  const signal = options?.signal
+    ? AbortSignal.any([options.signal, controller.signal])
+    : controller.signal
   try {
     for (let redirect = 0; redirect < 5; redirect++) {
       const target = new URL(url)
       if (
         target.protocol !== "https:" ||
-        !hosts.has(target.hostname) ||
+        (!hosts.has(target.hostname) &&
+          !(options?.allowGitHubApi && target.hostname === "api.github.com")) ||
         target.port ||
         target.username ||
         target.password
@@ -202,7 +207,7 @@ export async function registryDownload(
       const response = await fetcher(url, {
         redirect: "manual",
         credentials: "omit",
-        signal: controller.signal,
+        signal,
       })
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         await response.body?.cancel()

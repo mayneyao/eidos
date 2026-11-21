@@ -166,6 +166,37 @@ export function PluginDetailView({
   const previewPending = Boolean(
     packagePreview && packagePreview.hash !== plugin?.hash
   )
+  const githubRepository = packagePreview?.githubRepository
+  const mac = /Mac/.test(navigator.platform)
+  const installShortcut = mac ? "Meta+Enter" : "Control+Enter"
+  useEffect(() => {
+    if (!githubRepository || !previewPending) return
+    function keydown(event: globalThis.KeyboardEvent) {
+      if (
+        event.key !== "Enter" ||
+        event.repeat ||
+        event.isComposing ||
+        event.altKey ||
+        event.shiftKey ||
+        event.metaKey !== mac ||
+        event.ctrlKey === mac ||
+        event.defaultPrevented ||
+        document.querySelector("dialog[open]")
+      )
+        return
+      const active = document.activeElement
+      if (active !== document.body && !containerRef.current?.contains(active))
+        return
+      const install = containerRef.current?.querySelector<HTMLButtonElement>(
+        `button[aria-keyshortcuts="${installShortcut}"]`
+      )
+      if (!install || install.disabled) return
+      event.preventDefault()
+      install.click()
+    }
+    window.addEventListener("keydown", keydown)
+    return () => window.removeEventListener("keydown", keydown)
+  }, [githubRepository, previewPending, mac, installShortcut])
   const marketplaceOnly =
     !plugin && !builtin && !packagePreview && Boolean(marketplacePlugin)
   const pluginId = manifest?.id ?? builtin?.id ?? marketplacePlugin?.id ?? ""
@@ -530,13 +561,15 @@ export function PluginDetailView({
                 ? t("Built-in")
                 : isTheme
                   ? t("Theme")
-                  : packagePreview
-                    ? t("Local package")
-                    : marketplaceOnly
-                      ? t("Marketplace")
-                      : plugin?.developmentPath
-                        ? t("Development")
-                        : t("Packaged")}
+                  : githubRepository
+                    ? "GitHub"
+                    : packagePreview
+                      ? t("Local package")
+                      : marketplaceOnly
+                        ? t("Marketplace")
+                        : plugin?.developmentPath
+                          ? t("Development")
+                          : t("Packaged")}
             </dd>
           </div>
         </dl>
@@ -852,6 +885,7 @@ export function PluginDetailView({
                 hasUpdate={Boolean(plugin)}
                 task={installTask}
                 unavailable={busy}
+                shortcut={githubRepository ? installShortcut : undefined}
                 onInstall={() => void onInstall()}
               />
             )}
@@ -980,9 +1014,14 @@ export function PluginDetailView({
           ) : null}
           {packagePreview && (
             <p className="plugin-manager-caption">
-              {t("Local package: {filename}", {
-                filename: packagePreview.filename,
-              })}
+              {githubRepository
+                ? t("GitHub release: {repository} / {filename}", {
+                    repository: githubRepository,
+                    filename: packagePreview.filename,
+                  })
+                : t("Local package: {filename}", {
+                    filename: packagePreview.filename,
+                  })}
             </p>
           )}
           {((previewPending && !plugin) || marketplaceOnly) && (

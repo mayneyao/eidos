@@ -653,7 +653,11 @@ export function PluginManager({
         <div
           className={`plugin-manager-list${variant === "settings" ? " settings-group" : ""}`}
           role="group"
-          aria-label={t("Local packages awaiting review")}
+          aria-label={t(
+            pendingPackages.some((preview) => preview.githubRepository)
+              ? "Packages awaiting review"
+              : "Local packages awaiting review"
+          )}
         >
           {pendingPackages.map((preview) => {
             const manifest = preview.localization
@@ -707,7 +711,7 @@ export function PluginManager({
                       v{manifest.version}
                     </span>
                     <span className="plugin-pill-status">
-                      {t("Local package")}
+                      {preview.githubRepository ? "GitHub" : t("Local package")}
                     </span>
                     <span className="plugin-row-desc">{preview.filename}</span>
                   </div>
