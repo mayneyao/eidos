@@ -1410,14 +1410,14 @@ class EidosModel(application: Application, repository: SpaceRepository) :
     ): Boolean {
         val current = mutable.value
         check((current.webFile == null || current.webFile.path == actual.path) && current.pluginFile == null)
-        require(actual.eidos || actual.bytes <= if (view.document) 2 * 1024 * 1024 else 16 * 1024 * 1024) {
-            tr("文件超过插件读取大小限制")
-        }
-        val snapshot = if (view.document) repository.pluginTextSnapshot(actual.path) else null
-        val source = try {
-            val code = pluginMarket.source(current.spaceId, view)
+        val session = try {
+            require(actual.eidos || actual.bytes <= if (view.document) 2 * 1024 * 1024 else 16 * 1024 * 1024) {
+                tr("文件超过插件读取大小限制")
+            }
+            val snapshot = if (view.document) repository.pluginTextSnapshot(actual.path) else null
+            val source = pluginMarket.source(current.spaceId, view)
             require(pluginMarket.authorized(current.spaceId, view)) { tr("插件授权已变更") }
-            code
+            PluginFileSession(view, actual, snapshot, source)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -1425,7 +1425,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             android.util.Log.w("EidosPluginOpen", "Default file view is unavailable: ${view.id}", error)
             return false
         }
-        mutable.update { it.copy(pluginFile = PluginFileSession(view, actual, snapshot, source)) }
+        mutable.update { it.copy(pluginFile = session) }
         return true
     }
 
