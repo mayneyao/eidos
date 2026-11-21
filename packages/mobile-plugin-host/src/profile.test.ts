@@ -1,5 +1,5 @@
 import { expect, it } from "vitest"
-import { validateMobileManifest } from "./profile"
+import { supportsMobileFileOpen, validateMobileManifest } from "./profile"
 
 const manifest = {
   apiVersion: 1,
@@ -70,4 +70,32 @@ it("rejects atomic storage and bounded native output on mobile", () => {
       sidecar: { command: "pi", maxOutputFrameBytes: 1024 },
     })
   ).toThrow("移动端尚未支持")
+})
+
+it("matches a file against every file/open placement for its View", () => {
+  const plugin = validateMobileManifest({
+    apiVersion: 1,
+    id: "test.file-open",
+    name: "File Open",
+    version: "1.0.0",
+    requires: { pluginApi: "3.7.0" },
+    views: [
+      { id: "editor", title: "Editor", kind: "file", entry: "./main.js" },
+      { id: "other", title: "Other", kind: "file", entry: "./other.js" },
+    ],
+    placements: [
+      { location: "file/open", view: "editor", extensions: [".txt"] },
+      { location: "file/open", view: "editor", extensions: [".canvas"] },
+      { location: "file/open", view: "other", extensions: [".json"] },
+    ],
+  })
+  expect(supportsMobileFileOpen(plugin, "editor", "notes/Board.CANVAS")).toBe(
+    true
+  )
+  expect(supportsMobileFileOpen(plugin, "editor", "notes/Readme.txt")).toBe(
+    true
+  )
+  expect(supportsMobileFileOpen(plugin, "editor", "notes/Board.json")).toBe(
+    false
+  )
 })

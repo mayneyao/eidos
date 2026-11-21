@@ -401,6 +401,15 @@ unchanged. Opening an archive MUST NOT implicitly enable it in a Space; updates
 preserve existing Space enablement. Multiple shell-open requests are processed
 sequentially.
 
+Installation review MAY offer an initially unchecked option to make an
+eligible `file/open` View the default for its extension in the target Space.
+The host derives each offered association from the verified package and
+applies it only after the user opts in and the View is available in that Space.
+Cancellation, failure, and an unchecked option leave existing associations
+intact. Updates preserve the user's choices. Associations select an editor
+without granting additional access. If the selected View is unavailable,
+ordinary opening falls back to the host's built-in handler.
+
 Bindings describe the current resource and location; they do not grant access.
 FileRef IDs are contextual display identities, not persistent file IDs or bearer
 authority. A host may supply relative path/name metadata when available. In table

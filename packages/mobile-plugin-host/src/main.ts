@@ -8,6 +8,7 @@ import {
   type TableBinding,
 } from "./host"
 import { validatePackage } from "./validate"
+import { supportsMobileFileOpen } from "./profile"
 import { validateSetting } from "../../plugin-runtime/src/manifest"
 import type {
   PluginManifest,
@@ -193,13 +194,9 @@ class Workbench {
     const view = program.manifest.views?.find(
       (v) => v.id === launch.view && v.kind === "file"
     )
-    const placement = program.manifest.placements?.find(
-      (p) => p.location === "file/open" && p.view === launch.view
-    )
     if (
       !view ||
-      placement?.location !== "file/open" ||
-      !placement.extensions.some((e) => launch.path!.toLowerCase().endsWith(e))
+      !supportsMobileFileOpen(program.manifest, view.id, launch.path)
     )
       throw new Error(mobileText("此插件不支持当前文件"))
     const mount = element("main")
@@ -472,12 +469,10 @@ class Workbench {
               manifest.placements?.filter(
                 (p) => "view" in p && p.view === view.id
               ) ?? []
-            const opener = placements.find((p) => p.location === "file/open")
+            const opensFile = placements.some((p) => p.location === "file/open")
             if (
-              opener?.location === "file/open" &&
-              !opener.extensions.some((e) =>
-                file.value.toLowerCase().endsWith(e)
-              )
+              opensFile &&
+              !supportsMobileFileOpen(manifest, view.id, file.value)
             )
               throw new Error(mobileText("此视图不支持所选文件"))
             if (
@@ -486,7 +481,7 @@ class Workbench {
             )
               throw new Error(mobileText("请选择 Eidos 文件和数据表"))
             if (
-              opener?.location === "file/open" &&
+              opensFile &&
               view.capabilities?.includes("document") &&
               view.access === "write"
             ) {

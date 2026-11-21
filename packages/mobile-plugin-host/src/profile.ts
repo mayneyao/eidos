@@ -1,4 +1,21 @@
 import { parseManifest } from "../../plugin-runtime/src/manifest"
+import type { PluginManifest } from "../../plugin-runtime/src/contracts"
+
+export function supportsMobileFileOpen(
+  manifest: Pick<PluginManifest, "placements">,
+  view: string,
+  path: string
+): boolean {
+  const lowerPath = path.toLowerCase()
+  return (
+    manifest.placements?.some(
+      (placement) =>
+        placement.location === "file/open" &&
+        placement.view === view &&
+        placement.extensions.some((extension) => lowerPath.endsWith(extension))
+    ) ?? false
+  )
+}
 
 /** Capabilities implemented by the mobile workbench. */
 export function validateMobileManifest(input: unknown) {
