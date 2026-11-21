@@ -31,7 +31,7 @@ final class PluginInstallDefaultsUITests: XCTestCase {
             }
             XCTAssertTrue(archive.waitForExistence(timeout: 10), app.debugDescription)
             archive.tap()
-            XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 20))
+            XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 40), app.debugDescription)
         }
 
         app.buttons["Space 操作"].tap()

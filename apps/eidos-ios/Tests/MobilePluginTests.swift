@@ -26,6 +26,8 @@ final class MobilePluginTests: XCTestCase {
             try? FileManager.default.removeItem(at: space.root)
             try? FileManager.default.removeItem(at: space.privateRoot)
         }
+        let installed = previous["plugins.installed"] as? [[String: Any]] ?? []
+        preferences.set(installed.filter { ($0["manifest"] as? [String: Any])?["id"] as? String != "eidos.canvas" }, forKey: "plugins.installed")
         let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
         XCTAssertEqual(try service.reviewManifest(manifest, revision: revision), [".canvas"])
         _ = try service.handle("install", ["revision": revision, "setFileDefaults": true])

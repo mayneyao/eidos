@@ -65,7 +65,6 @@ private final class NativePluginManagerModel: ObservableObject {
     @Published var setFileDefaults = false
     private let service: MobilePluginService
     private let queue = DispatchQueue(label:"space.eidos.plugins.manager")
-    private let validator = NativePluginValidator()
     init(space: LocalSpace) { service = MobilePluginService(space:space) }
     private func call(_ method: String, _ params: [String:Any] = [:]) async throws -> Any {
         try await withCheckedThrowingContinuation { continuation in
@@ -115,7 +114,7 @@ private final class NativePluginManagerModel: ObservableObject {
     }
     private func reviewPackage(_ value: Any) async throws {
         guard let prepared = value as? [String:Any], let raw = prepared["raw"] as? String, let revision = prepared["revision"] as? String else { throw LocalError.message(tr("无效插件包")) }
-        let manifest = try await validator.validate(raw)
+        let manifest = try await NativePluginValidator().validate(raw)
         let fileExtensions = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String], Error>) in
             queue.async {
                 do { continuation.resume(returning: try self.service.reviewManifest(manifest, revision: revision)) }
