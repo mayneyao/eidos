@@ -108,21 +108,27 @@ private final class NativePluginManagerModel: ObservableObject {
     private func loadMarket() async throws {
         let entries = try await background { try self.service.registry() }
         var seen = Set<String>()
-        let candidates = try entries.map { entry in
+        let held = MobilePluginService.marketIndex["held"] as? [String: String] ?? [:]
+        let seeded = MobilePluginService.marketIndex["checked"] as? [String: Bool] ?? [:]
+        let candidates = try entries.compactMap { entry -> ([String: Any], MobileMarketRelease)? in
             let release = try MobileMarketRelease(entry)
             guard seen.insert(release.id).inserted else { throw LocalError.message(tr("无效市场条目")) }
+            guard held[release.packageKey] == nil else { return nil }
             return (entry, release)
         }
-        var visible: [[String:Any]] = []
+        let checked = candidates.reduce(into: [String: Bool]()) { results, candidate in
+            let key = candidate.1.key
+            results[key] = Self.marketChecks.object(forKey: key as NSString)?.boolValue ?? seeded[key]
+        }
+        var accepted = Set(checked.filter { $0.value }.keys)
+        let publish = { self.market = candidates.compactMap { accepted.contains($0.1.key) ? $0.0 : nil } }
+        publish()
+        let pending = candidates.filter { checked[$0.1.key] == nil }
         var incomplete = false
-        for start in stride(from: 0, to: candidates.count, by: 3) {
-            let batch = candidates[start..<min(start + 3, candidates.count)]
-            let cached = batch.compactMap { _, release in
-                Self.marketChecks.object(forKey: release.key as NSString).map { (release.key, $0.boolValue) }
-            }
-            let checked = Dictionary(uniqueKeysWithValues: cached)
+        for start in stride(from: 0, to: pending.count, by: 3) {
+            let batch = pending[start..<min(start + 3, pending.count)]
             let downloads = await withTaskGroup(of: (String, Data?).self) { group in
-                for (_, release) in batch where checked[release.key] == nil {
+                for (_, release) in batch {
                     group.addTask {
                         let data: Data? = await withCheckedContinuation { continuation in
                             DispatchQueue.global(qos: .utility).async {
@@ -136,26 +142,21 @@ private final class NativePluginManagerModel: ObservableObject {
                 for await (key, data) in group { archives[key] = data }
                 return archives
             }
-            for (entry, release) in batch {
-                if let accepted = checked[release.key] {
-                    if accepted { visible.append(entry) }
-                    continue
-                }
+            for (_, release) in batch {
                 guard let archive = downloads[release.key] else { incomplete = true; continue }
                 do {
                     let raw = try await background { try self.service.inspectMarketArchive(archive, release:release).raw }
                     try await NativePluginValidator().validate(raw)
                     Self.marketChecks.setObject(true, forKey: release.key as NSString)
-                    visible.append(entry)
+                    accepted.insert(release.key)
                 } catch is NativePluginValidator.Rejected {
                     Self.marketChecks.setObject(false, forKey: release.key as NSString)
                 } catch {
                     incomplete = true
                 }
             }
-            if !visible.isEmpty { market = visible }
+            publish()
         }
-        market = visible
         if incomplete { marketError = tr("部分插件暂时无法校验，请重试。") }
     }
     func prepare(entry: [String: Any]) {
@@ -238,12 +239,8 @@ struct NativePluginManagerView: View {
             Divider()
             if model.busy || model.loadingMarket { ProgressView().frame(maxWidth:.infinity).padding(8) }
             if let error = model.error { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal,20) }
-            ZStack {
-                installedPane.opacity(discover ? 0 : 1).allowsHitTesting(!discover).accessibilityHidden(discover)
-                marketPane.opacity(discover ? 1 : 0).allowsHitTesting(discover).accessibilityHidden(!discover)
-            }
+            if discover { marketPane } else { installedPane }
         }
-        .accessibilityIdentifier("native-plugin-manager")
         .toolbar { ToolbarItem(placement:.topBarTrailing) {
             Menu {
                 Button(tr("导入插件包"),systemImage:"square.and.arrow.down") { importing = true }
@@ -274,11 +271,13 @@ struct NativePluginManagerView: View {
                     .navigationTitle(plugin.name).navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement:.cancellationAction) { Button(tr("返回")) { readme = nil } } }
                     .toolbar { ToolbarItem(placement:.topBarTrailing) {
-                        let installed = model.installed.contains { $0.id == plugin.id }
-                        Button(installed ? tr("已安装") : tr("安装")) {
+                        let marketplace = plugin.manifest["sha256"] != nil
+                        let action = marketplace ? marketAction(plugin.manifest) : tr("已安装")
+                        Button(action) {
                             readmeInstall = plugin.manifest
                             readme = nil
-                        }.disabled(installed || model.busy || plugin.manifest["sha256"] == nil)
+                        }.disabled(!marketplace || model.busy || action == tr("已安装"))
+                            .accessibilityIdentifier("mobile-market-detail-install")
                     } }
             }
         }
@@ -345,7 +344,7 @@ struct NativePluginManagerView: View {
         VStack(spacing:0) {
             HStack(spacing:10) {
                 Image(systemName:"magnifyingglass").foregroundStyle(.secondary)
-                TextField(tr("搜索插件"),text:$query).autocorrectionDisabled().accessibilityIdentifier("mobile-market-search")
+                TextField(tr("搜索插件"),text:$query).autocorrectionDisabled().accessibilityLabel(tr("搜索插件")).accessibilityIdentifier("mobile-market-search")
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName:"xmark.circle.fill").foregroundStyle(.secondary) }.accessibilityLabel(tr("清空插件搜索")) }
             }.padding(12).background(Color.primary.opacity(0.045),in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,20).padding(.vertical,14)
             ScrollView(.horizontal,showsIndicators:false) {
@@ -375,13 +374,13 @@ struct NativePluginManagerView: View {
                         let pluginID = entry["id"] as? String ?? ""
                         HStack(spacing:12) {
                             glyph(pluginID)
-                            VStack(alignment:.leading,spacing:4) {
-                                Text(entry["name"] as? String ?? tr("插件")).font(.subheadline.weight(.semibold))
-                                Text(entry["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                Text(tr(categoryName(entry)) + " · " + (entry["version"] as? String ?? "")).font(.caption2).foregroundStyle(.secondary)
-                            }.frame(maxWidth:.infinity,alignment:.leading)
-                                .contentShape(Rectangle()).onTapGesture { readme = ManagedPlugin(manifest:entry,enabled:false) }
-                                .accessibilityAddTraits(.isButton)
+                            Button { readme = ManagedPlugin(manifest:entry,enabled:false) } label: {
+                                VStack(alignment:.leading,spacing:4) {
+                                    Text(entry["name"] as? String ?? tr("插件")).font(.subheadline.weight(.semibold))
+                                    Text(entry["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    Text(tr(categoryName(entry)) + " · " + (entry["version"] as? String ?? "")).font(.caption2).foregroundStyle(.secondary)
+                                }.frame(maxWidth:.infinity,alignment:.leading).contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityIdentifier("mobile-market-details-" + pluginID)
                             Button(marketAction(entry)) { model.prepare(entry:entry) }.buttonStyle(.bordered).tint(.primary).disabled(model.busy || marketAction(entry) == tr("已安装"))
                                 .accessibilityIdentifier("mobile-market-install-" + pluginID)
                         }.padding(.vertical,20)

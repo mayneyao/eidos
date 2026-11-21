@@ -50,7 +50,8 @@ struct MobileMarketRelease: Sendable {
     let version: String
     let hash: String
     let url: URL
-    var key: String { id + "@" + version + ":" + hash }
+    var packageKey: String { id + "@" + version + ":" + hash }
+    var key: String { packageKey + ":" + url.absoluteString }
 
     init(_ entry: [String: Any]) throws {
         guard let id = entry["id"] as? String, id.range(of: "^[a-z][a-z0-9.-]{1,127}$", options: .regularExpression) != nil,
@@ -67,6 +68,12 @@ struct MobileMarketRelease: Sendable {
 }
 
 final class MobilePluginService {
+    static let marketIndex: [String: Any] = {
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("editor/market-index.json"),
+              let data = try? Data(contentsOf: url),
+              let index = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
+        return index
+    }()
     private static let installationLock = NSLock()
     private static let fileDefaultsSuffix = ".file-defaults"
     private static let marketArchives: NSCache<NSString, NSData> = {
@@ -251,10 +258,10 @@ final class MobilePluginService {
         return entries
     }
     static func marketArchive(_ release: MobileMarketRelease) throws -> Data {
-        if let cached = marketArchives.object(forKey: release.hash as NSString) { return cached as Data }
+        if let cached = marketArchives.object(forKey: release.key as NSString) { return cached as Data }
         let data = try PluginDownload.request(URLRequest(url: release.url),limit:16*1024*1024,package:true)
         guard LocalSpace.digest(data) == release.hash else { throw LocalError.message(tr("插件校验和不匹配")) }
-        marketArchives.setObject(data as NSData, forKey: release.hash as NSString, cost: data.count)
+        marketArchives.setObject(data as NSData, forKey: release.key as NSString, cost: data.count)
         return data
     }
     func inspectMarketArchive(_ bytes: Data, release: MobileMarketRelease) throws -> (data: Data, raw: String, manifest: [String:Any]) {

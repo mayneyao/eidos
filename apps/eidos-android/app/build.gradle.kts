@@ -90,6 +90,7 @@ val buildWebEditor = tasks.register<Exec>("buildWebEditor") {
     inputs.dir(rootProject.file("../../packages/eidos-file-serve/src"))
     inputs.dir(rootProject.file("../../packages/mobile-plugin-host/src"))
     inputs.dir(rootProject.file("../../packages/mobile-plugin-host/locales"))
+    inputs.files(rootProject.file("../../packages/mobile-plugin-host/market-index.mjs"), rootProject.file("../../packages/mobile-plugin-host/market-index.json"), rootProject.file("../../pnpm-lock.yaml"))
     inputs.dir(rootProject.file("../../packages/plugin-runtime/src"))
     outputs.dir(layout.buildDirectory.dir("editor-assets"))
 }

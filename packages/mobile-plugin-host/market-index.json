@@ -1,0 +1,20 @@
+{
+  "validator": "5fcd58b8549a62e6ea0cd0a6203b5e48f6d2108957820a73db182a63a91bc407",
+  "checked": {
+    "eidos.canvas@0.5.7:18eccc992758156c3be6a1efb85d2c1b6e1556087432e13871a3320a149462c2:https://github.com/eidos-space/eidos-canvas/releases/download/v0.5.7/eidos.canvas-0.5.7.eidos-plugin": true,
+    "eidos.recent-history@1.1.0:bcc46f0966be51416a85cec86f84578a4498588c6396027adb04d1c8d2969a76:https://github.com/eidos-space/eidos-recent-history-plugin/releases/download/v1.1.0/eidos.recent-history-1.1.0.eidos-plugin": false,
+    "eidos.markdown-title-sync@0.2.0:e3c1504db29193b1f8fcae43adf402a44f5ce0748b42176d7d58042787328c1b:https://github.com/eidos-space/eidos-markdown-title-sync/releases/download/v0.2.0/eidos.markdown-title-sync-0.2.0.eidos-plugin": true,
+    "eidos.gpx-viewer@0.2.0:7561ba49b5d07cb16db05b80e0c34a7b89be7e5f67a8f2ed3f36255b44fd3369:https://github.com/eidos-space/eidos-gpx-viewer/releases/download/v0.2.0/eidos.gpx-viewer-0.2.0.eidos-plugin": true,
+    "eidos.smart-actions@0.4.0:27aa114325dec4e3a9b2a09a6eea04903f0235b9d894967d0ca5fcdfb2adcc97:https://github.com/eidos-space/eidos-smart-actions-plugin/releases/download/v0.4.0/eidos.smart-actions-0.4.0.eidos-plugin": true,
+    "eidos.map@0.3.0:f4150009b502003ba00ae8c123fbcba518ad31d6184205b58bd0f3fdbff410fb:https://github.com/eidos-space/eidos-map-plugin/releases/download/v0.3.0/eidos.map-0.3.0.eidos-plugin": true,
+    "eidos.markmap@0.4.0:e18d3948a85d5add1322d974f2d0637b46161b0ae8cebdc2b67e275ea8347de0:https://github.com/eidos-space/eidos-markmap-plugin/releases/download/v0.4.0/eidos.markmap-0.4.0.eidos-plugin": true,
+    "eidos.chart@0.3.2:82b7636544ada16f8b81fc4fd53d01c38bc158ed57a8237c574a9239e1c478d7:https://github.com/eidos-space/eidos-chart-plugin/releases/download/v0.3.2/eidos.chart-0.3.2.eidos-plugin": true,
+    "eidos.dashboard@0.2.0:840c90c35f62038c4b5ea3622f1db360ee0da30f840d54d1bc1d05c37fdc4c9e:https://github.com/eidos-space/eidos-dashboard-plugin/releases/download/v0.2.0/eidos.dashboard-0.2.0.eidos-plugin": true,
+    "eidos.journals@0.5.3:d3528fe5046e041910f7178a17aa1b629db5adb74d78fff3e898654c8583d528:https://github.com/eidos-space/eidos-journals-plugin/releases/download/v0.5.3/eidos.journals-0.5.3.eidos-plugin": true,
+    "eidos.forest-theme@0.2.0:458589ec0f59f26f3728347b2e783bb48fc248e0c71e4bd11895b4521a4775e5:https://github.com/eidos-space/eidos-forest-theme/releases/download/v0.2.0/eidos.forest-theme-0.2.0.eidos-plugin": false,
+    "eidos.maple-theme@0.2.0:d301cfafb4b4c1c462c5d792dbe8d8ab136a418f2a99daf9a4cf39d79ac62ae5:https://github.com/eidos-space/eidos-maple-theme/releases/download/v0.2.0/eidos.maple-theme-0.2.0.eidos-plugin": false
+  },
+  "held": {
+    "eidos.dashboard@0.2.0:840c90c35f62038c4b5ea3622f1db360ee0da30f840d54d1bc1d05c37fdc4c9e": "Dashboard needs ui.resources to mount and render panels."
+  }
+}

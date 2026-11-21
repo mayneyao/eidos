@@ -39,7 +39,7 @@ class PluginMarketTest {
             assertFalse(catalog.incomplete)
             val ids = catalog.plugins.map { it.id }
             assertTrue(ids.containsAll(listOf("eidos.canvas", "eidos.journals")))
-            assertFalse(ids.any { it in listOf("eidos.recent-history", "eidos.forest-theme", "eidos.maple-theme") })
+            assertFalse(ids.any { it in listOf("eidos.recent-history", "eidos.forest-theme", "eidos.maple-theme", "eidos.dashboard") })
             assertTrue(store.installed("test").isEmpty())
             for (entry in catalog.plugins) {
                 val review = store.prepare(entry)
@@ -47,6 +47,57 @@ class PluginMarketTest {
                 assertEquals(entry.version, review.manifest.getString("version"))
             }
             assertEquals(ids, store.market().plugins.map { it.id })
+        } finally {
+            app.deleteSharedPreferences(name)
+        }
+    }
+
+    @Test
+    fun seededReleasesOpenWithoutArchiveRequestsAndUnknownUpdateRetries() = runBlocking {
+        val fixtures = InstrumentationRegistry.getArguments().getString("marketFixtures")
+        assumeTrue(fixtures != null)
+        val directory = File(fixtures!!)
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "market-refresh-${UUID.randomUUID()}"
+        val catalog = JSONObject(File(directory, "registry.json").readText())
+        val entries = catalog.getJSONArray("plugins")
+        val canvas = (0 until entries.length()).map(entries::getJSONObject).single { it.getString("id") == "eidos.canvas" }
+        val original = JSONObject(canvas.toString())
+        val raw = JSONObject(PluginMarketTransport.unpack(File(directory, original.getString("asset")).readBytes()))
+        raw.getJSONObject("manifest").put("version", "0.5.8")
+        val update = ByteArrayOutputStream().also { stream ->
+            GZIPOutputStream(stream).use { it.write(raw.toString().toByteArray()) }
+        }.toByteArray()
+        val requests = java.util.Collections.synchronizedList(mutableListOf<String>())
+        var allowUpdate = false
+        val store = PluginMarketStore(app, name) { url, limit ->
+            if (url == PluginMarketTransport.registryUrl) catalog.toString().toByteArray()
+            else {
+                val asset = url.substringAfterLast('/')
+                requests.add(asset)
+                if (asset == "eidos.canvas-0.5.8.eidos-plugin") {
+                    check(allowUpdate) { "Temporary download error" }
+                    update
+                } else File(directory, asset).inputStream().use { PluginMarketTransport.bounded(it, limit) }
+            }
+        }
+        try {
+            val first = store.market()
+            assertTrue(requests.isEmpty())
+            assertFalse(first.incomplete)
+            val shown = first.plugins.single { it.id == "eidos.canvas" }
+            canvas.put("version", "0.5.8").put("asset", "eidos.canvas-0.5.8.eidos-plugin")
+                .put("tag", "v0.5.8").put("sha256", PluginMarketTransport.hash(update))
+            val failed = store.market()
+            assertTrue(failed.incomplete)
+            assertFalse(failed.plugins.any { it.id == "eidos.canvas" })
+            assertEquals("0.5.7", store.prepare(shown).manifest.getString("version"))
+            allowUpdate = true
+            val retried = store.market()
+            assertFalse(retried.incomplete)
+            val newRelease = retried.plugins.single { it.id == "eidos.canvas" }
+            assertEquals("0.5.8", store.prepare(newRelease).manifest.getString("version"))
+            assertEquals(listOf("eidos.canvas-0.5.8.eidos-plugin", "eidos.canvas-0.5.7.eidos-plugin", "eidos.canvas-0.5.8.eidos-plugin"), requests)
         } finally {
             app.deleteSharedPreferences(name)
         }

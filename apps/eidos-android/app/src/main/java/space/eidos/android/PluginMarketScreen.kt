@@ -80,11 +80,12 @@ internal fun NativePluginManager(model: EidosModel, spaceName: String, close: ()
                 readme = true,
                 title = name,
                 headerActions = {
-                    val installed = model.pluginMarket.installed(model.repository.spaceId).any { it.id == id }
-                    TextButton(enabled = !installed && entry != null, onClick = {
+                    val installed = model.pluginMarket.installed(model.repository.spaceId).firstOrNull { it.id == id }
+                    val upToDate = installed?.manifest?.optString("version") == entry?.version && installed != null
+                    TextButton(enabled = entry != null && !upToDate, onClick = {
                         readme = null
                         installRequest = entry
-                    }) { Text(if (installed) tr("已安装") else tr("安装")) }
+                    }) { Text(if (entry == null || upToDate) tr("已安装") else if (installed != null) tr("更新") else tr("安装")) }
                 },
                 close = { readme = null },
             )

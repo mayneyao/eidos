@@ -19,11 +19,18 @@ a WebView. Markdown images and links resolve relative to the repository; links
 open in the system browser. Previously loaded READMEs remain available offline.
 For installed plugins, use the row's **管理** button to review permissions, open
 tools, or uninstall. Refresh the market to compare versions and install updates.
-Discover lists releases whose archives pass the mobile installer's checks.
-If some archives cannot be verified, retry from Discover. It can still display
-the releases it verified successfully.
-Android's file menu
-**打开方式 → Markmap** immediately renders that note using the shared host.
+Discover and search share the verified catalog. The app bundles verification
+results for published archives, keyed by plugin ID, version, SHA-256, and release
+URL. Matching catalog entries can appear after the registry request. Changed or
+new releases go through the current installer's package checks before appearing.
+If the validator changes, the Web build automatically discards the old cached
+results. If a download fails during verification, retry from Discover. Both
+install buttons recheck the selected archive before permission review.
+
+Dashboard 0.2.0 is hidden in Discover because its editor requires the desktop
+resource embedding API. The local import path continues to check package and
+host declarations independently of marketplace visibility.
+On either app, **打开方式 → Markmap** renders the selected note.
 On either mobile app, **打开方式 → Canvas** opens an existing `.canvas` file.
 Use **保存** to write changes before closing the editor.
 Workspace commands, including **Open Journals overview** and **Open today's
@@ -90,10 +97,13 @@ pnpm --filter @eidos.space/ios-editor typecheck
 ```
 
 Download the registry's published archives into a temporary directory alongside
-`registry.json`. The smoke script checks archive hashes and runs the actual
-published modules in Chromium at a phone viewport with a real SQLite Runtime:
+`registry.json`. To refresh the bundled verification results, run the generator
+with that directory and exercise the native installation checks on both apps.
+The smoke script separately checks archive hashes and runs the published modules
+in Chromium with a real SQLite Runtime:
 
 ```sh
+node packages/mobile-plugin-host/scripts/generate-market-index.mjs /path/to/fixtures
 node scripts/run-electron-node.mjs packages/mobile-plugin-host/scripts/smoke.mjs /path/to/fixtures
 ```
 

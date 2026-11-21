@@ -6,6 +6,119 @@ import zlib
 
 final class MobilePluginTests: XCTestCase {
     @MainActor
+    func testPublishedGPXAndDashboardInWKWebView() async throws {
+        let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-mobile-plugin-fixtures")
+        let index = fixtures.appendingPathComponent("registry.json")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: index.path), "Provide the published GPX and Dashboard archives")
+        let registry = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: index)) as? [String: Any])
+        let entries = try XCTUnwrap(registry["plugins"] as? [[String: Any]])
+        let space = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let service = MobilePluginService(space: space)
+        let preferences = UserDefaults.standard
+        let previous = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
+        var stored: [(URL, Data?)] = []
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        defer {
+            window.isHidden = true; window.rootViewController = nil
+            for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey: key) }
+            for (key, value) in previous { preferences.set(value, forKey: key) }
+            for (url, data) in stored {
+                if let data { try? data.write(to: url) } else { try? FileManager.default.removeItem(at: url) }
+            }
+            try? FileManager.default.removeItem(at: space.root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        func install(_ id: String) async throws {
+            let entry = try XCTUnwrap(entries.first { $0["id"] as? String == id })
+            let archive = fixtures.appendingPathComponent(try XCTUnwrap(entry["asset"] as? String))
+            XCTAssertEqual(LocalSpace.digest(try Data(contentsOf: archive)), entry["sha256"] as? String)
+            let prepared = try service.prepareImport(archive)
+            let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+            let revision = try XCTUnwrap(prepared["revision"] as? String)
+            try service.reviewManifest(manifest, revision: revision)
+            let url = service.directory.appendingPathComponent(revision + ".json")
+            stored.append((url, try? Data(contentsOf: url)))
+            _ = try service.handle("install", ["revision": revision])
+        }
+        func findWeb(_ view: UIView) -> WKWebView? {
+            if let web = view as? WKWebView { return web }
+            return view.subviews.compactMap(findWeb).first
+        }
+        func open(_ name: String, plugin: String, view: String) throws -> WKWebView {
+            let controller = UIHostingController(rootView: MobilePluginView(space: space, dark: false, open: { _ in }, pluginId: plugin, viewId: view, filePath: name))
+            window.rootViewController = controller
+            window.makeKeyAndVisible()
+            controller.view.layoutIfNeeded()
+            return try XCTUnwrap(findWeb(controller.view))
+        }
+        func waitFor(_ web: WKWebView, _ expression: String) async throws {
+            for _ in 0..<160 {
+                if (try? await web.evaluateJavaScript(expression)) as? Bool == true { return }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            let body = try? await web.evaluateJavaScript("document.body.innerText")
+            XCTFail("\(expression) was not observed. \(String(describing: body))")
+        }
+        let route = "Routes/Mobile.gpx"
+        try FileManager.default.createDirectory(at: space.root.appendingPathComponent("Routes"), withIntermediateDirectories: true)
+        try Data(#"""
+        <gpx version="1.1" creator="Eidos" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><name>Mobile route</name><trkseg>
+            <trkpt lat="31.23" lon="121.47"><ele>11</ele><time>2025-01-01T01:00:00Z</time></trkpt>
+            <trkpt lat="31.24" lon="121.48"><ele>27</ele><time>2025-01-01T01:00:10Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """#.utf8).write(to: space.root.appendingPathComponent(route))
+        try await install("eidos.gpx-viewer")
+        let gpx = try open(route, plugin: "eidos.gpx-viewer", view: "map")
+        gpx.configuration.userContentController.addUserScript(WKUserScript(source: "addEventListener('message', event => { if (event.data?.test === 'gpx') window.gpxProof = event.data })", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        gpx.configuration.userContentController.addUserScript(WKUserScript(source: #"""
+        if (window !== window.parent) {
+          let played = false;
+          const timer = setInterval(() => {
+            if (!document.querySelector('[data-loaded=true]')) return;
+            if (!played) {
+              played = true;
+              document.querySelector('#toggle-details').click();
+              document.querySelector('#play').click();
+            }
+            if (document.querySelector('#scrub').value !== '1') return;
+            clearInterval(timer);
+            parent.postMessage({test:'gpx', charts: document.querySelectorAll('#elevation path,#speed path').length, map: !!document.querySelector('#map canvas'), notice: document.querySelector('#map-status').textContent}, '*');
+          }, 100);
+        }
+        """#, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        gpx.reload()
+        try await waitFor(gpx, "window.gpxProof?.charts === 2")
+        let details = try await gpx.evaluateJavaScript("window.gpxProof")
+        print("Published GPX WKWebView: \(details as? [String: Any] ?? [:])")
+        let capture = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) })
+        capture.name = "GPX track playback and elevation in WKWebView"
+        capture.lifetime = .keepAlways
+        add(capture)
+
+        try Data("{}".utf8).write(to: space.root.appendingPathComponent("Home.dashboard"))
+        try await install("eidos.dashboard")
+        let dashboard = try open("Home.dashboard", plugin: "eidos.dashboard", view: "main")
+        dashboard.configuration.userContentController.addUserScript(WKUserScript(source: #"""
+        if (window === window.parent) {
+          addEventListener('message', event => { if (event.data?.test === 'dashboard') window.dashboardError = event.data.message });
+        } else {
+          const interval = setInterval(() => {
+            const error = document.querySelector('[role=alert]');
+            if (!error) return;
+            clearInterval(interval);
+            parent.postMessage({test:'dashboard', message:error.textContent}, '*');
+          }, 100);
+        }
+        """#, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        dashboard.reload()
+        try await waitFor(dashboard, "window.dashboardError === 'Dashboard requires Eidos Lite plugin API 3.2'")
+    }
+
+    @MainActor
     func testPublishedCanvasEditsAndReopensInWKWebView() async throws {
         let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-t02-canvas-fixtures")
         let archive = fixtures.appendingPathComponent("eidos.canvas-0.5.7.eidos-plugin")
@@ -120,7 +233,13 @@ final class MobilePluginTests: XCTestCase {
             XCTAssertEqual(LocalSpace.digest(try Data(contentsOf: url)), entry["sha256"] as? String)
             let prepared = try service.prepareImport(url)
             let revision = try XCTUnwrap(prepared["revision"] as? String)
-            let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+            let manifest: [String: Any]
+            do {
+                manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+            } catch is NativePluginValidator.Rejected {
+                XCTAssertTrue(["eidos.recent-history", "eidos.forest-theme", "eidos.maple-theme"].contains(entry["id"] as? String ?? ""))
+                continue
+            }
             XCTAssertEqual(manifest["id"] as? String, entry["id"] as? String)
             XCTAssertFalse((manifest["name"] as? String ?? "").hasPrefix("%"))
             try service.reviewManifest(manifest, revision: revision)
@@ -310,15 +429,20 @@ final class MobilePluginTests: XCTestCase {
 
     @MainActor
     func testJournalsMigratesAcrossSpacesAndOpensNavigation() async throws {
-        let fixture = URL(fileURLWithPath: "/tmp/eidos-journals-qa.json")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: fixture.path), "Provide the installed Journals package")
-        let data = try Data(contentsOf: fixture)
-        let package = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let manifest = try XCTUnwrap(package["manifest"] as? [String: Any])
-        let revision = LocalSpace.digest(data)
+        let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-mobile-plugin-fixtures")
+        let archive = fixtures.appendingPathComponent("eidos.journals-0.5.3.eidos-plugin")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: archive.path), "Provide the published Journals 0.5.3 archive")
+        let index = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent("registry.json"))) as? [String: Any])
+        let release = try XCTUnwrap((index["plugins"] as? [[String: Any]])?.first { $0["id"] as? String == "eidos.journals" })
         let first = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         let second = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         let service = MobilePluginService(space: second)
+        let bytes = try Data(contentsOf: archive)
+        XCTAssertEqual(LocalSpace.digest(bytes), release["sha256"] as? String)
+        let data = try service.inspectMarketArchive(bytes, release: MobileMarketRelease(release)).data
+        let package = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let manifest = try XCTUnwrap(package["manifest"] as? [String: Any])
+        let revision = LocalSpace.digest(data)
         let preferences = UserDefaults.standard
         let saved = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
         let target = service.directory.appendingPathComponent(revision + ".json")
@@ -380,7 +504,6 @@ final class MobilePluginTests: XCTestCase {
         try await Task.sleep(nanoseconds: 700_000_000)
         let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
         let attachment = XCTAttachment(image: image); attachment.name = "iOS Journals navigation"; attachment.lifetime = .keepAlways; add(attachment)
-        try image.pngData()?.write(to: URL(fileURLWithPath: "/tmp/iOS-journals-navigation.png"))
         _ = try service.handle("enable", ["id": page.plugin, "enabled": false])
         XCTAssertTrue(try service.navigationPages().isEmpty)
     }
@@ -437,6 +560,8 @@ final class MobilePluginTests: XCTestCase {
         }
         let prepared = try service.prepareImport(archive)
         XCTAssertThrowsError(try service.handle("install",["revision":"stale-review"]))
+        let manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+        try service.reviewManifest(manifest, revision: try XCTUnwrap(prepared["revision"] as? String))
         _ = try service.handle("install",["revision":prepared["revision"]!])
         _ = try service.handle("enable",["id":"eidos.markmap","enabled":true])
         try Data("# Mobile\n\n- WKWebView plugin\n".utf8).write(to:root.appendingPathComponent("note.md"))

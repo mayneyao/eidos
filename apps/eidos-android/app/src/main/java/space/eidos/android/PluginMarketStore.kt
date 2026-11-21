@@ -25,7 +25,8 @@ data class MarketPlugin(
     val category: String = "",
     val icon: JSONObject? = null,
 ) {
-    internal val releaseKey get() = "$id@$version:$hash"
+    internal val packageKey get() = "$id@$version:$hash"
+    internal val releaseKey get() = "$packageKey:$url"
 }
 
 internal data class MarketCatalog(val plugins: List<MarketPlugin>, val incomplete: Boolean)
@@ -70,6 +71,11 @@ class PluginMarketStore internal constructor(
 
     private val preferences = context.getSharedPreferences(storageName, Context.MODE_PRIVATE)
     private val directory = File(context.filesDir, "$storageName-packages")
+    private val marketIndex by lazy {
+        runCatching {
+            context.assets.open("editor/market-index.json").bufferedReader().use { JSONObject(it.readText()) }
+        }.getOrDefault(JSONObject())
+    }
 
     fun watch(changed: () -> Unit): () -> Unit {
         val listener =
@@ -130,14 +136,18 @@ class PluginMarketStore internal constructor(
         }
 
     internal suspend fun market(onProgress: (List<MarketPlugin>) -> Unit = {}): MarketCatalog {
-        val plugins = mutableListOf<MarketPlugin>()
+        val entries = marketEntries().filterNot { marketIndex.optJSONObject("held")?.has(it.packageKey) == true }
+        val seeded = marketIndex.optJSONObject("checked")
+        val checked = entries.associateWith { entry ->
+            marketChecks.get(entry.releaseKey) ?: seeded?.opt(entry.releaseKey) as? Boolean
+        }
+        val accepted = checked.filterValues { it == true }.keys.toMutableSet()
+        onProgress(entries.filter(accepted::contains))
         var incomplete = false
-        for (batch in marketEntries().chunked(3)) {
-            val checked = batch.associateWith { marketChecks.get(it.releaseKey) }
+        for (batch in entries.filter { checked[it] == null }.chunked(3)) {
             val archives = coroutineScope {
                 batch.map { entry ->
                     async {
-                        if (checked[entry] != null) return@async null
                         try {
                             Result.success(marketArchive(entry))
                         } catch (cancelled: CancellationException) {
@@ -149,14 +159,10 @@ class PluginMarketStore internal constructor(
                 }.awaitAll()
             }
             batch.zip(archives).forEach { (entry, archive) ->
-                if (archive == null) {
-                    if (checked[entry] == true) plugins.add(entry)
-                    return@forEach
-                }
                 try {
                     prepareMarketArchive(entry, archive.getOrThrow())
                     marketChecks.put(entry.releaseKey, true)
-                    plugins.add(entry)
+                    accepted.add(entry)
                 } catch (rejected: PluginPackageValidation.Rejected) {
                     marketChecks.put(entry.releaseKey, false)
                 } catch (cancelled: CancellationException) {
@@ -165,9 +171,9 @@ class PluginMarketStore internal constructor(
                     incomplete = true
                 }
             }
-            if (plugins.isNotEmpty()) onProgress(plugins.toList())
+            onProgress(entries.filter(accepted::contains))
         }
-        return MarketCatalog(plugins, incomplete)
+        return MarketCatalog(entries.filter(accepted::contains), incomplete)
     }
 
     internal suspend fun marketEntry(id: String): MarketPlugin =
@@ -215,10 +221,10 @@ class PluginMarketStore internal constructor(
 
     private suspend fun marketArchive(entry: MarketPlugin): ByteArray =
         withContext(Dispatchers.IO) {
-            marketArchives.get(entry.hash) ?: downloadMarket(entry.url, PluginMarketTransport.packageLimit)
+            marketArchives.get(entry.releaseKey) ?: downloadMarket(entry.url, PluginMarketTransport.packageLimit)
                 .also { bytes ->
                     require(PluginMarketTransport.hash(bytes) == entry.hash) { tr("插件校验和与市场目录不一致") }
-                    marketArchives.put(entry.hash, bytes)
+                    marketArchives.put(entry.releaseKey, bytes)
                 }
         }
 

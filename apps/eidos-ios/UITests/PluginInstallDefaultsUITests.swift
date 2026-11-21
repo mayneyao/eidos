@@ -17,7 +17,7 @@ final class PluginInstallDefaultsUITests: XCTestCase {
         let canvasInstall = app.buttons["mobile-market-install-eidos.canvas"]
         XCTAssertTrue(canvasInstall.waitForExistence(timeout: 75))
         let search = app.textFields["mobile-market-search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        XCTAssertTrue(search.waitForExistence(timeout: 10), app.debugDescription)
         search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         search.typeText("Recent History")
         XCTAssertTrue(app.staticTexts["没有匹配的插件"].waitForExistence(timeout: 75))
@@ -33,10 +33,19 @@ final class PluginInstallDefaultsUITests: XCTestCase {
         canvasInstall.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 40))
         XCTAssertTrue(app.switches["plugin-install-file-defaults"].exists)
+        XCTAssertTrue(app.staticTexts["0.5.7"].exists)
         let review = XCTAttachment(screenshot: app.screenshot())
         review.name = "Verified Canvas installation review"
         review.lifetime = .keepAlways
         add(review)
+        app.navigationBars["确认安装"].buttons["取消"].tap()
+        app.buttons["mobile-market-details-eidos.canvas"].tap()
+        let installFromDetails = app.buttons["mobile-market-detail-install"]
+        XCTAssertTrue(installFromDetails.waitForExistence(timeout: 10))
+        installFromDetails.tap()
+        XCTAssertTrue(app.navigationBars["确认安装"].waitForExistence(timeout: 40))
+        XCTAssertTrue(app.staticTexts["0.5.7"].exists)
+        XCTAssertTrue(app.switches["plugin-install-file-defaults"].exists)
     }
 
     /// Seed Default Handler.canvas in the selected Space and Canvas 0.5.7 in the app's Documents folder.

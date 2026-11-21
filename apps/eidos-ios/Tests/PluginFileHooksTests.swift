@@ -63,12 +63,13 @@ final class PluginFileHooksTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: final.path))
     }
 
-    func testLocalSaveRenameLinksAndDisable() throws {
+    @MainActor
+    func testLocalSaveRenameLinksAndDisable() async throws {
         let space = try LocalSpace(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         let service = MobilePluginService(space: space)
         let preferences = UserDefaults.standard
         let saved = preferences.dictionaryRepresentation().filter { $0.key.hasPrefix("plugins.") }
-        let manifest: [String: Any] = ["apiVersion": 1, "id": "test.file-hooks", "name": "Hooks", "version": "1.0.0", "requires": ["pluginApi": "3.3.0"], "extension": "./main.js", "hooks": [
+        var manifest: [String: Any] = ["apiVersion": 1, "id": "test.file-hooks", "name": "Hooks", "version": "1.0.0", "requires": ["pluginApi": "3.3.0"], "extension": "./main.js", "hooks": [
             ["id": "save", "title": "Save", "event": "document.saved", "extensions": [".md"], "access": "write"],
             ["id": "rename", "title": "Rename", "event": "file.renamed", "extensions": [".md"], "access": "write"]]]
         let code = #"""
@@ -83,16 +84,30 @@ final class PluginFileHooksTests: XCTestCase {
           }));
         }
         """#
-        let data = try JSONSerialization.data(withJSONObject: ["format": 2, "manifest": manifest, "modules": ["./main.js": code]], options: .sortedKeys)
-        let revision = LocalSpace.digest(data)
+        let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["EIDOS_PLUGIN_FIXTURES"] ?? "/tmp/eidos-mobile-plugin-fixtures")
+        let archive = fixtures.appendingPathComponent("eidos.markdown-title-sync-0.2.0.eidos-plugin")
+        let revision: String
+        if FileManager.default.fileExists(atPath: archive.path) {
+            XCTAssertEqual(LocalSpace.digest(try Data(contentsOf: archive)), "e3c1504db29193b1f8fcae43adf402a44f5ce0748b42176d7d58042787328c1b")
+            let prepared = try service.prepareImport(archive)
+            revision = try XCTUnwrap(prepared["revision"] as? String)
+            manifest = try await NativePluginValidator().validate(try XCTUnwrap(prepared["raw"] as? String))
+            try service.reviewManifest(manifest, revision: revision)
+            print("Exercising the published Markdown Title Sync 0.2.0 hooks")
+        } else {
+            let data = try JSONSerialization.data(withJSONObject: ["format": 2, "manifest": manifest, "modules": ["./main.js": code]], options: .sortedKeys)
+            revision = LocalSpace.digest(data)
+            service.prepared = ["data": data, "manifest": manifest]
+        }
+        let stored = service.directory.appendingPathComponent(revision + ".json")
+        let original = try? Data(contentsOf: stored)
         defer {
             for key in preferences.dictionaryRepresentation().keys where key.hasPrefix("plugins.") { preferences.removeObject(forKey: key) }
             for (key, value) in saved { preferences.set(value, forKey: key) }
-            try? FileManager.default.removeItem(at: service.directory.appendingPathComponent(revision + ".json"))
+            if let original { try? original.write(to: stored) } else { try? FileManager.default.removeItem(at: stored) }
             try? FileManager.default.removeItem(at: space.root)
             try? FileManager.default.removeItem(at: space.privateRoot)
         }
-        service.prepared = ["data": data, "manifest": manifest]
         _ = try service.handle("install", ["revision": revision, "enable": true])
         let old = space.root.appendingPathComponent("Old.md")
         try Data("# Old\nBody".utf8).write(to: old)
@@ -106,7 +121,7 @@ final class PluginFileHooksTests: XCTestCase {
         let renamed = try space.rename(new, to: "Final.md")
         XCTAssertEqual(try String(contentsOf: renamed, encoding: .utf8), "# Final\nBody")
         XCTAssertEqual(try String(contentsOf: index, encoding: .utf8), "[link](Final.md) [[Final]] `[[New]]`")
-        _ = try service.handle("enable", ["id": "test.file-hooks", "enabled": false, "revision": revision])
+        _ = try service.handle("enable", ["id": try XCTUnwrap(manifest["id"] as? String), "enabled": false, "revision": revision])
         let finalDigest = try XCTUnwrap(LocalSpace.readMarkdown(renamed)["digest"] as? String)
         _ = try DraftStore.shared.save(renamed, text: "# Disabled", digest: finalDigest, space: space)
         XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.path))
