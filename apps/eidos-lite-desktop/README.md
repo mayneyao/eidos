@@ -74,7 +74,7 @@ For verification requiring zero source writes, run the whole development process
 under an OS write-denial policy for that root. Keep the profile and `EIDOS_HOME`
 outside it. Packaged apps ignore this development setting.
 
-Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned xmeta v0.6.2 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
+Plugin API 3.1 includes `sidebar/explorer` and `ctx.capabilities.filemeta` for native namespace file metadata, authorized by `workspace.filemeta`. The filemeta bridge uses the pinned xmeta v0.6.3 release, which exposes `fs_meta_read` and `fs_meta_patch` (`metadata-api`). Development and tests can supply a locally built binary:
 
 ```bash
 SQLITE_FS_META_PATH=/absolute/sqlite-fs-meta/target/debug/libfs_meta.dylib pnpm dev:eidos-lite
