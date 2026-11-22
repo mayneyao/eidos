@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import type { MessageBoxOptions } from "electron"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { encodePackage } from "@eidos.space/plugin-runtime/package"
 import type {
@@ -16,9 +17,9 @@ import type { PluginManifest } from "@eidos.space/plugin-sdk"
 const mock = vi.hoisted(() => ({
   directory: "",
   selected: "",
-  response: 1,
+  response: "confirm" as number | "confirm" | "cancel",
   checkboxChecked: false,
-  messageOptions: [] as unknown[],
+  messageOptions: [] as MessageBoxOptions[],
   showPluginInstall: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   windows: [] as {
@@ -56,9 +57,18 @@ vi.mock("electron", () => ({
       canceled: false,
       filePaths: [mock.selected],
     }),
-    showMessageBox: async (...args: unknown[]) => {
-      mock.messageOptions.push(args.at(-1))
-      return { response: mock.response, checkboxChecked: mock.checkboxChecked }
+    showMessageBox: async (_owner: unknown, options: MessageBoxOptions) => {
+      mock.messageOptions.push(options)
+      const selection = mock.response
+      const response =
+        typeof selection === "number"
+          ? selection
+          : options.buttons?.findIndex((label) =>
+              selection === "cancel" ? label === "Cancel" : label !== "Cancel"
+            )
+      if (response === undefined || response < 0)
+        throw new Error("Mock dialog button was not found")
+      return { response, checkboxChecked: mock.checkboxChecked }
     },
   },
 }))
@@ -125,7 +135,7 @@ async function packageVersion(
 beforeEach(async () => {
   mock.directory = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-ipc-"))
   mock.selected = path.join(mock.directory, "example.eidos-plugin")
-  mock.response = 1
+  mock.response = "confirm"
   mock.checkboxChecked = false
   mock.messageOptions = []
   mock.windows = [1, 2, 3].map((id) => ({
@@ -244,15 +254,69 @@ it("routes a validated sidebar request only to the owning workbench", async () =
   )
 })
 
+it.each([
+  {
+    platform: "darwin",
+    cancelId: 1,
+    installButtons: ["Install", "Cancel"],
+    updateButtons: ["Update", "Cancel"],
+  },
+  {
+    platform: "linux",
+    cancelId: 0,
+    installButtons: ["Cancel", "Install"],
+    updateButtons: ["Cancel", "Update"],
+  },
+])(
+  "keeps Cancel the safe default in install and update reviews on $platform",
+  async ({ platform, cancelId, installButtons, updateButtons }) => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, "platform", { value: platform })
+    try {
+      mock.response = cancelId
+      expect(await call("install", 1)).toBe(false)
+      expect((await listing(1)).plugins).toHaveLength(0)
+      expect(mock.messageOptions.at(-1)).toMatchObject({
+        buttons: installButtons,
+        defaultId: cancelId,
+        cancelId,
+        checkboxLabel: expect.stringContaining(".csv"),
+        checkboxChecked: false,
+      })
+
+      mock.response = 1 - cancelId
+      expect(await call("install", 1)).toBe(true)
+      expect((await listing(1)).plugins[0].manifest.version).toBe("1.0.0")
+      await packageVersion("2.0.0")
+
+      mock.response = cancelId
+      expect(await call("install", 1)).toBe(false)
+      expect((await listing(1)).plugins[0].manifest.version).toBe("1.0.0")
+      expect(mock.messageOptions.at(-1)).toMatchObject({
+        buttons: updateButtons,
+        defaultId: cancelId,
+        cancelId,
+      })
+      expect(mock.messageOptions.at(-1)).not.toHaveProperty("checkboxLabel")
+
+      mock.response = 1 - cancelId
+      expect(await call("install", 1)).toBe(true)
+      expect((await listing(1)).plugins[0].manifest.version).toBe("2.0.0")
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform })
+    }
+  }
+)
+
 it("marketplace installs reuse permission approval and Space isolation", async () => {
   const download = vi
     .spyOn(PluginRegistry.prototype, "download")
     .mockResolvedValue(await fs.readFile(mock.selected))
   mock.selected = "missing-file-picker-result"
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("install", 1, false, id)).toBe(false)
   expect((await listing(1)).plugins).toHaveLength(0)
-  mock.response = 1
+  mock.response = "confirm"
   expect(await call("install", 1, false, id)).toBe(true)
   expect(download).toHaveBeenCalledWith(id, expect.any(Function))
   expect((await listing(1)).plugins[0].enabled).toBe(true)
@@ -378,7 +442,7 @@ it.each(["read", "write"] as const)(
         { "./extension.ts": "export function register() {}" }
       )
     )
-    mock.response = 0
+    mock.response = "cancel"
     expect(await call("install", 1)).toBe(false)
     expect(mock.messageOptions).toContainEqual(
       expect.objectContaining({
@@ -484,7 +548,7 @@ it("previews shell-opened packages in the main window and installs only after co
   // The confirmed bytes stay the same even if the source file changes after preview.
   await packageVersion("2.0.0")
   mock.checkboxChecked = true
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
   expect(await call("packagePreviews", 1)).toEqual([preview])
   expect(mock.messageOptions.at(-1)).toMatchObject({
@@ -494,7 +558,7 @@ it("previews shell-opened packages in the main window and installs only after co
   })
   expect((await listing(3)).plugins).toHaveLength(0)
   expect((await listing(1)).space?.associations).toEqual({})
-  mock.response = 1
+  mock.response = "confirm"
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
   expect(await call("packagePreviews", 1)).toEqual([])
   expect((await listing(1)).plugins[0]).toMatchObject({
@@ -689,12 +753,12 @@ it("opens a GitHub package in the requesting Space and installs the exact review
     /Space changed/
   )
   switchTestSpace(1, "space-1")
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
   expect(mock.messageOptions.at(-1)).toMatchObject({
     detail: expect.stringContaining("GitHub release: example/csv"),
   })
-  mock.response = 1
+  mock.response = "confirm"
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
   expect((await listing(1)).plugins[0]).toMatchObject({
     enabled: true,
@@ -762,7 +826,7 @@ it("rejects an excess package without evicting accepted previews and frees capac
   )
   expect(await call("packagePreviews", 1)).toEqual(first)
   expect(await call("packagePreviews", 2)).toEqual(second)
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("installPrepared", 1, first[0].token)).toBe(false)
   expect(await call("packagePreviews", 1)).toEqual(first)
   await expect(call("previewPackage", 1, mock.selected)).rejects.toThrow(
@@ -773,7 +837,7 @@ it("rejects an excess package without evicting accepted previews and frees capac
   await expect(failed).rejects.toThrow("Space changed before installation")
   switchTestSpace(1, "space-1")
   expect(await call("packagePreviews", 1)).toEqual(first)
-  mock.response = 1
+  mock.response = "confirm"
   expect(await call("installPrepared", 1, first[0].token)).toBe(true)
   expect(await call("packagePreviews", 1)).toEqual(first.slice(1))
   expect(await call("previewPackage", 1, mock.selected)).toBe(true)
@@ -958,12 +1022,12 @@ it("reinstalling the same revision reviews missing legacy grants once and cancel
   const preview = mock.showPluginInstall.mock.calls.at(
     -1
   )![1] as PluginPackagePreview
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("installPrepared", 1, preview.token)).toBe(false)
   expect(
     (await listing(1)).space?.plugins[id].backgroundApproval
   ).toBeUndefined()
-  mock.response = 1
+  mock.response = "confirm"
   expect(await call("installPrepared", 1, preview.token)).toBe(true)
   const installed = await listing(1)
   expect(installed.space?.plugins[id].backgroundApproval).toBe(
@@ -992,7 +1056,7 @@ it("dropped packages install and update by manifest ID while preserving Space en
 })
 
 it("dropped packages still require approval and reject invalid paths and contents", async () => {
-  mock.response = 0
+  mock.response = "cancel"
   expect(await call("install", 1, false, undefined, mock.selected)).toBe(false)
   expect((await listing(1)).plugins).toHaveLength(0)
   for (const source of [

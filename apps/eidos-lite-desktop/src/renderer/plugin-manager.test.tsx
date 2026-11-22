@@ -116,6 +116,16 @@ it("resets only the selected plugin's file defaults in the viewing Space", async
     )
   })
   expect(container.textContent).not.toContain(".svg")
+  const action = container.querySelector<HTMLButtonElement>(
+    ".plugin-detail-file-defaults button"
+  )!
+  expect(action.classList.contains("settings-button-quiet")).toBe(true)
+  const caption = document.getElementById(
+    action.getAttribute("aria-describedby")!
+  )
+  expect(caption?.textContent).toContain(".csv")
+  action.focus()
+  expect(document.activeElement).toBe(action)
   await click("Use device default")
   expect(reset).toHaveBeenCalledWith("space-a", "example.csv")
   expect(container.textContent).not.toContain("Use device default")

@@ -961,7 +961,7 @@ export function PluginDetailView({
             )}
           </div>
           {!previewPending && fileDefaults?.length && onResetFileDefaults ? (
-            <div className="plugin-detail-actions">
+            <div className="plugin-detail-file-defaults">
               <span
                 className="plugin-manager-caption"
                 id={`${id}-file-defaults`}
@@ -972,7 +972,7 @@ export function PluginDetailView({
               </span>
               <button
                 type="button"
-                className="settings-button"
+                className="settings-button settings-button-quiet"
                 aria-describedby={`${id}-file-defaults`}
                 disabled={busy}
                 onClick={() => void onResetFileDefaults()}

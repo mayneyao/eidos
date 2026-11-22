@@ -1029,6 +1029,14 @@ export function registerPluginIpc(controller: WindowController): {
         )} files. ${pkg.manifest.hooks.some((hook) => hook.access === "write") ? "They can change the affected document's text and filename within its existing folder." : "They can read the affected document's text and filename, without changing them."}`
       : ""
 
+    const confirmLabel = isUpdate ? "Update" : "Install"
+    // AppKit places the first button on the right.
+    const buttons =
+      process.platform === "darwin"
+        ? [confirmLabel, "Cancel"]
+        : ["Cancel", confirmLabel]
+    const confirmId = buttons.indexOf(confirmLabel)
+    const cancelId = buttons.indexOf("Cancel")
     const reviewOptions: MessageBoxOptions = {
       type: "question",
       title: isUpdate ? "Update plugin" : "Install plugin",
@@ -1048,9 +1056,9 @@ export function registerPluginIpc(controller: WindowController): {
       detail: themeReview
         ? `${pkg.manifest.id}\n\n${themeReview}`
         : `${pkg.manifest.id}\n\n${isUpdate ? "Updating replaces the installed version on this device." : "Installed once for this device."} ${targetSpaceId && !scope ? "Will be enabled in this Space after installation." : spaceId ? (isUpdate ? "Remains enabled or disabled as configured for this Space." : "Enable in this Space after installation.") : "Open a Space to enable it."} Updates apply to every Space using this plugin.\n\n${[...(pkg.manifest.views ?? []), ...(pkg.manifest.actions ?? [])].some((item) => item.access === "write") ? "This plugin can read and modify documents opened with its views or selected for its actions." : "This plugin can read documents opened with its views or selected for its actions."}${pkg.manifest.workspace?.files ? (pkg.manifest.workspace.files === true || (typeof pkg.manifest.workspace.files === "object" && pkg.manifest.workspace.files.write) ? "\nThis plugin can read and write files throughout this Space." : "\nThis plugin can read files throughout this Space.") : ""}${pkg.manifest.formatters?.length ? "\nIts formatters receive the selected document text. Eidos applies their results as undoable draft changes without saving." : ""}${hookReview}\nNamed resources are not granted by installation.`,
-      buttons: isUpdate ? ["Cancel", "Update"] : ["Cancel", "Install"],
-      defaultId: 0,
-      cancelId: 0,
+      buttons,
+      defaultId: cancelId,
+      cancelId,
       noLink: true,
     }
     if (githubRepository)
@@ -1076,7 +1084,7 @@ export function registerPluginIpc(controller: WindowController): {
         )}`
     }
     const review = await dialog.showMessageBox(owner, reviewOptions)
-    if (review.response !== 1) return false
+    if (review.response !== confirmId) return false
     if (
       owner.isDestroyed() ||
       event.sender.isDestroyed() ||

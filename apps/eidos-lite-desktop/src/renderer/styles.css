@@ -8970,6 +8970,30 @@ body {
   font-weight: 600;
 }
 
+.plugin-detail-file-defaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.25rem;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.plugin-detail-file-defaults .plugin-manager-caption {
+  min-width: 0;
+  padding: 0;
+}
+
+.plugin-detail-file-defaults .settings-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.plugin-detail-file-defaults .settings-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* Detail Tabs */
 .plugin-detail-tabs {
   display: flex;
