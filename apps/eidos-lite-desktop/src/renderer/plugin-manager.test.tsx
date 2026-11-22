@@ -928,13 +928,14 @@ it("restores main-process progress and errors after leaving plugin management", 
   expect(install).toHaveBeenCalledTimes(2)
 })
 
-it("previews a local package offline without installing until confirmed", async () => {
+it.each(["local", "GitHub"])("reviews a %s package", async (source) => {
   const prepared = vi.fn(async () => true)
   const readme = vi.fn(async () => "# Local documentation")
   const preview = {
     token: "preview-token",
     hash: "local-hash",
     filename: "local.eidos-plugin",
+    githubRepository: source === "GitHub" ? "example/plugin" : undefined,
     manifest: {
       apiVersion: 1 as const,
       requires: { pluginApi: "3.0.0" },
@@ -966,8 +967,26 @@ it("previews a local package offline without installing until confirmed", async 
   expect(container.textContent).toContain("local.eidos-plugin")
   expect(container.textContent).toContain("Local documentation")
   expect(readme).toHaveBeenCalledWith("example.local", "en", "preview-token")
+  const installButton = container.querySelector<HTMLButtonElement>(
+    ".plugin-detail-actions .plugin-install-btn"
+  )!
+  expect(installButton.hasAttribute("aria-keyshortcuts")).toBe(false)
+  expect(installButton.querySelector("kbd")).toBeNull()
+  await act(async () => {
+    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        cancelable: true,
+        ...modifier,
+      })
+      window.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+  })
   expect(prepared).not.toHaveBeenCalled()
   expect(install).not.toHaveBeenCalled()
+  installButton.focus()
+  expect(document.activeElement).toBe(installButton)
   await click("Install…")
   expect(prepared).toHaveBeenCalledWith("preview-token")
 })

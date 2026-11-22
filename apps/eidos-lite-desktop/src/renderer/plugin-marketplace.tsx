@@ -17,7 +17,6 @@ export function PluginMarketplaceInstallButton({
   task,
   unavailable,
   onInstall,
-  shortcut,
 }: {
   same: boolean
   installed: boolean
@@ -25,7 +24,6 @@ export function PluginMarketplaceInstallButton({
   task?: PluginInstallTask
   unavailable: boolean
   onInstall(): void
-  shortcut?: "Meta+Enter" | "Control+Enter"
 }) {
   const { t } = useEidosLiteI18n()
   const isQueued = task?.status === "queued"
@@ -74,7 +72,6 @@ export function PluginMarketplaceInstallButton({
       className={className}
       disabled={disabled}
       aria-busy={inProgress || undefined}
-      aria-keyshortcuts={shortcut}
       onClick={(e) => {
         e.stopPropagation()
         onInstall()
@@ -88,11 +85,6 @@ export function PluginMarketplaceInstallButton({
         />
       )}
       <span className="plugin-btn-label">{label}</span>
-      {shortcut && !disabled && (
-        <kbd className="command-palette-shortcut" aria-hidden="true">
-          {shortcut === "Meta+Enter" ? "⌘↵" : "Ctrl ↵"}
-        </kbd>
-      )}
     </button>
   )
 }
