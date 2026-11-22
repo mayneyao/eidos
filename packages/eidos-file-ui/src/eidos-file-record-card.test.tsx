@@ -23,11 +23,18 @@ const eidosFileUiMocks = vi.hoisted(() => {
     )
   return {
     translate,
-    useEidosFileUI: vi.fn(() => ({
-      themeName: "light" as const,
-      interactionMode: "desktop" as "desktop" | "mobile",
-      translate,
-    })),
+    useEidosFileUI: vi.fn(
+      (): {
+        themeName: "light"
+        interactionMode: "desktop" | "mobile"
+        directoryCoverFieldId?: string
+        translate: typeof translate
+      } => ({
+        themeName: "light" as const,
+        interactionMode: "desktop",
+        translate,
+      })
+    ),
   }
 })
 
@@ -261,6 +268,56 @@ describe("EidosFileRecordCard", () => {
           interactionMode: "desktop",
           translate: eidosFileUiMocks.translate,
         })
+      }
+    }
+  )
+
+  it.each(["standard", "cover-only"])(
+    "shows the folder name and icon for the host's empty system File cover in %s Gallery",
+    async (cardDisplay) => {
+      const host = eidosFileUiMocks.useEidosFileUI()
+      eidosFileUiMocks.useEidosFileUI.mockReturnValue({
+        ...host,
+        directoryCoverFieldId: fields[1]!.id,
+      })
+      const row = { _id: "Folder.v1", title: "Folder.v1", cover: "[]" }
+      const onOpen = vi.fn()
+      try {
+        const render = async (coverField = fields[1]!) =>
+          act(async () =>
+            root.render(
+              <EidosFileRecordCard
+                row={{ ...row, [coverField.tableColumnName]: "[]" }}
+                fields={[fields[0]!, coverField]}
+                view={{
+                  ...view,
+                  properties: {
+                    ...view.properties,
+                    cardDisplay,
+                    coverField: coverField.id,
+                  },
+                }}
+                onOpen={onOpen}
+              />
+            )
+          )
+        await render()
+        const cover = container.querySelector("[data-eidos-file-card-cover]")!
+        expect(cover.textContent).toBe("Folder.v1")
+        expect(cover.querySelector("svg.lucide-folder")).not.toBeNull()
+        expect(
+          container.querySelector("[data-eidos-file-entry-cover]")
+        ).toBeNull()
+        const target =
+          cardDisplay === "cover-only" ? cover.closest("button")! : cover
+        act(() =>
+          target.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+        )
+        expect(onOpen).toHaveBeenCalledWith(row)
+        await render({ ...fields[1]!, id: "another-file-field" })
+        expect(container.querySelector("svg.lucide-folder")).toBeNull()
+      } finally {
+        eidosFileUiMocks.useEidosFileUI.mockReturnValue(host)
       }
     }
   )

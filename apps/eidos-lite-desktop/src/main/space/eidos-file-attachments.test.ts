@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { vi } from "vitest"
 
 import {
   detectAssetMediaType,
@@ -404,6 +405,55 @@ describe("Eidos Lite attachment files", () => {
     await expect(
       resolveEidosFileAttachment(root, "project/data.eidos", entry, "preview")
     ).rejects.toThrow("no longer matches")
+  })
+
+  it("skips native thumbnails for verified empty files but keeps them openable", async () => {
+    const root = await fixture()
+    const source = path.join(root, "empty.txt")
+    await fs.writeFile(source, "")
+    const [entry] = (
+      await importEidosFileAttachments(root, "project/data.eidos", [source])
+    ).entries
+    expect(entry!.size).toBe("0")
+    const native = vi.fn(async () => PNG)
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        "project/data.eidos",
+        entry!,
+        "thumbnail",
+        native
+      )
+    ).rejects.toThrow("Empty files do not have thumbnails")
+    expect(native).not.toHaveBeenCalled()
+    await expect(
+      resolveEidosFileAttachment(root, "project/data.eidos", entry!, "preview")
+    ).resolves.toMatchObject({ kind: "local", identity: { size: 0 } })
+
+    const imported = path.join(root, "project", entry!.uri)
+    await fs.writeFile(imported, "previewable")
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        "project/data.eidos",
+        entry!,
+        "thumbnail",
+        native
+      )
+    ).rejects.toThrow("no longer matches")
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        "project/data.eidos",
+        {
+          ...entry!,
+          size: "11",
+        },
+        "thumbnail",
+        native
+      )
+    ).resolves.toMatchObject({ bytes: PNG })
+    expect(native).toHaveBeenCalledOnce()
   })
 
   it("resolves safe equivalent percent encodings produced by other hosts", async () => {

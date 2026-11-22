@@ -792,6 +792,14 @@ export function EidosFileWorkbench({
         snapshot.metadata.fileId,
       ])}
       assetPresenter={eidosLiteAssetPresenter}
+      directoryCoverFieldId={
+        activeTable.table.settings?.vtabModule === "fs_meta"
+          ? activeTable.fields.find(
+              (field) =>
+                field.type === "file" && field.settings?.isSystem === true
+            )?.id
+          : undefined
+      }
       keyboardShortcuts={editorKeyboardShortcuts}
       menuOrders={menuOrders}
       onMenuOrderChange={onMenuOrderChange}

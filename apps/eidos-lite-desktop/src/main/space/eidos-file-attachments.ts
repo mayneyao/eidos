@@ -765,6 +765,9 @@ export async function resolveEidosFileAttachment(
   if (stats.size !== declaredSize) {
     throw new Error("Attachment size no longer matches its File metadata")
   }
+  if (purpose === "thumbnail" && stats.size === 0) {
+    throw new Error("Empty files do not have thumbnails")
+  }
   const identity: EidosFileAssetIdentity = {
     device: stats.dev,
     inode: stats.ino,
