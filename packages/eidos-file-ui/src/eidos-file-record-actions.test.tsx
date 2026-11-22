@@ -10,6 +10,82 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let cleanup = () => {}
 afterEach(() => cleanup())
 
+it("positions the menu at the pointer on its first placement and after reopening", async () => {
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const viewport = document.documentElement
+  const width = vi.spyOn(viewport, "clientWidth", "get").mockReturnValue(1024)
+  const height = vi.spyOn(viewport, "clientHeight", "get").mockReturnValue(768)
+  const placements: string[] = []
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      if (
+        record.target instanceof HTMLElement &&
+        record.target.hasAttribute("data-radix-popper-content-wrapper")
+      ) {
+        for (const style of [
+          record.oldValue,
+          record.target.getAttribute("style"),
+        ]) {
+          const transform = style?.match(
+            /transform: translate\((\d+px, \d+px)\)/
+          )
+          if (transform) placements.push(transform[1]!)
+        }
+      }
+    }
+  })
+  cleanup = () => {
+    observer.disconnect()
+    act(() => root.unmount())
+    host.remove()
+    width.mockRestore()
+    height.mockRestore()
+  }
+  await act(async () =>
+    root.render(
+      <EidosFileRecordContextMenu row={{ _id: "target" }}>
+        <article>Record</article>
+      </EidosFileRecordContextMenu>
+    )
+  )
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["style"],
+    attributeOldValue: true,
+    subtree: true,
+  })
+  const record = host.querySelector("article")!
+  const openAt = async (clientX: number, clientY: number) =>
+    act(async () =>
+      record.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          button: 2,
+        })
+      )
+    )
+  await openAt(300, 200)
+  expect([...new Set(placements)]).toEqual(["300px, 202px"])
+  await act(async () =>
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+    )
+  )
+  expect(document.querySelector("[data-eidos-file-record-menu]")).toBeNull()
+  placements.length = 0
+  await openAt(410, 310)
+  expect([...new Set(placements)]).toEqual(["410px, 312px"])
+  placements.length = 0
+  await openAt(500, 350)
+  expect(placements.at(-1)).toBe("500px, 352px")
+  expect(placements).not.toContain("0px, 2px")
+})
+
 it("shares Grid menu order and read-only availability, and restores keyboard focus", async () => {
   const host = document.createElement("div")
   document.body.append(host)

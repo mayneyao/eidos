@@ -95,41 +95,44 @@ export function EidosFileRecordContextMenu({
 }) {
   const { translate: t, interactionMode } = useEidosFileUI()
   const undo = useEidosFileUndo()
-  const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
+  const [anchor, setAnchor] = useState<{
+    current: { getBoundingClientRect(): DOMRect }
+  } | null>(null)
+  const anchorBounds = useRef<DOMRect>()
   const [actionRowIds, setActionRowIds] = useState<readonly string[]>([])
   const deleteLimitHintId = useId()
   const multiple = actionRowIds.length > 1
   const deleteLimitExceeded =
     batchDeleteLimit !== undefined && actionRowIds.length > batchDeleteLimit
   const capturedScope = useRef(actionScope)
-  useEffect(() => setPoint(null), [actionScope])
-  const captureTarget = () => {
+  useEffect(() => setAnchor(null), [actionScope])
+  const openAt = (x: number, y: number) => {
     capturedScope.current = actionScope
     const ids = getActionRowIds?.(row)
     setActionRowIds(
       ids?.includes(String(row._id)) ? [...new Set(ids)] : [String(row._id)]
     )
-  }
-  // Virtualized rows use transforms/containment, which change the containing
-  // block of a DOM fixed anchor. Pointer coordinates are already viewport-based.
-  const anchorRef = useRef({
-    getBoundingClientRect: () => new DOMRect(),
-  })
-  anchorRef.current = {
-    getBoundingClientRect: () =>
-      new DOMRect(point?.x ?? 0, point?.y ?? 0, 0, 0),
+    // Virtualized rows can transform a fixed DOM anchor. Publish the viewport
+    // bounds before opening so even a previously registered anchor reads them.
+    const bounds = new DOMRect(x, y, 0, 0)
+    anchorBounds.current = bounds
+    setAnchor({
+      current: {
+        getBoundingClientRect: () => anchorBounds.current ?? bounds,
+      },
+    })
   }
   const dragging = useRef(false)
   const triggerRef = useRef<HTMLElement | null>(null)
   const fromKeyboard = useRef(false)
   const target = { ranges: null, rowId: String(row._id) }
-  const open = point !== null
+  const open = anchor !== null
   const {
     actions,
     items: extensions,
     error,
   } = useEidosFileTableActions(target, open && !multiple)
-  const close = () => setPoint(null)
+  const close = () => setAnchor(null)
   const run = (action: () => void) => {
     close()
     if (capturedScope.current !== actionScope) return
@@ -194,8 +197,7 @@ export function EidosFileRecordContextMenu({
           event.stopPropagation()
           triggerRef.current = event.currentTarget
           fromKeyboard.current = false
-          captureTarget()
-          setPoint({ x: event.clientX, y: event.clientY })
+          openAt(event.clientX, event.clientY)
         },
         onKeyDown: (event) => {
           children.props.onKeyDown?.(event)
@@ -214,12 +216,8 @@ export function EidosFileRecordContextMenu({
               ? event.target
               : event.currentTarget
           fromKeyboard.current = true
-          captureTarget()
           const bounds = event.currentTarget.getBoundingClientRect()
-          setPoint({
-            x: bounds.left + bounds.width / 2,
-            y: bounds.top + bounds.height / 2,
-          })
+          openAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
         },
       })}
       <Popover
@@ -228,7 +226,7 @@ export function EidosFileRecordContextMenu({
           if (!next) close()
         }}
       >
-        <PopoverAnchor virtualRef={anchorRef} />
+        {anchor && <PopoverAnchor virtualRef={anchor} />}
         <PopoverContent
           data-eidos-file-record-menu=""
           role="menu"
