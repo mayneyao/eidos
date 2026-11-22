@@ -29,7 +29,7 @@ import {
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
-  it.each(["new", "existing"])(
+  it.each(["new", "existing", "preview placement"])(
     "uses the native directory flag for filtering in the %s Space catalog",
     async (catalog) => {
       const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-is-dir-"))
@@ -41,11 +41,15 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
       fs.writeFileSync(path.join(root, "empty.txt"), "")
       const file = path.join(root, ".eidos/files.eidos")
       createFsMetaEidosFile(file, { root: "..", ignore: [".eidos"] })
-      if (catalog === "existing") {
+      if (catalog !== "new") {
         const database = new DatabaseSync(file)
         try {
           database
-            .prepare("DELETE FROM eidos__fields WHERE name = 'is_dir'")
+            .prepare(
+              catalog === "existing"
+                ? "DELETE FROM eidos__fields WHERE name = 'is_dir'"
+                : "UPDATE eidos__fields SET position = -1 WHERE name = 'is_dir'"
+            )
             .run()
         } finally {
           database.close()
@@ -72,9 +76,35 @@ describe("Eidos Lite fs_meta Virtual Table Integration", () => {
         writable: false,
         settings: { isSystem: true },
       })
+      if (catalog === "preview placement") {
+        expect(directory!.id).toBe(
+          previousTable.fields.find((field) => field.name === "is_dir")!.id
+        )
+      }
+      const visibleFields = fields
+        .filter((field) => !field.isHidden && field.valueKind !== "system")
+        .map((field) => field.name)
+      if (catalog === "new") {
+        expect(visibleFields.slice(0, 4)).toEqual([
+          "name",
+          "path",
+          "is_dir",
+          "extension",
+        ])
+      } else {
+        const previousOrder = previousTable.fields
+          .filter(
+            (field) =>
+              !field.isHidden &&
+              field.valueKind !== "system" &&
+              field.name !== "is_dir"
+          )
+          .map((field) => field.name)
+        expect(visibleFields).toEqual([...previousOrder, "is_dir"])
+      }
       expect(views).toEqual(previousTable.views)
       expect(runtime.initialSnapshot.metadata.revision).toBe(
-        BigInt(metadata.revision!) + (catalog === "existing" ? 1n : 0n)
+        BigInt(metadata.revision!) + (catalog === "new" ? 0n : 1n)
       )
       const query = async (isDirectory: boolean) => {
         const page = await runtime.source.getPage(table.id, 0, 10, {
