@@ -577,6 +577,10 @@ export function EidosFileWorkbench({
   ])
 
   if (!activeTable) return null
+  const viewSurfaceKey =
+    activeView?.type === "gallery"
+      ? "gallery"
+      : `view:${activeView?.id ?? "default"}`
   const selectView = (viewId: string) => {
     onViewSelect?.(viewId)
     setActiveViews((current) => ({
@@ -1078,7 +1082,7 @@ export function EidosFileWorkbench({
         }
       >
         <PluginTableActions
-          key={`${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id}`}
+          key={`${source.sessionId}:${snapshot.metadata.fileId}:${activeTable.table.id}:${viewSurfaceKey}`}
           source={source}
           table={activeTable}
           view={activeView}
@@ -1109,7 +1113,7 @@ export function EidosFileWorkbench({
               onInspectedRowChange={onInspectedRowChange}
               recordPresentation={recordOpenMode}
               onRecordPresentationToggle={toggleRecordPresentation}
-              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+              key={`${activeTable.table.id}:${viewSurfaceKey}`}
               plugins={editorPlugins}
               source={source}
               table={activeTable}

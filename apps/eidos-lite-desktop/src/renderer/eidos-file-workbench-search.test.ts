@@ -698,6 +698,76 @@ describe("Eidos Lite Eidos File search navigation", () => {
     expect(observeAssetSession.mock.lastCall?.[0]).not.toBe(refreshed)
   })
 
+  it("keeps the Gallery surface between Gallery views in the same table and session", async () => {
+    const tasks = snapshot.tables[0]!
+    const grid = tasks.views[0]!
+    const gallery = { ...grid, id: "gallery", name: "Gallery", type: "gallery" }
+    const files = {
+      ...gallery,
+      id: "with-extension",
+      name: "With extension",
+      properties: { cardDisplay: "cover-only" },
+    }
+    const gallerySnapshot = {
+      ...snapshot,
+      tables: [
+        { ...tasks, views: [grid, gallery, files] },
+        snapshot.tables[1]!,
+      ],
+    }
+    const source = new IpcEidosFileDataSource("first-session", gallerySnapshot)
+    const base = {
+      relativePath: "sample.eidos",
+      snapshot: gallerySnapshot,
+      source,
+      activeTableId: "tasks",
+      disabled: false,
+      theme: "light" as const,
+      onViewSelect: vi.fn(),
+      onTableSelect: vi.fn(),
+      onSnapshot: vi.fn(),
+      onError: vi.fn(),
+    }
+    const render = async (
+      activeViewId: string,
+      options: Partial<typeof base> = {}
+    ) => {
+      await act(async () =>
+        root.render(
+          createElement(EidosFileWorkbench, {
+            ...base,
+            ...options,
+            activeViewId,
+          })
+        )
+      )
+      return host.querySelector('[data-testid="selected-view"]')
+    }
+    const before = await render("gallery")
+    expect(before?.textContent).toBe("gallery")
+    expect(await render("with-extension")).toBe(before)
+    expect(before?.textContent).toBe("with-extension")
+
+    const gridSurface = await render("grid")
+    expect(gridSurface).not.toBe(before)
+    expect(gridSurface?.textContent).toBe("grid")
+    expect(await render("gallery")).not.toBe(gridSurface)
+    const anotherSession = new IpcEidosFileDataSource(
+      "second-session",
+      gallerySnapshot
+    )
+    const previousSessionSurface = await render("gallery")
+    expect(await render("with-extension", { source: anotherSession })).not.toBe(
+      previousSessionSurface
+    )
+    const currentSessionSurface = await render("gallery", {
+      source: anotherSession,
+    })
+    expect(
+      await render("grid", { activeTableId: "people", source: anotherSession })
+    ).not.toBe(currentSessionSurface)
+  })
+
   it.each([
     [undefined, "gallery"],
     ["grid", "grid"],

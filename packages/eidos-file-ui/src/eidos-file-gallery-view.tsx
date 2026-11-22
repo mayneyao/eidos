@@ -322,14 +322,30 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     view.sorts,
   ])
   const generationRef = useRef(0)
-  const scopeRef = useRef("")
+  const tableId = table.table.id
+  const viewScope = JSON.stringify([tableId, view.id])
+  const [displayedScope, setDisplayedScope] = useState(viewScope)
+  const displayedViewRef = useRef(view)
+  const previousTableRef = useRef(tableId)
+  const switchingView = displayedScope !== viewScope
+  const displayedView = switchingView ? displayedViewRef.current : view
+  useLayoutEffect(() => {
+    if (!switchingView) displayedViewRef.current = view
+  }, [switchingView, view])
   const [preview, setPreview] = useState<{
     entry: FileEntry
     index: number
   } | null>(null)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const cardListRef = useRef<HTMLDivElement>(null)
+  const cardListRef = useRef<HTMLDivElement | null>(null)
+  const attachCardList = useCallback(
+    (element: HTMLDivElement | null) => {
+      cardListRef.current = element
+      element?.toggleAttribute("inert", switchingView)
+    },
+    [switchingView]
+  )
   useEidosFileScrollKeys(scrollContainerRef)
   const previousColumnCountRef = useRef<number | null>(null)
   const previousLayoutFieldsRef = useRef<EidosFileFieldInfo[] | null>(null)
@@ -413,8 +429,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     [table.fields, view]
   )
   const cardLayout = useMemo(
-    () => createEidosFileRecordCardLayout(table.fields, view),
-    [table.fields, view]
+    () => createEidosFileRecordCardLayout(table.fields, displayedView),
+    [table.fields, displayedView]
   )
   const { rows, total } = rowWindow
   const previewFile = useCallback(
@@ -446,6 +462,9 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
       cursor?: string
     ) => {
       const generation = generationRef.current
+      const isCurrent = () =>
+        generation === generationRef.current &&
+        actionScopeRef.current === actionScope
       if (
         requestRef.current?.generation === generation &&
         requestRef.current.offset === offset
@@ -461,10 +480,18 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           : totalHint === undefined
             ? await loadPage(offset, GALLERY_PAGE_SIZE)
             : await loadPage(offset, GALLERY_PAGE_SIZE, totalHint)
-        if (generation !== generationRef.current) return
+        if (!isCurrent()) return
+        if (mode === "replace" && displayedViewRef.current.id !== view.id) {
+          relayoutCleanupRef.current?.()
+          relayoutCleanupRef.current = null
+          visibleAnchorIndexRef.current = 0
+          const container = scrollContainerRef.current
+          if (container) container.scrollTop = 0
+        }
         setRowWindow((current) =>
           mergeRowWindowPage(current, page, mode, GALLERY_MAX_WINDOW_ROWS)
         )
+        setDisplayedScope(viewScope)
         setLoadedGeneration(generation)
         onRowCountChange?.(
           page.rows.length === 0 && page.offset > 0
@@ -472,7 +499,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             : page.total
         )
       } catch (error) {
-        if (generation === generationRef.current) {
+        if (isCurrent()) {
           setFailedRequest({
             offset,
             mode,
@@ -485,13 +512,13 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           })
         }
       } finally {
-        if (generation === generationRef.current) {
+        if (isCurrent()) {
           if (requestRef.current?.offset === offset) requestRef.current = null
           mode === "replace" ? setLoading(false) : setLoadingMore(false)
         }
       }
     },
-    [loadPage, onRowCountChange]
+    [actionScope, loadPage, onRowCountChange, view.id, viewScope]
   )
 
   useEffect(() => {
@@ -499,14 +526,11 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     requestRef.current = null
     setLoadingMore(false)
     setFailedRequest(null)
-    const scope = `${table.table.id}:${view.id}`
-    const preserveWindow = scopeRef.current === scope
-    scopeRef.current = scope
-    setRowWindow((current) =>
-      preserveWindow
-        ? current
-        : { rows: [], startOffset: 0, total: table.rowCount }
-    )
+    if (previousTableRef.current !== tableId) {
+      previousTableRef.current = tableId
+      setRowWindow({ rows: [], startOffset: 0, total: table.rowCount })
+      setDisplayedScope(viewScope)
+    }
     closeInspectorRow()
     setPreview(null)
     onRowCountChange?.(null)
@@ -520,31 +544,28 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     reloadToken,
     requestPage,
     selectionScopeKey,
-    table.table.id,
-    view.id,
+    tableId,
+    viewScope,
   ])
 
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
-    const updateWidth = (width: number) => {
+    const updateWidth = () => {
+      // Use the same box before the first paint and after a resize. The
+      // observer's content rect has already excluded Gallery's padding.
+      const width = container.clientWidth
       if (width <= 0) return
-      const nextWidth = Math.round(width)
-      setContainerWidth((current) =>
-        current === nextWidth ? current : nextWidth
-      )
+      setContainerWidth(width)
     }
-    updateWidth(container.clientWidth)
+    updateWidth()
     if (typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width
-      if (typeof width === "number") updateWidth(width)
-    })
+    const observer = new ResizeObserver(updateWidth)
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
 
-  const targetCardWidth = galleryCardWidth(view)
+  const targetCardWidth = galleryCardWidth(displayedView)
   const availableWidth = Math.max(
     mobile ? 0 : targetCardWidth,
     containerWidth - GALLERY_HORIZONTAL_PADDING
@@ -588,7 +609,11 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 
   const selection = useEidosFileGallerySelection({
     scrollRef: scrollContainerRef,
-    enabled: !mobile && !disabled && loadedGeneration === generationRef.current,
+    enabled:
+      !mobile &&
+      !disabled &&
+      !switchingView &&
+      loadedGeneration === generationRef.current,
     scopeKey: selectionScopeKey,
     // The renderer changes loadPage when its effective query/source changes.
     queryIdentity: loadPage,
@@ -670,10 +695,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
       previousColumnCount === null ||
       previousColumnCount !== columnCount ||
       previousLayoutFieldsRef.current !== table.fields ||
-      previousViewPropertiesRef.current !== view.properties
+      previousViewPropertiesRef.current !== displayedView.properties
     previousColumnCountRef.current = columnCount
     previousLayoutFieldsRef.current = table.fields
-    previousViewPropertiesRef.current = view.properties
+    previousViewPropertiesRef.current = displayedView.properties
     if (!layoutChanged) {
       // Replayed layout effects must also repair already-stale measurements.
       resetEidosFileVirtualizerMeasurements(rowVirtualizer)
@@ -737,7 +762,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     rowVirtualizer,
     scrollToVirtualRowIndex,
     table.fields,
-    view.properties,
+    displayedView.properties,
   ])
 
   useEffect(() => () => relayoutCleanupRef.current?.(), [])
@@ -759,7 +784,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   useEffect(() => {
     const first = virtualRows.at(0)
     const last = virtualRows.at(-1)
-    if (!first || !last || loading || loadingMore) return
+    if (!first || !last || switchingView || loading || loadingMore) return
     const firstGlobalIndex = globalVirtualRowIndex(first.index)
     const lastGlobalIndex = globalVirtualRowIndex(last.index)
     const request = requestForPrefetchedRowWindow(
@@ -790,6 +815,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     loadingMore,
     requestPage,
     rowWindow,
+    switchingView,
     total,
     virtualRows,
   ])
@@ -803,9 +829,11 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     : focusedRow === undefined
       ? null
       : String(focusedRow._id)
-  const revealIndex = recordFocus
-    ? (recordFocus.index ?? null)
-    : searchResultIndex
+  const revealIndex = switchingView
+    ? null
+    : recordFocus
+      ? (recordFocus.index ?? null)
+      : searchResultIndex
 
   useEffect(() => {
     if (revealIndex === null || revealIndex < 0) return
@@ -891,7 +919,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
 
   return (
     <div className="eidos-file-detail-layout relative flex h-full min-h-0 w-full overflow-hidden">
-      {preview && cardLayout.coverOnly && cardLayout.coverField ? (
+      {!switchingView &&
+      preview &&
+      cardLayout.coverOnly &&
+      cardLayout.coverField ? (
         <EidosFileGalleryPreview
           initial={preview}
           rowWindow={rowWindow}
@@ -909,12 +940,14 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         data-eidos-file-window-start={rowWindow.startOffset}
         data-eidos-file-selection-count={selection.selectedIds.size}
         tabIndex={0}
-        aria-label={t("{view} records", { view: view.name })}
-        aria-busy={loading || loadingMore}
-        className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+        aria-label={t("{view} records", { view: displayedView.name })}
+        aria-busy={loading || loadingMore || (switchingView && !failedRequest)}
+        className="relative min-w-0 flex-1 overflow-y-auto p-4 outline-hidden [scrollbar-gutter:stable] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
         style={selection.marquee ? { userSelect: "none" } : undefined}
       >
-        {loading && rows.length === 0 ? (
+        {loading &&
+        rows.length === 0 &&
+        (!switchingView || loadedGeneration < 0) ? (
           <div
             className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground"
             role="status"
@@ -954,10 +987,10 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           </div>
         ) : (
           <div
-            ref={cardListRef}
+            ref={attachCardList}
             className="relative"
             role="list"
-            aria-label={t("{view} records", { view: view.name })}
+            aria-label={t("{view} records", { view: displayedView.name })}
             data-eidos-file-logical-size={logicalVirtualSize}
             data-eidos-file-physical-size={physicalVirtualSize}
             data-eidos-file-end-padding={GALLERY_END_PADDING}
@@ -980,12 +1013,13 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   onPreviewFile={previewFile}
                   total={total}
                   fields={table.fields}
-                  view={view}
+                  view={displayedView}
                   layout={cardLayout}
                   focusedRowId={focusedRowId}
                   selectedRowIds={selection.selectedIds}
                   canDelete={
                     !disabled &&
+                    !switchingView &&
                     !loading &&
                     loadedGeneration === generationRef.current &&
                     onDeleteRow !== undefined
@@ -994,6 +1028,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   actionScope={actionScope}
                   onDeleteRowIds={
                     !disabled &&
+                    !switchingView &&
                     !loading &&
                     loadedGeneration === generationRef.current &&
                     onDeleteRowIds
@@ -1098,7 +1133,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
         ) : null}
       </div>
       {sidePanel ??
-        (inspectedRow ? (
+        (!switchingView && inspectedRow ? (
           <EidosFileRecordInspector
             row={inspectedRow}
             fields={fields}
