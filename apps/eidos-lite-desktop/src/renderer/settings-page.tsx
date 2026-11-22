@@ -64,6 +64,7 @@ import {
 import { SettingsSearch, isSettingsSearchShortcut } from "./settings-search"
 import { focusSetting } from "./settings-navigation"
 import { SettingsSidebarResizer } from "./settings-sidebar-resizer"
+import { SpaceScopedFileEditors } from "./space-file-editor-settings"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -947,7 +948,11 @@ export function SettingsPage() {
               hidden={activePage !== "files"}
             >
               <h2 id="settings-files">{t("Files")}</h2>
-              <div className="settings-group" data-default-file-editors>
+              <SpaceScopedFileEditors
+                active={activePage === "files"}
+                preferences={preferences}
+                onError={setError}
+              >
                 <div
                   className="settings-row settings-row-stacked"
                   data-markdown-file-editing-mode
@@ -1191,7 +1196,7 @@ export function SettingsPage() {
                     </select>
                   </div>
                 ))}
-              </div>
+              </SpaceScopedFileEditors>
             </section>
 
             <section

@@ -15,6 +15,30 @@ import type {
   PluginLanguageData,
   PluginReadme,
 } from "@eidos.space/plugin-runtime/i18n"
+import { viewResource } from "@eidos.space/plugin-runtime/view"
+
+export function canAssociateEditor(extension: string): boolean {
+  return /^\.[a-z0-9]{1,16}$/.test(extension) && extension !== ".eidos"
+}
+
+export function* fileOpenViews(manifest: PluginManifest, extension?: string) {
+  for (const placement of manifest.placements ?? []) {
+    if (placement.location !== "file/open") continue
+    const view = manifest.views?.find(({ id }) => id === placement.view)
+    if (!view) continue
+    const resource = viewResource(view)
+    for (const declared of placement.extensions) {
+      const ext = declared.toLowerCase()
+      if (extension !== undefined && ext !== extension) continue
+      if (
+        resource === "file" ||
+        resource === (ext === ".eidos" ? "eidos" : "document")
+      )
+        yield { extension: ext, view }
+    }
+  }
+}
+
 export interface BluetoothPickerState {
   id: string
   pluginName: string
@@ -30,6 +54,18 @@ export interface BluetoothPickerState {
 export interface PluginBinding {
   hash: string
   enabled: boolean
+}
+export interface SpaceFileEditorSetting {
+  extension: string
+  override: string | null
+  deviceEditor: string | null
+  editors: { key: string; label: string }[]
+}
+export interface SpaceFileEditorSettings {
+  contextId: string
+  spaceName: string
+  focusExtension?: string
+  extensions: SpaceFileEditorSetting[]
 }
 export interface PluginSpaceConfig {
   plugins: Record<
@@ -148,6 +184,7 @@ export interface PluginPackagePreview {
   hash: string
   manifest: PluginManifest
   localization?: PluginLanguageData
+  githubRepository?: string
 }
 export interface PluginInstallIntent {
   id: string
@@ -202,6 +239,8 @@ export interface PluginApi {
     packageToken?: string
   ): Promise<PluginReadme | string | null>
   installMarketplacePlugin(id: string): Promise<boolean>
+  previewGitHubPlugin(url: string): Promise<boolean>
+  cancelGitHubPluginPreview(): Promise<void>
   onPluginInstallProgress(
     listener: (progress: PluginInstallProgress) => void
   ): () => void
@@ -269,6 +308,17 @@ export interface PluginApi {
   setPluginEnabled(id: string, enabled: boolean): Promise<void>
   selectPluginTheme(id: string | null): Promise<void>
   setPluginDefault(extension: string, editor: string | null): Promise<void>
+  openSpaceFileEditorSettings(extension: string): Promise<void>
+  getSpaceFileEditorSettings(): Promise<SpaceFileEditorSettings | null>
+  setSpaceFileEditorDefault(
+    contextId: string,
+    extension: string,
+    editor: string | null
+  ): Promise<void>
+  resetSpacePluginEditorDefaults(
+    spaceId: string,
+    pluginId: string
+  ): Promise<void>
   pluginEditors(relativePath: string): Promise<PluginEditorChoice[]>
   openPluginEditor(
     relativePath: string,
@@ -312,6 +362,9 @@ export const PLUGIN_CHANNELS = {
   acknowledgeInstallIntent: "eidos-lite:plugins-acknowledge-install-intent",
   installPrepared: "eidos-lite:plugins-install-prepared",
   previewPackage: "eidos-lite:plugins-preview-package",
+  previewGitHubPackage: "eidos-lite:plugins-preview-github-package",
+  cancelGitHubPackagePreview:
+    "eidos-lite:plugins-cancel-github-package-preview",
   packagePreviews: "eidos-lite:plugins-package-previews",
   installMarketplace: "eidos-lite:plugins-install-marketplace",
   installTasks: "eidos-lite:plugins-install-tasks",
@@ -320,6 +373,12 @@ export const PLUGIN_CHANNELS = {
   enable: "eidos-lite:plugins-enable",
   selectTheme: "eidos-lite:plugins-select-theme",
   associate: "eidos-lite:plugins-associate",
+  openSpaceFileEditorSettings:
+    "eidos-lite:plugins-open-space-file-editor-settings",
+  getSpaceFileEditorSettings:
+    "eidos-lite:plugins-get-space-file-editor-settings",
+  setSpaceFileEditorDefault: "eidos-lite:plugins-set-space-file-editor-default",
+  resetSpaceEditorDefaults: "eidos-lite:plugins-reset-space-editor-defaults",
   editors: "eidos-lite:plugins-editors",
   open: "eidos-lite:plugins-open",
   openFileInSidebar: "eidos-lite:plugins-open-file-in-sidebar",

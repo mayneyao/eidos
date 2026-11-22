@@ -26,6 +26,8 @@ import {
   type PluginMarketplace,
   type PluginInstallIntent,
   type PluginPackagePreview,
+  canAssociateEditor,
+  fileOpenViews,
   isPluginInstallActive,
   isPluginUpdateAvailable,
 } from "../shared/plugins"
@@ -47,16 +49,19 @@ const PluginDetailView = lazy(async () => {
 
 export function PluginManager({
   spaceAvailable = false,
+  spaceId,
   spaceName,
   onOpenPage,
   variant = "page",
   builtins = [],
   selectedPluginId,
   onSelectPlugin,
+  onUninstalled,
   onPluginNameChange,
   installRequest,
 }: {
   spaceAvailable?: boolean
+  spaceId?: string
   spaceName?: string
   onOpenPage?(key: string): void
   variant?: "page" | "settings"
@@ -69,6 +74,7 @@ export function PluginManager({
   }[]
   selectedPluginId?: string | null
   onSelectPlugin?(id: string | null, name?: string | null): void
+  onUninstalled?(id: string): void
   onPluginNameChange?(name: string | null): void
   installRequest?: PluginInstallIntent | null
 }) {
@@ -85,9 +91,14 @@ export function PluginManager({
     message: string
   } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uninstallingPlugin, setUninstallingPlugin] = useState<
+    PluginListing["plugins"][number] | null
+  >(null)
   const [internalSelected, setInternalSelected] = useState<string | null>(null)
   const selected =
     selectedPluginId !== undefined ? selectedPluginId : internalSelected
+  const currentSelection = useRef(selected)
+  currentSelection.current = selected
   const setSelected = useCallback(
     (nextId: string | null, name?: string | null) => {
       if (selectedPluginId === undefined) {
@@ -275,7 +286,11 @@ export function PluginManager({
       : filteredBuiltins
 
   const builtin = builtins.find((item) => item.id === selected)
-  const plugin = plugins.find((item) => item.manifest.id === selected)
+  const plugin =
+    plugins.find((item) => item.manifest.id === selected) ??
+    (uninstallingPlugin?.manifest.id === selected
+      ? uninstallingPlugin
+      : undefined)
   const packagePreview =
     packagePreviews.find(
       (preview) =>
@@ -439,7 +454,25 @@ export function PluginManager({
     selected &&
     (builtin || plugin || matchedMarketplacePlugin || packagePreview)
   ) {
-    const manifest = plugin?.manifest
+    const fileViews =
+      spaceId && spaceAvailable && plugin?.enabled
+        ? [...fileOpenViews(plugin.manifest)].filter(({ extension }) =>
+            canAssociateEditor(extension)
+          )
+        : []
+    const associations = listing?.space?.associations
+    const fileDefaults = [
+      ...new Set(
+        fileViews
+          .filter(
+            ({ extension, view }) =>
+              associations?.[extension] === `${selected}/${view.id}`
+          )
+          .map(({ extension }) => extension)
+      ),
+    ].sort()
+    const settingsExtension =
+      fileDefaults[0] ?? fileViews.map(({ extension }) => extension).sort()[0]
     return withDropZone(
       <div ref={surface}>
         <Suspense
@@ -457,6 +490,7 @@ export function PluginManager({
             marketplacePlugin={matchedMarketplacePlugin}
             spaceAvailable={spaceAvailable}
             installSpaceName={spaceName}
+            fileDefaults={fileDefaults}
             busy={
               busy ||
               Boolean(
@@ -484,6 +518,19 @@ export function PluginManager({
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
+            onOpenFileSettings={
+              settingsExtension
+                ? () => {
+                    void window.eidosLite
+                      .openSpaceFileEditorSettings(settingsExtension)
+                      .catch((cause) =>
+                        setError(
+                          cause instanceof Error ? cause.message : String(cause)
+                        )
+                      )
+                  }
+                : undefined
+            }
             onInstall={() => {
               if (packagePreview) {
                 setError(null)
@@ -541,9 +588,12 @@ export function PluginManager({
               installMarketplacePlugin(id)
             }}
             onToggleEnable={() => {
-              if (!plugin || !manifest) return
+              if (!plugin) return
               return run(() =>
-                window.eidosLite.setPluginEnabled(manifest.id, !plugin.enabled)
+                window.eidosLite.setPluginEnabled(
+                  plugin.manifest.id,
+                  !plugin.enabled
+                )
               )
             }}
             onSelectTheme={() => {
@@ -557,8 +607,30 @@ export function PluginManager({
               )
             }}
             onUninstall={() => {
-              if (!plugin || !manifest) return
-              return run(() => window.eidosLite.uninstallPlugin(manifest.id))
+              if (!plugin) return
+              const id = plugin.manifest.id
+              return run(async () => {
+                // The catalog event can arrive before uninstall IPC resolves.
+                setUninstallingPlugin(plugin)
+                try {
+                  if (!(await window.eidosLite.uninstallPlugin(id))) return
+                  setListing(
+                    (current) =>
+                      current && {
+                        ...current,
+                        plugins: current.plugins.filter(
+                          (item) => item.manifest.id !== id
+                        ),
+                      }
+                  )
+                  if (currentSelection.current !== id || !surface.current)
+                    return
+                  if (onUninstalled) onUninstalled(id)
+                  else setSelected(null)
+                } finally {
+                  setUninstallingPlugin(null)
+                }
+              })
             }}
           />
         </Suspense>
@@ -634,7 +706,11 @@ export function PluginManager({
         <div
           className={`plugin-manager-list${variant === "settings" ? " settings-group" : ""}`}
           role="group"
-          aria-label={t("Local packages awaiting review")}
+          aria-label={t(
+            pendingPackages.some((preview) => preview.githubRepository)
+              ? "Packages awaiting review"
+              : "Local packages awaiting review"
+          )}
         >
           {pendingPackages.map((preview) => {
             const manifest = preview.localization
@@ -688,7 +764,7 @@ export function PluginManager({
                       v{manifest.version}
                     </span>
                     <span className="plugin-pill-status">
-                      {t("Local package")}
+                      {preview.githubRepository ? "GitHub" : t("Local package")}
                     </span>
                     <span className="plugin-row-desc">{preview.filename}</span>
                   </div>

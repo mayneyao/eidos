@@ -63,12 +63,14 @@ export interface PluginDetailViewProps {
   marketplacePlugin?: MarketplacePlugin | null
   spaceAvailable?: boolean
   installSpaceName?: string
+  fileDefaults?: string[]
   busy?: boolean
   installTask?: PluginInstallTask
   installing?: boolean
   installDisabled?: boolean
   error?: string | null
   onBack(): void
+  onOpenFileSettings?(): void
   onInstall?(): Promise<void> | void
   onToggleEnable(): Promise<void> | void
   onSelectTheme?(): Promise<void> | void
@@ -92,12 +94,14 @@ export function PluginDetailView({
   marketplacePlugin,
   spaceAvailable = false,
   installSpaceName,
+  fileDefaults,
   busy = false,
   installTask,
   installing = false,
   installDisabled = false,
   error = null,
   onBack,
+  onOpenFileSettings,
   onInstall,
   onToggleEnable,
   onSelectTheme,
@@ -162,6 +166,7 @@ export function PluginDetailView({
   const previewPending = Boolean(
     packagePreview && packagePreview.hash !== plugin?.hash
   )
+  const githubRepository = packagePreview?.githubRepository
   const marketplaceOnly =
     !plugin && !builtin && !packagePreview && Boolean(marketplacePlugin)
   const pluginId = manifest?.id ?? builtin?.id ?? marketplacePlugin?.id ?? ""
@@ -526,13 +531,15 @@ export function PluginDetailView({
                 ? t("Built-in")
                 : isTheme
                   ? t("Theme")
-                  : packagePreview
-                    ? t("Local package")
-                    : marketplaceOnly
-                      ? t("Marketplace")
-                      : plugin?.developmentPath
-                        ? t("Development")
-                        : t("Packaged")}
+                  : githubRepository
+                    ? "GitHub"
+                    : packagePreview
+                      ? t("Local package")
+                      : marketplaceOnly
+                        ? t("Marketplace")
+                        : plugin?.developmentPath
+                          ? t("Development")
+                          : t("Packaged")}
             </dd>
           </div>
         </dl>
@@ -953,11 +960,41 @@ export function PluginDetailView({
               </button>
             )}
           </div>
+          {!previewPending && onOpenFileSettings ? (
+            <div className="plugin-detail-file-defaults">
+              {fileDefaults?.length ? (
+                <span
+                  className="plugin-manager-caption"
+                  id={`${id}-file-defaults`}
+                >
+                  {t("Default editor in this Space for {extensions}", {
+                    extensions: fileDefaults.join(", "),
+                  })}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="settings-button settings-button-quiet"
+                aria-describedby={
+                  fileDefaults?.length ? `${id}-file-defaults` : undefined
+                }
+                disabled={busy}
+                onClick={onOpenFileSettings}
+              >
+                {t("Open file settings")}
+              </button>
+            </div>
+          ) : null}
           {packagePreview && (
             <p className="plugin-manager-caption">
-              {t("Local package: {filename}", {
-                filename: packagePreview.filename,
-              })}
+              {githubRepository
+                ? t("GitHub release: {repository} / {filename}", {
+                    repository: githubRepository,
+                    filename: packagePreview.filename,
+                  })
+                : t("Local package: {filename}", {
+                    filename: packagePreview.filename,
+                  })}
             </p>
           )}
           {((previewPending && !plugin) || marketplaceOnly) && (

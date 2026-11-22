@@ -3,7 +3,7 @@ import type { SettingDescriptor } from "./settings-catalog"
 /** Resolve by registered identity, never by rendered text or a preference value. */
 export function focusSetting(
   container: HTMLElement,
-  setting: SettingDescriptor
+  setting: Pick<SettingDescriptor, "id" | "target">
 ): boolean {
   const row = Array.from(
     container.querySelectorAll<HTMLElement>(

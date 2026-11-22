@@ -132,6 +132,10 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(PLUGIN_CHANNELS.readme, id, locale, packageToken),
   installMarketplacePlugin: (id) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.installMarketplace, id),
+  previewGitHubPlugin: (url) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.previewGitHubPackage, url),
+  cancelGitHubPluginPreview: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.cancelGitHubPackagePreview),
   onPluginInstallProgress: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -172,6 +176,23 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(PLUGIN_CHANNELS.selectTheme, id),
   setPluginDefault: (extension, editor) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
+  openSpaceFileEditorSettings: (extension) =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.openSpaceFileEditorSettings, extension),
+  getSpaceFileEditorSettings: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.getSpaceFileEditorSettings),
+  setSpaceFileEditorDefault: (contextId, extension, editor) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.setSpaceFileEditorDefault,
+      contextId,
+      extension,
+      editor
+    ),
+  resetSpacePluginEditorDefaults: (spaceId, pluginId) =>
+    ipcRenderer.invoke(
+      PLUGIN_CHANNELS.resetSpaceEditorDefaults,
+      spaceId,
+      pluginId
+    ),
   pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),
   reportFileOpened: (spaceId, path) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.fileOpened, spaceId, path),
@@ -274,11 +295,20 @@ const api: EidosLiteApi = {
   onSettingsNavigate: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      page: "devices" | "account-sync"
+      page: "devices" | "account-sync" | "files"
     ) => listener(page)
     ipcRenderer.on(IPC_CHANNELS.settingsNavigate, handler)
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.settingsNavigate, handler)
+  },
+  onSettingsSpaceFileEditorsChanged: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.settingsSpaceFileEditorsChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.settingsSpaceFileEditorsChanged,
+        handler
+      )
   },
   openWhatsNew: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewOpen),
   openWhatsNewRelease: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewRelease),

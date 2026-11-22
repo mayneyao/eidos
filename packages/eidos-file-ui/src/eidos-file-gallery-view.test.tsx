@@ -179,6 +179,16 @@ const view: EidosFileViewInfo = {
   updatedAt: "2026-07-12T00:00:00.000Z",
 }
 
+function deferredPage() {
+  let resolve!: (page: EidosFileRowPage) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<EidosFileRowPage>((onResolve, onReject) => {
+    resolve = onResolve
+    reject = onReject
+  })
+  return { promise, reject, resolve }
+}
+
 describe("EidosFileGalleryView", () => {
   let container: HTMLDivElement
   let root: Root
@@ -1285,10 +1295,28 @@ describe("EidosFileGalleryView", () => {
   })
 
   it("uses the real viewport width before the first Gallery paint", async () => {
+    const viewportObservers = new Set<ResizeObserverCallback>()
+    let width = 900
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
-      get: () => 620,
+      get: () => width,
     })
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(readonly callback: ResizeObserverCallback) {}
+        observe(element: HTMLElement) {
+          if (element.hasAttribute("data-eidos-file-gallery-scroll"))
+            viewportObservers.add(this.callback)
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    const columns = () =>
+      container
+        .querySelector("[data-eidos-file-gallery-scroll]")
+        ?.getAttribute("data-eidos-file-column-count")
 
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -1306,17 +1334,27 @@ describe("EidosFileGalleryView", () => {
         )
       })
 
-      expect(
-        container
-          .querySelector("[data-eidos-file-gallery-scroll]")
-          ?.getAttribute("data-eidos-file-column-count")
-      ).toBe("2")
+      expect(columns()).toBe("3")
     } finally {
       ;(
         globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
       ).IS_REACT_ACT_ENVIRONMENT = true
     }
-    await act(async () => Promise.resolve())
+    const notify = async () => {
+      await act(async () => {
+        for (const observer of viewportObservers)
+          observer(
+            [{ contentRect: { width: width - 32 } }] as ResizeObserverEntry[],
+            {} as ResizeObserver
+          )
+      })
+    }
+    expect(viewportObservers.size).toBeGreaterThan(0)
+    await notify()
+    expect(columns()).toBe("3")
+    width = 850
+    await notify()
+    expect(columns()).toBe("2")
   })
 
   it("retains measured row spacing when deletion refreshes equivalent field metadata", async () => {
@@ -1708,6 +1746,126 @@ describe("EidosFileGalleryView", () => {
         .querySelector("[data-eidos-file-gallery-scroll]")
         ?.getAttribute("aria-busy")
     ).toBe("false")
+  })
+
+  it("keeps a ready Gallery inert through rapid view changes and a failed read, then swaps on retry", async () => {
+    const intermediate = { ...view, id: "intermediate", name: "Intermediate" }
+    const destination = {
+      ...view,
+      id: "destination",
+      name: "With extension",
+      properties: { ...view.properties, cardDisplay: "cover-only" },
+    }
+    const page = (id: string): EidosFileRowPage => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [{ _id: id, title: id }],
+    })
+    const stale = deferredPage()
+    const next = deferredPage()
+    const retry = deferredPage()
+    const loadFirst = vi.fn(async () => page("before"))
+    const loadSecond = vi.fn(() => stale.promise)
+    const loadDestination = vi
+      .fn(() => retry.promise)
+      .mockImplementationOnce(() => next.promise)
+    const render = async (
+      nextView: EidosFileViewInfo,
+      loadPage: () => Promise<EidosFileRowPage>
+    ) => {
+      await act(async () =>
+        root.render(
+          <EidosFileGalleryView
+            table={table}
+            view={nextView}
+            loadPage={loadPage}
+          />
+        )
+      )
+    }
+    await render(view, loadFirst)
+    const scroller = container.querySelector<HTMLElement>(
+      "[data-eidos-file-gallery-scroll]"
+    )!
+    const list = scroller.querySelector('[role="list"]')!
+    const before = list.querySelector("article")!
+    scroller.scrollTop = 50
+
+    await render(intermediate, loadSecond)
+    expect(list.querySelector("article")).toBe(before)
+    expect(list.getAttribute("aria-label")).toBe("Cards records")
+    expect(list.hasAttribute("inert")).toBe(true)
+    expect(scroller.getAttribute("aria-busy")).toBe("true")
+    expect(scroller.scrollTop).toBe(50)
+    expect(container.textContent).not.toContain("Loading gallery")
+
+    await render(destination, loadDestination)
+    await act(async () => stale.resolve(page("stale")))
+    expect(list.querySelector("article")).toBe(before)
+    expect(scroller.querySelector("[data-eidos-file-row-id=stale]")).toBeNull()
+    await act(async () => next.reject(new Error("Fixture read failed")))
+    expect(list.querySelector("article")).toBe(before)
+    expect(list.hasAttribute("inert")).toBe(true)
+    expect(scroller.querySelector('[role="alert"]')?.textContent).toContain(
+      "Fixture read failed"
+    )
+    expect(scroller.getAttribute("aria-busy")).toBe("false")
+
+    await act(async () =>
+      scroller
+        .querySelector<HTMLButtonElement>('[role="alert"] button')
+        ?.click()
+    )
+    await act(async () => retry.resolve(page("after")))
+    expect(scroller.querySelector('[role="list"]')).toBe(list)
+    expect(list.querySelector("[data-eidos-file-row-id=after]")).not.toBeNull()
+    expect(list.getAttribute("aria-label")).toBe("With extension records")
+    expect(list.hasAttribute("inert")).toBe(false)
+    expect(scroller.scrollTop).toBe(0)
+    expect(scroller.querySelector('[role="alert"]')).toBeNull()
+    expect(loadFirst).toHaveBeenCalledTimes(1)
+    expect(loadSecond).toHaveBeenCalledTimes(1)
+    expect(loadDestination).toHaveBeenCalledTimes(2)
+  })
+
+  it("retains a ready empty state while switching Gallery views", async () => {
+    const emptyPage: EidosFileRowPage = {
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 0,
+      rows: [],
+    }
+    const loadEmpty = async () => emptyPage
+    const next = deferredPage()
+    const loadNext = () => next.promise
+    const destination = { ...view, id: "destination", name: "Filtered Gallery" }
+    await act(async () =>
+      root.render(
+        <EidosFileGalleryView table={table} view={view} loadPage={loadEmpty} />
+      )
+    )
+    await act(async () =>
+      root.render(
+        <EidosFileGalleryView
+          table={table}
+          view={destination}
+          loadPage={loadNext}
+        />
+      )
+    )
+    expect(container.textContent).toContain("No records in this view.")
+    expect(container.textContent).not.toContain("Loading gallery")
+    await act(async () =>
+      next.resolve({
+        ...emptyPage,
+        total: 1,
+        rows: [{ _id: "ready", title: "Ready" }],
+      })
+    )
+    expect(container.textContent).toContain("Ready")
   })
 
   it("keeps a million-record gallery bounded and loads the target window on scroll", async () => {

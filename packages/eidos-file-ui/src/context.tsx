@@ -158,6 +158,8 @@ export interface EidosFileUIHost {
   ) => void | Promise<void>
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
+  /** Host catalog field whose empty File value represents a directory. */
+  directoryCoverFieldId?: string
   /**
    * Host base URL that serves the directory containing the Eidos File. When
    * set, the Content preview resolves document-local image references such as
@@ -217,6 +219,7 @@ export function EidosFileUIProvider({
   openRelationRecord,
   assetSession,
   assetPresenter,
+  directoryCoverFieldId,
   contentImageBaseUrl,
   renderMarkdownHtml,
   resolveMarkdownImageUrl,
@@ -261,6 +264,8 @@ export function EidosFileUIProvider({
     openRelationRecord ?? parent.openRelationRecord
   const resolvedAssetSession = assetSession ?? parent.assetSession
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
+  const resolvedDirectoryCoverFieldId =
+    directoryCoverFieldId ?? parent.directoryCoverFieldId
   const resolvedContentImageBaseUrl =
     contentImageBaseUrl ?? parent.contentImageBaseUrl
   const resolvedRenderMarkdownHtml =
@@ -313,6 +318,7 @@ export function EidosFileUIProvider({
       ...(resolvedAssetPresenter
         ? { assetPresenter: resolvedAssetPresenter }
         : {}),
+      directoryCoverFieldId: resolvedDirectoryCoverFieldId,
       ...(resolvedContentImageBaseUrl
         ? { contentImageBaseUrl: resolvedContentImageBaseUrl }
         : {}),
@@ -348,6 +354,7 @@ export function EidosFileUIProvider({
       resolvedActivateMarkdownLink,
       resolvedOpenRelationRecord,
       resolvedAssetPresenter,
+      resolvedDirectoryCoverFieldId,
       resolvedAssetSession,
       resolvedContentImageBaseUrl,
       resolvedRenderMarkdownHtml,

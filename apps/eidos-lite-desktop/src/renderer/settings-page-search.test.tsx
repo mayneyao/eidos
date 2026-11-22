@@ -3,7 +3,7 @@ import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 import type { EidosLiteApi, EidosLitePreferences } from "../shared/contracts"
-import type { PluginListing } from "../shared/plugins"
+import type { PluginListing, SpaceFileEditorSettings } from "../shared/plugins"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { EidosLiteI18nProvider } from "./i18n"
 import { SettingsPage } from "./settings-page"
@@ -65,6 +65,8 @@ describe("Settings search through original controls", () => {
   let saved: EidosLitePreferences
   let listing: PluginListing
   const listeners = new Set<(preferences: EidosLitePreferences) => void>()
+  const fileContextListeners = new Set<() => void>()
+  const navigationListeners = new Set<(page: "files") => void>()
   const createApi = () => ({
     getAppInfo: vi.fn(async () => ({
       name: "Eidos Lite",
@@ -104,6 +106,24 @@ describe("Settings search through original controls", () => {
       async (_input: { password: Uint8Array }) => {}
     ),
     listPlugins: vi.fn(async () => listing),
+    getSpaceFileEditorSettings: vi.fn<
+      () => Promise<SpaceFileEditorSettings | null>
+    >(async () => null),
+    setSpaceFileEditorDefault: vi.fn<EidosLiteApi["setSpaceFileEditorDefault"]>(
+      async () => {}
+    ),
+    onSettingsSpaceFileEditorsChanged: (listener: () => void) => {
+      fileContextListeners.add(listener)
+      return () => {
+        fileContextListeners.delete(listener)
+      }
+    },
+    onSettingsNavigate: (listener: (page: "files") => void) => {
+      navigationListeners.add(listener)
+      return () => {
+        navigationListeners.delete(listener)
+      }
+    },
     setPluginDefault: vi.fn(
       async (extension: string, editor: string | null) => {
         if (editor === null) delete listing.associations?.[extension]
@@ -128,6 +148,8 @@ describe("Settings search through original controls", () => {
     window.history.replaceState(null, "", "#/settings/preferences")
     window.localStorage.clear()
     listeners.clear()
+    fileContextListeners.clear()
+    navigationListeners.clear()
     saved = {
       ...DEFAULT_RENDERER_PREFERENCES,
       language: "en",
@@ -191,6 +213,198 @@ describe("Settings search through original controls", () => {
     )!
   const page = async (label: string) =>
     act(async () => button(label, host.querySelector("nav")!).click())
+
+  const select = (label: string) =>
+    host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!
+  const choose = (control: HTMLSelectElement, value: string) =>
+    act(async () => {
+      control.value = value
+      control.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+
+  it.each([
+    [
+      "en",
+      "Choose how each file type opens by default for ",
+      ".",
+      "This device (global)",
+    ],
+    ["zh", "为", "设置各类文件的默认打开方式。", "本设备（全局）"],
+    [
+      "ja",
+      "",
+      "で、ファイル形式ごとの既定の開き方を設定します。",
+      "このデバイス（全体）",
+    ],
+    [
+      "ko",
+      "",
+      "에서 파일 형식별 기본 열기 방식을 설정합니다.",
+      "이 기기(전역)",
+    ],
+    [
+      "pt-BR",
+      "Defina o modo padrão de abrir cada tipo de arquivo para ",
+      ".",
+      "Este dispositivo (global)",
+    ],
+  ] as const)(
+    "places the scope control in the localized %s sentence",
+    async (language, prefix, suffix, device) => {
+      saved.language = language
+      window.history.replaceState(null, "", "#/settings/files")
+      await mount()
+      const scope = host.querySelector<HTMLSelectElement>(
+        ".settings-file-editor-scope select"
+      )!
+      expect(scope).not.toBeNull()
+      expect(scope.previousSibling?.textContent ?? "").toBe(prefix)
+      expect(scope.nextSibling?.textContent).toBe(suffix)
+      expect(scope.selectedOptions[0].textContent).toBe(device)
+      expect(scope.value).toBe("device")
+      expect(scope.disabled).toBe(true)
+    }
+  )
+
+  it("waits for Space before deep-linking and changes only the selected scope", async () => {
+    window.history.replaceState(null, "", "#/settings/files")
+    const initial = deferred<SpaceFileEditorSettings>()
+    const drawing = { key: "example.csv/csv", label: "CSV editor" }
+    const snapshot: SpaceFileEditorSettings = {
+      contextId: "workbench-a",
+      spaceName: "Project Space",
+      focusExtension: ".csv",
+      extensions: [
+        {
+          extension: ".csv",
+          override: drawing.key,
+          deviceEditor: drawing.label,
+          editors: [drawing],
+        },
+        {
+          extension: ".tsv",
+          override: "example.old/view",
+          deviceEditor: null,
+          editors: [drawing],
+        },
+      ],
+    }
+    api.getSpaceFileEditorSettings
+      .mockReturnValueOnce(initial.promise)
+      .mockImplementation(async () => snapshot)
+    api.setSpaceFileEditorDefault.mockImplementation(
+      async (contextId, extension, editor) => {
+        expect(contextId).toBe(snapshot.contextId)
+        const setting = snapshot.extensions.find(
+          (row) => row.extension === extension
+        )!
+        setting.override = editor
+      }
+    )
+    await mount()
+    expect(select("Scope").value).toBe("pending")
+    expect(select("Markdown file editor")).toBeNull()
+    expect(select(".csv, .tsv")).toBeNull()
+
+    await act(async () => initial.resolve(snapshot))
+    expect(select("Scope").value).toBe("space")
+    expect(select("Scope").selectedOptions[0].textContent).toBe(
+      "Space: Project Space"
+    )
+    expect(select("Scope").title).toBe("Space: Project Space")
+    expect(select("Scope").closest("[data-default-file-editors]")).toBeNull()
+    expect(document.activeElement).toBe(select(".csv"))
+    expect(select(".csv").selectedOptions[0].textContent).toBe("CSV editor")
+    expect(select(".tsv").selectedOptions[0].textContent).toBe(
+      "Built-in editor (plugin unavailable)"
+    )
+    expect(host.querySelectorAll("[data-default-file-editors]")).toHaveLength(1)
+    expect(select(".csv, .tsv")).toBeNull()
+    expect(api.setSpaceFileEditorDefault).not.toHaveBeenCalled()
+
+    select("Scope").focus()
+    expect(document.activeElement).toBe(select("Scope"))
+    await choose(select("Scope"), "device")
+    expect(select("Scope").selectedOptions[0].textContent).toBe(
+      "This device (global)"
+    )
+    expect(document.activeElement).toBe(select("Scope"))
+    expect(select(".csv")).toBeNull()
+    expect(select("Markdown file editor")).not.toBeNull()
+    await choose(select(".csv, .tsv"), drawing.key)
+    expect(api.setPluginDefault.mock.calls).toEqual([
+      [".csv", drawing.key],
+      [".tsv", drawing.key],
+    ])
+    expect(api.setSpaceFileEditorDefault).not.toHaveBeenCalled()
+
+    await choose(select("Scope"), "space")
+    await choose(select(".csv"), "device")
+    expect(api.setSpaceFileEditorDefault).toHaveBeenCalledExactlyOnceWith(
+      "workbench-a",
+      ".csv",
+      null
+    )
+    expect(select(".csv").selectedOptions[0].textContent).toBe(
+      "Follow device (CSV editor)"
+    )
+    expect(select(".tsv").value).toBe("example.old/view")
+    expect(api.setPluginDefault).toHaveBeenCalledTimes(2)
+    await search(".tsv")
+    await key("Enter")
+    expect(document.activeElement).toBe(select(".tsv"))
+  })
+
+  it("attaches reused Settings to the newest workbench and restores device rows after a read failure", async () => {
+    const old = deferred<SpaceFileEditorSettings>()
+    const current = deferred<SpaceFileEditorSettings>()
+    await mount()
+    await page("Files")
+    expect(select("Scope").value).toBe("device")
+    expect(select("Markdown file editor")).not.toBeNull()
+
+    const navigateFromPlugin = async () =>
+      act(async () => {
+        fileContextListeners.forEach((listener) => listener())
+        navigationListeners.forEach((listener) => listener("files"))
+      })
+    api.getSpaceFileEditorSettings.mockReturnValueOnce(old.promise)
+    await navigateFromPlugin()
+    expect(select("Scope").value).toBe("pending")
+    expect(select("Markdown file editor")).toBeNull()
+
+    api.getSpaceFileEditorSettings.mockReturnValueOnce(current.promise)
+    await navigateFromPlugin()
+    const snapshot: SpaceFileEditorSettings = {
+      contextId: "workbench-b",
+      spaceName: "New Space",
+      focusExtension: ".tsv",
+      extensions: [
+        { extension: ".tsv", override: null, deviceEditor: null, editors: [] },
+      ],
+    }
+    await act(async () => current.resolve(snapshot))
+    await act(async () =>
+      old.resolve({
+        ...snapshot,
+        contextId: "workbench-a",
+        spaceName: "Old Space",
+      })
+    )
+    expect(select("Scope").selectedOptions[0].textContent).toBe(
+      "Space: New Space"
+    )
+    expect(document.activeElement).toBe(select(".tsv"))
+
+    api.getSpaceFileEditorSettings.mockRejectedValueOnce(
+      new Error("Cannot read file defaults")
+    )
+    await navigateFromPlugin()
+    expect(select("Scope").value).toBe("device")
+    expect(select("Markdown file editor")).not.toBeNull()
+    expect(host.textContent).toContain("Cannot read file defaults")
+    expect(api.setSpaceFileEditorDefault).not.toHaveBeenCalled()
+  })
 
   it("searches without mounting inactive modules, writing preferences, reloading pages or changing scroll", async () => {
     await mount()

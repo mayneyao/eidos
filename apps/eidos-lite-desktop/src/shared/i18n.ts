@@ -1055,6 +1055,7 @@ const zh: Record<string, string> = {
   "Install for Space: {space}": "安装到 Space：{space}",
   "Plugin unavailable": "插件暂不可用",
   "Local packages awaiting review": "待确认的本地安装包",
+  "Packages awaiting review": "待确认的安装包",
   "Choose a package…": "选择安装包…",
   Update: "更新",
   "Update available": "有新版本",
@@ -1217,6 +1218,19 @@ const zh: Record<string, string> = {
   Global: "全局",
   "This Space": "当前 Space",
   "Install plugin…": "安装插件…",
+  "Open {extensions} files with this plugin by default in this Space":
+    "在此 Space 中默认使用此插件打开 {extensions} 文件",
+  "Default editor in this Space for {extensions}":
+    "此 Space 中 {extensions} 文件的默认编辑器",
+  "Use device default": "使用设备默认设置",
+  "Open file settings": "打开文件设置",
+  "Space: {space}": "Space：{space}",
+  "Device defaults": "设备默认设置",
+  "Follow device ({editor})": "跟随设备（{editor}）",
+  "Built-in editor ({mode})": "内置编辑器（{mode}）",
+  "{editor} (plugin unavailable)": "{editor}（插件不可用）",
+  "This plugin offers multiple editors for {extensions}. Use Open with to choose an editor for those files.":
+    "此插件为 {extensions} 提供多个编辑器。你可以通过「打开方式」为这些文件选择编辑器。",
   "OpenAI-compatible Chat Completions endpoint":
     "OpenAI 兼容接口，请填写完整的 Chat Completions URL",
   "Drop to install or update": "松开以安装或更新插件",
@@ -1238,6 +1252,15 @@ const zh: Record<string, string> = {
   "Plugin instance closed. Retry or use the built-in editor.":
     "插件实例已关闭。请重试或使用内置编辑器。",
   "Search commands": "搜索命令",
+  "Install Plugin from GitHub…": "从 GitHub 安装插件…",
+  "GitHub plugin link": "GitHub 插件链接",
+  "Paste a GitHub plugin link": "粘贴 GitHub 插件链接",
+  "Paste a GitHub repository, release, or plugin package link.":
+    "请粘贴 GitHub 仓库、发行版或插件安装包的链接。",
+  "Preview {repository}": "预览 {repository}",
+  "Loading GitHub plugin…": "正在加载 GitHub 插件…",
+  "GitHub release: {repository} / {filename}":
+    "GitHub Releases：{repository} / {filename}",
   "No matching commands": "没有匹配的命令",
   "Run a command…": "运行命令…",
   "Running…": "正在运行…",

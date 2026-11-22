@@ -1333,6 +1333,38 @@ body {
   opacity: 0.65;
 }
 
+.settings-file-editor-scope {
+  margin: 0 0 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.settings-file-editor-scope > .settings-shell-select {
+  width: auto;
+  max-width: min(30ch, calc(100% - 2em));
+  min-height: 0;
+  margin-inline: 0.15em;
+  padding: 0;
+  border: 0;
+  border-radius: 0.15em;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  field-sizing: content;
+}
+
+.settings-file-editor-scope > .settings-shell-select:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.settings-file-editor-scope > .settings-shell-select:disabled {
+  cursor: inherit;
+  opacity: 1;
+}
+
 .settings-section-note {
   margin: 0.55rem 0.15rem 0;
   color: var(--ink-faint);
@@ -8968,6 +9000,30 @@ body {
 .plugin-detail-actions .settings-button-active {
   background: var(--surface-panel);
   font-weight: 600;
+}
+
+.plugin-detail-file-defaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.25rem;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.plugin-detail-file-defaults .plugin-manager-caption {
+  min-width: 0;
+  padding: 0;
+}
+
+.plugin-detail-file-defaults .settings-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.plugin-detail-file-defaults .settings-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 /* Detail Tabs */

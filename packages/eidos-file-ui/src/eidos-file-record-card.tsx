@@ -25,6 +25,7 @@ import {
   Check,
   Eye,
   FileText,
+  Folder,
   Minus,
   MoreHorizontal,
   MoveRight,
@@ -90,12 +91,14 @@ function EidosFileRecordCover({
   compact,
   fitContent,
   coverOnly = false,
+  directoryName,
 }: {
   row: EidosFileRow
   field: EidosFileFieldInfo
   compact: boolean
   fitContent: boolean
   coverOnly?: boolean
+  directoryName?: string
 }) {
   const value = row[field.tableColumnName]
   if (eidosFileUrlDisplaysImage(field)) {
@@ -138,6 +141,13 @@ function EidosFileRecordCover({
           fitContent={fitContent}
           className={coverOnly ? "bg-transparent" : undefined}
         />
+      ) : directoryName !== undefined ? (
+        <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-3 text-center text-muted-foreground">
+          <Folder aria-hidden="true" className="h-5 w-5" />
+          <span className="w-full truncate text-[11px]" title={directoryName}>
+            {directoryName}
+          </span>
+        </span>
       ) : null}
     </div>
   )
@@ -362,6 +372,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     translate: t,
     interactionMode,
     calendarTimeZoneData,
+    directoryCoverFieldId,
   } = useEidosFileUI()
   const mobile = interactionMode === "mobile"
   const undo = useEidosFileUndo()
@@ -386,6 +397,13 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
     ? layout.fields.slice(0, layout.fieldLimit)
     : selectEidosFileRecordCardFields(layout, row)
   const title = eidosFileRecordTitle(row, fields)
+  const directoryName =
+    view.type === "gallery" &&
+    layout.coverField?.id &&
+    layout.coverField.id === directoryCoverFieldId &&
+    row[layout.coverField.tableColumnName] === "[]"
+      ? title
+      : undefined
   const titleLayout = useMemo(
     () =>
       !mobileGallery && cardWidth && cardWidth > 0
@@ -530,6 +548,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                 field={layout.coverField}
                 compact={compact}
                 fitContent={layout.fitContent}
+                directoryName={directoryName}
                 coverOnly
               />
             ) : (
@@ -591,6 +610,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
           field={layout.coverField}
           compact={compact}
           fitContent={layout.fitContent}
+          directoryName={directoryName}
         />
       ) : null}
       <div

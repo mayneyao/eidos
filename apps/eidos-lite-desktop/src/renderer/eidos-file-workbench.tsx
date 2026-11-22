@@ -577,6 +577,10 @@ export function EidosFileWorkbench({
   ])
 
   if (!activeTable) return null
+  const viewSurfaceKey =
+    activeView?.type === "gallery"
+      ? "gallery"
+      : `view:${activeView?.id ?? "default"}`
   const selectView = (viewId: string) => {
     onViewSelect?.(viewId)
     setActiveViews((current) => ({
@@ -792,6 +796,14 @@ export function EidosFileWorkbench({
         snapshot.metadata.fileId,
       ])}
       assetPresenter={eidosLiteAssetPresenter}
+      directoryCoverFieldId={
+        activeTable.table.settings?.vtabModule === "fs_meta"
+          ? activeTable.fields.find(
+              (field) =>
+                field.type === "file" && field.settings?.isSystem === true
+            )?.id
+          : undefined
+      }
       keyboardShortcuts={editorKeyboardShortcuts}
       menuOrders={menuOrders}
       onMenuOrderChange={onMenuOrderChange}
@@ -1070,7 +1082,7 @@ export function EidosFileWorkbench({
         }
       >
         <PluginTableActions
-          key={`${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id}`}
+          key={`${source.sessionId}:${snapshot.metadata.fileId}:${activeTable.table.id}:${viewSurfaceKey}`}
           source={source}
           table={activeTable}
           view={activeView}
@@ -1101,7 +1113,7 @@ export function EidosFileWorkbench({
               onInspectedRowChange={onInspectedRowChange}
               recordPresentation={recordOpenMode}
               onRecordPresentationToggle={toggleRecordPresentation}
-              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+              key={`${activeTable.table.id}:${viewSurfaceKey}`}
               plugins={editorPlugins}
               source={source}
               table={activeTable}
