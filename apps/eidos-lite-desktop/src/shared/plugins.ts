@@ -31,6 +31,17 @@ export interface PluginBinding {
   hash: string
   enabled: boolean
 }
+export interface SpaceFileEditorSetting {
+  extension: string
+  override: string | null
+  deviceEditor: string | null
+  editors: { key: string; label: string }[]
+}
+export interface SpaceFileEditorSettings {
+  contextId: string
+  spaceName: string
+  extensions: SpaceFileEditorSetting[]
+}
 export interface PluginSpaceConfig {
   plugins: Record<
     string,
@@ -272,9 +283,12 @@ export interface PluginApi {
   setPluginEnabled(id: string, enabled: boolean): Promise<void>
   selectPluginTheme(id: string | null): Promise<void>
   setPluginDefault(extension: string, editor: string | null): Promise<void>
-  resetSpacePluginEditorDefaults(
-    spaceId: string,
-    pluginId: string
+  openSpaceFileEditorSettings(): Promise<void>
+  getSpaceFileEditorSettings(): Promise<SpaceFileEditorSettings | null>
+  setSpaceFileEditorDefault(
+    contextId: string,
+    extension: string,
+    editor: string | null
   ): Promise<void>
   pluginEditors(relativePath: string): Promise<PluginEditorChoice[]>
   openPluginEditor(
@@ -330,7 +344,11 @@ export const PLUGIN_CHANNELS = {
   enable: "eidos-lite:plugins-enable",
   selectTheme: "eidos-lite:plugins-select-theme",
   associate: "eidos-lite:plugins-associate",
-  resetSpaceEditorDefaults: "eidos-lite:plugins-reset-space-editor-defaults",
+  openSpaceFileEditorSettings:
+    "eidos-lite:plugins-open-space-file-editor-settings",
+  getSpaceFileEditorSettings:
+    "eidos-lite:plugins-get-space-file-editor-settings",
+  setSpaceFileEditorDefault: "eidos-lite:plugins-set-space-file-editor-default",
   editors: "eidos-lite:plugins-editors",
   open: "eidos-lite:plugins-open",
   openFileInSidebar: "eidos-lite:plugins-open-file-in-sidebar",

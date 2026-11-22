@@ -11,9 +11,12 @@ import {
   ClipboardExportStore,
   type ClipboardExportRequest,
 } from "./clipboard-export-store"
-import type { SpacePathClipboardSources } from "../shared/contracts"
+import {
+  IPC_CHANNELS,
+  type SpacePathClipboardSources,
+  type SpaceSnapshot,
+} from "../shared/contracts"
 import type { WebContents, BrowserWindow } from "electron"
-import type { SpaceSnapshot } from "../shared/contracts"
 import { translateEidosLite } from "../shared/i18n"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
@@ -1063,6 +1066,63 @@ it("opens Settings in its own window and reuses that window", () => {
   expect(load).toHaveBeenCalledWith(settingsWindow, "/settings/preferences")
   expect(controller.showSettingsWindow()).toBe(settingsWindow)
   expect(create).toHaveBeenCalledOnce()
+})
+
+it("binds a reused Settings window to the exact invoking workbench session", () => {
+  const { controller, owner } = fixture()
+  const settings = Object.assign(new EventEmitter(), {
+    webContents: { id: 3, isLoading: () => false, send: vi.fn() },
+    isDestroyed: () => false,
+    isMinimized: () => false,
+    show: vi.fn(),
+    focus: vi.fn(),
+    setTitle: vi.fn(),
+  })
+  const window = settings as unknown as BrowserWindow
+  const otherOwner = {
+    id: 2,
+    isDestroyed: () => false,
+  } as unknown as WebContents
+  const internals = controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+    sessionByWebContents: Map<number, unknown>
+  }
+  internals.sessionByWebContents.set(owner.id, session("Space A"))
+  internals.sessionByWebContents.set(otherOwner.id, session("Space B"))
+  const create = vi.spyOn(internals, "createWindow").mockReturnValue(window)
+  const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  vi.spyOn(controller, "locale").mockResolvedValue("en")
+
+  controller.openSpaceFileEditorSettings(owner)
+  expect(load).toHaveBeenCalledWith(window, "/settings/space-file-editors")
+  const first = controller.getSpaceFileEditorSettingsContext(window.webContents)
+  expect(first).toMatchObject({ spaceId: "Space A", spaceName: "Space A" })
+  expect(controller.getSpaceFileEditorSettingsContext(owner)).toBeNull()
+  controller.showSettingsWindow(undefined, window.webContents)
+  expect(
+    controller.getSpaceFileEditorSettingsContext(window.webContents)
+  ).toEqual(first)
+
+  controller.openSpaceFileEditorSettings(otherOwner)
+  expect(create).toHaveBeenCalledOnce()
+  expect(settings.webContents.send).toHaveBeenCalledWith(
+    IPC_CHANNELS.settingsNavigate,
+    "space-file-editors"
+  )
+  const second = controller.getSpaceFileEditorSettingsContext(
+    window.webContents
+  )
+  expect(second).toMatchObject({ spaceId: "Space B", spaceName: "Space B" })
+  expect(second?.contextId).not.toBe(first?.contextId)
+  internals.sessionByWebContents.set(otherOwner.id, session("Space B"))
+  expect(
+    controller.getSpaceFileEditorSettingsContext(window.webContents)
+  ).toBeNull()
+  settings.emit("closed")
+  expect(
+    controller.getSpaceFileEditorSettingsContext(window.webContents)
+  ).toBeNull()
 })
 
 it("reuses a separate property window without registering it as a Space owner", async () => {

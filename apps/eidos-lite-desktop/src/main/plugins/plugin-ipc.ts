@@ -1654,23 +1654,48 @@ export function registerPluginIpc(controller: WindowController): {
       await store.associate(extension, editor)
     }
   )
+  ipcMain.handle(PLUGIN_CHANNELS.openSpaceFileEditorSettings, (event) => {
+    caller(event)
+    controller.openSpaceFileEditorSettings(event.sender)
+  })
+  ipcMain.handle(PLUGIN_CHANNELS.getSpaceFileEditorSettings, async (event) => {
+    caller(event)
+    const context = controller.getSpaceFileEditorSettingsContext(event.sender)
+    if (!context) return null
+    const { contextId, spaceId, spaceName } = context
+    const extensions = await store.spaceFileEditors(spaceId, service.locale)
+    return controller.getSpaceFileEditorSettingsContext(event.sender)
+      ?.contextId === contextId
+      ? { contextId, spaceName, extensions }
+      : null
+  })
   ipcMain.handle(
-    PLUGIN_CHANNELS.resetSpaceEditorDefaults,
-    async (event, spaceId: unknown, pluginId: unknown) => {
+    PLUGIN_CHANNELS.setSpaceFileEditorDefault,
+    async (event, contextId: unknown, extension: unknown, editor: unknown) => {
       caller(event)
       if (
-        typeof pluginId !== "string" ||
-        pluginId.length > 128 ||
-        !/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/.test(pluginId)
+        typeof contextId !== "string" ||
+        typeof extension !== "string" ||
+        (editor !== null && typeof editor !== "string")
       )
-        throw new PluginError("INVALID_REQUEST", "Invalid plugin")
-      const space = controller.requireSession(event.sender).canonical.id
-      if (space !== spaceId)
-        throw new PluginError(
-          "INSTANCE_CLOSED",
-          "Space changed before resetting file defaults"
+        throw new PluginError("INVALID_REQUEST", "Invalid association")
+      const requireContext = () => {
+        const context = controller.getSpaceFileEditorSettingsContext(
+          event.sender
         )
-      await store.clearSpaceEditorDefaults(space, pluginId)
+        if (!context || context.contextId !== contextId)
+          throw new PluginError(
+            "INSTANCE_CLOSED",
+            "Space changed before saving file defaults"
+          )
+        return context
+      }
+      await store.associate(
+        extension,
+        editor,
+        requireContext().spaceId,
+        requireContext
+      )
       catalogChanged()
     }
   )

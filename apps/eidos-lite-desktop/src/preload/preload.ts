@@ -176,11 +176,16 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(PLUGIN_CHANNELS.selectTheme, id),
   setPluginDefault: (extension, editor) =>
     ipcRenderer.invoke(PLUGIN_CHANNELS.associate, extension, editor),
-  resetSpacePluginEditorDefaults: (spaceId, pluginId) =>
+  openSpaceFileEditorSettings: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.openSpaceFileEditorSettings),
+  getSpaceFileEditorSettings: () =>
+    ipcRenderer.invoke(PLUGIN_CHANNELS.getSpaceFileEditorSettings),
+  setSpaceFileEditorDefault: (contextId, extension, editor) =>
     ipcRenderer.invoke(
-      PLUGIN_CHANNELS.resetSpaceEditorDefaults,
-      spaceId,
-      pluginId
+      PLUGIN_CHANNELS.setSpaceFileEditorDefault,
+      contextId,
+      extension,
+      editor
     ),
   pluginEditors: (path) => ipcRenderer.invoke(PLUGIN_CHANNELS.editors, path),
   reportFileOpened: (spaceId, path) =>
@@ -284,11 +289,20 @@ const api: EidosLiteApi = {
   onSettingsNavigate: (listener) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      page: "devices" | "account-sync"
+      page: "devices" | "account-sync" | "space-file-editors"
     ) => listener(page)
     ipcRenderer.on(IPC_CHANNELS.settingsNavigate, handler)
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.settingsNavigate, handler)
+  },
+  onSettingsSpaceFileEditorsChanged: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.settingsSpaceFileEditorsChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.settingsSpaceFileEditorsChanged,
+        handler
+      )
   },
   openWhatsNew: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewOpen),
   openWhatsNewRelease: () => ipcRenderer.invoke(IPC_CHANNELS.whatsNewRelease),

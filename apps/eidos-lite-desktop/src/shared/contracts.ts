@@ -249,6 +249,8 @@ export const IPC_CHANNELS = {
   syncRun: "eidos-lite:sync-run",
   peerSync: "eidos-lite:peer-sync",
   settingsNavigate: "eidos-lite:settings-navigate",
+  settingsSpaceFileEditorsChanged:
+    "eidos-lite:settings-space-file-editors-changed",
   syncProgress: "eidos-lite:sync-progress",
   syncQueueStatus: "eidos-lite:sync-queue-status",
   syncQueueChanged: "eidos-lite:sync-queue-changed",
@@ -2090,8 +2092,9 @@ export interface EidosLiteApi extends PluginApi {
   onFilePropertiesPrepareClose(listener: (token: string) => void): () => void
   replyFilePropertiesClose(token: string, allowed: boolean): void
   onSettingsNavigate?(
-    listener: (page: "devices" | "account-sync") => void
+    listener: (page: "devices" | "account-sync" | "space-file-editors") => void
   ): () => void
+  onSettingsSpaceFileEditorsChanged(listener: () => void): () => void
   openWhatsNew(): Promise<void>
   openWhatsNewRelease(): Promise<void>
   onWhatsNew(listener: () => void): () => void

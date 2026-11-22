@@ -3,7 +3,7 @@ import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 import type { EidosLiteApi, EidosLitePreferences } from "../shared/contracts"
-import type { PluginListing } from "../shared/plugins"
+import type { PluginListing, SpaceFileEditorSettings } from "../shared/plugins"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { EidosLiteI18nProvider } from "./i18n"
 import { SettingsPage } from "./settings-page"
@@ -64,6 +64,10 @@ describe("Settings search through original controls", () => {
   let root: Root
   let saved: EidosLitePreferences
   let listing: PluginListing
+  let spaceEditors: SpaceFileEditorSettings | null
+  let settingsNavigate:
+    | Parameters<NonNullable<EidosLiteApi["onSettingsNavigate"]>>[0]
+    | undefined
   const listeners = new Set<(preferences: EidosLitePreferences) => void>()
   const createApi = () => ({
     getAppInfo: vi.fn(async () => ({
@@ -104,6 +108,23 @@ describe("Settings search through original controls", () => {
       async (_input: { password: Uint8Array }) => {}
     ),
     listPlugins: vi.fn(async () => listing),
+    getSpaceFileEditorSettings: vi.fn(async () => spaceEditors),
+    setSpaceFileEditorDefault: vi.fn(
+      async (contextId: string, extension: string, editor: string | null) => {
+        if (spaceEditors?.contextId !== contextId)
+          throw new Error("Space changed")
+        const setting = spaceEditors.extensions.find(
+          (row) => row.extension === extension
+        )!
+        setting.override = editor
+      }
+    ),
+    onSettingsNavigate: (listener: NonNullable<typeof settingsNavigate>) => {
+      settingsNavigate = listener
+      return () => {
+        settingsNavigate = undefined
+      }
+    },
     setPluginDefault: vi.fn(
       async (extension: string, editor: string | null) => {
         if (editor === null) delete listing.associations?.[extension]
@@ -134,6 +155,7 @@ describe("Settings search through original controls", () => {
       builtInPlugins: { terminal: false },
     }
     listing = pluginListing()
+    spaceEditors = null
     api = createApi()
     Object.defineProperty(window, "eidosLite", {
       configurable: true,
@@ -158,6 +180,57 @@ describe("Settings search through original controls", () => {
       )
     )
   const input = () => host.querySelector<HTMLInputElement>('[role="combobox"]')!
+  it.each(["first", "existing"])(
+    "navigates to current Space defaults in %s Settings and changes just one extension",
+    async (mode) => {
+      spaceEditors = {
+        contextId: "space-editor-scope",
+        spaceName: "Synthetic Space",
+        extensions: [".csv", ".tsv"].map((extension) => ({
+          extension,
+          override: "example.csv/csv",
+          deviceEditor: extension === ".csv" ? "CSV editor" : null,
+          editors: [{ key: "example.csv/csv", label: "CSV editor" }],
+        })),
+      }
+      if (mode === "first")
+        window.history.replaceState(null, "", "#/settings/space-file-editors")
+      await mount()
+      if (mode === "existing")
+        await act(async () => settingsNavigate?.("space-file-editors"))
+      const section = host.querySelector<HTMLElement>(
+        '[data-setting-id="files.space-default-editors"]'
+      )!
+      expect(document.activeElement).toBe(section)
+      expect(section.textContent).toContain(
+        "Default editors in Synthetic Space"
+      )
+      expect(host.textContent).toContain("Device file defaults")
+      expect(api.setSpaceFileEditorDefault).not.toHaveBeenCalled()
+      const [csv, tsv] = section.querySelectorAll("select")
+      await act(async () => {
+        csv.value = ""
+        csv.dispatchEvent(new Event("change", { bubbles: true }))
+      })
+      expect(api.setSpaceFileEditorDefault).toHaveBeenCalledWith(
+        "space-editor-scope",
+        ".csv",
+        null
+      )
+      expect(api.setPluginDefault).not.toHaveBeenCalled()
+      expect(csv.value).toBe("")
+      expect(tsv.value).toBe("example.csv/csv")
+      expect(Array.from(csv.options, (option) => option.value)).toEqual([
+        "",
+        "builtin",
+        "example.csv/csv",
+      ])
+      expect(Array.from(tsv.options, (option) => option.value)).toEqual([
+        "",
+        "example.csv/csv",
+      ])
+    }
+  )
   const content = () => host.querySelector<HTMLElement>(".settings-content")!
   const fill = (field: HTMLInputElement, value: string) =>
     act(async () => {

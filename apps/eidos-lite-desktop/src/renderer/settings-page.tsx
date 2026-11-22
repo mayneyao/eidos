@@ -64,6 +64,7 @@ import {
 import { SettingsSearch, isSettingsSearchShortcut } from "./settings-search"
 import { focusSetting } from "./settings-navigation"
 import { SettingsSidebarResizer } from "./settings-sidebar-resizer"
+import { SpaceFileEditorSettings } from "./space-file-editor-settings"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -127,6 +128,7 @@ export function SettingsPage() {
   const { t, locale } = useEidosLiteI18n()
   const readPage = (): SettingsPageId => {
     const section = window.location.hash.split("/")[2]
+    if (section === "space-file-editors") return "files"
     return (
       SETTINGS_PAGES.find((page) => page.id === section)?.id ?? "preferences"
     )
@@ -140,7 +142,11 @@ export function SettingsPage() {
   const [visitedPages, setVisitedPages] = useState(() => new Set([activePage]))
   const [navigationVersion, setNavigationVersion] = useState(0)
   const [navigationTarget, setNavigationTarget] =
-    useState<SettingDescriptor | null>(null)
+    useState<SettingDescriptor | null>(() =>
+      window.location.hash === "#/settings/space-file-editors"
+        ? SETTINGS.spaceFileEditors
+        : null
+    )
   const navigate = useCallback(
     (
       page: SettingsPageId,
@@ -163,7 +169,12 @@ export function SettingsPage() {
     []
   )
   useEffect(
-    () => window.eidosLite.onSettingsNavigate?.((page) => navigate(page)),
+    () =>
+      window.eidosLite.onSettingsNavigate?.((page) =>
+        page === "space-file-editors"
+          ? navigate("files", SETTINGS.spaceFileEditors)
+          : navigate(page)
+      ),
     [navigate]
   )
   useEffect(() => {
@@ -947,7 +958,13 @@ export function SettingsPage() {
               hidden={activePage !== "files"}
             >
               <h2 id="settings-files">{t("Files")}</h2>
+              <SpaceFileEditorSettings active={activePage === "files"} />
               <div className="settings-group" data-default-file-editors>
+                <div className="settings-row">
+                  <div className="settings-row-copy">
+                    <strong>{t("Device file defaults")}</strong>
+                  </div>
+                </div>
                 <div
                   className="settings-row settings-row-stacked"
                   data-markdown-file-editing-mode

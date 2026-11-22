@@ -104,6 +104,14 @@ export const SETTINGS = {
     "Choose where new Spaces are created.",
     ["folder", "directory", "storage", "默认位置", "目录"]
   ),
+  spaceFileEditors: setting(
+    "files.space-default-editors",
+    "files",
+    "Space file defaults",
+    "Choose which editor opens files in the current Space.",
+    ["open with", "override", "在此空间打开", "默认打开"],
+    "section"
+  ),
   markdownEditor: setting(
     "files.markdown-editor",
     "files",
