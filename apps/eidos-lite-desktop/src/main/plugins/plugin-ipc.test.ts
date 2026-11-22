@@ -195,34 +195,11 @@ beforeEach(async () => {
       return owner
     })
   const sessionFor = (sender: { id: number }) => sessions.get(sender.id)
-  let settingsContext: {
-    owner: number
-    contextId: string
-    spaceId: string
-    spaceName: string
-  } | null = null
   registered = registerPluginIpc({
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
     showPluginInstall: mock.showPluginInstall,
     sessionFor,
-    openSpaceFileEditorSettings: (sender: { id: number }) => {
-      const session = sessionFor(sender)
-      if (!session) throw new Error("No active Space")
-      settingsContext = {
-        owner: sender.id,
-        contextId: `settings-${session.canonical.id}`,
-        spaceId: session.canonical.id,
-        spaceName: session.canonical.name,
-      }
-    },
-    getSpaceFileEditorSettingsContext: (sender: { id: number }) =>
-      sender.id === 3 &&
-      settingsContext &&
-      sessions.get(settingsContext.owner)?.canonical.id ===
-        settingsContext.spaceId
-        ? settingsContext
-        : null,
     requireSession: (sender: { id: number }) => {
       const session = sessionFor(sender)
       if (!session) throw new Error("No active Space")
@@ -695,50 +672,14 @@ it("opts into unambiguous marketplace file editors while protecting Eidos Files"
   expect(await call("editors", 1, "diagram.svg")).toHaveLength(2)
   await store.associate(".svg", "builtin", "space-1")
   await store.associate(".canvas", "builtin")
-  await call("openSpaceFileEditorSettings", 1)
-  expect(await call("getSpaceFileEditorSettings", 2)).toBeNull()
-  expect(await call("getSpaceFileEditorSettings", 3)).toMatchObject({
-    contextId: "settings-space-1",
-    spaceName: "Space 1",
-    extensions: expect.arrayContaining([
-      expect.objectContaining({
-        extension: ".canvas",
-        override: `${id}/drawing`,
-        editors: [expect.objectContaining({ key: `${id}/drawing` })],
-      }),
-    ]),
-  })
   await expect(
-    call("setSpaceFileEditorDefault", 2, "settings-space-1", ".canvas", null)
-  ).rejects.toThrow("Space changed before saving file defaults")
-  await call("openSpaceFileEditorSettings", 2)
-  await expect(
-    call("setSpaceFileEditorDefault", 3, "settings-space-1", ".canvas", null)
-  ).rejects.toThrow("Space changed before saving file defaults")
-  await expect(
-    call(
-      "setSpaceFileEditorDefault",
-      3,
-      "settings-space-2",
-      ".canvas",
-      `${id}/drawing`
-    )
-  ).rejects.toThrow("Editor is unavailable for this extension")
-  await call("openSpaceFileEditorSettings", 1)
+    call("resetSpaceEditorDefaults", 2, "space-1", id)
+  ).rejects.toThrow("Space changed before resetting file defaults")
   expect(await store.resolve("diagram.canvas", "space-1")).toMatchObject({
     editor: { key: `${id}/drawing` },
   })
-  await call(
-    "setSpaceFileEditorDefault",
-    3,
-    "settings-space-1",
-    ".canvas",
-    null
-  )
-  expect((await listing(1)).space?.associations).toEqual({
-    ".sketch": `${id}/drawing`,
-    ".svg": "builtin",
-  })
+  await call("resetSpaceEditorDefaults", 1, "space-1", id)
+  expect((await listing(1)).space?.associations).toEqual({ ".svg": "builtin" })
   expect((await listing(1)).associations).toEqual({ ".canvas": "builtin" })
   expect((await listing(2)).space?.associations).toEqual({
     ".canvas": "builtin",
@@ -746,37 +687,6 @@ it("opts into unambiguous marketplace file editors while protecting Eidos Files"
   expect(await store.resolve("diagram.canvas", "space-1")).toEqual({
     editor: null,
   })
-  const editors = PluginStore.prototype.editors
-  vi.spyOn(PluginStore.prototype, "editors").mockImplementationOnce(
-    async function (this: PluginStore, ...args) {
-      const choices = await editors.apply(this, args)
-      await call("openSpaceFileEditorSettings", 2)
-      return choices
-    }
-  )
-  await expect(
-    call(
-      "setSpaceFileEditorDefault",
-      3,
-      "settings-space-1",
-      ".canvas",
-      `${id}/drawing`
-    )
-  ).rejects.toThrow("Space changed before saving file defaults")
-  expect((await listing(1)).space?.associations[".canvas"]).toBeUndefined()
-  await call("openSpaceFileEditorSettings", 1)
-  await call(
-    "setSpaceFileEditorDefault",
-    3,
-    "settings-space-1",
-    ".canvas",
-    `${id}/drawing`
-  )
-  expect((await listing(1)).space?.associations[".canvas"]).toBe(
-    `${id}/drawing`
-  )
-  switchTestSpace(1, "changed")
-  expect(await call("getSpaceFileEditorSettings", 3)).toBeNull()
 })
 
 it("preserves the Space's previous default when the install fails after review", async () => {

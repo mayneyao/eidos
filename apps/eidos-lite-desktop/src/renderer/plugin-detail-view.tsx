@@ -70,7 +70,7 @@ export interface PluginDetailViewProps {
   installDisabled?: boolean
   error?: string | null
   onBack(): void
-  onManageFileDefaults?(): void
+  onOpenFileSettings?(): void
   onInstall?(): Promise<void> | void
   onToggleEnable(): Promise<void> | void
   onSelectTheme?(): Promise<void> | void
@@ -101,7 +101,7 @@ export function PluginDetailView({
   installDisabled = false,
   error = null,
   onBack,
-  onManageFileDefaults,
+  onOpenFileSettings,
   onInstall,
   onToggleEnable,
   onSelectTheme,
@@ -960,28 +960,24 @@ export function PluginDetailView({
               </button>
             )}
           </div>
-          {!previewPending && onManageFileDefaults ? (
+          {!previewPending && fileDefaults?.length && onOpenFileSettings ? (
             <div className="plugin-detail-file-defaults">
-              {fileDefaults?.length ? (
-                <span
-                  className="plugin-manager-caption"
-                  id={`${id}-file-defaults`}
-                >
-                  {t("Default editor in this Space for {extensions}", {
-                    extensions: fileDefaults.join(", "),
-                  })}
-                </span>
-              ) : null}
+              <span
+                className="plugin-manager-caption"
+                id={`${id}-file-defaults`}
+              >
+                {t("Default editor in this Space for {extensions}", {
+                  extensions: fileDefaults.join(", "),
+                })}
+              </span>
               <button
                 type="button"
                 className="settings-button settings-button-quiet"
-                aria-describedby={
-                  fileDefaults?.length ? `${id}-file-defaults` : undefined
-                }
+                aria-describedby={`${id}-file-defaults`}
                 disabled={busy}
-                onClick={onManageFileDefaults}
+                onClick={onOpenFileSettings}
               >
-                {t("Manage file defaults in Settings")}
+                {t("Open file settings")}
               </button>
             </div>
           ) : null}

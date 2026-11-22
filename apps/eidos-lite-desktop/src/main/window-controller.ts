@@ -5,7 +5,6 @@ import { isDevelopmentReadonlyRoot } from "./development-readonly"
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { randomUUID } from "node:crypto"
 import type { GraftEncryptedInput } from "../shared/graft-sdk-contracts"
 import type { FileHookEvent, FileHookPlan } from "@eidos.space/plugin-sdk"
 import { installWindowZoom } from "./window-zoom"
@@ -629,11 +628,6 @@ export class WindowController {
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
   private settingsWindow: BrowserWindow | null = null
   private settingsOwnerWindow: BrowserWindow | null = null
-  private settingsFileEditorContext: {
-    contextId: string
-    owner: WebContents
-    session: SpaceSession
-  } | null = null
   private lastWorkbenchWindow: BrowserWindow | null = null
   private readonly pluginInstallIntents = new Map<number, PluginInstallIntent>()
   private pluginInstallSequence = 0
@@ -871,46 +865,25 @@ export class WindowController {
       this.pluginInstallIntents.delete(contents.id)
   }
 
-  showSettingsWindow(
-    route = "/settings/preferences",
-    source?: WebContents
-  ): BrowserWindow {
+  showSettingsWindow(route = "/settings/preferences"): BrowserWindow {
     const owner = BrowserWindow.getFocusedWindow()
     if (owner && owner !== this.settingsWindow) this.settingsOwnerWindow = owner
-    source ??= owner?.webContents
-    const settings =
-      this.settingsWindow && !this.settingsWindow.isDestroyed()
-        ? this.settingsWindow
-        : null
-    if (source && source !== settings?.webContents) {
-      const session = this.sessionByWebContents.get(source.id)
-      const previous = this.settingsFileEditorContext
-      const changed = session
-        ? source !== previous?.owner || session !== previous?.session
-        : previous !== null
-      if (changed) {
-        this.settingsFileEditorContext = session
-          ? { owner: source, session, contextId: randomUUID() }
-          : null
-        this.notifySettingsFileEditorContextChanged()
-      }
-    }
-    if (settings) {
-      this.focusWindow(settings)
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      this.focusWindow(this.settingsWindow)
       if (
         route === "/settings/devices" ||
         route === "/settings/account-sync" ||
-        route === "/settings/space-file-editors"
+        route === "/settings/files"
       ) {
-        if (settings.webContents.isLoading())
-          void this.loadRenderer(settings, route)
+        if (this.settingsWindow.webContents.isLoading())
+          void this.loadRenderer(this.settingsWindow, route)
         else
-          settings.webContents.send(
+          this.settingsWindow.webContents.send(
             IPC_CHANNELS.settingsNavigate,
             route.slice("/settings/".length)
           )
       }
-      return settings
+      return this.settingsWindow
     }
     const window = this.createWindow(true, "settings")
     this.settingsWindow = window
@@ -918,49 +891,10 @@ export class WindowController {
       window.setTitle(`${translateEidosLite(locale, "Settings")} — Eidos Lite`)
     )
     window.once("closed", () => {
-      if (this.settingsWindow === window) {
-        this.settingsWindow = null
-        this.settingsFileEditorContext = null
-      }
+      if (this.settingsWindow === window) this.settingsWindow = null
     })
     void this.loadRenderer(window, route)
     return window
-  }
-
-  openSpaceFileEditorSettings(owner: WebContents): void {
-    if (owner.isDestroyed() || !this.sessionByWebContents.has(owner.id))
-      throw new Error("Open a Space first")
-    this.showSettingsWindow("/settings/space-file-editors", owner)
-  }
-
-  getSpaceFileEditorSettingsContext(sender: WebContents) {
-    const context = this.settingsFileEditorContext
-    if (
-      !context ||
-      !this.settingsWindow ||
-      this.settingsWindow.isDestroyed() ||
-      this.settingsWindow.webContents !== sender ||
-      context.owner.isDestroyed() ||
-      this.sessionByWebContents.get(context.owner.id) !== context.session
-    )
-      return null
-    return {
-      contextId: context.contextId,
-      spaceId: context.session.canonical.id,
-      spaceName: context.session.canonical.name,
-    }
-  }
-
-  private notifySettingsFileEditorContextChanged(): void {
-    const window = this.settingsWindow
-    if (window && !window.isDestroyed() && !window.webContents.isLoading())
-      window.webContents.send(IPC_CHANNELS.settingsSpaceFileEditorsChanged)
-  }
-
-  private releaseSettingsFileEditorContext(owner: WebContents): void {
-    if (this.settingsFileEditorContext?.owner !== owner) return
-    this.settingsFileEditorContext = null
-    this.notifySettingsFileEditorContextChanged()
   }
 
   showWhatsNew(): void {
@@ -1714,7 +1648,11 @@ export class WindowController {
   async openSettingsDestination(
     destination: EidosLiteSettingsDestination
   ): Promise<void> {
-    if (destination === "devices" || destination === "account-sync") {
+    if (
+      destination === "devices" ||
+      destination === "account-sync" ||
+      destination === "files"
+    ) {
       this.showSettingsWindow(`/settings/${destination}`)
       return
     }
@@ -2040,7 +1978,6 @@ export class WindowController {
       this.clearPendingLaunchFiles(webContents.id)
       this.onSpaceReleased(webContents.id)
       this.pluginSpaceClosed?.(webContents.id)
-      this.releaseSettingsFileEditorContext(webContents)
     }
     this.sessionByWebContents.set(webContents.id, session)
     session.fileHookRunner = (event) =>
@@ -2083,7 +2020,6 @@ export class WindowController {
       this.pluginSpaceClosed?.(webContents.id)
       this.detachSpaceListeners.get(webContents.id)?.()
       this.sessionByWebContents.delete(webContents.id)
-      this.releaseSettingsFileEditorContext(webContents)
       this.clearPendingLaunchFiles(webContents.id)
       if (this.windowBySpaceId.get(session.canonical.id) === window) {
         this.windowBySpaceId.delete(session.canonical.id)

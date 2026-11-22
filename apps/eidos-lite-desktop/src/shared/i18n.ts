@@ -1223,20 +1223,7 @@ const zh: Record<string, string> = {
   "Default editor in this Space for {extensions}":
     "此 Space 中 {extensions} 文件的默认编辑器",
   "Use device default": "使用设备默认设置",
-  "Manage file defaults in Settings": "在设置中管理默认打开方式",
-  "Space file defaults": "Space 默认打开方式",
-  "Device file defaults": "设备默认打开方式",
-  "Choose which editor opens files in the current Space.":
-    "选择当前 Space 中打开文件的编辑器。",
-  "Default editors in {space}": "{space} 的默认打开方式",
-  "Open Settings from a Space to manage its file defaults.":
-    "从 Space 打开设置即可管理其默认打开方式。",
-  "No plugin editors are enabled in this Space.": "此 Space 未启用插件编辑器。",
-  "Default editor for {extension} in {space}":
-    "{space} 中 {extension} 的默认编辑器",
-  "Use device default ({editor})": "使用设备默认设置（{editor}）",
-  "Saved editor unavailable (using built-in editor)":
-    "已保存的编辑器不可用（使用内置编辑器）",
+  "Open file settings": "打开文件设置",
   "This plugin offers multiple editors for {extensions}. Use Open with to choose an editor for those files.":
     "此插件为 {extensions} 提供多个编辑器。你可以通过「打开方式」为这些文件选择编辑器。",
   "OpenAI-compatible Chat Completions endpoint":

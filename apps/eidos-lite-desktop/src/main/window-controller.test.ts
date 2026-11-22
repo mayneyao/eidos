@@ -1040,10 +1040,11 @@ it("invalidates pending clone requests and drains the coordinator when shutting 
   await closing
 })
 
-it("opens Settings in its own window and reuses that window", () => {
+it.each(["preferences", "files"])("opens Settings for %s", async (page) => {
   const { controller, window } = fixture()
+  const send = vi.fn()
   const settingsWindow = Object.assign(new EventEmitter(), {
-    webContents: { isLoading: () => false },
+    webContents: { isLoading: () => false, send },
     isDestroyed: () => false,
     isMinimized: () => false,
     show: vi.fn(),
@@ -1060,69 +1061,20 @@ it("opens Settings in its own window and reuses that window", () => {
     .mockReturnValue(settingsWindow)
   const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
   vi.spyOn(internals, "locale").mockResolvedValue("en")
-  expect(controller.showSettingsWindow()).toBe(settingsWindow)
+  const open = () =>
+    page === "files"
+      ? controller.openSettingsDestination(page)
+      : expect(controller.showSettingsWindow()).toBe(settingsWindow)
+  await open()
   expect(settingsWindow).not.toBe(window)
   expect(create).toHaveBeenCalledWith(true, "settings")
-  expect(load).toHaveBeenCalledWith(settingsWindow, "/settings/preferences")
-  expect(controller.showSettingsWindow()).toBe(settingsWindow)
+  expect(load).toHaveBeenCalledWith(settingsWindow, `/settings/${page}`)
+  await open()
   expect(create).toHaveBeenCalledOnce()
-})
-
-it("binds a reused Settings window to the exact invoking workbench session", () => {
-  const { controller, owner } = fixture()
-  const settings = Object.assign(new EventEmitter(), {
-    webContents: { id: 3, isLoading: () => false, send: vi.fn() },
-    isDestroyed: () => false,
-    isMinimized: () => false,
-    show: vi.fn(),
-    focus: vi.fn(),
-    setTitle: vi.fn(),
-  })
-  const window = settings as unknown as BrowserWindow
-  const otherOwner = {
-    id: 2,
-    isDestroyed: () => false,
-  } as unknown as WebContents
-  const internals = controller as unknown as {
-    createWindow(show: boolean, kind: string): BrowserWindow
-    loadRenderer(window: BrowserWindow, route: string): Promise<void>
-    sessionByWebContents: Map<number, unknown>
-  }
-  internals.sessionByWebContents.set(owner.id, session("Space A"))
-  internals.sessionByWebContents.set(otherOwner.id, session("Space B"))
-  const create = vi.spyOn(internals, "createWindow").mockReturnValue(window)
-  const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
-  vi.spyOn(controller, "locale").mockResolvedValue("en")
-
-  controller.openSpaceFileEditorSettings(owner)
-  expect(load).toHaveBeenCalledWith(window, "/settings/space-file-editors")
-  const first = controller.getSpaceFileEditorSettingsContext(window.webContents)
-  expect(first).toMatchObject({ spaceId: "Space A", spaceName: "Space A" })
-  expect(controller.getSpaceFileEditorSettingsContext(owner)).toBeNull()
-  controller.showSettingsWindow(undefined, window.webContents)
-  expect(
-    controller.getSpaceFileEditorSettingsContext(window.webContents)
-  ).toEqual(first)
-
-  controller.openSpaceFileEditorSettings(otherOwner)
-  expect(create).toHaveBeenCalledOnce()
-  expect(settings.webContents.send).toHaveBeenCalledWith(
-    IPC_CHANNELS.settingsNavigate,
-    "space-file-editors"
-  )
-  const second = controller.getSpaceFileEditorSettingsContext(
-    window.webContents
-  )
-  expect(second).toMatchObject({ spaceId: "Space B", spaceName: "Space B" })
-  expect(second?.contextId).not.toBe(first?.contextId)
-  internals.sessionByWebContents.set(otherOwner.id, session("Space B"))
-  expect(
-    controller.getSpaceFileEditorSettingsContext(window.webContents)
-  ).toBeNull()
-  settings.emit("closed")
-  expect(
-    controller.getSpaceFileEditorSettingsContext(window.webContents)
-  ).toBeNull()
+  expect(load).toHaveBeenCalledOnce()
+  if (page === "files")
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.settingsNavigate, "files")
+  else expect(send).not.toHaveBeenCalled()
 })
 
 it("reuses a separate property window without registering it as a Space owner", async () => {

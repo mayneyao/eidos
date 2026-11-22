@@ -460,17 +460,6 @@ export function PluginManager({
             .map(([extension]) => extension)
             .sort()
         : []
-    const canManageFileDefaults =
-      spaceId &&
-      (fileDefaults.length > 0 ||
-        (plugin?.enabled &&
-          manifest?.placements?.some(
-            (placement) =>
-              placement.location === "file/open" &&
-              placement.extensions.some(
-                (extension) => extension.toLowerCase() !== ".eidos"
-              )
-          )))
     return withDropZone(
       <div ref={surface}>
         <Suspense
@@ -516,18 +505,15 @@ export function PluginManager({
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
-            onManageFileDefaults={
-              canManageFileDefaults
-                ? () =>
-                    void window.eidosLite
-                      .openSpaceFileEditorSettings()
-                      .catch((cause) =>
-                        setError(
-                          cause instanceof Error ? cause.message : String(cause)
-                        )
-                      )
-                : undefined
-            }
+            onOpenFileSettings={() => {
+              void window.eidosLite
+                .openSettingsDestination("files")
+                .catch((cause) =>
+                  setError(
+                    cause instanceof Error ? cause.message : String(cause)
+                  )
+                )
+            }}
             onInstall={() => {
               if (packagePreview) {
                 setError(null)

@@ -1751,8 +1751,8 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.preferencesChooseSpaceLocation, (event) =>
     controller.chooseDefaultSpaceLocation(event.sender)
   )
-  ipcMain.handle(IPC_CHANNELS.settingsOpen, (event) => {
-    controller.showSettingsWindow(undefined, event.sender)
+  ipcMain.handle(IPC_CHANNELS.settingsOpen, () => {
+    controller.showSettingsWindow()
   })
   ipcMain.handle(IPC_CHANNELS.whatsNewOpen, () => controller.showWhatsNew())
   ipcMain.handle(IPC_CHANNELS.whatsNewRelease, () =>
@@ -1769,6 +1769,7 @@ export function registerIpc(
         value !== "github" &&
         value !== "logs" &&
         value !== "devices" &&
+        value !== "files" &&
         value !== "account-sync"
       ) {
         throw new Error("Invalid Settings destination")

@@ -24,7 +24,6 @@ import type {
   PluginEditorChoice,
   PluginListing,
   PluginSpaceConfig,
-  SpaceFileEditorSetting,
 } from "../../shared/plugins"
 import type { PluginManifest, SettingValue } from "@eidos.space/plugin-sdk"
 
@@ -650,12 +649,7 @@ export class PluginStore {
     })
   }
 
-  async associate(
-    extension: string,
-    editor: string | null,
-    spaceId?: string,
-    verifyContext?: () => void
-  ) {
+  async associate(extension: string, editor: string | null, spaceId?: string) {
     if (!canAssociateEditor(extension))
       throw new PluginError("INVALID_REQUEST", "Invalid file extension")
     if (spaceId === "")
@@ -663,11 +657,6 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Default editor requires a Space"
       )
-    const pluginId =
-      verifyContext && spaceId && editor && editor !== "builtin"
-        ? editor.split("/", 1)[0]
-        : null
-    const hash = pluginId ? (await this.installed(pluginId))?.hash : undefined
     if (
       editor !== null &&
       editor !== "builtin" &&
@@ -679,17 +668,7 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Editor is unavailable for this extension"
       )
-    await this.writeAssociations({ [extension]: editor }, spaceId, (config) => {
-      verifyContext?.()
-      if (
-        pluginId &&
-        spaceId &&
-        (!config.spaces[spaceId]?.plugins[pluginId]?.enabled ||
-          (this.trials.get(pluginId) ?? config.installed[pluginId]?.hash) !==
-            hash)
-      )
-        throw new PluginError("STALE_REVISION", "Editor changed before saving")
-    })
+    await this.writeAssociations({ [extension]: editor }, spaceId)
   }
   async associateReviewedEditors(
     manifest: PluginManifest,
@@ -713,6 +692,14 @@ export class PluginStore {
           "STALE_REVISION",
           "Plugin changed during installation"
         )
+    })
+  }
+  async clearSpaceEditorDefaults(spaceId: string, pluginId: string) {
+    await this.update((config) => {
+      const defaults = config.spaces[spaceId]?.associations
+      if (!defaults) return
+      for (const [extension, editor] of Object.entries(defaults))
+        if (editor.startsWith(`${pluginId}/`)) delete defaults[extension]
     })
   }
   private writeAssociations(
@@ -783,42 +770,6 @@ export class PluginStore {
         ? config.activeThemeId
         : null,
     }
-  }
-  async spaceFileEditors(
-    spaceId: string,
-    locale: string
-  ): Promise<SpaceFileEditorSetting[]> {
-    const { plugins, space, associations } = await this.list(spaceId)
-    const overrides = space?.associations ?? {}
-    const choices = new Map<string, Map<string, string>>()
-    for (const { manifest: source, localization, enabled } of plugins) {
-      if (!enabled) continue
-      const manifest = localization
-        ? localizePluginManifest(source, localization, locale)
-        : source
-      for (const { extension, view } of fileOpenViews(manifest)) {
-        if (!canAssociateEditor(extension)) continue
-        const editors = choices.get(extension) ?? new Map<string, string>()
-        editors.set(
-          `${manifest.id}/${view.id}`,
-          manifest.name === view.title
-            ? view.title
-            : `${view.title} (${manifest.name})`
-        )
-        choices.set(extension, editors)
-      }
-    }
-    return [...new Set([...choices.keys(), ...Object.keys(overrides)])]
-      .sort()
-      .map((extension) => {
-        const editors = choices.get(extension)
-        return {
-          extension,
-          override: overrides[extension] ?? null,
-          deviceEditor: editors?.get(associations?.[extension] ?? "") ?? null,
-          editors: [...(editors ?? [])].map(([key, label]) => ({ key, label })),
-        }
-      })
   }
   async selectTheme(id: string | null): Promise<void> {
     if (id !== null) {

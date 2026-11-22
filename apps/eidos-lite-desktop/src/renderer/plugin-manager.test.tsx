@@ -85,36 +85,31 @@ async function click(text: string) {
   await act(async () => button!.click())
 }
 
-it("opens Space file defaults without changing an association", async () => {
+it("opens the existing Files settings without resetting plugin defaults", async () => {
   const listing = await window.eidosLite.listPlugins()
-  listing.plugins[0].enabled = true
-  listing.plugins[0].manifest.placements = [
-    { location: "file/open", view: "csv", extensions: [".csv"] },
-  ]
   listing.space!.associations = {
     ".csv": "example.csv/csv",
     ".svg": "example.other/vector",
   }
+  const reset = vi.fn()
   const open = vi.fn(async () => {})
   Object.assign(window.eidosLite, {
     listPlugins: async () => ({
       ...listing,
       space: { ...listing.space },
     }),
-    openSpaceFileEditorSettings: open,
+    resetSpacePluginEditorDefaults: reset,
+    openSettingsDestination: open,
   })
-  const mount = (key: string) =>
-    act(async () => {
-      root.render(
-        <PluginManager
-          key={key}
-          spaceId="space-a"
-          spaceAvailable
-          selectedPluginId="example.csv"
-        />
-      )
-    })
-  await mount("assigned")
+  await act(async () => {
+    root.render(
+      <PluginManager
+        spaceId="space-a"
+        spaceAvailable
+        selectedPluginId="example.csv"
+      />
+    )
+  })
   await vi.waitFor(() => {
     expect(container.textContent).toContain(
       "Default editor in this Space for .csv"
@@ -131,17 +126,12 @@ it("opens Space file defaults without changing an association", async () => {
   expect(caption?.textContent).toContain(".csv")
   action.focus()
   expect(document.activeElement).toBe(action)
-  await click("Manage file defaults in Settings")
-  expect(open).toHaveBeenCalledWith()
+  await click("Open file settings")
+  expect(open).toHaveBeenCalledOnce()
+  expect(open).toHaveBeenCalledWith("files")
+  expect(reset).not.toHaveBeenCalled()
   expect(associate).not.toHaveBeenCalled()
   expect(listing.space!.associations[".csv"]).toBe("example.csv/csv")
-
-  delete listing.space!.associations[".csv"]
-  await mount("inherited")
-  await vi.waitFor(() =>
-    expect(container.textContent).toContain("Manage file defaults in Settings")
-  )
-  expect(container.textContent).not.toContain("Default editor in this Space")
 })
 
 it("shows public page requests, API connections and legacy background origins independently", async () => {
