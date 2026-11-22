@@ -1,4 +1,3 @@
-import { viewResource } from "@eidos.space/plugin-runtime/view"
 import {
   pluginLanguageData,
   localizePluginManifest,
@@ -20,10 +19,13 @@ import {
   PluginError,
   PLUGIN_PACKAGE_LIMIT,
 } from "@eidos.space/plugin-runtime/rpc"
-import type {
-  PluginEditorChoice,
-  PluginListing,
-  PluginSpaceConfig,
+import {
+  canAssociateEditor,
+  fileOpenViews,
+  type PluginEditorChoice,
+  type PluginListing,
+  type PluginSpaceConfig,
+  type SpaceFileEditorSetting,
 } from "../../shared/plugins"
 import type { PluginManifest, SettingValue } from "@eidos.space/plugin-sdk"
 
@@ -42,28 +44,6 @@ export const emptyScope = (): PluginSpaceConfig => ({
 })
 const validHash = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
-
-function canAssociateEditor(extension: string): boolean {
-  return /^\.[a-z0-9]{1,16}$/.test(extension) && extension !== ".eidos"
-}
-
-function* fileOpenViews(manifest: PluginManifest, extension?: string) {
-  for (const placement of manifest.placements ?? []) {
-    if (placement.location !== "file/open") continue
-    const view = manifest.views?.find(({ id }) => id === placement.view)
-    if (!view) continue
-    const resource = viewResource(view)
-    for (const declared of placement.extensions) {
-      const ext = declared.toLowerCase()
-      if (extension !== undefined && ext !== extension) continue
-      if (
-        resource === "file" ||
-        resource === (ext === ".eidos" ? "eidos" : "document")
-      )
-        yield { extension: ext, view }
-    }
-  }
-}
 
 export function reviewFileEditorDefaults(manifest: PluginManifest) {
   const editors = new Map<string, Set<string>>()
@@ -357,7 +337,10 @@ export class PluginStore {
         throw new PluginError("TOO_LARGE", "Plugin settings exceed 64 KiB")
     })
   }
-  private update(change: (config: Configuration) => void): Promise<void> {
+  private update(
+    change: (config: Configuration) => void,
+    beforeCommit?: (config: Configuration) => void
+  ): Promise<void> {
     const next = this.writes.then(async () => {
       const config = await this.config()
       change(config)
@@ -367,6 +350,7 @@ export class PluginStore {
         await fs.writeFile(temporary, JSON.stringify(config, null, 2), {
           mode: 0o600,
         })
+        beforeCommit?.(config)
         await fs.rename(temporary, path.join(this.directory, "config.json"))
       } finally {
         await fs.rm(temporary, { force: true })
@@ -649,7 +633,12 @@ export class PluginStore {
     })
   }
 
-  async associate(extension: string, editor: string | null, spaceId?: string) {
+  async associate(
+    extension: string,
+    editor: string | null,
+    spaceId?: string,
+    verifyContext?: () => void
+  ) {
     if (!canAssociateEditor(extension))
       throw new PluginError("INVALID_REQUEST", "Invalid file extension")
     if (spaceId === "")
@@ -657,6 +646,12 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Default editor requires a Space"
       )
+    const pluginId =
+      editor !== null && editor !== "builtin" ? editor.split("/", 1)[0] : null
+    const hash =
+      pluginId && verifyContext
+        ? (await this.installed(pluginId))?.hash
+        : undefined
     if (
       editor !== null &&
       editor !== "builtin" &&
@@ -668,7 +663,23 @@ export class PluginStore {
         "INVALID_REQUEST",
         "Editor is unavailable for this extension"
       )
-    await this.writeAssociations({ [extension]: editor }, spaceId)
+    const verify = verifyContext
+      ? (config: Configuration) => {
+          verifyContext()
+          if (
+            pluginId &&
+            spaceId &&
+            (!config.spaces[spaceId]?.plugins[pluginId]?.enabled ||
+              (this.trials.get(pluginId) ??
+                config.installed[pluginId]?.hash) !== hash)
+          )
+            throw new PluginError(
+              "STALE_REVISION",
+              "Editor changed before saving"
+            )
+        }
+      : undefined
+    await this.writeAssociations({ [extension]: editor }, spaceId, verify)
   }
   async associateReviewedEditors(
     manifest: PluginManifest,
@@ -716,7 +727,7 @@ export class PluginStore {
         if (editor === null) delete defaults[extension]
         else defaults[extension] = editor
       }
-    })
+    }, verify)
   }
   async list(spaceId?: string): Promise<PluginListing> {
     const config = await this.config()
@@ -770,6 +781,57 @@ export class PluginStore {
         ? config.activeThemeId
         : null,
     }
+  }
+  async spaceFileEditors(
+    spaceId: string,
+    locale: string
+  ): Promise<SpaceFileEditorSetting[]> {
+    const { plugins, space, associations } = await this.list(spaceId)
+    const overrides = space?.associations ?? {}
+    const extensions = new Map<string, Map<string, string>>()
+    for (const { manifest: source, localization } of plugins) {
+      const enabled =
+        space?.plugins[source.id]?.enabled &&
+        checkPluginCompatibility(source, "eidos-lite").compatible
+      const manifest =
+        enabled && localization
+          ? localizePluginManifest(source, localization, locale)
+          : source
+      for (const { extension, view } of fileOpenViews(manifest)) {
+        if (!canAssociateEditor(extension)) continue
+        const editors = extensions.get(extension) ?? new Map<string, string>()
+        extensions.set(extension, editors)
+        if (enabled)
+          editors.set(
+            `${manifest.id}/${view.id}`,
+            manifest.name === view.title
+              ? view.title
+              : `${view.title} (${manifest.name})`
+          )
+      }
+    }
+    return [
+      ...new Set([
+        ".md",
+        ".markdown",
+        ".html",
+        ".htm",
+        ...extensions.keys(),
+        ...Object.keys(overrides),
+        ...Object.keys(associations ?? {}),
+      ]),
+    ]
+      .filter(canAssociateEditor)
+      .sort()
+      .map((extension) => {
+        const editors = extensions.get(extension)
+        return {
+          extension,
+          override: overrides[extension] ?? null,
+          deviceEditor: editors?.get(associations?.[extension] ?? "") ?? null,
+          editors: [...(editors ?? [])].map(([key, label]) => ({ key, label })),
+        }
+      })
   }
   async selectTheme(id: string | null): Promise<void> {
     if (id !== null) {

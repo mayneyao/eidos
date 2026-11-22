@@ -1077,6 +1077,73 @@ it.each(["preferences", "files"])("opens Settings for %s", async (page) => {
   else expect(send).not.toHaveBeenCalled()
 })
 
+it("routes file settings on first open and reuse with the current workbench context", async () => {
+  const { controller, owner } = fixture()
+  const send = vi.fn()
+  const contents = {
+    id: 22,
+    isLoading: () => false,
+    send,
+  } as unknown as WebContents
+  const settingsWindow = Object.assign(new EventEmitter(), {
+    webContents: contents,
+    isDestroyed: () => false,
+    isMinimized: () => false,
+    show: vi.fn(),
+    focus: vi.fn(),
+    setTitle: vi.fn(),
+  }) as unknown as BrowserWindow
+  const internals = controller as unknown as {
+    createWindow(show: boolean, kind: string): BrowserWindow
+    loadRenderer(window: BrowserWindow, route: string): Promise<void>
+    locale(): Promise<"en">
+  }
+  const create = vi
+    .spyOn(internals, "createWindow")
+    .mockReturnValue(settingsWindow)
+  const load = vi.spyOn(internals, "loadRenderer").mockResolvedValue()
+  vi.spyOn(internals, "locale").mockResolvedValue("en")
+
+  expect(() =>
+    controller.openSpaceFileEditorSettings(owner, ".canvas")
+  ).toThrow()
+  mocks.create.mockResolvedValueOnce(session("Space A"))
+  await controller.openRecentSpace(owner, "Space A")
+  controller.openSpaceFileEditorSettings(owner, ".canvas")
+  const contextA = controller.getSpaceFileEditorSettingsContext(contents)
+  expect(contextA).toMatchObject({
+    spaceId: "Space A",
+    spaceName: "Space A",
+    focusExtension: ".canvas",
+  })
+  expect(controller.getSpaceFileEditorSettingsContext(owner)).toBeNull()
+  expect(load).toHaveBeenCalledWith(settingsWindow, "/settings/files")
+
+  mocks.create.mockResolvedValueOnce(session("Space B"))
+  await controller.openRecentSpace(owner, "Space B")
+  const switched = controller.getSpaceFileEditorSettingsContext(contents)
+  expect(switched).toMatchObject({
+    spaceId: "Space B",
+    focusExtension: undefined,
+  })
+  expect(switched?.contextId).not.toBe(contextA?.contextId)
+  controller.openSpaceFileEditorSettings(owner, ".svg")
+  expect(send).toHaveBeenCalledWith(
+    IPC_CHANNELS.settingsSpaceFileEditorsChanged
+  )
+  expect(send).toHaveBeenCalledWith(IPC_CHANNELS.settingsNavigate, "files")
+  expect(controller.getSpaceFileEditorSettingsContext(contents)).toMatchObject({
+    spaceId: "Space B",
+    focusExtension: ".svg",
+  })
+  expect(create).toHaveBeenCalledOnce()
+  expect(load).toHaveBeenCalledOnce()
+
+  mocks.window = null
+  expect(controller.showSettingsWindow()).toBe(settingsWindow)
+  expect(controller.getSpaceFileEditorSettingsContext(contents)).toBeNull()
+})
+
 it("reuses a separate property window without registering it as a Space owner", async () => {
   const { controller, owner } = fixture()
   const current = session("properties-space")

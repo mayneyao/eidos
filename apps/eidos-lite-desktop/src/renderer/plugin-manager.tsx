@@ -26,6 +26,8 @@ import {
   type PluginMarketplace,
   type PluginInstallIntent,
   type PluginPackagePreview,
+  canAssociateEditor,
+  fileOpenViews,
   isPluginInstallActive,
   isPluginUpdateAvailable,
 } from "../shared/plugins"
@@ -452,14 +454,25 @@ export function PluginManager({
     selected &&
     (builtin || plugin || matchedMarketplacePlugin || packagePreview)
   ) {
-    const manifest = plugin?.manifest
-    const fileDefaults =
-      spaceId && manifest
-        ? Object.entries(listing?.space?.associations ?? {})
-            .filter(([, editor]) => editor.startsWith(`${manifest.id}/`))
-            .map(([extension]) => extension)
-            .sort()
+    const fileViews =
+      spaceId && spaceAvailable && plugin?.enabled
+        ? [...fileOpenViews(plugin.manifest)].filter(({ extension }) =>
+            canAssociateEditor(extension)
+          )
         : []
+    const associations = listing?.space?.associations
+    const fileDefaults = [
+      ...new Set(
+        fileViews
+          .filter(
+            ({ extension, view }) =>
+              associations?.[extension] === `${selected}/${view.id}`
+          )
+          .map(({ extension }) => extension)
+      ),
+    ].sort()
+    const settingsExtension =
+      fileDefaults[0] ?? fileViews.map(({ extension }) => extension).sort()[0]
     return withDropZone(
       <div ref={surface}>
         <Suspense
@@ -505,15 +518,19 @@ export function PluginManager({
             variant={variant}
             onBack={() => setSelected(null)}
             onOpenPage={onOpenPage}
-            onOpenFileSettings={() => {
-              void window.eidosLite
-                .openSettingsDestination("files")
-                .catch((cause) =>
-                  setError(
-                    cause instanceof Error ? cause.message : String(cause)
-                  )
-                )
-            }}
+            onOpenFileSettings={
+              settingsExtension
+                ? () => {
+                    void window.eidosLite
+                      .openSpaceFileEditorSettings(settingsExtension)
+                      .catch((cause) =>
+                        setError(
+                          cause instanceof Error ? cause.message : String(cause)
+                        )
+                      )
+                  }
+                : undefined
+            }
             onInstall={() => {
               if (packagePreview) {
                 setError(null)
@@ -571,9 +588,12 @@ export function PluginManager({
               installMarketplacePlugin(id)
             }}
             onToggleEnable={() => {
-              if (!plugin || !manifest) return
+              if (!plugin) return
               return run(() =>
-                window.eidosLite.setPluginEnabled(manifest.id, !plugin.enabled)
+                window.eidosLite.setPluginEnabled(
+                  plugin.manifest.id,
+                  !plugin.enabled
+                )
               )
             }}
             onSelectTheme={() => {

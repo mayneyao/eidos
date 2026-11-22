@@ -1224,6 +1224,11 @@ const zh: Record<string, string> = {
     "此 Space 中 {extensions} 文件的默认编辑器",
   "Use device default": "使用设备默认设置",
   "Open file settings": "打开文件设置",
+  "Space: {space}": "Space：{space}",
+  "Device defaults": "设备默认设置",
+  "Follow device ({editor})": "跟随设备（{editor}）",
+  "Built-in editor ({mode})": "内置编辑器（{mode}）",
+  "{editor} (plugin unavailable)": "{editor}（插件不可用）",
   "This plugin offers multiple editors for {extensions}. Use Open with to choose an editor for those files.":
     "此插件为 {extensions} 提供多个编辑器。你可以通过「打开方式」为这些文件选择编辑器。",
   "OpenAI-compatible Chat Completions endpoint":

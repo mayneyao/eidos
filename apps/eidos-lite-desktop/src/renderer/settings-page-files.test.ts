@@ -173,9 +173,15 @@ describe("SettingsPage Files - Default file editors", () => {
 
     expect(host.textContent).toContain("Markdown file editor")
     expect(host.textContent).toContain("HTML default open mode")
+    const controls = [
+      ...host.querySelectorAll<HTMLSelectElement>(
+        '[aria-labelledby="settings-files"] select'
+      ),
+    ]
     expect(
-      host.querySelectorAll('[aria-labelledby="settings-files"] select')
-    ).toHaveLength(2)
+      controls.map((control) => control.getAttribute("aria-label"))
+    ).toEqual(["Scope", "Markdown file editor", "HTML default open mode"])
+    expect(controls[0].selectedOptions[0].textContent).toBe("Device defaults")
 
     await act(async () => root.unmount())
     host.remove()

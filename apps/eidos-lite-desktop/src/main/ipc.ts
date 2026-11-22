@@ -1751,8 +1751,8 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.preferencesChooseSpaceLocation, (event) =>
     controller.chooseDefaultSpaceLocation(event.sender)
   )
-  ipcMain.handle(IPC_CHANNELS.settingsOpen, () => {
-    controller.showSettingsWindow()
+  ipcMain.handle(IPC_CHANNELS.settingsOpen, (event) => {
+    controller.showSettingsWindow(undefined, event.sender)
   })
   ipcMain.handle(IPC_CHANNELS.whatsNewOpen, () => controller.showWhatsNew())
   ipcMain.handle(IPC_CHANNELS.whatsNewRelease, () =>
@@ -1762,7 +1762,7 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.settingsOpenDestination,
-    (_event, value: unknown) => {
+    (event, value: unknown) => {
       if (
         value !== "documentation" &&
         value !== "website" &&
@@ -1775,7 +1775,8 @@ export function registerIpc(
         throw new Error("Invalid Settings destination")
       }
       return controller.openSettingsDestination(
-        value as EidosLiteSettingsDestination
+        value as EidosLiteSettingsDestination,
+        event.sender
       )
     }
   )

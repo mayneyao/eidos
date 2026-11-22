@@ -960,20 +960,24 @@ export function PluginDetailView({
               </button>
             )}
           </div>
-          {!previewPending && fileDefaults?.length && onOpenFileSettings ? (
+          {!previewPending && onOpenFileSettings ? (
             <div className="plugin-detail-file-defaults">
-              <span
-                className="plugin-manager-caption"
-                id={`${id}-file-defaults`}
-              >
-                {t("Default editor in this Space for {extensions}", {
-                  extensions: fileDefaults.join(", "),
-                })}
-              </span>
+              {fileDefaults?.length ? (
+                <span
+                  className="plugin-manager-caption"
+                  id={`${id}-file-defaults`}
+                >
+                  {t("Default editor in this Space for {extensions}", {
+                    extensions: fileDefaults.join(", "),
+                  })}
+                </span>
+              ) : null}
               <button
                 type="button"
                 className="settings-button settings-button-quiet"
-                aria-describedby={`${id}-file-defaults`}
+                aria-describedby={
+                  fileDefaults?.length ? `${id}-file-defaults` : undefined
+                }
                 disabled={busy}
                 onClick={onOpenFileSettings}
               >

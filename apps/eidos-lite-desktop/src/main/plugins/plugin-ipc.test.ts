@@ -8,6 +8,7 @@ import type {
   PluginListing,
   PluginOpenResult,
   PluginPackagePreview,
+  SpaceFileEditorSettings,
 } from "../../shared/plugins"
 import { PLUGIN_CHANNELS } from "../../shared/plugins"
 import type { WindowController } from "../window-controller"
@@ -21,6 +22,7 @@ const mock = vi.hoisted(() => ({
   checkboxChecked: false,
   messageOptions: [] as MessageBoxOptions[],
   showPluginInstall: vi.fn(),
+  openSpaceFileEditorSettings: vi.fn(),
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   windows: [] as {
     webContents: {
@@ -80,6 +82,9 @@ import { PluginStore } from "./plugin-store"
 const id = "example.csv"
 let registered: ReturnType<typeof registerPluginIpc>
 let switchTestSpace: (owner: number, spaceId: string) => void
+let settingsContext:
+  | (Omit<SpaceFileEditorSettings, "extensions"> & { spaceId: string })
+  | null
 const events = new Map<
   number,
   {
@@ -138,6 +143,8 @@ beforeEach(async () => {
   mock.response = "confirm"
   mock.checkboxChecked = false
   mock.messageOptions = []
+  settingsContext = null
+  mock.openSpaceFileEditorSettings.mockClear()
   mock.windows = [1, 2, 3].map((id) => ({
     webContents: { id, send: vi.fn(), once: vi.fn(), isDestroyed: () => false },
     isDestroyed: () => false,
@@ -199,6 +206,9 @@ beforeEach(async () => {
     getPreferences: async () => ({ language: "en" }),
     onPreferencesChanged: () => () => {},
     showPluginInstall: mock.showPluginInstall,
+    openSpaceFileEditorSettings: mock.openSpaceFileEditorSettings,
+    getSpaceFileEditorSettingsContext: (sender: { id: number }) =>
+      sender.id === 3 ? settingsContext : null,
     sessionFor,
     requireSession: (sender: { id: number }) => {
       const session = sessionFor(sender)
@@ -687,6 +697,96 @@ it("opts into unambiguous marketplace file editors while protecting Eidos Files"
   expect(await store.resolve("diagram.canvas", "space-1")).toEqual({
     editor: null,
   })
+})
+
+it("resolves Space defaults like the actual opener and rejects writes after a context change", async () => {
+  expect(await call("install", 1)).toBe(true)
+  expect(await call("getSpaceFileEditorSettings", 3)).toBeNull()
+  expect(() => call("openSpaceFileEditorSettings", 1, ".eidos")).toThrow(
+    "Invalid file extension"
+  )
+  await call("openSpaceFileEditorSettings", 1, ".csv")
+  expect(mock.openSpaceFileEditorSettings).toHaveBeenCalledWith(
+    events.get(1)?.sender,
+    ".csv"
+  )
+
+  const store = new PluginStore(path.join(mock.directory, "plugins"))
+  const key = `${id}/csv`
+  await call("associate", 1, ".csv", key)
+  await store.associate(".tsv", "builtin", "space-1")
+  settingsContext = {
+    contextId: "settings-a",
+    spaceName: "Space 1",
+    spaceId: "space-1",
+    focusExtension: ".csv",
+  }
+  const focused = async () =>
+    (await call("getSpaceFileEditorSettings", 3)) as SpaceFileEditorSettings
+  expect(await call("getSpaceFileEditorSettings", 1)).toBeNull()
+  expect(await focused()).toMatchObject({
+    focusExtension: ".csv",
+    spaceName: "Space 1",
+    extensions: expect.arrayContaining([
+      {
+        extension: ".csv",
+        override: null,
+        deviceEditor: "CSV",
+        editors: [{ key, label: "CSV" }],
+      },
+    ]),
+  })
+  expect(await store.resolve("table.csv", "space-1")).toMatchObject({
+    editor: { key },
+  })
+  expect(await store.resolve("table.csv", "space-2")).toMatchObject({
+    editor: null,
+  })
+  await expect(
+    call("setSpaceFileEditorDefault", 1, "settings-a", ".csv", "builtin")
+  ).rejects.toThrow("Space changed before saving file defaults")
+  await call("setSpaceFileEditorDefault", 3, "settings-a", ".csv", "builtin")
+  expect(
+    (await focused()).extensions.find(({ extension }) => extension === ".csv")
+  ).toMatchObject({ override: "builtin", deviceEditor: "CSV" })
+  expect(await store.resolve("table.csv", "space-1")).toEqual({ editor: null })
+  await call("setSpaceFileEditorDefault", 3, "settings-a", ".csv", null)
+  expect((await listing(1)).space?.associations).toEqual({ ".tsv": "builtin" })
+  expect((await listing(1)).associations).toEqual({ ".csv": key })
+  expect((await listing(2)).space?.associations).toEqual({})
+
+  await call("setSpaceFileEditorDefault", 3, "settings-a", ".csv", key)
+  await call("enable", 1, id, false)
+  expect(
+    (await focused()).extensions.find(({ extension }) => extension === ".csv")
+  ).toMatchObject({ override: key, deviceEditor: null, editors: [] })
+  expect(await store.resolve("table.csv", "space-1")).toMatchObject({
+    editor: null,
+    warning: expect.stringContaining("unavailable"),
+  })
+  await expect(
+    call("setSpaceFileEditorDefault", 3, "settings-a", ".csv", key)
+  ).rejects.toThrow("Editor is unavailable for this extension")
+
+  const writeFile = fs.writeFile
+  vi.spyOn(fs, "writeFile").mockImplementation(async (...args) => {
+    await writeFile(...args)
+    if (typeof args[0] === "string" && /config-.*\.tmp$/.test(args[0]))
+      settingsContext = {
+        contextId: "settings-b",
+        spaceName: "Space 2",
+        spaceId: "space-2",
+      }
+  })
+  await expect(
+    call("setSpaceFileEditorDefault", 3, "settings-a", ".csv", null)
+  ).rejects.toThrow("Space changed before saving file defaults")
+  expect((await listing(1)).space?.associations).toEqual({
+    ".csv": key,
+    ".tsv": "builtin",
+  })
+  expect((await listing(1)).associations).toEqual({ ".csv": key })
+  expect((await listing(2)).space?.associations).toEqual({})
 })
 
 it("preserves the Space's previous default when the install fails after review", async () => {

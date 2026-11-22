@@ -85,21 +85,39 @@ async function click(text: string) {
   await act(async () => button!.click())
 }
 
-it("opens the existing Files settings without resetting plugin defaults", async () => {
+it("opens the active file type in Space settings and stays available after reset", async () => {
   const listing = await window.eidosLite.listPlugins()
+  listing.plugins[0].enabled = true
+  listing.plugins[0].manifest.views = [
+    { id: "csv", title: "CSV", kind: "file", entry: "index.html" },
+  ]
+  listing.plugins[0].manifest.placements = [
+    {
+      location: "file/open",
+      view: "csv",
+      extensions: [".tsv", ".csv", ".eidos"],
+    },
+  ]
   listing.space!.associations = {
-    ".csv": "example.csv/csv",
+    ".tsv": "example.csv/csv",
     ".svg": "example.other/vector",
   }
   const reset = vi.fn()
-  const open = vi.fn(async () => {})
+  const write = vi.fn()
+  const open = vi.fn(async (_extension: string) => {})
+  let changed: Parameters<typeof window.eidosLite.onPluginEvent>[0] | undefined
   Object.assign(window.eidosLite, {
     listPlugins: async () => ({
       ...listing,
       space: { ...listing.space },
     }),
+    onPluginEvent: (listener: typeof changed) => {
+      changed = listener
+      return () => {}
+    },
     resetSpacePluginEditorDefaults: reset,
-    openSettingsDestination: open,
+    setSpaceFileEditorDefault: write,
+    openSpaceFileEditorSettings: open,
   })
   await act(async () => {
     root.render(
@@ -112,7 +130,7 @@ it("opens the existing Files settings without resetting plugin defaults", async 
   })
   await vi.waitFor(() => {
     expect(container.textContent).toContain(
-      "Default editor in this Space for .csv"
+      "Default editor in this Space for .tsv"
     )
   })
   expect(container.textContent).not.toContain(".svg")
@@ -123,15 +141,42 @@ it("opens the existing Files settings without resetting plugin defaults", async 
   const caption = document.getElementById(
     action.getAttribute("aria-describedby")!
   )
-  expect(caption?.textContent).toContain(".csv")
+  expect(caption?.textContent).toContain(".tsv")
   action.focus()
   expect(document.activeElement).toBe(action)
   await click("Open file settings")
   expect(open).toHaveBeenCalledOnce()
-  expect(open).toHaveBeenCalledWith("files")
+  expect(open).toHaveBeenCalledWith(".tsv")
   expect(reset).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
   expect(associate).not.toHaveBeenCalled()
-  expect(listing.space!.associations[".csv"]).toBe("example.csv/csv")
+  expect(listing.space!.associations[".tsv"]).toBe("example.csv/csv")
+
+  const refresh = () =>
+    changed?.({
+      ticket: "",
+      event: {
+        protocol: "eidos-plugin",
+        apiVersion: 1,
+        observation: "host.catalog",
+        value: null,
+      },
+    })
+  delete listing.space!.associations[".tsv"]
+  await act(async () => refresh())
+  expect(container.textContent).not.toContain("Default editor in this Space")
+  await click("Open file settings")
+  expect(open).toHaveBeenLastCalledWith(".csv")
+
+  listing.plugins[0].enabled = false
+  await act(async () => refresh())
+  expect(container.textContent).not.toContain("Open file settings")
+
+  listing.plugins[0].enabled = true
+  await act(async () => {
+    root.render(<PluginManager selectedPluginId="example.csv" />)
+  })
+  expect(container.textContent).not.toContain("Open file settings")
 })
 
 it("shows public page requests, API connections and legacy background origins independently", async () => {

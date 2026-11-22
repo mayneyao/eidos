@@ -24,6 +24,7 @@ import {
 import { PluginError, parseChange } from "@eidos.space/plugin-runtime/rpc"
 import {
   PLUGIN_CHANNELS,
+  canAssociateEditor,
   type PluginPackagePreview,
 } from "../../shared/plugins"
 import { PluginInstallQueue } from "./plugin-install-queue"
@@ -1652,6 +1653,56 @@ export function registerPluginIpc(controller: WindowController): {
       )
         throw new PluginError("INVALID_REQUEST", "Invalid association")
       await store.associate(extension, editor)
+    }
+  )
+  ipcMain.handle(
+    PLUGIN_CHANNELS.openSpaceFileEditorSettings,
+    (event, extension: unknown) => {
+      caller(event)
+      if (typeof extension !== "string" || !canAssociateEditor(extension))
+        throw new PluginError("INVALID_REQUEST", "Invalid file extension")
+      controller.openSpaceFileEditorSettings(event.sender, extension)
+    }
+  )
+  ipcMain.handle(PLUGIN_CHANNELS.getSpaceFileEditorSettings, async (event) => {
+    caller(event)
+    const context = controller.getSpaceFileEditorSettingsContext(event.sender)
+    if (!context) return null
+    const { spaceId, ...target } = context
+    const extensions = await store.spaceFileEditors(spaceId, service.locale)
+    return controller.getSpaceFileEditorSettingsContext(event.sender)
+      ?.contextId === target.contextId
+      ? { ...target, extensions }
+      : null
+  })
+  ipcMain.handle(
+    PLUGIN_CHANNELS.setSpaceFileEditorDefault,
+    async (event, contextId: unknown, extension: unknown, editor: unknown) => {
+      caller(event)
+      if (
+        typeof contextId !== "string" ||
+        typeof extension !== "string" ||
+        (editor !== null && typeof editor !== "string")
+      )
+        throw new PluginError("INVALID_REQUEST", "Invalid association")
+      const requireContext = () => {
+        const context = controller.getSpaceFileEditorSettingsContext(
+          event.sender
+        )
+        if (!context || context.contextId !== contextId)
+          throw new PluginError(
+            "INSTANCE_CLOSED",
+            "Space changed before saving file defaults"
+          )
+        return context
+      }
+      await store.associate(
+        extension,
+        editor,
+        requireContext().spaceId,
+        requireContext
+      )
+      catalogChanged()
     }
   )
   ipcMain.handle(
