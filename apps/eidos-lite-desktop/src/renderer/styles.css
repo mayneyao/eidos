@@ -1343,9 +1343,26 @@ body {
 
 .settings-file-editor-scope > .settings-shell-select {
   width: auto;
-  max-width: min(30ch, calc(100% - 0.5rem));
-  margin-inline: 0.25rem;
+  max-width: min(30ch, calc(100% - 0.3em));
+  min-height: 0;
+  margin-inline: 0.15em;
+  padding: 0;
+  border: 0;
+  border-radius: 0.15em;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
   field-sizing: content;
+}
+
+.settings-file-editor-scope > .settings-shell-select:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.settings-file-editor-scope > .settings-shell-select:disabled {
+  cursor: inherit;
+  opacity: 1;
 }
 
 .settings-section-note {
