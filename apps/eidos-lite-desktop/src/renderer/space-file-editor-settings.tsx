@@ -1,9 +1,34 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { EidosLitePreferences } from "../shared/contracts"
+import type { EidosLiteLocale } from "../shared/i18n"
 import type { SpaceFileEditorSettings } from "../shared/plugins"
 import { useEidosLiteI18n } from "./i18n"
 import { SETTINGS } from "./settings-catalog"
 import { focusSetting } from "./settings-navigation"
+
+const scopeCopy = {
+  en: {
+    sentence: "Choose how each file type opens by default for {scope}.",
+    device: "This device (global)",
+  },
+  zh: {
+    sentence: "为{scope}设置各类文件的默认打开方式。",
+    device: "本设备（全局）",
+  },
+  ja: {
+    sentence: "{scope}で、ファイル形式ごとの既定の開き方を設定します。",
+    device: "このデバイス（全体）",
+  },
+  ko: {
+    sentence: "{scope}에서 파일 형식별 기본 열기 방식을 설정합니다.",
+    device: "이 기기(전역)",
+  },
+  "pt-BR": {
+    sentence:
+      "Defina o modo padrão de abrir cada tipo de arquivo para {scope}.",
+    device: "Este dispositivo (global)",
+  },
+} satisfies Record<EidosLiteLocale, { sentence: string; device: string }>
 
 export function SpaceScopedFileEditors({
   active,
@@ -17,6 +42,8 @@ export function SpaceScopedFileEditors({
   children: ReactNode
 }) {
   const { locale, t } = useEidosLiteI18n()
+  const { sentence, device } = scopeCopy[locale]
+  const [beforeScope, afterScope] = sentence.split("{scope}")
   const group = useRef<HTMLDivElement>(null)
   const [space, setSpace] = useState<SpaceFileEditorSettings | null>(null)
   const [scope, setScope] = useState<"space" | "device">("device")
@@ -126,16 +153,17 @@ export function SpaceScopedFileEditors({
       : t("Built-in editor")
   }
 
+  const spaceScope = space && t("Space: {space}", { space: space.spaceName })
+  const scopeValue = pendingContext && scope === "device" ? "pending" : scope
   return (
-    <div className="settings-group" data-default-file-editors ref={group}>
-      <div className="settings-row settings-row-stacked">
-        <div className="settings-row-copy">
-          <strong>{t("Scope")}</strong>
-        </div>
+    <>
+      <p className="settings-file-editor-scope">
+        {beforeScope}
         <select
           className="settings-shell-select"
           aria-label={t("Scope")}
-          value={pendingContext && scope === "device" ? "pending" : scope}
+          value={scopeValue}
+          title={scopeValue === "space" ? (spaceScope ?? undefined) : undefined}
           disabled={pendingContext || !space}
           onChange={(event) => {
             if (event.target.value === "device") {
@@ -147,77 +175,79 @@ export function SpaceScopedFileEditors({
           {pendingContext && scope === "device" && (
             <option value="pending">{t("Loading…")}</option>
           )}
-          {space && (
-            <option value="space">
-              {t("Space: {space}", { space: space.spaceName })}
-            </option>
-          )}
-          <option value="device">{t("Device defaults")}</option>
+          {spaceScope && <option value="space">{spaceScope}</option>}
+          <option value="device">{device}</option>
         </select>
-      </div>
-      {scope === "space" && space
-        ? space.extensions.map(
-            ({ extension, override, deviceEditor, editors }) => {
-              const builtin = builtInEditor(extension)
-              const unavailable =
-                override &&
-                override !== "builtin" &&
-                !editors.some(({ key }) => key === override)
-              const settingId =
-                extension === ".md"
-                  ? SETTINGS.markdownEditor.id
-                  : extension === ".html"
-                    ? SETTINGS.htmlEditor.id
-                    : ""
-              return (
-                <div
-                  className="settings-row settings-row-stacked"
-                  key={extension}
-                  tabIndex={-1}
-                  data-setting-ids={`files.default-editor:${extension} ${settingId}`.trim()}
-                >
-                  <div className="settings-row-copy">
-                    <strong>{extension}</strong>
-                    <small>
-                      {t("Choose the default editor for {extensions} files.", {
-                        extensions: extension,
-                      })}
-                    </small>
-                  </div>
-                  <select
-                    className="settings-shell-select"
-                    aria-label={extension}
-                    disabled={pendingContext}
-                    aria-disabled={saving || undefined}
-                    value={override ?? "device"}
-                    onChange={(event) =>
-                      void save(extension, event.target.value)
-                    }
+        {afterScope}
+      </p>
+      <div className="settings-group" data-default-file-editors ref={group}>
+        {scope === "space" && space
+          ? space.extensions.map(
+              ({ extension, override, deviceEditor, editors }) => {
+                const builtin = builtInEditor(extension)
+                const unavailable =
+                  override &&
+                  override !== "builtin" &&
+                  !editors.some(({ key }) => key === override)
+                const settingId =
+                  extension === ".md"
+                    ? SETTINGS.markdownEditor.id
+                    : extension === ".html"
+                      ? SETTINGS.htmlEditor.id
+                      : ""
+                return (
+                  <div
+                    className="settings-row settings-row-stacked"
+                    key={extension}
+                    tabIndex={-1}
+                    data-setting-ids={`files.default-editor:${extension} ${settingId}`.trim()}
                   >
-                    <option value="device">
-                      {t("Follow device ({editor})", {
-                        editor: deviceEditor ?? builtin,
-                      })}
-                    </option>
-                    <option value="builtin">{builtin}</option>
-                    {unavailable && (
-                      <option value={override} disabled>
-                        {t("{editor} (plugin unavailable)", {
-                          editor: builtin,
+                    <div className="settings-row-copy">
+                      <strong>{extension}</strong>
+                      <small>
+                        {t(
+                          "Choose the default editor for {extensions} files.",
+                          {
+                            extensions: extension,
+                          }
+                        )}
+                      </small>
+                    </div>
+                    <select
+                      className="settings-shell-select"
+                      aria-label={extension}
+                      disabled={pendingContext}
+                      aria-disabled={saving || undefined}
+                      value={override ?? "device"}
+                      onChange={(event) =>
+                        void save(extension, event.target.value)
+                      }
+                    >
+                      <option value="device">
+                        {t("Follow device ({editor})", {
+                          editor: deviceEditor ?? builtin,
                         })}
                       </option>
-                    )}
-                    {editors.map(({ key, label }) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )
-            }
-          )
-        : !pendingContext && children}
-    </div>
+                      <option value="builtin">{builtin}</option>
+                      {unavailable && (
+                        <option value={override} disabled>
+                          {t("{editor} (plugin unavailable)", {
+                            editor: builtin,
+                          })}
+                        </option>
+                      )}
+                      {editors.map(({ key, label }) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              }
+            )
+          : !pendingContext && children}
+      </div>
+    </>
   )
 }

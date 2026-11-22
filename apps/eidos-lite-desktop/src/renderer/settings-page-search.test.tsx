@@ -222,6 +222,50 @@ describe("Settings search through original controls", () => {
       control.dispatchEvent(new Event("change", { bubbles: true }))
     })
 
+  it.each([
+    [
+      "en",
+      "Choose how each file type opens by default for ",
+      ".",
+      "This device (global)",
+    ],
+    ["zh", "为", "设置各类文件的默认打开方式。", "本设备（全局）"],
+    [
+      "ja",
+      "",
+      "で、ファイル形式ごとの既定の開き方を設定します。",
+      "このデバイス（全体）",
+    ],
+    [
+      "ko",
+      "",
+      "에서 파일 형식별 기본 열기 방식을 설정합니다.",
+      "이 기기(전역)",
+    ],
+    [
+      "pt-BR",
+      "Defina o modo padrão de abrir cada tipo de arquivo para ",
+      ".",
+      "Este dispositivo (global)",
+    ],
+  ] as const)(
+    "places the scope control in the localized %s sentence",
+    async (language, prefix, suffix, device) => {
+      saved.language = language
+      window.history.replaceState(null, "", "#/settings/files")
+      await mount()
+      const scope = host.querySelector<HTMLSelectElement>(
+        ".settings-file-editor-scope select"
+      )!
+      expect(scope).not.toBeNull()
+      expect(scope.previousSibling?.textContent ?? "").toBe(prefix)
+      expect(scope.nextSibling?.textContent).toBe(suffix)
+      expect(scope.selectedOptions[0].textContent).toBe(device)
+      expect(scope.value).toBe("device")
+      expect(scope.disabled).toBe(true)
+    }
+  )
+
   it("waits for Space before deep-linking and changes only the selected scope", async () => {
     window.history.replaceState(null, "", "#/settings/files")
     const initial = deferred<SpaceFileEditorSettings>()
@@ -267,6 +311,8 @@ describe("Settings search through original controls", () => {
     expect(select("Scope").selectedOptions[0].textContent).toBe(
       "Space: Project Space"
     )
+    expect(select("Scope").title).toBe("Space: Project Space")
+    expect(select("Scope").closest("[data-default-file-editors]")).toBeNull()
     expect(document.activeElement).toBe(select(".csv"))
     expect(select(".csv").selectedOptions[0].textContent).toBe("CSV editor")
     expect(select(".tsv").selectedOptions[0].textContent).toBe(
@@ -276,7 +322,13 @@ describe("Settings search through original controls", () => {
     expect(select(".csv, .tsv")).toBeNull()
     expect(api.setSpaceFileEditorDefault).not.toHaveBeenCalled()
 
+    select("Scope").focus()
+    expect(document.activeElement).toBe(select("Scope"))
     await choose(select("Scope"), "device")
+    expect(select("Scope").selectedOptions[0].textContent).toBe(
+      "This device (global)"
+    )
+    expect(document.activeElement).toBe(select("Scope"))
     expect(select(".csv")).toBeNull()
     expect(select("Markdown file editor")).not.toBeNull()
     await choose(select(".csv, .tsv"), drawing.key)

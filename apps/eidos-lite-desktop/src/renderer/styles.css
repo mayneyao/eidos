@@ -1333,6 +1333,21 @@ body {
   opacity: 0.65;
 }
 
+.settings-file-editor-scope {
+  margin: 0 0 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.settings-file-editor-scope > .settings-shell-select {
+  width: auto;
+  max-width: min(30ch, calc(100% - 0.5rem));
+  margin-inline: 0.25rem;
+  field-sizing: content;
+}
+
 .settings-section-note {
   margin: 0.55rem 0.15rem 0;
   color: var(--ink-faint);
