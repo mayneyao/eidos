@@ -12,6 +12,47 @@ import org.junit.Test
 
 class MobilePluginServiceTest {
     @Test
+    fun canvasCanBeInstalledForItsSpaceAndDocumentSaveChecksTheDiskVersion() = runBlocking {
+        val argument = InstrumentationRegistry.getArguments().getString("pluginFixtures")
+        assumeTrue("Provide the published Canvas 0.5.7 archive", argument != null)
+        val archive = File(argument!!, "eidos.canvas-0.5.7.eidos-plugin")
+        assumeTrue(archive.isFile)
+        assertEquals("18eccc992758156c3be6a1efb85d2c1b6e1556087432e13871a3320a149462c2", PluginMarketTransport.hash(archive.readBytes()))
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val space = "canvas-" + UUID.randomUUID()
+        val repository = SpaceRepository(app, space)
+        val store = PluginMarketStore(app, space)
+        val service = MobilePluginService(app, repository, store, {}, { error("No picker") })
+        val file = "Canvas.canvas"
+        fun request(text: String, digest: String) = JSONObject()
+            .put("path", file).put("text", text).put("expectedDigest", digest)
+        try {
+            val prepared = store.prepare(Uri.fromFile(archive))
+            assertEquals("eidos.canvas", prepared.manifest.getString("id"))
+            store.install(prepared, space)
+            assertTrue(store.registry(space).allViews().any { it.id == "eidos.canvas/viewer" && it.document })
+            assertFalse(store.registry("other").allViews().any { it.id == "eidos.canvas/viewer" })
+
+            val original = "\uFEFF{\"nodes\":[],\"edges\":[]}"
+            val edited = "\uFEFF{\"nodes\":[{\"id\":\"test\"}],\"edges\":[]}"
+            repository.pluginWriteText(file, original)
+            val snapshot = repository.pluginTextSnapshot(file)
+            val save = service.handle("saveDocument", request(edited, snapshot.digest)) as JSONObject
+            assertEquals("saved", save.getString("status"))
+            assertEquals(edited, repository.pluginTextSnapshot(file).text)
+            val conflict = service.handle("saveDocument", request(original, snapshot.digest)) as JSONObject
+            assertEquals("conflict", conflict.getString("status"))
+            assertEquals(edited, repository.pluginTextSnapshot(file).text)
+        } finally {
+            store.uninstall("eidos.canvas")
+            app.getSharedPreferences(space, 0).edit().clear().commit()
+            repository.close()
+            File(app.filesDir, "spaces/$space").deleteRecursively()
+            File(app.filesDir, "$space-packages").deleteRecursively()
+        }
+    }
+
+    @Test
     fun workspaceFilesStayLocalAndEidosBytesCannotBeOverwritten() = runBlocking {
         val app = InstrumentationRegistry.getInstrumentation().targetContext
         val id = "plugins-" + UUID.randomUUID()

@@ -157,12 +157,14 @@ from its source checkout: set `eidos.pluginSources` in the ignored
 GPX Viewer reads only the selected file (up to 16 MiB), supports refresh,
 MapLibre workers, tracks, playback and charts, and loads map resources only
 from its declared OpenFreeMap origin. Network access is shown in the chooser.
-Plugins run in separate WebViews without the editor's native bridge. Opening
-a plugin does not change the default editor. Open **Folder actions → Plugins**
-to browse the shared registry or import a local `.eidos-plugin` package. Review
-its read/network/worker permissions, install it on the device, then enable it
-separately for the current Space. Incompatible packages are rejected before
-installation. See
+Plugins run in separate WebViews without the editor's native bridge. Open
+**Folder actions → Plugins** to browse the shared registry or import a local
+`.eidos-plugin` package. Confirm the requested access to install the plugin
+and enable it in the originating Space. If the installation offers a default
+for a file type, select the checkbox to use the plugin for ordinary opens of
+that type in this Space. Use the file's **Open with** menu to select an editor
+for one open or restore the built-in default. Incompatible packages are
+rejected before installation. See
 [Android file views](plugins/README.md) for the supported manifest profile,
 resource boundaries and local checks.
 

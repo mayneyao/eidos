@@ -102,7 +102,7 @@ class PluginReadmeTest {
                                 "test",
                                 "Test Space",
                                 {},
-                                openReadme = { _, _ -> opened = true },
+                                openReadme = { _, _, _ -> opened = true },
                             )
                     }
                 }

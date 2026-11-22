@@ -42,7 +42,6 @@ struct FileBrowser: View {
     @State private var inbox = false
     @State private var languageSettings = false
     @State private var actionTarget: FileActionTarget?
-    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         List {
             if directory == nil || directory == space.root {
@@ -209,12 +208,9 @@ struct FileBrowser: View {
             if let updated = try? FileActivity.load(space) { activity = updated }
         }
         .fullScreenCover(item: $filePlugin, onDismiss: reload) { target in
-            NavigationStack {
-                MobilePluginView(space: space, dark: colorScheme == .dark, open: { file in filePlugin = nil; onOpen(file) },
-                    pluginId: target.view.plugin, viewId: target.view.view, filePath: FileActivity.path(target.file, space: space))
-                .navigationTitle(target.file.lastPathComponent).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("返回")) { filePlugin = nil } } }
-            }
+            MobilePluginCover(space: space, title: target.file.lastPathComponent, plugin: target.view.plugin,
+                view: target.view.view, filePath: FileActivity.path(target.file, space: space),
+                open: { file in filePlugin = nil; onOpen(file) }, close: { filePlugin = nil })
         }
         .onChange(of: scenePhase) { _, phase in if phase == .active && !busy { reload() } }
     }
@@ -251,12 +247,22 @@ struct FileBrowser: View {
     }
     @ViewBuilder private func fileActions(_ file: URL) -> some View {
         if !LocalSpace.isDirectory(file) {
+            let service = MobilePluginService(space: space)
             Menu {
-                Button(tr("默认打开方式"), systemImage: "doc") { actionTarget = nil; open(file) }
-                ForEach((try? MobilePluginService(space: space).fileViews(file)) ?? []) { view in
+                Button(tr("内置打开方式"), systemImage: "doc") {
+                    actionTarget = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { open(file, builtIn: true) }
+                }
+                ForEach((try? service.fileViews(file)) ?? []) { view in
                     Button(view.title, systemImage: "puzzlepiece.extension") {
                         actionTarget = nil
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { filePlugin = PluginFileTarget(file: file, view: view) }
+                    }
+                }
+                if service.hasFileDefault(file) {
+                    Button(tr("为 {0} 文件恢复内置打开方式", "." + file.pathExtension.lowercased()), systemImage: "arrow.counterclockwise") {
+                        service.clearFileDefault(file)
+                        actionTarget = nil
                     }
                 }
             } label: {
@@ -275,14 +281,19 @@ struct FileBrowser: View {
         action(LocalSpace.isDirectory(file) ? tr("导出文件夹") : tr("导出文件"), icon: "square.and.arrow.up") { share(file) }
         action(tr("移到回收站"), icon: "trash", destructive: true) { operate { try space.trash(file); return {} } }
     }
-    private func open(_ file: URL) {
+    private func open(_ file: URL, builtIn: Bool = false) {
         do {
             let path = FileActivity.path(file, space: space)
             activity.recent.removeAll { $0 == path }; activity.recent.insert(path, at: 0)
             activity.recent = Array(activity.recent.prefix(12)); try activity.save(space)
         } catch { self.error = error.localizedDescription; return }
         if LocalSpace.isDirectory(file) { directory = file; search = ""; reload() }
-        else if ["md", "markdown", "eidos"].contains(file.pathExtension.lowercased()) { onOpen(file) }
+        else { openFile(file, builtIn: builtIn) }
+    }
+    private func openFile(_ file: URL, builtIn: Bool = false) {
+        if !builtIn, let view = MobilePluginService(space: space).defaultFileView(file) {
+            filePlugin = PluginFileTarget(file: file, view: view)
+        } else if ["md", "markdown", "eidos"].contains(file.pathExtension.lowercased()) { onOpen(file) }
         else { share(file) }
     }
     private func share(_ file: URL) { operate { let copy = try space.exportSnapshot(file); return { export = ExportFile(url: copy) } } }
@@ -320,7 +331,7 @@ struct FileBrowser: View {
             return sortDescending ? comparison == .orderedDescending : comparison == .orderedAscending
         }
     }
-    private func create(markdown: Bool) { operate { let file = try space.create(markdown: markdown, in: directory); return { onOpen(file) } } }
+    private func create(markdown: Bool) { operate { let file = try space.create(markdown: markdown, in: directory); return { openFile(file) } } }
     private func operate(_ action: @escaping () throws -> (() -> Void)) {
         guard !busy else { return }; busy = true
         LocalSpace.io.async {

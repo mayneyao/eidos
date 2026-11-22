@@ -1,6 +1,7 @@
 import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import type {
+  CreateEidosFileFieldInput,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
@@ -109,5 +110,127 @@ it("keeps the field list mounted while navigating to properties and back", async
   } finally {
     await act(async () => root.unmount())
     container.remove()
+  }
+})
+
+it("returns from Formula editing to the same new field", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  const scrollIntoView = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "scrollIntoView"
+  )
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const addField = vi.fn(
+    async (_tableId: string, _field: CreateEidosFileFieldInput) => ({})
+  )
+  const source = { addField } as unknown as EidosFileEditorDataSource
+  const click = async (button: Element | null | undefined) => {
+    expect(button).toBeTruthy()
+    await act(async () => (button as HTMLElement).click())
+  }
+  const activeForm = () =>
+    [...document.querySelectorAll("form")].find(
+      (form) => !form.closest("[hidden]")
+    )
+  const button = (text: string, scope: ParentNode = document) =>
+    [...scope.querySelectorAll("button")].find(
+      (item) => item.textContent?.trim() === text && !item.closest("[hidden]")
+    )
+  const setText = async (
+    input: HTMLInputElement | HTMLTextAreaElement,
+    value: string
+  ) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(input),
+        "value"
+      )!.set!.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+  try {
+    await act(async () =>
+      root.render(
+        <EidosFileUIProvider interactionMode="mobile">
+          <MobileFields
+            source={source}
+            table={table}
+            tables={[table]}
+            view={view}
+            initial={{ create: true }}
+            onSnapshot={() => {}}
+          />
+        </EidosFileUIProvider>
+      )
+    )
+    const original = activeForm()!
+    await setText(original.querySelector("input")!, "Computed")
+    await click(original.querySelector("[data-eidos-file-field-type-trigger]"))
+    await click(
+      document.querySelector('[data-eidos-file-field-type="formula"]')
+    )
+    const expression = () =>
+      document.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Formula expression"]'
+      )!
+    await setText(expression(), "1 +")
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(activeForm()).toBe(original)
+    expect(original.querySelector("input")?.value).toBe("Computed")
+    expect(button("Create field", original)?.disabled).toBe(true)
+    expect(addField).not.toHaveBeenCalled()
+    await click(button("Edit formula", original))
+    expect(expression().value).toBe("1 +")
+    await setText(expression(), '"Status"')
+    const status = document.querySelector<HTMLElement>(
+      "[data-eidos-file-formula-status]"
+    )
+    expect(
+      status?.dataset.eidosFileFormulaStatus,
+      status?.textContent ?? ""
+    ).toBe("valid")
+    await click(button("Done"))
+    expect(activeForm()).toBe(original)
+    expect(button("Create field", original)?.disabled).toBe(false)
+    await click(button("Create field", original))
+    expect(addField).toHaveBeenCalledOnce()
+    expect(addField.mock.calls[0]?.[1]).toMatchObject({
+      name: "Computed",
+      type: "formula",
+      property: { formula: '"Status"' },
+    })
+  } finally {
+    await act(async () => root.unmount())
+    container.remove()
+    if (scrollIntoView)
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        scrollIntoView
+      )
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    vi.unstubAllGlobals()
   }
 })

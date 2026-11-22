@@ -1,19 +1,25 @@
-# Eidos Android 0.10.0
+# Eidos Android 0.11.0
 
-## Use today's date in a formula
+## Find plugins for Android
 
-Add a Formula field with `TODAY()` to show the current calendar date and
-use it in calculations such as `DATE(TODAY(), '+1 day')` for tomorrow.
-The value follows the editor's time zone and refreshes when you return to
-the app after the date changes.
+Discover checks published versions against the mobile host before offering
+them for installation. Search and the installed-plugin details use the same
+verified release information.
 
-Update the apps that edit or sync the same Space before adding the formula.
-An older editor may open the file read-only or be unable to finish a sync merge.
-If you sync a Space with iOS, wait for an iOS update that supports `TODAY()`
-before adding it to files in that Space.
+You can edit and save Canvas documents on Android. During installation,
+choose Canvas as the default editor for `.canvas` in the current Space.
+Use **Open with** to restore the built-in opener at any time.
 
-## Install
+## Finish creating a Formula field
 
-Download `eidos-android-0.10.0.apk` and verify it against
-`SHA256SUMS`. Install it over 0.9.1 to retain local data.
-The APK supports ARM64 and x86-64 and requires Android 9 or later.
+Edit and preview the expression on its own page. **Back** or **Done** returns
+to the same new field form with your draft, so you can review and create it.
+
+## Install and testing scope
+
+Download `eidos-android-0.11.0.apk` and verify it against `SHA256SUMS`.
+Install it over 0.10.0 to retain local data. The APK supports ARM64 and x86-64
+and requires Android 9 or later.
+
+Emulator checks cover Discover and installation review, Canvas editing and
+reopening, and Formula creation from the table and view settings.

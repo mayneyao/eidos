@@ -34,6 +34,9 @@ internal fun MobilePluginScreen(
     val scope = rememberCoroutineScope()
     val token = remember { UUID.randomUUID().toString() }
     var web by remember { mutableStateOf<WebView?>(null) }
+    var documentDirty by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val requestClose = { if (documentDirty) confirmDiscard = true else close() }
     var pickerReply by remember { mutableStateOf<CompletableDeferred<android.net.Uri>?>(null) }
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -58,7 +61,15 @@ internal fun MobilePluginScreen(
                 JSONObject().put("id", it).put("mode", if (readme) "readme" else "tools").toString()
             }
             ?: "null"
-    BackHandler(enabled = active, onBack = close)
+    BackHandler(enabled = active, onBack = requestClose)
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(tr("放弃此草稿")) },
+            confirmButton = { TextButton(onClick = close) { Text(tr("确认放弃")) } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(tr("取消")) } },
+        )
+    }
     Scaffold(
         contentWindowInsets =
             if (navigationPage == null) ScaffoldDefaults.contentWindowInsets
@@ -67,7 +78,7 @@ internal fun MobilePluginScreen(
             if (navigationPage == null)
                 TopAppBar(
                     title = { Text(title ?: initialFile?.file?.name ?: tr("插件"), maxLines = 1) },
-                    navigationIcon = { TextButton(onClick = close) { Text(tr("返回")) } },
+                    navigationIcon = { TextButton(onClick = requestClose) { Text(tr("返回")) } },
                     actions = { headerActions() },
                 )
         },
@@ -150,20 +161,25 @@ internal fun MobilePluginScreen(
                                     return
                                 }
                                 if (message.optString("method") == "manager.open") {
-                                    scope.launch { close() }
+                                    scope.launch { requestClose() }
                                     return
                                 }
                                 scope.launch(Dispatchers.Main) {
                                     val response =
                                         try {
-                                            val result =
+                                            val params = message.optJSONObject("params") ?: JSONObject()
+                                            val method = message.getString("method")
+                                            val result = if (method == "documentState") {
+                                                documentDirty = params.getBoolean("dirty")
+                                                null
+                                            } else {
                                                 withContext(Dispatchers.IO) {
                                                     service.handle(
-                                                        message.getString("method"),
-                                                        message.optJSONObject("params")
-                                                            ?: JSONObject(),
+                                                        method,
+                                                        params,
                                                     )
                                                 }
+                                            }
                                             JSONObject().put("value", result ?: JSONObject.NULL)
                                         } catch (error: Exception) {
                                             if (error is CancellationException) throw error

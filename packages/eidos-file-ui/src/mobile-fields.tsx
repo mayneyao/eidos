@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 import {
   MobilePopoverLayer,
@@ -10,6 +10,7 @@ import {
 import { ArrowLeft, Columns3, X, ChevronRight } from "lucide-react"
 import type {
   CreateEidosFileFieldInput,
+  EidosFileFormulaPreviewInput,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
@@ -61,9 +62,14 @@ export function MobileFields({
   const locked = useRef(false)
   const pending = useRef<Promise<void> | null>(null)
   const initialized = useRef(false)
-  const sheet = useRef<HTMLDivElement>(null)
+  const sheet = useRef<HTMLDivElement | null>(null)
   const field = table.fields.find(
     (item) => eidosFileFieldKey(item) === selected
+  )
+  const previewFormula = useCallback(
+    (input: EidosFileFormulaPreviewInput) =>
+      source.previewFormula!(table.table.id, input),
+    [source, table.table.id]
   )
   const mutate = async (action: () => Promise<EidosFileSnapshot>) => {
     if (locked.current)
@@ -206,7 +212,10 @@ export function MobileFields({
             </header>
           }
         >
-          <div className="eidos-mobile-fields-sheet eidos-mobile-fields-content">
+          <div
+            className="eidos-mobile-fields-sheet eidos-mobile-fields-content"
+            data-mobile-field-create={creating ? "" : undefined}
+          >
             <div
               className="eidos-mobile-fields-list"
               hidden={Boolean(field) || creating}
@@ -267,10 +276,7 @@ export function MobileFields({
                       if (!value) setDerived(null)
                     }}
                     onPreview={
-                      source.previewFormula
-                        ? (input) =>
-                            source.previewFormula!(table.table.id, input)
-                        : undefined
+                      source.previewFormula ? previewFormula : undefined
                     }
                     onSave={(property) =>
                       mutate(() =>
@@ -329,9 +335,7 @@ export function MobileFields({
                     )
                   }
                   onPreviewFormula={
-                    source.previewFormula
-                      ? (input) => source.previewFormula!(table.table.id, input)
-                      : undefined
+                    source.previewFormula ? previewFormula : undefined
                   }
                 />
               </div>

@@ -6,6 +6,179 @@ import PhotosUI
 
 final class EditorWebTests: XCTestCase {
     @MainActor
+    func testCreatesFormulaFromMobileFieldsAndRendersAfterReopen() async throws {
+        try await verifyMobileFormulaCreation(fromGrid: false)
+    }
+
+    @MainActor
+    func testCreatesFormulaFromGridAddFieldAndRendersAfterReopen() async throws {
+        try await verifyMobileFormulaCreation(fromGrid: true)
+    }
+
+    @MainActor
+    private func verifyMobileFormulaCreation(fromGrid: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let space = try LocalSpace(root: root)
+        let file = root.appendingPathComponent("Formula.eidos")
+        _ = try Runtime.call(file, "create", [
+            "title": "Formula QA",
+            "fields": [
+                ["clientKey": "title", "name": "Title", "kind": "text", "position": "0"],
+                ["clientKey": "quantity", "name": "Quantity", "kind": "integer", "position": "1"],
+            ],
+        ])
+        let snapshot = try XCTUnwrap(try Runtime.call(file, "getSnapshot") as? [String: Any])
+        let revision = try XCTUnwrap(snapshot["revision"] as? String)
+        let schema = try XCTUnwrap(try Runtime.call(file, "getSchemaPage", ["revision": revision, "limit": 200]) as? [String: Any])
+        let objects = try XCTUnwrap(schema["objects"] as? [[String: Any]])
+        let table = try XCTUnwrap(objects.first { $0["object"] as? String == "table" })
+        let tableId = try XCTUnwrap(table["id"] as? String)
+        let labelId = try XCTUnwrap(table["labelFieldId"] as? String)
+        let quantity = try XCTUnwrap(objects.first { $0["object"] as? String == "field" && $0["name"] as? String == "Quantity" })
+        let quantityId = try XCTUnwrap(quantity["id"] as? String)
+        let inserted = try XCTUnwrap(try Runtime.call(file, "mutateRows", [
+            "tableId": tableId, "expectedRevision": revision,
+            "changes": [["kind": "create", "clientKey": "row", "values": [labelId: "One item", quantityId: "5"]]],
+        ]) as? [String: Any])
+        let rowId = try XCTUnwrap((inserted["created"] as? [[String: Any]])?.first?["rowId"] as? String)
+        _ = try Runtime.call(file, "close")
+
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = UIScreen.main.bounds
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            _ = try? Runtime.call(file, "close")
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: space.privateRoot)
+        }
+        func openEditor() async throws -> (EditorController, WKWebView) {
+            let editor = EditorController()
+            window.rootViewController = UIHostingController(rootView: EditorView(
+                file: file, space: space, dark: false, controller: editor, onLeave: {}
+            ))
+            window.makeKeyAndVisible()
+            let web = try await ready(editor, script: "!!document.querySelector('.eidos-file-detail-layout')")
+            return (editor, web)
+        }
+        func showRecord(_ web: WKWebView) async throws {
+            _ = try await web.callAsyncJavaScript(
+                "location.hash='/records/'+[file,table,row].map(encodeURIComponent).join('/'); return true",
+                arguments: ["file": file.path, "table": tableId, "row": rowId], in: nil, contentWorld: .page
+            )
+        }
+        let (editor, web) = try await openEditor()
+        func click(_ selector: String) async throws {
+            _ = try await web.callAsyncJavaScript("document.querySelector(selector).click(); return true",
+                arguments: ["selector": selector], in: nil, contentWorld: .page)
+        }
+        if fromGrid {
+            let addField = "button[aria-label=\"Add field\"], button[aria-label=添加字段]"
+            _ = try await ready(editor, script: "!!document.querySelector('\(addField)')")
+            try await click(addField)
+        } else {
+            try await click("button[aria-label=\"View settings\"], button[aria-label=\"视图设置\"]")
+            _ = try await ready(editor, script: "!!document.querySelector('.mobile-fields-trigger')")
+            try await click(".mobile-fields-trigger")
+            _ = try await ready(editor, script: "!!document.querySelector('.eidos-mobile-fields-list button')")
+            _ = try await web.evaluateJavaScript("[...document.querySelectorAll('.eidos-mobile-fields-list button')].find(b=>['New field','新建字段'].includes(b.textContent.trim())).click(); true")
+        }
+        let entry = fromGrid ? "grid" : "settings"
+        let form = "form.eidos-mobile-field-create-form"
+        let formula = "[data-eidos-mobile-formula-editor]"
+        let back = "[data-mobile-page]:not([hidden]):has(\(formula)) > header :is(button[aria-label=Back], button[aria-label=返回])"
+        let done = "[data-eidos-mobile-formula-done]"
+        let expression = "\(formula) textarea[aria-label=\"Formula expression\"]"
+        let submit = "\(form) button[type=submit]"
+        _ = try await ready(editor, script: "!!document.querySelector('\(form) [data-eidos-file-field-type-trigger]:not(:disabled)')")
+        _ = try await web.evaluateJavaScript("""
+            (() => { const name = document.querySelector('\(form) input');
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(name, 'Doubled');
+              name.dispatchEvent(new Event('input', {bubbles:true}));
+              return true;
+            })()
+            """)
+        try await click("\(form) [data-eidos-file-field-type-trigger]")
+        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-field-type=formula]')")
+        try await click("[data-eidos-file-field-type=formula]")
+        _ = try await ready(editor, script: "!!document.querySelector('\(expression)')")
+        try await click("\(formula) .eidos-file-formula-display-select")
+        _ = try await ready(editor, script: "!!document.querySelector('[role=option]:has([data-eidos-file-field-type-icon=integer])')")
+        try await click("[role=option]:has([data-eidos-file-field-type-icon=integer])")
+        _ = try await web.callAsyncJavaScript("""
+            document.querySelector(`[data-formula-reference$=":${quantity}"]`).click();
+            const expression = document.querySelector(selector);
+            expression.focus();
+            expression.setSelectionRange(expression.value.length, expression.value.length);
+            return document.execCommand('insertText', false, ' *');
+            """, arguments: ["quantity": quantityId, "selector": expression], in: nil, contentWorld: .page)
+        _ = try await ready(editor, script: "!!document.querySelector('[data-eidos-file-formula-status=error]') && document.querySelector('\(submit)')?.disabled === true")
+        _ = try await web.evaluateJavaScript("document.execCommand('insertText', false, ' 2')")
+        _ = try await ready(editor, script: "document.querySelector('[data-eidos-file-formula-status=valid]')?.textContent.trim() === '10'")
+        _ = try await ready(editor, script: """
+            (() => { const controls = [
+                document.querySelector('\(back)'),
+                document.querySelector('\(done):not(:disabled)'),
+                document.querySelector('\(expression)'),
+                document.querySelector('[data-eidos-file-formula-status=valid]'),
+              ];
+              return controls.every(control => {
+                const rect = control?.getBoundingClientRect();
+                return rect && control.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+              });
+            })()
+            """)
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-editor")
+        if fromGrid {
+            editor.leave()
+        } else {
+            try await click(back)
+        }
+        let parentWithDraft = """
+            !document.querySelector('\(formula)') && document.querySelector('\(form) input')?.value === 'Doubled'
+                && document.querySelector('\(form) [data-eidos-file-field-type-trigger=formula]') !== null
+                && document.querySelector('\(form)').textContent.includes('"Quantity" * 2')
+            """
+        _ = try await ready(editor, script: parentWithDraft)
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-parent")
+        _ = try await web.evaluateJavaScript("""
+            [...document.querySelectorAll('\(form) button')].find(button=>['Edit formula','编辑公式'].includes(button.getAttribute('aria-label') ?? button.textContent.trim())).click(); true
+            """)
+        _ = try await ready(editor, script: "document.querySelector('\(expression)')?.value === '\"Quantity\" * 2'")
+        try await click(done)
+        _ = try await ready(editor, script: parentWithDraft + " && document.querySelector('\(submit)')?.disabled === false")
+        try await click(submit)
+        _ = try await ready(editor, script: "!!document.querySelector('button[aria-label=\"Edit Doubled properties\"],button[aria-label=\"编辑Doubled属性\"]')")
+        let fieldsPage = fromGrid ? ".eidos-mobile-settings-sheet > .eidos-mobile-settings-page" : "[data-mobile-page]"
+        try await click("\(fieldsPage):not([hidden]) > header :is(button[aria-label=Close], button[aria-label=关闭])")
+        _ = try await ready(editor, script: "!document.querySelector('.eidos-mobile-fields-content')")
+        try await showRecord(web)
+        func renderedValue(_ value: String) -> String {
+            """
+            [...document.querySelectorAll('[data-eidos-record-property]')].some(
+              e=>e.innerText.includes('Doubled') && e.querySelector('.eidos-mobile-record-value')?.textContent.trim()==='\(value)')
+            """
+        }
+        _ = try await ready(editor, script: renderedValue("10"))
+        _ = try await web.evaluateJavaScript("""
+            (() => { const field = document.querySelector('input[aria-label=Quantity]'); field.focus();
+              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, '7');
+              field.dispatchEvent(new Event('input', {bubbles:true}));
+              return true;
+            })()
+            """)
+        _ = try await web.evaluateJavaScript("document.querySelector('input[aria-label=Quantity]').blur(); true")
+        _ = try await ready(editor, script: renderedValue("14"))
+        window.rootViewController = nil
+        _ = try Runtime.call(file, "close")
+        let (reopenedEditor, reopenedWeb) = try await openEditor()
+        try await showRecord(reopenedWeb)
+        _ = try await ready(reopenedEditor, script: renderedValue("14"))
+        capture(window, name: "t01-formula-ios-\(entry)-navigation-reopened")
+    }
+
+    @MainActor
     func testTodayFormulaRendersAfterReopeningTheWKWebView() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let space = try LocalSpace(root: root)
@@ -377,7 +550,7 @@ final class EditorWebTests: XCTestCase {
             if let web = controller.web, (try? await web.evaluateJavaScript(script)) as? Bool == true { return web }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-        XCTFail("Web editor did not become ready")
+        XCTFail("Web editor did not meet readiness check \(script)")
         return try XCTUnwrap(controller.web)
     }
     @MainActor private func capture(_ window: UIWindow, name: String) {

@@ -75,6 +75,7 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
         }
     }
     val state by model.state.collectAsStateWithLifecycle()
+    val pluginRegistry = remember(state.spaceId, state.pluginGeneration) { model.pluginOpenWith }
     val notificationContext = LocalContext.current
     val notificationPermission =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -439,8 +440,10 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                             model.toggleFavorite(favorite)
                                                         },
                                                         publish = model::openPublish,
-                                                        pluginRegistry = model.pluginOpenWith,
+                                                        pluginRegistry = pluginRegistry,
                                                         openPlugin = model::openWithPlugin,
+                                                        openBuiltIn = { model.openFavorite(favorite, usePluginDefault = false) },
+                                                        clearPluginDefault = model::clearPluginFileDefault,
                                                         showPath = true,
                                                         rename = { renameTarget = it },
                                                         move = { moveTarget = it },
@@ -465,8 +468,10 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                         it.path in favoritePaths,
                                                         toggleFile,
                                                         publish = model::openPublish,
-                                                        pluginRegistry = model.pluginOpenWith,
+                                                        pluginRegistry = pluginRegistry,
                                                         openPlugin = model::openWithPlugin,
+                                                        openBuiltIn = model::openWithBuiltIn,
+                                                        clearPluginDefault = model::clearPluginFileDefault,
                                                         rename = { renameTarget = it },
                                                         move = { moveTarget = it },
                                                         trash = model::trash,
@@ -503,8 +508,10 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                                     it.path in favoritePaths,
                                                     toggleFile,
                                                     publish = model::openPublish,
-                                                    pluginRegistry = model.pluginOpenWith,
+                                                    pluginRegistry = pluginRegistry,
                                                     openPlugin = model::openWithPlugin,
+                                                    openBuiltIn = model::openWithBuiltIn,
+                                                    clearPluginDefault = model::clearPluginFileDefault,
                                                     rename = { renameTarget = it },
                                                     move = { moveTarget = it },
                                                     trash = model::trash,
@@ -721,11 +728,16 @@ private fun EidosLocalizedApp(model: EidosModel, chooseLanguage: () -> Unit) {
                                         searchSheet = false
                                         model.openPublish(it)
                                     },
-                                    pluginRegistry = model.pluginOpenWith,
+                                    pluginRegistry = pluginRegistry,
                                     openPlugin = { file, key ->
                                         searchSheet = false
                                         model.openWithPlugin(file, key)
                                     },
+                                    openBuiltIn = {
+                                        searchSheet = false
+                                        model.openSearchMatch(match, usePluginDefault = false)
+                                    },
+                                    clearPluginDefault = model::clearPluginFileDefault,
                                     showPath = true,
                                     trash = { searchSheet = false; model.trash(it) },
                                     move = { searchSheet = false; moveTarget = it },
@@ -840,6 +852,8 @@ internal fun FileRow(
     publish: (SpaceFile) -> Unit,
     pluginRegistry: PluginOpenWithRegistry,
     openPlugin: (SpaceFile, String) -> Unit,
+    openBuiltIn: (SpaceFile) -> Unit = open,
+    clearPluginDefault: ((SpaceFile) -> Unit)? = null,
     showPath: Boolean = false,
     displayName: String = file.name,
     rename: (SpaceFile) -> Unit,
@@ -851,6 +865,7 @@ internal fun FileRow(
     var openWith by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val candidates = pluginRegistry.candidates(file)
+    val configuredExtension = pluginRegistry.configuredExtension(file)
     if (menuOnly) {
         IconButton(onClick = { menu = true }, enabled = enabled) {
             Icon(Icons.Outlined.MoreVert, tr("文件操作"))
@@ -916,12 +931,14 @@ internal fun FileRow(
                 }
                 if (openWith) {
                     ListItem(
-                        headlineContent = { Text(tr("默认打开方式")) },
+                        headlineContent = {
+                            Text(if (configuredExtension == null) tr("默认打开方式") else tr("内置打开方式"))
+                        },
                         modifier =
                             Modifier.clickable(enabled = enabled) {
                                 menu = false
                                 openWith = false
-                                open(file)
+                                openBuiltIn(file)
                             },
                     )
                     candidates.forEach { view ->
@@ -939,6 +956,14 @@ internal fun FileRow(
                                     openWith = false
                                     openPlugin(file, view.id)
                                 },
+                        )
+                    }
+                    if (configuredExtension != null && clearPluginDefault != null) {
+                        ListItem(
+                            headlineContent = { Text(tr("为 {0} 文件恢复内置打开方式", configuredExtension)) },
+                            modifier = Modifier.clickable(enabled = enabled) {
+                                clearPluginDefault(file)
+                            },
                         )
                     }
                 } else {

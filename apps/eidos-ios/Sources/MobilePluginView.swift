@@ -9,6 +9,37 @@ struct PluginNavigationPage: Identifiable, Hashable {
     var id: String { plugin + ":" + view }
 }
 
+struct MobilePluginCover: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var documentDirty = false
+    @State private var confirmDiscard = false
+    let space: LocalSpace
+    let title: String
+    let plugin: String
+    var view: String? = nil
+    var filePath: String? = nil
+    let open: (URL) -> Void
+    let close: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            MobilePluginView(space: space, dark: colorScheme == .dark, open: open,
+                pluginId: plugin, viewId: view, filePath: filePath,
+                showManager: requestClose, documentState: { documentDirty = $0 })
+            .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("返回"), action: requestClose) } }
+            .alert(tr("放弃此草稿"), isPresented: $confirmDiscard) {
+                Button(tr("取消"), role: .cancel) {}
+                Button(tr("确认放弃"), role: .destructive, action: close)
+            }
+        }
+    }
+
+    private func requestClose() {
+        if documentDirty { confirmDiscard = true } else { close() }
+    }
+}
+
 struct MobilePluginView: UIViewRepresentable {
     @AppStorage(AppLanguage.key, store: AppLanguage.defaults) private var appLanguage = "system"
     @Environment(\.locale) private var appLocale
@@ -20,7 +51,8 @@ struct MobilePluginView: UIViewRepresentable {
     var viewId: String? = nil
     var filePath: String? = nil
     var showManager: () -> Void = {}
-    func makeCoordinator() -> Coordinator { Coordinator(space:space,dark:dark,open:open,showManager:showManager) }
+    var documentState: (Bool) -> Void = { _ in }
+    func makeCoordinator() -> Coordinator { Coordinator(space:space,dark:dark,open:open,showManager:showManager,documentState:documentState) }
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
@@ -58,12 +90,14 @@ struct MobilePluginView: UIViewRepresentable {
         let dark: Bool
         let open: (URL) -> Void
         let showManager: () -> Void
+        let documentState: (Bool) -> Void
         let queue = DispatchQueue(label:"space.eidos.ios.plugins")
         weak var web: WKWebView?
         var closed = false
         var importReply: ((Any?,String?) -> Void)?
-        init(space: LocalSpace,dark: Bool,open: @escaping (URL) -> Void,showManager: @escaping () -> Void) {
+        init(space: LocalSpace,dark: Bool,open: @escaping (URL) -> Void,showManager: @escaping () -> Void,documentState: @escaping (Bool) -> Void) {
             service = MobilePluginService(space:space); self.dark = dark; self.open = open; self.showManager = showManager
+            self.documentState = documentState
         }
         func webView(_ web: WKWebView,didFinish navigation: WKNavigation!) {
             guard web.url?.absoluteString == "eidos://app/editor/plugins.html" else { return }
@@ -79,6 +113,9 @@ struct MobilePluginView: UIViewRepresentable {
                 UIApplication.shared.open(url); replyHandler(NSNull(),nil); return
             }
             if method == "manager.open" { showManager(); replyHandler(NSNull(),nil); return }
+            if method == "documentState", let dirty = params["dirty"] as? Bool {
+                documentState(dirty); replyHandler(NSNull(),nil); return
+            }
             if method == "import" {
                 guard importReply == nil else { replyHandler(nil,tr("正在选择插件")); return }
                 importReply = replyHandler

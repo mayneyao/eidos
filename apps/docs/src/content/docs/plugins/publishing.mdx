@@ -1,0 +1,72 @@
+---
+title: Plugin Submission Guide
+description: Check the release archive, mobile workflows, localization, and test evidence before listing a plugin.
+---
+
+Use this checklist for every new listing or update. Test the exact `.eidos-plugin`
+archive you plan to publish. Developers and agents can use the same submission
+notes to record supported workflows, reproduction steps, and limitations.
+
+A plugin can be released for Eidos Lite alone. Claim support for the hosts,
+devices, and workflows you have verified.
+
+## Before you submit
+
+### Release archive and core workflow
+
+- [ ] Run the intended host checks and project tests, then package your plugin. Install the release archive in the target host, review the requested permissions, and complete the main workflow from the entry point users will use. For a theme, select it in Lite and check both light and dark appearances.
+- [ ] Exercise relevant failure states, such as an empty file, no records, a denied permission, a connection failure, or a service timeout. Give users a clear way to go back or retry.
+- [ ] For updates, preserve plugin IDs, view IDs, and setting keys, and increase the version. Upgrade a copy of existing user data and check that saved views, settings, and files still work.
+
+### Host and mobile support
+
+Use `eidos-plugin check . --target lite` for the Lite profile and `--target cli` for the CLI Serve profile. Test iOS and Android in their respective apps.
+
+- [ ] Record **Eidos Lite, iOS, Android, and CLI Serve** individually as supported, limited, unverified, or unsupported. Include the app version, operating system or device, and entry point you tested. Claim a minimum supported version when you have evidence for it.
+- [ ] For any claimed mobile platform, complete the main workflow in the **Eidos iOS or Android app**. A file editor, for example, should edit, save, and reopen a sample file. Package checks, resized desktop windows, and browser previews can supplement that evidence.
+- [ ] Check narrow screens, the on-screen keyboard, touch, and scrolling on the device types you claim. For tablet support, check wider layouts, orientation changes, and navigation. Prioritize physical devices for platform-specific behavior such as WebGL or system file pickers.
+- [ ] Feature-detect optional host APIs. When a desktop capability is unavailable, hide the control or offer an alternative and describe the difference in the listing and README. For example, a chart can be viewable on mobile with PNG export available on a supported desktop host. Mark a host unsupported when a missing capability prevents the core workflow.
+
+### Localization and listing
+
+- [ ] Make the listing name and description, interface, and instructions complete in your default language. Check labels, errors, empty states, and accessible names.
+- [ ] List the languages you ship. For localized releases, verify the listing, interface, README, and fallback language where each is shown. Check the mobile layout with longer translations. See [Localization](/plugins/i18n/) for the package format.
+- [ ] Describe what users can do and disclose limitations and external dependencies. Include reproducible getting-started steps and a support link in the README. If you include screenshots, use the actual release with sample data.
+
+### Permissions and data
+
+- [ ] Declare the minimum permissions the core workflow needs. Explain what the plugin reads or writes, when it runs automatically, and what it sends to external services.
+- [ ] For writes, batch actions, or external connections, test the applicable confirmation, cancellation, and error paths. Provide sample data or a demo mode where helpful. Keep credentials and user data out of the submission.
+
+## Record test evidence
+
+Copy this template into the registry pull request. Fill in one row per host and
+label simulator, browser, and mocked-service evidence so readers can see what
+was exercised. Agents can use the same template for a handoff.
+
+```markdown
+Release archive and SHA-256
+- GitHub Release, archive filename, SHA-256
+
+Hosts and test evidence
+| Host and app version | Status | Device or environment | Entry point and result | Limitations |
+| --- | --- | --- | --- | --- |
+| Eidos Lite | | | | |
+| iOS | | | | |
+| Android | | | | |
+| CLI Serve | | | | |
+
+Languages and permissions
+- Default language, verified translations, and fallback
+- File or data permissions, external services, sample data or demo mode
+
+Reproduction and updates
+- Sample file, steps, expected result, screenshot or log
+- Changes, upgrade test results, and known limitations
+```
+
+## Submit to the registry
+
+1. Follow [Development and Distribution](/plugins/workflow/) to check and package your plugin. Upload the tested `<id>-<version>.eidos-plugin` archive to a public GitHub Release.
+2. See `eidos-plugin registry --help` and generate a draft listing from that archive. Check the version, actual tag, filename, SHA-256, category, and compatibility note. Follow the registry's theme instructions for theme packages.
+3. Update `plugins.registry.json` using the [registry contribution instructions](https://github.com/eidos-space/registry/blob/main/CONTRIBUTING.md) and include your test evidence in the pull request.

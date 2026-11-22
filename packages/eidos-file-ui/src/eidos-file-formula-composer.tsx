@@ -182,7 +182,8 @@ export function EidosFileFormulaComposer({
   onSaveShortcut,
   disabled = false,
 }: EidosFileFormulaComposerProps) {
-  const { translate: t } = useEidosFileUI()
+  const { translate: t, interactionMode } = useEidosFileUI()
+  const mobile = interactionMode === "mobile"
   const calendar = useEidosFileCalendarExecution()
   const internalEditorRef = useRef<EidosFileFormulaInputRef>(null)
   const editorRef = externalEditorRef ?? internalEditorRef
@@ -204,9 +205,10 @@ export function EidosFileFormulaComposer({
     null
 
   useEffect(() => {
+    if (mobile) return
     const timer = window.setTimeout(() => editorRef.current?.focus(), 100)
     return () => window.clearTimeout(timer)
-  }, [editorRef])
+  }, [editorRef, mobile])
 
   useEffect(() => {
     const sequence = ++validationSequence.current
@@ -356,7 +358,17 @@ export function EidosFileFormulaComposer({
                     : t("Start typing to validate and preview this formula.")}
             </span>
           </div>
-          <div className="eidos-file-formula-display-row flex shrink-0 items-center gap-2">
+          <div
+            className={cn(
+              "eidos-file-formula-display-row flex shrink-0 gap-2",
+              mobile ? "flex-col items-end" : "items-center"
+            )}
+          >
+            {mobile ? (
+              <span className="text-xs text-muted-foreground">
+                {t("Display as")}
+              </span>
+            ) : null}
             <Select
               value={displayType}
               disabled={disabled}
@@ -389,7 +401,10 @@ export function EidosFileFormulaComposer({
         </div>
       </section>
 
-      <section className="eidos-file-formula-reference-browser grid border-t bg-muted/15">
+      <section
+        className="eidos-file-formula-reference-browser grid border-t bg-muted/15"
+        data-mobile-formula-references={mobile ? "" : undefined}
+      >
         <div className="min-w-0 border-r">
           <p className="border-b px-3 py-2 text-xs font-medium">
             {t("Fields & functions")}
@@ -443,7 +458,10 @@ export function EidosFileFormulaComposer({
             )}
           </div>
         </div>
-        <div className="eidos-file-formula-reference-detail min-w-0 p-3 text-xs text-muted-foreground">
+        <div
+          className="eidos-file-formula-reference-detail min-w-0 p-3 text-xs text-muted-foreground"
+          hidden={mobile}
+        >
           {selectedCompletion ? (
             <>
               <div className="flex items-center gap-2 text-foreground">
@@ -484,9 +502,11 @@ export function EidosFileFormulaComposer({
           )}
         </div>
       </section>
-      <p className="border-t px-3 py-2 text-[10px] text-muted-foreground">
-        {t("Press ⌘S or Ctrl+S to save. Escape closes the editor.")}
-      </p>
+      {!mobile ? (
+        <p className="border-t px-3 py-2 text-[10px] text-muted-foreground">
+          {t("Press ⌘S or Ctrl+S to save. Escape closes the editor.")}
+        </p>
+      ) : null}
     </div>
   )
 }

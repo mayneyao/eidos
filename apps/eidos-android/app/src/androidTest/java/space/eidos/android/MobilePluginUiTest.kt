@@ -31,7 +31,7 @@ class MobilePluginUiTest {
         assumeTrue(directory != null)
         val app = compose.activity.application
         val id = "navigation-${UUID.randomUUID()}"
-        val pluginId = "test.navigation"
+        val pluginId = "eidos.journals"
         val repository = SpaceRepository(app, id)
         val store = PluginMarketStore(app)
         assumeTrue(store.installed(id).none { it.id == pluginId })
@@ -41,15 +41,9 @@ class MobilePluginUiTest {
             (0 until catalog.length()).map(catalog::getJSONObject).single {
                 it.getString("id") == "eidos.journals"
             }
-        val original = runBlocking {
+        val prepared = runBlocking {
             store.prepare(Uri.fromFile(File(directory, entry.getString("asset"))))
         }
-        val payload = JSONObject(original.json)
-        val manifest = payload.getJSONObject("manifest").put("id", pluginId)
-        manifest
-            .getJSONArray("placements")
-            .put(JSONObject().put("location", "navigation").put("view", "overview"))
-        val json = payload.toString()
         lateinit var model: EidosModel
         fun find(view: View): WebView? =
             when (view) {
@@ -60,9 +54,7 @@ class MobilePluginUiTest {
             }
         try {
             runBlocking {
-                store.install(
-                    PreparedPlugin(json, manifest, PluginMarketTransport.hash(json.toByteArray()))
-                )
+                store.install(prepared)
             }
             assertTrue(store.navigationPages(id).isEmpty())
             store.setEnabled(id, store.installed(id).single { it.id == pluginId }, true)

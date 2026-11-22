@@ -143,7 +143,7 @@ export const PopoverContent: ForwardRefExoticComponent<ContentProps> =
       </div>
     )
     if (navigation) {
-      if (!root?.open || !navigation.target) return null
+      if ((!root?.open && !props.forceMount) || !navigation.target) return null
       return createPortal(
         <div
           ref={ref}
@@ -156,7 +156,7 @@ export const PopoverContent: ForwardRefExoticComponent<ContentProps> =
               <button
                 type="button"
                 aria-label={t("Back")}
-                onClick={() => root.close()}
+                onClick={() => root?.close()}
               >
                 <ArrowLeft size={20} />
               </button>

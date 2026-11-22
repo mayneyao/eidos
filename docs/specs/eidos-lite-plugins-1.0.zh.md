@@ -242,6 +242,8 @@ Lite API 3.2 支持可选的 `fileTemplates`，每项包含 `id、title、extens
 模板必须引用具有 document 能力、且 file/open 扩展名匹配的 file View。
 内容为最多 256 KiB 的静态 UTF-8 文本，`.eidos` 为保留扩展名。
 宿主只展示已启用插件的模板，由用户选择名称和目录，以不覆盖方式创建并打开声明的 View；创建时不执行插件代码。
+Android 和 iOS 接受插件包中有效的模板声明，并通过关联的 `file/open` 入口打开已有文件。
+从模板创建文件由 Lite 提供。
 
 具有 Space 文件读取权限的 file View 可获得 `ui.resources.listViews(path)` 和
 `ui.resources.mount(element, source)`。source 为 `{ kind: "file", path }` 或
@@ -282,6 +284,12 @@ Lite 将 `.eidos-plugin` 包关联到桌面宿主。从操作系统打开包（�
 展示已安装版本与新包版本。取消或包无效时，已安装版本必须保持不变。打开包不能
 隐式启用任何 Space 中的插件；更新保留各 Space 原有的启用状态。多个系统打开请求
 按顺序处理。
+
+安装确认可以提供默认不勾选的选项，将符合条件的 `file/open` View 设为目标 Space
+中对应扩展名的默认打开方式。宿主从已验证的包读取可关联项，并在用户勾选且该 View
+可在此 Space 使用后保存。取消、安装失败或未勾选时保留原来的文件关联。更新保留用户
+的选择。文件关联只选择编辑器，不授予额外权限。所选 View 不可用时，普通打开操作会
+使用内置打开方式。
 
 Binding 仅描述资源与定位，不授予权限。FileRef 的 ID 是上下文内的显示身份，
 不是持久文件 ID 或权限凭证。宿主可附加相对路径与名称；没有文件元数据的表格会话使用
@@ -434,6 +442,11 @@ save 返回 saved/conflict 与快照。过期修改不能覆盖新内容，磁�
 宿主拥有共享撤销和可恢复草稿。不能因上下文路径变化就用直接文件写入替代。
 Formatter 通过 capabilities.formatters 注册，接收 text/path/signal 并返回 text；
 宿主检查版本／上下文后应用可撤销编辑，不给 formatter 文档写句柄。
+
+Android 和 iOS 上的 document 文件 View 绑定一个不超过 2 MiB 的普通 UTF-8 文件。
+修改需在 View 声明 `access: "write"`。宿主在当前编辑器内保留工作副本和编辑历史，
+提供保存按钮，并在有未保存修改时确认是否关闭。原生写入先比较磁盘版本，再替换绑定文件。
+此权限不授予对 Space 中其他文件的写入权限。
 
 ## 9. 结构化数据与输出
 

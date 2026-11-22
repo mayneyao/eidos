@@ -45,7 +45,42 @@ private final class PluginDownload: NSObject, URLSessionDataDelegate {
     }
 }
 
+struct MobileMarketRelease: Sendable {
+    let id: String
+    let version: String
+    let hash: String
+    let url: URL
+    var packageKey: String { id + "@" + version + ":" + hash }
+    var key: String { packageKey + ":" + url.absoluteString }
+
+    init(_ entry: [String: Any]) throws {
+        guard let id = entry["id"] as? String, id.range(of: "^[a-z][a-z0-9.-]{1,127}$", options: .regularExpression) != nil,
+              let version = entry["version"] as? String, version.range(of: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$", options: .regularExpression) != nil,
+              let repo = entry["repo"] as? String, repo.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$", options: .regularExpression) != nil,
+              let tag = entry["tag"] as? String, tag.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]*$", options: .regularExpression) != nil,
+              let asset = entry["asset"] as? String, asset == id + "-" + version + ".eidos-plugin",
+              let hash = entry["sha256"] as? String, hash.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
+              let url = URL(string: "https://github.com/\(repo)/releases/download/\(tag)/\(asset)") else {
+            throw LocalError.message(tr("无效市场条目"))
+        }
+        self.id = id; self.version = version; self.hash = hash; self.url = url
+    }
+}
+
 final class MobilePluginService {
+    static let marketIndex: [String: Any] = {
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("editor/market-index.json"),
+              let data = try? Data(contentsOf: url),
+              let index = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
+        return index
+    }()
+    private static let installationLock = NSLock()
+    private static let fileDefaultsSuffix = ".file-defaults"
+    private static let marketArchives: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = 16*1024*1024
+        return cache
+    }()
     let space: LocalSpace
     let directory: URL
     var prepared: [String: Any]?
@@ -72,7 +107,10 @@ final class MobilePluginService {
         return value
     }
     private func records() -> [[String: Any]] { preferences.array(forKey: "plugins.installed") as? [[String: Any]] ?? [] }
-    private func key(_ id: String, _ name: String) -> String { "plugins." + LocalSpace.digest(Data(LocalSpace.storageIdentity(space.root).utf8)) + "." + id + "." + name }
+    private var spaceKey: String { "plugins." + LocalSpace.digest(Data(LocalSpace.storageIdentity(space.root).utf8)) }
+    private func key(_ id: String, _ name: String) -> String { spaceKey + "." + id + "." + name }
+    private var fileDefaultsKey: String { spaceKey + Self.fileDefaultsSuffix }
+    private var fileDefaults: [String: String] { preferences.dictionary(forKey: fileDefaultsKey) as? [String: String] ?? [:] }
     private func program(_ id: String) throws -> [String: Any] {
         guard let record = records().first(where: { ($0["manifest"] as? [String:Any])?["id"] as? String == id }),
               (record["manifest"] as? [String:Any])?["kind"] as? String != "theme",
@@ -138,22 +176,49 @@ final class MobilePluginService {
         }
         return nil
     }
+    private func fileHandlers(_ manifest: [String: Any]) -> [String: Set<PluginNavigationPage>] {
+        guard manifest["kind"] as? String != "theme", let plugin = manifest["id"] as? String else { return [:] }
+        let views = manifest["views"] as? [[String: Any]] ?? []
+        var handlers: [String: Set<PluginNavigationPage>] = [:]
+        for placement in manifest["placements"] as? [[String: Any]] ?? [] {
+            guard placement["location"] as? String == "file/open", let viewID = placement["view"] as? String,
+                  let view = views.first(where: { $0["id"] as? String == viewID && $0["kind"] as? String == "file" }),
+                  let title = view["title"] as? String else { continue }
+            let handler = PluginNavigationPage(plugin: plugin, view: viewID, title: title)
+            for fileExtension in placement["extensions"] as? [String] ?? [] {
+                handlers[fileExtension, default: []].insert(handler)
+            }
+        }
+        return handlers
+    }
+    private func extensionKey(_ file: URL) -> String { "." + file.pathExtension.lowercased() }
     func fileViews(_ file: URL) throws -> [PluginNavigationPage] {
         guard !LocalSpace.isDirectory(file) else { return [] }
         let installed = try handle("list", [:]) as? [[String: Any]] ?? []
         return installed.filter { $0["enabled"] as? Bool == true }.flatMap { record -> [PluginNavigationPage] in
-            guard let manifest = record["manifest"] as? [String: Any], let plugin = manifest["id"] as? String else { return [] }
-            let views = manifest["views"] as? [[String: Any]] ?? []
-            return views.compactMap { view in
-                guard view["kind"] as? String == "file", let id = view["id"] as? String,
-                      let title = view["title"] as? String,
-                      (manifest["placements"] as? [[String: Any]] ?? []).contains(where: {
-                          $0["location"] as? String == "file/open" && $0["view"] as? String == id &&
-                          ($0["extensions"] as? [String] ?? []).contains("." + file.pathExtension.lowercased())
-                      }) else { return nil }
-                return PluginNavigationPage(plugin: plugin, view: id, title: title)
-            }
+            guard let manifest = record["manifest"] as? [String: Any] else { return [] }
+            return Array(fileHandlers(manifest)[extensionKey(file)] ?? [])
         }.sorted { $0.id < $1.id }
+    }
+    func hasFileDefault(_ file: URL) -> Bool { fileDefaults[extensionKey(file)] != nil }
+    func defaultFileView(_ file: URL) -> PluginNavigationPage? {
+        let fileExtension = extensionKey(file)
+        guard fileExtension != ".eidos", let id = fileDefaults[fileExtension], let checked = try? space.checked(file),
+              (try? checked.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+              let view = try? fileViews(file).first(where: { $0.id == id }),
+              let package = try? program(view.plugin), let manifest = package["manifest"] as? [String: Any],
+              fileHandlers(manifest)[fileExtension]?.contains(where: { $0.id == id }) == true,
+              let declaration = (manifest["views"] as? [[String: Any]])?.first(where: { $0["id"] as? String == view.view }) else { return nil }
+        if (declaration["capabilities"] as? [String])?.contains("document") == true,
+           (try? LocalSpace.readMarkdown(checked)) == nil { return nil }
+        return view
+    }
+    func clearFileDefault(_ file: URL) {
+        Self.installationLock.withLock {
+            var defaults = fileDefaults
+            defaults.removeValue(forKey: extensionKey(file))
+            preferences.set(defaults.isEmpty ? nil : defaults, forKey: fileDefaultsKey)
+        }
     }
     private func path(_ value: Any?, allowRoot: Bool = false) throws -> URL {
         guard let path = value as? String, !path.hasPrefix("/"), !path.contains("\\"), !path.contains(":"),
@@ -186,11 +251,32 @@ final class MobilePluginService {
         guard status == errSecSuccess, let data = result as? Data else { throw LocalError.message(tr("无法读取连接密钥")) }
         return String(data:data,encoding:.utf8)
     }
-    private func registry() throws -> [[String:Any]] {
+    func registry() throws -> [[String:Any]] {
         let url = URL(string:"https://raw.githubusercontent.com/eidos-space/registry/main/plugins.registry.json")!
         let registry = try json(PluginDownload.request(URLRequest(url:url),limit:2*1024*1024,package:true))
         guard registry["schemaVersion"] as? Int == 1, let entries = registry["plugins"] as? [[String:Any]], entries.count <= 1000 else { throw LocalError.message(tr("无效插件市场")) }
         return entries
+    }
+    static func marketArchive(_ release: MobileMarketRelease) throws -> Data {
+        if let cached = marketArchives.object(forKey: release.key as NSString) { return cached as Data }
+        let data = try PluginDownload.request(URLRequest(url: release.url),limit:16*1024*1024,package:true)
+        guard LocalSpace.digest(data) == release.hash else { throw LocalError.message(tr("插件校验和不匹配")) }
+        marketArchives.setObject(data as NSData, forKey: release.key as NSString, cost: data.count)
+        return data
+    }
+    func inspectMarketArchive(_ bytes: Data, release: MobileMarketRelease) throws -> (data: Data, raw: String, manifest: [String:Any]) {
+        let data = try unpack(bytes), value = try json(data)
+        guard let raw = String(data:data,encoding:.utf8), let manifest = value["manifest"] as? [String:Any],
+              manifest["id"] as? String == release.id, manifest["version"] as? String == release.version else {
+            throw LocalError.message(tr("插件身份不匹配"))
+        }
+        return (data, raw, manifest)
+    }
+    func prepareMarket(_ release: MobileMarketRelease) throws -> [String:Any] {
+        prepared = nil
+        let archive = try inspectMarketArchive(Self.marketArchive(release), release: release)
+        prepared = ["data":archive.data,"manifest":archive.manifest]
+        return ["manifest":archive.manifest,"raw":archive.raw,"revision":LocalSpace.digest(archive.data),"origin":tr("插件市场（SHA-256 已匹配）")]
     }
     private func unpack(_ data: Data) throws -> Data {
         guard data.count <= 16*1024*1024 else { throw LocalError.message(tr("插件超过 16 MiB")) }
@@ -225,11 +311,19 @@ final class MobilePluginService {
         return ["manifest":manifest,"raw":String(decoding:data,as:UTF8.self),"revision":LocalSpace.digest(data),"origin":tr("本地文件（未通过市场校验）")]
     }
     // Called only after the trusted native manager has validated these exact bytes.
-    func reviewManifest(_ manifest: [String:Any], revision: String) throws {
+    @discardableResult
+    func reviewManifest(_ manifest: [String:Any], revision: String) throws -> [String] {
         guard let data = prepared?["data"] as? Data, LocalSpace.digest(data) == revision,
               let original = prepared?["manifest"] as? [String:Any],
-              original["id"] as? String == manifest["id"] as? String else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
+              let plugin = manifest["id"] as? String,
+              original["id"] as? String == plugin else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
         prepared?["manifest"] = manifest
+        prepared?["fileDefaults"] = nil
+        guard !records().contains(where: { ($0["manifest"] as? [String: Any])?["id"] as? String == plugin }) else { return [] }
+        var defaults = fileHandlers(manifest).compactMapValues { handlers in handlers.count == 1 ? handlers.first?.id : nil }
+        defaults.removeValue(forKey: ".eidos")
+        prepared?["fileDefaults"] = defaults
+        return defaults.keys.sorted()
     }
     func handle(_ method: String, _ p: [String:Any]) throws -> Any {
         switch method {
@@ -268,41 +362,38 @@ final class MobilePluginService {
                 record["enabled"] = (record["manifest"] as? [String:Any])?["kind"] as? String != "theme" && preferences.string(forKey:key(id,"enabled")) == record["revision"] as? String
                 return record
             }
-        case "market": return try registry()
         case "prepare":
             prepared = nil
             let pluginId = try id(p["id"])
-            guard let entry = try registry().first(where: { $0["id"] as? String == pluginId }),
-                  let repo = entry["repo"] as? String, let tag = entry["tag"] as? String,
-                  let asset = entry["asset"] as? String, let hash = entry["sha256"] as? String,
-                  repo.range(of:"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",options:.regularExpression) != nil,
-                  tag.range(of:"^[A-Za-z0-9_.-]+$",options:.regularExpression) != nil,
-                  asset == pluginId + "-" + (entry["version"] as? String ?? "") + ".eidos-plugin",
-                  let url = URL(string:"https://github.com/\(repo)/releases/download/\(tag)/\(asset)") else { throw LocalError.message(tr("无效市场条目")) }
-            let bytes = try PluginDownload.request(URLRequest(url:url),limit:16*1024*1024,package:true)
-            guard LocalSpace.digest(bytes) == hash else { throw LocalError.message(tr("插件校验和不匹配")) }
-            let data = try unpack(bytes), value = try json(data)
-            guard String(data:data,encoding:.utf8) != nil, let manifest = value["manifest"] as? [String:Any],
-                  manifest["id"] as? String == pluginId, manifest["version"] as? String == entry["version"] as? String else { throw LocalError.message(tr("插件身份不匹配")) }
-            prepared = ["data":data,"manifest":manifest]
-            return ["manifest":manifest,"raw":String(decoding:data,as:UTF8.self),"revision":LocalSpace.digest(data),"origin":tr("插件市场（SHA-256 已匹配）")]
+            guard let entry = try registry().first(where: { $0["id"] as? String == pluginId }) else { throw LocalError.message(tr("无效市场条目")) }
+            return try prepareMarket(MobileMarketRelease(entry))
         case "install":
             guard let prepared, let data = prepared["data"] as? Data, let manifest = prepared["manifest"] as? [String:Any] else { throw LocalError.message(tr("请先检查插件包")) }
             let pluginId = try id(manifest["id"]), revision = LocalSpace.digest(data)
             guard p["revision"] as? String == revision else { throw LocalError.message(tr("插件包已变更，请重新检查后安装")) }
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
+            let installed = records()
+            var records = installed.filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId }
+            let fresh = records.count == installed.count
             try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
             try data.write(to:directory.appendingPathComponent(revision+".json"),options:[.atomic,.completeFileProtectionUnlessOpen])
-            var records = records().filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId }
             records.append(["manifest":manifest,"revision":revision])
             preferences.set(records,forKey:"plugins.installed"); self.prepared = nil
             // This service retains the originating LocalSpace; selection changes cannot
             // redirect the permission grant. Grants remain bound to reviewed bytes.
             if manifest["kind"] as? String != "theme" {
                 preferences.set(revision,forKey:key(pluginId,"enabled"))
+                if fresh, p["setFileDefaults"] as? Bool == true,
+                   let selected = prepared["fileDefaults"] as? [String: String], !selected.isEmpty {
+                    preferences.set(fileDefaults.merging(selected) { _, new in new }, forKey: fileDefaultsKey)
+                }
             }
             return NSNull()
         case "enable":
             let pluginId = try id(p["id"])
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
             guard let record = records().first(where: { ($0["manifest"] as? [String:Any])?["id"] as? String == pluginId }) else { throw LocalError.message(tr("插件未安装")) }
             if (record["manifest"] as? [String:Any])?["kind"] as? String == "theme", p["enabled"] as? Bool == true {
                 throw LocalError.message(tr("移动端不支持插件主题"))
@@ -311,9 +402,17 @@ final class MobilePluginService {
             return NSNull()
         case "uninstall":
             let pluginId = try id(p["id"])
+            Self.installationLock.lock()
+            defer { Self.installationLock.unlock() }
             preferences.set(records().filter { ($0["manifest"] as? [String:Any])?["id"] as? String != pluginId },forKey:"plugins.installed")
             preferences.removeObject(forKey:key(pluginId,"enabled"))
             for name in preferences.dictionaryRepresentation().keys where name.hasPrefix(key(pluginId,"")) { preferences.removeObject(forKey:name) }
+            for name in preferences.dictionaryRepresentation().keys where name.hasPrefix("plugins.") &&
+                name.hasSuffix(Self.fileDefaultsSuffix) && name.split(separator: ".").count == 3 {
+                guard let defaults = preferences.dictionary(forKey: name) as? [String: String] else { continue }
+                let kept = defaults.filter { !$0.value.hasPrefix(pluginId + ":") }
+                if kept.count != defaults.count { preferences.set(kept.isEmpty ? nil : kept, forKey: name) }
+            }
             let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"space.eidos.plugins",kSecReturnAttributes as String:true,kSecMatchLimit as String:kSecMatchLimitAll]
             var credentials: CFTypeRef?
             if SecItemCopyMatching(query as CFDictionary,&credentials) == errSecSuccess {
@@ -339,6 +438,19 @@ final class MobilePluginService {
             return items
         case "stat": return (try? stat(path(p["path"]))) ?? NSNull() as Any
         case "readText": return try LocalSpace.readMarkdown(path(p["path"]))
+        case "saveDocument":
+            let url = try path(p["path"])
+            guard url.pathExtension.lowercased() != "eidos", let text = p["text"] as? String,
+                  text.utf8.count <= 2*1024*1024, let digest = p["expectedDigest"] as? String else {
+                throw LocalError.message(tr("无效文本写入"))
+            }
+            return try LocalSpace.io.sync {
+                do {
+                    var result = try LocalSpace.saveMarkdown(url, text:text, expectedDigest:digest)
+                    result["status"] = "saved"
+                    return result
+                } catch LocalError.staleDocument { return ["status":"conflict"] }
+            }
         case "readBinary":
             let url = try path(p["path"])
             guard (try url.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? Int.max) <= 16*1024*1024 else { throw LocalError.message(tr("文件超过 16 MiB")) }

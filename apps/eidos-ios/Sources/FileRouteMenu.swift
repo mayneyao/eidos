@@ -9,9 +9,9 @@ struct FileRouteMenu: View {
     let renamed: (URL) -> Void
     let removed: () -> Void
     let refresh: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
     @State private var favorite = false
     @State private var views: [PluginNavigationPage] = []
+    @State private var hasFileDefault = false
     @State private var plugin: PluginNavigationPage?
     @State private var export: URL?
     @State private var naming = false
@@ -31,10 +31,16 @@ struct FileRouteMenu: View {
                 } catch { self.error = error.localizedDescription }
             }
             Menu {
-                Button(tr("默认打开方式"), systemImage: "doc") {}
+                Button(tr("内置打开方式"), systemImage: "doc") {}
                 ForEach(views) { view in
                     Button(view.title, systemImage: "puzzlepiece.extension") {
                         saved { _ in plugin = view }
+                    }
+                }
+                if hasFileDefault {
+                    Button(tr("为 {0} 文件恢复内置打开方式", "." + file.pathExtension.lowercased()), systemImage: "arrow.counterclockwise") {
+                        MobilePluginService(space: space).clearFileDefault(file)
+                        hasFileDefault = false
                     }
                 }
             } label: { Label(tr("打开方式"), systemImage: "arrow.up.forward.app") }
@@ -51,7 +57,9 @@ struct FileRouteMenu: View {
         .task(id: file) {
             do {
                 favorite = try FileActivity.load(space).favorites.contains(FileActivity.path(file, space: space))
-                views = try MobilePluginService(space: space).fileViews(file)
+                let service = MobilePluginService(space: space)
+                views = try service.fileViews(file)
+                hasFileDefault = service.hasFileDefault(file)
             } catch { self.error = error.localizedDescription }
         }
         .alert(tr("重命名"), isPresented: $naming) {
@@ -66,12 +74,9 @@ struct FileRouteMenu: View {
             if let export { ShareFileView(url: export) }
         }
         .fullScreenCover(item: $plugin, onDismiss: refresh) { view in
-            NavigationStack {
-                MobilePluginView(space: space, dark: colorScheme == .dark, open: { url in plugin = nil; renamed(url) },
-                    pluginId: view.plugin, viewId: view.view, filePath: FileActivity.path(file, space: space))
-                .navigationTitle(file.lastPathComponent).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("返回")) { plugin = nil } } }
-            }
+            MobilePluginCover(space: space, title: file.lastPathComponent, plugin: view.plugin,
+                view: view.view, filePath: FileActivity.path(file, space: space),
+                open: { url in plugin = nil; renamed(url) }, close: { plugin = nil })
         }
     }
 

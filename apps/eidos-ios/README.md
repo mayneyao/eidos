@@ -228,7 +228,10 @@ This is an experimental host, not a verified App Store release. No service deplo
 
 Open **Space actions → Plugins** to review permissions and install plugins. Successful
 installation enables the plugin in the originating Space. Updated packages need
-fresh enablement in other Spaces. See the
+fresh enablement in other Spaces. If installation offers a default for a file
+type, select the checkbox to use the plugin for ordinary opens of that type
+in this Space. The file's **Open with** menu offers a one-time choice and a way
+to restore the built-in default. See the
 [shared mobile plugin host](../../packages/mobile-plugin-host/README.md).
 Connection keys use Keychain and are never sent to guest JavaScript or stored
 in the Space. Map and Chart views are available in the shared `.eidos` editor.

@@ -112,16 +112,22 @@ export function useMobilePlugins(request: Request, themeOnly = false) {
     let active = true
     void request<Program[]>("plugin.catalog", { themeOnly })
       .then(async (programs) => {
-        programs = programs.filter(
-          (program) => program.manifest.kind !== "theme"
-        )
         if (!programs.length) return
         const { validatePackage } =
           await import("../../mobile-plugin-host/src/validate")
-        for (const program of programs)
-          validatePackage(JSON.stringify({ format: 2, ...program }))
         if (!active) return
-        setPrograms(programs)
+        setPrograms(
+          programs.filter((program) => {
+            if (program?.manifest?.kind === "theme") return false
+            try {
+              validatePackage(JSON.stringify({ format: 2, ...program }))
+              return true
+            } catch {
+              // An older installed package can become incompatible after a host update.
+              return false
+            }
+          })
+        )
       })
       .catch(() => {
         if (active) setPrograms([])

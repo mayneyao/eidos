@@ -336,12 +336,13 @@ internal fun EmbeddedEditorScreen(
                     actions = {
                         if (!shareMode) FileRow(
                             file = file, enabled = editorReady && !state.busy,
-                            open = { /* Already using the default editor. */ },
+                            open = { /* Already using the built-in editor. */ },
                             export = { afterSave { export(file) } },
                             favorite = state.favorites.any { it.path == file.path && it.tableId == null },
                             toggleFavorite = { model.toggleFavorite(Favorite(it.path, it.name)) },
                             publish = {}, pluginRegistry = model.pluginOpenWith,
                             openPlugin = { _, id -> afterSave { model.openWithPlugin(file, id) } },
+                            clearPluginDefault = model::clearPluginFileDefault,
                             rename = { afterSave { rename(file) } },
                             move = { afterSave { move(file) } }, menuOnly = true,
                             trash = { afterSave { trash(file) } },

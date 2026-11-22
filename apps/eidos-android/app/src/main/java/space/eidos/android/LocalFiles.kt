@@ -113,12 +113,12 @@ class LocalFiles(
     private fun digest(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+    class TextConflict : IllegalStateException(tr("文件已被其他操作修改。你的草稿已保留，请重新打开文件后处理。"))
+
     fun writeText(relative: String, text: String, expectedDigest: String? = null): String {
         val target = resolve(relative)
         if (expectedDigest != null) {
-            check(target.isFile && digest(target) == expectedDigest) {
-                tr("文件已被其他操作修改。你的草稿已保留，请重新打开文件后处理。")
-            }
+            if (!target.isFile || digest(target) != expectedDigest) throw TextConflict()
         } else {
             check(!target.exists()) { tr("文件已存在，请使用其他名称") }
         }

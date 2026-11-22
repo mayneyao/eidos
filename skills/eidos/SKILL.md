@@ -1,13 +1,14 @@
 ---
 name: eidos
-description: Safely manage `.eidos` data, attachments, schema, and saved Views with the Eidos CLI; create, develop, validate, and package Eidos Lite or CLI Serve plugins. Use for Eidos data operations and Eidos plugin development, debugging, or migration. Never use raw SQLite writes.
+description: Safely manage `.eidos` data, attachments, schema, and saved Views with the Eidos CLI. Create, debug, validate, and package Eidos plugins, migrate them between API versions, or prepare a marketplace submission. Never use raw SQLite writes.
 ---
 
 # Eidos File and Plugins
 
-For plugin creation, implementation, debugging, migration, or packaging, read
-[references/plugins.md](references/plugins.md) first. It covers host selection,
-scaffolding, SDK contracts, development loading, tests, and deliverables. Plugin
+For plugin creation, implementation, debugging, migration, packaging, or
+marketplace submission, read [references/plugins.md](references/plugins.md) first.
+It covers host selection, scaffolding, SDK contracts, development loading,
+tests, and deliverables. Plugin
 authoring uses `@eidos.space/plugin-tools`; `eidos plugin` manages installed
 packages. Do not require the Eidos CLI for a source-only plugin task, or apply
 the data-mutation workflow below to plugin source files.

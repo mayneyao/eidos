@@ -8,6 +8,7 @@ import {
   type TableBinding,
 } from "./host"
 import { validatePackage } from "./validate"
+import { supportsMobileFileOpen } from "./profile"
 import { validateSetting } from "../../plugin-runtime/src/manifest"
 import type {
   PluginManifest,
@@ -106,7 +107,10 @@ const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "") => {
 }
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
-export function confirmation(message: string): Promise<boolean> {
+export function confirmation(
+  message: string,
+  confirmLabel = mobileText("允许")
+): Promise<boolean> {
   return new Promise((resolve) => {
     const dialog = element("dialog"),
       paragraph = element("p", message),
@@ -118,7 +122,7 @@ export function confirmation(message: string): Promise<boolean> {
     }
     for (const [text, answer] of [
       [mobileText("取消"), false],
-      [mobileText("允许"), true],
+      [confirmLabel, true],
     ] as const) {
       const button = element("button", text)
       button.onclick = () => finish(answer)
@@ -190,17 +194,27 @@ class Workbench {
     const view = program.manifest.views?.find(
       (v) => v.id === launch.view && v.kind === "file"
     )
-    const placement = program.manifest.placements?.find(
-      (p) => p.location === "file/open" && p.view === launch.view
-    )
     if (
       !view ||
-      placement?.location !== "file/open" ||
-      !placement.extensions.some((e) => launch.path!.toLowerCase().endsWith(e))
+      !supportsMobileFileOpen(program.manifest, view.id, launch.path)
     )
       throw new Error(mobileText("此插件不支持当前文件"))
     const mount = element("main")
     mount.className = "plugin-surface"
+    const writable =
+      view.access === "write" &&
+      view.capabilities?.includes("document") &&
+      !/\.eidos$/i.test(launch.path)
+    const save = element("button", mobileText("保存"))
+    save.type = "button"
+    save.disabled = true
+    let dirty = false
+    if (writable) {
+      const controls = element("div")
+      controls.className = "document-actions"
+      controls.append(save)
+      root.append(controls)
+    }
     root.append(mount)
     const timeout = setTimeout(() => {
       this.notice.textContent = mobileText("插件暂未完成加载，请返回后重试。")
@@ -216,7 +230,24 @@ class Workbench {
         clearTimeout(timeout)
         this.notice.textContent = message
       },
-      openFile: (path) => this.native("openFile", { path }),
+      openFile: async (path) => {
+        if (
+          instance.hasUnsavedDocument &&
+          !(await confirmation(
+            mobileText("放弃此草稿"),
+            mobileText("确认放弃")
+          ))
+        )
+          return
+        await this.native("openFile", { path })
+      },
+      documentChanged: ({ dirty: next, conflicted }) => {
+        if (!writable) return
+        save.disabled = !next || conflicted
+        if (dirty === next) return
+        dirty = next
+        void this.native("documentState", { dirty }).catch(() => {})
+      },
       navigate: () => {
         throw new Error(mobileText("请从插件页面打开此功能"))
       },
@@ -226,6 +257,20 @@ class Workbench {
           document.documentElement.dataset.theme ?? "light",
       },
     })
+    save.onclick = async () => {
+      save.disabled = true
+      try {
+        const result = await instance.saveDocument()
+        this.notice.textContent =
+          result.status === "conflict"
+            ? mobileText(
+                "文件已被其他操作修改。你的草稿已保留，请重新打开文件后处理。"
+              )
+            : ""
+      } catch (error) {
+        this.notice.textContent = errorText(error)
+      }
+    }
     this.instances.push(instance)
     mount.append(instance.frame)
   }
@@ -424,12 +469,10 @@ class Workbench {
               manifest.placements?.filter(
                 (p) => "view" in p && p.view === view.id
               ) ?? []
-            const opener = placements.find((p) => p.location === "file/open")
+            const opensFile = placements.some((p) => p.location === "file/open")
             if (
-              opener?.location === "file/open" &&
-              !opener.extensions.some((e) =>
-                file.value.toLowerCase().endsWith(e)
-              )
+              opensFile &&
+              !supportsMobileFileOpen(manifest, view.id, file.value)
             )
               throw new Error(mobileText("此视图不支持所选文件"))
             if (
@@ -437,6 +480,14 @@ class Workbench {
               !table
             )
               throw new Error(mobileText("请选择 Eidos 文件和数据表"))
+            if (
+              opensFile &&
+              view.capabilities?.includes("document") &&
+              view.access === "write"
+            ) {
+              await this.openFile({ id, view: view.id, path: file.value })
+              return
+            }
             if (placements.some((p) => p.location === "table/view") && table) {
               const type = "plugin:" + manifest.id + "/" + view.id
               const snapshot = await table.source.getSnapshot()

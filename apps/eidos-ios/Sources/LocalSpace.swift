@@ -4,7 +4,13 @@ import UniformTypeIdentifiers
 
 enum LocalError: LocalizedError {
     case message(String)
-    var errorDescription: String? { if case .message(let text) = self { return text }; return nil }
+    case staleDocument
+    var errorDescription: String? {
+        switch self {
+        case .message(let text): return text
+        case .staleDocument: return tr("文件已在其他位置更改。当前草稿仍在编辑器中，请复制后重新打开。")
+        }
+    }
 }
 
 enum Runtime {
@@ -136,7 +142,7 @@ final class LocalSpace {
         guard (try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max) <= 2 * 1024 * 1024 else { throw LocalError.message(tr("Markdown 编辑上限为 2 MB，请导出后使用其他编辑器打开")) }
         let data = try Data(contentsOf: url)
         guard let text = String(data: data, encoding: .utf8) else { throw LocalError.message(tr("Markdown 必须使用 UTF-8 编码")) }
-        return ["text":text, "digest":digest(data)]
+        return ["text":text, "digest":digest(data), "bom":data.starts(with: [0xEF, 0xBB, 0xBF])]
     }
     static func saveMarkdown(_ url: URL, text: String, expectedDigest: String) throws -> [String: Any] {
         let data = Data(text.utf8)
@@ -144,7 +150,8 @@ final class LocalSpace {
         var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
             do {
-                guard digest(try Data(contentsOf: target)) == expectedDigest else { throw LocalError.message(tr("文件已在其他位置更改。当前草稿仍在编辑器中，请复制后重新打开。")) }
+                guard FileManager.default.fileExists(atPath: target.path),
+                      digest(try Data(contentsOf: target)) == expectedDigest else { throw LocalError.staleDocument }
                 try data.write(to: target, options: [.atomic, .completeFileProtectionUnlessOpen])
             } catch { writeError = error }
         }

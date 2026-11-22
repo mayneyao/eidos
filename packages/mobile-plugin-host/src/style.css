@@ -130,6 +130,11 @@ body {
 .file-view > [role="status"] {
   padding: 8px 16px;
 }
+.document-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-ink) 15%, transparent);
+}
 dialog {
   max-width: calc(100% - 32px);
   max-height: 80dvh;

@@ -19,8 +19,20 @@ a WebView. Markdown images and links resolve relative to the repository; links
 open in the system browser. Previously loaded READMEs remain available offline.
 For installed plugins, use the row's **管理** button to review permissions, open
 tools, or uninstall. Refresh the market to compare versions and install updates.
-Android's file menu
-**打开方式 → Markmap** immediately renders that note using the shared host.
+Discover and search share the verified catalog. The app bundles verification
+results for published archives, keyed by plugin ID, version, SHA-256, and release
+URL. Matching catalog entries can appear after the registry request. Changed or
+new releases go through the current installer's package checks before appearing.
+If the validator changes, the Web build automatically discards the old cached
+results. If a download fails during verification, retry from Discover. Both
+install buttons recheck the selected archive before permission review.
+
+Dashboard 0.2.0 is hidden in Discover because its editor requires the desktop
+resource embedding API. The local import path continues to check package and
+host declarations independently of marketplace visibility.
+On either app, **打开方式 → Markmap** renders the selected note.
+On either mobile app, **打开方式 → Canvas** opens an existing `.canvas` file.
+Use **保存** to write changes before closing the editor.
 Workspace commands, including **Open Journals overview** and **Open today's
 journal**, appear in the enabled plugin's details and do not require a file
 selection. When configuring table plugins, select a file and a table first.
@@ -36,12 +48,15 @@ connection before running an action. Writes require explicit confirmation.
 | Journals 0.5.3      | Create/open today's note and browse its overview           |
 | Smart Actions 0.4.0 | Configure outputs/connections; run guarded table writes    |
 | GPX Viewer 0.2.0    | Open GPX files using the plugin's map view                 |
+| Canvas 0.5.7        | Open, edit and save existing JSON Canvas files             |
 
 The installer accepts format 2 packages and format 3 packages with declared
 localization resources. Format 3 resources use the canonical package validation
 rules, and plugin views and actions receive the app's language and message data.
 Support is checked against declared capabilities, including for packages requiring
-Plugin API 3.7.0. Background services, plugin storage, formatters, file templates,
+Plugin API 3.7.0. The installer accepts validated static file template
+declarations for plugins shared with Lite. Creating from a template is
+available in Lite. Background services, plugin storage, formatters,
 unrestricted browser network access and workspace filemeta remain unsupported.
 
 Plugin themes, including Forest and Maple Mono, are disabled on mobile.
@@ -63,7 +78,9 @@ guest calls must pass declared-capability and binding checks in the host.
 
 This implements the capabilities used by the listed registry packages, not
 full Plugin API conformance. Plugin storage, formatters and workspace filemeta
-are unsupported. Document access is read-only. Workspace writes cannot replace
+are unsupported. Writable document file Views save the versioned working copy
+for their bound UTF-8 file, up to 2 MiB. Direct writes to that file use the
+document API. Workspace writes require workspace write permission and cannot replace
 `.eidos` files; structured writes use the Runtime. Browser network access is
 limited by each plugin's declared origins and CSP. API connection redirects
 are rejected. Native settings/credentials are not synchronized between devices.
@@ -80,10 +97,13 @@ pnpm --filter @eidos.space/ios-editor typecheck
 ```
 
 Download the registry's published archives into a temporary directory alongside
-`registry.json`. The smoke script checks archive hashes and runs the actual
-published modules in Chromium at a phone viewport with a real SQLite Runtime:
+`registry.json`. To refresh the bundled verification results, run the generator
+with that directory and exercise the native installation checks on both apps.
+The smoke script separately checks archive hashes and runs the published modules
+in Chromium with a real SQLite Runtime:
 
 ```sh
+node packages/mobile-plugin-host/scripts/generate-market-index.mjs /path/to/fixtures
 node scripts/run-electron-node.mjs packages/mobile-plugin-host/scripts/smoke.mjs /path/to/fixtures
 ```
 

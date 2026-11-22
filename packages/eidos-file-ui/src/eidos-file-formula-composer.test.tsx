@@ -6,6 +6,7 @@ import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
+import { EidosFileUIProvider } from "./context"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -153,5 +154,30 @@ describe("EidosFileFormulaComposer", () => {
       container.querySelector('[data-eidos-file-formula-status="error"]')
         ?.textContent
     ).toContain("Unsupported Eidos File formula function: randomblob")
+  })
+
+  it("uses the mobile input's selection when inserting a field reference", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider interactionMode="mobile">
+          <ComposerHarness />
+        </EidosFileUIProvider>
+      )
+    })
+    const expression = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Formula expression"]'
+    )!
+    expect(expression.value).toBe('"Estimate" * 2')
+    expect(document.activeElement).not.toBe(expression)
+    expression.setSelectionRange(0, '"Estimate"'.length)
+    const unitPrice = container.querySelector<HTMLButtonElement>(
+      '[data-formula-reference="field:tb_tasks:unit_price"]'
+    )
+    await act(async () => unitPrice?.click())
+    expect(expression.value).toBe('"Unit price" * 2')
+    expect(expression.selectionStart).toBe('"Unit price"'.length)
+    expect(container.textContent).toContain(
+      "Formula is valid. Uses Unit price."
+    )
   })
 })

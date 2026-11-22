@@ -125,36 +125,47 @@ await service.mutateSchema(
 )
 const files = new Map([
   ["notes.md", "# Mobile\n\n## Notes\n\nA published plugin."],
+  [
+    "routes/Mobile.gpx",
+    `<?xml version="1.0"?>
+<gpx version="1.1" creator="Eidos test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>Test route</name><trkseg>
+    <trkpt lat="31.23" lon="121.47"><ele>11</ele><time>2025-01-01T01:00:00Z</time></trkpt>
+    <trkpt lat="31.24" lon="121.48"><ele>27</ele><time>2025-01-01T01:00:10Z</time></trkpt>
+  </trkseg></trk>
+</gpx>`,
+  ],
+  ["Home.dashboard", "{}"],
 ])
 const settings = new Map()
 const enabled = new Set(
   [...programs.keys()].filter((id) => !id.includes("theme"))
 )
 const opened = []
-let marketOffline = false
 const native = async ({ method, params: p }) => {
   switch (method) {
     case "init":
       return { path: "places.eidos", kind: "eidos", dark: false }
     case "editor.ready":
+    case "editor.tables":
+    case "editor.tablesReload":
+    case "editor.recordPage":
+    case "editor.recordPageReload":
       return null
     case "plugin.catalog":
-      return [...programs.values()].filter((p) =>
-        p.manifest.kind === "theme"
-          ? enabled.has(p.manifest.id)
-          : p.manifest.views?.some((v) =>
-              v.capabilities?.includes("eidos/table")
-            )
-      )
+      return p.themeOnly
+        ? []
+        : [
+            { ...programs.get("eidos.chart"), modules: {} },
+            programs.get("eidos.chart"),
+            programs.get("eidos.map"),
+          ]
     case "list":
       return [...programs].map(([id, v]) => ({
         manifest: v.manifest,
         enabled: enabled.has(id),
         revision: id,
       }))
-    case "market":
-      if (marketOffline) throw Error("市场暂时离线")
-      return registry.plugins
     case "package":
       return programs.get(p.id)
     case "enable":
@@ -175,6 +186,10 @@ const native = async ({ method, params: p }) => {
       const text = files.get(p.path)
       if (text === undefined) throw Error("Missing file")
       return { text, digest: createHash("sha256").update(text).digest("hex") }
+    }
+    case "readBinary": {
+      assert.equal(p.path, "routes/Mobile.gpx")
+      return Buffer.from(files.get(p.path)).toString("base64")
     }
     case "stat":
       return files.has(p.path) ? { path: p.path, isDirectory: false } : null
@@ -223,11 +238,12 @@ const server = createServer(async (req, res) => {
       new URL(req.url, "http://localhost").pathname
     )
     let data = await readFile(file)
-    if (file.endsWith("index.html"))
+    if (file.endsWith("index.html") || file.endsWith("plugins.html"))
       data = Buffer.from(
         data
           .toString()
           .replaceAll("__EIDOS_PLUGIN_NONCE__", crypto.randomUUID())
+          .replaceAll("__EIDOS_LOCALE__", "en")
       )
     res.setHeader(
       "Content-Type",
@@ -249,7 +265,10 @@ const require = createRequire(
 )
 const { chromium } = require("@playwright/test")
 const browser = await chromium.launch({ channel: "chrome", headless: true })
-const page = await browser.newPage({ viewport: { width: 412, height: 850 } })
+const page = await browser.newPage({
+  locale: "en-US",
+  viewport: { width: 412, height: 850 },
+})
 page.setDefaultTimeout(15000)
 const errors = []
 page.on("pageerror", (error) => errors.push(error.message))
@@ -270,33 +289,29 @@ await page.addInitScript(() => {
     },
   }
   window.addEventListener("load", () => {
-    if (location.pathname.endsWith("plugins.html"))
+    if (location.pathname.endsWith("plugins.html")) {
+      const tools = new URLSearchParams(location.search).get("tools")
       window.eidosMobileStart(
         "",
         false,
-        location.search === "?file-open"
-          ? { id: "eidos.markmap", view: "markmap", path: "notes.md" }
-          : location.search === "?navigation"
-            ? { id: "eidos.journals", view: "overview" }
-            : undefined
+        tools
+          ? { id: tools, mode: "tools" }
+          : location.search === "?gpx"
+            ? { id: "eidos.gpx-viewer", view: "map", path: "routes/Mobile.gpx" }
+            : location.search === "?dashboard"
+              ? { id: "eidos.dashboard", view: "main", path: "Home.dashboard" }
+              : location.search === "?file-open"
+                ? { id: "eidos.markmap", view: "markmap", path: "notes.md" }
+                : location.search === "?navigation"
+                  ? { id: "eidos.journals", view: "overview" }
+                  : undefined
       )
-    else window.eidosOpen("fixture-editor")
+    } else window.eidosOpen("fixture-editor")
   })
 })
-const home = async () => {
-  await page.goto("http://127.0.0.1:" + server.address().port + "/plugins.html")
-  await page.getByRole("heading", { name: "当前 Space", exact: true }).waitFor()
-}
-const open = async (name) => {
-  await home()
-  await page
-    .locator(".pm-row-main")
-    .filter({ has: page.getByText(name, { exact: true }) })
-    .click()
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "打开", exact: true })
-    .click()
+const workbench = "http://127.0.0.1:" + server.address().port + "/plugins.html"
+const open = async (name, id) => {
+  await page.goto(workbench + "?tools=" + id)
   await page.getByRole("heading", { name, exact: true }).waitFor()
 }
 try {
@@ -322,72 +337,7 @@ try {
   console.log(
     "PASS module-load and runtime errors produce visible startup diagnostics"
   )
-  await home()
   await page.setViewportSize({ width: 390, height: 780 })
-  await page.screenshot({
-    path: "/tmp/eidos-plugin-manager-installed.png",
-    fullPage: true,
-  })
-  const journalSwitch = page.getByRole("switch", {
-    name: "启用 Journals",
-    exact: true,
-  })
-  await journalSwitch.click()
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('[aria-label="启用 Journals"]')
-        .getAttribute("aria-checked") === "false"
-  )
-  await journalSwitch.click()
-  await page.getByRole("button", { name: "允许", exact: true }).click()
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('[aria-label="启用 Journals"]')
-        .getAttribute("aria-checked") === "true"
-  )
-  await page.getByRole("button", { name: "发现", exact: true }).click()
-  await page.getByText("7 个插件", { exact: true }).waitFor()
-  await page.screenshot({
-    path: "/tmp/eidos-plugin-manager-market.png",
-    fullPage: true,
-  })
-  await page.getByRole("searchbox", { name: "搜索插件" }).fill("Journals")
-  assert.equal(await page.locator(".pm-row").count(), 1)
-  await page.getByRole("button", { name: /^已安装/ }).click()
-  await page.getByRole("button", { name: "发现", exact: true }).click()
-  assert.equal(await page.getByRole("searchbox").inputValue(), "Journals")
-  await page.locator(".pm-row-main").click()
-  await page.getByRole("button", { name: "插件设置", exact: true }).click()
-  await page.getByLabel("Journals folder", { exact: true }).waitFor()
-  await page.getByRole("button", { name: "关闭", exact: true }).click()
-  await page.setViewportSize({ width: 320, height: 700 })
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth
-    ),
-    false
-  )
-  await page.evaluate(() => {
-    document.documentElement.dataset.theme = "dark"
-  })
-  await page.getByRole("searchbox").fill("")
-  await page.screenshot({
-    path: "/tmp/eidos-plugin-manager-dark.png",
-    fullPage: true,
-  })
-  await page.setViewportSize({ width: 1100, height: 800 })
-  await home()
-  marketOffline = true
-  await page.getByRole("button", { name: "发现", exact: true }).click()
-  await page.getByText("市场暂时离线", { exact: true }).waitFor()
-  await page.getByRole("button", { name: /^已安装/ }).click()
-  assert.equal(await page.getByRole("switch").count(), 7)
-  marketOffline = false
-  console.log(
-    "PASS manager tabs, enable switch, catalog search, retained query, settings, narrow viewport and dark theme"
-  )
   // Older Journals archives declare commands only; current packages can be
   // exercised unchanged. Keep a derived fixture for the negative contract case.
   const journals = programs.get("eidos.journals")
@@ -407,8 +357,7 @@ try {
   )
   await page
     .frameLocator("iframe")
-    .getByText("Journals", { exact: true })
-    .first()
+    .getByRole("button", { name: "Today's journal" })
     .waitFor()
   assert.equal(await page.locator("select").count(), 0)
   assert.equal(
@@ -444,7 +393,9 @@ try {
   programs.set("eidos.journals", withoutNavigation)
   await page.reload()
   await page
-    .getByText("插件启动失败：此页面未声明导航入口", { exact: true })
+    .getByText("Plugin startup failed: This page has no navigation entry", {
+      exact: true,
+    })
     .waitFor()
   console.log(
     "PASS undeclared pages cannot be launched as navigation destinations"
@@ -463,8 +414,8 @@ try {
   console.log(
     "PASS open-with launches Markmap with current document and no second file selection"
   )
-  await open("Markmap")
-  await page.getByLabel("选择文件").selectOption("notes.md")
+  await open("Markmap", "eidos.markmap")
+  await page.getByLabel("Choose file").selectOption("notes.md")
   await page.getByRole("button", { name: "Markmap", exact: true }).click()
   await page
     .frameLocator("iframe")
@@ -475,7 +426,7 @@ try {
     /Mobile/
   )
   console.log("PASS published Markmap renders Markdown")
-  await open("Journals")
+  await open("Journals", "eidos.journals")
   await page
     .getByRole("button", { name: "Open today's journal", exact: true })
     .click()
@@ -490,8 +441,7 @@ try {
     await page.locator("[role=status]").innerText()
   )
   assert.ok(files.has(opened.at(-1)))
-  await home()
-  await page.locator(".pm-row-main").filter({ hasText: "Journals" }).click()
+  await open("Journals", "eidos.journals")
   await page
     .getByRole("button", { name: "Open Journals overview", exact: true })
     .click()
@@ -499,8 +449,7 @@ try {
     .frameLocator(
       "iframe:not([style*='display: none']):not([style*='display:none'])"
     )
-    .getByText("Journals", { exact: true })
-    .first()
+    .getByRole("button", { name: "Today's journal" })
     .waitFor()
   await page.waitForFunction(() =>
     [...document.querySelectorAll("button")].some(
@@ -508,26 +457,26 @@ try {
     )
   )
   assert.equal(
-    await page.getByLabel("选择文件", { exact: true }).isVisible(),
+    await page.getByLabel("Choose file", { exact: true }).isVisible(),
     false
   )
   assert.equal(
-    await page.getByLabel("选择数据表", { exact: true }).isVisible(),
+    await page.getByLabel("Choose table", { exact: true }).isVisible(),
     false
   )
   console.log(
     "PASS published Journals creates and opens today's file; overview renders"
   )
   for (const name of ["Chart", "Map"]) {
-    await open(name)
-    await page.getByLabel("选择文件").selectOption("places.eidos")
+    await open(name, "eidos." + name.toLowerCase())
+    await page.getByLabel("Choose file").selectOption("places.eidos")
     await page
-      .getByLabel("选择数据表")
+      .getByLabel("Choose table")
       .locator("option")
       .first()
       .waitFor({ state: "attached" })
     await page.getByRole("button", { name, exact: true }).click()
-    await page.getByText("视图设置", { exact: true }).click()
+    await page.getByText("View settings", { exact: true }).click()
     if (name === "Chart")
       await page
         .getByLabel("Group by", { exact: true })
@@ -541,7 +490,7 @@ try {
         .selectOption({ label: "Longitude" })
       await page.getByLabel("Basemap", { exact: true }).selectOption("offline")
     }
-    await page.getByText("视图设置", { exact: true }).click()
+    await page.getByText("View settings", { exact: true }).click()
     await page.locator("iframe").scrollIntoViewIfNeeded()
     await page.frameLocator("iframe").locator("body").waitFor()
     await new Promise((resolve) => setTimeout(resolve, 2500))
@@ -567,10 +516,10 @@ try {
     } else assert.ok(!body.includes("Location Fields Required"), body)
     await page.screenshot({ path: path.join(temporary, name + ".png") })
   }
-  await open("Smart Actions")
-  await page.getByLabel("选择文件").selectOption("places.eidos")
+  await open("Smart Actions", "eidos.smart-actions")
+  await page.getByLabel("Choose file").selectOption("places.eidos")
   await page
-    .getByLabel("选择数据表")
+    .getByLabel("Choose table")
     .locator("option")
     .first()
     .waitFor({ state: "attached" })
@@ -590,9 +539,12 @@ try {
   await page.getByRole("button", { name: "Fixture score", exact: true }).click()
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "允许", exact: true })
+    .getByRole("button", { name: "Allow", exact: true })
     .click()
-  await page.getByRole("status").filter({ hasText: "动作已完成" }).waitFor()
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Action completed" })
+    .waitFor()
   const reader = new DatabaseSync(fixture, { readOnly: true })
   const rows = reader
     .prepare(
@@ -607,42 +559,63 @@ try {
   console.log(
     "PASS published Smart Actions writes through Runtime with read tokens and approval"
   )
-  for (const name of ["Forest", "Maple Mono"]) {
-    await home()
-    await page
-      .getByRole("switch", { name: "应用 " + name, exact: true })
-      .click()
-    await page.getByRole("button", { name: "允许", exact: true }).click()
-    await page
-      .getByRole("heading", { name: "当前 Space", exact: true })
-      .waitFor()
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    assert.ok((await page.locator("[role=status]").innerText()) === "")
-    console.log("PASS published theme", name)
-  }
+  await page.goto(workbench + "?gpx")
+  const gpx = page.frameLocator("iframe")
+  await gpx.locator("[data-loaded=true]").waitFor()
+  await gpx.locator("#toggle-details").evaluate((button) => button.click())
+  await gpx.locator("#track-details:not([hidden])").waitFor()
+  await gpx.locator("#elevation path").waitFor({ state: "attached" })
+  await gpx.locator("#speed path").waitFor({ state: "attached" })
+  await gpx.locator("#play").evaluate((button) => button.click())
+  await gpx.getByText(/^2 \/ 2/).waitFor()
+  await page.screenshot({ path: path.join(temporary, "GPX-phone.png") })
+  await page.setViewportSize({ width: 1100, height: 800 })
+  await page.screenshot({ path: path.join(temporary, "GPX-tablet.png") })
+  console.log(
+    "PASS published GPX renders a nested track with charts and playback"
+  )
+
+  await page.goto(workbench + "?dashboard")
+  await page
+    .frameLocator("iframe")
+    .getByRole("alert")
+    .filter({ hasText: "Dashboard requires Eidos Lite plugin API 3.2" })
+    .waitFor()
+  console.log(
+    "PASS reproduced the Dashboard 0.2.0 missing resource API at mount"
+  )
   await page.goto("http://127.0.0.1:" + server.address().port + "/index.html")
-  await page.getByRole("tab", { name: "Chart", exact: true }).click()
+  await page
+    .getByRole("button", { name: "Switch view: Grid", exact: true })
+    .click()
+  await page.getByText("Chart", { exact: true }).click()
   await page
     .frameLocator("iframe")
     .getByText("Category by Count", { exact: true })
     .waitFor()
   await page.getByRole("button", { name: "View settings", exact: true }).click()
   await page
-    .getByLabel("Group by", { exact: true })
-    .selectOption({ label: "Name" })
+    .getByRole("button", { name: "Layout settings", exact: true })
+    .click()
+  await page.getByRole("button", { name: "Group by", exact: true }).click()
+  await page.getByRole("button", { name: "Name", exact: true }).click()
+  await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
   await page
     .frameLocator("iframe")
     .getByText("Name by Count", { exact: true })
     .waitFor()
   await page.reload()
-  await page.getByRole("tab", { name: "Chart", exact: true }).click()
+  await page
+    .getByRole("button", { name: "Switch view: Grid", exact: true })
+    .click()
+  await page.getByText("Chart", { exact: true }).click()
   await page
     .frameLocator("iframe")
     .getByText("Name by Count", { exact: true })
     .waitFor()
   console.log(
-    "PASS saved plugin view renders in mobile editor and configuration survives reopening"
+    "PASS saved Chart view works beside an incompatible installed package and retains configuration after reopening"
   )
   assert.deepEqual(errors, [])
   console.log("Artifacts:", temporary)

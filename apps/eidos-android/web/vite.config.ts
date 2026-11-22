@@ -4,11 +4,12 @@ import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { eidosFileUiSourceAliases } from "../../../packages/eidos-file-ui/vite-source-aliases"
 import { markdownEditorSourceAliases } from "../../../packages/markdown/vite-source-aliases"
+import { mobileMarketIndex } from "../../../packages/mobile-plugin-host/market-index.mjs"
 
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   base: "./",
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), mobileMarketIndex()],
   css: {
     postcss: {
       plugins: [
