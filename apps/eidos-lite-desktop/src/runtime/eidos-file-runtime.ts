@@ -39,7 +39,11 @@ import {
   type EidosLiteCsvOperationProgress,
 } from "../shared/contracts"
 import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
-import { createFsMetaEidosFile, type FsMetaCustomField } from "./fs-meta-file"
+import {
+  createFsMetaEidosFile,
+  ensureFsMetaDirectoryField,
+  type FsMetaCustomField,
+} from "./fs-meta-file"
 import type { FileMetadataSchema } from "../shared/contracts"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SpaceMetadataConnectionPort } from "./space-metadata-connection"
@@ -1212,12 +1216,15 @@ export async function openEidosLiteFileRuntime(
   // Adapter probes use TEMP tables; keep those outside the protected source.
   if (readOnly) database.exec("PRAGMA temp_store = MEMORY")
 
-  const connection =
+  const spaceCatalog =
     filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH
+  let connection: NodeSqliteConnectionPort | undefined
+  try {
+    connection = spaceCatalog
       ? new SpaceMetadataConnectionPort(database, readOnly)
       : new NodeSqliteConnectionPort(database, { readOnly })
-  try {
     loadDeclaredVTabExtensions(database)
+    if (spaceCatalog && !readOnly) ensureFsMetaDirectoryField(connection)
     const binding = await Runtime.open(
       connection,
       environment(),
@@ -1231,7 +1238,8 @@ export async function openEidosLiteFileRuntime(
       filePath
     )
   } catch (error) {
-    if (connection.database.isOpen) connection.close()
+    if (connection) connection.close()
+    else if (database.isOpen) database.close()
     throw error
   }
 }

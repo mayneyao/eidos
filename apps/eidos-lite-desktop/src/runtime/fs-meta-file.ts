@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { DatabaseSync } from "node:sqlite"
 import path from "node:path"
 import {
@@ -5,6 +6,9 @@ import {
   createEidosFileUuid,
   canonicalizeEidosFileJson,
   ConnectionPortEidosFileConnection,
+  EidosFileRuntime,
+  validateEidosFile,
+  type EidosFileConnection,
 } from "@eidos.space/eidos-file"
 import { NodeSqliteConnectionPort } from "@eidos.space/eidos-file/node-sqlite"
 import { assertPortableFsMeta, resolveVTabExtensionPath } from "./vtab-resolver"
@@ -23,6 +27,67 @@ export interface CreateFsMetaEidosFileOptions {
   namespace?: string
   ignore?: string[]
   customFields?: FsMetaCustomField[]
+}
+
+const readOnlySystemSettings = canonicalizeEidosFileJson({
+  isSystem: true,
+  readOnly: true,
+  writable: false,
+})
+
+function registerFsMetaDirectoryField(
+  connection: EidosFileConnection,
+  tableId: string,
+  createdAt: string
+): void {
+  // Keep the Field ID and its metadata stable when two copies of a Space
+  // independently add the same native field.
+  const hash = createHash("sha256")
+    .update(`fs_meta:is_dir:${tableId}`)
+    .digest("hex")
+  const fieldId = `${tableId.slice(0, 14)}7${hash.slice(0, 3)}-8${hash.slice(3, 6)}-${hash.slice(6, 18)}`
+  connection.run(
+    `INSERT INTO eidos__fields
+      (id, table_id, name, physical_name, type, nullable, position, settings_json, created_at, updated_at)
+      VALUES (?, ?, 'is_dir', 'is_dir', 'checkbox', 0, -1, ?, ?, ?)`,
+    [fieldId, tableId, readOnlySystemSettings, createdAt, createdAt]
+  )
+}
+
+/** Register the existing native column in older writable Space catalogs. */
+export function ensureFsMetaDirectoryField(
+  port: NodeSqliteConnectionPort
+): void {
+  const connection = new ConnectionPortEidosFileConnection(port)
+  const missingFields = () =>
+    connection.query<{ id: string; created_at: string }>(`
+      SELECT t.id, t.created_at
+      FROM eidos__tables t
+      WHERE json_extract(t.settings_json, '$.vtabModule') = 'fs_meta'
+        AND json_extract(t.settings_json, '$.vtabConfig.root') = '..'
+        AND NOT EXISTS (
+          SELECT 1 FROM eidos__fields f WHERE f.table_id = t.id AND f.name = 'is_dir' COLLATE NOCASE
+        )
+        AND EXISTS (
+          SELECT 1 FROM pragma_table_xinfo(t.physical_name, 'main') c
+          WHERE c.name = 'is_dir' AND c.type = 'INTEGER'
+        )
+    `)
+  if (missingFields().length === 0) return
+  port.transaction("write", () => {
+    const tables = missingFields()
+    if (
+      tables.length === 0 ||
+      !validateEidosFile(connection, { level: "structural" }).valid
+    )
+      return
+    const runtime = new EidosFileRuntime(connection)
+    if (runtime.hasUnsupportedDerivedFields()) return
+    runtime.applyCanonicalMutation(() => {
+      for (const table of tables)
+        registerFsMetaDirectoryField(connection, table.id, table.created_at)
+    })
+  })
 }
 
 /**
@@ -76,10 +141,10 @@ export function createFsMetaEidosFile(
     assertPortableFsMeta(db)
 
     // 1. Initialize Eidos File format schema
-    initializeEidosFileSchema(
-      new ConnectionPortEidosFileConnection(new NodeSqliteConnectionPort(db)),
-      { title }
+    const connection = new ConnectionPortEidosFileConnection(
+      new NodeSqliteConnectionPort(db)
     )
+    initializeEidosFileSchema(connection, { title })
 
     // 2. Feature registration
     const featureConfig = canonicalizeEidosFileJson({
@@ -148,12 +213,6 @@ export function createFsMetaEidosFile(
       INSERT INTO eidos__tables (id, name, physical_name, label_field_id, position, settings_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, 1, ?, ?, ?)
     `).run(tableId, tableName, tableName, nameFieldId, tableSettings, now, now)
-
-    const readOnlySystemSettings = canonicalizeEidosFileJson({
-      isSystem: true,
-      readOnly: true,
-      writable: false,
-    })
 
     const defaultExtensionOptions = [
       // Images
@@ -324,6 +383,7 @@ export function createFsMetaEidosFile(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(f[0], tableId, f[1], f[2], f[3], f[4], f[5], f[6], f[7], now, now)
     }
+    registerFsMetaDirectoryField(connection, tableId, now)
 
     db.prepare(`
       INSERT INTO eidos__views (id, table_id, name, type, position, created_at, updated_at)

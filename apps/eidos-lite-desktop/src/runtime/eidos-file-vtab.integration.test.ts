@@ -29,6 +29,100 @@ import {
 describe("Eidos Lite fs_meta Virtual Table Integration", () => {
   const roots: string[] = []
   const runtimes: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>[] = []
+  it.each(["new", "existing"])(
+    "uses the native directory flag for filtering in the %s Space catalog",
+    async (catalog) => {
+      const root = fs.mkdtempSync(path.join(tmpdir(), "eidos-is-dir-"))
+      roots.push(root)
+      fs.mkdirSync(path.join(root, ".eidos"))
+      fs.mkdirSync(path.join(root, "Folder"))
+      fs.mkdirSync(path.join(root, "Folder.with.dot"))
+      fs.writeFileSync(path.join(root, "README"), "no extension")
+      fs.writeFileSync(path.join(root, "empty.txt"), "")
+      const file = path.join(root, ".eidos/files.eidos")
+      createFsMetaEidosFile(file, { root: "..", ignore: [".eidos"] })
+      if (catalog === "existing") {
+        const database = new DatabaseSync(file)
+        try {
+          database
+            .prepare("DELETE FROM eidos__fields WHERE name = 'is_dir'")
+            .run()
+        } finally {
+          database.close()
+        }
+      }
+      const before = await openEidosLiteFileRuntime(file, { readOnly: true })
+      runtimes.push(before)
+      const { metadata } = before.initialSnapshot
+      const previousTable = before.initialSnapshot.tables[0]!
+      if (catalog === "existing") {
+        expect(previousTable.fields.map((field) => field.name)).not.toContain(
+          "is_dir"
+        )
+      }
+      await before.close()
+
+      const runtime = await openEidosLiteFileRuntime(file)
+      runtimes.push(runtime)
+      const { table, fields, views } = runtime.initialSnapshot.tables[0]!
+      const directory = fields.find((field) => field.name === "is_dir")
+      expect(directory).toMatchObject({
+        type: "checkbox",
+        nullable: false,
+        writable: false,
+        settings: { isSystem: true },
+      })
+      expect(views).toEqual(previousTable.views)
+      expect(runtime.initialSnapshot.metadata.revision).toBe(
+        BigInt(metadata.revision!) + (catalog === "existing" ? 1n : 0n)
+      )
+      const query = async (isDirectory: boolean) => {
+        const page = await runtime.source.getPage(table.id, 0, 10, {
+          filter: {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: directory!.id!,
+                operator: "equals",
+                value: isDirectory,
+              },
+            ],
+          },
+        })
+        return page.rows.map((row) => [row._id, row[directory!.id!]]).sort()
+      }
+      expect(await query(true)).toEqual([
+        ["Folder", true],
+        ["Folder.with.dot", true],
+      ])
+      expect(await query(false)).toEqual([
+        ["README", false],
+        ["empty.txt", false],
+      ])
+      await expect(
+        runtime.source.updateRow(table.id, "README", {
+          [directory!.id!]: true,
+        })
+      ).rejects.toThrow()
+      const revision = runtime.initialSnapshot.metadata.revision
+      await runtime.close()
+
+      for (const readOnly of [false, true]) {
+        const reopened = await openEidosLiteFileRuntime(file, { readOnly })
+        runtimes.push(reopened)
+        expect(reopened.initialSnapshot.metadata.revision).toBe(revision)
+        expect(
+          reopened.initialSnapshot.tables[0]!.fields.find(
+            (field) => field.name === "is_dir"
+          )?.id
+        ).toBe(directory!.id)
+        await reopened.close()
+      }
+    }
+  )
+
   it("keeps native system ordering available on a physically read-only metadata catalog", async () => {
     const root = fs.mkdtempSync(
       path.join(tmpdir(), "eidos-readonly-meta-order-")
