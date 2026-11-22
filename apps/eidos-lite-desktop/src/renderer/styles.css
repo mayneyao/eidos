@@ -1343,7 +1343,7 @@ body {
 
 .settings-file-editor-scope > .settings-shell-select {
   width: auto;
-  max-width: min(30ch, calc(100% - 0.3em));
+  max-width: min(30ch, calc(100% - 2em));
   min-height: 0;
   margin-inline: 0.15em;
   padding: 0;
