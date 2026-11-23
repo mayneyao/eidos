@@ -93,7 +93,7 @@
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "@vitejs/plugin-react": "^5.2.0",
-    "electron": "^43.2.0",
+    "electron": "^43.8.1",
     "electron-builder": "^26.16.1",
     "jsdom": "^26.1.0",
     "tsx": "^4.21.0",
