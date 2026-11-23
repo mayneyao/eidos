@@ -1,6 +1,14 @@
-# Eidos iOS (experimental)
+# Eidos iOS
 
 Native SwiftUI host for a complete local Space, with bundled React Markdown and Eidos File editors in WKWebView. Files remain usable offline without an account.
+
+## Install the public beta
+
+Install TestFlight from the App Store on your iPhone or iPad, then open the
+[Eidos beta invitation](https://testflight.apple.com/join/3TtKPpVz) on that device.
+Accept the invitation and tap **Install** in TestFlight.
+
+## Using the app
 
 The native interface and bundled editors support English and Chinese. In the
 file browser, open **Space actions → Language** and choose **Follow system**,

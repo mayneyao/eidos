@@ -14,6 +14,7 @@
   <p>
     <a href="https://eidos.space/zh/download#eidos-lite"><img src="https://img.shields.io/badge/下载-Eidos%20Lite-8b5cf6.svg?style=flat-square" alt="下载 Eidos Lite" /></a>
     <a href="https://download.eidos.space/android"><img src="https://img.shields.io/badge/下载-Android%20APK-34d399.svg?style=flat-square" alt="下载 Android APK" /></a>
+    <a href="https://testflight.apple.com/join/3TtKPpVz"><img src="https://img.shields.io/badge/iOS-TestFlight-2563eb.svg?style=flat-square" alt="通过 TestFlight 加入 iOS 公开测试" /></a>
     <a href="https://docs.eidos.space/"><img src="https://img.shields.io/badge/文档-eidos.space-0ea5e9.svg?style=flat-square" alt="Eidos 文档" /></a>
     <a href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/交流-Discord-7289da.svg?style=flat-square" alt="在 Discord 交流" /></a>
     <a href="https://news.ycombinator.com/item?id=40746773"><img src="https://hackergit.org/badge/mayneyao/eidos.svg" alt="Hacker News 积分，由 HackerGit 提供" height="20" /></a>
@@ -34,15 +35,15 @@ Android 与 iOS 支持浏览本地文件、编辑 Markdown，以及查看和编�
 文件和内置编辑器离线可用，无需账号。与 Eidos Lite 配对后，可通过同一局域网同步本地 Space。
 
 Android 可通过 [GitHub Releases](https://github.com/mayneyao/eidos/releases) 或
-[download.eidos.space/android](https://download.eidos.space/android) 直接下载 APK 安装。实验性的
-iOS 应用需从源码构建。安装步骤与平台限制见 [Android 指南](./apps/eidos-android/README.md)和
+[download.eidos.space/android](https://download.eidos.space/android) 直接下载 APK 安装。
+iOS 版已通过 TestFlight 开放测试。安装步骤与平台限制见 [Android 指南](./apps/eidos-android/README.md)和
 [iOS 指南](./apps/eidos-ios/README.md)。
 
 ## 快速开始
 
 - **桌面端：** [下载 Eidos Lite](https://eidos.space/zh/download#eidos-lite)，直接使用本地文件夹。本地功能无需账号。
 - **Android 端：** 从 [GitHub Releases](https://github.com/mayneyao/eidos/releases) 或 [download.eidos.space/android](https://download.eidos.space/android) 下载 APK 直接安装，或参考 [Android 指南](./apps/eidos-android/README.md)。
-- **iOS 端：** 从源码构建实验性的 [iOS 应用](./apps/eidos-ios/README.md)，在手机上本地编辑并与桌面端进行局域网同步。
+- **iOS 端：** [通过 TestFlight 加入公开测试](https://testflight.apple.com/join/3TtKPpVz)，在 iPhone 或 iPad 上安装 Eidos。
 - **浏览器：** 打开 [editor.eidos.space](https://editor.eidos.space/)，无需安装即可创建或编辑本地 `.eidos` 文件。
 - **命令行：** 安装 `eidos`，创建、检查、查询、修改或在本地打开 Eidos File。
 

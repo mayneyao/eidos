@@ -14,6 +14,7 @@
   <p>
     <a href="https://eidos.space/download#eidos-lite"><img src="https://img.shields.io/badge/download-Eidos%20Lite-8b5cf6.svg?style=flat-square" alt="Download Eidos Lite" /></a>
     <a href="https://download.eidos.space/android"><img src="https://img.shields.io/badge/download-Android%20APK-34d399.svg?style=flat-square" alt="Download Android APK" /></a>
+    <a href="https://testflight.apple.com/join/3TtKPpVz"><img src="https://img.shields.io/badge/iOS-TestFlight-2563eb.svg?style=flat-square" alt="Join the iOS beta on TestFlight" /></a>
     <a href="https://docs.eidos.space/"><img src="https://img.shields.io/badge/docs-eidos.space-0ea5e9.svg?style=flat-square" alt="Eidos documentation" /></a>
     <a href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/chat-Discord-7289da.svg?style=flat-square" alt="Chat on Discord" /></a>
     <a href="https://news.ycombinator.com/item?id=40746773"><img src="https://hackergit.org/badge/mayneyao/eidos.svg" alt="Hacker News points via HackerGit" height="20" /></a>
@@ -35,15 +36,15 @@ Android and iOS. Files and bundled editors remain usable offline without an
 account. Pair with Eidos Lite to sync a local Space over the same LAN.
 
 Android APKs are available on [GitHub Releases](https://github.com/mayneyao/eidos/releases)
-and [download.eidos.space/android](https://download.eidos.space/android). The experimental
-iOS app is built from source. See the [Android guide](./apps/eidos-android/README.md) and
+and [download.eidos.space/android](https://download.eidos.space/android). The iOS public beta
+is available through TestFlight. See the [Android guide](./apps/eidos-android/README.md) and
 [iOS guide](./apps/eidos-ios/README.md) for setup and platform limitations.
 
 ## Get started
 
 - **Desktop:** [Download Eidos Lite](https://eidos.space/download#eidos-lite) to work with a local folder. No account is required for local use.
 - **Android:** Download the APK from [GitHub Releases](https://github.com/mayneyao/eidos/releases) or [download.eidos.space/android](https://download.eidos.space/android), or follow the [Android guide](./apps/eidos-android/README.md).
-- **iOS:** Build the experimental [iOS app](./apps/eidos-ios/README.md) from source for local editing and LAN sync with your desktop.
+- **iOS:** [Join the public beta on TestFlight](https://testflight.apple.com/join/3TtKPpVz) to install Eidos on your iPhone or iPad.
 - **Browser:** Open [editor.eidos.space](https://editor.eidos.space/) to create or edit a local `.eidos` file without installing anything.
 - **CLI:** Install `eidos` to create, inspect, query, update, and serve Eidos Files.
 
