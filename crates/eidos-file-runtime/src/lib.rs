@@ -18,6 +18,7 @@ mod cursor;
 pub mod formula;
 pub mod grid;
 pub mod lookup;
+mod saved_query;
 pub mod service;
 pub mod undo;
 pub mod worker;

@@ -470,6 +470,12 @@ fn value_type_json(
     formulas: &HashMap<String, FormulaFieldMeta>,
     lookups: &HashMap<String, LookupFieldMeta>,
 ) -> JsonValue {
+    if let Some(role) = field.system_role {
+        return match role {
+            SystemRole::RowId => json!("row-id"),
+            SystemRole::CreatedTime | SystemRole::UpdatedTime => json!("datetime"),
+        };
+    }
     match field.field_type {
         FieldType::Text => json!("text"),
         FieldType::Number => json!("number"),
@@ -479,9 +485,9 @@ fn value_type_json(
         FieldType::Datetime => json!("datetime"),
         FieldType::Url => json!("url"),
         FieldType::Select => json!("select"),
-        FieldType::MultiSelect => json!({ "kind": "list", "element": "select" }),
-        FieldType::File => json!({ "kind": "list", "element": "file-entry" }),
-        FieldType::Relation => json!({ "kind": "list", "element": "row-id" }),
+        FieldType::MultiSelect => json!("multi-select"),
+        FieldType::File => json!("file"),
+        FieldType::Relation => json!("relation"),
         FieldType::Formula => {
             if let Some(def) = formulas.get(&field.id) {
                 json!(def.result_type.as_str())
@@ -1040,6 +1046,22 @@ impl RustRuntimeService {
             });
             if unsupported_formula {
                 view["queryUnavailableReason"] = json!("unsupported-formula");
+            }
+            if view["queryStatus"] == "supported" {
+                crate::saved_query::normalize(&mut view["query"], |field_id| {
+                    schema
+                        .fields
+                        .iter()
+                        .find(|field| field.id == field_id && field.table_id == v.table_id)
+                        .is_some_and(|field| match field.field_type {
+                            FieldType::MultiSelect | FieldType::File | FieldType::Relation => true,
+                            FieldType::Lookup => schema
+                                .lookups
+                                .get(field_id)
+                                .is_some_and(|lookup| lookup.aggregate.as_str() == "values"),
+                            _ => false,
+                        })
+                })?;
             }
             all_objects.push(view);
         }
