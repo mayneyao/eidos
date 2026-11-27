@@ -2927,6 +2927,31 @@ export class EidosRuntimeService implements RuntimeClient {
     const fieldsById = new Map(fields.map((field) => [field.id!, field]))
     const hasRowQuery =
       request.query !== undefined && Object.keys(request.query).length > 0
+    if (!hasRowQuery) {
+      const expressions = request.items.map((item) =>
+        storedNumericAggregateSql(item, fieldsById)
+      )
+      if (expressions.every((sql) => sql !== null)) {
+        const table = this.core.getTable(request.tableId)
+        const tableSql = quoteSqlIdentifier(
+          table.physicalName ?? table.rawTableName
+        )
+        const columns = expressions.map((sql, index) => `${sql} AS v${index}`)
+        const row = this.core.connection.get<
+          Record<string, number | string | null>
+        >(`SELECT ${columns.join(", ")} FROM ${tableSql}`)!
+        const metadata = this.core.info()
+        return {
+          fileId: metadata.fileId,
+          tableId: request.tableId,
+          revision: String(metadata.revision),
+          results: request.items.map(({ key }, index) => ({
+            key,
+            value: row[`v${index}`]!,
+          })),
+        }
+      }
+    }
     if (
       !hasRowQuery &&
       request.items.every(
@@ -6809,6 +6834,35 @@ function assertAggregateItems(
         { fieldId: item.fieldId }
       )
     }
+  }
+}
+
+// Keep large unfiltered numeric aggregates inside SQLite. Counts and Integer
+// values cross the adapter as text so int64 extrema retain their precision.
+function storedNumericAggregateSql(
+  item: AggregateItem,
+  fields: ReadonlyMap<string, EidosFileFieldInfo>
+): string | null {
+  if (item.op === "count-all") return "CAST(COUNT(*) AS TEXT)"
+  const field = fields.get(item.fieldId)
+  if (
+    !field?.physicalName ||
+    (field.type !== "integer" && field.type !== "number")
+  )
+    return null
+  const column = quoteSqlIdentifier(field.physicalName)
+  switch (item.op) {
+    case "count":
+      return `CAST(COUNT(${column}) AS TEXT)`
+    case "distinct-count":
+      return `CAST(COUNT(DISTINCT ${column}) AS TEXT)`
+    case "min":
+    case "max": {
+      const sql = `${item.op.toUpperCase()}(${column})`
+      return field.type === "integer" ? `CAST(${sql} AS TEXT)` : sql
+    }
+    default:
+      return null
   }
 }
 

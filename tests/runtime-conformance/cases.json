@@ -1357,6 +1357,22 @@
           "op": "aggregate",
           "table": "tasks",
           "items": [
+            { "key": "present", "op": "count", "field": "score" },
+            { "key": "unique", "op": "distinct-count", "field": "score" },
+            { "key": "integerMinimum", "op": "min", "field": "count" },
+            { "key": "numericMaximum", "op": "max", "field": "score" }
+          ],
+          "expect": {
+            "present": "3",
+            "unique": "3",
+            "integerMinimum": "5",
+            "numericMaximum": 95.5
+          }
+        },
+        {
+          "op": "aggregate",
+          "table": "tasks",
+          "items": [
             { "key": "total", "op": "count-all" },
             { "key": "scoreCount", "op": "count", "field": "score" },
             { "key": "scoreSum", "op": "sum", "field": "score" },
