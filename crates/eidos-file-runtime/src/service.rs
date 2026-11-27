@@ -71,6 +71,7 @@ struct CachedSchemaPlan {
 }
 
 struct CachedSchema {
+    has_unknown_functions: bool,
     revision: i64,
     data_version: i64,
     meta: FileMeta,
@@ -445,12 +446,18 @@ impl RustRuntimeService {
         Ok(())
     }
 
-    fn ensure_writable(&self) -> RuntimeResult<()> {
+    fn ensure_writable(&mut self) -> RuntimeResult<()> {
         self.ensure_open()?;
         if self.read_only {
             return Err(RuntimeErrorPayload::new(
-                "forbidden",
+                "unsupported",
                 "Runtime is opened read-only",
+            ));
+        }
+        if self.ensure_schema()?.has_unknown_functions {
+            return Err(RuntimeErrorPayload::new(
+                "unsupported",
+                "This file requires a newer Eidos version and is available read-only",
             ));
         }
         Ok(())
@@ -482,7 +489,7 @@ impl RustRuntimeService {
                 .into_iter()
                 .map(|r| (r.field_id.clone(), r))
                 .collect();
-            let formulas = load_formula_fields(&self.conn)
+            let formulas: HashMap<_, _> = load_formula_fields(&self.conn)
                 .map_err(RuntimeErrorPayload::from_core)?
                 .into_iter()
                 .map(|f| (f.field_id.clone(), f))
@@ -498,6 +505,9 @@ impl RustRuntimeService {
                 .query_row("SELECT COUNT(*) FROM eidos__features", [], |r| r.get(0))
                 .unwrap_or(0);
             self.schema_cache = Some(CachedSchema {
+                has_unknown_functions: formulas
+                    .values()
+                    .any(|def| crate::formula::has_unknown_function(&def.source_text)),
                 revision: current_rev,
                 data_version,
                 meta,
@@ -635,6 +645,7 @@ impl RustRuntimeService {
                 && settings["isSystem"] != true
                 && settings["readOnly"] != true
                 && settings["writable"] != false
+                && !schema.has_unknown_functions
                 && !matches!(f.field_type, FieldType::Formula | FieldType::Lookup)
                 && schema
                     .relations
@@ -716,6 +727,7 @@ impl RustRuntimeService {
                 "type": v.view_type,
                 "queryStatus": if (req.calendar_query_version != Some(2) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-period"))
                     || (req.calendar_window_version != Some(1) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-window"))
+                    || eidos_file_core::validate::has_calendar_filter(&query, "calendar-day")
                     || eidos_file_core::validate::has_calendar_filter(&query, "relative-date") { "unsupported" } else { "supported" },
                 "query": query,
                 "layout": layout,
@@ -2415,7 +2427,7 @@ impl RustRuntimeService {
         self.ensure_writable()?;
 
         let (mut result, snapshot) = self.transaction("BEGIN IMMEDIATE", |service| {
-            service.apply_rows(req, capture_undo)
+            service.apply_rows(req, capture_undo, true)
         })?;
         if let Some(snapshot) = snapshot.filter(|s| result.changed && !s.rows.is_empty()) {
             let (token, evicted) = self.undo.push(UndoEntry::RestoreDelete(snapshot));
@@ -2431,6 +2443,7 @@ impl RustRuntimeService {
         &mut self,
         req: &RowMutationRequest,
         capture_undo: bool,
+        ordinary_create: bool,
     ) -> RuntimeResult<(MutationResult, Option<RowDeletionUndoState>)> {
         // Check if target table is a virtual table (e.g. fs_meta), which uses file-path row IDs
         let is_vtab = {
@@ -2476,10 +2489,11 @@ impl RustRuntimeService {
                 "Creation query accepts only a filter",
             ));
         }
-        if req.creation_context.is_some()
-            || changes
-                .iter()
-                .any(|c| matches!(c, RowChange::Create { .. }))
+        if ordinary_create
+            && (req.creation_context.is_some()
+                || changes
+                    .iter()
+                    .any(|c| matches!(c, RowChange::Create { .. })))
         {
             let calendar = req
                 .creation_context
@@ -2991,7 +3005,7 @@ impl RustRuntimeService {
                     changes,
                 };
                 let mut res = self.transaction("BEGIN IMMEDIATE", |service| {
-                    let (mut result, captured) = service.apply_rows(request, true)?;
+                    let (mut result, captured) = service.apply_rows(request, true, false)?;
                     let captured = captured.ok_or_else(|| {
                         RuntimeErrorPayload::new(
                             "stale-revision",
@@ -4447,7 +4461,35 @@ impl RustRuntimeService {
 
     pub fn import_csv(&mut self, req: &CsvImportRequest) -> RuntimeResult<CsvImportResult> {
         self.ensure_writable()?;
+        if req.csv_utf8.len() > self.limits.csv_bytes_max
+            || req.columns.len() > self.limits.projection_fields_max
+        {
+            return Err(RuntimeErrorPayload::new(
+                "resource-limit",
+                "CSV exceeds Runtime limits",
+            ));
+        }
+        if req.columns.is_empty() {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-request",
+                "CSV columns are required",
+            ));
+        }
+        let revision = self.ensure_schema()?.meta.revision.to_string();
+        if revision != req.expected_revision {
+            return Err(
+                RuntimeErrorPayload::new("stale-revision", "File revision has changed")
+                    .with_current_revision(revision),
+            );
+        }
         let parsed = parse_csv(&req.csv_utf8);
+        if parsed.is_empty() || req.csv_utf8.trim().is_empty() {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-value",
+                "CSV file is empty",
+            ));
+        }
+        let width = parsed[0].len();
         let data_rows = if req.has_header && !parsed.is_empty() {
             &parsed[1..]
         } else {
@@ -4463,38 +4505,109 @@ impl RustRuntimeService {
             .collect();
 
         let mut changes = Vec::with_capacity(data_rows.len());
-        for (idx, row) in data_rows.iter().enumerate() {
+        let mut indexes = HashSet::new();
+        let mut ids = HashSet::new();
+        for column in &req.columns {
+            if !indexes.insert(column.csv_index) || !ids.insert(&column.field_id) {
+                return Err(RuntimeErrorPayload::new(
+                    "invalid-request",
+                    "CSV column mappings must be unique",
+                ));
+            }
+            let field = table_fields.get(&column.field_id).ok_or_else(|| {
+                RuntimeErrorPayload::new("not-found", "CSV destination Field not found")
+            })?;
+            let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+            if field.system_role.is_some()
+                || field.physical_name.is_none()
+                || settings["readOnly"] == true
+                || settings["writable"] == false
+                || settings["isSystem"] == true
+            {
+                return Err(RuntimeErrorPayload::new(
+                    "forbidden",
+                    "CSV destination Field is read-only",
+                ));
+            }
+            if !matches!(
+                field.field_type,
+                FieldType::Text
+                    | FieldType::Number
+                    | FieldType::Integer
+                    | FieldType::Checkbox
+                    | FieldType::Date
+                    | FieldType::Datetime
+                    | FieldType::Url
+            ) {
+                return Err(RuntimeErrorPayload::new(
+                    "unsupported",
+                    "Unsupported CSV destination Field type",
+                ));
+            }
+        }
+        for (idx, row) in data_rows
+            .iter()
+            .filter(|row| row.len() == width)
+            .enumerate()
+        {
             let mut map = Map::new();
             for col in &req.columns {
                 let raw = row.get(col.csv_index).map(String::as_str).unwrap_or("");
                 let field = table_fields.get(&col.field_id);
-                let val = if raw.is_empty() {
+                let trimmed = raw.trim();
+                let val = if trimmed.is_empty() {
                     JsonValue::Null
                 } else {
                     match field.map(|f| f.field_type) {
-                        Some(FieldType::Number) => raw
+                        Some(FieldType::Number) => trimmed
                             .parse::<f64>()
                             .ok()
                             .filter(|v| v.is_finite())
                             .map(|v| json!(v))
-                            .unwrap_or(JsonValue::Null),
-                        Some(FieldType::Integer) => JsonValue::String(raw.to_string()),
-                        Some(FieldType::Checkbox) => JsonValue::Bool(matches!(
-                            raw.to_ascii_lowercase().as_str(),
-                            "true" | "1" | "yes"
+                            .ok_or_else(|| {
+                                RuntimeErrorPayload::new(
+                                    "invalid-value",
+                                    "CSV cell is not a finite number",
+                                )
+                            })?,
+                        Some(FieldType::Integer | FieldType::Date) => json!(trimmed),
+                        Some(FieldType::Datetime) => json!(format!(
+                            "{:.3}",
+                            trimmed.parse::<jiff::Timestamp>().map_err(|_| {
+                                RuntimeErrorPayload::new("invalid-value", "Invalid CSV timestamp")
+                            })?
                         )),
+                        Some(FieldType::Checkbox) => {
+                            json!(trimmed.to_ascii_lowercase().parse::<bool>().map_err(|_| {
+                                RuntimeErrorPayload::new(
+                                    "invalid-value",
+                                    "CSV checkbox must be true or false",
+                                )
+                            })?)
+                        }
                         _ => JsonValue::String(raw.to_string()),
                     }
                 };
                 map.insert(col.field_id.clone(), val);
             }
             changes.push(RowChange::Create {
-                client_key: idx.to_string(),
+                client_key: (idx + usize::from(req.has_header)).to_string(),
                 values: map,
             });
         }
 
-        let res = self.mutate_rows(&RowMutationRequest {
+        if changes.is_empty() {
+            let meta = &self.ensure_schema()?.meta;
+            return Ok(CsvImportResult {
+                file_id: meta.file_id.clone(),
+                table_id: req.table_id.clone(),
+                revision: meta.revision.to_string(),
+                changed: false,
+                created_rows: vec![],
+            });
+        }
+        let rows = RowMutationRequest {
             creation_query: None,
             calendar: None,
             creation_context: None,
@@ -4502,7 +4615,9 @@ impl RustRuntimeService {
             expected_revision: req.expected_revision.clone(),
             returning: None,
             changes,
-        })?;
+        };
+        let (res, _) =
+            self.transaction("BEGIN IMMEDIATE", |svc| svc.apply_rows(&rows, false, false))?;
 
         let created_rows = res
             .created

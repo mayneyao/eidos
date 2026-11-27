@@ -130,6 +130,155 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   )
 
+  it.each(["js", "rust"])(
+    "rejects invalid CSV cells atomically and preserves record indexes in %s",
+    async (backend) => {
+      const copy = path.join(tempDir, `csv-${backend}.eidos`)
+      await fs.copyFile(filePath, copy)
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+      try {
+        const session = await openEidosLiteFileRuntime(copy)
+        try {
+          const runtime = session.source.runtime
+          const columns = [
+            { csvIndex: 0, fieldId: nameFieldId },
+            { csvIndex: 1, fieldId: scoreFieldId },
+            { csvIndex: 2, fieldId: doneFieldId },
+          ]
+          const ctx = { requestId: "csv" }
+          const expectedRevision = (await runtime.getSnapshot({}, ctx)).revision
+          const run = (content: string) =>
+            runtime.importCsv!(
+              {
+                tableId,
+                columns,
+                expectedRevision,
+                hasHeader: true,
+                csv: new TextEncoder().encode(content),
+              },
+              ctx
+            )
+          for (const invalid of ["bad,invalid,true", "bad,90,yes"]) {
+            await expect(
+              run(`Name,Score,Done\nok,1,true\n${invalid}\n`)
+            ).rejects.toMatchObject({ code: "invalid-value" })
+            expect((await runtime.getSnapshot({}, ctx)).revision).toBe(
+              expectedRevision
+            )
+          }
+          const result = await run(
+            "Name,Score,Done\nfirst,2,true\nwrong,width\nsecond,3,false\n"
+          )
+          expect(result.createdRows.map((row) => row.recordIndex)).toEqual([
+            1, 2,
+          ])
+        } finally {
+          await session.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
+  it.each(["js", "rust"])(
+    "upgrades and restores a legacy saved date filter without losing its original query in %s",
+    async (backend) => {
+      const copy = path.join(tempDir, `legacy-${backend}.eidos`)
+      await fs.copyFile(filePath, copy)
+      const { DatabaseSync } = await import("node:sqlite")
+      const db = new DatabaseSync(copy)
+      const view = db
+        .prepare("SELECT id FROM eidos__views WHERE table_id=? LIMIT 1")
+        .get(tableId)!
+      const field = db
+        .prepare(
+          "SELECT id FROM eidos__fields WHERE table_id=? AND system_role='created-time'"
+        )
+        .get(tableId)!
+      const viewId = String(view.id)
+      const original = {
+        filter: {
+          op: "calendar-day",
+          fieldId: field.id,
+          day: "yesterday",
+          timeZone: "America/New_York",
+          timeZoneData: "2026f",
+        },
+      }
+      try {
+        db.prepare("UPDATE eidos__views SET query_json=? WHERE id=?").run(
+          JSON.stringify(original),
+          viewId
+        )
+      } finally {
+        db.close()
+      }
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+      try {
+        const session = await openEidosLiteFileRuntime(copy)
+        try {
+          const runtime = session.source.runtime
+          const ctx = { requestId: "legacy" }
+          let revision = (await runtime.getSnapshot({}, ctx)).revision
+          for (const kind of [
+            "upgrade-date-query",
+            "restore-date-query",
+          ] as const) {
+            const result = await runtime.mutateView(
+              {
+                expectedRevision: revision,
+                calendarQueryVersion: 2,
+                changes: [{ kind, viewId }],
+              },
+              ctx
+            )
+            expect(result.changed).toBe(true)
+            revision = result.revision
+            const page = await runtime.getSchemaPage(
+              { revision, limit: 100, calendarQueryVersion: 2 },
+              ctx
+            )
+            const saved = page.objects.find(
+              (o) => o.object === "view" && o.id === viewId
+            )
+            expect(saved).toMatchObject({
+              queryStatus:
+                kind === "upgrade-date-query" ? "supported" : "unsupported",
+              query:
+                kind === "upgrade-date-query"
+                  ? {
+                      filter: {
+                        op: "calendar-period",
+                        fieldId: field.id,
+                        unit: "day",
+                        offset: -1,
+                      },
+                    }
+                  : original,
+              layout: {
+                "space.eidos/date-query-upgrade": {
+                  version: 2,
+                  originalQuery: original,
+                },
+              },
+            })
+          }
+        } finally {
+          await session.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
   it("interrupts a running SQLite read on cancellation or deadline and keeps the session usable", async () => {
     const copy = path.join(tempDir, "interruptible.eidos")
     await fs.copyFile(filePath, copy)

@@ -296,6 +296,163 @@ fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+const UPGRADE_RECEIPT: &str = "space.eidos/date-query-upgrade";
+
+fn upgrade_filter(
+    node: &mut FilterNode,
+    changes: &mut Vec<JsonValue>,
+    depth: usize,
+    count: &mut usize,
+) -> Result<()> {
+    *count += 1;
+    if depth > 8 || *count > 100 {
+        return Err(EidosError::InvalidQuery(
+            "Date query upgrade exceeds query limits".into(),
+        ));
+    }
+    let (id, unit, offset, from) = match node {
+        FilterNode::And { args } | FilterNode::Or { args } => {
+            return args
+                .iter_mut()
+                .try_for_each(|child| upgrade_filter(child, changes, depth + 1, count));
+        }
+        FilterNode::Not { arg } => return upgrade_filter(arg, changes, depth + 1, count),
+        FilterNode::CalendarDay(day) => {
+            let offset = match day.day.as_str() {
+                "yesterday" => -1,
+                "today" => 0,
+                "tomorrow" => 1,
+                _ => {
+                    return Err(EidosError::InvalidQuery(
+                        "Invalid retired calendar day".into(),
+                    ));
+                }
+            };
+            if day.time_zone_data != jiff_tzdb::VERSION || jiff_tzdb::get(&day.time_zone).is_none()
+            {
+                return Err(EidosError::UnsupportedFeature(
+                    "Unsupported calendar timezone or profile".into(),
+                ));
+            }
+            (
+                day.field_id.clone(),
+                "day".to_owned(),
+                offset,
+                format!("calendar-day:{}", day.day),
+            )
+        }
+        FilterNode::RelativeDate(date) => {
+            let offset = match date.direction.as_str() {
+                "past" => -1,
+                "this" => 0,
+                "next" => 1,
+                _ => {
+                    return Err(EidosError::InvalidQuery(
+                        "Invalid relative date direction".into(),
+                    ));
+                }
+            };
+            (
+                date.field_id.clone(),
+                date.unit.clone(),
+                offset,
+                format!("relative-date:{}:{}", date.direction, date.unit),
+            )
+        }
+        _ => return Ok(()),
+    };
+    changes.push(serde_json::json!({"fieldId":id,"from":from,"unit":unit,"offset":offset}));
+    *node = FilterNode::CalendarPeriod(crate::query::CalendarPeriodFilter {
+        field_id: id,
+        unit,
+        offset,
+    });
+    Ok(())
+}
+
+fn preview_upgrade(source: &JsonValue) -> Result<(SavedViewQuery, Vec<JsonValue>)> {
+    let mut query: SavedViewQuery = serde_json::from_value(source.clone())
+        .map_err(|e| EidosError::InvalidQuery(e.to_string()))?;
+    // Reject unrecognized members before serializing a replacement for a saved document.
+    if serde_json::to_value(&query).map_err(|e| EidosError::Internal(e.to_string()))? != *source {
+        return Err(EidosError::InvalidQuery(
+            "Cannot upgrade unknown query members".into(),
+        ));
+    }
+    let mut changes = Vec::new();
+    if let Some(filter) = &mut query.filter {
+        upgrade_filter(filter, &mut changes, 0, &mut 0)?;
+    }
+    Ok((query, changes))
+}
+
+fn change_date_query(
+    tx: &Connection,
+    view: &ViewMeta,
+    table: &TableMeta,
+    fields: &[FieldMeta],
+    restore: bool,
+    instant: &str,
+) -> Result<bool> {
+    let parse = |value: &str| {
+        serde_json::from_str::<JsonValue>(value)
+            .map_err(|e| EidosError::InvalidQuery(e.to_string()))
+    };
+    let source = parse(&view.query_json)?;
+    let mut layout = parse(&view.layout_json)?;
+    let retained = layout.get(UPGRADE_RECEIPT);
+    if let Some(receipt) = retained {
+        let invalid = || EidosError::InvalidValue("Invalid date query recovery receipt".into());
+        if receipt.as_object().is_none_or(|o| {
+            o.keys()
+                .any(|k| !matches!(k.as_str(), "version" | "originalQuery" | "changes"))
+        }) || receipt["version"] != 2
+        {
+            return Err(invalid());
+        }
+        if jcs::to_jcs(receipt)?.len() > 65536 {
+            return Err(EidosError::ResourceLimit(
+                "Date query recovery receipt exceeds 65536 bytes".into(),
+            ));
+        }
+        let (_, changes) = preview_upgrade(&receipt["originalQuery"])?;
+        if changes.is_empty() {
+            return Err(invalid());
+        }
+    }
+    let target = if restore {
+        let receipt = retained
+            .ok_or_else(|| EidosError::InvalidValue("No date query recovery receipt".into()))?;
+        let (preview, _) = preview_upgrade(&receipt["originalQuery"])?;
+        canonical_query(tx, table, fields, &preview)?;
+        jcs::to_jcs(&receipt["originalQuery"])?
+    } else {
+        let (preview, changes) = preview_upgrade(&source)?;
+        if changes.is_empty() {
+            return Ok(false);
+        }
+        let target = canonical_query(tx, table, fields, &preview)?;
+        if retained.is_none() {
+            let receipt = serde_json::json!({"version":2,"originalQuery":source,"changes":changes});
+            if jcs::to_jcs(&receipt)?.len() > 65536 {
+                return Err(EidosError::ResourceLimit(
+                    "Date query recovery receipt exceeds 65536 bytes".into(),
+                ));
+            }
+            layout[UPGRADE_RECEIPT] = receipt;
+        }
+        target
+    };
+    if target == view.query_json {
+        return Ok(false);
+    }
+    tx.execute(
+        "UPDATE eidos__views SET query_json=?, layout_json=?, updated_at=? WHERE id=?",
+        rusqlite::params![target, jcs::to_jcs(&layout)?, instant, view.id],
+    )?;
+    Ok(true)
+}
+
 fn validate_request(request: &ViewMutationRequest) -> Result<()> {
     if request
         .calendar_query_version
@@ -434,6 +591,7 @@ pub fn mutate_views_in_transaction(
                         || (crate::validate::has_calendar_filter(&original, "calendar-window")
                             && request.calendar_window_version != Some(1))
                         || serde_json::from_value::<SavedViewQuery>(original.clone()).is_err()
+                        || crate::validate::has_calendar_filter(&original, "calendar-day")
                         || crate::validate::has_calendar_filter(&original, "relative-date")
                     {
                         return Err(EidosError::UnsupportedFeature(
@@ -489,10 +647,18 @@ pub fn mutate_views_in_transaction(
                 }
                 affected_view_ids.insert(view_id.clone());
             }
-            ViewChange::UpgradeDateQuery { .. } | ViewChange::RestoreDateQuery { .. } => {
-                return Err(EidosError::InvalidRequest(
-                    "date query upgrade/restore requires the canonical Runtime".into(),
-                ));
+            ViewChange::UpgradeDateQuery { view_id } | ViewChange::RestoreDateQuery { view_id } => {
+                let current = load_views(tx)?;
+                let view = view_by_id(&current, view_id)?;
+                changed |= change_date_query(
+                    tx,
+                    view,
+                    table_by_id(&tables, &view.table_id)?,
+                    &fields,
+                    matches!(change, ViewChange::RestoreDateQuery { .. }),
+                    &instant,
+                )?;
+                affected_view_ids.insert(view_id.clone());
             }
             ViewChange::DeleteView { view_id } => {
                 let current_views = load_views(tx)?;

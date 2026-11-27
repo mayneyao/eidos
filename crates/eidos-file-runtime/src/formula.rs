@@ -176,13 +176,12 @@ fn tokenize(source: &str) -> Result<Vec<Token>, String> {
             continue;
         }
         // Multi-char operators
-        if i + 1 < bytes.len() {
-            let pair = &source[i..i + 2];
-            if matches!(pair, "<=" | ">=" | "!=" | "<>" | "||") {
-                out.push(Token::Symbol(pair.to_string()));
-                i += 2;
-                continue;
-            }
+        if let Some(pair) = source.get(i..i + 2)
+            && matches!(pair, "<=" | ">=" | "!=" | "<>" | "||")
+        {
+            out.push(Token::Symbol(pair.to_string()));
+            i += 2;
+            continue;
         }
         if matches!(
             b,
@@ -195,6 +194,20 @@ fn tokenize(source: &str) -> Result<Vec<Token>, String> {
         return Err(format!("Unexpected character in formula at byte {i}"));
     }
     Ok(out)
+}
+
+pub(crate) fn has_unknown_function(source: &str) -> bool {
+    tokenize(source).is_ok_and(|tokens| {
+        tokens.windows(2).any(|pair| {
+            let [Token::Ident(name), Token::Symbol(open)] = pair else {
+                return false;
+            };
+            let name = name.to_ascii_lowercase();
+            open == "("
+                && !ALLOWED_FUNCTIONS.contains(&name.as_str())
+                && !ALLOWED_KEYWORDS.contains(&name.as_str())
+        })
+    })
 }
 
 #[allow(clippy::result_large_err)]

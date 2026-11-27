@@ -1048,6 +1048,7 @@ name = "eidos-file-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "jiff-tzdb 1.0.0",
  "rusqlite",
  "serde",
  "serde_json",
