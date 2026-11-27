@@ -130,6 +130,45 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   )
 
+  it("interrupts a running SQLite read on cancellation or deadline and keeps the session usable", async () => {
+    const copy = path.join(tempDir, "interruptible.eidos")
+    await fs.copyFile(filePath, copy)
+    const { DatabaseSync } = await import("node:sqlite")
+    const db = new DatabaseSync(copy)
+    try {
+      db.exec(
+        "CREATE VIEW slow_rows AS WITH RECURSIVE seq(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM seq WHERE n<100000000) SELECT n AS _id FROM seq"
+      )
+      db.prepare(
+        "UPDATE eidos__tables SET physical_name='slow_rows', name='slow_rows' WHERE id=?"
+      ).run(tableId)
+    } finally {
+      db.close()
+    }
+    const client = openRustRuntimeService(copy, true)
+    const ctx = { requestId: "running-read" }
+    const request = {
+      tableId,
+      items: [{ key: "total", op: "count-all" as const }],
+    }
+    try {
+      const cancelled = expect(
+        client.aggregate(request, ctx)
+      ).rejects.toMatchObject({ code: "cancelled" })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      await client.cancel(ctx)
+      await cancelled
+      await expect(
+        client.aggregate(request, { ...ctx, deadlineMilliseconds: 15 })
+      ).rejects.toMatchObject({ code: "deadline-exceeded" })
+      await expect(client.getSnapshot({}, ctx)).resolves.toHaveProperty(
+        "fileId"
+      )
+    } finally {
+      await client.close(ctx)
+    }
+  })
+
   it("preserves record navigation beyond the first page and destructive schema checks in both modes", async () => {
     const testFile = path.join(tempDir, "compat.eidos")
     await fs.copyFile(filePath, testFile)

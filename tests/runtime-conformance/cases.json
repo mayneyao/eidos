@@ -3,6 +3,202 @@
   "description": "Language-neutral Eidos Runtime 1.0 conformance suite executed identically against JS and Rust runtimes.",
   "cases": [
     {
+      "id": "filtered-view-creation-defaults",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Items",
+          "saveTableAs": "items",
+          "labelFieldClientKey": "name",
+          "fields": [
+            {
+              "clientKey": "name",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "score",
+              "name": "Score",
+              "kind": "number",
+              "position": "1"
+            },
+            {
+              "clientKey": "done",
+              "name": "Done",
+              "kind": "checkbox",
+              "position": "2"
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$revision",
+            "creationQuery": {
+              "filter": {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "starts-with",
+                    "fieldId": "$fields.items.name",
+                    "value": "Open"
+                  },
+                  {
+                    "op": "contains",
+                    "fieldId": "$fields.items.name",
+                    "value": "Task"
+                  },
+                  {
+                    "op": "gt",
+                    "fieldId": "$fields.items.score",
+                    "value": 4
+                  },
+                  {
+                    "op": "ne",
+                    "fieldId": "$fields.items.done",
+                    "value": false
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {}
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "save": "filtered1",
+          "check": {
+            "returnedRows.rows.0.values": ["OpenTask", 5.0, true]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$filtered1.revision",
+            "creationQuery": {
+              "filter": {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "and",
+                    "args": [
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.name",
+                        "value": "One"
+                      },
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.score",
+                        "value": 10
+                      }
+                    ]
+                  },
+                  {
+                    "op": "and",
+                    "args": [
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.name",
+                        "value": "Two"
+                      },
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.score",
+                        "value": 20
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {
+                  "$fields.items.name": "Two"
+                }
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "save": "filtered2",
+          "check": {
+            "returnedRows.rows.0.values": ["Two", 20.0, false]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$filtered2.revision",
+            "creationQuery": {
+              "filter": {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "eq",
+                    "fieldId": "$fields.items.score",
+                    "value": 10
+                  },
+                  {
+                    "op": "eq",
+                    "fieldId": "$fields.items.score",
+                    "value": 20
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {
+                  "$fields.items.name": "Any"
+                }
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "check": {
+            "returnedRows.rows.0.values": ["Any", null, false]
+          }
+        }
+      ]
+    },
+    {
       "id": "temporal-defaults-on-create",
       "steps": [
         {

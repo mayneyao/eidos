@@ -1084,6 +1084,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "rusqlite",
  "serde_json",
 ]
 

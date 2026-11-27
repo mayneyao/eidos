@@ -20,6 +20,12 @@ export interface ShadowDiffRecord {
 
 interface NativeEidosRuntimeInstance {
   call(method: string, requestJson: string): string
+  readAsync(
+    method: string,
+    requestJson: string,
+    timeoutMs: number
+  ): Promise<string>
+  cancelRead(): void
   dataVersion(): string
   setSpaceFileColumns(fields: string[]): void
   loadExtension(extPath: string): void
@@ -146,12 +152,29 @@ function wrapNativeHandle(
   handle: NativeEidosRuntimeInstance
 ): RustRuntimeClient {
   const pending = new Map<string, () => void>()
+  let queue = Promise.resolve()
+  let closing = false
+  const interruptible = new Set([
+    "queryRows",
+    "queryRowPages",
+    "getRowsById",
+    "getRowIndex",
+    "getRecordNeighbors",
+    "aggregate",
+    "groupRows",
+    "queryGroupRows",
+    "previewFormula",
+    "exportCsv",
+    "validate",
+  ])
   const invoke = async <T>(
     method: string,
     request: unknown,
     ctx?: Parameters<RuntimeClient["getSnapshot"]>[1]
   ): Promise<T> => {
     const id = ctx?.requestId
+    if (closing)
+      throw Object.assign(new Error("Runtime is closed"), { code: "closed" })
     if (
       ctx &&
       (typeof id !== "string" ||
@@ -177,13 +200,14 @@ function wrapNativeHandle(
       performance.now() +
       Math.min(timeout, EIDOS_RUNTIME_LIMITS.foregroundTimeMsMax)
     let cancelled = ctx?.signal?.aborted ?? false
+    let reading = false
     const cancel = () => {
       cancelled = true
+      if (reading) handle.cancelRead()
     }
     const unsubscribe = ctx?.signal?.onAbort(cancel)
     if (id !== undefined) pending.set(id, cancel)
-    try {
-      await Promise.resolve()
+    const execute = async () => {
       if (cancelled)
         throw Object.assign(new Error("Request was cancelled"), {
           code: "cancelled",
@@ -194,11 +218,29 @@ function wrapNativeHandle(
           code: "deadline-exceeded",
           retryable: true,
         })
-      const raw = handle.call(method, JSON.stringify(request ?? {}))
+      const payload = JSON.stringify(request ?? {})
+      reading = interruptible.has(method)
+      const raw = reading
+        ? await handle.readAsync(
+            method,
+            payload,
+            Math.max(1, Math.ceil(deadline - performance.now()))
+          )
+        : handle.call(method, payload)
+      reading = false
       return JSON.parse(raw) as T
+    }
+    const result = queue.then(execute)
+    queue = result.then(
+      () => undefined,
+      () => undefined
+    )
+    try {
+      return await result
     } catch (error) {
       throw decodeRustError(error)
     } finally {
+      reading = false
       unsubscribe?.()
       if (id !== undefined) pending.delete(id)
     }
@@ -249,6 +291,8 @@ function wrapNativeHandle(
       pending.get(requestId)?.()
     },
     close: async () => {
+      closing = true
+      await queue
       try {
         handle.close()
       } catch (error) {

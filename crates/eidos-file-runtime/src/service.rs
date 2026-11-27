@@ -525,6 +525,7 @@ impl RustRuntimeService {
             version: "1.0".into(),
             capabilities: json!({
                 "temporalDefaultsVersion": 1,
+                "viewCreationDefaultsVersion": 1,
                 "readRows": true,
                 "schemaPaging": true,
                 "cursorPaging": true,
@@ -2465,6 +2466,16 @@ impl RustRuntimeService {
 
         let instant = now_instant();
         let mut changes = req.changes.clone();
+        if req
+            .creation_query
+            .as_ref()
+            .is_some_and(|q| q.sort.is_some() || q.search.is_some())
+        {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-query",
+                "Creation query accepts only a filter",
+            ));
+        }
         if req.creation_context.is_some()
             || changes
                 .iter()
@@ -2489,10 +2500,28 @@ impl RustRuntimeService {
                 .transpose()?;
             let (day, _) = resolve_today_date(calendar.as_ref(), Some(&instant))?;
             let schema = self.ensure_schema()?;
-            for field in schema.fields.iter().filter(|f| f.table_id == req.table_id) {
+            let fields: Vec<_> = schema
+                .fields
+                .iter()
+                .filter(|f| f.table_id == req.table_id)
+                .cloned()
+                .collect();
+            let table = schema
+                .tables
+                .iter()
+                .find(|t| t.id == req.table_id)
+                .cloned()
+                .ok_or_else(|| RuntimeErrorPayload::new("not-found", "Missing owning Table"))?;
+            let mut defaults = Map::new();
+            for field in &fields {
                 let settings: JsonValue = serde_json::from_str(&field.settings_json)
                     .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
                 if settings["defaultValue"] != "now" {
+                    if field.field_type == FieldType::Select
+                        && settings["defaultOption"].is_string()
+                    {
+                        defaults.insert(field.id.clone(), settings["defaultOption"].clone());
+                    }
                     continue;
                 }
                 let value = match field.field_type {
@@ -2505,11 +2534,23 @@ impl RustRuntimeService {
                         ));
                     }
                 };
-                for change in &mut changes {
-                    if let RowChange::Create { values, .. } = change {
-                        values
-                            .entry(field.id.clone())
-                            .or_insert_with(|| json!(value));
+                defaults.insert(field.id.clone(), json!(value));
+            }
+            let query = req
+                .creation_query
+                .as_ref()
+                .filter(|q| q.filter.is_some())
+                .map(|q| rewrite_calendar_query(q, &fields, req.calendar.as_ref(), &instant))
+                .transpose()?;
+            for change in &mut changes {
+                if let RowChange::Create { values, .. } = change {
+                    if let Some(query) = &query {
+                        values.extend(crate::creation::infer(
+                            &self.conn, &table, &fields, query, values, &defaults,
+                        )?);
+                    }
+                    for (key, value) in &defaults {
+                        values.entry(key.clone()).or_insert_with(|| value.clone());
                     }
                 }
             }
