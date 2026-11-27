@@ -16,7 +16,8 @@ rusqlite = { workspace = true, features = ["bundled", "functions", "limits", "lo
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-jiff = { version = "0.2.37", default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"] }
+jiff = { version = "0.2.37", default-features = false, features = ["std"] }
+jiff-tzdb = "=1.0.0"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v7", "serde"] }
 thiserror = "2.0"

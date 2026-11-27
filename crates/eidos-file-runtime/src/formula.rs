@@ -235,6 +235,7 @@ fn compile_recursive(
             table_id: None,
             field_id: None,
             row_id: None,
+            view_id: None,
         });
     }
     let tokens = tokenize(source_text).map_err(|msg| RuntimeDiagnostic {
@@ -245,6 +246,7 @@ fn compile_recursive(
         table_id: None,
         field_id: None,
         row_id: None,
+        view_id: None,
     })?;
 
     // Check balanced parentheses
@@ -264,6 +266,7 @@ fn compile_recursive(
                         table_id: None,
                         field_id: None,
                         row_id: None,
+                        view_id: None,
                     });
                 }
             }
@@ -278,6 +281,7 @@ fn compile_recursive(
             table_id: None,
             field_id: None,
             row_id: None,
+            view_id: None,
         });
     }
 
@@ -302,6 +306,7 @@ fn compile_recursive(
                         table_id: None,
                         field_id: None,
                         row_id: None,
+                        view_id: None,
                     })?;
 
                 if dep_seen.insert(field.id.clone()) {
@@ -321,6 +326,7 @@ fn compile_recursive(
                             table_id: None,
                             field_id: Some(field.id.clone()),
                             row_id: None,
+                            view_id: None,
                         });
                     }
                     let def = formula_defs
@@ -333,6 +339,7 @@ fn compile_recursive(
                             table_id: None,
                             field_id: Some(field.id.clone()),
                             row_id: None,
+                            view_id: None,
                         })?;
                     let sub = compile_recursive(
                         &def.source_text,
@@ -355,6 +362,7 @@ fn compile_recursive(
                         table_id: None,
                         field_id: Some(field.id.clone()),
                         row_id: None,
+                        view_id: None,
                     })?;
                     if let Some(alias) = table_alias {
                         sql_parts.push(format!("{alias}.{quoted}"));
@@ -373,6 +381,7 @@ fn compile_recursive(
                         table_id: None,
                         field_id: Some(field.id.clone()),
                         row_id: None,
+                        view_id: None,
                     });
                 }
             }
@@ -390,6 +399,7 @@ fn compile_recursive(
                             table_id: None,
                             field_id: None,
                             row_id: None,
+                            view_id: None,
                         });
                     }
                     if lower == "today" {
@@ -403,6 +413,7 @@ fn compile_recursive(
                                 table_id: None,
                                 field_id: None,
                                 row_id: None,
+                                view_id: None,
                             });
                         }
                         uses_today = true;
@@ -425,6 +436,7 @@ fn compile_recursive(
                         table_id: None,
                         field_id: None,
                         row_id: None,
+                        view_id: None,
                     });
                 }
             }

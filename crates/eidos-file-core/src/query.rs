@@ -326,6 +326,24 @@ fn coerce_operand(field: &FieldMeta, value: &JsonValue) -> Result<SqlValue> {
             field.name
         )));
     }
+    if field.field_type == FieldType::Datetime
+        && let Some(raw) = value.as_str()
+    {
+        if raw.as_bytes().get(19) == Some(&b'.')
+            && raw[20..].bytes().take_while(u8::is_ascii_digit).count() > 3
+        {
+            return Err(invalid_query("Sub-millisecond datetime query operand"));
+        }
+        let parsed = chrono::DateTime::parse_from_rfc3339(raw)
+            .map_err(|_| invalid_query("Invalid datetime query operand"))?;
+        let canonical = parsed
+            .to_utc()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        if !crate::time::is_valid_instant(&canonical) {
+            return Err(invalid_query("Invalid datetime query operand"));
+        }
+        return Ok(SqlValue::Text(canonical));
+    }
     coerce_value(field, value)
         .map_err(|err| invalid_query(format!("operand for field {:?}: {err}", field.name)))
 }

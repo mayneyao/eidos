@@ -28,12 +28,22 @@ pub struct CalendarBounds {
 
 fn parse_timezone(calendar: Option<&CalendarContext>) -> RuntimeResult<TimeZone> {
     match calendar.and_then(|c| c.time_zone.as_deref()) {
-        Some(zone) if !zone.is_empty() => TimeZone::get(zone).map_err(|err| {
-            RuntimeErrorPayload::new(
-                "invalid-query",
-                format!("Unsupported calendar timeZone {zone:?}: {err}"),
-            )
-        }),
+        Some(zone) if !zone.is_empty() => {
+            if calendar
+                .and_then(|c| c.time_zone_data.as_deref())
+                .is_some_and(|v| v != jiff_tzdb::VERSION)
+            {
+                return Err(RuntimeErrorPayload::new(
+                    "unsupported",
+                    "Unsupported time zone data version",
+                ));
+            }
+            let (name, tzif) = jiff_tzdb::get(zone).ok_or_else(|| {
+                RuntimeErrorPayload::new("invalid-query", format!("Unknown time zone {zone:?}"))
+            })?;
+            TimeZone::tzif(name, tzif)
+                .map_err(|e| RuntimeErrorPayload::new("invalid-query", e.to_string()))
+        }
         _ => Ok(TimeZone::UTC),
     }
 }

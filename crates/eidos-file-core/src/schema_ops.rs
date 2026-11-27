@@ -165,7 +165,7 @@ fn nullable(kind: FieldType, requested: Option<bool>) -> Result<bool> {
         }
         Ok(fixed)
     } else {
-        Ok(requested.unwrap_or(true))
+        Ok(requested.unwrap_or(kind != FieldType::Checkbox))
     }
 }
 
@@ -206,8 +206,11 @@ fn column_sql(name: &str, kind: FieldType, nullable: bool) -> Result<String> {
         }
         FieldType::Number => format!("{column} REAL{nullability}"),
         FieldType::Integer => format!("{column} INTEGER{nullability}"),
+        FieldType::Checkbox if !nullable => {
+            format!("{column} INTEGER NOT NULL DEFAULT 0 CHECK({column} IN (0,1))")
+        }
         FieldType::Checkbox => {
-            format!("{column} INTEGER{nullability} CHECK({column} IS NULL OR {column} IN (0,1))")
+            format!("{column} INTEGER CHECK({column} IS NULL OR {column} IN (0,1))")
         }
         FieldType::Date => {
             format!("{column} TEXT{nullability} CHECK({})", date_check(&column))
@@ -482,7 +485,7 @@ fn create_table(
         .any(|table| sqlite_nocase(&table.name) == folded)
     {
         return Err(EidosError::AlreadyExists(format!(
-            "duplicate Table name {name:?}"
+            "Duplicate Table name {name:?}"
         )));
     }
     let table_id = generate_uuidv7();
@@ -596,6 +599,116 @@ fn create_table(
     Ok(created)
 }
 
+fn is_fs_meta(table: &TableMeta) -> bool {
+    serde_json::from_str::<JsonValue>(&table.settings_json)
+        .is_ok_and(|v| v["vtabModule"] == "fs_meta")
+}
+
+// Keep the original module options (including ignore and namespace) when
+// rebuilding a catalog. Only the quoted fields argument is replaced.
+fn rebuild_fs_meta(conn: &Connection, table: &TableMeta) -> Result<()> {
+    let name = quote_identifier(&table.physical_name)?;
+    let sql: String = conn.query_row(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        [&table.physical_name],
+        |r| r.get(0),
+    )?;
+    let invalid = || EidosError::InvalidSchema("Invalid fs_meta virtual table declaration".into());
+    let (_, args) = sql
+        .rsplit_once(" USING fs_meta(")
+        .or_else(|| sql.split_once(" using fs_meta("))
+        .ok_or_else(invalid)?;
+    let mut input = args
+        .trim_end()
+        .strip_suffix(')')
+        .ok_or_else(invalid)?
+        .trim();
+    let mut options = Vec::new();
+    while !input.is_empty() {
+        let (key, raw) = input.split_once('=').ok_or_else(invalid)?;
+        let key = key.trim();
+        if !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') || key.is_empty() {
+            return Err(invalid());
+        }
+        let mut chars = raw.trim_start().char_indices().peekable();
+        let (_, quote) = chars.next().ok_or_else(invalid)?;
+        if !matches!(quote, '\'' | '"') {
+            return Err(invalid());
+        }
+        let mut value = String::new();
+        let end = loop {
+            let (pos, ch) = chars.next().ok_or_else(invalid)?;
+            if ch == quote {
+                if chars.peek().is_some_and(|(_, c)| *c == quote) {
+                    chars.next();
+                } else {
+                    break pos + 1;
+                }
+            }
+            value.push(ch);
+        };
+        if !key.eq_ignore_ascii_case("fields") {
+            options.push(format!("{key}='{}'", value.replace('\'', "''")));
+        }
+        let remaining = raw.trim_start()[end..].trim_start();
+        if remaining.is_empty() {
+            break;
+        }
+        input = remaining
+            .strip_prefix(',')
+            .ok_or_else(invalid)?
+            .trim_start();
+    }
+    let mut columns = Vec::new();
+    for field in load_fields(conn)?
+        .into_iter()
+        .filter(|f| f.table_id == table.id && f.system_role.is_none())
+    {
+        let settings: JsonValue =
+            serde_json::from_str(&field.settings_json).map_err(|_| invalid())?;
+        let Some(column) = field.physical_name else {
+            continue;
+        };
+        if settings["isSystem"] == true
+            || [
+                "_id",
+                "id",
+                "name",
+                "extension",
+                "size",
+                "_created_at",
+                "_updated_at",
+                "mtime",
+                "path",
+                "is_dir",
+                "file",
+                "mimetype",
+                "mime_type",
+            ]
+            .contains(&column.to_ascii_lowercase().as_str())
+        {
+            continue;
+        }
+        let ty = match field.field_type {
+            FieldType::Integer | FieldType::Checkbox => "INTEGER",
+            FieldType::Number => "REAL",
+            _ => "TEXT",
+        };
+        columns.push(serde_json::json!({"name":column,"type":ty,"key":settings["vtabStorageKey"].as_str().unwrap_or(&column)}));
+    }
+    let fields = jcs::to_jcs(&JsonValue::Array(columns))?;
+    options.push(format!("fields='{}'", fields.replace('\'', "''")));
+    conn.execute(&format!("DROP TABLE {name}"), [])?;
+    conn.execute(
+        &format!(
+            "CREATE VIRTUAL TABLE {name} USING fs_meta({})",
+            options.join(",")
+        ),
+        [],
+    )?;
+    Ok(())
+}
+
 fn create_field(
     conn: &Connection,
     table_id: &str,
@@ -617,6 +730,16 @@ fn create_field(
         .map(|field| field.name.clone())
         .collect();
     let mut prepared = prepare_field(field, table_fields.len(), &mut existing)?;
+    if prepared.relation.as_ref().is_some_and(|r| {
+        is_fs_meta(table)
+            || tables
+                .iter()
+                .any(|t| t.id == r.target_table_id && is_fs_meta(t))
+    }) {
+        return Err(EidosError::Forbidden(
+            "Relations require ordinary tables".into(),
+        ));
+    }
     if prepared.relation.is_some()
         && !tables
             .iter()
@@ -636,7 +759,7 @@ fn create_field(
         && !prepared.nullable
         && !matches!(
             prepared.kind,
-            FieldType::MultiSelect | FieldType::File | FieldType::Relation
+            FieldType::Checkbox | FieldType::MultiSelect | FieldType::File | FieldType::Relation
         )
     {
         return Err(EidosError::Forbidden(format!(
@@ -653,12 +776,21 @@ fn create_field(
             .unwrap_or(-1)
             + 1;
     }
-    conn.execute_batch(&format!(
-        "ALTER TABLE {} ADD COLUMN {}",
-        quote_identifier(&table.physical_name)?,
-        column_sql(&prepared.physical_name, prepared.kind, prepared.nullable)?
-    ))?;
-    insert_field_meta(conn, table_id, &prepared, instant)?;
+    if is_fs_meta(table) {
+        let mut settings: JsonValue = serde_json::from_str(&prepared.settings_json)
+            .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+        settings["vtabStorageKey"] = JsonValue::String(prepared.name.clone());
+        prepared.settings_json = jcs::to_jcs(&settings)?;
+        insert_field_meta(conn, table_id, &prepared, instant)?;
+        rebuild_fs_meta(conn, table)?;
+    } else {
+        conn.execute_batch(&format!(
+            "ALTER TABLE {} ADD COLUMN {}",
+            quote_identifier(&table.physical_name)?,
+            column_sql(&prepared.physical_name, prepared.kind, prepared.nullable)?
+        ))?;
+        insert_field_meta(conn, table_id, &prepared, instant)?;
+    }
     install_relation_triggers(conn, &prepared, table, &tables)?;
     conn.execute(
         "UPDATE eidos__tables SET updated_at=? WHERE id=?",
@@ -698,7 +830,7 @@ fn rename_table(conn: &Connection, table_id: &str, name: &str, instant: &str) ->
         .any(|other| other.id != table_id && sqlite_nocase(&other.name) == folded)
     {
         return Err(EidosError::AlreadyExists(format!(
-            "duplicate Table name {name:?}"
+            "Duplicate Table name {name:?}"
         )));
     }
     let physical = name.to_string();
@@ -752,6 +884,11 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
     }
     if field.name == name {
         return Ok(false);
+    }
+    if is_fs_meta(&table_by_id(conn, &field.table_id)?) {
+        return Err(EidosError::Forbidden(
+            "File metadata fields cannot be renamed".into(),
+        ));
     }
     let fields = load_fields(conn)?;
     let folded = sqlite_nocase(name);
@@ -895,7 +1032,9 @@ fn delete_field(
             conn.execute_batch(&statement)?;
         }
     }
-    if let Some(physical) = &field.physical_name {
+    if let Some(physical) = &field.physical_name
+        && !is_fs_meta(&table)
+    {
         conn.execute_batch(&format!(
             "ALTER TABLE {} DROP COLUMN {}",
             quote_identifier(&table.physical_name)?,
@@ -903,6 +1042,21 @@ fn delete_field(
         ))?;
     }
     conn.execute("DELETE FROM eidos__fields WHERE id=?", [field_id])?;
+    if is_fs_meta(&table) {
+        rebuild_fs_meta(conn, &table)?;
+        if let Some(physical) = field.physical_name.as_deref() {
+            let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+            let key = settings["vtabStorageKey"].as_str().unwrap_or(physical);
+            conn.execute(
+                &format!(
+                    "UPDATE {} SET __fs_meta_remove_key=?",
+                    quote_identifier(&table.physical_name)?
+                ),
+                [key],
+            )?;
+        }
+    }
     conn.execute(
         "UPDATE eidos__tables SET updated_at=? WHERE id=?",
         rusqlite::params![instant, field.table_id],

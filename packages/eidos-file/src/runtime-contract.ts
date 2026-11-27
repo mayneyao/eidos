@@ -69,10 +69,6 @@ export type LogicalValue =
   | LogicalValue[]
 
 export interface RuntimeEnvironment {
-  /** @internal Optional acceleration for stored scalar column statistics. */
-  storedColumnAggregate?(
-    request: AggregateRequest
-  ): AggregateResponse | undefined
   clock: ClockPort
   entropy: EntropyPort
   transportCommitBarrier?: TransportCommitBarrier

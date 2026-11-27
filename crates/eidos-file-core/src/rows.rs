@@ -505,8 +505,8 @@ pub fn mutate_rows_recording_detach(
                 field.field_type,
                 FieldType::MultiSelect | FieldType::File | FieldType::Relation
             );
-            if is_list || field.nullable {
-                continue; // covered by the column DEFAULT '[]' / NULL fill
+            if is_list || field.field_type == FieldType::Checkbox || field.nullable {
+                continue; // The column default supplies the omitted value.
             }
             return Err(EidosError::InvalidValue(format!(
                 "field {:?} ({}) is non-nullable and has no default; a create must supply it",

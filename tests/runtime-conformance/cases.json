@@ -1758,6 +1758,17 @@
           "expectPrevKey": "1000",
           "expectNextKey": "1002",
           "expectIndex": "1001"
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "delete-field",
+            "table": "records",
+            "field": "rank"
+          },
+          "expectClassification": "explicit-lossy",
+          "expectFieldDeletionImpact": { "rows": "1003" },
+          "confirmLossy": true
         }
       ]
     },

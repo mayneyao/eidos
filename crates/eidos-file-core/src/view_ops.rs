@@ -202,7 +202,45 @@ fn validate_stable_field_ids(value: &JsonValue, fields: &[FieldMeta]) -> Result<
     Ok(())
 }
 
+// Validate declarative calendar operands without binding a saved View to today's date.
+fn validate_calendar_leaves(node: &mut FilterNode, fields: &[FieldMeta]) -> Result<()> {
+    let (field_id, unit, valid) = match node {
+        FilterNode::And { args } | FilterNode::Or { args } => {
+            return args
+                .iter_mut()
+                .try_for_each(|arg| validate_calendar_leaves(arg, fields));
+        }
+        FilterNode::Not { arg } => return validate_calendar_leaves(arg, fields),
+        FilterNode::CalendarPeriod(f) => (&f.field_id, &f.unit, (-1..=1).contains(&f.offset)),
+        FilterNode::CalendarWindow(f) => (
+            &f.field_id,
+            &f.unit,
+            matches!(f.direction.as_str(), "past" | "next") && (1..=1_000_000).contains(&f.count),
+        ),
+        _ => return Ok(()),
+    };
+    if !valid
+        || !matches!(unit.as_str(), "day" | "week" | "month" | "year")
+        || !fields.iter().any(|f| {
+            &f.id == field_id
+                && matches!(
+                    f.field_type,
+                    crate::model::FieldType::Date | crate::model::FieldType::Datetime
+                )
+        })
+    {
+        return Err(EidosError::InvalidQuery(
+            "Invalid saved calendar filter".into(),
+        ));
+    }
+    *node = FilterNode::IsNull {
+        field_id: field_id.clone(),
+    };
+    Ok(())
+}
+
 fn canonical_query(
+    tx: &Connection,
     table: &TableMeta,
     all_fields: &[FieldMeta],
     query: &SavedViewQuery,
@@ -215,15 +253,36 @@ fn canonical_query(
     let value =
         serde_json::to_value(query).map_err(|error| EidosError::Internal(error.to_string()))?;
     validate_stable_field_ids(&value, &fields)?;
+    let mut filter = query.filter.clone();
+    if let Some(node) = &mut filter {
+        validate_calendar_leaves(node, &fields)?;
+    }
     compile_query(
         table,
         &fields,
         &RowQuery {
-            filter: query.filter.clone(),
+            filter,
             search: None,
             sort: query.sort.clone(),
         },
     )?;
+    let window = crate::validate::has_calendar_filter(&value, "calendar-window");
+    for (required, name, version) in [
+        (
+            window || crate::validate::has_calendar_filter(&value, "calendar-period"),
+            "eidos:calendar-query",
+            "2",
+        ),
+        (window, "eidos:calendar-window", "1"),
+    ] {
+        if required {
+            tx.execute("INSERT INTO eidos__features(name,version,required,config_json) VALUES(?,?,1,'{}') ON CONFLICT(name) DO NOTHING", [name,version])?;
+            let supported:bool = tx.query_row("SELECT version=? AND required=1 AND config_json='{}' FROM eidos__features WHERE name=?", [version,name], |r| r.get(0))?;
+            if !supported {
+                return Err(EidosError::UnsupportedFeature(name.into()));
+            }
+        }
+    }
     jcs::to_jcs(&value)
 }
 
@@ -312,16 +371,7 @@ pub fn mutate_views_in_transaction(
     }
     ensure_revision(tx, &request.expected_revision)?;
     validate_request(request)?;
-    if tx.query_row(
-        "SELECT COUNT(*) FROM eidos__features WHERE name IN ('eidos:calendar-query','eidos:calendar-window')",
-        [],
-        |row| row.get::<_, i64>(0),
-    )? > 0
-    {
-        return Err(EidosError::InvalidRequest(
-            "View changes in this file require the canonical Runtime".into(),
-        ));
-    }
+
     let before = load_file_meta(tx)?;
     let tables = load_tables(tx)?;
     let fields = load_fields(tx)?;
@@ -346,7 +396,7 @@ pub fn mutate_views_in_transaction(
                 validate_view_type(view_type)?;
                 let current_views = load_views(tx)?;
                 ensure_unique_name(&current_views, table_id, name, None)?;
-                let query_json = canonical_query(table, &fields, query)?;
+                let query_json = canonical_query(tx, table, &fields, query)?;
                 let layout_json = canonical_object(layout, "View layout")?;
                 let position = parse_i64(position, "View position")?;
                 let view_id = generate_uuidv7();
@@ -377,15 +427,17 @@ pub fn mutate_views_in_transaction(
                 let current_views = load_views(tx)?;
                 let current = view_by_id(&current_views, view_id)?.clone();
                 if patch.query.is_some() {
-                    let original = serde_json::from_str::<SavedViewQuery>(&current.query_json);
-                    if original.as_ref().map_or(true, |query| {
-                        query
-                            .filter
-                            .as_ref()
-                            .is_some_and(FilterNode::requires_runtime)
-                    }) {
-                        return Err(EidosError::InvalidRequest(
-                            "Updating this View query requires the canonical Runtime".into(),
+                    let original: JsonValue = serde_json::from_str(&current.query_json)
+                        .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+                    if (crate::validate::has_calendar_filter(&original, "calendar-period")
+                        && request.calendar_query_version != Some(2))
+                        || (crate::validate::has_calendar_filter(&original, "calendar-window")
+                            && request.calendar_window_version != Some(1))
+                        || serde_json::from_value::<SavedViewQuery>(original.clone()).is_err()
+                        || crate::validate::has_calendar_filter(&original, "relative-date")
+                    {
+                        return Err(EidosError::UnsupportedFeature(
+                            "This client cannot edit the saved View query".into(),
                         ));
                     }
                 }
@@ -398,7 +450,7 @@ pub fn mutate_views_in_transaction(
                 let query_json = patch
                     .query
                     .as_ref()
-                    .map(|query| canonical_query(table, &fields, query))
+                    .map(|query| canonical_query(tx, table, &fields, query))
                     .transpose()?
                     .unwrap_or_else(|| current.query_json.clone());
                 let layout_json = patch
@@ -453,6 +505,34 @@ pub fn mutate_views_in_transaction(
     }
 
     let revision = if changed {
+        // Calendar indexes are disposable and are installed only on writes.
+        let mut statement = tx.prepare(
+            "SELECT DISTINCT t.physical_name, f.id, f.physical_name FROM eidos__views v
+             JOIN eidos__tables t ON t.id = v.table_id
+             JOIN eidos__fields f ON f.table_id = t.id AND (f.id = json_extract(v.layout_json,'$.dateField') OR f.physical_name = json_extract(v.layout_json,'$.dateField'))
+             JOIN pragma_table_list p ON p.schema='main' AND p.name=t.physical_name AND p.type='table'
+             WHERE v.type='calendar' AND f.type IN ('date','datetime') AND f.physical_name IS NOT NULL"
+        )?;
+        let indexes = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(statement);
+        for (table, field, column) in indexes {
+            let index = format!("idx_eidos_calendar_{}", field.replace('-', ""));
+            use crate::naming::quote_identifier;
+            tx.execute_batch(&format!(
+                "CREATE INDEX IF NOT EXISTS {} ON {} ({} COLLATE BINARY)",
+                quote_identifier(&index)?,
+                quote_identifier(&table)?,
+                quote_identifier(&column)?
+            ))?;
+        }
         ensure_foreign_keys(tx)?;
         ddl::increment_revision(tx, &instant)?
     } else {

@@ -59,6 +59,11 @@ impl RuntimeErrorPayload {
     }
 
     pub fn from_core(error: EidosError) -> Self {
+        if let EidosError::NonNullable { field_id } = error {
+            let mut payload = Self::new("constraint", "Field is not nullable");
+            payload.extra.get_or_insert_with(Default::default).field_id = Some(field_id);
+            return payload;
+        }
         let code = match error.code() {
             "table-not-found" | "field-not-found" | "view-not-found" | "row-not-found" => {
                 "not-found"
@@ -594,6 +599,8 @@ pub struct RuntimeDiagnostic {
     pub field_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub view_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

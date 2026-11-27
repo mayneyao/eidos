@@ -59,10 +59,9 @@ pub fn coerce_value(field: &FieldMeta, value: &JsonValue) -> Result<SqlValue> {
         if field.nullable {
             return Ok(SqlValue::Null);
         }
-        return Err(invalid(
-            field,
-            "null is not allowed for a non-nullable field",
-        ));
+        return Err(EidosError::NonNullable {
+            field_id: field.id.clone(),
+        });
     }
     match field.field_type {
         FieldType::Text | FieldType::Select => {

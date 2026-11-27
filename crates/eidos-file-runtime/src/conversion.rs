@@ -451,10 +451,7 @@ pub fn preflight_field_conversion(
     let target_nullable = change
         .get("toNullable")
         .and_then(JsonValue::as_bool)
-        .unwrap_or(!matches!(
-            target_type,
-            FieldType::MultiSelect | FieldType::File | FieldType::Relation
-        ));
+        .unwrap_or(false);
     let policies: Vec<String> = change
         .get("policies")
         .and_then(JsonValue::as_array)
@@ -478,6 +475,7 @@ pub fn preflight_field_conversion(
                 table_id: Some(table.id.clone()),
                 field_id: Some(field.id.clone()),
                 row_id: None,
+                view_id: None,
             }],
             value_changes: Vec::new(),
             target_type,
@@ -571,6 +569,7 @@ pub fn preflight_field_conversion(
                 table_id: Some(table.id.clone()),
                 field_id: Some(field.id.clone()),
                 row_id: None,
+                view_id: None,
             }],
             value_changes: Vec::new(),
             target_type,

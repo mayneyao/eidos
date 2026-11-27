@@ -2997,40 +2997,6 @@ export class EidosRuntimeService implements RuntimeClient {
         })
       }
     }
-    const accelerate = this.environment.storedColumnAggregate
-    if (
-      accelerate &&
-      !hasRowQuery &&
-      request.items.every((item) => {
-        if (item.op === "count-all") return true
-        const field = fieldsById.get(item.fieldId)
-        return (
-          field?.physicalName &&
-          (field.type === "integer" || field.type === "number") &&
-          (item.op === "count" ||
-            item.op === "min" ||
-            item.op === "max" ||
-            item.op === "distinct-count")
-        )
-      })
-    ) {
-      const metadata = this.core.info()
-      const result = accelerate(request)
-      // Both connections must observe the same logical file snapshot.
-      if (
-        result &&
-        result.fileId === metadata.fileId &&
-        result.revision === String(metadata.revision) &&
-        result.tableId === request.tableId
-      ) {
-        return {
-          fileId: result.fileId,
-          revision: result.revision,
-          tableId: result.tableId,
-          results: result.results,
-        }
-      }
-    }
     const rows = this.core
       .runtimeScanLogicalRows(request.tableId, fieldIds, query)
       .sort((left, right) => binaryCompare(left.id, right.id))

@@ -7,6 +7,59 @@ use std::path::PathBuf;
 use eidos_file_runtime::RustRuntimeService;
 use serde_json::{Value, json};
 
+#[test]
+fn batch_pages_scan_live_source_once() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = RustRuntimeService::create(&dir.path().join("scan.eidos"), "Scan").unwrap();
+    let change = json!({"kind":"create-table","clientKey":"t","name":"Rows","position":"0","labelFieldClientKey":"title","fields":[{"clientKey":"title","name":"Title","kind":"text","position":"0"}]});
+    let plan: Value = serde_json::from_str(
+        &service
+            .invoke_wire_json(
+                "preflightSchema",
+                &json!({"change":change,"expectedRevision":"0"}).to_string(),
+            )
+            .unwrap(),
+    )
+    .unwrap();
+    let result:Value = serde_json::from_str(&service.invoke_wire_json("mutateSchema",&json!({"planToken":plan["planToken"],"actionsHash":plan["actionsHash"],"expectedRevision":"0"}).to_string()).unwrap()).unwrap();
+    let created = result["createdObjects"].as_array().unwrap();
+    let table = &created.iter().find(|o| o["clientKey"] == "t").unwrap()["id"];
+    let field = &created.iter().find(|o| o["clientKey"] == "title").unwrap()["id"];
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counter = reads.clone();
+    let conn = service.connection();
+    conn.create_scalar_function(
+        "observe_live_row",
+        1,
+        rusqlite::functions::FunctionFlags::SQLITE_UTF8
+            | rusqlite::functions::FunctionFlags::SQLITE_INNOCUOUS,
+        move |ctx| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            ctx.get::<String>(0)
+        },
+    )
+    .unwrap();
+    conn.execute_batch("ALTER TABLE Rows RENAME TO stored; CREATE VIEW Rows AS SELECT _id, _created_at, _updated_at, observe_live_row(Title) AS Title FROM stored;
+        INSERT INTO stored VALUES('01900000-0000-7000-8000-000000000001','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z','A'),('01900000-0000-7000-8000-000000000002','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z','B');
+        UPDATE eidos__tables SET settings_json='{\"vtabModule\":\"fixture\"}'").unwrap();
+    let request =
+        json!({"tableId":table,"queries":[{},{},{}],"projection":{"fields":[field]},"limit":1});
+    for expected in [2, 4] {
+        let pages: Value = serde_json::from_str(
+            &service
+                .invoke_wire_json("queryRowPages", &request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(pages.as_array().unwrap().iter().all(|p| p["total"] == "2"));
+        assert_eq!(reads.load(Ordering::Relaxed), expected);
+    }
+}
+
 fn resolve_row_value(val: &Value, rows: &HashMap<String, String>) -> Value {
     match val {
         Value::String(s) if s.starts_with("$row:") => json!(rows[&s[5..]]),
@@ -324,7 +377,10 @@ fn language_neutral_runtime_conformance() {
                     if let Some(ref tk) = t_key {
                         if !matches!(
                             kind.as_str(),
-                            "set-field-nullable" | "set-field-position" | "rename-option"
+                            "delete-field"
+                                | "set-field-nullable"
+                                | "set-field-position"
+                                | "rename-option"
                         ) {
                             ch.insert("tableId".into(), json!(tables[tk]));
                         }
@@ -341,6 +397,14 @@ fn language_neutral_runtime_conformance() {
                         .unwrap(),
                     )
                     .unwrap();
+                    if let Some(impact) = step.get("expectFieldDeletionImpact") {
+                        let id = &fields[t_key.as_ref().unwrap()][f_key.as_ref().unwrap()];
+                        assert_eq!(plan["affectedRows"], impact["rows"]);
+                        assert_eq!(plan["dependencyCount"], "1");
+                        assert_eq!(plan["dependencies"], json!([{"object":"field","id":id}]));
+                        let err = svc.invoke_wire_json("mutateSchema", &json!({"planToken":plan["planToken"], "actionsHash":plan["actionsHash"], "expectedRevision":revision}).to_string()).unwrap_err();
+                        assert_eq!(err.code, "lossy-confirmation-required");
+                    }
                     if let Some(exp_cls) = step["expectClassification"].as_str() {
                         assert_eq!(plan["classification"].as_str().unwrap(), exp_cls);
                     }

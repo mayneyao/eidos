@@ -1,8 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
-import * as adapter from "./rust-runtime-adapter"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import {
   createEidosLiteFileRuntime,
@@ -236,47 +235,35 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   })
 
-  it("uses native statistics only for eligible requests and discards a different revision", async () => {
-    const create = adapter.nativeColumnStatistics
-    const native = create(filePath)
-    const aggregate = vi.fn(native.aggregate)
-    const factory = vi
-      .spyOn(adapter, "nativeColumnStatistics")
-      .mockReturnValue({ aggregate, close: native.close })
+  it("selects the native runtime for new and reopened files and honors the desktop fallback", async () => {
     const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
-    process.env.EIDOS_LITE_RUNTIME_BACKEND = "rust"
-    let session:
-      | Awaited<ReturnType<typeof openEidosLiteFileRuntime>>
-      | undefined
+    const file = path.join(tempDir, "backend.eidos")
+    const backend = async (
+      session: Awaited<ReturnType<typeof openEidosLiteFileRuntime>>
+    ) => {
+      try {
+        const result = await session.source.runtime.negotiate(
+          { protocol: "eidos-runtime", versions: ["1.0"] },
+          { requestId: "backend" }
+        )
+        return Reflect.get(result.capabilities, "backend")
+      } finally {
+        await session.close()
+      }
+    }
     try {
-      session = await openEidosLiteFileRuntime(filePath, { readOnly: true })
-      const service = session.source.runtime
-      const items = [
-        { key: "score", fieldId: scoreFieldId, op: "max" as const },
-      ]
-      const request = { tableId, items }
-      const ctx = { requestId: "statistics" }
-      const first = await service.aggregate(request, ctx)
-      expect(first.results).toEqual([{ key: "score", value: 90 }])
-      expect(aggregate).toHaveBeenCalledTimes(1)
-      expect(aggregate.mock.results[0]?.value?.results).toEqual(first.results)
-      aggregate.mockReturnValueOnce({
-        ...first,
-        revision: "0",
-        results: [{ key: "score", value: -1 }],
-      })
-      expect(await service.aggregate(request, ctx)).toEqual(first)
-      await service.aggregate(
-        {
-          ...request,
-          query: { filter: { op: "eq", fieldId: doneFieldId, value: true } },
-        },
-        ctx
+      delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+      expect(
+        await backend(await createEidosLiteFileRuntime(file, "Backend"))
+      ).toBe("rust")
+      expect(
+        await backend(await openEidosLiteFileRuntime(file, { readOnly: true }))
+      ).toBe("rust")
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = "js"
+      expect(await backend(await openEidosLiteFileRuntime(file))).not.toBe(
+        "rust"
       )
-      expect(aggregate).toHaveBeenCalledTimes(2)
     } finally {
-      await session?.close()
-      factory.mockRestore()
       if (previous === undefined) delete process.env.EIDOS_LITE_RUNTIME_BACKEND
       else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
     }

@@ -46,6 +46,15 @@ impl NativeEidosRuntime {
     }
 
     #[napi]
+    pub fn set_space_file_columns(&mut self, fields: Vec<String>) -> Result<()> {
+        self.service
+            .as_mut()
+            .ok_or_else(|| to_napi_err(RuntimeErrorPayload::new("closed", "Runtime is closed")))?
+            .set_space_file_columns(fields);
+        Ok(())
+    }
+
+    #[napi]
     pub fn data_version(&self) -> Result<String> {
         let svc = self
             .service

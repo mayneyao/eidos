@@ -174,7 +174,16 @@ describe("Automatic Sync with the native Graft SDK", () => {
     vi.mocked(utilityProcess.fork).mockImplementation((workerPath) => {
       const child = fork(utilityFixture, [workerPath], {
         execArgv: ["--import", tsxLoader],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: "1",
+          EIDOS_RUST_RUNTIME_NAPI_PATH: fileURLToPath(
+            new URL(
+              "../../../resources/file-runtime/eidos-file-runtime.node",
+              import.meta.url
+            )
+          ),
+        },
         stdio: ["ignore", "pipe", "pipe", "ipc"],
         serialization: "advanced",
       })

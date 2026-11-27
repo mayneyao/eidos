@@ -323,6 +323,7 @@ async function runCase(testCase, tempDir) {
           delete change.field
         }
         if (
+          raw.kind === "delete-field" ||
           raw.kind === "set-field-nullable" ||
           raw.kind === "set-field-position" ||
           raw.kind === "rename-option"
@@ -333,6 +334,24 @@ async function runCase(testCase, tempDir) {
           { change, expectedRevision: state.revision },
           ctx(`preflight-${raw.kind}`)
         )
+        if (step.expectFieldDeletionImpact) {
+          assert.equal(plan.affectedRows, step.expectFieldDeletionImpact.rows)
+          assert.equal(plan.dependencyCount, "1")
+          assert.deepEqual(plan.dependencies, [
+            { object: "field", id: change.fieldId },
+          ])
+          await assert.rejects(
+            service.mutateSchema(
+              {
+                planToken: plan.planToken,
+                actionsHash: plan.actionsHash,
+                expectedRevision: state.revision,
+              },
+              ctx("delete-without-confirmation")
+            ),
+            { code: "lossy-confirmation-required" }
+          )
+        }
         if (step.expectClassification) {
           assert.equal(plan.classification, step.expectClassification)
         }

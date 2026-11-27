@@ -49,7 +49,7 @@ import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SpaceMetadataConnectionPort } from "./space-metadata-connection"
 import {
   createShadowRuntimeClient,
-  nativeColumnStatistics,
+  createRustRuntimeService,
   openRustRuntimeService,
   resolveEidosLiteRuntimeBackend,
 } from "./rust-runtime-adapter"
@@ -742,7 +742,7 @@ async function bindRuntime(
   service: Awaited<ReturnType<typeof Runtime.open>>["service"],
   hostBridge: RuntimeHostBridge,
   filePath: string,
-  statistics?: ReturnType<typeof nativeColumnStatistics>
+  externalDataVersion?: () => string
 ): Promise<EidosLiteFileRuntime> {
   const source = new EidosRuntimeEditorDataSource(
     service,
@@ -778,6 +778,7 @@ async function bindRuntime(
       getCsvOperationProgress: (operationId) => csv.progress(operationId),
       cancelCsvOperation: (operationId) => csv.cancel(operationId),
       externalDataVersion: () => {
+        if (externalDataVersion) return externalDataVersion()
         const version = connection.dataVersion()
         const separator = version.indexOf(":")
         return separator < 0 ? version : version.slice(separator + 1)
@@ -829,11 +830,7 @@ async function bindRuntime(
               try {
                 await service.close(context("eidos-lite-runtime-close"))
               } finally {
-                try {
-                  statistics?.close()
-                } finally {
-                  connection.close()
-                }
+                connection.close()
               }
             }
           }
@@ -1130,6 +1127,22 @@ export async function createEidosLiteFileRuntime(
     })
     return openEidosLiteFileRuntime(filePath)
   }
+  if (resolveEidosLiteRuntimeBackend() === "rust") {
+    const native = createRustRuntimeService(filePath, title)
+    await native.close(context("initialize-native-file"))
+    const opened = await openEidosLiteFileRuntime(filePath)
+    try {
+      opened.initialSnapshot = await createEidosFileTableWithContent(
+        opened.source,
+        { name: "Table 1" },
+        options?.contentFieldName
+      )
+      return opened
+    } catch (error) {
+      await opened.close()
+      throw error
+    }
+  }
   const connection = new NodeSqliteConnectionPort(
     new DatabaseSync(filePath, {
       allowExtension: false,
@@ -1140,14 +1153,11 @@ export async function createEidosLiteFileRuntime(
     })
   )
   let opened: EidosLiteFileRuntime | null = null
-  const statistics =
-    resolveEidosLiteRuntimeBackend() === "rust"
-      ? nativeColumnStatistics(filePath)
-      : undefined
+
   try {
     const binding = await Runtime.create(
       connection,
-      { ...environment(), storedColumnAggregate: statistics?.aggregate },
+      environment(),
       { title },
       factoryContext
     )
@@ -1155,8 +1165,7 @@ export async function createEidosLiteFileRuntime(
       connection,
       binding.service,
       binding.hostBridge,
-      filePath,
-      statistics
+      filePath
     )
     opened.initialSnapshot = await createEidosFileTableWithContent(
       opened.source,
@@ -1174,20 +1183,10 @@ export async function createEidosLiteFileRuntime(
   }
 }
 
-function hasDeclaredVTabFeatures(database: DatabaseSync): boolean {
-  const hasFeatures = database
-    .prepare(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eidos__features'"
-    )
-    .get()
-  if (!hasFeatures) return false
-  const row = database
-    .prepare("SELECT 1 FROM eidos__features WHERE name LIKE 'vtab:%' LIMIT 1")
-    .get()
-  return Boolean(row)
-}
-
-export function loadDeclaredVTabExtensions(database: DatabaseSync): void {
+export function loadDeclaredVTabExtensions(
+  database: DatabaseSync,
+  native?: ReturnType<typeof openRustRuntimeService>
+): void {
   const hasFeatures = database
     .prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eidos__features'"
@@ -1215,6 +1214,9 @@ export function loadDeclaredVTabExtensions(database: DatabaseSync): void {
       database.enableLoadExtension(true)
       database.loadExtension(extPath)
       if (moduleName === "fs_meta") assertPortableFsMeta(database)
+      native?.rustLoadExtension(
+        path.join(path.dirname(extPath), "native", path.basename(extPath))
+      )
     } catch (cause) {
       throw new Error(`Could not load virtual table extension: ${moduleName}`, {
         cause,
@@ -1248,40 +1250,60 @@ export async function openEidosLiteFileRuntime(
   const spaceCatalog =
     filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH
   let connection: NodeSqliteConnectionPort | undefined
-  let statistics: ReturnType<typeof nativeColumnStatistics> | undefined
+  let native: ReturnType<typeof openRustRuntimeService> | undefined
   try {
     connection = spaceCatalog
       ? new SpaceMetadataConnectionPort(database, readOnly)
       : new NodeSqliteConnectionPort(database, { readOnly })
-    loadDeclaredVTabExtensions(database)
-    if (spaceCatalog && !readOnly) ensureFsMetaDirectoryField(connection)
     const backend = resolveEidosLiteRuntimeBackend()
-    const canUseRustBackend =
-      !spaceCatalog && !hasDeclaredVTabFeatures(database)
-    if (canUseRustBackend && backend === "rust")
-      statistics = nativeColumnStatistics(filePath)
+    if (backend !== "js")
+      native = openRustRuntimeService(
+        filePath,
+        backend === "shadow" || readOnly
+      )
+    loadDeclaredVTabExtensions(database, native)
+    if (native && spaceCatalog) {
+      const fields = database
+        .prepare(`SELECT f.id FROM eidos__fields f JOIN eidos__tables t ON t.id=f.table_id
+        WHERE json_extract(t.settings_json,'$.vtabModule')='fs_meta' AND json_extract(t.settings_json,'$.vtabConfig.root')='..'
+          AND f.type='file' AND json_extract(f.settings_json,'$.isSystem')=1`)
+        .all()
+      native.setSpaceFileColumns(fields.map((field) => String(field.id)))
+    }
+    if (spaceCatalog && !readOnly) ensureFsMetaDirectoryField(connection)
     const binding = await Runtime.open(
       connection,
-      { ...environment(), storedColumnAggregate: statistics?.aggregate },
+      environment(),
       readOnly ? "read" : "readwrite",
       factoryContext
     )
+    // Attachments and publication still use the desktop host bridge.
+    // The editor receives exactly one RuntimeClient for every method.
+    const selected = native
     const activeService =
-      canUseRustBackend && backend === "shadow"
-        ? createShadowRuntimeClient(
-            binding.service,
-            openRustRuntimeService(filePath, true)
-          )
-        : binding.service
+      selected && backend === "rust"
+        ? {
+            ...selected,
+            async close(ctx: RequestContext) {
+              try {
+                await selected.close(ctx)
+              } finally {
+                await binding.service.close(ctx)
+              }
+            },
+          }
+        : selected && backend === "shadow"
+          ? createShadowRuntimeClient(binding.service, selected)
+          : binding.service
     return await bindRuntime(
       connection,
       activeService,
       binding.hostBridge,
       filePath,
-      statistics
+      backend === "rust" ? selected?.rustDataVersion : undefined
     )
   } catch (error) {
-    statistics?.close()
+    await native?.close(context("native-open-failed"))
     if (connection) connection.close()
     else if (database.isOpen) database.close()
     throw error

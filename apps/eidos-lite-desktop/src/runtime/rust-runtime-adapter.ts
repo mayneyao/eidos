@@ -18,6 +18,7 @@ export interface ShadowDiffRecord {
 interface NativeEidosRuntimeInstance {
   call(method: string, requestJson: string): string
   dataVersion(): string
+  setSpaceFileColumns(fields: string[]): void
   loadExtension(extPath: string): void
   close(): void
 }
@@ -41,33 +42,12 @@ export interface RustRuntimeClient extends RuntimeClient {
     Awaited<ReturnType<RuntimeClient["mutateRows"]>> & { rowCount: string }
   >
   rustDataVersion(): string
+  setSpaceFileColumns(fields: string[]): void
   rustLoadExtension(extPath: string): void
 }
 
 const require = createRequire(import.meta.url)
 let cachedAddon: NativeEidosRuntimeModule | null = null
-
-// Open lazily so files without eligible statistics never need a second handle.
-export function nativeColumnStatistics(filePath: string) {
-  let reader: NativeEidosRuntimeInstance | undefined
-  return {
-    aggregate(
-      request: Parameters<RuntimeClient["aggregate"]>[0]
-    ): Awaited<ReturnType<RuntimeClient["aggregate"]>> | undefined {
-      try {
-        reader ??= loadAddon().NativeEidosRuntime.open(filePath, true)
-        return JSON.parse(reader.call("aggregate", JSON.stringify(request)))
-      } catch {
-        // The canonical read already holds a snapshot and can finish this request.
-        return undefined
-      }
-    },
-    close() {
-      reader?.close()
-      reader = undefined
-    },
-  }
-}
 
 export function resolveEidosLiteRuntimeBackend(): EidosLiteRuntimeBackend {
   const raw = process.env.EIDOS_LITE_RUNTIME_BACKEND?.trim().toLowerCase()
@@ -162,38 +142,66 @@ function decodeRustError(error: unknown): Error {
 function wrapNativeHandle(
   handle: NativeEidosRuntimeInstance
 ): RustRuntimeClient {
-  const invoke = async <T>(method: string, request: unknown): Promise<T> => {
+  const pending = new Set<string>()
+  const invoke = async <T>(
+    method: string,
+    request: unknown,
+    ctx?: Parameters<RuntimeClient["getSnapshot"]>[1]
+  ): Promise<T> => {
+    const id = ctx?.requestId
+    if (id !== undefined && pending.has(id))
+      throw Object.assign(new Error("requestId is already unresolved"), {
+        code: "invalid-request",
+      })
+    if (id !== undefined) pending.add(id)
     try {
+      await Promise.resolve()
       const raw = handle.call(method, JSON.stringify(request ?? {}))
       return JSON.parse(raw) as T
     } catch (error) {
       throw decodeRustError(error)
+    } finally {
+      if (id !== undefined) pending.delete(id)
     }
   }
 
   return {
-    negotiate: (req) => invoke("negotiate", req),
-    getSnapshot: (req) => invoke("getSnapshot", req),
-    getSchemaPage: (req) => invoke("getSchemaPage", req),
-    queryRows: (req) => invoke("queryRows", req),
-    queryRowPages: (req) => invoke("queryRowPages", req),
-    getRecordNeighbors: (req) => invoke("getRecordNeighbors", req),
-    getRowIndex: (req) => invoke("getRowIndex", req),
-    getRowsById: (req) => invoke("getRowsById", req),
-    aggregate: (req) => invoke("aggregate", req),
-    groupRows: (req) => invoke("groupRows", req),
-    queryGroupRows: (req) => invoke("queryGroupRows", req),
-    previewFormula: (req) => invoke("previewFormula", req),
-    mutateRows: (req) => invoke("mutateRows", req),
-    mutateRowsWithUndo: (req) => invoke("mutateRowsWithUndo", req),
-    revertMutation: (req) => invoke("revertMutation", req),
-    revertRowDeletion: (req) => invoke("revertRowDeletion", req),
-    mutateView: (req) => invoke("mutateView", req),
-    preflightSchema: (req) => invoke("preflightSchema", req),
-    getSchemaPlanDependencies: (req) =>
-      invoke("getSchemaPlanDependencies", req),
-    mutateSchema: (req) => invoke("mutateSchema", req),
-    validate: (req) => invoke("validate", req),
+    negotiate: (req, ctx) => invoke("negotiate", req, ctx),
+    getSnapshot: (req, ctx) => invoke("getSnapshot", req, ctx),
+    getSchemaPage: (req, ctx) => invoke("getSchemaPage", req, ctx),
+    queryRows: (req, ctx) => invoke("queryRows", req, ctx),
+    queryRowPages: (req, ctx) => invoke("queryRowPages", req, ctx),
+    getRecordNeighbors: (req, ctx) => invoke("getRecordNeighbors", req, ctx),
+    getRowIndex: (req, ctx) => invoke("getRowIndex", req, ctx),
+    getRowsById: (req, ctx) => invoke("getRowsById", req, ctx),
+    aggregate: (req, ctx) => invoke("aggregate", req, ctx),
+    groupRows: (req, ctx) => invoke("groupRows", req, ctx),
+    queryGroupRows: (req, ctx) => invoke("queryGroupRows", req, ctx),
+    previewFormula: (req, ctx) => invoke("previewFormula", req, ctx),
+    importCsv: ({ csv, ...request }) =>
+      invoke("importCsv", {
+        ...request,
+        csvUtf8: new TextDecoder("utf-8", { fatal: true }).decode(csv),
+      }),
+    exportCsv: async (req) => {
+      const result = await invoke<{
+        fileId: string
+        tableId: string
+        revision: string
+        csv: string
+      }>("exportCsv", req)
+      return { ...result, csv: new TextEncoder().encode(result.csv) }
+    },
+    mutateRows: (req, ctx) => invoke("mutateRows", req, ctx),
+    mutateRowsWithUndo: (req, ctx) => invoke("mutateRowsWithUndo", req, ctx),
+    revertMutation: (req, ctx) => invoke("revertMutation", req, ctx),
+    revertRowDeletion: (req, ctx) => invoke("revertRowDeletion", req, ctx),
+    mutateView: (req, ctx) => invoke("mutateView", req, ctx),
+    preflightSchema: (req, ctx) => invoke("preflightSchema", req, ctx),
+    getSchemaPlanDependencies: (req, ctx) =>
+      invoke("getSchemaPlanDependencies", req, ctx),
+    mutateSchema: (req, ctx) => invoke("mutateSchema", req, ctx),
+    validate: (req, ctx) => invoke("validate", req, ctx),
     cancel: (req) => invoke("cancel", req),
     close: async () => {
       try {
@@ -203,7 +211,21 @@ function wrapNativeHandle(
       }
     },
     rustDataVersion: () => handle.dataVersion(),
+    setSpaceFileColumns: (fields) => handle.setSpaceFileColumns(fields),
     rustLoadExtension: (extPath: string) => handle.loadExtension(extPath),
+  }
+}
+
+export function createRustRuntimeService(
+  filePath: string,
+  title: string
+): RustRuntimeClient {
+  try {
+    return wrapNativeHandle(
+      loadAddon().NativeEidosRuntime.create(filePath, title)
+    )
+  } catch (error) {
+    throw decodeRustError(error)
   }
 }
 

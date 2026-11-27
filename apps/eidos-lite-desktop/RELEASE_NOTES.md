@@ -1,9 +1,7 @@
 ## Improvements
 
-### A native Rust runtime for faster statistics in large tables
+### Native Rust File Runtime
 
-Eidos Lite 0.40.0 introduces a native Rust runtime, enabled by default for faster numeric column statistics in large tables. It works with your existing files when you view statistics for a stored numeric column in a table without filters or sorting.
+Eidos Lite 0.40.0 uses the native Rust File Runtime by default when you create or open an `.eidos` file. It handles table reads and writes, filtering, sorting, and column statistics.
 
-In a desktop benchmark with 100,000 rows, the median time to calculate the non-empty count, distinct count, minimum, and maximum together fell from 1.19 seconds to 76 milliseconds.
-
-To switch back to the previous desktop runtime, choose **JavaScript** under **Settings → Experimental → File runtime** and restart Lite.
+To switch back to the original desktop runtime, choose **JavaScript** under **Settings → Experimental → File runtime** and restart Lite.

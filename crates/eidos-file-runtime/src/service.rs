@@ -65,6 +65,7 @@ struct CachedSchemaPlan {
     base_revision: String,
     classification: String,
     dependencies: Vec<SchemaDependency>,
+    expires: std::time::Instant,
     conversions: HashMap<String, ConversionPreflight>,
 }
 
@@ -84,11 +85,12 @@ struct CachedSchema {
 pub struct RustRuntimeService {
     conn: Connection,
     cursor_key: CursorKey,
+    space_file_columns: HashSet<String>,
     read_only: bool,
     closed: bool,
     limits: RuntimeLimits,
     undo: UndoStore,
-    plan_seq: u64,
+
     plans: HashMap<String, CachedSchemaPlan>,
     schema_cache: Option<CachedSchema>,
 }
@@ -125,6 +127,38 @@ fn row_sort_keys(
     });
 
     Ok(keys)
+}
+
+fn view_query_uses_field(node: &JsonValue, id: &str) -> bool {
+    match node {
+        JsonValue::Object(obj) => {
+            ["field", "fieldId"]
+                .iter()
+                .any(|k| obj.get(*k).and_then(JsonValue::as_str) == Some(id))
+                || ["sort", "filter", "args", "arg", "children"]
+                    .iter()
+                    .any(|k| {
+                        obj.get(*k)
+                            .is_some_and(|child| view_query_uses_field(child, id))
+                    })
+        }
+        JsonValue::Array(nodes) => nodes.iter().any(|child| view_query_uses_field(child, id)),
+        _ => false,
+    }
+}
+
+fn view_layout_uses_field(layout: &JsonValue, id: &str) -> bool {
+    ["cardFields", "fieldOrder", "hiddenFields"]
+        .iter()
+        .any(|k| {
+            layout[*k]
+                .as_array()
+                .is_some_and(|values| values.iter().any(|v| v.as_str() == Some(id)))
+        })
+        || ["coverField", "groupField", "dateField"]
+            .iter()
+            .any(|k| layout[*k].as_str() == Some(id))
+        || layout["fieldWidths"].get(id).is_some()
 }
 
 fn field_depends_on_today(
@@ -280,9 +314,10 @@ impl RustRuntimeService {
             read_only,
             closed: false,
             limits,
+            space_file_columns: HashSet::new(),
             cursor_key: CursorKey::new()?,
             undo: UndoStore::new(undo_max),
-            plan_seq: 0,
+
             plans: HashMap::new(),
             schema_cache: None,
         })
@@ -316,9 +351,9 @@ impl RustRuntimeService {
             read_only: false,
             closed: false,
             limits,
+            space_file_columns: HashSet::new(),
             cursor_key: CursorKey::new()?,
             undo: UndoStore::new(undo_max),
-            plan_seq: 0,
             plans: HashMap::new(),
             schema_cache: None,
         })
@@ -355,6 +390,41 @@ impl RustRuntimeService {
 
     pub fn connection_mut(&mut self) -> &mut Connection {
         &mut self.conn
+    }
+
+    pub fn set_space_file_columns(&mut self, fields: Vec<String>) {
+        self.space_file_columns = fields.into_iter().collect();
+    }
+
+    fn read_cell(&self, value: SqlValue, field: &FieldMeta) -> RuntimeResult<JsonValue> {
+        if !self.space_file_columns.contains(&field.id) {
+            return Ok(decode_stored_cell(value, field));
+        }
+        if value == SqlValue::Null {
+            return Ok(json!([]));
+        }
+        let SqlValue::Text(encoded) = value else {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-value",
+                "Invalid catalog File value",
+            ));
+        };
+        let mut entries: Vec<JsonValue> = serde_json::from_str(&encoded)
+            .map_err(|e| RuntimeErrorPayload::new("invalid-value", e.to_string()))?;
+        for entry in &mut entries {
+            let uri = entry["uri"]
+                .as_str()
+                .and_then(|s| s.strip_prefix("../"))
+                .ok_or_else(|| {
+                    RuntimeErrorPayload::new("invalid-value", "Invalid catalog attachment path")
+                })?
+                .to_owned();
+            entry["uri"] = json!(uri);
+        }
+        let result = JsonValue::Array(entries);
+        eidos_file_core::values::coerce_value(field, &result)
+            .map_err(RuntimeErrorPayload::from_core)?;
+        Ok(result)
     }
 
     pub fn data_version(&self) -> RuntimeResult<i64> {
@@ -471,6 +541,17 @@ impl RustRuntimeService {
         Ok(NegotiateResponse {
             version: "1.0".into(),
             capabilities: json!({
+                "readRows": true,
+                "schemaPaging": true,
+                "cursorPaging": true,
+                "groupRows": true,
+                "formulaPreview": true,
+                "mutateRows": !self.read_only,
+                "mutateSchema": !self.read_only,
+                "schemaPreflight": !self.read_only,
+                "mutateView": !self.read_only,
+                "validate": true,
+                "calendarPeriodTimeZoneData": [jiff_tzdb::VERSION],
                 "read": true,
                 "write": !self.read_only,
                 "schemaMutation": !self.read_only,
@@ -479,6 +560,8 @@ impl RustRuntimeService {
                 "formulaToday": true,
                 "lookup": true,
                 "aggregate": true,
+                "batchRowPages": true,
+                "rowIndex": true,
                 "group": true,
                 "csvExport": true,
                 "csvImport": !self.read_only,
@@ -564,6 +647,9 @@ impl RustRuntimeService {
             let settings: JsonValue =
                 serde_json::from_str(&f.settings_json).unwrap_or_else(|_| json!({}));
             let writable = f.system_role.is_none()
+                && settings["isSystem"] != true
+                && settings["readOnly"] != true
+                && settings["writable"] != false
                 && !matches!(f.field_type, FieldType::Formula | FieldType::Lookup)
                 && schema
                     .relations
@@ -643,7 +729,9 @@ impl RustRuntimeService {
                 "tableId": v.table_id,
                 "name": v.name,
                 "type": v.view_type,
-                "queryStatus": "supported",
+                "queryStatus": if (req.calendar_query_version != Some(2) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-period"))
+                    || (req.calendar_window_version != Some(1) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-window"))
+                    || eidos_file_core::validate::has_calendar_filter(&query, "relative-date") { "unsupported" } else { "supported" },
                 "query": query,
                 "layout": layout,
                 "position": v.position.to_string(),
@@ -1089,7 +1177,7 @@ impl RustRuntimeService {
                         .unwrap_or("text");
                     vals.push(coerce_formula_sql_value(raw, res_type)?);
                 } else {
-                    vals.push(decode_stored_cell(raw, field));
+                    vals.push(self.read_cell(raw, field)?);
                 }
             }
             let boundary = (0..keys.len())
@@ -1244,7 +1332,7 @@ impl RustRuntimeService {
             {
                 let id: String = r.get(0).unwrap_or_default();
                 let v: SqlValue = r.get(1).unwrap_or(SqlValue::Null);
-                found.insert(id, decode_stored_cell(v, label_field));
+                found.insert(id, self.read_cell(v, label_field)?);
             }
             let label_type = value_type_json(label_field, all_fields, formulas, lookups);
             for row in rows.iter_mut() {
@@ -1283,6 +1371,50 @@ impl RustRuntimeService {
     }
 
     pub fn query_row_pages(&mut self, req: &QueryRowPagesRequest) -> RuntimeResult<Vec<RowPage>> {
+        self.transaction("BEGIN", |svc| {
+            let table = svc
+                .ensure_schema()?
+                .tables
+                .iter()
+                .find(|t| t.id == req.table_id)
+                .ok_or_else(|| RuntimeErrorPayload::new("not-found", "Missing Table"))?;
+            let settings: JsonValue = serde_json::from_str(&table.settings_json)
+                .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+            if settings["vtabModule"].is_null() || req.queries.len() < 2 {
+                return svc.read_row_pages(req);
+            }
+            let name =
+                quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
+            // Materialize the live source once per request. All page and count
+            // queries share this snapshot, including their ordinary cursor bindings.
+            let create = format!("CREATE TEMP TABLE {name} AS SELECT * FROM main.{name}");
+            svc.temp_schema_statement(&create)?;
+            let pages = svc.read_row_pages(req)?;
+            svc.temp_schema_statement(&format!("DROP TABLE temp.{name}"))?;
+            Ok(pages)
+        })
+    }
+
+    fn temp_schema_statement(&self, sql: &str) -> RuntimeResult<()> {
+        let sql_error =
+            |e: rusqlite::Error| RuntimeErrorPayload::new("adapter-error", e.to_string());
+        // The underlying main file is opened SQLITE_OPEN_READ_ONLY. Only
+        // the temporary database must accept these two host-owned statements.
+        if self.read_only {
+            self.conn
+                .execute_batch("PRAGMA query_only=OFF")
+                .map_err(sql_error)?;
+        }
+        let result = self.conn.execute(sql, []).map_err(sql_error);
+        if self.read_only {
+            self.conn
+                .execute_batch("PRAGMA query_only=ON")
+                .map_err(sql_error)?;
+        }
+        result.map(|_| ())
+    }
+
+    fn read_row_pages(&mut self, req: &QueryRowPagesRequest) -> RuntimeResult<Vec<RowPage>> {
         let mut out = Vec::with_capacity(req.queries.len());
         let mut shared_instant = req.reference_instant.clone();
         for q in &req.queries {
@@ -1374,7 +1506,7 @@ impl RustRuntimeService {
 
         if req.row_ids.is_empty() {
             return Ok(RowBatch {
-                reference_instant: Some(ref_instant),
+                reference_instant: req.calendar.is_some().then_some(ref_instant),
                 file_id,
                 table_id: table.id,
                 revision: revision_str,
@@ -1454,7 +1586,7 @@ impl RustRuntimeService {
                             .unwrap_or("text");
                         vals.push(coerce_formula_sql_value(raw, res_type)?);
                     } else {
-                        vals.push(decode_stored_cell(raw, field));
+                        vals.push(self.read_cell(raw, field)?);
                     }
                 }
                 by_id.insert(
@@ -1505,7 +1637,7 @@ impl RustRuntimeService {
         }
 
         Ok(RowBatch {
-            reference_instant: Some(ref_instant),
+            reference_instant: req.calendar.is_some().then_some(ref_instant),
             file_id,
             table_id: table.id,
             revision: revision_str,
@@ -1643,6 +1775,60 @@ impl RustRuntimeService {
         })
     }
 
+    fn clock_dependent_read(
+        &mut self,
+        table_id: &str,
+        calendar: bool,
+        query: Option<&RowQuery>,
+        projection: &[String],
+        group_by: &[String],
+        items: &[crate::contract::AggregateItem],
+    ) -> RuntimeResult<bool> {
+        let query_json = serde_json::to_value(query)
+            .map_err(|e| RuntimeErrorPayload::new("invalid-query", e.to_string()))?;
+        if ["calendar-period", "calendar-window"]
+            .iter()
+            .any(|op| eidos_file_core::validate::has_calendar_filter(&query_json, op))
+        {
+            return Ok(true);
+        }
+        if !calendar {
+            return Ok(false);
+        }
+        use crate::contract::AggregateItem::*;
+        let ids: HashSet<_> = projection
+            .iter()
+            .chain(group_by)
+            .chain(items.iter().filter_map(|item| match item {
+                CountAll { .. } => None,
+                DistinctValues { field_id, .. }
+                | Count { field_id, .. }
+                | DistinctCount { field_id, .. }
+                | Sum { field_id, .. }
+                | Average { field_id, .. }
+                | Min { field_id, .. }
+                | Max { field_id, .. }
+                | Statistics { field_id, .. } => Some(field_id),
+            }))
+            .collect();
+        let schema = self.ensure_schema()?;
+        Ok(schema
+            .fields
+            .iter()
+            .filter(|f| f.table_id == table_id)
+            .any(|field| {
+                (ids.contains(&field.id)
+                    || query.is_some_and(|q| q.search.is_some())
+                    || view_query_uses_field(&query_json, &field.id))
+                    && field_depends_on_today(
+                        field,
+                        &schema.fields,
+                        &schema.lookups,
+                        &schema.formulas,
+                    )
+            }))
+    }
+
     pub fn aggregate(&mut self, req: &AggregateRequest) -> RuntimeResult<AggregateResponse> {
         if self.conn.is_autocommit() {
             return self.transaction("BEGIN", |service| service.aggregate(req));
@@ -1693,7 +1879,16 @@ impl RustRuntimeService {
             &req.items,
             Some(&today_str),
         )?;
-        resp.reference_instant = Some(ref_instant);
+        resp.reference_instant = self
+            .clock_dependent_read(
+                &req.table_id,
+                req.calendar.is_some(),
+                req.query.as_ref(),
+                &[],
+                &[],
+                &req.items,
+            )?
+            .then_some(ref_instant);
         Ok(resp)
     }
 
@@ -1877,7 +2072,7 @@ impl RustRuntimeService {
                 for (i, gf) in group_fields.iter().enumerate() {
                     let v = r.get::<_, SqlValue>(i).unwrap_or(SqlValue::Null);
                     boundary.push(BoundaryValue::from(v.clone()));
-                    key.push(decode_stored_cell(v, gf));
+                    key.push(self.read_cell(v, gf)?);
                 }
                 let count: i64 = r.get(group_fields.len()).unwrap_or(0);
                 raw_groups.push((key, count));
@@ -1993,7 +2188,16 @@ impl RustRuntimeService {
             cursor.is_some(),
         )?;
         Ok(GroupPage {
-            reference_instant: Some(ref_instant),
+            reference_instant: self
+                .clock_dependent_read(
+                    &req.table_id,
+                    req.calendar.is_some(),
+                    Some(&req.query),
+                    &req.projection.fields,
+                    &req.group_by,
+                    &req.aggregates,
+                )?
+                .then_some(ref_instant),
             file_id,
             table_id: table.id,
             revision: revision_str,
@@ -2164,6 +2368,7 @@ impl RustRuntimeService {
                         table_id: Some(table.id),
                         field_id: req.field_id.clone(),
                         row_id: None,
+                        view_id: None,
                     }],
                     diagnostics_truncated: false,
                 });
@@ -2387,6 +2592,18 @@ impl RustRuntimeService {
                         let field = *field_by_id.get(fid.as_str()).ok_or_else(|| {
                             RuntimeErrorPayload::new("not-found", format!("Field {fid}"))
                         })?;
+                        let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                            .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+                        if field.system_role.is_some()
+                            || settings["isSystem"] == true
+                            || settings["readOnly"] == true
+                            || settings["writable"] == false
+                        {
+                            return Err(RuntimeErrorPayload::new(
+                                "forbidden",
+                                "Field is read-only",
+                            ));
+                        }
                         let phys = field.physical_name.as_deref().ok_or_else(|| {
                             RuntimeErrorPayload::new(
                                 "invalid-request",
@@ -2762,8 +2979,7 @@ impl RustRuntimeService {
 
         let canonical = jcs::to_jcs(&req.change).map_err(RuntimeErrorPayload::from_core)?;
         let actions_hash = sha256_hex(&canonical);
-        self.plan_seq += 1;
-        let plan_token = format!("plan-rust-{}", self.plan_seq);
+        let plan_token = generate_uuidv7();
 
         let leaves: Vec<JsonValue> =
             if req.change.get("kind").and_then(JsonValue::as_str) == Some("batch") {
@@ -2787,6 +3003,7 @@ impl RustRuntimeService {
         }
 
         let mut classification = "metadata-only".to_string();
+        let mut dependencies = std::collections::BTreeSet::new();
         let mut total_affected: i64 = 0;
         let mut warnings: Vec<RuntimeDiagnostic> = Vec::new();
         let mut value_changes: Vec<crate::contract::SchemaValueChange> = Vec::new();
@@ -2794,7 +3011,147 @@ impl RustRuntimeService {
 
         for leaf in &leaves {
             let lkind = leaf.get("kind").and_then(JsonValue::as_str).unwrap_or("");
-            if lkind == "convert-field" {
+            if matches!(lkind, "delete-field" | "delete-table") {
+                let schema = self.ensure_schema()?;
+                let mut diagnostic = |lossy: bool,
+                                      message: &str,
+                                      table: Option<&str>,
+                                      field: Option<&str>,
+                                      view: Option<&str>| {
+                    if !lossy {
+                        classification = "forbidden".into();
+                    } else if classification != "forbidden" {
+                        classification = "explicit-lossy".into();
+                    }
+                    warnings.push(RuntimeDiagnostic {
+                        code: if lossy {
+                            "object-delete-loss"
+                        } else {
+                            "dependency-blocked"
+                        }
+                        .into(),
+                        severity: if lossy { "warning" } else { "error" }.into(),
+                        message: Some(message.into()),
+                        table_id: table.map(str::to_owned),
+                        field_id: field.map(str::to_owned),
+                        view_id: view.map(str::to_owned),
+                        row_id: None,
+                        path: None,
+                    });
+                };
+                let table = if lkind == "delete-table" {
+                    let id = leaf["tableId"].as_str().ok_or_else(|| {
+                        RuntimeErrorPayload::new("invalid-request", "delete-table requires tableId")
+                    })?;
+                    let Some(table) = schema.tables.iter().find(|table| table.id == id) else {
+                        diagnostic(false, "Table does not exist", Some(id), None, None);
+                        continue;
+                    };
+                    if schema.meta.default_table_id.as_deref() == Some(id) {
+                        diagnostic(
+                            false,
+                            "Clear or retarget the default Table before deletion",
+                            Some(id),
+                            None,
+                            None,
+                        );
+                    }
+                    diagnostic(
+                        true,
+                        "Deleting a Table removes its rows and Fields",
+                        Some(id),
+                        None,
+                        None,
+                    );
+                    dependencies.insert((0, table.id.clone()));
+                    dependencies.extend(
+                        schema
+                            .fields
+                            .iter()
+                            .filter(|f| f.table_id == id)
+                            .map(|f| (1, f.id.clone())),
+                    );
+                    dependencies.extend(
+                        schema
+                            .views
+                            .iter()
+                            .filter(|v| v.table_id == id)
+                            .map(|v| (2, v.id.clone())),
+                    );
+                    table
+                } else {
+                    let id = leaf["fieldId"].as_str().ok_or_else(|| {
+                        RuntimeErrorPayload::new("invalid-request", "delete-field requires fieldId")
+                    })?;
+                    let Some(field) = schema.fields.iter().find(|f| f.id == id) else {
+                        diagnostic(false, "Field does not exist", None, Some(id), None);
+                        continue;
+                    };
+                    dependencies.insert((1, field.id.clone()));
+                    let table_id = field.table_id.as_str();
+                    let system = field.system_role.is_some()
+                        || serde_json::from_str::<JsonValue>(&field.settings_json)
+                            .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?
+                            ["isSystem"]
+                            == true;
+                    if system {
+                        diagnostic(
+                            false,
+                            "System Fields cannot be deleted",
+                            None,
+                            Some(id),
+                            None,
+                        );
+                    } else {
+                        diagnostic(
+                            true,
+                            "Deleting a Field removes its values",
+                            Some(table_id),
+                            Some(id),
+                            None,
+                        );
+                    }
+                    for view in schema.views.iter().filter(|v| v.table_id == table_id) {
+                        let query = serde_json::from_str(&view.query_json).map_err(|e| {
+                            RuntimeErrorPayload::new("corrupt-file", format!("{e}"))
+                        })?;
+                        let layout = serde_json::from_str(&view.layout_json).map_err(|e| {
+                            RuntimeErrorPayload::new("corrupt-file", format!("{e}"))
+                        })?;
+                        let blocks = view_query_uses_field(&query, id);
+                        if blocks || view_layout_uses_field(&layout, id) {
+                            dependencies.insert((2, view.id.clone()));
+                        }
+                        if blocks {
+                            diagnostic(
+                                false,
+                                "Saved View query still references the Field",
+                                Some(table_id),
+                                Some(id),
+                                Some(&view.id),
+                            );
+                        }
+                    }
+                    if system {
+                        continue;
+                    }
+                    schema
+                        .tables
+                        .iter()
+                        .find(|t| t.id == table_id)
+                        .ok_or_else(|| {
+                            RuntimeErrorPayload::new("corrupt-file", "Missing owning Table")
+                        })?
+                };
+                let sql = quote_identifier(&table.physical_name)
+                    .map_err(RuntimeErrorPayload::from_core)?;
+                total_affected += self
+                    .conn
+                    .query_row(&format!("SELECT count(*) FROM {sql}"), [], |row| {
+                        row.get::<_, i64>(0)
+                    })
+                    .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
+            } else if lkind == "convert-field" {
                 let field_id =
                     leaf.get("fieldId")
                         .and_then(JsonValue::as_str)
@@ -2921,7 +3278,21 @@ impl RustRuntimeService {
             }
         }
         let affected_rows = total_affected.to_string();
+        let dependencies: Vec<_> = dependencies
+            .into_iter()
+            .map(|(kind, id)| SchemaDependency {
+                object: ["table", "field", "view"][kind].into(),
+                id,
+            })
+            .collect();
 
+        let ttl = std::time::Duration::from_secs(600);
+        let now = std::time::Instant::now();
+        self.plans.retain(|_, plan| plan.expires > now);
+        let end = dependencies.len().min(self.limits.schema_page_size_max);
+        let dependency_cursor = (end < dependencies.len())
+            .then(|| self.cursor_key.seal(&(&plan_token, end)))
+            .transpose()?;
         self.plans.insert(
             plan_token.clone(),
             CachedSchemaPlan {
@@ -2929,12 +3300,14 @@ impl RustRuntimeService {
                 actions_hash: actions_hash.clone(),
                 base_revision: rev_str.clone(),
                 classification: classification.clone(),
-                dependencies: Vec::new(),
+                expires: now + ttl,
+                dependencies: dependencies.clone(),
                 conversions,
             },
         );
 
-        let expires_at = now_instant();
+        let expires_at =
+            (chrono::Utc::now() + ttl).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         Ok(SchemaPreflightResult {
             file_id,
             plan_token,
@@ -2942,14 +3315,14 @@ impl RustRuntimeService {
             actions_hash,
             classification,
             affected_rows,
-            dependency_count: "0".into(),
-            dependencies: Vec::new(),
-            dependency_cursor: None,
+            dependency_count: dependencies.len().to_string(),
+            dependencies: dependencies[..end].to_vec(),
+            dependency_cursor,
             warnings,
             warnings_truncated: false,
             value_changes,
             value_changes_truncated: false,
-            expires_in_milliseconds: 300_000,
+            expires_in_milliseconds: ttl.as_millis() as u64,
             expires_at,
         })
     }
@@ -2958,26 +3331,45 @@ impl RustRuntimeService {
         &mut self,
         req: &SchemaDependencyPageRequest,
     ) -> RuntimeResult<SchemaDependencyPage> {
-        let (file_id, rev_str) = {
-            let schema = self.ensure_schema()?;
-            (
-                schema.meta.file_id.clone(),
-                schema.meta.revision.to_string(),
-            )
+        let file_id = self.ensure_schema()?.meta.file_id.clone();
+        if req.limit == 0 || req.limit > self.limits.schema_page_size_max {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-request",
+                "Invalid dependency page limit",
+            ));
+        }
+        let plan = self.retained_plan(&req.plan_token)?;
+        let offset = if let Some(cursor) = &req.cursor {
+            let (token, offset): (String, usize) = self.cursor_key.open(cursor)?;
+            if token != req.plan_token || offset > plan.dependencies.len() {
+                return Err(RuntimeErrorPayload::new(
+                    "invalid-plan",
+                    "Invalid dependency cursor",
+                ));
+            }
+            offset
+        } else {
+            0
         };
-        let plan = self.plans.get(&req.plan_token).ok_or_else(|| {
-            RuntimeErrorPayload::new(
-                "invalid-plan",
-                format!("Unknown planToken {}", req.plan_token),
-            )
-        })?;
+        let end = (offset + req.limit).min(plan.dependencies.len());
         Ok(SchemaDependencyPage {
             file_id,
-            revision: rev_str,
+            revision: plan.base_revision.clone(),
             dependency_count: plan.dependencies.len().to_string(),
-            dependencies: plan.dependencies.clone(),
-            next_cursor: None,
+            dependencies: plan.dependencies[offset..end].to_vec(),
+            next_cursor: (end < plan.dependencies.len())
+                .then(|| self.cursor_key.seal(&(&req.plan_token, end)))
+                .transpose()?,
         })
+    }
+
+    fn retained_plan(&self, token: &str) -> RuntimeResult<&CachedSchemaPlan> {
+        self.plans
+            .get(token)
+            .filter(|plan| plan.expires > std::time::Instant::now())
+            .ok_or_else(|| {
+                RuntimeErrorPayload::new("invalid-plan", "Unknown or expired schema plan")
+            })
     }
 
     pub fn mutate_schema(
@@ -2985,12 +3377,7 @@ impl RustRuntimeService {
         req: &SchemaMutationRequest,
     ) -> RuntimeResult<SchemaMutationResult> {
         self.ensure_writable()?;
-        let plan = self.plans.remove(&req.plan_token).ok_or_else(|| {
-            RuntimeErrorPayload::new(
-                "invalid-plan",
-                format!("Unknown planToken {}", req.plan_token),
-            )
-        })?;
+        let plan = self.retained_plan(&req.plan_token)?;
         if plan.actions_hash != req.actions_hash {
             return Err(RuntimeErrorPayload::new(
                 "invalid-plan",
@@ -3016,6 +3403,10 @@ impl RustRuntimeService {
             ));
         }
 
+        let plan = self
+            .plans
+            .remove(&req.plan_token)
+            .expect("verified retained plan");
         self.transaction("BEGIN IMMEDIATE", |service| {
             service.apply_schema_plan(req, plan)
         })
@@ -3828,6 +4219,7 @@ impl RustRuntimeService {
                 table_id: None,
                 field_id: None,
                 row_id: None,
+                view_id: None,
             })
             .collect();
         Ok(ValidationReportWire {
@@ -3982,6 +4374,20 @@ impl RustRuntimeService {
         };
 
         match method {
+            "importCsv" => ser(
+                method,
+                &self.import_csv(&serde_json::from_str(request_json).map_err(parse_err)?)?,
+            ),
+            "exportCsv" => {
+                let (file_id, table_id, revision, bytes) =
+                    self.export_csv(&serde_json::from_str(request_json).map_err(parse_err)?)?;
+                let csv = String::from_utf8(bytes)
+                    .map_err(|e| RuntimeErrorPayload::new("invalid-value", e.to_string()))?;
+                ser(
+                    method,
+                    &json!({"fileId":file_id,"tableId":table_id,"revision":revision,"csv":csv}),
+                )
+            }
             "negotiate" => ser(
                 method,
                 &self.negotiate(&serde_json::from_str(request_json).map_err(parse_err)?)?,
