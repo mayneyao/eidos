@@ -819,13 +819,15 @@ pub fn compile_query(
     compile(fields, query, None, None)
 }
 
-/// Compile predicates using expressions produced by the native Formula compiler.
+/// Compile predicates against stored and derived fields, resolving Relation search targets.
 pub fn compile_derived_predicates(
+    conn: &Connection,
     fields: &[FieldMeta],
     query: &RowQuery,
     expressions: &HashMap<String, String>,
 ) -> Result<CompiledQuery> {
-    compile(fields, query, None, Some(expressions))
+    let relations = load_relation_search_targets(conn, fields, query)?;
+    compile(fields, query, Some(&relations), Some(expressions))
 }
 
 /// Loads the target table's physical name, row-id column, and label column

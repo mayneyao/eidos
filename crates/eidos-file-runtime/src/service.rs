@@ -1222,9 +1222,10 @@ impl RustRuntimeService {
         }
 
         let compiled_where = compile_predicates(
+            &self.conn,
             &table,
             &table_fields,
-            self.ensure_schema()?,
+            self.schema_cache.as_ref().unwrap(),
             &effective_query,
             &mut uses_today,
         )?;
@@ -1845,7 +1846,8 @@ impl RustRuntimeService {
         }
         let (today, instant) =
             resolve_today_date(req.calendar.as_ref(), req.reference_instant.as_deref())?;
-        let schema = self.ensure_schema()?;
+        self.ensure_schema()?;
+        let schema = self.schema_cache.as_ref().unwrap();
         let table = schema
             .tables
             .iter()
@@ -1864,7 +1866,8 @@ impl RustRuntimeService {
         let mut uses_today = false;
         let keys = row_sort_keys(&query, &fields, schema, table, &mut uses_today)?;
         query.sort = None;
-        let compiled = compile_predicates(table, &fields, schema, &query, &mut uses_today)?;
+        let compiled =
+            compile_predicates(&self.conn, table, &fields, schema, &query, &mut uses_today)?;
         let physical =
             quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
         let mut params = Vec::new();
@@ -2179,9 +2182,10 @@ impl RustRuntimeService {
         )?;
 
         let compiled_where = compile_predicates(
+            &self.conn,
             &table,
             &table_fields,
-            self.ensure_schema()?,
+            self.schema_cache.as_ref().unwrap(),
             &effective_query,
             &mut uses_today,
         )?;

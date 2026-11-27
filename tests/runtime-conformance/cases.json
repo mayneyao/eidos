@@ -1783,6 +1783,18 @@
           "check": { "results.0.value": "1", "results.1.value": "35" }
         },
         {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "search": { "text": "core", "fields": ["$fields.ptasks.project"] }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "2" }
+        },
+        {
           "op": "validate",
           "request": { "level": "full", "diagnosticsLimit": 50 },
           "expect": { "valid": true, "diagnosticsCount": 0 }

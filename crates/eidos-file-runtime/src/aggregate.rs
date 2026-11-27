@@ -83,6 +83,7 @@ pub fn field_sql_expr(
 }
 
 pub(crate) fn compile_predicates(
+    conn: &Connection,
     table: &TableMeta,
     fields: &[FieldMeta],
     schema: &crate::service::CachedSchema,
@@ -118,7 +119,7 @@ pub(crate) fn compile_predicates(
             field.field_type = schema.logical_type(field)?;
         }
     }
-    eidos_file_core::query::compile_derived_predicates(&typed, &predicate, &expressions)
+    eidos_file_core::query::compile_derived_predicates(conn, &typed, &predicate, &expressions)
         .map_err(RuntimeErrorPayload::from_core)
 }
 
@@ -144,7 +145,7 @@ pub(crate) fn execute_aggregate(
 
     let mut uses_today = false;
     let (where_clause, base_params) = if let Some(q) = query {
-        let compiled = compile_predicates(table, fields, schema, q, &mut uses_today)?;
+        let compiled = compile_predicates(conn, table, fields, schema, q, &mut uses_today)?;
         (compiled.where_sql, compiled.params)
     } else {
         (String::new(), Vec::new())
