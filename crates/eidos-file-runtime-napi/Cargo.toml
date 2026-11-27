@@ -1,0 +1,21 @@
+[package]
+name = "eidos-file-runtime-napi"
+version = "0.1.0"
+edition = "2024"
+description = "ABI-stable Node-API (N-API) bindings for the Rust Eidos File Runtime 1.0"
+authors = ["mayneyao"]
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+eidos-file-runtime.workspace = true
+rusqlite = { workspace = true, features = ["hooks"] }
+napi = { version = "3.11.0", default-features = false, features = ["napi8"] }
+napi-derive = "3.6.0"
+serde_json = "1.0"
+
+[build-dependencies]
+napi-build = "2.3.2"

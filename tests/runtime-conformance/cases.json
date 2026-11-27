@@ -1,0 +1,2649 @@
+{
+  "version": "1.0",
+  "description": "Language-neutral Eidos Runtime 1.0 conformance suite executed identically against JS and Rust runtimes.",
+  "cases": [
+    {
+      "id": "filtered-view-creation-defaults",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Items",
+          "saveTableAs": "items",
+          "labelFieldClientKey": "name",
+          "fields": [
+            {
+              "clientKey": "name",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "score",
+              "name": "Score",
+              "kind": "number",
+              "position": "1"
+            },
+            {
+              "clientKey": "done",
+              "name": "Done",
+              "kind": "checkbox",
+              "position": "2"
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$revision",
+            "creationQuery": {
+              "filter": {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "starts-with",
+                    "fieldId": "$fields.items.name",
+                    "value": "Open"
+                  },
+                  {
+                    "op": "contains",
+                    "fieldId": "$fields.items.name",
+                    "value": "Task"
+                  },
+                  {
+                    "op": "gt",
+                    "fieldId": "$fields.items.score",
+                    "value": 4
+                  },
+                  {
+                    "op": "ne",
+                    "fieldId": "$fields.items.done",
+                    "value": false
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {}
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "save": "filtered1",
+          "check": {
+            "returnedRows.rows.0.values": ["OpenTask", 5.0, true]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$filtered1.revision",
+            "creationQuery": {
+              "filter": {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "and",
+                    "args": [
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.name",
+                        "value": "One"
+                      },
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.score",
+                        "value": 10
+                      }
+                    ]
+                  },
+                  {
+                    "op": "and",
+                    "args": [
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.name",
+                        "value": "Two"
+                      },
+                      {
+                        "op": "eq",
+                        "fieldId": "$fields.items.score",
+                        "value": 20
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {
+                  "$fields.items.name": "Two"
+                }
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "save": "filtered2",
+          "check": {
+            "returnedRows.rows.0.values": ["Two", 20.0, false]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.items",
+            "expectedRevision": "$filtered2.revision",
+            "creationQuery": {
+              "filter": {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "eq",
+                    "fieldId": "$fields.items.score",
+                    "value": 10
+                  },
+                  {
+                    "op": "eq",
+                    "fieldId": "$fields.items.score",
+                    "value": 20
+                  }
+                ]
+              }
+            },
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "row",
+                "values": {
+                  "$fields.items.name": "Any"
+                }
+              }
+            ],
+            "returning": {
+              "fields": [
+                "$fields.items.name",
+                "$fields.items.score",
+                "$fields.items.done"
+              ],
+              "resolveRelations": []
+            }
+          },
+          "check": {
+            "returnedRows.rows.0.values": ["Any", null, false]
+          }
+        }
+      ]
+    },
+    {
+      "id": "temporal-defaults-on-create",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Records",
+          "saveTableAs": "t",
+          "labelFieldClientKey": "label",
+          "fields": [
+            {
+              "clientKey": "label",
+              "kind": "text",
+              "name": "Name",
+              "position": "0"
+            },
+            {
+              "clientKey": "a",
+              "kind": "datetime",
+              "name": "a",
+              "position": "1",
+              "settings": { "defaultValue": "now" }
+            },
+            {
+              "clientKey": "b",
+              "kind": "datetime",
+              "name": "b",
+              "position": "2",
+              "settings": { "defaultValue": "now" }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$revision",
+            "changes": [{ "kind": "create", "clientKey": "i", "values": {} }],
+            "returning": {
+              "fields": ["$fields.t.a", "$fields.t.b"],
+              "resolveRelations": []
+            }
+          },
+          "save": "insert",
+          "check": {
+            "returnedRows.rows.0.values.1": "$insert.returnedRows.rows.0.values.0"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.t",
+            "items": [
+              { "op": "count", "key": "assigned", "fieldId": "$fields.t.a" }
+            ]
+          },
+          "absent": ["referenceInstant"],
+          "check": { "results.0.value": "1" }
+        }
+      ]
+    },
+    {
+      "id": "schema-batch-atomic",
+      "steps": [
+        {
+          "op": "wire",
+          "method": "applySchema",
+          "request": {
+            "expectedRevision": "0",
+            "change": {
+              "kind": "batch",
+              "changes": [
+                {
+                  "kind": "set-file-title",
+                  "title": "After"
+                },
+                {
+                  "kind": "rename-table",
+                  "tableId": "018f0000-0000-7000-8000-000000000001",
+                  "name": "Missing"
+                }
+              ]
+            }
+          },
+          "error": ["not-found", "invalid-request", "forbidden", "invalid-plan"]
+        },
+        {
+          "op": "wire",
+          "method": "getSnapshot",
+          "request": {},
+          "check": {
+            "title": "Conformance Test",
+            "revision": "0"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "applySchema",
+          "request": {
+            "expectedRevision": "0",
+            "change": {
+              "kind": "batch",
+              "changes": [
+                {
+                  "kind": "set-file-title",
+                  "title": "First"
+                },
+                {
+                  "kind": "set-file-title",
+                  "title": "Second"
+                }
+              ]
+            }
+          },
+          "check": {
+            "revision": "1"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "getSnapshot",
+          "request": {},
+          "check": {
+            "title": "Second",
+            "revision": "1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid-returning-rollback",
+      "steps": [
+        {
+          "op": "createTable",
+          "saveTableAs": "t",
+          "name": "Tasks",
+          "labelFieldClientKey": "f",
+          "fields": [
+            {
+              "clientKey": "f",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$revision",
+            "changes": [
+              {
+                "kind": "create",
+                "clientKey": "r",
+                "values": {
+                  "$fields.t.f": "unexpected"
+                }
+              }
+            ],
+            "returning": {
+              "fields": ["018f0000-0000-7000-8000-000000000001"],
+              "resolveRelations": []
+            }
+          },
+          "error": ["not-found", "invalid-request", "invalid-query"]
+        },
+        {
+          "op": "wire",
+          "method": "getSnapshot",
+          "request": {},
+          "check": {
+            "title": "Conformance Test",
+            "revision": "$revision"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1
+          },
+          "check": {
+            "rows": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "cursor-binding",
+      "steps": [
+        {
+          "op": "createTable",
+          "saveTableAs": "t",
+          "name": "Tasks",
+          "labelFieldClientKey": "f",
+          "fields": [
+            {
+              "clientKey": "f",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            }
+          ]
+        },
+        {
+          "op": "insertRows",
+          "table": "t",
+          "rows": [
+            {
+              "clientKey": "A",
+              "values": {
+                "f": "A"
+              }
+            },
+            {
+              "clientKey": "B",
+              "values": {
+                "f": "B"
+              }
+            },
+            {
+              "clientKey": "C",
+              "values": {
+                "f": "C"
+              }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1
+          },
+          "save": "first"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "$first.nextCursor"
+          },
+          "check": {
+            "rows.0.id": "$rows.B"
+          },
+          "save": "second"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 3,
+            "cursor": "$second.previousCursor",
+            "direction": "backward"
+          },
+          "check": {
+            "rows.0.id": "$rows.A",
+            "previousCursor": null
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "desc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "$first.nextCursor"
+          },
+          "error": ["invalid-query"]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "off:1"
+          },
+          "error": ["invalid-query"]
+        },
+        {
+          "op": "wire",
+          "method": "getSchemaPage",
+          "request": {
+            "revision": "$revision",
+            "limit": 1
+          },
+          "save": "schemaPage"
+        },
+        {
+          "op": "wire",
+          "method": "groupRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {},
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "groupBy": ["$fields.t.f"],
+            "aggregates": [],
+            "rowsPerGroup": 1,
+            "groupLimit": 1
+          },
+          "save": "groupPage"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": [],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "$first.nextCursor"
+          },
+          "error": ["invalid-query"]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "expectedRevision": "$revision",
+            "tableId": "$tables.t",
+            "changes": [
+              {
+                "kind": "delete",
+                "rowId": "$rows.A"
+              }
+            ]
+          },
+          "save": "changed"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "$first.nextCursor"
+          },
+          "error": ["stale-revision"]
+        },
+        {
+          "op": "wire",
+          "method": "getSchemaPage",
+          "request": {
+            "revision": "$changed.revision",
+            "limit": 1,
+            "cursor": "$schemaPage.nextCursor"
+          },
+          "error": ["invalid-query"]
+        },
+        {
+          "op": "wire",
+          "method": "groupRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {},
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "groupBy": ["$fields.t.f"],
+            "aggregates": [],
+            "rowsPerGroup": 1,
+            "groupLimit": 1,
+            "cursor": "$groupPage.nextCursor"
+          },
+          "error": ["stale-revision"]
+        }
+      ]
+    },
+    {
+      "id": "undo-revision-conflict-retry",
+      "steps": [
+        {
+          "op": "createTable",
+          "saveTableAs": "t",
+          "name": "Tasks",
+          "labelFieldClientKey": "f",
+          "fields": [
+            {
+              "clientKey": "f",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            }
+          ]
+        },
+        {
+          "op": "insertRows",
+          "table": "t",
+          "rows": [
+            {
+              "clientKey": "A",
+              "values": {
+                "f": "A"
+              }
+            },
+            {
+              "clientKey": "B",
+              "values": {
+                "f": "B"
+              }
+            },
+            {
+              "clientKey": "C",
+              "values": {
+                "f": "C"
+              }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRowsWithUndo",
+          "request": {
+            "expectedRevision": "$revision",
+            "tableId": "$tables.t",
+            "changes": [
+              {
+                "kind": "delete",
+                "rowId": "$rows.A"
+              }
+            ]
+          },
+          "save": "deleted"
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$deleted.revision",
+            "changes": [
+              {
+                "kind": "update",
+                "rowId": "$rows.C",
+                "values": {
+                  "$fields.t.f": "Z"
+                }
+              }
+            ]
+          },
+          "save": "concurrent"
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "expectedRevision": "$deleted.revision",
+            "undoToken": "$deleted.undoToken"
+          },
+          "error": ["stale-revision"]
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "expectedRevision": "$concurrent.revision",
+            "undoToken": "$deleted.undoToken"
+          },
+          "save": "restored"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.f"],
+              "resolveRelations": []
+            },
+            "limit": 1
+          },
+          "check": {
+            "rows.0.id": "$rows.A"
+          }
+        }
+      ]
+    },
+    {
+      "id": "undo-restores-detached-relations",
+      "steps": [
+        {
+          "op": "createTable",
+          "saveTableAs": "t",
+          "name": "Tasks",
+          "labelFieldClientKey": "f",
+          "fields": [
+            {
+              "clientKey": "f",
+              "name": "Name",
+              "kind": "text",
+              "position": "0"
+            }
+          ]
+        },
+        {
+          "op": "createField",
+          "table": "t",
+          "field": {
+            "clientKey": "links",
+            "name": "Links",
+            "kind": "relation",
+            "position": "1",
+            "definition": {
+              "direction": "forward",
+              "cardinality": "many",
+              "targetTableKey": "t",
+              "onDelete": "detach"
+            }
+          }
+        },
+        {
+          "op": "insertRows",
+          "table": "t",
+          "rows": [
+            {
+              "clientKey": "A",
+              "values": {
+                "f": "A"
+              }
+            },
+            {
+              "clientKey": "B",
+              "values": {
+                "f": "B"
+              }
+            },
+            {
+              "clientKey": "C",
+              "values": {
+                "f": "C"
+              }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$revision",
+            "changes": [
+              {
+                "kind": "update",
+                "rowId": "$rows.B",
+                "values": {
+                  "$fields.t.links": ["$rows.C", "$rows.A"]
+                }
+              }
+            ]
+          },
+          "save": "linked"
+        },
+        {
+          "op": "wire",
+          "method": "mutateRowsWithUndo",
+          "request": {
+            "expectedRevision": "$linked.revision",
+            "tableId": "$tables.t",
+            "changes": [
+              {
+                "kind": "delete",
+                "rowId": "$rows.A"
+              }
+            ]
+          },
+          "save": "deleted"
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.links"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.0.values.0": ["$rows.C"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$deleted.revision",
+            "changes": [
+              {
+                "kind": "update",
+                "rowId": "$rows.B",
+                "values": {
+                  "$fields.t.links": []
+                }
+              }
+            ]
+          },
+          "save": "edited"
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "undoToken": "$deleted.undoToken",
+            "expectedRevision": "$edited.revision"
+          },
+          "error": ["conflict"]
+        },
+        {
+          "op": "wire",
+          "method": "getSnapshot",
+          "request": {},
+          "check": {
+            "revision": "$edited.revision"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$edited.revision",
+            "changes": [
+              {
+                "kind": "update",
+                "rowId": "$rows.B",
+                "values": {
+                  "$fields.t.links": ["$rows.C"]
+                }
+              }
+            ]
+          },
+          "save": "repaired"
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "expectedRevision": "$repaired.revision",
+            "undoToken": "$deleted.undoToken"
+          },
+          "save": "restored",
+          "check": {
+            "rowCount": "3"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.links"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.1.values.0": ["$rows.C", "$rows.A"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "undoToken": "$restored.undoToken",
+            "expectedRevision": "$restored.revision"
+          },
+          "save": "redone",
+          "check": {
+            "rowCount": "2"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.links"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.0.values.0": ["$rows.C"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "revertRowDeletion",
+          "request": {
+            "undoToken": "$redone.undoToken",
+            "expectedRevision": "$redone.revision"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.t",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.t.f",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.t.links"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.1.values.0": ["$rows.C", "$rows.A"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "negotiate-v1",
+      "description": "Negotiates protocol eidos-runtime 1.0 with capabilities and limits",
+      "steps": [
+        {
+          "op": "negotiate",
+          "request": { "protocol": "eidos-runtime", "versions": ["1.0"] },
+          "expect": {
+            "version": "1.0",
+            "hasCapabilities": true,
+            "hasLimits": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "snapshot-and-schema-page",
+      "description": "Creates a file, inspects snapshot and paginated schema",
+      "steps": [
+        {
+          "op": "getSnapshot",
+          "request": {},
+          "expect": {
+            "formatMajor": 1,
+            "formatMinor": 0,
+            "title": "Conformance Test",
+            "revision": "0"
+          }
+        },
+        {
+          "op": "validate",
+          "request": { "level": "full", "diagnosticsLimit": 50 },
+          "expect": { "valid": true, "diagnosticsCount": 0 }
+        }
+      ]
+    },
+    {
+      "id": "schema-crud-and-rows-lifecycle",
+      "description": "Creates table with multiple field types, inserts/queries/updates/deletes rows, verifies revision conflict and undo",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Tasks",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "score",
+              "name": "Score",
+              "kind": "number",
+              "position": "1"
+            },
+            {
+              "clientKey": "count",
+              "name": "Count",
+              "kind": "integer",
+              "position": "2"
+            },
+            {
+              "clientKey": "done",
+              "name": "Done",
+              "kind": "checkbox",
+              "position": "3"
+            },
+            {
+              "clientKey": "status",
+              "name": "Status",
+              "kind": "select",
+              "position": "4",
+              "settings": {
+                "options": [
+                  { "name": "todo", "color": "gray" },
+                  { "name": "doing", "color": "blue" },
+                  { "name": "done", "color": "green" }
+                ]
+              }
+            },
+            {
+              "clientKey": "tags",
+              "name": "Tags",
+              "kind": "multi-select",
+              "position": "5",
+              "settings": {
+                "options": [
+                  { "name": "urgent", "color": "red" },
+                  { "name": "backend", "color": "purple" },
+                  { "name": "ui", "color": "cyan" }
+                ]
+              }
+            },
+            {
+              "clientKey": "due",
+              "name": "Due",
+              "kind": "date",
+              "position": "6"
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "tasks"
+        },
+        {
+          "op": "insertRows",
+          "table": "tasks",
+          "rows": [
+            {
+              "clientKey": "r1",
+              "values": {
+                "title": "Alpha task",
+                "score": 95.5,
+                "count": "10",
+                "done": false,
+                "status": "doing",
+                "tags": ["urgent", "backend"],
+                "due": "2026-11-26"
+              }
+            },
+            {
+              "clientKey": "r2",
+              "values": {
+                "title": "Beta task",
+                "score": 42.0,
+                "count": "20",
+                "done": true,
+                "status": "done",
+                "tags": ["ui"],
+                "due": "2026-11-20"
+              }
+            },
+            {
+              "clientKey": "r3",
+              "values": {
+                "title": "Gamma item",
+                "score": null,
+                "count": "5",
+                "done": false,
+                "status": "todo",
+                "tags": [],
+                "due": null
+              }
+            },
+            {
+              "clientKey": "r4",
+              "values": {
+                "title": "Delta alpha",
+                "score": 80.0,
+                "count": "15",
+                "done": false,
+                "status": "doing",
+                "tags": ["backend", "ui"],
+                "due": "2026-12-01"
+              }
+            }
+          ]
+        },
+        {
+          "op": "queryRows",
+          "table": "tasks",
+          "projection": ["title", "score", "done", "status"],
+          "sort": [{ "field": "score", "direction": "desc", "nulls": "last" }],
+          "limit": 10,
+          "expectTitles": [
+            "Alpha task",
+            "Delta alpha",
+            "Beta task",
+            "Gamma item"
+          ]
+        },
+        {
+          "op": "queryRows",
+          "table": "tasks",
+          "projection": ["title"],
+          "filter": {
+            "op": "and",
+            "args": [
+              { "op": "eq", "field": "status", "value": "doing" },
+              { "op": "gte", "field": "score", "value": 85 }
+            ]
+          },
+          "limit": 10,
+          "expectTitles": ["Alpha task"]
+        },
+        {
+          "op": "queryRows",
+          "table": "tasks",
+          "projection": ["title"],
+          "filter": { "op": "ne", "field": "score", "value": 80 },
+          "sort": [{ "field": "title", "direction": "asc" }],
+          "limit": 10,
+          "expectTitles": ["Alpha task", "Beta task", "Gamma item"]
+        },
+        {
+          "op": "queryRows",
+          "table": "tasks",
+          "projection": ["title"],
+          "filter": { "op": "has-any", "field": "tags", "values": ["backend"] },
+          "sort": [{ "field": "title", "direction": "asc" }],
+          "limit": 10,
+          "expectTitles": ["Alpha task", "Delta alpha"]
+        },
+        {
+          "op": "queryRows",
+          "table": "tasks",
+          "projection": ["title"],
+          "search": { "text": "alpha", "fields": ["title"] },
+          "sort": [{ "field": "title", "direction": "asc" }],
+          "limit": 10,
+          "expectTitles": ["Alpha task", "Delta alpha"]
+        },
+        {
+          "op": "aggregate",
+          "table": "tasks",
+          "items": [
+            { "key": "total", "op": "count-all" },
+            { "key": "scoreCount", "op": "count", "field": "score" },
+            { "key": "scoreSum", "op": "sum", "field": "score" },
+            { "key": "scoreMin", "op": "min", "field": "score" },
+            { "key": "scoreMax", "op": "max", "field": "score" }
+          ],
+          "expect": {
+            "total": "4",
+            "scoreCount": "3",
+            "scoreSum": 217.5,
+            "scoreMin": 42,
+            "scoreMax": 95.5
+          }
+        },
+        {
+          "op": "groupRows",
+          "table": "tasks",
+          "groupBy": ["status"],
+          "projection": ["title"],
+          "expectGroupCounts": {
+            "doing": "2",
+            "done": "1",
+            "todo": "1"
+          }
+        },
+        {
+          "op": "staleRevisionUpdate",
+          "table": "tasks",
+          "rowKey": "r1",
+          "expectErrorCode": "stale-revision"
+        },
+        {
+          "op": "updateRow",
+          "table": "tasks",
+          "rowKey": "r1",
+          "values": { "score": 100.0 }
+        },
+        {
+          "op": "deleteAndRevertRow",
+          "table": "tasks",
+          "rowKey": "r2",
+          "expectCountAfterDelete": "3",
+          "expectCountAfterRevert": "4"
+        },
+        {
+          "op": "mutateViewLifecycle",
+          "table": "tasks",
+          "viewName": "Active Tasks",
+          "viewType": "grid"
+        },
+        {
+          "op": "validate",
+          "request": { "level": "full", "diagnosticsLimit": 50 },
+          "expect": { "valid": true, "diagnosticsCount": 0 }
+        }
+      ]
+    },
+    {
+      "id": "formula-and-conversion",
+      "description": "Previews formula evaluation and converts numeric text column to number",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Metrics",
+          "fields": [
+            {
+              "clientKey": "weighted",
+              "name": "Weighted",
+              "kind": "formula",
+              "position": "3",
+              "definition": {
+                "sourceText": "((\"Base\"))*2+5",
+                "resultType": "number"
+              }
+            },
+            {
+              "clientKey": "label",
+              "name": "Label",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "raw_num",
+              "name": "RawNum",
+              "kind": "text",
+              "position": "1"
+            },
+            {
+              "clientKey": "base",
+              "name": "Base",
+              "kind": "number",
+              "position": "2"
+            }
+          ],
+          "labelFieldClientKey": "label",
+          "saveTableAs": "metrics"
+        },
+        {
+          "op": "insertRows",
+          "table": "metrics",
+          "rows": [
+            {
+              "clientKey": "m1",
+              "values": { "label": "One", "raw_num": "12.5", "base": 10 }
+            },
+            {
+              "clientKey": "m2",
+              "values": { "label": "Two", "raw_num": "25", "base": 20 }
+            },
+            {
+              "clientKey": "m3",
+              "values": { "label": "Three", "raw_num": null, "base": 30 }
+            }
+          ]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "1 + 2",
+          "declaredResultType": "text",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "LOWER(3)",
+          "declaredResultType": "text",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "DATE('now')",
+          "declaredResultType": "date",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "\"base\" * 2",
+          "declaredResultType": "number",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "1 / 2",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [0.5, 0.5, 0.5]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "9223372036854775807 + 1",
+          "declaredResultType": "integer",
+          "expectValid": true,
+          "expectValues": [null, null, null]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "1e308 * 1e308",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [null, null, null]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "CAST(3 AS REAL) / 2",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [1.5, 1.5, 1.5]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "\"Base\" * 2 + 5",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [25, 45, 65]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.metrics",
+            "query": {
+              "sort": [
+                { "fieldId": "$fields.metrics.base", "direction": "desc" }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.metrics.weighted"],
+              "resolveRelations": []
+            },
+            "limit": 1
+          },
+          "absent": ["referenceInstant", "total"],
+          "check": { "rows.0.values": [65.0] }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.metrics",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.metrics.weighted",
+                "value": 40
+              }
+            },
+            "items": [
+              {
+                "key": "n",
+                "op": "count-all"
+              }
+            ]
+          },
+          "absent": ["referenceInstant"],
+          "check": {
+            "results.0.value": "2"
+          }
+        },
+        {
+          "op": "convertField",
+          "table": "metrics",
+          "field": "raw_num",
+          "to": "number",
+          "toNullable": true,
+          "expectClassification": "lossless-rewrite",
+          "expectValuesAfter": [12.5, 25, null]
+        },
+        {
+          "op": "wire",
+          "method": "preflightSchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "delete-field",
+              "fieldId": "$fields.metrics.base"
+            }
+          },
+          "check": {
+            "classification": "forbidden",
+            "warnings.0.code": "formula-type-invalid",
+            "warnings.0.tableId": "$tables.metrics"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "preflightSchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "rename-field",
+              "fieldId": "$fields.metrics.base",
+              "name": "新 \"值\""
+            }
+          },
+          "check": { "classification": "lossless-rewrite" }
+        },
+        {
+          "op": "wire",
+          "method": "applySchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "rename-field",
+              "fieldId": "$fields.metrics.base",
+              "name": "新 \"值\""
+            }
+          },
+          "save": "renamedField",
+          "check": { "changed": true }
+        },
+        {
+          "op": "wire",
+          "method": "getSchemaPage",
+          "request": { "revision": "$renamedField.revision", "limit": 100 },
+          "checkObjectId": "$fields.metrics.weighted",
+          "check": { "definition.sourceText": "\"新 \"\"值\"\"\" * 2 + 5" }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.metrics",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.metrics.weighted",
+                "value": 40
+              }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "2" }
+        }
+      ]
+    },
+    {
+      "id": "relations-and-lookups",
+      "description": "Tests forward relation, inverse relation, resolveRelations labels, and Lookup aggregates (values, count, sum, distinctValues)",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Projects",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "budget",
+              "name": "Budget",
+              "kind": "number",
+              "position": "1"
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "projects"
+        },
+        {
+          "op": "createTable",
+          "name": "ProjectTasks",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "points",
+              "name": "Points",
+              "kind": "integer",
+              "position": "1"
+            },
+            {
+              "clientKey": "tag",
+              "name": "Tag",
+              "kind": "select",
+              "position": "2",
+              "settings": {
+                "options": [
+                  { "name": "perf", "color": "blue" },
+                  { "name": "ux", "color": "green" }
+                ]
+              }
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "ptasks"
+        },
+        {
+          "op": "createField",
+          "table": "ptasks",
+          "field": {
+            "clientKey": "project",
+            "name": "Project",
+            "kind": "relation",
+            "position": "3",
+            "definition": {
+              "direction": "forward",
+              "targetTableKey": "projects",
+              "cardinality": "one",
+              "onDelete": "detach"
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "tasks",
+            "name": "Tasks",
+            "kind": "relation",
+            "position": "2",
+            "definition": {
+              "direction": "inverse",
+              "targetTableKey": "ptasks",
+              "cardinality": "many",
+              "inverseOfTableKey": "ptasks",
+              "inverseOfFieldKey": "project"
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "taskTitles",
+            "name": "TaskTitles",
+            "kind": "lookup",
+            "position": "3",
+            "definition": {
+              "relationFieldKey": "tasks",
+              "targetTableKey": "ptasks",
+              "targetFieldKey": "title",
+              "aggregate": "values",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "taskCount",
+            "name": "TaskCount",
+            "kind": "lookup",
+            "position": "4",
+            "definition": {
+              "relationFieldKey": "tasks",
+              "targetTableKey": "ptasks",
+              "targetFieldKey": "title",
+              "aggregate": "count",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "totalPoints",
+            "name": "TotalPoints",
+            "kind": "lookup",
+            "position": "5",
+            "definition": {
+              "relationFieldKey": "tasks",
+              "targetTableKey": "ptasks",
+              "targetFieldKey": "points",
+              "aggregate": "sum",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "distinctTags",
+            "name": "DistinctTags",
+            "kind": "lookup",
+            "position": "6",
+            "definition": {
+              "relationFieldKey": "tasks",
+              "targetTableKey": "ptasks",
+              "targetFieldKey": "tag",
+              "aggregate": "values",
+              "distinctValues": true
+            }
+          }
+        },
+        {
+          "op": "insertRows",
+          "table": "projects",
+          "rows": [
+            { "clientKey": "p1", "values": { "title": "Core", "budget": 100 } },
+            { "clientKey": "p2", "values": { "title": "UI", "budget": 50 } }
+          ]
+        },
+        {
+          "op": "insertRows",
+          "table": "ptasks",
+          "rows": [
+            {
+              "clientKey": "t1",
+              "values": {
+                "title": "Rust SQL",
+                "points": "10",
+                "tag": "perf",
+                "project": ["$row:p1"]
+              }
+            },
+            {
+              "clientKey": "t2",
+              "values": {
+                "title": "SIMD Scan",
+                "points": "25",
+                "tag": "perf",
+                "project": ["$row:p1"]
+              }
+            },
+            {
+              "clientKey": "t3",
+              "values": {
+                "title": "Grid Scroll",
+                "points": "5",
+                "tag": "ux",
+                "project": ["$row:p2"]
+              }
+            }
+          ]
+        },
+        {
+          "op": "queryRows",
+          "table": "projects",
+          "projection": [
+            "title",
+            "taskTitles",
+            "taskCount",
+            "totalPoints",
+            "distinctTags",
+            "tasks"
+          ],
+          "resolveRelations": ["tasks"],
+          "sort": [{ "field": "title", "direction": "asc" }],
+          "limit": 10,
+          "expectRows": [
+            ["Core", ["Rust SQL", "SIMD Scan"], "2", "35", ["perf"]],
+            ["UI", ["Grid Scroll"], "1", "5", ["ux"]]
+          ],
+          "expectResolvedLabels": [["Rust SQL", "SIMD Scan"], ["Grid Scroll"]]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.projects.totalPoints",
+                  "direction": "desc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": [
+                "$fields.projects.title",
+                "$fields.projects.totalPoints"
+              ],
+              "resolveRelations": []
+            },
+            "limit": 2
+          },
+          "check": {
+            "rows.0.values": ["Core", "35"],
+            "rows.1.values": ["UI", "5"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.projects.totalPoints",
+                "value": "10"
+              }
+            },
+            "items": [
+              { "key": "n", "op": "count-all" },
+              {
+                "key": "points",
+                "op": "max",
+                "fieldId": "$fields.projects.totalPoints"
+              }
+            ]
+          },
+          "check": { "results.0.value": "1", "results.1.value": "35" }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "search": { "text": "core", "fields": ["$fields.ptasks.project"] }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "2" }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "filter": {
+                "op": "has-all",
+                "fieldId": "$fields.projects.distinctTags",
+                "values": ["perf"]
+              }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "1" }
+        },
+        {
+          "op": "createField",
+          "table": "ptasks",
+          "field": {
+            "clientKey": "projectPoints",
+            "name": "Project points",
+            "kind": "lookup",
+            "position": "4",
+            "definition": {
+              "relationFieldKey": "project",
+              "targetTableKey": "projects",
+              "targetFieldKey": "totalPoints",
+              "aggregate": "first",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.ptasks.projectPoints",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.ptasks.projectPoints"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "columns.0.valueType": "integer",
+            "rows.0.values": ["5"],
+            "rows.1.values": ["35"],
+            "rows.2.values": ["35"]
+          }
+        },
+        {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "twice",
+            "name": "Twice",
+            "position": "7",
+            "kind": "formula",
+            "definition": {
+              "sourceText": "\"TotalPoints\" * 2",
+              "resultType": "integer"
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "ptasks",
+          "field": {
+            "clientKey": "doublePoints",
+            "name": "Double points",
+            "kind": "lookup",
+            "position": "5",
+            "definition": {
+              "relationFieldKey": "project",
+              "targetTableKey": "projects",
+              "targetFieldKey": "twice",
+              "aggregate": "first",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.ptasks.doublePoints",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.ptasks.doublePoints"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.0.values": ["10"],
+            "rows.2.values": ["70"]
+          }
+        },
+        {
+          "op": "previewFormula",
+          "table": "projects",
+          "sourceText": "\"TotalPoints\" * 2",
+          "declaredResultType": "integer",
+          "expectValid": true,
+          "expectValues": ["70", "10"]
+        },
+        {
+          "op": "validate",
+          "request": { "level": "full", "diagnosticsLimit": 50 },
+          "expect": { "valid": true, "diagnosticsCount": 0 }
+        }
+      ]
+    },
+    {
+      "id": "calendar-period-window-and-today",
+      "description": "Tests TODAY() timezone resolution, calendar-period, and calendar-window filters identically across JS and Rust",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Schedule",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "due",
+              "name": "Due",
+              "kind": "date",
+              "position": "1"
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "sched"
+        },
+        {
+          "op": "createField",
+          "table": "sched",
+          "field": {
+            "clientKey": "todayVal",
+            "name": "TodayVal",
+            "kind": "formula",
+            "position": "2",
+            "definition": {
+              "sourceText": "TODAY()",
+              "resultType": "date"
+            }
+          }
+        },
+        {
+          "op": "insertRows",
+          "table": "sched",
+          "rows": [
+            {
+              "clientKey": "s1",
+              "values": { "title": "Mon", "due": "2026-11-24" }
+            },
+            {
+              "clientKey": "s2",
+              "values": { "title": "Yest", "due": "2026-11-26" }
+            },
+            {
+              "clientKey": "s3",
+              "values": { "title": "Today", "due": "2026-11-27" }
+            },
+            {
+              "clientKey": "s4",
+              "values": { "title": "NextMonth", "due": "2026-12-05" }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }]
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1
+          },
+          "save": "ordinaryPage",
+          "absent": ["referenceInstant", "total"]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }]
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "cursor": "$ordinaryPage.nextCursor"
+          },
+          "absent": ["referenceInstant", "total"],
+          "check": {
+            "rows.0.values": ["Yest"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }]
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          },
+          "absent": ["referenceInstant", "total"]
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }]
+            },
+            "projection": {
+              "fields": ["$fields.sched.todayVal"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          },
+          "check": {
+            "referenceInstant": "2026-11-26T16:30:00.000Z",
+            "total": "4",
+            "rows.0.values": ["2026-11-27"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "filter": {
+                "op": "eq",
+                "fieldId": "$fields.sched.todayVal",
+                "value": "2026-11-27"
+              }
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          },
+          "check": {
+            "total": "4",
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }],
+              "filter": {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "calendar-period",
+                    "fieldId": "$fields.sched.due",
+                    "unit": "month",
+                    "offset": 0
+                  }
+                ]
+              }
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          },
+          "save": "calendarPage",
+          "check": {
+            "referenceInstant": "2026-11-26T16:30:00.000Z",
+            "total": "3",
+            "rows.0.values": ["Mon"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "sort": [{ "fieldId": "$fields.sched.due", "direction": "asc" }],
+              "filter": {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "calendar-period",
+                    "fieldId": "$fields.sched.due",
+                    "unit": "month",
+                    "offset": 0
+                  }
+                ]
+              }
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "cursor": "$calendarPage.nextCursor"
+          },
+          "check": {
+            "referenceInstant": "2026-11-26T16:30:00.000Z",
+            "total": "3",
+            "rows.0.values": ["Yest"]
+          }
+        },
+        {
+          "op": "queryRows",
+          "table": "sched",
+          "calendar": {
+            "timeZone": "Asia/Shanghai",
+            "timeZoneData": "2026f",
+            "weekStartsOn": 1
+          },
+          "referenceInstant": "2026-11-26T16:30:00.000Z",
+          "projection": ["title", "todayVal"],
+          "filter": {
+            "op": "calendar-period",
+            "field": "due",
+            "unit": "day",
+            "offset": 0
+          },
+          "sort": [{ "field": "due", "direction": "asc" }],
+          "limit": 10,
+          "expectRows": [["Today", "2026-11-27"]]
+        },
+        {
+          "op": "queryRows",
+          "table": "sched",
+          "calendar": {
+            "timeZone": "Asia/Shanghai",
+            "timeZoneData": "2026f",
+            "weekStartsOn": 1
+          },
+          "referenceInstant": "2026-11-26T16:30:00.000Z",
+          "projection": ["title"],
+          "filter": {
+            "op": "calendar-period",
+            "field": "due",
+            "unit": "week",
+            "offset": 0
+          },
+          "sort": [{ "field": "due", "direction": "asc" }],
+          "limit": 10,
+          "expectTitles": ["Mon", "Yest", "Today"]
+        },
+        {
+          "op": "queryRows",
+          "table": "sched",
+          "calendar": {
+            "timeZone": "Asia/Shanghai",
+            "timeZoneData": "2026f",
+            "weekStartsOn": 1
+          },
+          "referenceInstant": "2026-11-26T16:30:00.000Z",
+          "projection": ["title"],
+          "filter": {
+            "op": "calendar-window",
+            "field": "due",
+            "direction": "past",
+            "count": 1,
+            "unit": "day"
+          },
+          "sort": [{ "field": "due", "direction": "asc" }],
+          "limit": 10,
+          "expectTitles": ["Yest", "Today"]
+        },
+        {
+          "op": "aggregate",
+          "table": "sched",
+          "calendar": {
+            "timeZone": "Asia/Shanghai",
+            "timeZoneData": "2026f",
+            "weekStartsOn": 1
+          },
+          "referenceInstant": "2026-11-26T16:30:00.000Z",
+          "filter": {
+            "op": "calendar-period",
+            "field": "due",
+            "unit": "month",
+            "offset": 1
+          },
+          "items": [{ "key": "nextMonthCount", "op": "count-all" }],
+          "expect": {
+            "nextMonthCount": "1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "navigation-across-page-limit",
+      "description": "A record and its neighbors remain addressable across the 1000-row page limit.",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Records",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "rank",
+              "name": "Rank",
+              "kind": "integer",
+              "position": "1"
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "records"
+        },
+        {
+          "op": "insertRows",
+          "table": "records",
+          "sequence": { "field": "rank", "start": 0, "count": 500 }
+        },
+        {
+          "op": "insertRows",
+          "table": "records",
+          "sequence": { "field": "rank", "start": 500, "count": 500 }
+        },
+        {
+          "op": "insertRows",
+          "table": "records",
+          "sequence": { "field": "rank", "start": 1000, "count": 3 }
+        },
+        {
+          "op": "recordNeighborsAndIndex",
+          "table": "records",
+          "rowKey": "999",
+          "sort": [{ "field": "rank", "direction": "asc" }],
+          "expectPrevKey": "998",
+          "expectNextKey": "1000",
+          "expectIndex": "999"
+        },
+        {
+          "op": "recordNeighborsAndIndex",
+          "table": "records",
+          "rowKey": "1001",
+          "sort": [{ "field": "rank", "direction": "asc" }],
+          "expectPrevKey": "1000",
+          "expectNextKey": "1002",
+          "expectIndex": "1001"
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "delete-field",
+            "table": "records",
+            "field": "rank"
+          },
+          "expectClassification": "explicit-lossy",
+          "expectFieldDeletionImpact": { "rows": "1003" },
+          "confirmLossy": true
+        }
+      ]
+    },
+    {
+      "id": "group-pagination-and-row-helpers",
+      "description": "Tests queryGroupRows cursor paging, getRowsById (with missingRowIds), getRecordNeighbors, and getRowIndex",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Items",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "grp",
+              "name": "Grp",
+              "kind": "select",
+              "position": "1",
+              "settings": {
+                "options": [
+                  { "name": "A", "color": "blue" },
+                  { "name": "B", "color": "green" }
+                ]
+              }
+            },
+            {
+              "clientKey": "rank",
+              "name": "Rank",
+              "kind": "integer",
+              "position": "2"
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "items"
+        },
+        {
+          "op": "insertRows",
+          "table": "items",
+          "rows": [
+            {
+              "clientKey": "i1",
+              "values": { "title": "A1", "grp": "A", "rank": "1" }
+            },
+            {
+              "clientKey": "i2",
+              "values": { "title": "A2", "grp": "A", "rank": "2" }
+            },
+            {
+              "clientKey": "i3",
+              "values": { "title": "A3", "grp": "A", "rank": "3" }
+            },
+            {
+              "clientKey": "i4",
+              "values": { "title": "B1", "grp": "B", "rank": "4" }
+            },
+            {
+              "clientKey": "i5",
+              "values": { "title": "B2", "grp": "B", "rank": "5" }
+            }
+          ]
+        },
+        {
+          "op": "groupRowsAndPaginate",
+          "table": "items",
+          "groupBy": ["grp"],
+          "projection": ["title"],
+          "sort": [{ "field": "rank", "direction": "asc" }],
+          "rowsPerGroup": 1,
+          "targetGroup": "A",
+          "expectInitialTitles": ["A1"],
+          "expectNextPageTitles": ["A2", "A3"]
+        },
+        {
+          "op": "getRowsById",
+          "table": "items",
+          "rowKeys": [
+            "i2",
+            "$missing:01936a00-0000-7000-8000-000000000001",
+            "i4"
+          ],
+          "projection": ["title"],
+          "expectTitles": ["A2", "B1"],
+          "expectMissingCount": 1
+        },
+        {
+          "op": "recordNeighborsAndIndex",
+          "table": "items",
+          "rowKey": "i3",
+          "sort": [{ "field": "rank", "direction": "asc" }],
+          "expectPrevKey": "i2",
+          "expectNextKey": "i4",
+          "expectIndex": "2"
+        }
+      ]
+    },
+    {
+      "id": "schema-mutations-and-rename-option",
+      "description": "Tests set-field-nullable, set-field-position, set-table-position, set-record-label, and rename-option (reject and merge)",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Board",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            },
+            {
+              "clientKey": "altTitle",
+              "name": "AltTitle",
+              "kind": "text",
+              "position": "1"
+            },
+            {
+              "clientKey": "stage",
+              "name": "Stage",
+              "kind": "select",
+              "position": "2",
+              "settings": {
+                "options": [
+                  { "name": "todo", "color": "gray" },
+                  { "name": "wip", "color": "blue" },
+                  { "name": "done", "color": "green" }
+                ]
+              }
+            },
+            {
+              "clientKey": "labels",
+              "name": "Labels",
+              "kind": "multi-select",
+              "position": "3",
+              "settings": {
+                "options": [
+                  { "name": "bug", "color": "red" },
+                  { "name": "feat", "color": "purple" }
+                ]
+              }
+            }
+          ],
+          "labelFieldClientKey": "title",
+          "saveTableAs": "board"
+        },
+        {
+          "op": "insertRows",
+          "table": "board",
+          "rows": [
+            {
+              "clientKey": "b1",
+              "values": {
+                "title": "One",
+                "altTitle": "AltOne",
+                "stage": "wip",
+                "labels": ["bug", "feat"]
+              }
+            },
+            {
+              "clientKey": "b2",
+              "values": {
+                "title": "Two",
+                "altTitle": "AltTwo",
+                "stage": "done",
+                "labels": ["bug"]
+              }
+            }
+          ]
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "set-field-nullable",
+            "table": "board",
+            "field": "altTitle",
+            "nullable": false
+          }
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "set-field-position",
+            "table": "board",
+            "field": "altTitle",
+            "position": "10"
+          }
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "set-table-position",
+            "table": "board",
+            "position": "5"
+          }
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "set-record-label",
+            "table": "board",
+            "field": "altTitle"
+          }
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "rename-option",
+            "table": "board",
+            "field": "stage",
+            "from": "wip",
+            "to": "done",
+            "collision": "reject"
+          },
+          "expectClassification": "forbidden"
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "rename-option",
+            "table": "board",
+            "field": "stage",
+            "from": "wip",
+            "to": "in-progress",
+            "collision": "reject"
+          }
+        },
+        {
+          "op": "schemaLeaf",
+          "change": {
+            "kind": "rename-option",
+            "table": "board",
+            "field": "labels",
+            "from": "bug",
+            "to": "feat",
+            "collision": "merge"
+          },
+          "confirmLossy": true
+        },
+        {
+          "op": "queryRows",
+          "table": "board",
+          "projection": ["title", "stage", "labels"],
+          "sort": [{ "field": "title", "direction": "asc" }],
+          "limit": 10,
+          "expectRows": [
+            ["One", "in-progress", ["feat"]],
+            ["Two", "done", ["feat"]]
+          ]
+        },
+        {
+          "op": "validate",
+          "request": { "level": "full", "diagnosticsLimit": 50 },
+          "expect": { "valid": true, "diagnosticsCount": 0 }
+        }
+      ]
+    }
+  ]
+}

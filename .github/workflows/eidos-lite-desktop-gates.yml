@@ -24,6 +24,9 @@ on:
       - "packages/eidos-file-ui/**"
       - "packages/plugin-*/**"
       - "crates/eidos-plugin-sandbox/**"
+      - "crates/eidos-file-runtime*/**"
+      - "crates/eidos-file-core/**"
+      - "tests/runtime-conformance/**"
       - "apps/plugin-sandbox/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -126,6 +129,9 @@ jobs:
 
       - name: Prepare file metadata extension
         run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:vtab
+
+      - name: Prepare native file runtime
+        run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:file-runtime
 
       - name: Verify clone validation is read-only
         env:
@@ -357,6 +363,12 @@ jobs:
         env:
           EIDOS_PLUGIN_SANDBOX_BINARY: ${{ github.workspace }}/apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
         run: pnpm test:eidos-lite
+
+      - name: Compare desktop runtime implementations against the shared fixtures
+        run: |
+          cargo test -p eidos-file-runtime --locked
+          node scripts/run-electron-node.mjs tests/runtime-conformance/run-js.mjs --backend=js
+          node scripts/run-electron-node.mjs tests/runtime-conformance/run-js.mjs --backend=rust
 
   packaged-macos:
     name: Packaged smoke (${{ matrix.architecture }})

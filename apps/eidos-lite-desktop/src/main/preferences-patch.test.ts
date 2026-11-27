@@ -2,6 +2,15 @@ import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortc
 import { eidosLitePreferencesPatch } from "./preferences-patch"
 
 describe("Eidos Lite preference IPC patch", () => {
+  it("accepts both desktop runtimes and rejects unknown backends", () => {
+    for (const runtimeBackend of ["js", "rust"])
+      expect(eidosLitePreferencesPatch({ runtimeBackend })).toEqual({
+        runtimeBackend,
+      })
+    expect(() =>
+      eidosLitePreferencesPatch({ runtimeBackend: "quickjs" })
+    ).toThrow()
+  })
   it("accepts all supported language choices through IPC", () => {
     for (const language of ["en", "zh", "pt-BR", "ja", "ko", "system"]) {
       expect(eidosLitePreferencesPatch({ language })).toEqual({ language })

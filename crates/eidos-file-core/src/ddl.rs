@@ -274,14 +274,22 @@ pub fn configure_connection(conn: &Connection) -> Result<()> {
 /// Returns `already-exists` if `path` exists. On failure the partially
 /// created file is removed.
 pub fn create_eidos_file(path: &Path, title: Option<&str>) -> Result<()> {
-    if path.exists() {
-        return Err(EidosError::AlreadyExists(format!(
-            "refusing to overwrite existing file {}",
-            path.display()
-        )));
-    }
     let title = title.unwrap_or("Untitled");
     assert_display_name(title, "File title")?;
+    let _created = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|err| {
+            if err.kind() == std::io::ErrorKind::AlreadyExists {
+                EidosError::AlreadyExists(format!(
+                    "refusing to overwrite existing file {}",
+                    path.display()
+                ))
+            } else {
+                EidosError::Internal(err.to_string())
+            }
+        })?;
     let create = || -> Result<()> {
         let conn = Connection::open(path)?;
         configure_connection(&conn)?;
@@ -314,8 +322,7 @@ pub fn create_eidos_file(path: &Path, title: Option<&str>) -> Result<()> {
         }
     };
     if let Err(err) = create() {
-        // We created the file; never remove a pre-existing one (the
-        // exists() check above guarantees this path means we made it).
+        drop(_created);
         let _ = std::fs::remove_file(path);
         return Err(err);
     }

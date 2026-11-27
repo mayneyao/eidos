@@ -76,6 +76,7 @@ jobs:
           cp target/x86_64-apple-darwin/release/eidos apps/eidos-lite-desktop/resources/publish-engine/eidos
           cp target/x86_64-apple-darwin/release/plugin-sandbox apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox
           TARGET_ARCH=x64 pnpm --filter @eidos.space/eidos-lite-desktop prepare:vtab
+          node apps/eidos-lite-desktop/scripts/prepare-file-runtime.mjs x86_64-apple-darwin
           lipo apps/eidos-lite-desktop/resources/publish-engine/eidos -verify_arch x86_64
           lipo apps/eidos-lite-desktop/resources/plugin-sandbox/plugin-sandbox -verify_arch x86_64
           lipo apps/eidos-lite-desktop/resources/vtab/libfs_meta.dylib -verify_arch x86_64
@@ -93,6 +94,7 @@ jobs:
           app='apps/eidos-lite-desktop/dist-app/mac/Eidos Lite.app'
           test -d "$app"
           lipo "$app/Contents/MacOS/Eidos Lite" -verify_arch x86_64
+          lipo "$app/Contents/Resources/file-runtime/eidos-file-runtime.node" -verify_arch x86_64
           esbuild="$(find "$app/Contents/Resources/app.asar.unpacked" -path '*/@esbuild/darwin-x64/bin/esbuild' -type f -print -quit)"
           test -n "$esbuild"
           lipo "$esbuild" -verify_arch x86_64

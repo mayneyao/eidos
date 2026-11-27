@@ -741,6 +741,18 @@ describe("Settings search through original controls", () => {
     expect(api.copyDiagnostics).not.toHaveBeenCalled()
   })
 
+  it("selects the legacy file runtime under Experimental and switches back to Rust", async () => {
+    await mount()
+    await page("Experimental")
+    const picker = select("File runtime")
+    expect(picker.value).toBe("rust")
+    for (const runtimeBackend of ["js", "rust"]) {
+      await choose(picker, runtimeBackend)
+      expect(api.updatePreferences).toHaveBeenLastCalledWith({ runtimeBackend })
+      expect(picker.value).toBe(runtimeBackend)
+    }
+  })
+
   it("pauses device polling while hidden without remounting the visited page", async () => {
     vi.useFakeTimers()
     await mount()

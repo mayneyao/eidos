@@ -23,6 +23,8 @@ pub enum EidosError {
     /// A logical value fails the spec §5/§8 canonical encoding rules.
     #[error("invalid value: {0}")]
     InvalidValue(String),
+    #[error("Field {field_id} is not nullable")]
+    NonNullable { field_id: String },
     /// A request document is malformed or references the wrong object kind.
     #[error("invalid request: {0}")]
     InvalidRequest(String),
@@ -66,7 +68,7 @@ impl EidosError {
             EidosError::UnsupportedVersion(_) => "unsupported-version",
             EidosError::UnsupportedFeature(_) => "unsupported-feature",
             EidosError::InvalidSchema(_) => "invalid-schema",
-            EidosError::InvalidValue(_) => "invalid-value",
+            EidosError::InvalidValue(_) | EidosError::NonNullable { .. } => "invalid-value",
             EidosError::InvalidRequest(_) => "invalid-request",
             EidosError::InvalidQuery(_) => "invalid-query",
             EidosError::NotFound(_) => "not-found",

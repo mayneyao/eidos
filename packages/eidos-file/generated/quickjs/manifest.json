@@ -111,9 +111,9 @@
       "packages/eidos-file/src/runtime-schema-noop.regression.test.ts": "84d489742ef7cf874dfaa6bf452f35546544d6d91f1353a6dc70f9dc27c80c88",
       "packages/eidos-file/src/runtime-search-fragments.test.ts": "3fa1932d23af80ca1c151ab9bc9efa05877181f228a42e056f004a8268698053",
       "packages/eidos-file/src/runtime-service-list-filter.regression.test.ts": "baf42a901a8b7d619ba0b59ddea2b586eb40af92c1af1bd8189944dd2e76e294",
-      "packages/eidos-file/src/runtime-service-wasm.test.ts": "16d80fb4e8eca0518a6072631368d0a2426d1b2a5f2abcba17c12399ed5bac8c",
-      "packages/eidos-file/src/runtime-service.ts": "2179d922057816834b7e436f8bbbd0d2508a5604ba40c7d4b2b1d4c184e9b04f",
-      "packages/eidos-file/src/runtime.ts": "481a00c5d1da9e5265de8d52c3712cc47e7dd5adcb9e1b0b85b1c6237cc3e68a",
+      "packages/eidos-file/src/runtime-service-wasm.test.ts": "45f0eb66ef443a22de91d67515cc1207ab2c0e8405fad42b2a5e6dc1bbb7f3f8",
+      "packages/eidos-file/src/runtime-service.ts": "111ab58da10e70c362cfc45e2384e267de06026167440da5d4e90a006a286349",
+      "packages/eidos-file/src/runtime.ts": "89d454426859c70d00287aa8c8492b66f879255f3e24f4eae819b1bde57ebb25",
       "packages/eidos-file/src/schema-merge.node-sqlite.test.ts": "27b9afc557a09d7f53f2d56b376ef8ec546dbf0bb5e562ddd58d17e684acd27d",
       "packages/eidos-file/src/schema.ts": "13f40952f3ef317211d21ac7ed804a61158260d3709d44751142722e61e79b21",
       "packages/eidos-file/src/select-options.ts": "60028e8f0cb59780f618130af3ca0b7423e99371514b4ac7bdd39d890edbfe7f",
@@ -144,7 +144,7 @@
       "packages/eidos-file/generated/quickjs"
     ],
     "files": {
-      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "e0162106a903e776b6029f3f1238f9cad7e1bb3ca42a7b9b5c734f22592492da"
+      "packages/eidos-file/generated/quickjs/eidos-runtime.js": "93115d874d631b0bc0443c491f551a4990f55524b49b0431f08687a562b79e1f"
     }
   }
 }

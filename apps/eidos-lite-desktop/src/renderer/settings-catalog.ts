@@ -15,6 +15,7 @@ export const SETTINGS_SECTIONS = [
   { id: "files", label: "Files" },
   { id: "shortcuts", label: "Keyboard Shortcuts" },
   { id: "updates", label: "Updates" },
+  { id: "experimental", label: "Experimental" },
   { id: "about", label: "About" },
 ] as const
 
@@ -47,6 +48,13 @@ function setting<Id extends string>(
 
 /** Static text only. Preference values and account/Space identities never enter search. */
 export const SETTINGS = {
+  runtimeBackend: setting(
+    "experimental.runtime-backend",
+    "experimental",
+    "File runtime",
+    "Restart Eidos Lite to apply. Choose JavaScript to use the previous desktop runtime.",
+    ["rust", "javascript", "fallback", "兼容", "回退", "运行时"]
+  ),
   uiScale: setting(
     "preferences.ui-scale",
     "preferences",

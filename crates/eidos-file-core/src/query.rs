@@ -326,6 +326,24 @@ fn coerce_operand(field: &FieldMeta, value: &JsonValue) -> Result<SqlValue> {
             field.name
         )));
     }
+    if field.field_type == FieldType::Datetime
+        && let Some(raw) = value.as_str()
+    {
+        if raw.as_bytes().get(19) == Some(&b'.')
+            && raw[20..].bytes().take_while(u8::is_ascii_digit).count() > 3
+        {
+            return Err(invalid_query("Sub-millisecond datetime query operand"));
+        }
+        let parsed = chrono::DateTime::parse_from_rfc3339(raw)
+            .map_err(|_| invalid_query("Invalid datetime query operand"))?;
+        let canonical = parsed
+            .to_utc()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        if !crate::time::is_valid_instant(&canonical) {
+            return Err(invalid_query("Invalid datetime query operand"));
+        }
+        return Ok(SqlValue::Text(canonical));
+    }
     coerce_value(field, value)
         .map_err(|err| invalid_query(format!("operand for field {:?}: {err}", field.name)))
 }
@@ -352,6 +370,8 @@ struct RelationSearchTarget {
 }
 
 struct Compiler<'a> {
+    expressions: Option<&'a HashMap<String, String>>,
+    list_elements: Option<&'a HashMap<String, String>>,
     fields: &'a [FieldMeta],
     params: Vec<SqlValue>,
     relations: Option<&'a HashMap<String, RelationSearchTarget>>,
@@ -366,6 +386,13 @@ enum LikeKind {
 }
 
 impl Compiler<'_> {
+    fn column(&self, field: &FieldMeta) -> Result<String> {
+        if let Some(sql) = self.expressions.and_then(|m| m.get(&field.id)) {
+            return Ok(sql.clone());
+        }
+        quote_identifier(stored_column(field)?)
+    }
+
     fn compile_filter(&mut self, node: &FilterNode, depth: usize) -> Result<String> {
         self.nodes += 1;
         if depth > MAX_FILTER_DEPTH || self.nodes > MAX_FILTER_NODES {
@@ -407,17 +434,11 @@ impl Compiler<'_> {
             }
             FilterNode::IsNull { field_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                Ok(format!(
-                    "{} IS NULL",
-                    quote_identifier(stored_column(field)?)?
-                ))
+                Ok(format!("{} IS NULL", self.column(field)?))
             }
             FilterNode::IsNotNull { field_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                Ok(format!(
-                    "{} IS NOT NULL",
-                    quote_identifier(stored_column(field)?)?
-                ))
+                Ok(format!("{} IS NOT NULL", self.column(field)?))
             }
             // SQLite IS / IS NOT are the portable null-safe equality operators.
             // Query operands remain non-null, so `ne` includes a null Field.
@@ -441,7 +462,7 @@ impl Compiler<'_> {
                 upper,
             } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 require_ordered(field)?;
                 let lower = coerce_operand(field, lower)?;
                 let upper = coerce_operand(field, upper)?;
@@ -453,7 +474,7 @@ impl Compiler<'_> {
             // a null Field is FALSE.
             FilterNode::In { field_id, values } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 if values.is_empty() {
                     return Ok("0".into());
                 }
@@ -482,7 +503,7 @@ impl Compiler<'_> {
             }
             FilterNode::RelationHas { field_id, row_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 if field.field_type != FieldType::Relation {
                     return Err(invalid_query(format!(
                         "field {:?} ({}): relation-has applies to forward relation fields only",
@@ -511,7 +532,7 @@ impl Compiler<'_> {
         ordered: bool,
     ) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if ordered {
             require_ordered(field)?;
         }
@@ -529,7 +550,7 @@ impl Compiler<'_> {
 
     fn compile_like(&mut self, field_id: &str, value: &str, kind: LikeKind) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if !matches!(
             field.field_type,
             FieldType::Text | FieldType::Url | FieldType::Select
@@ -562,7 +583,7 @@ impl Compiler<'_> {
         all: bool,
     ) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if !matches!(
             field.field_type,
             FieldType::MultiSelect | FieldType::Relation | FieldType::File
@@ -580,7 +601,14 @@ impl Compiler<'_> {
         }
         let mut clauses = Vec::with_capacity(values.len());
         for value in values {
-            self.params.push(coerce_set_element(field, value)?);
+            let operand = match self
+                .list_elements
+                .and_then(|elements| elements.get(&field.id))
+            {
+                Some(element) => lookup_list_operand(element, value)?,
+                None => coerce_set_element(field, value)?,
+            };
+            self.params.push(operand);
             clauses.push(format!(
                 "EXISTS (SELECT 1 FROM json_each({column}) je WHERE je.value = ?)"
             ));
@@ -602,7 +630,7 @@ impl Compiler<'_> {
         let mut clauses = Vec::with_capacity(search.fields.len());
         for reference in &search.fields {
             let field = resolve_field(self.fields, reference)?;
-            let column = quote_identifier(stored_column(field)?)?;
+            let column = self.column(field)?;
             let clause = match field.field_type {
                 // One edge hop: match the target table's current Record
                 // Label via the cold-join shape (§7.1).
@@ -620,8 +648,8 @@ impl Compiler<'_> {
                     self.params.push(SqlValue::Text(pattern.clone()));
                     format!(
                         "EXISTS (SELECT 1 FROM json_each({column}) je \
-                         JOIN {table} t ON t.{row_id} = je.value \
-                         WHERE LOWER(CAST(t.{label} AS TEXT)) LIKE LOWER(?) ESCAPE '\\')",
+                         LEFT JOIN {table} t ON t.{row_id} = je.value \
+                         WHERE LOWER(CAST(CASE WHEN t.{row_id} IS NULL THEN je.value ELSE t.{label} END AS TEXT)) LIKE LOWER(?) ESCAPE '\\')",
                         table = quote_identifier(&target.table)?,
                         row_id = quote_identifier(&target.row_id)?,
                         label = quote_identifier(&target.label)?,
@@ -660,6 +688,30 @@ impl Compiler<'_> {
             clauses.push(clause);
         }
         Ok(format!("({})", clauses.join(" OR ")))
+    }
+}
+
+fn lookup_list_operand(element: &str, value: &JsonValue) -> Result<SqlValue> {
+    let invalid = || invalid_query(format!("Invalid {element} Lookup list operand"));
+    match element {
+        "file-entry" if value.is_object() => jcs::to_jcs(value)
+            .map(SqlValue::Text)
+            .map_err(|_| invalid()),
+        "number" => value.as_f64().map(SqlValue::Real).ok_or_else(invalid),
+        "checkbox" => value
+            .as_bool()
+            .map(|v| SqlValue::Integer(i64::from(v)))
+            .ok_or_else(invalid),
+        "integer" => value
+            .as_str()
+            .filter(|s| s.parse::<i64>().is_ok_and(|i| i.to_string() == *s))
+            .map(|s| SqlValue::Text(s.into()))
+            .ok_or_else(invalid),
+        "text" | "url" | "select" | "row-id" | "date" | "datetime" => value
+            .as_str()
+            .map(|s| SqlValue::Text(s.into()))
+            .ok_or_else(invalid),
+        _ => Err(invalid()),
     }
 }
 
@@ -750,8 +802,12 @@ fn compile(
     fields: &[FieldMeta],
     query: &RowQuery,
     relations: Option<&HashMap<String, RelationSearchTarget>>,
+    expressions: Option<&HashMap<String, String>>,
+    list_elements: Option<&HashMap<String, String>>,
 ) -> Result<CompiledQuery> {
     let mut compiler = Compiler {
+        expressions,
+        list_elements,
         fields,
         params: Vec::new(),
         relations,
@@ -794,7 +850,25 @@ pub fn compile_query(
     query: &RowQuery,
 ) -> Result<CompiledQuery> {
     let _ = table;
-    compile(fields, query, None)
+    compile(fields, query, None, None, None)
+}
+
+/// Compile predicates against stored and derived fields, resolving Relation search targets.
+pub fn compile_derived_predicates(
+    conn: &Connection,
+    fields: &[FieldMeta],
+    query: &RowQuery,
+    expressions: &HashMap<String, String>,
+    list_elements: &HashMap<String, String>,
+) -> Result<CompiledQuery> {
+    let relations = load_relation_search_targets(conn, fields, query)?;
+    compile(
+        fields,
+        query,
+        Some(&relations),
+        Some(expressions),
+        Some(list_elements),
+    )
 }
 
 /// Loads the target table's physical name, row-id column, and label column
@@ -947,7 +1021,7 @@ pub fn read_rows(
     options: &ReadRowsOptions,
 ) -> Result<RowPage> {
     let relations = load_relation_search_targets(conn, fields, query)?;
-    let compiled = compile(fields, query, Some(&relations))?;
+    let compiled = compile(fields, query, Some(&relations), None, None)?;
 
     let row_id_field = fields
         .iter()

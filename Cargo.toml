@@ -5,6 +5,7 @@ default-members = ["apps/cli"]
 
 [workspace.dependencies]
 eidos-file-core = { path = "crates/eidos-file-core" }
+eidos-file-runtime = { path = "crates/eidos-file-runtime" }
 eidos-runtime-host = { path = "crates/eidos-runtime-host", default-features = false }
 eidos-publish = { path = "crates/eidos-publish" }
 rusqlite = { version = "0.38", features = ["bundled"] }

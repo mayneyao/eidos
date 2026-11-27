@@ -481,6 +481,9 @@ void app.whenReady().then(async () => {
     return
   }
   const appReadyAtMs = Date.now()
+  // Workers inherit the backend at launch. Keep it fixed until the next app start.
+  process.env.EIDOS_LITE_RUNTIME_BACKEND ??=
+    (await controller.getPreferences()).runtimeBackend ?? "rust"
   logger.info("app.ready", {
     startupMs: Math.max(0, appReadyAtMs - bootstrapStartedAtMs),
   })

@@ -10,6 +10,26 @@ import {
 import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 describe("Eidos Lite preferences", () => {
+  it("defaults existing profiles to Rust and restores the selected runtime on restart", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-runtime-")
+    )
+    const file = path.join(directory, "preferences.json")
+    try {
+      await fs.writeFile(file, '{"language":"zh"}')
+      await expect(
+        new EidosLitePreferencesStore(file).get()
+      ).resolves.toMatchObject({ runtimeBackend: "rust", language: "zh" })
+      for (const runtimeBackend of ["js", "rust"] as const) {
+        await new EidosLitePreferencesStore(file).update({ runtimeBackend })
+        await expect(
+          new EidosLitePreferencesStore(file).get()
+        ).resolves.toMatchObject({ runtimeBackend, language: "zh" })
+      }
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
   it("round-trips all explicit languages and the system preference", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-language-")
@@ -79,6 +99,7 @@ describe("Eidos Lite preferences", () => {
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
+      runtimeBackend: "rust",
       menuOrders: {},
       uiZoom: 1.5,
       appearance: "dark",
@@ -104,6 +125,7 @@ describe("Eidos Lite preferences", () => {
     await expect(
       new EidosLitePreferencesStore(filePath).get()
     ).resolves.toEqual({
+      runtimeBackend: "rust",
       menuOrders: {},
       uiZoom: 1.5,
       appearance: "dark",

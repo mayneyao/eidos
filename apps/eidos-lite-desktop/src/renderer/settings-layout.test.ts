@@ -43,6 +43,7 @@ describe("Settings responsive layout", () => {
       "files",
       "shortcuts",
       "updates",
+      "experimental",
       "about",
     ])
     expect(settings).toContain('t("Preferences")')

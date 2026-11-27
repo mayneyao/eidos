@@ -219,6 +219,11 @@ describe("Eidos Lite package identity", () => {
     expect(builder.asarUnpack).toContain("**/node_modules/node-pty/**/*")
     expect(builder.extraResources).toEqual([
       {
+        from: "resources/file-runtime",
+        to: "file-runtime",
+        filter: ["eidos-file-runtime.node"],
+      },
+      {
         from: "resources/plugin-sandbox",
         to: "plugin-sandbox",
         filter: ["plugin-sandbox", "plugin-sandbox.exe"],
@@ -254,6 +259,7 @@ describe("Eidos Lite package identity", () => {
       "build:release",
     ]) {
       expect(scripts[scriptName]).toContain("prepare:terminal")
+      expect(scripts[scriptName]).toContain("prepare:file-runtime")
       expect(scripts[scriptName]).toContain("prepare:plugin-compiler")
     }
     expect(scripts["prepare:plugin-compiler"]).toBe(

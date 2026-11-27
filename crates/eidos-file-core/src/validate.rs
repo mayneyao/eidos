@@ -285,7 +285,7 @@ fn has_calendar_period(value: &JsonValue) -> bool {
     has_calendar_filter(value, "calendar-period")
 }
 
-fn has_calendar_filter(value: &JsonValue, operator: &str) -> bool {
+pub fn has_calendar_filter(value: &JsonValue, operator: &str) -> bool {
     let Some(node) = value.as_object() else {
         return false;
     };

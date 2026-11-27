@@ -119,6 +119,7 @@ struct PreparedField {
     position: i64,
     settings_json: String,
     relation: Option<RelationFieldMeta>,
+    formula: Option<(String, crate::model::FormulaResultType)>,
 }
 
 fn parse_i64(value: Option<&str>, fallback: i64, label: &str) -> Result<i64> {
@@ -165,7 +166,7 @@ fn nullable(kind: FieldType, requested: Option<bool>) -> Result<bool> {
         }
         Ok(fixed)
     } else {
-        Ok(requested.unwrap_or(true))
+        Ok(requested.unwrap_or(kind != FieldType::Checkbox))
     }
 }
 
@@ -206,8 +207,11 @@ fn column_sql(name: &str, kind: FieldType, nullable: bool) -> Result<String> {
         }
         FieldType::Number => format!("{column} REAL{nullability}"),
         FieldType::Integer => format!("{column} INTEGER{nullability}"),
+        FieldType::Checkbox if !nullable => {
+            format!("{column} INTEGER NOT NULL DEFAULT 0 CHECK({column} IN (0,1))")
+        }
         FieldType::Checkbox => {
-            format!("{column} INTEGER{nullability} CHECK({column} IS NULL OR {column} IN (0,1))")
+            format!("{column} INTEGER CHECK({column} IS NULL OR {column} IN (0,1))")
         }
         FieldType::Date => {
             format!("{column} TEXT{nullability} CHECK({})", date_check(&column))
@@ -291,6 +295,7 @@ fn prepare_field(
     field: &NewField,
     index: usize,
     existing_names: &mut Vec<String>,
+    runtime_create_table: bool,
 ) -> Result<PreparedField> {
     if field.client_key.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -298,7 +303,22 @@ fn prepare_field(
         ));
     }
     assert_display_name(&field.name, "Field name")?;
-    unsupported_virtual(field.kind)?;
+    let formula = if runtime_create_table && field.kind == FieldType::Formula {
+        let definition = field
+            .definition
+            .as_ref()
+            .ok_or_else(|| EidosError::InvalidRequest("Missing Formula definition".into()))?;
+        let source = definition["sourceText"]
+            .as_str()
+            .ok_or_else(|| EidosError::InvalidRequest("Missing Formula source".into()))?;
+        let result = crate::model::FormulaResultType::from_spec_str(
+            definition["resultType"].as_str().unwrap_or(""),
+        )?;
+        Some((source.to_owned(), result))
+    } else {
+        unsupported_virtual(field.kind)?;
+        None
+    };
     let folded = sqlite_nocase(&field.name);
     if existing_names
         .iter()
@@ -315,7 +335,7 @@ fn prepare_field(
     let relation = if field.kind == FieldType::Relation {
         Some(parse_relation(&id, field.definition.as_ref())?)
     } else {
-        if field.definition.is_some() {
+        if field.definition.is_some() && formula.is_none() {
             return Err(EidosError::InvalidRequest(format!(
                 "{} field must not carry definition",
                 field.kind.as_str()
@@ -333,6 +353,7 @@ fn prepare_field(
         position: parse_i64(field.position.as_deref(), index as i64, "field position")?,
         settings_json: settings_json(field.settings.as_ref())?,
         relation,
+        formula,
     })
 }
 
@@ -366,7 +387,7 @@ fn insert_field_meta(
             field.id,
             table_id,
             field.name,
-            field.physical_name,
+            field.formula.is_none().then_some(&field.physical_name),
             field.kind.as_str(),
             i64::from(field.nullable),
             field.position,
@@ -375,6 +396,12 @@ fn insert_field_meta(
             instant,
         ],
     )?;
+    if let Some((source, result)) = &field.formula {
+        conn.execute(
+            "INSERT INTO eidos__formula_fields(field_id,source_text,result_type) VALUES(?,?,?)",
+            rusqlite::params![field.id, source, result.as_str()],
+        )?;
+    }
     if let Some(relation) = &field.relation {
         conn.execute(
             "INSERT INTO eidos__relation_fields(field_id,direction,target_table_id,cardinality,inverse_of_field_id,on_delete) VALUES(?,'forward',?,?,NULL,?)",
@@ -439,6 +466,7 @@ struct CreateTableInput<'a> {
     settings: Option<&'a JsonValue>,
     fields: &'a [NewField],
     label_field_client_key: Option<&'a str>,
+    runtime: bool,
 }
 
 fn create_table(
@@ -453,6 +481,7 @@ fn create_table(
         settings,
         fields,
         label_field_client_key,
+        runtime,
     } = input;
     if client_key.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -482,11 +511,14 @@ fn create_table(
         .any(|table| sqlite_nocase(&table.name) == folded)
     {
         return Err(EidosError::AlreadyExists(format!(
-            "duplicate Table name {name:?}"
+            "Duplicate Table name {name:?}"
         )));
     }
     let table_id = generate_uuidv7();
     let table_physical = name.to_string();
+    let row_id = generate_uuidv7();
+    let created_id = generate_uuidv7();
+    let updated_id = generate_uuidv7();
     let mut existing_fields = vec![
         "_id".to_string(),
         "_created_at".to_string(),
@@ -495,7 +527,7 @@ fn create_table(
     let prepared = fields
         .iter()
         .enumerate()
-        .map(|(index, field)| prepare_field(field, index, &mut existing_fields))
+        .map(|(index, field)| prepare_field(field, index, &mut existing_fields, runtime))
         .collect::<Result<Vec<_>>>()?;
     let label_field_id = if let Some(client_key) = label_field_client_key {
         let field = prepared
@@ -506,29 +538,24 @@ fn create_table(
                     "labelFieldClientKey {client_key:?} does not identify a supplied field"
                 ))
             })?;
-        if !label_compatible(field) {
+        if !label_compatible(field) && field.formula.is_none() {
             return Err(EidosError::InvalidRequest(format!(
                 "field {:?} cannot be a record label",
                 field.name
             )));
         }
         field.id.clone()
+    } else if runtime {
+        row_id.clone()
     } else {
         prepared
             .iter()
             .find(|field| label_compatible(field))
             .map(|field| field.id.clone())
-            .unwrap_or_else(generate_uuidv7)
+            .unwrap_or_else(|| row_id.clone())
     };
-    let row_id = if prepared.iter().any(|field| field.id == label_field_id) {
-        generate_uuidv7()
-    } else {
-        label_field_id.clone()
-    };
-    let created_id = generate_uuidv7();
-    let updated_id = generate_uuidv7();
     let mut definitions = system_column_sql();
-    for field in &prepared {
+    for field in prepared.iter().filter(|f| f.formula.is_none()) {
         definitions.push(column_sql(
             &field.physical_name,
             field.kind,
@@ -596,6 +623,116 @@ fn create_table(
     Ok(created)
 }
 
+fn is_fs_meta(table: &TableMeta) -> bool {
+    serde_json::from_str::<JsonValue>(&table.settings_json)
+        .is_ok_and(|v| v["vtabModule"] == "fs_meta")
+}
+
+// Keep the original module options (including ignore and namespace) when
+// rebuilding a catalog. Only the quoted fields argument is replaced.
+fn rebuild_fs_meta(conn: &Connection, table: &TableMeta) -> Result<()> {
+    let name = quote_identifier(&table.physical_name)?;
+    let sql: String = conn.query_row(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        [&table.physical_name],
+        |r| r.get(0),
+    )?;
+    let invalid = || EidosError::InvalidSchema("Invalid fs_meta virtual table declaration".into());
+    let (_, args) = sql
+        .rsplit_once(" USING fs_meta(")
+        .or_else(|| sql.split_once(" using fs_meta("))
+        .ok_or_else(invalid)?;
+    let mut input = args
+        .trim_end()
+        .strip_suffix(')')
+        .ok_or_else(invalid)?
+        .trim();
+    let mut options = Vec::new();
+    while !input.is_empty() {
+        let (key, raw) = input.split_once('=').ok_or_else(invalid)?;
+        let key = key.trim();
+        if !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') || key.is_empty() {
+            return Err(invalid());
+        }
+        let mut chars = raw.trim_start().char_indices().peekable();
+        let (_, quote) = chars.next().ok_or_else(invalid)?;
+        if !matches!(quote, '\'' | '"') {
+            return Err(invalid());
+        }
+        let mut value = String::new();
+        let end = loop {
+            let (pos, ch) = chars.next().ok_or_else(invalid)?;
+            if ch == quote {
+                if chars.peek().is_some_and(|(_, c)| *c == quote) {
+                    chars.next();
+                } else {
+                    break pos + 1;
+                }
+            }
+            value.push(ch);
+        };
+        if !key.eq_ignore_ascii_case("fields") {
+            options.push(format!("{key}='{}'", value.replace('\'', "''")));
+        }
+        let remaining = raw.trim_start()[end..].trim_start();
+        if remaining.is_empty() {
+            break;
+        }
+        input = remaining
+            .strip_prefix(',')
+            .ok_or_else(invalid)?
+            .trim_start();
+    }
+    let mut columns = Vec::new();
+    for field in load_fields(conn)?
+        .into_iter()
+        .filter(|f| f.table_id == table.id && f.system_role.is_none())
+    {
+        let settings: JsonValue =
+            serde_json::from_str(&field.settings_json).map_err(|_| invalid())?;
+        let Some(column) = field.physical_name else {
+            continue;
+        };
+        if settings["isSystem"] == true
+            || [
+                "_id",
+                "id",
+                "name",
+                "extension",
+                "size",
+                "_created_at",
+                "_updated_at",
+                "mtime",
+                "path",
+                "is_dir",
+                "file",
+                "mimetype",
+                "mime_type",
+            ]
+            .contains(&column.to_ascii_lowercase().as_str())
+        {
+            continue;
+        }
+        let ty = match field.field_type {
+            FieldType::Integer | FieldType::Checkbox => "INTEGER",
+            FieldType::Number => "REAL",
+            _ => "TEXT",
+        };
+        columns.push(serde_json::json!({"name":column,"type":ty,"key":settings["vtabStorageKey"].as_str().unwrap_or(&column)}));
+    }
+    let fields = jcs::to_jcs(&JsonValue::Array(columns))?;
+    options.push(format!("fields='{}'", fields.replace('\'', "''")));
+    conn.execute(&format!("DROP TABLE {name}"), [])?;
+    conn.execute(
+        &format!(
+            "CREATE VIRTUAL TABLE {name} USING fs_meta({})",
+            options.join(",")
+        ),
+        [],
+    )?;
+    Ok(())
+}
+
 fn create_field(
     conn: &Connection,
     table_id: &str,
@@ -616,7 +753,17 @@ fn create_field(
         .iter()
         .map(|field| field.name.clone())
         .collect();
-    let mut prepared = prepare_field(field, table_fields.len(), &mut existing)?;
+    let mut prepared = prepare_field(field, table_fields.len(), &mut existing, false)?;
+    if prepared.relation.as_ref().is_some_and(|r| {
+        is_fs_meta(table)
+            || tables
+                .iter()
+                .any(|t| t.id == r.target_table_id && is_fs_meta(t))
+    }) {
+        return Err(EidosError::Forbidden(
+            "Relations require ordinary tables".into(),
+        ));
+    }
     if prepared.relation.is_some()
         && !tables
             .iter()
@@ -636,7 +783,7 @@ fn create_field(
         && !prepared.nullable
         && !matches!(
             prepared.kind,
-            FieldType::MultiSelect | FieldType::File | FieldType::Relation
+            FieldType::Checkbox | FieldType::MultiSelect | FieldType::File | FieldType::Relation
         )
     {
         return Err(EidosError::Forbidden(format!(
@@ -653,12 +800,21 @@ fn create_field(
             .unwrap_or(-1)
             + 1;
     }
-    conn.execute_batch(&format!(
-        "ALTER TABLE {} ADD COLUMN {}",
-        quote_identifier(&table.physical_name)?,
-        column_sql(&prepared.physical_name, prepared.kind, prepared.nullable)?
-    ))?;
-    insert_field_meta(conn, table_id, &prepared, instant)?;
+    if is_fs_meta(table) {
+        let mut settings: JsonValue = serde_json::from_str(&prepared.settings_json)
+            .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+        settings["vtabStorageKey"] = JsonValue::String(prepared.name.clone());
+        prepared.settings_json = jcs::to_jcs(&settings)?;
+        insert_field_meta(conn, table_id, &prepared, instant)?;
+        rebuild_fs_meta(conn, table)?;
+    } else {
+        conn.execute_batch(&format!(
+            "ALTER TABLE {} ADD COLUMN {}",
+            quote_identifier(&table.physical_name)?,
+            column_sql(&prepared.physical_name, prepared.kind, prepared.nullable)?
+        ))?;
+        insert_field_meta(conn, table_id, &prepared, instant)?;
+    }
     install_relation_triggers(conn, &prepared, table, &tables)?;
     conn.execute(
         "UPDATE eidos__tables SET updated_at=? WHERE id=?",
@@ -698,7 +854,7 @@ fn rename_table(conn: &Connection, table_id: &str, name: &str, instant: &str) ->
         .any(|other| other.id != table_id && sqlite_nocase(&other.name) == folded)
     {
         return Err(EidosError::AlreadyExists(format!(
-            "duplicate Table name {name:?}"
+            "Duplicate Table name {name:?}"
         )));
     }
     let physical = name.to_string();
@@ -753,6 +909,11 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
     if field.name == name {
         return Ok(false);
     }
+    if is_fs_meta(&table_by_id(conn, &field.table_id)?) {
+        return Err(EidosError::Forbidden(
+            "File metadata fields cannot be renamed".into(),
+        ));
+    }
     let fields = load_fields(conn)?;
     let folded = sqlite_nocase(name);
     if fields.iter().any(|other| {
@@ -764,15 +925,17 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
             "duplicate Field name {name:?}"
         )));
     }
-    let formula_count: i64 = conn.query_row(
-        "SELECT count(*) FROM eidos__formula_fields ff JOIN eidos__fields f ON f.id=ff.field_id WHERE f.table_id=?",
-        [field.table_id.as_str()],
-        |row| row.get(0),
-    )?;
-    if formula_count > 0 {
-        return Err(EidosError::Forbidden(
-            "renaming fields in a table with Formula definitions requires Formula AST rewrite, which the Rust CLI alpha does not implement".into(),
-        ));
+    for formula in crate::model::load_formula_fields(conn)? {
+        if fields
+            .iter()
+            .any(|f| f.table_id == field.table_id && f.id == formula.field_id)
+            && let Some(next) = renamed_formula_source(&formula.source_text, &field.name, name)?
+        {
+            conn.execute(
+                "UPDATE eidos__formula_fields SET source_text=? WHERE field_id=?",
+                rusqlite::params![next, formula.field_id],
+            )?;
+        }
     }
     let table = table_by_id(conn, &field.table_id)?;
     let physical = field
@@ -799,6 +962,10 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
     )?;
     Ok(true)
 }
+
+/// Quoted identifiers are field references. Strings and escaped quotes must
+/// survive a display-name change verbatim.
+pub use crate::formula_source::rename_reference as renamed_formula_source;
 
 fn delete_table(conn: &Connection, table_id: &str) -> Result<()> {
     let table = table_by_id(conn, table_id)?;
@@ -840,6 +1007,24 @@ fn label_field_allowed(field: &FieldMeta) -> bool {
         )
 }
 
+pub fn view_query_uses_field(node: &JsonValue, id: &str) -> bool {
+    match node {
+        JsonValue::Object(obj) => {
+            ["field", "fieldId"]
+                .iter()
+                .any(|k| obj.get(*k).and_then(JsonValue::as_str) == Some(id))
+                || ["sort", "filter", "args", "arg", "children"]
+                    .iter()
+                    .any(|k| {
+                        obj.get(*k)
+                            .is_some_and(|child| view_query_uses_field(child, id))
+                    })
+        }
+        JsonValue::Array(nodes) => nodes.iter().any(|child| view_query_uses_field(child, id)),
+        _ => false,
+    }
+}
+
 fn delete_field(
     conn: &Connection,
     field_id: &str,
@@ -860,7 +1045,10 @@ fn delete_field(
             )
         })?;
         let replacement = field_by_id(conn, replacement_id)?;
-        if replacement.table_id != field.table_id || !label_field_allowed(&replacement) {
+        if replacement.id == field.id
+            || replacement.table_id != field.table_id
+            || !label_field_allowed(&replacement)
+        {
             return Err(EidosError::InvalidRequest(
                 "replacement label field must be a compatible field in the same table".into(),
             ));
@@ -882,20 +1070,63 @@ fn delete_field(
             "field is referenced by a {dependency} definition"
         )));
     }
-    if load_views(conn)?.iter().any(|view| {
-        view.table_id == field.table_id
-            && (view.query_json.contains(field_id) || view.layout_json.contains(field_id))
-    }) {
-        return Err(EidosError::Forbidden(
-            "field is referenced by a saved View; update or delete the View first".into(),
-        ));
+    for view in load_views(conn)?
+        .iter()
+        .filter(|v| v.table_id == field.table_id)
+    {
+        let parse = |raw: &str| {
+            serde_json::from_str::<JsonValue>(raw)
+                .map_err(|e| EidosError::InvalidSchema(e.to_string()))
+        };
+        if view_query_uses_field(&parse(&view.query_json)?, field_id) {
+            return Err(EidosError::Forbidden(
+                "field is referenced by a saved View query".into(),
+            ));
+        }
+        let mut layout = parse(&view.layout_json)?;
+        for key in ["cardFields", "fieldOrder", "hiddenFields"] {
+            if let Some(values) = layout.get_mut(key).and_then(JsonValue::as_array_mut) {
+                values.retain(|v| v.as_str() != Some(field_id));
+            }
+        }
+        for key in ["coverField", "groupField", "dateField"] {
+            if layout[key].as_str() == Some(field_id) {
+                layout[key] = JsonValue::Null;
+            }
+        }
+        if let Some(widths) = layout
+            .get_mut("fieldWidths")
+            .and_then(JsonValue::as_object_mut)
+        {
+            widths.remove(field_id);
+        }
+        let next = jcs::to_jcs(&layout)?;
+        if next != view.layout_json {
+            conn.execute(
+                "UPDATE eidos__views SET layout_json=?,updated_at=? WHERE id=?",
+                rusqlite::params![next, instant, view.id],
+            )?;
+        }
+    }
+    let mut settings: JsonValue = serde_json::from_str(&table.settings_json)
+        .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+    if settings["contentFieldId"].as_str() == Some(field_id) {
+        if let Some(object) = settings.as_object_mut() {
+            object.remove("contentFieldId");
+        }
+        conn.execute(
+            "UPDATE eidos__tables SET settings_json=?,updated_at=? WHERE id=?",
+            rusqlite::params![jcs::to_jcs(&settings)?, instant, table.id],
+        )?;
     }
     if field.field_type == FieldType::Relation {
         for statement in relation::relation_drop_triggers_sql(field_id)? {
             conn.execute_batch(&statement)?;
         }
     }
-    if let Some(physical) = &field.physical_name {
+    if let Some(physical) = &field.physical_name
+        && !is_fs_meta(&table)
+    {
         conn.execute_batch(&format!(
             "ALTER TABLE {} DROP COLUMN {}",
             quote_identifier(&table.physical_name)?,
@@ -903,6 +1134,21 @@ fn delete_field(
         ))?;
     }
     conn.execute("DELETE FROM eidos__fields WHERE id=?", [field_id])?;
+    if is_fs_meta(&table) {
+        rebuild_fs_meta(conn, &table)?;
+        if let Some(physical) = field.physical_name.as_deref() {
+            let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+            let key = settings["vtabStorageKey"].as_str().unwrap_or(physical);
+            conn.execute(
+                &format!(
+                    "UPDATE {} SET __fs_meta_remove_key=?",
+                    quote_identifier(&table.physical_name)?
+                ),
+                [key],
+            )?;
+        }
+    }
     conn.execute(
         "UPDATE eidos__tables SET updated_at=? WHERE id=?",
         rusqlite::params![instant, field.table_id],
@@ -910,11 +1156,31 @@ fn delete_field(
     Ok(())
 }
 
-fn apply_inner(
+/// Apply one leaf of an enclosing schema mutation. The caller owns the
+/// transaction, final foreign-key check and single revision increment.
+pub fn apply_schema_leaf(
     conn: &Connection,
     change: &SchemaLeafChange,
     instant: &str,
 ) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    apply_leaf(conn, change, instant, false)
+}
+
+pub fn apply_runtime_schema_leaf(
+    conn: &Connection,
+    change: &SchemaLeafChange,
+    instant: &str,
+) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    apply_leaf(conn, change, instant, true)
+}
+
+fn apply_leaf(
+    conn: &Connection,
+    change: &SchemaLeafChange,
+    instant: &str,
+    runtime: bool,
+) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    debug_assert!(!conn.is_autocommit());
     match change {
         SchemaLeafChange::CreateTable {
             client_key,
@@ -934,6 +1200,7 @@ fn apply_inner(
                     settings: settings.as_ref(),
                     fields,
                     label_field_client_key: label_field_client_key.as_deref(),
+                    runtime,
                 },
                 instant,
             )?,
@@ -994,7 +1261,7 @@ fn apply_inner(
     }
 }
 
-fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
+pub fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
     let mut statement = conn.prepare("PRAGMA foreign_key_check")?;
     if statement.query([])?.next()?.is_some() {
         return Err(EidosError::InvalidSchema(
@@ -1028,7 +1295,7 @@ pub fn apply_schema_change_in_transaction(
 ) -> Result<SchemaChangeResult> {
     let (current_revision, _) = check_revision(tx, expected_revision)?;
     let instant = now_instant();
-    let (changed, created_objects) = apply_inner(tx, change, &instant)?;
+    let (changed, created_objects) = apply_schema_leaf(tx, change, &instant)?;
     let revision = if changed {
         ensure_foreign_keys(tx)?;
         ddl::increment_revision(tx, &instant)?
@@ -1079,7 +1346,7 @@ pub fn apply_initial_table(
     }
 
     let instant = now_instant();
-    let (changed, created_objects) = apply_inner(&tx, change, &instant)?;
+    let (changed, created_objects) = apply_schema_leaf(&tx, change, &instant)?;
     let table_id = created_objects
         .iter()
         .find(|object| object.object == CreatedObjectKind::Table)

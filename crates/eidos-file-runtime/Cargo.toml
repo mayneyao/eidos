@@ -1,0 +1,26 @@
+[package]
+name = "eidos-file-runtime"
+version = "0.1.0"
+edition = "2024"
+description = "Native Rust Runtime 1.0 implementation for the open Eidos File format"
+authors = ["mayneyao"]
+license = "MIT"
+publish = false
+
+[dependencies]
+base64 = "0.22"
+hmac = "0.12"
+getrandom = "0.4"
+eidos-file-core = { workspace = true }
+rusqlite = { workspace = true, features = ["bundled", "functions", "limits", "load_extension", "backup"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+jiff = { version = "0.2.37", default-features = false, features = ["std"] }
+jiff-tzdb = "=1.0.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+tempfile = "3.19"

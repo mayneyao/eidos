@@ -1427,6 +1427,10 @@ export class EidosRuntimeService implements RuntimeClient {
           request.expectedRevision,
           String(current.revision)
         )
+        if (request.returning) {
+          assertProjection(request.returning)
+          this.columns(request.tableId, request.returning)
+        }
         const table = this.core.getTable(request.tableId)
         const isVirtual =
           table.settings?.tableType === "virtual" ||
@@ -1627,7 +1631,8 @@ export class EidosRuntimeService implements RuntimeClient {
               created: result.created,
               affectedRows: result.affectedRows,
             },
-          })
+          }),
+          request.returning !== undefined
         )
       },
       false,
@@ -1655,7 +1660,10 @@ export class EidosRuntimeService implements RuntimeClient {
           beforeRevision,
           context,
           async () => {
-            const result = this.core.revertRowMutation(request.undoToken)
+            const result = this.core.revertRowMutation(
+              request.undoToken,
+              parseRevision(request.expectedRevision)
+            )
             const after = this.core.info()
             return {
               fileId: after.fileId,
@@ -2078,9 +2086,7 @@ export class EidosRuntimeService implements RuntimeClient {
                   affected.add(view.id)
                   continue
                 }
-                const current = this.allViews().find(
-                  (view) => view.id === change.viewId
-                )
+                const current = this.core.findView(change.viewId)
                 if (!current) {
                   throw runtimeError("not-found", "View not found")
                 }
@@ -4888,13 +4894,14 @@ export class EidosRuntimeService implements RuntimeClient {
     baseRevision: string,
     context: RequestContext,
     execute: () => T | Promise<T>,
-    reconciliation: (result: T) => CommitReconciliation
+    reconciliation: (result: T) => CommitReconciliation,
+    atomicResponse = false
   ): Promise<T> {
     const barrier = this.environment.transportCommitBarrier
-    if (!barrier) return execute()
+    if (!barrier && !atomicResponse) return execute()
     return this.connection.transaction("write", async () => {
       const result = await execute()
-      if (result.changed) {
+      if (barrier && result.changed) {
         const record = reconciliation(result)
         if (record.operation !== operation) {
           throw runtimeError(

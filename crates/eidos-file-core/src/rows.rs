@@ -363,14 +363,33 @@ pub fn mutate_rows_in_transaction(
     conn: &Transaction<'_>,
     mutation: &RowMutation,
 ) -> Result<RowMutationResult> {
+    mutate_rows_recording_detach(conn, mutation, None)
+}
+
+/// Applies rows inside a caller-owned write transaction. Reversible deletes
+/// can retain precisely the surviving relation cells rewritten by this call.
+pub fn mutate_rows_recording_detach(
+    conn: &Connection,
+    mutation: &RowMutation,
+    detached: Option<&mut Vec<relation::DetachedCell>>,
+) -> Result<RowMutationResult> {
+    mutate_rows_at(conn, mutation, detached, now_instant())
+}
+
+/// Bind all generated timestamps and logical defaults to the caller's mutation instant.
+pub fn mutate_rows_at(
+    conn: &Connection,
+    mutation: &RowMutation,
+    detached: Option<&mut Vec<relation::DetachedCell>>,
+    instant: String,
+) -> Result<RowMutationResult> {
+    assert!(!conn.is_autocommit());
     if mutation.changes.is_empty() {
         return Err(EidosError::InvalidRequest(
             "RowMutation.changes must be non-empty".into(),
         ));
     }
     let (file_id, current_revision) = check_revision(conn, mutation.expected_revision.as_deref())?;
-    let instant = now_instant();
-
     let tables = load_tables(conn)?;
     let fields = load_fields(conn)?;
     let relations = load_relation_fields(conn)?;
@@ -494,8 +513,8 @@ pub fn mutate_rows_in_transaction(
                 field.field_type,
                 FieldType::MultiSelect | FieldType::File | FieldType::Relation
             );
-            if is_list || field.nullable {
-                continue; // covered by the column DEFAULT '[]' / NULL fill
+            if is_list || field.field_type == FieldType::Checkbox || field.nullable {
+                continue; // The column default supplies the omitted value.
             }
             return Err(EidosError::InvalidValue(format!(
                 "field {:?} ({}) is non-nullable and has no default; a create must supply it",
@@ -604,7 +623,9 @@ pub fn mutate_rows_in_transaction(
     if !deletes.is_empty() {
         delete_set.insert(ctx.table.id.clone(), deletes.clone());
     }
-    for (table_id, row_id) in relation::preflight_delete_policy(conn, &delete_set, &instant)? {
+    for (table_id, row_id) in
+        relation::delete_policy_with_capture(conn, &delete_set, &instant, detached)?
+    {
         affected.insert(AffectedRow { table_id, row_id });
     }
 

@@ -134,7 +134,15 @@ async function main() {
   )
 }
 
-main().catch((err) => {
+async function prepare() {
+  await main()
+  // SQLite extensions keep their host API pointer in module-global storage.
+  // Each SQLite engine must load its own image in the utility process.
+  const native = path.join(destinationDirectory, "native")
+  await fs.mkdir(native, { recursive: true })
+  await fs.copyFile(destination, path.join(native, binaryName))
+}
+prepare().catch((err) => {
   console.error("prepare-vtab failed:", err)
   process.exit(1)
 })

@@ -1535,6 +1535,11 @@ const zh: Record<string, string> = {
   "Choose where new Spaces are created.": "选择新建 Space 的保存位置。",
   "Manage devices paired with this computer.": "管理与此电脑配对的设备。",
   Preferences: "偏好设置",
+  Experimental: "实验性",
+  "File runtime": "文件运行时",
+  "Rust (default)": "Rust（默认）",
+  "Restart Eidos Lite to apply. Choose JavaScript to use the previous desktop runtime.":
+    "重启 Eidos Lite 后生效。选择 JavaScript 可切回原来的桌面运行时。",
   Theme: "主题",
   "Select loaded files": "全选已加载文件",
   "Click to review; check files to save separately.":
