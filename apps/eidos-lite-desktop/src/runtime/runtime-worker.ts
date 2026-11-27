@@ -39,10 +39,9 @@ import {
   type EidosLiteFileRuntime,
 } from "./eidos-file-runtime"
 import { serializeRuntimeWorkerError } from "./runtime-worker-error"
-import { filemeta } from "./filemeta"
 import { inspectEidosMergeTables } from "./merge-table-inspection"
 import { readMergeTablePreview } from "./merge-table-preview"
-import { MarkdownLinkBatch } from "./markdown-link-batch"
+import type { MarkdownLinkBatch } from "./markdown-link-batch"
 import { inspectExplorerEidosSummary } from "./explorer-eidos-summary"
 
 interface UtilityParentPort {
@@ -424,13 +423,15 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       if (openedRuntime)
         throw Error("Explorer inspection requires a private worker")
       return inspectExplorerEidosSummary(request.filePath)
-    case "filemeta":
+    case "filemeta": {
+      const { filemeta } = await import("./filemeta")
       return filemeta(
         request.root,
         request.relativePath,
         request.namespace,
         request.patch
       )
+    }
     case "create": {
       if (!path.isAbsolute(request.filePath)) {
         throw new Error("Runtime file path must be absolute")
@@ -531,6 +532,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       if (openedRuntime)
         throw new Error("Link maintenance requires a private worker")
       if (request.operation.kind === "prepare") {
+        const { MarkdownLinkBatch } = await import("./markdown-link-batch")
         if (markdownLinkBatch)
           throw new Error("Link maintenance is already prepared")
         markdownLinkBatch = new MarkdownLinkBatch(request.operation.root)

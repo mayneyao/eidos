@@ -119,18 +119,37 @@ const absoluteFilePropertiesPath = (root: string, relative: string) =>
   path.join(root, relative)
 
 async function createSpaceSession(
-  ...args: Parameters<(typeof SpaceSession)["createCanonical"]>
+  canonical: Parameters<(typeof SpaceSession)["createCanonical"]>[0],
+  userData: string,
+  options: Parameters<(typeof SpaceSession)["createCanonical"]>[2],
+  warmFirstFile = false
 ): Promise<SpaceSession> {
-  const { SpaceSession } = await import("./space/space-session")
-  const [canonical, userData, options] = args
   const readOnly = await isDevelopmentReadonlyRoot(
     canonical.root,
     app.isPackaged
   )
-  return SpaceSession.createCanonical(canonical, userData, {
-    ...options,
-    readOnly,
-  })
+  const pool = new RuntimePool(
+    canonical.root,
+    options.workerPath,
+    undefined,
+    readOnly
+  )
+  if (warmFirstFile) pool.warmForFirstOpen()
+  try {
+    const { SpaceSession } = await import("./space/space-session")
+    return await SpaceSession.createCanonical(
+      canonical,
+      userData,
+      {
+        ...options,
+        readOnly,
+      },
+      pool
+    )
+  } catch (error) {
+    await pool.destroy()
+    throw error
+  }
 }
 
 export class WindowController {
@@ -1967,15 +1986,21 @@ export class WindowController {
     }
     this.windowBySpaceId.set(canonical.id, window)
     let session: SpaceSession
-    const opening = this.sharedSessions.has(canonical.id)
-      ? Promise.resolve(this.sharedSessions.get(canonical.id)!)
-      : createSpaceSession(canonical, app.getPath("userData"), {
-          graft: this.createGraftClient(),
-          requireSparkFeature: (feature) =>
-            this.sparkFeatureGuard?.(feature) ??
-            Promise.reject(new Error("Spark authorization is unavailable")),
-          workerPath: this.runtimeWorkerPath(),
-        })
+    const shared = this.sharedSessions.get(canonical.id)
+    const opening = shared
+      ? Promise.resolve(shared)
+      : createSpaceSession(
+          canonical,
+          app.getPath("userData"),
+          {
+            graft: this.createGraftClient(),
+            requireSparkFeature: (feature) =>
+              this.sparkFeatureGuard?.(feature) ??
+              Promise.reject(new Error("Spark authorization is unavailable")),
+            workerPath: this.runtimeWorkerPath(),
+          },
+          true
+        )
     this.openingSessions.add(opening)
     try {
       session = await opening
@@ -1996,7 +2021,7 @@ export class WindowController {
     }
     let snapshot: SpaceSnapshot
     try {
-      session.runtimePool.warmForFirstOpen()
+      if (shared) shared.runtimePool.warmForFirstOpen()
       snapshot = await session.snapshot()
       assertAdmission?.()
     } catch (error) {

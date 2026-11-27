@@ -32,7 +32,6 @@ import {
 } from "@eidos.space/eidos-file/node-sqlite"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 import { createEidosFileTableWithContent } from "@eidos.space/eidos-file-ui/create-table-with-content"
-import { parse } from "csv-parse"
 
 import {
   EIDOS_LITE_CSV_FILE_BYTES_MAX,
@@ -197,6 +196,8 @@ async function visitCsvRows(
   malformedRows: number
   inconsistentRows: number
 }> {
+  assertNotCanceled(signal)
+  const { parse } = await import("csv-parse")
   assertNotCanceled(signal)
   let malformedRows = 0
   const file = createReadStream(source.sourcePath, { signal })

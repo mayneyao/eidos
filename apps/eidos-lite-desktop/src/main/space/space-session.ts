@@ -594,14 +594,12 @@ export class SpaceSession {
     private readonly requireSparkFeature?: (
       feature: SparkFeature
     ) => Promise<void>,
-    readonly readOnly = false
+    readonly readOnly = false,
+    runtimePool?: RuntimePool
   ) {
-    this.runtimePool = new RuntimePool(
-      canonical.root,
-      workerPath,
-      undefined,
-      readOnly
-    )
+    this.runtimePool =
+      runtimePool ??
+      new RuntimePool(canonical.root, workerPath, undefined, readOnly)
     this.pathIndex = new SpacePathIndex(canonical.root)
     this.repository = new SpaceRepositoryCoordinator()
     this.syncState = new SpaceSyncStateStore(
@@ -675,7 +673,8 @@ export class SpaceSession {
       workerPath?: string
       requireSparkFeature?: (feature: SparkFeature) => Promise<void>
       readOnly?: boolean
-    }
+    },
+    runtimePool?: RuntimePool
   ): Promise<SpaceSession> {
     await assertSpaceRootIdentity(canonical)
     const session = new SpaceSession(
@@ -684,7 +683,8 @@ export class SpaceSession {
       path.join(userDataDirectory, "spaces", canonical.id),
       options.workerPath,
       options.requireSparkFeature,
-      options.readOnly
+      options.readOnly,
+      runtimePool
     )
     try {
       if (session.readOnly) {
