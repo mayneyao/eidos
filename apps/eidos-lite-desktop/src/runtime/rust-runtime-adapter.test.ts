@@ -385,6 +385,61 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   )
 
+  it.each(["js", "rust"])(
+    "waits for an external revision and reports the last seen revision on timeout in %s",
+    async (backend) => {
+      const copy = path.join(tempDir, `snapshot-${backend}.eidos`)
+      await fs.copyFile(filePath, copy)
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+      try {
+        const reader = await openEidosLiteFileRuntime(copy, { readOnly: true })
+        const writer = await openEidosLiteFileRuntime(copy)
+        try {
+          const ctx = { requestId: "revision" }
+          const { revision } = await reader.source.runtime.getSnapshot({}, ctx)
+          const minimumRevision = String(BigInt(revision) + 1n)
+          const pending = reader.source.runtime.getSnapshot(
+            { minimumRevision },
+            ctx
+          )
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          await writer.source.runtime.mutateRows(
+            {
+              tableId,
+              expectedRevision: revision,
+              changes: [
+                {
+                  kind: "create",
+                  clientKey: "next",
+                  values: { [nameFieldId]: "later" },
+                },
+              ],
+            },
+            ctx
+          )
+          expect((await pending).revision).toBe(minimumRevision)
+          await expect(
+            reader.source.runtime.getSnapshot(
+              { minimumRevision: String(BigInt(minimumRevision) + 1n) },
+              { ...ctx, deadlineMilliseconds: 25 }
+            )
+          ).rejects.toMatchObject({
+            code: "deadline-exceeded",
+            currentRevision: minimumRevision,
+          })
+        } finally {
+          await writer.close()
+          await reader.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
   it("interrupts a running SQLite read on cancellation or deadline and keeps the session usable", async () => {
     const copy = path.join(tempDir, "interruptible.eidos")
     await fs.copyFile(filePath, copy)

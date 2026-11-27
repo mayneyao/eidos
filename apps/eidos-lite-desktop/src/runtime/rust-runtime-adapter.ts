@@ -207,17 +207,54 @@ function wrapNativeHandle(
     }
     const unsubscribe = ctx?.signal?.onAbort(cancel)
     if (id !== undefined) pending.set(id, cancel)
-    const execute = async () => {
+    const checkControl = (currentRevision?: string) => {
+      const revision = currentRevision === undefined ? {} : { currentRevision }
       if (cancelled)
         throw Object.assign(new Error("Request was cancelled"), {
           code: "cancelled",
           retryable: true,
+          ...revision,
         })
       if (performance.now() > deadline)
         throw Object.assign(new Error("Request deadline exceeded"), {
           code: "deadline-exceeded",
           retryable: true,
+          ...revision,
         })
+    }
+    const execute = async () => {
+      checkControl()
+      if (
+        method === "getSnapshot" &&
+        request &&
+        typeof request === "object" &&
+        "minimumRevision" in request &&
+        request.minimumRevision !== undefined
+      ) {
+        const minimum = request.minimumRevision
+        if (
+          typeof minimum !== "string" ||
+          !/^(0|[1-9][0-9]{0,18})$/.test(minimum) ||
+          BigInt(minimum) > 9223372036854775807n
+        )
+          throw Object.assign(new Error("Invalid minimumRevision"), {
+            code: "invalid-request",
+          })
+        const target = BigInt(minimum)
+        for (;;) {
+          const snapshot = JSON.parse(
+            handle.call("getSnapshot", "{}")
+          ) as Awaited<ReturnType<RuntimeClient["getSnapshot"]>>
+          if (BigInt(snapshot.revision) >= target) return snapshot as T
+          checkControl(snapshot.revision)
+          if (closing)
+            throw Object.assign(
+              new Error("Runtime closed during snapshot wait"),
+              { code: "closed" }
+            )
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+      }
       const payload = JSON.stringify(request ?? {})
       reading = interruptible.has(method)
       const raw = reading

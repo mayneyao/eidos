@@ -53,7 +53,7 @@ pub fn field_sql_expr(
     formula_defs: &HashMap<String, FormulaFieldMeta>,
     uses_today: &mut bool,
 ) -> RuntimeResult<String> {
-    if field.field_type == FieldType::Formula {
+    if formula_defs.contains_key(&field.id) || field.field_type == FieldType::Formula {
         let def = formula_defs.get(&field.id).ok_or_else(|| {
             RuntimeErrorPayload::new("corrupt-file", format!("Missing formula for {}", field.id))
         })?;
@@ -85,7 +85,7 @@ pub fn field_sql_expr(
 pub(crate) fn compile_predicates(
     table: &TableMeta,
     fields: &[FieldMeta],
-    formulas: &HashMap<String, FormulaFieldMeta>,
+    schema: &crate::service::CachedSchema,
     query: &RowQuery,
     uses_today: &mut bool,
 ) -> RuntimeResult<eidos_file_core::query::CompiledQuery> {
@@ -94,7 +94,7 @@ pub(crate) fn compile_predicates(
         search: query.search.clone(),
         sort: None,
     };
-    if formulas.is_empty() || (predicate.filter.is_none() && predicate.search.is_none()) {
+    if predicate.filter.is_none() && predicate.search.is_none() {
         return compile_query(table, fields, &predicate).map_err(RuntimeErrorPayload::from_core);
     }
     let filter = serde_json::to_value(&predicate.filter)
@@ -102,7 +102,7 @@ pub(crate) fn compile_predicates(
     let mut typed = fields.to_vec();
     let mut expressions = HashMap::new();
     for field in &mut typed {
-        let Some(def) = formulas.get(&field.id) else {
+        if !matches!(field.field_type, FieldType::Lookup | FieldType::Formula) {
             continue;
         };
         let referenced = eidos_file_core::schema_ops::view_query_uses_field(&filter, &field.id)
@@ -113,10 +113,9 @@ pub(crate) fn compile_predicates(
         if referenced {
             expressions.insert(
                 field.id.clone(),
-                field_sql_expr(field, fields, formulas, uses_today)?,
+                schema.value_expression(table, field, fields, uses_today)?,
             );
-            field.field_type = FieldType::from_spec_str(def.result_type.as_str())
-                .map_err(RuntimeErrorPayload::from_core)?;
+            field.field_type = schema.logical_type(field)?;
         }
     }
     eidos_file_core::query::compile_derived_predicates(&typed, &predicate, &expressions)
@@ -124,25 +123,28 @@ pub(crate) fn compile_predicates(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn execute_aggregate(
+pub(crate) fn execute_aggregate(
     conn: &Connection,
     file_id: &str,
     revision: &str,
     table: &TableMeta,
     fields: &[FieldMeta],
-    formula_defs: &HashMap<String, FormulaFieldMeta>,
+    schema: &crate::service::CachedSchema,
     query: Option<&RowQuery>,
     items: &[AggregateItem],
     today_date: Option<&str>,
 ) -> RuntimeResult<AggregateResponse> {
-    let field_by_id: HashMap<&str, &FieldMeta> =
-        fields.iter().map(|f| (f.id.as_str(), f)).collect();
+    let mut typed = fields.to_vec();
+    for field in &mut typed {
+        field.field_type = schema.logical_type(field)?;
+    }
+    let field_by_id: HashMap<&str, &FieldMeta> = typed.iter().map(|f| (f.id.as_str(), f)).collect();
     let table_sql =
         quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
 
     let mut uses_today = false;
     let (where_clause, base_params) = if let Some(q) = query {
-        let compiled = compile_predicates(table, fields, formula_defs, q, &mut uses_today)?;
+        let compiled = compile_predicates(table, fields, schema, q, &mut uses_today)?;
         (compiled.where_sql, compiled.params)
     } else {
         (String::new(), Vec::new())
@@ -216,7 +218,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("COUNT({expr})"));
                 slots.push(ScalarSlot::Count {
@@ -228,7 +230,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("COUNT(DISTINCT {expr})"));
                 slots.push(ScalarSlot::DistinctCount {
@@ -240,7 +242,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("SUM({expr})"));
                 slots.push(ScalarSlot::Sum {
@@ -253,7 +255,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("AVG({expr})"));
                 slots.push(ScalarSlot::Average {
@@ -265,7 +267,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("MIN({expr})"));
                 slots.push(ScalarSlot::Min {
@@ -278,7 +280,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let col_idx = scalar_exprs.len();
                 scalar_exprs.push(format!("MAX({expr})"));
                 slots.push(ScalarSlot::Max {
@@ -291,7 +293,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 let start_col = scalar_exprs.len();
                 scalar_exprs.push("COUNT(*)".into());
                 scalar_exprs.push(format!("COUNT({expr})"));
@@ -319,7 +321,7 @@ pub fn execute_aggregate(
                 let field = *field_by_id.get(field_id.as_str()).ok_or_else(|| {
                     RuntimeErrorPayload::new("not-found", format!("Field {field_id}"))
                 })?;
-                let expr = field_sql_expr(field, fields, formula_defs, &mut uses_today)?;
+                let expr = schema.value_expression(table, field, fields, &mut uses_today)?;
                 slots.push(ScalarSlot::DistinctValues {
                     key: key.clone(),
                     field,

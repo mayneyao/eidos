@@ -70,7 +70,7 @@ struct CachedSchemaPlan {
     conversions: HashMap<String, ConversionPreflight>,
 }
 
-struct CachedSchema {
+pub(crate) struct CachedSchema {
     unsupported_fields: HashSet<String>,
     revision: i64,
     data_version: i64,
@@ -100,7 +100,8 @@ pub struct RustRuntimeService {
 fn row_sort_keys(
     query: &RowQuery,
     table_fields: &[FieldMeta],
-    formulas: &HashMap<String, FormulaFieldMeta>,
+    schema: &CachedSchema,
+    table: &TableMeta,
     uses_today: &mut bool,
 ) -> RuntimeResult<Vec<SortKey>> {
     let field_by_id: HashMap<&str, &FieldMeta> =
@@ -114,7 +115,7 @@ fn row_sort_keys(
                     format!("Unknown sort field {}", s.field_id),
                 )
             })?;
-            let expr = field_sql_expr(field, table_fields, formulas, uses_today)?;
+            let expr = schema.value_expression(table, field, table_fields, uses_today)?;
             keys.push(SortKey {
                 expr,
                 descending: s.direction == SortDirection::Desc,
@@ -129,6 +130,143 @@ fn row_sort_keys(
     });
 
     Ok(keys)
+}
+
+impl CachedSchema {
+    pub(crate) fn value_expression(
+        &self,
+        table: &TableMeta,
+        field: &FieldMeta,
+        fields: &[FieldMeta],
+        uses_today: &mut bool,
+    ) -> RuntimeResult<String> {
+        if let Some(lookup) = self.lookups.get(&field.id) {
+            lookup_scalar_expression(table, lookup, self, uses_today)
+        } else {
+            field_sql_expr(field, fields, &self.formulas, uses_today)
+        }
+    }
+
+    pub(crate) fn logical_type(&self, field: &FieldMeta) -> RuntimeResult<FieldType> {
+        let lookup_type;
+        let kind = if let Some(def) = self.formulas.get(&field.id) {
+            Some(def.result_type.as_str())
+        } else if let Some(lookup) = self.lookups.get(&field.id) {
+            lookup_type = lookup_value_type_json(lookup, &self.fields, &self.formulas);
+            lookup_type.as_str()
+        } else {
+            None
+        };
+        match kind {
+            Some("row-id") => Ok(FieldType::Text),
+            Some("file-entry") | None => Ok(field.field_type),
+            Some(kind) => FieldType::from_spec_str(kind).map_err(RuntimeErrorPayload::from_core),
+        }
+    }
+}
+
+fn lookup_scalar_expression(
+    table: &TableMeta,
+    lookup: &LookupFieldMeta,
+    schema: &CachedSchema,
+    uses_today: &mut bool,
+) -> RuntimeResult<String> {
+    use eidos_file_core::model::LookupAggregate::*;
+    let invalid = || RuntimeErrorPayload::new("corrupt-file", "Invalid Lookup definition");
+    let quote = |s: &str| quote_identifier(s).map_err(RuntimeErrorPayload::from_core);
+    if matches!(lookup.aggregate, Values) {
+        return Err(RuntimeErrorPayload::new(
+            "invalid-query",
+            "A list Lookup is not sortable",
+        ));
+    }
+    let relation = schema
+        .relations
+        .get(&lookup.relation_field_id)
+        .ok_or_else(invalid)?;
+    let find = |id: &str| {
+        schema
+            .fields
+            .iter()
+            .find(|f| f.id == id)
+            .ok_or_else(invalid)
+    };
+    let target = find(&lookup.target_field_id)?;
+    let dest = schema
+        .tables
+        .iter()
+        .find(|t| t.id == target.table_id)
+        .ok_or_else(invalid)?;
+    let outer = quote(&table.physical_name)?;
+    let dest_name = quote(&dest.physical_name)?;
+    let mut alias = "__eidos_lookup_target".to_owned();
+    while alias.eq_ignore_ascii_case(&table.physical_name) {
+        alias.push('_');
+    }
+    let alias = quote(&alias)?;
+    let cell = if let Some(name) = &target.physical_name {
+        format!("{alias}.{}", quote(name)?)
+    } else {
+        let scope = schema
+            .fields
+            .iter()
+            .filter(|f| f.table_id == dest.id)
+            .cloned()
+            .collect::<Vec<_>>();
+        field_sql_expr(target, &scope, &schema.formulas, uses_today)?
+    };
+    let (from, condition, order) = match relation.direction {
+        RelationDirection::Forward => {
+            let field = find(&lookup.relation_field_id)?;
+            let column = quote(field.physical_name.as_deref().ok_or_else(invalid)?)?;
+            (
+                format!(
+                    "json_each({outer}.{column}) links JOIN {dest_name} AS {alias} ON {alias}._id=links.value"
+                ),
+                "1".to_owned(),
+                "links.key".to_owned(),
+            )
+        }
+        RelationDirection::Inverse => {
+            let field = find(
+                relation
+                    .inverse_of_field_id
+                    .as_deref()
+                    .ok_or_else(invalid)?,
+            )?;
+            let column = quote(field.physical_name.as_deref().ok_or_else(invalid)?)?;
+            (
+                format!("{dest_name} AS {alias}"),
+                format!(
+                    "EXISTS(SELECT 1 FROM json_each({alias}.{column}) WHERE value={outer}._id)"
+                ),
+                format!("{alias}._id"),
+            )
+        }
+    };
+    let mut values = format!("SELECT {cell} AS v FROM {from} WHERE {condition} ORDER BY {order}");
+    if matches!(
+        target.field_type,
+        FieldType::MultiSelect | FieldType::Relation | FieldType::File
+    ) {
+        values = format!("SELECT item.value AS v FROM ({values}) cells, json_each(cells.v) item");
+    }
+    let distinct = if lookup.distinct_values {
+        "DISTINCT "
+    } else {
+        ""
+    };
+    let values = format!("SELECT {distinct}v FROM ({values}) WHERE v IS NOT NULL");
+    let aggregate = match lookup.aggregate {
+        First => return Ok(format!("(SELECT v FROM ({values}) LIMIT 1)")),
+        Count => "COUNT(*)",
+        Sum => "SUM(v)",
+        Average => "AVG(v)",
+        Min => "MIN(v)",
+        Max => "MAX(v)",
+        Values => unreachable!(),
+    };
+    Ok(format!("(SELECT {aggregate} FROM ({values}))"))
 }
 
 fn view_layout_uses_field(layout: &JsonValue, id: &str) -> bool {
@@ -1086,12 +1224,18 @@ impl RustRuntimeService {
         let compiled_where = compile_predicates(
             &table,
             &table_fields,
-            &formulas,
+            self.ensure_schema()?,
             &effective_query,
             &mut uses_today,
         )?;
 
-        let keys = row_sort_keys(&effective_query, &table_fields, &formulas, &mut uses_today)?;
+        let keys = row_sort_keys(
+            &effective_query,
+            &table_fields,
+            self.ensure_schema()?,
+            &table,
+            &mut uses_today,
+        )?;
         let order_terms: Vec<_> = keys.iter().map(|key| key.order(backward)).collect();
         select_exprs.extend(keys.iter().map(|key| key.expr.clone()));
         let limit = req.limit.clamp(1, self.limits.page_size_max);
@@ -1718,10 +1862,9 @@ impl RustRuntimeService {
         let mut query =
             rewrite_calendar_query(&req.query, &fields, req.calendar.as_ref(), &instant)?;
         let mut uses_today = false;
-        let keys = row_sort_keys(&query, &fields, &schema.formulas, &mut uses_today)?;
+        let keys = row_sort_keys(&query, &fields, schema, table, &mut uses_today)?;
         query.sort = None;
-        let compiled =
-            compile_predicates(table, &fields, &schema.formulas, &query, &mut uses_today)?;
+        let compiled = compile_predicates(table, &fields, schema, &query, &mut uses_today)?;
         let physical =
             quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
         let mut params = Vec::new();
@@ -1871,7 +2014,7 @@ impl RustRuntimeService {
         }
         let (today_str, ref_instant) =
             resolve_today_date(req.calendar.as_ref(), req.reference_instant.as_deref())?;
-        let (file_id, revision_str, table, table_fields, formulas) = {
+        let (file_id, revision_str, table, table_fields) = {
             let schema = self.ensure_schema()?;
             let table = schema
                 .tables
@@ -1892,7 +2035,6 @@ impl RustRuntimeService {
                 schema.meta.revision.to_string(),
                 table,
                 table_fields,
-                schema.formulas.clone(),
             )
         };
         let rewritten_query = match &req.query {
@@ -1910,7 +2052,7 @@ impl RustRuntimeService {
             &revision_str,
             &table,
             &table_fields,
-            &formulas,
+            self.schema_cache.as_ref().unwrap(),
             rewritten_query.as_ref(),
             &req.items,
             Some(&today_str),
@@ -2001,13 +2143,15 @@ impl RustRuntimeService {
             let field = *field_by_id
                 .get(gid.as_str())
                 .ok_or_else(|| RuntimeErrorPayload::new("not-found", format!("Field {gid}")))?;
-            group_exprs.push(field_sql_expr(
+            group_exprs.push(self.ensure_schema()?.value_expression(
+                &table,
                 field,
                 &table_fields,
-                &formulas,
                 &mut uses_today,
             )?);
-            group_fields.push(field.clone());
+            let mut logical = field.clone();
+            logical.field_type = self.ensure_schema()?.logical_type(field)?;
+            group_fields.push(logical);
         }
 
         let binding = sha256_hex(
@@ -2037,7 +2181,7 @@ impl RustRuntimeService {
         let compiled_where = compile_predicates(
             &table,
             &table_fields,
-            &formulas,
+            self.ensure_schema()?,
             &effective_query,
             &mut uses_today,
         )?;
@@ -2163,7 +2307,7 @@ impl RustRuntimeService {
                     &revision_str,
                     &table,
                     &table_fields,
-                    &formulas,
+                    self.schema_cache.as_ref().unwrap(),
                     Some(&rewritten),
                     &req.aggregates,
                     Some(&today_str),

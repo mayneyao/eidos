@@ -1733,6 +1733,56 @@
           "expectResolvedLabels": [["Rust SQL", "SIMD Scan"], ["Grid Scroll"]]
         },
         {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.projects.totalPoints",
+                  "direction": "desc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": [
+                "$fields.projects.title",
+                "$fields.projects.totalPoints"
+              ],
+              "resolveRelations": []
+            },
+            "limit": 2
+          },
+          "check": {
+            "rows.0.values": ["Core", "35"],
+            "rows.1.values": ["UI", "5"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.projects.totalPoints",
+                "value": "10"
+              }
+            },
+            "items": [
+              { "key": "n", "op": "count-all" },
+              {
+                "key": "points",
+                "op": "max",
+                "fieldId": "$fields.projects.totalPoints"
+              }
+            ]
+          },
+          "check": { "results.0.value": "1", "results.1.value": "35" }
+        },
+        {
           "op": "validate",
           "request": { "level": "full", "diagnosticsLimit": 50 },
           "expect": { "valid": true, "diagnosticsCount": 0 }
