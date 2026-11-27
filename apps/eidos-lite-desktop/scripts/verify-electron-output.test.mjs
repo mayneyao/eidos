@@ -36,7 +36,16 @@ const cleanOutput = [
   "packaged-smoke-B5KS3Cg2.js",
   "packaged-startup-smoke-DtIjMns5.js",
   "markdown-link-maintenance-rynPN3Tf.js",
-  "media-file-preview-BCVqZKzh.js",
+  "document-file-preview-DPN3_ev2.js",
+  "eidos-file-runtime-BQI7sTjd.js",
+  "file-metadata-ClTCE5Ey.js",
+  "filemeta-DVJGA5k4.js",
+  "lib-BbHDWYRm.js",
+  "markdown-link-batch-CXb4AGSb.js",
+  "plugin-file-mutations-CCCDorUg.js",
+  "rpc-Dd1a7k76.js",
+  "space-paths-BmPaz0yN.js",
+  "vtab-resolver-Ce6ovDK6.js",
   "runtime-pool-CiiJNRl-.js",
   "space-clone-coordinator-Ds_y1Tuc.js",
   "space-session-rDeCYcDa.js",
@@ -73,7 +82,7 @@ test("accepts the exact main/worker/preload outputs and the new split chunks", a
   const result = await execute(process.execPath, [verifier, root])
   assert.match(
     result.stdout,
-    /Verified clean Eidos Lite Electron output \(31 files\)/
+    /Verified clean Eidos Lite Electron output \(40 files\)/
   )
 })
 

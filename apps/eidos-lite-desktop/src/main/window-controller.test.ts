@@ -81,6 +81,7 @@ vi.mock("./space/recent-spaces", () => ({
     record = mocks.record
   },
 }))
+import { RuntimePool } from "./runtime/runtime-pool"
 import { WindowController } from "./window-controller"
 import { DEFAULT_EIDOS_LITE_PREFERENCES } from "./app-preferences"
 
@@ -301,6 +302,7 @@ function session(id: string) {
   const snapshot = { id, name: id } as SpaceSnapshot
   return {
     canonical: { id, name: id, root: id },
+    runtimePool: { warmForFirstOpen: vi.fn() },
     snapshot: vi.fn(async () => snapshot),
     close: vi.fn(async () => {}),
     closeEidosFile: vi.fn(async () => {}),
@@ -534,9 +536,15 @@ it.each([true, false])(
 )
 it("loads the renderer in parallel with restoration and reuses the initial snapshot", async () => {
   const setup = defaultWindowFixture()
+  const warm = vi.spyOn(RuntimePool.prototype, "warmForFirstOpen")
   const last = session("last")
   mocks.create.mockResolvedValueOnce(last)
   await setup.controller.openDefaultWindow()
+  expect(warm.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.create.mock.invocationCallOrder.at(-1)!
+  )
+  expect(mocks.create.mock.calls.at(-1)?.[3]).toBe(warm.mock.contexts[0])
+  warm.mockRestore()
   expect(setup.controller.sessionFor(setup.owner)).toBe(last)
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(false, "space")
   expect(setup.recents).toHaveBeenCalledExactlyOnceWith(1)
@@ -694,6 +702,7 @@ it.each(["empty", "unavailable"])(
 it("uses the same window as Welcome when the last Space fails to open", async () => {
   const setup = defaultWindowFixture()
   mocks.create.mockRejectedValueOnce(new Error("Space is locked"))
+  const destroy = vi.spyOn(RuntimePool.prototype, "destroy")
   const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
   try {
     await setup.controller.openDefaultWindow()
@@ -703,12 +712,15 @@ it("uses the same window as Welcome when the last Space fails to open", async ()
     await expect(
       setup.controller.spaceSnapshot(setup.owner, true)
     ).rejects.toThrow("Space is locked")
+    expect(destroy).toHaveBeenCalledOnce()
+    expect(destroy.mock.contexts[0]).toBe(mocks.create.mock.calls.at(-1)?.[3])
     expect(setup.welcome).not.toHaveBeenCalled()
     expect(warning).toHaveBeenCalledWith(
       "Could not reopen the last Space",
       expect.any(Error)
     )
   } finally {
+    destroy.mockRestore()
     warning.mockRestore()
   }
 })

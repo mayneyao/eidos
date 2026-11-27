@@ -111,7 +111,14 @@ async function createTable(
   fields: Array<{
     clientKey: string
     name: string
-    kind: "text" | "select" | "multi-select" | "url" | "date"
+    kind:
+      | "text"
+      | "select"
+      | "multi-select"
+      | "url"
+      | "date"
+      | "number"
+      | "integer"
   }>
 ) {
   const applied = await applySchema(runtime, {
@@ -498,6 +505,60 @@ describe("Eidos Runtime P0 data safety regressions", () => {
     } finally {
       await runtime.close(context("close"))
       connection.close()
+    }
+  })
+
+  it("computes mixed numeric statistics within the adapter result budget", async () => {
+    const { runtime, connection } = await createRuntime("Bounded statistics", {
+      maxResultBytes: 16_384,
+    })
+    try {
+      const { tableId, fieldIds } = await createTable(
+        runtime,
+        "sales",
+        "Sales",
+        [
+          { clientKey: "title", name: "Title", kind: "text" },
+          { clientKey: "score", name: "Score", kind: "number" },
+          { clientKey: "units", name: "Units", kind: "integer" },
+        ]
+      )
+      const request = {
+        tableId,
+        items: [
+          { key: "present", op: "count" as const, fieldId: fieldIds.score! },
+          {
+            key: "unique",
+            op: "distinct-count" as const,
+            fieldId: fieldIds.score!,
+          },
+          { key: "low", op: "min" as const, fieldId: fieldIds.score! },
+          { key: "high", op: "max" as const, fieldId: fieldIds.units! },
+        ],
+      }
+      const values = async () =>
+        (await runtime.aggregate(request, context("stats"))).results
+      expect(await values()).toEqual([
+        { key: "present", value: "0" },
+        { key: "unique", value: "0" },
+        { key: "low", value: null },
+        { key: "high", value: null },
+      ])
+      connection.run(`WITH RECURSIVE n(i) AS (
+        VALUES (1) UNION ALL SELECT i+1 FROM n WHERE i < 600
+      ) INSERT INTO Sales (_id, _created_at, _updated_at, Title, Score, Units)
+        SELECT printf('00000000-0000-7000-8000-%012d', i),
+               '2026-07-26T00:00:00.000Z', '2026-07-26T00:00:00.000Z',
+               'Sales', CASE WHEN i % 3 != 0 THEN i % 2 - 0.5 END,
+               9223372036854775807 FROM n`)
+      expect(await values()).toEqual([
+        { key: "present", value: "400" },
+        { key: "unique", value: "2" },
+        { key: "low", value: -0.5 },
+        { key: "high", value: "9223372036854775807" },
+      ])
+    } finally {
+      await runtime.close(context("close"))
     }
   })
 

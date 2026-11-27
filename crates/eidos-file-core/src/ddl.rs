@@ -257,6 +257,17 @@ pub fn configure_connection(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA legacy_alter_table = OFF;",
     )?;
+    conn.create_scalar_function(
+        "eidos_casefold",
+        1,
+        rusqlite::functions::FunctionFlags::SQLITE_UTF8
+            | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            Ok(ctx
+                .get::<Option<String>>(0)?
+                .map(|v| v.to_uppercase().to_lowercase()))
+        },
+    )?;
     conn.busy_timeout(DEFAULT_BUSY_TIMEOUT)?;
     Ok(())
 }

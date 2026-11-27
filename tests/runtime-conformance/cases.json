@@ -3,6 +3,88 @@
   "description": "Language-neutral Eidos Runtime 1.0 conformance suite executed identically against JS and Rust runtimes.",
   "cases": [
     {
+      "id": "literal-and-unicode-name-search",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Titles",
+          "saveTableAs": "t",
+          "labelFieldClientKey": "title",
+          "fields": [
+            {
+              "clientKey": "title",
+              "name": "Title",
+              "kind": "text",
+              "position": "0"
+            }
+          ]
+        },
+        {
+          "op": "insertRows",
+          "table": "t",
+          "rows": [
+            {
+              "clientKey": "a",
+              "values": {
+                "title": "Alpha_100%"
+              }
+            },
+            {
+              "clientKey": "b",
+              "values": {
+                "title": "AlphaX1000"
+              }
+            },
+            {
+              "clientKey": "c",
+              "values": {
+                "title": "Grüße"
+              }
+            },
+            {
+              "clientKey": "d",
+              "values": {
+                "title": "中文"
+              }
+            }
+          ]
+        },
+        {
+          "op": "queryRows",
+          "table": "t",
+          "projection": ["title"],
+          "search": {
+            "text": "ALPHA_100%",
+            "fields": ["title"]
+          },
+          "limit": 10,
+          "expectTitles": ["Alpha_100%"]
+        },
+        {
+          "op": "queryRows",
+          "table": "t",
+          "projection": ["title"],
+          "search": {
+            "text": "GRÜSSE",
+            "fields": ["title"]
+          },
+          "limit": 10,
+          "expectTitles": ["Grüße"]
+        },
+        {
+          "op": "queryRows",
+          "table": "t",
+          "projection": ["title"],
+          "search": {
+            "text": "中文",
+            "fields": ["title"]
+          },
+          "limit": 10,
+          "expectTitles": ["中文"]
+        }
+      ]
+    },
+    {
       "id": "filtered-view-creation-defaults",
       "steps": [
         {
@@ -1270,6 +1352,22 @@
           "sort": [{ "field": "title", "direction": "asc" }],
           "limit": 10,
           "expectTitles": ["Alpha task", "Delta alpha"]
+        },
+        {
+          "op": "aggregate",
+          "table": "tasks",
+          "items": [
+            { "key": "present", "op": "count", "field": "score" },
+            { "key": "unique", "op": "distinct-count", "field": "score" },
+            { "key": "integerMinimum", "op": "min", "field": "count" },
+            { "key": "numericMaximum", "op": "max", "field": "score" }
+          ],
+          "expect": {
+            "present": "3",
+            "unique": "3",
+            "integerMinimum": "5",
+            "numericMaximum": 95.5
+          }
         },
         {
           "op": "aggregate",

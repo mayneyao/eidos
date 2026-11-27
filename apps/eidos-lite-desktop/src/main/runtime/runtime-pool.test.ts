@@ -71,6 +71,43 @@ class DelayedExitRuntimeUtilityProcess extends FakeRuntimeUtilityProcess {
 }
 
 describe("RuntimePool LRU policy", () => {
+  it("reuses the unopened Rust worker and releases unused warm workers", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "lite-warm-pool-"))
+    )
+    const child = new FakeRuntimeUtilityProcess()
+    const unused = new FakeRuntimeUtilityProcess()
+    const killed = vi.spyOn(unused, "kill")
+    const fork = vi
+      .mocked(utilityProcess.fork)
+      .mockReset()
+      .mockReturnValueOnce(child as unknown as UtilityProcess)
+      .mockReturnValueOnce(unused as unknown as UtilityProcess)
+    const pool = new RuntimePool(root, "/worker.js")
+    const other = new RuntimePool(root, "/worker.js")
+    try {
+      vi.stubEnv("EIDOS_LITE_RUNTIME_BACKEND", "js")
+      pool.warmForFirstOpen()
+      expect(fork).not.toHaveBeenCalled()
+      vi.stubEnv("EIDOS_LITE_RUNTIME_BACKEND", "rust")
+      pool.warmForFirstOpen()
+      pool.warmForFirstOpen()
+      expect(fork).toHaveBeenCalledOnce()
+      expect(child.requests).toEqual([])
+      await writeFile(path.join(root, "notes.eidos"), "fixture")
+      await pool.open("notes.eidos")
+      expect(fork).toHaveBeenCalledOnce()
+      expect(child.requests[0]?.type).toBe("open")
+      other.warmForFirstOpen()
+      await other.closeHandles()
+      expect(killed).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllEnvs()
+      await Promise.all([pool.destroy(), other.destroy()])
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("keeps negotiated file access isolated from the writable Space after eviction", async () => {
     const root = await realpath(
       await mkdtemp(path.join(tmpdir(), "lite-file-compat-pool-"))

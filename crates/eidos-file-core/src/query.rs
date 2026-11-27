@@ -627,6 +627,17 @@ impl Compiler<'_> {
             return Err(invalid_query("search fields must be non-empty"));
         }
         let pattern = format!("%{}%", like_escape(&search.text));
+        let fold = search
+            .text
+            .chars()
+            .any(|c| !c.is_ascii() && c.to_uppercase().ne(c.to_lowercase()));
+        let matches = |expr: &str| {
+            if fold {
+                format!("eidos_casefold(CAST({expr} AS TEXT)) LIKE eidos_casefold(?) ESCAPE '\\'")
+            } else {
+                format!("CAST({expr} AS TEXT) LIKE ? COLLATE NOCASE ESCAPE '\\'")
+            }
+        };
         let mut clauses = Vec::with_capacity(search.fields.len());
         for reference in &search.fields {
             let field = resolve_field(self.fields, reference)?;
@@ -646,21 +657,22 @@ impl Compiler<'_> {
                             ))
                         })?;
                     self.params.push(SqlValue::Text(pattern.clone()));
+                    let row_id = quote_identifier(&target.row_id)?;
+                    let label = quote_identifier(&target.label)?;
+                    let predicate = matches(&format!(
+                        "CASE WHEN t.{row_id} IS NULL THEN je.value ELSE t.{label} END"
+                    ));
                     format!(
-                        "EXISTS (SELECT 1 FROM json_each({column}) je \
-                         LEFT JOIN {table} t ON t.{row_id} = je.value \
-                         WHERE LOWER(CAST(CASE WHEN t.{row_id} IS NULL THEN je.value ELSE t.{label} END AS TEXT)) LIKE LOWER(?) ESCAPE '\\')",
-                        table = quote_identifier(&target.table)?,
-                        row_id = quote_identifier(&target.row_id)?,
-                        label = quote_identifier(&target.label)?,
+                        "EXISTS (SELECT 1 FROM json_each({column}) je LEFT JOIN {} t ON t.{row_id} = je.value WHERE {predicate})",
+                        quote_identifier(&target.table)?
                     )
                 }
                 // Multi-select fragments are the option names.
                 FieldType::MultiSelect => {
                     self.params.push(SqlValue::Text(pattern.clone()));
+                    let predicate = matches("je.value");
                     format!(
-                        "EXISTS (SELECT 1 FROM json_each({column}) je \
-                         WHERE je.type = 'text' AND LOWER(je.value) LIKE LOWER(?) ESCAPE '\\')"
+                        "EXISTS (SELECT 1 FROM json_each({column}) je WHERE je.type = 'text' AND {predicate})"
                     )
                 }
                 // File fragments are entry name, mediaType, and non-data:
@@ -669,20 +681,16 @@ impl Compiler<'_> {
                     self.params.push(SqlValue::Text(pattern.clone()));
                     self.params.push(SqlValue::Text(pattern.clone()));
                     self.params.push(SqlValue::Text(pattern.clone()));
+                    let name = matches("json_extract(je.value, '$.name')");
+                    let media_type = matches("json_extract(je.value, '$.mediaType')");
+                    let uri = matches("json_extract(je.value, '$.uri')");
                     format!(
-                        "EXISTS (SELECT 1 FROM json_each({column}) je \
-                         WHERE LOWER(json_extract(je.value, '$.name')) LIKE LOWER(?) ESCAPE '\\' \
-                         OR LOWER(json_extract(je.value, '$.mediaType')) LIKE LOWER(?) ESCAPE '\\' \
-                         OR (json_extract(je.value, '$.uri') NOT LIKE 'data:%' \
-                         AND LOWER(json_extract(je.value, '$.uri')) LIKE LOWER(?) ESCAPE '\\'))"
+                        "EXISTS (SELECT 1 FROM json_each({column}) je WHERE {name} OR {media_type} OR (json_extract(je.value, '$.uri') NOT LIKE 'data:%' AND {uri}))"
                     )
                 }
-                // v1: ASCII-folded substring over the named field's stored
-                // text representation (see module docs for the deviation
-                // from the full §7.1 Search Fragment table).
                 _ => {
                     self.params.push(SqlValue::Text(pattern.clone()));
-                    format!("LOWER(CAST({column} AS TEXT)) LIKE LOWER(?) ESCAPE '\\'")
+                    matches(&column)
                 }
             };
             clauses.push(clause);
