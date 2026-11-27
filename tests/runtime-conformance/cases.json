@@ -1469,6 +1469,48 @@
             "warnings.0.code": "formula-type-invalid",
             "warnings.0.tableId": "$tables.metrics"
           }
+        },
+        {
+          "op": "wire",
+          "method": "preflightSchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "rename-field",
+              "fieldId": "$fields.metrics.base",
+              "name": "新 \"值\""
+            }
+          },
+          "check": { "classification": "lossless-rewrite" }
+        },
+        {
+          "op": "wire",
+          "method": "applySchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "rename-field",
+              "fieldId": "$fields.metrics.base",
+              "name": "新 \"值\""
+            }
+          },
+          "check": { "changed": true }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.metrics",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.metrics.weighted",
+                "value": 40
+              }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "2" }
         }
       ]
     },

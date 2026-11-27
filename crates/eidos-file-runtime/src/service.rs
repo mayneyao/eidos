@@ -3163,6 +3163,34 @@ impl RustRuntimeService {
 
         for leaf in &leaves {
             let lkind = leaf.get("kind").and_then(JsonValue::as_str).unwrap_or("");
+            if lkind == "rename-field" && classification == "metadata-only" {
+                let schema = self.ensure_schema()?;
+                if let Some(field) = schema
+                    .fields
+                    .iter()
+                    .find(|f| Some(f.id.as_str()) == leaf["fieldId"].as_str())
+                    && let Some(name) = leaf["name"].as_str()
+                {
+                    for owner in schema
+                        .fields
+                        .iter()
+                        .filter(|f| f.table_id == field.table_id)
+                    {
+                        if let Some(formula) = schema.formulas.get(&owner.id)
+                            && eidos_file_core::schema_ops::renamed_formula_source(
+                                &formula.source_text,
+                                &field.name,
+                                name,
+                            )
+                            .map_err(RuntimeErrorPayload::from_core)?
+                            .is_some()
+                        {
+                            classification = "lossless-rewrite".into();
+                            break;
+                        }
+                    }
+                }
+            }
             if matches!(lkind, "delete-field" | "delete-table") {
                 let schema = self.ensure_schema()?;
                 let mut diagnostic = |lossy: bool,
