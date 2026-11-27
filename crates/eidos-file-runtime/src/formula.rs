@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use eidos_file_core::model::{FieldMeta, FieldType, FormulaFieldMeta};
+use eidos_file_core::model::{FieldMeta, FieldType, FormulaFieldMeta, FormulaResultType};
 use eidos_file_core::naming::quote_identifier;
 
 use crate::contract::{RuntimeDiagnostic, RuntimeErrorPayload, RuntimeResult};
@@ -117,6 +117,7 @@ const ALLOWED_KEYWORDS: &[&str] = &[
 #[derive(Debug, Clone)]
 pub struct CompiledFormula {
     pub sql: String,
+    pub inferred: Option<FormulaResultType>,
     pub dependency_field_ids: Vec<String>,
     pub uses_today: bool,
 }
@@ -183,6 +184,36 @@ pub(crate) fn unsupported_fields(
         }
     }
     blocked
+}
+
+#[allow(clippy::result_large_err)]
+fn type_error(message: &str) -> RuntimeDiagnostic {
+    RuntimeDiagnostic {
+        code: "formula-type-invalid".into(),
+        severity: "error".into(),
+        message: Some(message.into()),
+        path: None,
+        table_id: None,
+        field_id: None,
+        row_id: None,
+        view_id: None,
+    }
+}
+
+#[allow(clippy::result_large_err)]
+pub(crate) fn check_result(
+    compiled: CompiledFormula,
+    expected: &str,
+) -> Result<CompiledFormula, RuntimeDiagnostic> {
+    if compiled
+        .inferred
+        .is_some_and(|kind| kind.as_str() != expected)
+    {
+        return Err(type_error(
+            "Formula result differs from its declared result type",
+        ));
+    }
+    Ok(compiled)
 }
 
 #[allow(clippy::result_large_err)]
@@ -340,7 +371,7 @@ fn compile_recursive(
                     if sub.uses_today {
                         uses_today = true;
                     }
-                    bindings.insert(name.clone(), format!("({})", sub.sql));
+                    bindings.insert(name.clone(), (format!("({})", sub.sql), def.result_type));
                 } else if let Some(phys) = &field.physical_name {
                     let quoted = quote_identifier(phys).map_err(|e| RuntimeDiagnostic {
                         code: "formula-parse-invalid".into(),
@@ -352,11 +383,18 @@ fn compile_recursive(
                         row_id: None,
                         view_id: None,
                     })?;
-                    if let Some(alias) = table_alias {
-                        bindings.insert(name.clone(), format!("{alias}.{quoted}"));
+                    let kind = if field.field_type == FieldType::Select {
+                        FormulaResultType::Text
                     } else {
-                        bindings.insert(name.clone(), quoted);
-                    }
+                        FormulaResultType::from_spec_str(field.field_type.as_str())
+                            .map_err(|_| type_error("Expected scalar Formula field"))?
+                    };
+                    let sql = if let Some(alias) = table_alias {
+                        format!("{alias}.{quoted}")
+                    } else {
+                        quoted
+                    };
+                    bindings.insert(name.clone(), (sql, kind));
                 } else {
                     return Err(RuntimeDiagnostic {
                         code: "formula-type-invalid".into(),
@@ -428,19 +466,11 @@ fn compile_recursive(
         idx += 1;
     }
 
+    let (sql, inferred) = eidos_file_core::formula_source::compile_bound_source(tokens, &bindings)
+        .map_err(|e| type_error(&e.to_string()))?;
     Ok(CompiledFormula {
-        sql: eidos_file_core::formula_source::compile_bound_source(tokens, &bindings).map_err(
-            |e| RuntimeDiagnostic {
-                code: "formula-parse-invalid".into(),
-                severity: "error".into(),
-                message: Some(e.to_string()),
-                path: None,
-                table_id: None,
-                field_id: None,
-                row_id: None,
-                view_id: None,
-            },
-        )?,
+        sql,
+        inferred,
         dependency_field_ids: deps,
         uses_today,
     })

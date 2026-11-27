@@ -1341,6 +1341,16 @@
           "name": "Metrics",
           "fields": [
             {
+              "clientKey": "weighted",
+              "name": "Weighted",
+              "kind": "formula",
+              "position": "3",
+              "definition": {
+                "sourceText": "((\"Base\"))*2+5",
+                "resultType": "number"
+              }
+            },
+            {
               "clientKey": "label",
               "name": "Label",
               "kind": "text",
@@ -1383,6 +1393,34 @@
         {
           "op": "previewFormula",
           "table": "metrics",
+          "sourceText": "1 + 2",
+          "declaredResultType": "text",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "LOWER(3)",
+          "declaredResultType": "text",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "DATE('now')",
+          "declaredResultType": "date",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "\"base\" * 2",
+          "declaredResultType": "number",
+          "expectValid": false
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
           "sourceText": "1 / 2",
           "declaredResultType": "number",
           "expectValid": true,
@@ -1419,20 +1457,6 @@
           "declaredResultType": "number",
           "expectValid": true,
           "expectValues": [25, 45, 65]
-        },
-        {
-          "op": "createField",
-          "table": "metrics",
-          "field": {
-            "clientKey": "weighted",
-            "name": "Weighted",
-            "kind": "formula",
-            "position": "3",
-            "definition": {
-              "sourceText": "((\"Base\"))*2+5",
-              "resultType": "number"
-            }
-          }
         },
         {
           "op": "wire",

@@ -126,9 +126,185 @@ pub fn tokenize(source: &str) -> std::result::Result<Vec<Token>, String> {
 use crate::error::{EidosError, Result};
 use crate::naming::quote_identifier;
 
+use crate::model::FormulaResultType as Kind;
+
+type Type = Option<Kind>;
+
+fn mismatch() -> EidosError {
+    EidosError::InvalidSchema("Incompatible Formula operand or result type".into())
+}
+
+fn numeric(kind: Type) -> bool {
+    matches!(kind, None | Some(Kind::Integer | Kind::Number))
+}
+
+fn require(kind: Type, expected: Kind) -> Result<()> {
+    if kind.is_none() || kind == Some(expected) {
+        Ok(())
+    } else {
+        Err(mismatch())
+    }
+}
+
+fn common(kinds: impl Iterator<Item = Type>) -> Result<Type> {
+    let mut result = None;
+    for kind in kinds.flatten() {
+        require(result, kind)?;
+        result = Some(kind);
+    }
+    Ok(result)
+}
+
+fn binary_type(op: &str, a: Type, b: Type) -> Result<Type> {
+    use Kind::*;
+    match op {
+        "AND" | "OR" => {
+            require(a, Checkbox)?;
+            require(b, Checkbox)?;
+            Ok(Some(Checkbox))
+        }
+        "||" => Ok(Some(Text)),
+        "+" | "-" | "*" | "/" | "%" => {
+            if !numeric(a) || !numeric(b) {
+                return Err(mismatch());
+            }
+            if op == "%" {
+                require(a, Integer)?;
+                require(b, Integer)?;
+                return Ok(Some(Integer));
+            }
+            if op == "/" || a == Some(Number) || b == Some(Number) {
+                Ok(Some(Number))
+            } else {
+                Ok(a.or(b))
+            }
+        }
+        _ if a.is_none() && b.is_none() => Err(mismatch()),
+        _ if a.is_none() || b.is_none() || a == b || (numeric(a) && numeric(b)) => {
+            Ok(Some(Checkbox))
+        }
+        _ => Err(mismatch()),
+    }
+}
+
+fn call_type(name: &str, args: &[Expression]) -> Result<Type> {
+    use Kind::*;
+    let n = args.len();
+    let arity = |min, max| {
+        if (min..=max).contains(&n) {
+            Ok(())
+        } else {
+            Err(mismatch())
+        }
+    };
+    let fixed = |params: &[Kind], minimum, result| {
+        arity(minimum, params.len())?;
+        for (arg, kind) in args.iter().zip(params) {
+            require(arg.kind, *kind)?;
+        }
+        Ok(Some(result))
+    };
+    match name {
+        "IIF" => {
+            arity(3, 3)?;
+            require(args[0].kind, Checkbox)?;
+            common(args[1..].iter().map(|a| a.kind))
+        }
+        "IFNULL" | "COALESCE" | "MIN" | "MAX" => {
+            arity(2, if name == "IFNULL" { 2 } else { 16 })?;
+            common(args.iter().map(|a| a.kind))
+        }
+        "NULLIF" => {
+            arity(2, 2)?;
+            binary_type("=", args[0].kind, args[1].kind)?;
+            Ok(args[0].kind.or(args[1].kind))
+        }
+        "ABS" | "CEIL" | "CEILING" | "FLOOR" | "SIGN" | "ROUND" => {
+            arity(1, if name == "ROUND" { 2 } else { 1 })?;
+            if !numeric(args[0].kind) {
+                return Err(mismatch());
+            }
+            if let Some(digits) = args.get(1) {
+                require(digits.kind, Integer)?;
+            }
+            Ok(match name {
+                "ROUND" => Some(Number),
+                "SIGN" => Some(Integer),
+                _ => args[0].kind,
+            })
+        }
+        "CONCAT" | "CONCAT_WS" | "FORMAT" | "PRINTF" | "CHAR" => {
+            arity(if name == "CONCAT_WS" { 2 } else { 1 }, 16)?;
+            if name == "CHAR" {
+                for a in args {
+                    require(a.kind, Integer)?;
+                }
+            } else if name != "CONCAT" {
+                require(args[0].kind, Text)?;
+            }
+            Ok(Some(Text))
+        }
+        "GLOB" => fixed(&[Text, Text], 2, Checkbox),
+        "LIKE" => fixed(&[Text, Text, Text], 2, Checkbox),
+        "INSTR" => fixed(&[Text, Text], 2, Integer),
+        "LENGTH" | "OCTET_LENGTH" | "UNICODE" => fixed(&[Text], 1, Integer),
+        "LOWER" | "UPPER" => fixed(&[Text], 1, Text),
+        "LTRIM" | "RTRIM" | "TRIM" => fixed(&[Text, Text], 1, Text),
+        "REPLACE" => fixed(&[Text, Text, Text], 3, Text),
+        "SUBSTR" | "SUBSTRING" => fixed(&[Text, Integer, Integer], 2, Text),
+        "HEX" | "QUOTE" | "TYPEOF" => {
+            arity(1, 1)?;
+            Ok(Some(Text))
+        }
+        "DATE" | "DATETIME" | "JULIANDAY" | "STRFTIME" | "TIME" | "TIMEDIFF" | "UNIXEPOCH" => {
+            let start = usize::from(name == "STRFTIME");
+            arity(
+                if name == "TIMEDIFF" { 2 } else { start + 1 },
+                if name == "TIMEDIFF" { 2 } else { 9 },
+            )?;
+            if start == 1 && !args[0].string_literal {
+                return Err(mismatch());
+            }
+            for (idx, arg) in args.iter().enumerate().skip(start) {
+                if idx == start || name == "TIMEDIFF" {
+                    if arg.string_literal {
+                        if arg.sql.eq_ignore_ascii_case("'now'") {
+                            return Err(mismatch());
+                        }
+                    } else if !matches!(arg.kind, None | Some(Date | Datetime)) {
+                        return Err(mismatch());
+                    }
+                } else if !arg.string_literal
+                    || matches!(
+                        arg.sql.to_ascii_lowercase().as_str(),
+                        "'localtime'" | "'utc'" | "'auto'"
+                    )
+                    || (name == "UNIXEPOCH"
+                        && matches!(
+                            arg.sql.to_ascii_lowercase().as_str(),
+                            "'subsec'" | "'subsecond'"
+                        ))
+                {
+                    return Err(mismatch());
+                }
+            }
+            Ok(Some(match name {
+                "DATE" => Date,
+                "DATETIME" => Datetime,
+                "JULIANDAY" => Number,
+                "UNIXEPOCH" => Integer,
+                _ => Text,
+            }))
+        }
+        _ => Err(mismatch()),
+    }
+}
+
 // Serialize the expression as it is parsed. Remember its binding strength so
 // redundant parentheses disappear without changing evaluation order.
 struct Expression {
+    kind: Type,
+    string_literal: bool,
     sql: String,
     precedence: u8,
     unary: bool,
@@ -139,12 +315,19 @@ struct Expression {
 impl Expression {
     fn new(sql: String, precedence: u8) -> Self {
         Self {
+            kind: None,
+            string_literal: false,
             sql,
             precedence,
             unary: false,
             binary: false,
             minimum_magnitude: false,
         }
+    }
+
+    fn typed(mut self, kind: Type) -> Self {
+        self.kind = kind;
+        self
     }
 
     fn enclosed(self, condition: bool) -> String {
@@ -157,7 +340,7 @@ impl Expression {
 }
 
 struct Parser<'a> {
-    bindings: Option<&'a std::collections::HashMap<String, String>>,
+    bindings: Option<&'a std::collections::HashMap<String, (String, Kind)>>,
     tokens: std::iter::Peekable<std::vec::IntoIter<Token>>,
 }
 
@@ -182,17 +365,26 @@ impl Parser<'_> {
         let mut left = match token {
             Token::Number(raw) => {
                 let mut expr = Expression::new(number_literal(&raw)?, 9);
+                expr.kind = Some(if raw.parse::<i64>().is_ok() {
+                    Kind::Integer
+                } else {
+                    Kind::Number
+                });
                 expr.minimum_magnitude = raw == "9223372036854775808";
                 expr
             }
-            Token::StringLit(raw) => Expression::new(raw, 9),
-            Token::QuotedIdent(name) => Expression::new(
-                match self.bindings {
-                    Some(bindings) => bindings.get(&name).cloned().ok_or_else(invalid)?,
-                    None => quote_identifier(&name)?,
-                },
-                9,
-            ),
+            Token::StringLit(raw) => {
+                let mut e = Expression::new(raw, 9).typed(Some(Kind::Text));
+                e.string_literal = true;
+                e
+            }
+            Token::QuotedIdent(name) => match self.bindings {
+                Some(bindings) => {
+                    let (sql, kind) = bindings.get(&name).ok_or_else(invalid)?;
+                    Expression::new(sql.clone(), 9).typed(Some(*kind))
+                }
+                None => Expression::new(quote_identifier(&name)?, 9),
+            },
             Token::Symbol(symbol) if symbol == "(" => {
                 let inner = self.expression(1, depth + 1)?;
                 self.require(")")?;
@@ -202,7 +394,8 @@ impl Parser<'_> {
             Token::Ident(name) => {
                 let name = name.to_ascii_uppercase();
                 match name.as_str() {
-                    "TRUE" | "FALSE" | "NULL" => Expression::new(name, 9),
+                    "TRUE" | "FALSE" => Expression::new(name, 9).typed(Some(Kind::Checkbox)),
+                    "NULL" => Expression::new(name, 9),
                     "NOT" => self.unary("NOT", 3, depth)?,
                     "TODAY" if self.bindings.is_some() => {
                         self.require("(")?;
@@ -211,6 +404,7 @@ impl Parser<'_> {
                             r#"(SELECT "today" FROM "__eidos_formula_calendar")"#.into(),
                             9,
                         )
+                        .typed(Some(Kind::Date))
                     }
                     "CAST" => {
                         self.require("(")?;
@@ -230,14 +424,26 @@ impl Parser<'_> {
                             format!("CAST({} AS {})", operand.sql, kind.to_ascii_uppercase()),
                             9,
                         )
+                        .typed(Some(
+                            match kind.to_ascii_uppercase().as_str() {
+                                "INTEGER" => Kind::Integer,
+                                "REAL" => Kind::Number,
+                                _ => Kind::Text,
+                            },
+                        ))
                     }
                     "CASE" => {
                         let mut sql = String::from("CASE");
+                        let mut kinds = Vec::new();
                         self.require("WHEN")?;
                         loop {
                             let test = self.expression(1, depth + 1)?;
                             self.require("THEN")?;
                             let then = self.expression(1, depth + 1)?;
+                            if self.bindings.is_some() {
+                                require(test.kind, Kind::Checkbox)?;
+                                kinds.push(then.kind);
+                            }
                             sql.push_str(&format!(" WHEN {} THEN {}", test.sql, then.sql));
                             if !self.consume("WHEN") {
                                 break;
@@ -245,25 +451,45 @@ impl Parser<'_> {
                         }
                         if self.consume("ELSE") {
                             sql.push_str(" ELSE ");
-                            sql.push_str(&self.expression(1, depth + 1)?.sql);
+                            let alternative = self.expression(1, depth + 1)?;
+                            if self.bindings.is_some() {
+                                kinds.push(alternative.kind);
+                            }
+                            sql.push_str(&alternative.sql);
                         }
                         self.require("END")?;
                         sql.push_str(" END");
-                        Expression::new(sql, 9)
+                        Expression::new(sql, 9).typed(common(kinds.into_iter())?)
                     }
                     _ => {
                         self.require("(")?;
                         let mut args = Vec::new();
                         if !self.consume(")") {
                             loop {
-                                args.push(self.expression(1, depth + 1)?.sql);
+                                args.push(self.expression(1, depth + 1)?);
                                 if !self.consume(",") {
                                     break;
                                 }
                             }
                             self.require(")")?;
                         }
-                        Expression::new(format!("{}({})", name, args.join(", ")), 9)
+                        let kind = if self.bindings.is_some() {
+                            call_type(&name, &args)?
+                        } else {
+                            None
+                        };
+                        Expression::new(
+                            format!(
+                                "{}({})",
+                                name,
+                                args.into_iter()
+                                    .map(|a| a.sql)
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                            9,
+                        )
+                        .typed(kind)
                     }
                 }
             }
@@ -296,7 +522,8 @@ impl Parser<'_> {
                         if negate { "NOT " } else { "" }
                     ),
                     4,
-                );
+                )
+                .typed(Some(Kind::Checkbox));
                 continue;
             }
             let right = self.expression(precedence + 1, depth + 1)?;
@@ -309,6 +536,7 @@ impl Parser<'_> {
                 other => other,
             };
             if self.bindings.is_some() {
+                let kind = binary_type(op, left.kind, right.kind)?;
                 let sql = if matches!(op, "+" | "-" | "*" | "/" | "%") {
                     format!(
                         "eidos_formula_arithmetic('{op}', {}, {})",
@@ -317,7 +545,7 @@ impl Parser<'_> {
                 } else {
                     format!("(({}) {op} ({}))", left.sql, right.sql)
                 };
-                left = Expression::new(sql, precedence);
+                left = Expression::new(sql, precedence).typed(kind);
                 left.binary = true;
                 continue;
             }
@@ -337,6 +565,18 @@ impl Parser<'_> {
     fn unary(&mut self, op: &str, precedence: u8, depth: usize) -> Result<Expression> {
         let operand = self.expression(precedence + 1, depth + 1)?;
         let wrap = operand.precedence < precedence || operand.unary;
+        let kind = if self.bindings.is_none() {
+            None
+        } else if op == "NOT" {
+            require(operand.kind, Kind::Checkbox)?;
+            Some(Kind::Checkbox)
+        } else if op == "-" && operand.minimum_magnitude {
+            Some(Kind::Integer)
+        } else if numeric(operand.kind) {
+            operand.kind
+        } else {
+            return Err(mismatch());
+        };
         let sql = if op == "-" && operand.minimum_magnitude {
             "-9223372036854775808".into()
         } else if self.bindings.is_some() && op == "-" {
@@ -348,7 +588,7 @@ impl Parser<'_> {
                 operand.enclosed(wrap)
             )
         };
-        let mut expr = Expression::new(sql, precedence);
+        let mut expr = Expression::new(sql, precedence).typed(kind);
         expr.unary = true;
         Ok(expr)
     }
@@ -378,8 +618,8 @@ fn number_literal(raw: &str) -> Result<String> {
 /// Emit parenthesized SQL using resolved, trusted field expressions.
 pub fn compile_bound_source(
     tokens: Vec<Token>,
-    bindings: &std::collections::HashMap<String, String>,
-) -> Result<String> {
+    bindings: &std::collections::HashMap<String, (String, Kind)>,
+) -> Result<(String, Option<Kind>)> {
     let mut parser = Parser {
         tokens: tokens.into_iter().peekable(),
         bindings: Some(bindings),
@@ -388,7 +628,7 @@ pub fn compile_bound_source(
     if parser.tokens.next().is_some() {
         return Err(invalid());
     }
-    Ok(expression.sql)
+    Ok((expression.sql, expression.kind))
 }
 
 pub fn rename_reference(source: &str, old: &str, new: &str) -> Result<Option<String>> {

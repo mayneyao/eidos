@@ -648,8 +648,8 @@ impl Compiler<'_> {
                     self.params.push(SqlValue::Text(pattern.clone()));
                     format!(
                         "EXISTS (SELECT 1 FROM json_each({column}) je \
-                         JOIN {table} t ON t.{row_id} = je.value \
-                         WHERE LOWER(CAST(t.{label} AS TEXT)) LIKE LOWER(?) ESCAPE '\\')",
+                         LEFT JOIN {table} t ON t.{row_id} = je.value \
+                         WHERE LOWER(CAST(CASE WHEN t.{row_id} IS NULL THEN je.value ELSE t.{label} END AS TEXT)) LIKE LOWER(?) ESCAPE '\\')",
                         table = quote_identifier(&target.table)?,
                         row_id = quote_identifier(&target.row_id)?,
                         label = quote_identifier(&target.label)?,

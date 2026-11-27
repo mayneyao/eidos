@@ -119,6 +119,7 @@ struct PreparedField {
     position: i64,
     settings_json: String,
     relation: Option<RelationFieldMeta>,
+    formula: Option<(String, crate::model::FormulaResultType)>,
 }
 
 fn parse_i64(value: Option<&str>, fallback: i64, label: &str) -> Result<i64> {
@@ -294,6 +295,7 @@ fn prepare_field(
     field: &NewField,
     index: usize,
     existing_names: &mut Vec<String>,
+    runtime_create_table: bool,
 ) -> Result<PreparedField> {
     if field.client_key.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -301,7 +303,22 @@ fn prepare_field(
         ));
     }
     assert_display_name(&field.name, "Field name")?;
-    unsupported_virtual(field.kind)?;
+    let formula = if runtime_create_table && field.kind == FieldType::Formula {
+        let definition = field
+            .definition
+            .as_ref()
+            .ok_or_else(|| EidosError::InvalidRequest("Missing Formula definition".into()))?;
+        let source = definition["sourceText"]
+            .as_str()
+            .ok_or_else(|| EidosError::InvalidRequest("Missing Formula source".into()))?;
+        let result = crate::model::FormulaResultType::from_spec_str(
+            definition["resultType"].as_str().unwrap_or(""),
+        )?;
+        Some((source.to_owned(), result))
+    } else {
+        unsupported_virtual(field.kind)?;
+        None
+    };
     let folded = sqlite_nocase(&field.name);
     if existing_names
         .iter()
@@ -318,7 +335,7 @@ fn prepare_field(
     let relation = if field.kind == FieldType::Relation {
         Some(parse_relation(&id, field.definition.as_ref())?)
     } else {
-        if field.definition.is_some() {
+        if field.definition.is_some() && formula.is_none() {
             return Err(EidosError::InvalidRequest(format!(
                 "{} field must not carry definition",
                 field.kind.as_str()
@@ -336,6 +353,7 @@ fn prepare_field(
         position: parse_i64(field.position.as_deref(), index as i64, "field position")?,
         settings_json: settings_json(field.settings.as_ref())?,
         relation,
+        formula,
     })
 }
 
@@ -369,7 +387,7 @@ fn insert_field_meta(
             field.id,
             table_id,
             field.name,
-            field.physical_name,
+            field.formula.is_none().then_some(&field.physical_name),
             field.kind.as_str(),
             i64::from(field.nullable),
             field.position,
@@ -378,6 +396,12 @@ fn insert_field_meta(
             instant,
         ],
     )?;
+    if let Some((source, result)) = &field.formula {
+        conn.execute(
+            "INSERT INTO eidos__formula_fields(field_id,source_text,result_type) VALUES(?,?,?)",
+            rusqlite::params![field.id, source, result.as_str()],
+        )?;
+    }
     if let Some(relation) = &field.relation {
         conn.execute(
             "INSERT INTO eidos__relation_fields(field_id,direction,target_table_id,cardinality,inverse_of_field_id,on_delete) VALUES(?,'forward',?,?,NULL,?)",
@@ -442,6 +466,7 @@ struct CreateTableInput<'a> {
     settings: Option<&'a JsonValue>,
     fields: &'a [NewField],
     label_field_client_key: Option<&'a str>,
+    runtime: bool,
 }
 
 fn create_table(
@@ -456,6 +481,7 @@ fn create_table(
         settings,
         fields,
         label_field_client_key,
+        runtime,
     } = input;
     if client_key.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -490,6 +516,9 @@ fn create_table(
     }
     let table_id = generate_uuidv7();
     let table_physical = name.to_string();
+    let row_id = generate_uuidv7();
+    let created_id = generate_uuidv7();
+    let updated_id = generate_uuidv7();
     let mut existing_fields = vec![
         "_id".to_string(),
         "_created_at".to_string(),
@@ -498,7 +527,7 @@ fn create_table(
     let prepared = fields
         .iter()
         .enumerate()
-        .map(|(index, field)| prepare_field(field, index, &mut existing_fields))
+        .map(|(index, field)| prepare_field(field, index, &mut existing_fields, runtime))
         .collect::<Result<Vec<_>>>()?;
     let label_field_id = if let Some(client_key) = label_field_client_key {
         let field = prepared
@@ -509,29 +538,24 @@ fn create_table(
                     "labelFieldClientKey {client_key:?} does not identify a supplied field"
                 ))
             })?;
-        if !label_compatible(field) {
+        if !label_compatible(field) && field.formula.is_none() {
             return Err(EidosError::InvalidRequest(format!(
                 "field {:?} cannot be a record label",
                 field.name
             )));
         }
         field.id.clone()
+    } else if runtime {
+        row_id.clone()
     } else {
         prepared
             .iter()
             .find(|field| label_compatible(field))
             .map(|field| field.id.clone())
-            .unwrap_or_else(generate_uuidv7)
+            .unwrap_or_else(|| row_id.clone())
     };
-    let row_id = if prepared.iter().any(|field| field.id == label_field_id) {
-        generate_uuidv7()
-    } else {
-        label_field_id.clone()
-    };
-    let created_id = generate_uuidv7();
-    let updated_id = generate_uuidv7();
     let mut definitions = system_column_sql();
-    for field in &prepared {
+    for field in prepared.iter().filter(|f| f.formula.is_none()) {
         definitions.push(column_sql(
             &field.physical_name,
             field.kind,
@@ -729,7 +753,7 @@ fn create_field(
         .iter()
         .map(|field| field.name.clone())
         .collect();
-    let mut prepared = prepare_field(field, table_fields.len(), &mut existing)?;
+    let mut prepared = prepare_field(field, table_fields.len(), &mut existing, false)?;
     if prepared.relation.as_ref().is_some_and(|r| {
         is_fs_meta(table)
             || tables
@@ -1139,6 +1163,23 @@ pub fn apply_schema_leaf(
     change: &SchemaLeafChange,
     instant: &str,
 ) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    apply_leaf(conn, change, instant, false)
+}
+
+pub fn apply_runtime_schema_leaf(
+    conn: &Connection,
+    change: &SchemaLeafChange,
+    instant: &str,
+) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    apply_leaf(conn, change, instant, true)
+}
+
+fn apply_leaf(
+    conn: &Connection,
+    change: &SchemaLeafChange,
+    instant: &str,
+    runtime: bool,
+) -> Result<(bool, Vec<CreatedSchemaObject>)> {
     debug_assert!(!conn.is_autocommit());
     match change {
         SchemaLeafChange::CreateTable {
@@ -1159,6 +1200,7 @@ pub fn apply_schema_leaf(
                     settings: settings.as_ref(),
                     fields,
                     label_field_client_key: label_field_client_key.as_deref(),
+                    runtime,
                 },
                 instant,
             )?,

@@ -18,7 +18,7 @@ use eidos_file_core::rows::{
     AffectedRow, CreatedRow, RowChange, RowMutation, ensure_revision, mutate_rows_at,
 };
 use eidos_file_core::schema_ops::{
-    CreatedObjectKind, SchemaLeafChange, apply_schema_leaf, ensure_foreign_keys,
+    CreatedObjectKind, SchemaLeafChange, apply_runtime_schema_leaf, ensure_foreign_keys,
     view_query_uses_field,
 };
 use eidos_file_core::time::now_instant;
@@ -95,6 +95,29 @@ pub struct RustRuntimeService {
 
     plans: HashMap<String, CachedSchemaPlan>,
     schema_cache: Option<CachedSchema>,
+}
+
+fn planned_field(
+    table: &str,
+    id: String,
+    name: &str,
+    field_type: FieldType,
+    system_role: Option<SystemRole>,
+) -> FieldMeta {
+    FieldMeta {
+        id,
+        table_id: table.into(),
+        name: name.into(),
+        physical_name: (!matches!(field_type, FieldType::Formula | FieldType::Lookup))
+            .then(|| name.into()),
+        field_type,
+        system_role,
+        nullable: true,
+        position: 0,
+        settings_json: "{}".into(),
+        created_at: String::new(),
+        updated_at: String::new(),
+    }
 }
 
 fn row_sort_keys(
@@ -2523,7 +2546,9 @@ impl RustRuntimeService {
             &formulas,
             req.field_id.as_deref(),
             None,
-        ) {
+        )
+        .and_then(|compiled| crate::formula::check_result(compiled, &req.declared_result_type))
+        {
             Ok(c) => c,
             Err(diag) => {
                 return Ok(FormulaPreviewResult {
@@ -3326,11 +3351,85 @@ impl RustRuntimeService {
         let mut value_changes: Vec<crate::contract::SchemaValueChange> = Vec::new();
         let mut conversions: HashMap<String, ConversionPreflight> = HashMap::new();
 
-        if leaves.iter().any(|leaf| leaf["kind"] == "delete-field") {
+        if leaves.iter().any(|leaf| {
+            matches!(
+                leaf["kind"].as_str(),
+                Some(
+                    "delete-field"
+                        | "set-formula"
+                        | "create-table"
+                        | "create-field"
+                        | "convert-field"
+                        | "rename-field"
+                )
+            )
+        }) {
             let schema = self.ensure_schema()?;
             let mut fields = schema.fields.clone();
             let mut formulas = schema.formulas.clone();
-            for leaf in &leaves {
+            let mut table_ids: Vec<String> = schema.tables.iter().map(|t| t.id.clone()).collect();
+            for (index, leaf) in leaves.iter().enumerate() {
+                // The preview needs only names, types and dependencies. IDs for new fields
+                // are local to this plan and are never written to the file.
+                if matches!(leaf["kind"].as_str(), Some("create-table" | "create-field")) {
+                    let new_table = leaf["kind"] == "create-table";
+                    let table = if new_table {
+                        format!("planned-table-{index}")
+                    } else {
+                        leaf["tableId"].as_str().unwrap_or("").to_owned()
+                    };
+                    let incoming = if new_table {
+                        table_ids.push(table.clone());
+                        leaf["fields"].as_array().map(Vec::as_slice).unwrap_or(&[])
+                    } else {
+                        std::slice::from_ref(&leaf["field"])
+                    };
+                    if new_table {
+                        for (offset, (name, kind, role)) in [
+                            ("_id", FieldType::Text, SystemRole::RowId),
+                            ("_created_at", FieldType::Datetime, SystemRole::CreatedTime),
+                            ("_updated_at", FieldType::Datetime, SystemRole::UpdatedTime),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            fields.push(planned_field(
+                                &table,
+                                format!("{table}-sys-{offset}"),
+                                name,
+                                kind,
+                                Some(role),
+                            ));
+                        }
+                    }
+                    for (offset, f) in incoming.iter().enumerate() {
+                        let Some(name) = f["name"].as_str() else {
+                            continue;
+                        };
+                        let Ok(kind) = FieldType::from_spec_str(f["kind"].as_str().unwrap_or(""))
+                        else {
+                            continue;
+                        };
+                        let id = format!("planned-field-{index}-{offset}");
+                        fields.push(planned_field(&table, id.clone(), name, kind, None));
+                        if kind == FieldType::Formula
+                            && let Some(source) = f["definition"]["sourceText"].as_str()
+                        {
+                            let result = eidos_file_core::model::FormulaResultType::from_spec_str(
+                                f["definition"]["resultType"].as_str().unwrap_or(""),
+                            )
+                            .map_err(RuntimeErrorPayload::from_core)?;
+                            formulas.insert(
+                                id.clone(),
+                                FormulaFieldMeta {
+                                    field_id: id,
+                                    source_text: source.to_owned(),
+                                    result_type: result,
+                                },
+                            );
+                        }
+                    }
+                }
                 match leaf["kind"].as_str() {
                     Some("delete-field") => {
                         fields.retain(|f| Some(f.id.as_str()) != leaf["fieldId"].as_str())
@@ -3344,15 +3443,55 @@ impl RustRuntimeService {
                             && let Some(source) = leaf["definition"]["sourceText"].as_str()
                         {
                             def.source_text = source.to_owned();
+                            if let Some(result) = leaf["definition"]["resultType"].as_str() {
+                                def.result_type =
+                                    eidos_file_core::model::FormulaResultType::from_spec_str(
+                                        result,
+                                    )
+                                    .map_err(RuntimeErrorPayload::from_core)?;
+                            }
+                        }
+                    }
+                    Some("rename-field") => {
+                        if let Some(field) = fields
+                            .iter_mut()
+                            .find(|f| Some(f.id.as_str()) == leaf["fieldId"].as_str())
+                            && let Some(name) = leaf["name"].as_str()
+                        {
+                            let table = field.table_id.clone();
+                            let old = std::mem::replace(&mut field.name, name.to_owned());
+                            for owner in fields.iter().filter(|f| f.table_id == table) {
+                                if let Some(def) = formulas.get_mut(&owner.id)
+                                    && let Some(next) =
+                                        eidos_file_core::formula_source::rename_reference(
+                                            &def.source_text,
+                                            &old,
+                                            name,
+                                        )
+                                        .map_err(RuntimeErrorPayload::from_core)?
+                                {
+                                    def.source_text = next;
+                                }
+                            }
+                        }
+                    }
+                    Some("convert-field") => {
+                        if let Some(field) = fields
+                            .iter_mut()
+                            .find(|f| Some(f.id.as_str()) == leaf["fieldId"].as_str())
+                            && let Ok(kind) =
+                                FieldType::from_spec_str(leaf["to"].as_str().unwrap_or(""))
+                        {
+                            field.field_type = kind;
                         }
                     }
                     _ => {}
                 }
             }
-            for table in &schema.tables {
+            for table in &table_ids {
                 let scope: Vec<_> = fields
                     .iter()
-                    .filter(|f| f.table_id == table.id)
+                    .filter(|f| f.table_id == *table)
                     .cloned()
                     .collect();
                 for field in &scope {
@@ -3364,13 +3503,18 @@ impl RustRuntimeService {
                             Some(&field.id),
                             None,
                         )
+                        .and_then(|c| crate::formula::check_result(c, def.result_type.as_str()))
                     {
                         classification = "forbidden".into();
                         warnings.push(RuntimeDiagnostic {
                             code: "formula-type-invalid".into(),
                             severity: "error".into(),
                             message: reason.message,
-                            table_id: Some(table.id.clone()),
+                            table_id: schema
+                                .tables
+                                .iter()
+                                .find(|t| t.id == *table)
+                                .map(|t| t.id.clone()),
                             field_id: None,
                             view_id: None,
                             row_id: None,
@@ -3875,8 +4019,9 @@ impl RustRuntimeService {
                             serde_json::from_value(leaf).map_err(|e| {
                                 RuntimeErrorPayload::new("invalid-request", e.to_string())
                             })?;
-                        let (changed, objects) = apply_schema_leaf(&self.conn, &parsed, &instant)
-                            .map_err(RuntimeErrorPayload::from_core)?;
+                        let (changed, objects) =
+                            apply_runtime_schema_leaf(&self.conn, &parsed, &instant)
+                                .map_err(RuntimeErrorPayload::from_core)?;
                         if changed {
                             any_changed = true;
                         }
