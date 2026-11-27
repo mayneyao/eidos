@@ -102,6 +102,7 @@ pub(crate) fn compile_predicates(
         .map_err(|e| RuntimeErrorPayload::new("invalid-query", e.to_string()))?;
     let mut typed = fields.to_vec();
     let mut expressions = HashMap::new();
+    let mut list_elements = HashMap::new();
     for field in &mut typed {
         if !matches!(field.field_type, FieldType::Lookup | FieldType::Formula) {
             continue;
@@ -112,6 +113,9 @@ pub(crate) fn compile_predicates(
                 .as_ref()
                 .is_some_and(|s| s.fields.contains(&field.id));
         if referenced {
+            if let Some(element) = schema.list_element(field) {
+                list_elements.insert(field.id.clone(), element);
+            }
             expressions.insert(
                 field.id.clone(),
                 schema.value_expression(table, field, fields, uses_today)?,
@@ -119,8 +123,14 @@ pub(crate) fn compile_predicates(
             field.field_type = schema.logical_type(field)?;
         }
     }
-    eidos_file_core::query::compile_derived_predicates(conn, &typed, &predicate, &expressions)
-        .map_err(RuntimeErrorPayload::from_core)
+    eidos_file_core::query::compile_derived_predicates(
+        conn,
+        &typed,
+        &predicate,
+        &expressions,
+        &list_elements,
+    )
+    .map_err(RuntimeErrorPayload::from_core)
 }
 
 #[allow(clippy::too_many_arguments)]

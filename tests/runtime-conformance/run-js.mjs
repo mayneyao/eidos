@@ -217,8 +217,13 @@ async function runCase(testCase, tempDir) {
             )
           }
           for (const [path, expected] of Object.entries(step.check ?? {})) {
+            const subject = step.checkObjectId
+              ? result.objects.find(
+                  (obj) => obj.id === resolve(step.checkObjectId)
+                )
+              : result
             assert.deepEqual(
-              path.split(".").reduce((v, k) => v[k], result),
+              path.split(".").reduce((v, k) => v[k], subject),
               resolve(expected)
             )
           }

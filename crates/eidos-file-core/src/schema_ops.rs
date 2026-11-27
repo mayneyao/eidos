@@ -941,47 +941,7 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
 
 /// Quoted identifiers are field references. Strings and escaped quotes must
 /// survive a display-name change verbatim.
-pub fn renamed_formula_source(source: &str, old: &str, new: &str) -> Result<Option<String>> {
-    if old == new {
-        return Ok(None);
-    }
-    let mut result = String::new();
-    let mut chars = source.char_indices().peekable();
-    let mut copied = 0;
-    while let Some((start, quote)) = chars.next() {
-        if quote != '\'' && quote != '"' {
-            continue;
-        }
-        let mut name = String::new();
-        loop {
-            let Some((end, ch)) = chars.next() else {
-                return Err(EidosError::InvalidSchema(
-                    "Unclosed quote in Formula".into(),
-                ));
-            };
-            if ch == quote {
-                if chars.next_if(|(_, next)| *next == quote).is_some() {
-                    name.push(quote);
-                    continue;
-                }
-                if quote == '"' && name == old {
-                    result.push_str(&source[copied..start]);
-                    result.push_str(&quote_identifier(new)?);
-                    copied = end + quote.len_utf8();
-                }
-                break;
-            }
-            if quote == '"' {
-                name.push(ch);
-            }
-        }
-    }
-    if copied == 0 {
-        return Ok(None);
-    }
-    result.push_str(&source[copied..]);
-    Ok(Some(result))
-}
+pub use crate::formula_source::rename_reference as renamed_formula_source;
 
 fn delete_table(conn: &Connection, table_id: &str) -> Result<()> {
     let table = table_by_id(conn, table_id)?;

@@ -1397,7 +1397,7 @@
             "kind": "formula",
             "position": "3",
             "definition": {
-              "sourceText": "\"Base\" * 2 + 5",
+              "sourceText": "((\"Base\"))*2+5",
               "resultType": "number"
             }
           }
@@ -1494,7 +1494,15 @@
               "name": "新 \"值\""
             }
           },
+          "save": "renamedField",
           "check": { "changed": true }
+        },
+        {
+          "op": "wire",
+          "method": "getSchemaPage",
+          "request": { "revision": "$renamedField.revision", "limit": 100 },
+          "checkObjectId": "$fields.metrics.weighted",
+          "check": { "definition.sourceText": "\"新 \"\"值\"\"\" * 2 + 5" }
         },
         {
           "op": "wire",
@@ -1793,6 +1801,22 @@
             "items": [{ "key": "n", "op": "count-all" }]
           },
           "check": { "results.0.value": "2" }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.projects",
+            "query": {
+              "filter": {
+                "op": "has-all",
+                "fieldId": "$fields.projects.distinctTags",
+                "values": ["perf"]
+              }
+            },
+            "items": [{ "key": "n", "op": "count-all" }]
+          },
+          "check": { "results.0.value": "1" }
         },
         {
           "op": "validate",

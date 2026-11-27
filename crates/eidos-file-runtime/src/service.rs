@@ -115,6 +115,7 @@ fn row_sort_keys(
                     format!("Unknown sort field {}", s.field_id),
                 )
             })?;
+            schema.check_scalar(field)?;
             let expr = schema.value_expression(table, field, table_fields, uses_today)?;
             keys.push(SortKey {
                 expr,
@@ -133,6 +134,28 @@ fn row_sort_keys(
 }
 
 impl CachedSchema {
+    pub(crate) fn list_element(&self, field: &FieldMeta) -> Option<String> {
+        let lookup = self.lookups.get(&field.id)?;
+        lookup_value_type_json(lookup, &self.fields, &self.formulas)["element"]
+            .as_str()
+            .map(str::to_owned)
+    }
+
+    fn check_scalar(&self, field: &FieldMeta) -> RuntimeResult<()> {
+        if self.list_element(field).is_some()
+            || matches!(
+                field.field_type,
+                FieldType::Relation | FieldType::File | FieldType::MultiSelect
+            )
+        {
+            return Err(RuntimeErrorPayload::new(
+                "invalid-query",
+                "Expected a sortable or groupable scalar field",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn value_expression(
         &self,
         table: &TableMeta,
@@ -141,7 +164,7 @@ impl CachedSchema {
         uses_today: &mut bool,
     ) -> RuntimeResult<String> {
         if let Some(lookup) = self.lookups.get(&field.id) {
-            lookup_scalar_expression(table, lookup, self, uses_today)
+            lookup_expression(table, lookup, self, uses_today)
         } else {
             field_sql_expr(field, fields, &self.formulas, uses_today)
         }
@@ -153,6 +176,13 @@ impl CachedSchema {
             Some(def.result_type.as_str())
         } else if let Some(lookup) = self.lookups.get(&field.id) {
             lookup_type = lookup_value_type_json(lookup, &self.fields, &self.formulas);
+            if let Some(element) = lookup_type["element"].as_str() {
+                return Ok(if element == "file-entry" {
+                    FieldType::File
+                } else {
+                    FieldType::MultiSelect
+                });
+            }
             lookup_type.as_str()
         } else {
             None
@@ -165,7 +195,7 @@ impl CachedSchema {
     }
 }
 
-fn lookup_scalar_expression(
+fn lookup_expression(
     table: &TableMeta,
     lookup: &LookupFieldMeta,
     schema: &CachedSchema,
@@ -174,12 +204,6 @@ fn lookup_scalar_expression(
     use eidos_file_core::model::LookupAggregate::*;
     let invalid = || RuntimeErrorPayload::new("corrupt-file", "Invalid Lookup definition");
     let quote = |s: &str| quote_identifier(s).map_err(RuntimeErrorPayload::from_core);
-    if matches!(lookup.aggregate, Values) {
-        return Err(RuntimeErrorPayload::new(
-            "invalid-query",
-            "A list Lookup is not sortable",
-        ));
-    }
     let relation = schema
         .relations
         .get(&lookup.relation_field_id)
@@ -264,7 +288,14 @@ fn lookup_scalar_expression(
         Average => "AVG(v)",
         Min => "MIN(v)",
         Max => "MAX(v)",
-        Values => unreachable!(),
+        Values => match schema.logical_type(target)? {
+            FieldType::Integer => "json_group_array(CAST(v AS TEXT))",
+            FieldType::Checkbox => {
+                "json_group_array(json(CASE WHEN v THEN 'true' ELSE 'false' END))"
+            }
+            FieldType::File => "json_group_array(json(v))",
+            _ => "json_group_array(v)",
+        },
     };
     Ok(format!("(SELECT {aggregate} FROM ({values}))"))
 }
@@ -2146,6 +2177,7 @@ impl RustRuntimeService {
             let field = *field_by_id
                 .get(gid.as_str())
                 .ok_or_else(|| RuntimeErrorPayload::new("not-found", format!("Field {gid}")))?;
+            self.ensure_schema()?.check_scalar(field)?;
             group_exprs.push(self.ensure_schema()?.value_expression(
                 &table,
                 field,

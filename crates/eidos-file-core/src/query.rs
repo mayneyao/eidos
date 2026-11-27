@@ -371,6 +371,7 @@ struct RelationSearchTarget {
 
 struct Compiler<'a> {
     expressions: Option<&'a HashMap<String, String>>,
+    list_elements: Option<&'a HashMap<String, String>>,
     fields: &'a [FieldMeta],
     params: Vec<SqlValue>,
     relations: Option<&'a HashMap<String, RelationSearchTarget>>,
@@ -600,7 +601,14 @@ impl Compiler<'_> {
         }
         let mut clauses = Vec::with_capacity(values.len());
         for value in values {
-            self.params.push(coerce_set_element(field, value)?);
+            let operand = match self
+                .list_elements
+                .and_then(|elements| elements.get(&field.id))
+            {
+                Some(element) => lookup_list_operand(element, value)?,
+                None => coerce_set_element(field, value)?,
+            };
+            self.params.push(operand);
             clauses.push(format!(
                 "EXISTS (SELECT 1 FROM json_each({column}) je WHERE je.value = ?)"
             ));
@@ -680,6 +688,30 @@ impl Compiler<'_> {
             clauses.push(clause);
         }
         Ok(format!("({})", clauses.join(" OR ")))
+    }
+}
+
+fn lookup_list_operand(element: &str, value: &JsonValue) -> Result<SqlValue> {
+    let invalid = || invalid_query(format!("Invalid {element} Lookup list operand"));
+    match element {
+        "file-entry" if value.is_object() => jcs::to_jcs(value)
+            .map(SqlValue::Text)
+            .map_err(|_| invalid()),
+        "number" => value.as_f64().map(SqlValue::Real).ok_or_else(invalid),
+        "checkbox" => value
+            .as_bool()
+            .map(|v| SqlValue::Integer(i64::from(v)))
+            .ok_or_else(invalid),
+        "integer" => value
+            .as_str()
+            .filter(|s| s.parse::<i64>().is_ok_and(|i| i.to_string() == *s))
+            .map(|s| SqlValue::Text(s.into()))
+            .ok_or_else(invalid),
+        "text" | "url" | "select" | "row-id" | "date" | "datetime" => value
+            .as_str()
+            .map(|s| SqlValue::Text(s.into()))
+            .ok_or_else(invalid),
+        _ => Err(invalid()),
     }
 }
 
@@ -771,9 +803,11 @@ fn compile(
     query: &RowQuery,
     relations: Option<&HashMap<String, RelationSearchTarget>>,
     expressions: Option<&HashMap<String, String>>,
+    list_elements: Option<&HashMap<String, String>>,
 ) -> Result<CompiledQuery> {
     let mut compiler = Compiler {
         expressions,
+        list_elements,
         fields,
         params: Vec::new(),
         relations,
@@ -816,7 +850,7 @@ pub fn compile_query(
     query: &RowQuery,
 ) -> Result<CompiledQuery> {
     let _ = table;
-    compile(fields, query, None, None)
+    compile(fields, query, None, None, None)
 }
 
 /// Compile predicates against stored and derived fields, resolving Relation search targets.
@@ -825,9 +859,16 @@ pub fn compile_derived_predicates(
     fields: &[FieldMeta],
     query: &RowQuery,
     expressions: &HashMap<String, String>,
+    list_elements: &HashMap<String, String>,
 ) -> Result<CompiledQuery> {
     let relations = load_relation_search_targets(conn, fields, query)?;
-    compile(fields, query, Some(&relations), Some(expressions))
+    compile(
+        fields,
+        query,
+        Some(&relations),
+        Some(expressions),
+        Some(list_elements),
+    )
 }
 
 /// Loads the target table's physical name, row-id column, and label column
@@ -980,7 +1021,7 @@ pub fn read_rows(
     options: &ReadRowsOptions,
 ) -> Result<RowPage> {
     let relations = load_relation_search_targets(conn, fields, query)?;
-    let compiled = compile(fields, query, Some(&relations), None)?;
+    let compiled = compile(fields, query, Some(&relations), None, None)?;
 
     let row_id_field = fields
         .iter()

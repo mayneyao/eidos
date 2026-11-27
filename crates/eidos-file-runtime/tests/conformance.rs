@@ -221,10 +221,21 @@ fn language_neutral_runtime_conformance() {
                             saved[key] = result.clone();
                         }
                         if let Some(check) = step["check"].as_object() {
+                            let subject = if let Some(id) = step.get("checkObjectId") {
+                                let id = resolve_wire(id, &saved);
+                                result["objects"]
+                                    .as_array()
+                                    .unwrap()
+                                    .iter()
+                                    .find(|o| o["id"] == id)
+                                    .unwrap()
+                            } else {
+                                &result
+                            };
                             for (path, expected) in check {
                                 let ptr = format!("/{}", path.replace('.', "/"));
                                 assert_eq!(
-                                    result.pointer(&ptr).unwrap(),
+                                    subject.pointer(&ptr).unwrap(),
                                     &resolve_wire(expected, &saved),
                                     "[{case_id}] {path}"
                                 );

@@ -25,6 +25,7 @@
 
 pub mod ddl;
 pub mod error;
+pub mod formula_source;
 pub mod id;
 pub mod jcs;
 pub mod model;
