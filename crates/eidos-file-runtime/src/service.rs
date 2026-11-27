@@ -159,7 +159,7 @@ fn row_sort_keys(
 impl CachedSchema {
     pub(crate) fn list_element(&self, field: &FieldMeta) -> Option<String> {
         let lookup = self.lookups.get(&field.id)?;
-        lookup_value_type_json(lookup, &self.fields, &self.formulas)["element"]
+        lookup_value_type_json(lookup, &self.fields, &self.formulas, &self.lookups)["element"]
             .as_str()
             .map(str::to_owned)
     }
@@ -187,10 +187,65 @@ impl CachedSchema {
         uses_today: &mut bool,
     ) -> RuntimeResult<String> {
         if let Some(lookup) = self.lookups.get(&field.id) {
-            lookup_expression(table, lookup, self, uses_today)
+            let outer =
+                quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
+            lookup_expression(&outer, lookup, self, uses_today, 0)
+        } else if let Some(def) = self.formulas.get(&field.id) {
+            let compiled = self
+                .formula(&def.source_text, fields, Some(&field.id), None, 0)
+                .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
+            *uses_today |= compiled.uses_today;
+            Ok(format!("({})", compiled.sql))
         } else {
             field_sql_expr(field, fields, &self.formulas, uses_today)
         }
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn formula(
+        &self,
+        source: &str,
+        fields: &[FieldMeta],
+        id: Option<&str>,
+        alias: Option<&str>,
+        depth: usize,
+    ) -> Result<crate::formula::CompiledFormula, RuntimeDiagnostic> {
+        crate::formula::compile_with_lookups(
+            source,
+            fields,
+            &self.formulas,
+            id,
+            alias,
+            &mut |field| {
+                let error = |e: RuntimeErrorPayload| crate::formula::type_error(&e.message);
+                let lookup = self
+                    .lookups
+                    .get(&field.id)
+                    .ok_or_else(|| crate::formula::type_error("Missing Lookup definition"))?;
+                let outer = if let Some(alias) = alias {
+                    alias.to_owned()
+                } else {
+                    let table = self
+                        .tables
+                        .iter()
+                        .find(|t| t.id == field.table_id)
+                        .ok_or_else(|| crate::formula::type_error("Missing Lookup table"))?;
+                    quote_identifier(&table.physical_name)
+                        .map_err(|e| crate::formula::type_error(&e.to_string()))?
+                };
+                let kind = self.logical_type(field).map_err(error)?;
+                let kind = if kind == FieldType::Select {
+                    eidos_file_core::model::FormulaResultType::Text
+                } else {
+                    eidos_file_core::model::FormulaResultType::from_spec_str(kind.as_str())
+                        .map_err(|_| crate::formula::type_error("Expected scalar Lookup"))?
+                };
+                let mut clock = false;
+                let sql = lookup_expression(&outer, lookup, self, &mut clock, depth + 1)
+                    .map_err(error)?;
+                Ok((sql, kind, clock))
+            },
+        )
     }
 
     pub(crate) fn logical_type(&self, field: &FieldMeta) -> RuntimeResult<FieldType> {
@@ -198,7 +253,8 @@ impl CachedSchema {
         let kind = if let Some(def) = self.formulas.get(&field.id) {
             Some(def.result_type.as_str())
         } else if let Some(lookup) = self.lookups.get(&field.id) {
-            lookup_type = lookup_value_type_json(lookup, &self.fields, &self.formulas);
+            lookup_type =
+                lookup_value_type_json(lookup, &self.fields, &self.formulas, &self.lookups);
             if let Some(element) = lookup_type["element"].as_str() {
                 return Ok(if element == "file-entry" {
                     FieldType::File
@@ -219,12 +275,18 @@ impl CachedSchema {
 }
 
 fn lookup_expression(
-    table: &TableMeta,
+    outer: &str,
     lookup: &LookupFieldMeta,
     schema: &CachedSchema,
     uses_today: &mut bool,
+    depth: usize,
 ) -> RuntimeResult<String> {
-    use eidos_file_core::model::LookupAggregate::*;
+    if depth > 64 {
+        return Err(RuntimeErrorPayload::new(
+            "semantic-cycle",
+            "Lookup dependency depth exceeded",
+        ));
+    }
     let invalid = || RuntimeErrorPayload::new("corrupt-file", "Invalid Lookup definition");
     let quote = |s: &str| quote_identifier(s).map_err(RuntimeErrorPayload::from_core);
     let relation = schema
@@ -244,13 +306,12 @@ fn lookup_expression(
         .iter()
         .find(|t| t.id == target.table_id)
         .ok_or_else(invalid)?;
-    let outer = quote(&table.physical_name)?;
     let dest_name = quote(&dest.physical_name)?;
-    let mut alias = "__eidos_lookup_target".to_owned();
-    while alias.eq_ignore_ascii_case(&table.physical_name) {
-        alias.push('_');
+    let mut name = format!("__eidos_lookup_target_{depth}");
+    while quote(&name)?.eq_ignore_ascii_case(outer) {
+        name.push('_');
     }
-    let alias = quote(&alias)?;
+    let alias = quote(&name)?;
     let cell = if let Some(name) = &target.physical_name {
         format!("{alias}.{}", quote(name)?)
     } else {
@@ -260,7 +321,23 @@ fn lookup_expression(
             .filter(|f| f.table_id == dest.id)
             .cloned()
             .collect::<Vec<_>>();
-        field_sql_expr(target, &scope, &schema.formulas, uses_today)?
+        if let Some(def) = schema.formulas.get(&target.id) {
+            let compiled = schema
+                .formula(
+                    &def.source_text,
+                    &scope,
+                    Some(&target.id),
+                    Some(&alias),
+                    depth + 1,
+                )
+                .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
+            *uses_today |= compiled.uses_today;
+            format!("({})", compiled.sql)
+        } else if let Some(nested) = schema.lookups.get(&target.id) {
+            lookup_expression(&alias, nested, schema, uses_today, depth + 1)?
+        } else {
+            return Err(invalid());
+        }
     };
     let (from, condition, order) = match relation.direction {
         RelationDirection::Forward => {
@@ -292,10 +369,12 @@ fn lookup_expression(
         }
     };
     let mut values = format!("SELECT {cell} AS v FROM {from} WHERE {condition} ORDER BY {order}");
-    if matches!(
-        target.field_type,
-        FieldType::MultiSelect | FieldType::Relation | FieldType::File
-    ) {
+    if schema.list_element(target).is_some()
+        || matches!(
+            target.field_type,
+            FieldType::MultiSelect | FieldType::Relation | FieldType::File
+        )
+    {
         values = format!("SELECT item.value AS v FROM ({values}) cells, json_each(cells.v) item");
     }
     let distinct = if lookup.distinct_values {
@@ -303,24 +382,19 @@ fn lookup_expression(
     } else {
         ""
     };
-    let values = format!("SELECT {distinct}v FROM ({values}) WHERE v IS NOT NULL");
-    let aggregate = match lookup.aggregate {
-        First => return Ok(format!("(SELECT v FROM ({values}) LIMIT 1)")),
-        Count => "COUNT(*)",
-        Sum => "SUM(v)",
-        Average => "AVG(v)",
-        Min => "MIN(v)",
-        Max => "MAX(v)",
-        Values => match schema.logical_type(target)? {
-            FieldType::Integer => "json_group_array(CAST(v AS TEXT))",
-            FieldType::Checkbox => {
-                "json_group_array(json(CASE WHEN v THEN 'true' ELSE 'false' END))"
-            }
-            FieldType::File => "json_group_array(json(v))",
-            _ => "json_group_array(v)",
-        },
+    let values = format!("SELECT {distinct}v FROM ({values})");
+    let kind =
+        crate::lookup::lookup_element(lookup, &schema.fields, &schema.formulas, &schema.lookups);
+    let atom = match kind {
+        "integer" => "CAST(v AS TEXT)",
+        "checkbox" => "json(CASE WHEN v IS NULL THEN 'null' WHEN v THEN 'true' ELSE 'false' END)",
+        "file-entry" => "json(v)",
+        _ => "v",
     };
-    Ok(format!("(SELECT {aggregate} FROM ({values}))"))
+    let aggregate = lookup.aggregate.as_str();
+    Ok(format!(
+        "(SELECT eidos_runtime_lookup(json_group_array({atom}), '{aggregate}', '{kind}') FROM ({values}))"
+    ))
 }
 
 fn view_layout_uses_field(layout: &JsonValue, id: &str) -> bool {
@@ -343,30 +417,40 @@ fn field_depends_on_today(
     lookups: &HashMap<String, LookupFieldMeta>,
     formulas: &HashMap<String, FormulaFieldMeta>,
 ) -> bool {
-    let target = if let Some(lookup) = lookups.get(&field.id) {
-        let Some(target) = all_fields.iter().find(|f| f.id == lookup.target_field_id) else {
-            return false;
-        };
-        target
-    } else {
-        field
-    };
-    let Some(formula) = formulas.get(&target.id) else {
-        return false;
-    };
-    let scope = all_fields
-        .iter()
-        .filter(|f| f.table_id == target.table_id)
-        .cloned()
-        .collect::<Vec<_>>();
-    compile_formula_expression(
-        &formula.source_text,
-        &scope,
-        formulas,
-        Some(&target.id),
-        None,
-    )
-    .is_ok_and(|formula| formula.uses_today)
+    use eidos_file_core::formula_source::{Token, tokenize};
+    let mut pending = vec![field];
+    let mut seen = HashSet::new();
+    while let Some(current) = pending.pop() {
+        if !seen.insert(&current.id) {
+            continue;
+        }
+        if let Some(lookup) = lookups.get(&current.id)
+            && let Some(target) = all_fields.iter().find(|f| f.id == lookup.target_field_id)
+        {
+            pending.push(target);
+        }
+        if let Some(formula) = formulas.get(&current.id)
+            && let Ok(tokens) = tokenize(&formula.source_text)
+        {
+            for (i, token) in tokens.iter().enumerate() {
+                match token {
+                    Token::Ident(name)
+                        if name.eq_ignore_ascii_case("TODAY")
+                            && matches!(tokens.get(i+1), Some(Token::Symbol(p)) if p == "(") =>
+                    {
+                        return true;
+                    }
+                    Token::QuotedIdent(name) => pending.extend(
+                        all_fields
+                            .iter()
+                            .find(|f| f.table_id == current.table_id && f.name == *name),
+                    ),
+                    _ => {}
+                }
+            }
+        }
+    }
+    false
 }
 
 fn sha256_hex(input: &str) -> String {
@@ -407,7 +491,7 @@ fn value_type_json(
         }
         FieldType::Lookup => {
             if let Some(lk) = lookups.get(&field.id) {
-                lookup_value_type_json(lk, all_fields, formulas)
+                lookup_value_type_json(lk, all_fields, formulas, lookups)
             } else {
                 json!({ "kind": "list", "element": "text" })
             }
@@ -478,6 +562,7 @@ impl RustRuntimeService {
         ddl::configure_connection(&conn).map_err(RuntimeErrorPayload::from_core)?;
         crate::calendar::register_external_instants(&conn)?;
         crate::formula::register_arithmetic(&conn)?;
+        crate::lookup::register_lookup_aggregate(&conn)?;
         if read_only {
             conn.execute_batch("PRAGMA query_only = ON; PRAGMA temp_store = MEMORY;")
                 .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
@@ -522,6 +607,7 @@ impl RustRuntimeService {
         ddl::configure_connection(&dst).map_err(RuntimeErrorPayload::from_core)?;
         crate::calendar::register_external_instants(&dst)?;
         crate::formula::register_arithmetic(&dst)?;
+        crate::lookup::register_lookup_aggregate(&dst)?;
         let _ = load_file_meta(&dst).map_err(RuntimeErrorPayload::from_core)?;
 
         let limits = RuntimeLimits::default();
@@ -578,6 +664,20 @@ impl RustRuntimeService {
 
     fn read_cell(&self, value: SqlValue, field: &FieldMeta) -> RuntimeResult<JsonValue> {
         if !self.space_file_columns.contains(&field.id) {
+            if field.field_type == FieldType::File && field.physical_name.is_some() {
+                let invalid =
+                    || RuntimeErrorPayload::new("corrupt-file", "Invalid stored File value");
+                let SqlValue::Text(ref encoded) = value else {
+                    return Err(invalid());
+                };
+                let parsed = serde_json::from_str(encoded).map_err(|_| invalid())?;
+                if eidos_file_core::values::coerce_value(field, &parsed).map_err(|_| invalid())?
+                    != value
+                {
+                    return Err(invalid());
+                }
+                return Ok(parsed);
+            }
             return Ok(decode_stored_cell(value, field));
         }
         if value == SqlValue::Null {
@@ -1260,14 +1360,12 @@ impl RustRuntimeService {
                 let def = formulas.get(&f.id).ok_or_else(|| {
                     RuntimeErrorPayload::new("corrupt-file", format!("Missing formula {}", f.id))
                 })?;
-                let compiled = compile_formula_expression(
-                    &def.source_text,
-                    &table_fields,
-                    &formulas,
-                    Some(&f.id),
-                    None,
-                )
-                .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
+                let compiled = self
+                    .schema_cache
+                    .as_ref()
+                    .unwrap()
+                    .formula(&def.source_text, &table_fields, Some(&f.id), None, 0)
+                    .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
                 if compiled.uses_today {
                     uses_today = true;
                 }
@@ -1344,8 +1442,8 @@ impl RustRuntimeService {
             let count = self
                 .conn
                 .query_row(
-                    &format!("SELECT count(*) FROM {table_sql}{where_sql}"),
-                    params_from_iter(compiled_where.params.iter()),
+                    &format!("{cte}SELECT count(*) FROM {table_sql}{where_sql}"),
+                    params_from_iter(params.iter().chain(&compiled_where.params)),
                     |row| row.get::<_, i64>(0),
                 )
                 .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
@@ -1688,6 +1786,9 @@ impl RustRuntimeService {
     }
 
     pub fn get_rows_by_id(&mut self, req: &GetRowsByIdRequest) -> RuntimeResult<RowBatch> {
+        if self.conn.is_autocommit() {
+            return self.transaction("BEGIN", |service| service.get_rows_by_id(req));
+        }
         let (today_str, ref_instant) =
             resolve_today_date(req.calendar.as_ref(), req.reference_instant.as_deref())?;
         let (
@@ -1760,14 +1861,12 @@ impl RustRuntimeService {
                 let def = formulas.get(&f.id).ok_or_else(|| {
                     RuntimeErrorPayload::new("corrupt-file", format!("Missing formula {}", f.id))
                 })?;
-                let compiled = compile_formula_expression(
-                    &def.source_text,
-                    &table_fields,
-                    &formulas,
-                    Some(&f.id),
-                    None,
-                )
-                .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
+                let compiled = self
+                    .schema_cache
+                    .as_ref()
+                    .unwrap()
+                    .formula(&def.source_text, &table_fields, Some(&f.id), None, 0)
+                    .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
                 if compiled.uses_today {
                     uses_today = true;
                 }
@@ -2496,6 +2595,7 @@ impl RustRuntimeService {
         })
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn preview_formula(
         &mut self,
         req: &FormulaPreviewRequest,
@@ -2515,7 +2615,7 @@ impl RustRuntimeService {
             ));
         }
 
-        let (file_id, revision_str, table, table_fields, formulas) = {
+        let (file_id, revision_str, table, table_fields) = {
             let schema = self.ensure_schema()?;
             let table = schema
                 .tables
@@ -2536,18 +2636,21 @@ impl RustRuntimeService {
                 schema.meta.revision.to_string(),
                 table,
                 table_fields,
-                schema.formulas.clone(),
             )
         };
 
-        let compiled = match compile_formula_expression(
-            &req.source_text,
-            &table_fields,
-            &formulas,
-            req.field_id.as_deref(),
-            None,
-        )
-        .and_then(|compiled| crate::formula::check_result(compiled, &req.declared_result_type))
+        let compiled = match self
+            .schema_cache
+            .as_ref()
+            .unwrap()
+            .formula(
+                &req.source_text,
+                &table_fields,
+                req.field_id.as_deref(),
+                None,
+                0,
+            )
+            .and_then(|compiled| crate::formula::check_result(compiled, &req.declared_result_type))
         {
             Ok(c) => c,
             Err(diag) => {
@@ -3296,6 +3399,7 @@ impl RustRuntimeService {
         Ok(res)
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn preflight_schema(
         &mut self,
         req: &SchemaPreflightRequest,
@@ -3366,6 +3470,18 @@ impl RustRuntimeService {
         }) {
             let schema = self.ensure_schema()?;
             let mut fields = schema.fields.clone();
+            for field in &mut fields {
+                if field.field_type == FieldType::Lookup {
+                    let kind = schema.logical_type(field)?;
+                    if eidos_file_core::model::FormulaResultType::from_spec_str(kind.as_str())
+                        .is_ok()
+                        || kind == FieldType::Select
+                    {
+                        field.field_type = kind;
+                        field.physical_name = Some(field.name.clone());
+                    }
+                }
+            }
             let mut formulas = schema.formulas.clone();
             let mut table_ids: Vec<String> = schema.tables.iter().map(|t| t.id.clone()).collect();
             for (index, leaf) in leaves.iter().enumerate() {

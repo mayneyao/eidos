@@ -187,7 +187,7 @@ pub(crate) fn unsupported_fields(
 }
 
 #[allow(clippy::result_large_err)]
-fn type_error(message: &str) -> RuntimeDiagnostic {
+pub(crate) fn type_error(message: &str) -> RuntimeDiagnostic {
     RuntimeDiagnostic {
         code: "formula-type-invalid".into(),
         severity: "error".into(),
@@ -224,6 +224,28 @@ pub fn compile_formula_expression(
     self_field_id: Option<&str>,
     table_alias: Option<&str>,
 ) -> std::result::Result<CompiledFormula, RuntimeDiagnostic> {
+    compile_with_lookups(
+        source_text,
+        fields,
+        formula_defs,
+        self_field_id,
+        table_alias,
+        &mut |_| Err(type_error("Expected scalar Formula field")),
+    )
+}
+
+type LookupResolver<'a> =
+    dyn FnMut(&FieldMeta) -> Result<(String, FormulaResultType, bool), RuntimeDiagnostic> + 'a;
+
+#[allow(clippy::result_large_err)]
+pub(crate) fn compile_with_lookups(
+    source_text: &str,
+    fields: &[FieldMeta],
+    formula_defs: &HashMap<String, FormulaFieldMeta>,
+    self_field_id: Option<&str>,
+    table_alias: Option<&str>,
+    resolve_lookup: &mut LookupResolver,
+) -> std::result::Result<CompiledFormula, RuntimeDiagnostic> {
     let mut visiting = HashSet::new();
     if let Some(id) = self_field_id {
         visiting.insert(id.to_string());
@@ -234,6 +256,7 @@ pub fn compile_formula_expression(
         formula_defs,
         &mut visiting,
         table_alias,
+        resolve_lookup,
     )
 }
 
@@ -244,6 +267,7 @@ fn compile_recursive(
     formula_defs: &HashMap<String, FormulaFieldMeta>,
     visiting: &mut HashSet<String>,
     table_alias: Option<&str>,
+    resolve_lookup: &mut LookupResolver,
 ) -> std::result::Result<CompiledFormula, RuntimeDiagnostic> {
     if source_text.trim().is_empty() {
         return Err(RuntimeDiagnostic {
@@ -366,12 +390,17 @@ fn compile_recursive(
                         formula_defs,
                         visiting,
                         table_alias,
+                        resolve_lookup,
                     )?;
                     visiting.remove(&field.id);
                     if sub.uses_today {
                         uses_today = true;
                     }
                     bindings.insert(name.clone(), (format!("({})", sub.sql), def.result_type));
+                } else if field.field_type == FieldType::Lookup {
+                    let (sql, kind, clock) = resolve_lookup(field)?;
+                    uses_today |= clock;
+                    bindings.insert(name.clone(), (sql, kind));
                 } else if let Some(phys) = &field.physical_name {
                     let quoted = quote_identifier(phys).map_err(|e| RuntimeDiagnostic {
                         code: "formula-parse-invalid".into(),

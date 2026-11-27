@@ -26,9 +26,44 @@ pub fn lookup_value_type_json(
     lookup: &LookupFieldMeta,
     all_fields: &[FieldMeta],
     formulas: &HashMap<String, FormulaFieldMeta>,
+    lookups: &HashMap<String, LookupFieldMeta>,
 ) -> JsonValue {
+    let element = lookup_element(lookup, all_fields, formulas, lookups);
+
+    match lookup.aggregate {
+        LookupAggregate::Values => json!({ "kind": "list", "element": element }),
+        LookupAggregate::Count => json!("integer"),
+        LookupAggregate::Average => json!("number"),
+        LookupAggregate::Sum => {
+            if element == "integer" {
+                json!("integer")
+            } else {
+                json!("number")
+            }
+        }
+        LookupAggregate::First | LookupAggregate::Min | LookupAggregate::Max => json!(element),
+    }
+}
+
+pub(crate) fn lookup_element<'a>(
+    lookup: &LookupFieldMeta,
+    all_fields: &[FieldMeta],
+    formulas: &'a HashMap<String, FormulaFieldMeta>,
+    lookups: &HashMap<String, LookupFieldMeta>,
+) -> &'a str {
+    let mut lookup = lookup;
+    for _ in 0..=64 {
+        let Some(nested) = lookups.get(&lookup.target_field_id) else {
+            break;
+        };
+        match nested.aggregate {
+            LookupAggregate::Count => return "integer",
+            LookupAggregate::Average => return "number",
+            _ => lookup = nested,
+        }
+    }
     let target = all_fields.iter().find(|f| f.id == lookup.target_field_id);
-    let element: &str = match target.map(|f| f.field_type) {
+    match target.map(|f| f.field_type) {
         Some(FieldType::Integer) => "integer",
         Some(FieldType::Number) => "number",
         Some(FieldType::Checkbox) => "checkbox",
@@ -43,20 +78,6 @@ pub fn lookup_value_type_json(
             .map(|f| f.result_type.as_str())
             .unwrap_or("text"),
         _ => "text",
-    };
-
-    match lookup.aggregate {
-        LookupAggregate::Values => json!({ "kind": "list", "element": element }),
-        LookupAggregate::Count => json!("integer"),
-        LookupAggregate::Average => json!("number"),
-        LookupAggregate::Sum => {
-            if element == "integer" {
-                json!("integer")
-            } else {
-                json!("number")
-            }
-        }
-        LookupAggregate::First | LookupAggregate::Min | LookupAggregate::Max => json!(element),
     }
 }
 
@@ -151,6 +172,41 @@ pub fn populate_virtual_columns(
     formulas: &HashMap<String, FormulaFieldMeta>,
     today_date: Option<&str>,
 ) -> RuntimeResult<()> {
+    populate_virtual_columns_inner(
+        conn,
+        rows,
+        source_table,
+        selected_fields,
+        all_tables,
+        all_fields,
+        relations,
+        lookups,
+        formulas,
+        today_date,
+        0,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn populate_virtual_columns_inner(
+    conn: &Connection,
+    rows: &mut [ProjectedRow],
+    source_table: &TableMeta,
+    selected_fields: &[FieldMeta],
+    all_tables: &[TableMeta],
+    all_fields: &[FieldMeta],
+    relations: &HashMap<String, RelationFieldMeta>,
+    lookups: &HashMap<String, LookupFieldMeta>,
+    formulas: &HashMap<String, FormulaFieldMeta>,
+    today_date: Option<&str>,
+    depth: usize,
+) -> RuntimeResult<()> {
+    if depth > 64 {
+        return Err(RuntimeErrorPayload::new(
+            "semantic-cycle",
+            "Lookup dependency depth exceeded",
+        ));
+    }
     if rows.is_empty() {
         return Ok(());
     }
@@ -239,15 +295,56 @@ pub fn populate_virtual_columns(
             continue;
         };
 
-        let target_values = fetch_target_field_values(
-            conn,
-            target_table,
-            target_field,
-            all_fields,
-            formulas,
-            &all_target_ids.into_iter().collect::<Vec<_>>(),
-            today_date,
-        )?;
+        let target_ids = all_target_ids.into_iter().collect::<Vec<_>>();
+        let target_values = if target_field.physical_name.is_none()
+            && target_field.field_type != FieldType::Formula
+            && !target_ids.is_empty()
+        {
+            let table_name = quote_identifier(&target_table.physical_name)
+                .map_err(RuntimeErrorPayload::from_core)?;
+            let placeholders = vec!["?"; target_ids.len()].join(",");
+            let sql = format!("SELECT _id FROM {table_name} WHERE _id IN ({placeholders})");
+            let err = |e: rusqlite::Error| RuntimeErrorPayload::new("adapter-error", e.to_string());
+            let mut stmt = conn.prepare(&sql).map_err(err)?;
+            let mut nested = stmt
+                .query_map(params_from_iter(&target_ids), |r| {
+                    Ok(ProjectedRow {
+                        id: r.get(0)?,
+                        values: vec![JsonValue::Null],
+                        resolved_relations: None,
+                    })
+                })
+                .map_err(err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(err)?;
+            populate_virtual_columns_inner(
+                conn,
+                &mut nested,
+                target_table,
+                std::slice::from_ref(target_field),
+                all_tables,
+                all_fields,
+                relations,
+                lookups,
+                formulas,
+                today_date,
+                depth + 1,
+            )?;
+            nested
+                .into_iter()
+                .map(|mut row| (row.id, row.values.remove(0)))
+                .collect()
+        } else {
+            fetch_target_field_values(
+                conn,
+                target_table,
+                target_field,
+                all_fields,
+                formulas,
+                &target_ids,
+                today_date,
+            )?
+        };
 
         for row in rows.iter_mut() {
             let linked = linked_ids_by_row.get(&row.id);
@@ -255,18 +352,15 @@ pub fn populate_virtual_columns(
             if let Some(ids) = linked {
                 for tid in ids {
                     if let Some(val) = target_values.get(tid) {
-                        if val.is_null() {
-                            continue;
-                        }
-                        if matches!(
-                            target_field.field_type,
-                            FieldType::MultiSelect | FieldType::Relation | FieldType::File
-                        ) && let Some(arr) = val.as_array()
+                        if (target_field.field_type == FieldType::Lookup
+                            || matches!(
+                                target_field.field_type,
+                                FieldType::MultiSelect | FieldType::Relation | FieldType::File
+                            ))
+                            && let Some(arr) = val.as_array()
                         {
                             for item in arr {
-                                if !item.is_null() {
-                                    collected.push(item.clone());
-                                }
+                                collected.push(item.clone());
                             }
                         } else {
                             collected.push(val.clone());
@@ -283,8 +377,11 @@ pub fn populate_virtual_columns(
                 });
             }
 
-            row.values[col_idx] =
-                aggregate_lookup_values(&collected, lookup.aggregate, target_field.field_type);
+            row.values[col_idx] = aggregate_lookup_values(
+                &collected,
+                lookup.aggregate,
+                lookup_element(lookup, all_fields, formulas, lookups),
+            );
         }
     }
 
@@ -430,85 +527,130 @@ fn value_as_i64(v: &JsonValue) -> Option<i64> {
     }
 }
 
-fn aggregate_lookup_values(
-    values: &[JsonValue],
-    agg: LookupAggregate,
-    target_type: FieldType,
-) -> JsonValue {
-    match agg {
-        LookupAggregate::Values => JsonValue::Array(values.to_vec()),
-        LookupAggregate::First => values.first().cloned().unwrap_or(JsonValue::Null),
-        LookupAggregate::Count => JsonValue::String(values.len().to_string()),
-        LookupAggregate::Sum => {
-            if values.is_empty() {
-                return JsonValue::Null;
-            }
-            if target_type == FieldType::Integer {
-                let sum: i64 = values.iter().filter_map(value_as_i64).sum();
-                JsonValue::String(sum.to_string())
-            } else {
-                let sum: f64 = values.iter().filter_map(value_as_f64).sum();
-                json!(if sum == 0.0 { 0.0 } else { sum })
-            }
-        }
-        LookupAggregate::Average => {
-            let nums: Vec<f64> = values.iter().filter_map(value_as_f64).collect();
-            if nums.is_empty() {
-                JsonValue::Null
-            } else {
-                let avg = nums.iter().sum::<f64>() / (nums.len() as f64);
-                json!(if avg == 0.0 { 0.0 } else { avg })
-            }
-        }
-        LookupAggregate::Min => {
-            if values.is_empty() {
-                return JsonValue::Null;
-            }
-            match target_type {
-                FieldType::Integer => values
-                    .iter()
-                    .filter_map(value_as_i64)
-                    .min()
-                    .map(|v| JsonValue::String(v.to_string()))
-                    .unwrap_or(JsonValue::Null),
-                FieldType::Number => values
-                    .iter()
-                    .filter_map(value_as_f64)
-                    .min_by(|a, b| a.total_cmp(b))
-                    .map(|v| json!(v))
-                    .unwrap_or(JsonValue::Null),
-                _ => values
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .min()
-                    .map(|s| JsonValue::String(s.to_string()))
-                    .unwrap_or(JsonValue::Null),
-            }
-        }
-        LookupAggregate::Max => {
-            if values.is_empty() {
-                return JsonValue::Null;
-            }
-            match target_type {
-                FieldType::Integer => values
-                    .iter()
-                    .filter_map(value_as_i64)
-                    .max()
-                    .map(|v| JsonValue::String(v.to_string()))
-                    .unwrap_or(JsonValue::Null),
-                FieldType::Number => values
-                    .iter()
-                    .filter_map(value_as_f64)
-                    .max_by(|a, b| a.total_cmp(b))
-                    .map(|v| json!(v))
-                    .unwrap_or(JsonValue::Null),
-                _ => values
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .max()
-                    .map(|s| JsonValue::String(s.to_string()))
-                    .unwrap_or(JsonValue::Null),
-            }
-        }
+/// Rounds the exact integer ratio once to binary64 using ties-to-even.
+fn integer_average(sum: i128, count: usize) -> f64 {
+    if sum == 0 {
+        return 0.0;
     }
+    let n = sum.unsigned_abs();
+    let d = count as u128;
+    let mut exp = d.leading_zeros() as i32 - n.leading_zeros() as i32;
+    let below = if exp >= 0 {
+        n < (d << exp)
+    } else {
+        (n << -exp) < d
+    };
+    exp -= i32::from(below);
+    let shift = 52 - exp;
+    let (a, b) = if shift >= 0 {
+        (n << shift, d)
+    } else {
+        (n, d << -shift)
+    };
+    let q = a / b;
+    let r = a % b;
+    let rounded = q + u128::from(r > b - r || (r == b - r && q % 2 == 1));
+    let magnitude = (rounded as f64) * 2.0_f64.powi(exp - 52);
+    if sum < 0 { -magnitude } else { magnitude }
+}
+
+fn aggregate_lookup_values(values: &[JsonValue], agg: LookupAggregate, kind: &str) -> JsonValue {
+    use LookupAggregate::*;
+    match agg {
+        Values => return JsonValue::Array(values.to_vec()),
+        First => return values.first().cloned().unwrap_or(JsonValue::Null),
+        _ => {}
+    }
+    let non_null: Vec<_> = values.iter().filter(|v| !v.is_null()).collect();
+    if agg == Count {
+        return json!(non_null.len().to_string());
+    }
+    if non_null.is_empty() {
+        return JsonValue::Null;
+    }
+    if matches!(agg, Sum | Average) {
+        if kind == "integer" {
+            let sum: i128 = non_null
+                .iter()
+                .filter_map(|v| value_as_i64(v))
+                .map(i128::from)
+                .sum();
+            return if agg == Sum {
+                i64::try_from(sum)
+                    .map(|n| json!(n.to_string()))
+                    .unwrap_or(JsonValue::Null)
+            } else {
+                json!(integer_average(sum, non_null.len()))
+            };
+        }
+        let mut level: Vec<_> = non_null.iter().filter_map(|v| value_as_f64(v)).collect();
+        let count = level.len();
+        if count == 0 {
+            return JsonValue::Null;
+        }
+        while level.len() > 1 {
+            level = level
+                .chunks(2)
+                .map(|pair| match pair {
+                    [a, b] => a + b,
+                    [a] => *a,
+                    _ => unreachable!(),
+                })
+                .collect();
+        }
+        let value = if agg == Average {
+            level[0] / count as f64
+        } else {
+            level[0]
+        };
+        return json!(if value == 0.0 { 0.0 } else { value });
+    }
+    let compare = |a: &&JsonValue, b: &&JsonValue| match kind {
+        "integer" => value_as_i64(a).cmp(&value_as_i64(b)),
+        "number" => value_as_f64(a)
+            .partial_cmp(&value_as_f64(b))
+            .unwrap_or(std::cmp::Ordering::Equal),
+        "checkbox" => a.as_bool().cmp(&b.as_bool()),
+        _ => a.as_str().cmp(&b.as_str()),
+    };
+    let selected = if agg == Min {
+        non_null.into_iter().min_by(compare)
+    } else {
+        non_null.into_iter().max_by(compare)
+    };
+    selected.cloned().unwrap_or(JsonValue::Null)
+}
+
+pub(crate) fn register_lookup_aggregate(conn: &Connection) -> RuntimeResult<()> {
+    use rusqlite::functions::FunctionFlags;
+    conn.create_scalar_function(
+        "eidos_runtime_lookup",
+        3,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_DETERMINISTIC
+            | FunctionFlags::SQLITE_INNOCUOUS,
+        |ctx| {
+            let raw = ctx.get::<String>(0)?;
+            let agg = LookupAggregate::from_spec_str(&ctx.get::<String>(1)?)
+                .map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))?;
+            let kind = ctx.get::<String>(2)?;
+            let values = serde_json::from_str::<Vec<JsonValue>>(&raw)
+                .map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))?;
+            let value = aggregate_lookup_values(&values, agg, &kind);
+            Ok(match value {
+                JsonValue::Null => SqlValue::Null,
+                JsonValue::String(s) if agg == LookupAggregate::Count || kind == "integer" => {
+                    s.parse().map(SqlValue::Integer).unwrap_or(SqlValue::Null)
+                }
+                JsonValue::String(s) => SqlValue::Text(s),
+                JsonValue::Bool(b) => SqlValue::Integer(i64::from(b)),
+                JsonValue::Number(n) => n.as_f64().map(SqlValue::Real).unwrap_or(SqlValue::Null),
+                other => SqlValue::Text(
+                    jcs::to_jcs(&other)
+                        .map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))?,
+                ),
+            })
+        },
+    )
+    .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))
 }

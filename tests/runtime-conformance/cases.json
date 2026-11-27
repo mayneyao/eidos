@@ -1875,6 +1875,57 @@
           "check": { "results.0.value": "1" }
         },
         {
+          "op": "createField",
+          "table": "ptasks",
+          "field": {
+            "clientKey": "projectPoints",
+            "name": "Project points",
+            "kind": "lookup",
+            "position": "4",
+            "definition": {
+              "relationFieldKey": "project",
+              "targetTableKey": "projects",
+              "targetFieldKey": "totalPoints",
+              "aggregate": "first",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.ptasks.projectPoints",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.ptasks.projectPoints"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "columns.0.valueType": "integer",
+            "rows.0.values": ["5"],
+            "rows.1.values": ["35"],
+            "rows.2.values": ["35"]
+          }
+        },
+        {
+          "op": "previewFormula",
+          "table": "projects",
+          "sourceText": "\"TotalPoints\" * 2",
+          "declaredResultType": "integer",
+          "expectValid": true,
+          "expectValues": ["70", "10"]
+        },
+        {
           "op": "validate",
           "request": { "level": "full", "diagnosticsLimit": 50 },
           "expect": { "valid": true, "diagnosticsCount": 0 }
@@ -2024,6 +2075,35 @@
             "referenceInstant": "2026-11-26T16:30:00.000Z",
             "total": "4",
             "rows.0.values": ["2026-11-27"]
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.sched",
+            "query": {
+              "filter": {
+                "op": "eq",
+                "fieldId": "$fields.sched.todayVal",
+                "value": "2026-11-27"
+              }
+            },
+            "projection": {
+              "fields": ["$fields.sched.title"],
+              "resolveRelations": []
+            },
+            "limit": 1,
+            "calendar": {
+              "timeZone": "Asia/Shanghai",
+              "timeZoneData": "2026f",
+              "weekStartsOn": 1
+            },
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
+          },
+          "check": {
+            "total": "4",
+            "referenceInstant": "2026-11-26T16:30:00.000Z"
           }
         },
         {

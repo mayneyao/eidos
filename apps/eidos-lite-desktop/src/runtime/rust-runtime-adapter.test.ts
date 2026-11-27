@@ -2,6 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { checkGroupedRuntimeSession } from "../../../../tests/runtime-conformance/grouped-session"
 
 import {
   createEidosLiteFileRuntime,
@@ -9,6 +10,7 @@ import {
 } from "./eidos-file-runtime"
 import {
   createShadowRuntimeClient,
+  createRustRuntimeService,
   openRustRuntimeService,
   type ShadowDiffRecord,
 } from "./rust-runtime-adapter"
@@ -59,6 +61,33 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
 
   afterAll(async () => {
     await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  it("runs the shared grouped-session and schema conformance scenario through native Rust", async () => {
+    const file = path.join(tempDir, "grouped-session.eidos")
+    const runtime = createRustRuntimeService(file, "Groups")
+    const { DatabaseSync } = await import("node:sqlite")
+    const db = new DatabaseSync(file)
+    try {
+      const { tableId, firstItemId, fileFieldId } =
+        await checkGroupedRuntimeSession(runtime, (sql) => db.exec(sql))
+      db.prepare(`UPDATE "Items" SET "Files"='[] ' WHERE "_id"=?`).run(
+        firstItemId
+      )
+      await expect(
+        runtime.getRowsById(
+          {
+            tableId,
+            rowIds: [firstItemId],
+            projection: { fields: [fileFieldId], resolveRelations: [] },
+          },
+          { requestId: "corrupt-file-cell" }
+        )
+      ).rejects.toMatchObject({ code: "corrupt-file" })
+    } finally {
+      db.close()
+      await runtime.close({ requestId: "close" })
+    }
   })
 
   it("opens and queries through EidosRuntimeEditorDataSource on the Rust backend with parity", async () => {
