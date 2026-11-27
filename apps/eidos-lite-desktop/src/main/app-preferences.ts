@@ -21,6 +21,7 @@ import {
 } from "../shared/keyboard-shortcuts"
 
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
+  runtimeBackend: "rust",
   menuOrders: {},
   uiZoom: 1,
   appearance: "system",
@@ -137,6 +138,7 @@ export function normalizeEidosLitePreferences(
       candidate.workspaceLayout
     ),
     timeZone: normalizeEidosLiteTimeZone(candidate.timeZone),
+    runtimeBackend: candidate.runtimeBackend === "js" ? "js" : "rust",
     hideSystemFieldsInRecords: candidate.hideSystemFieldsInRecords === true,
     weekStartsOnMonday:
       typeof candidate.weekStartsOnMonday === "boolean"

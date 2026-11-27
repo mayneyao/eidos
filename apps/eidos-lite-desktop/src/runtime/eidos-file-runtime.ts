@@ -47,6 +47,12 @@ import {
 import type { FileMetadataSchema } from "../shared/contracts"
 import { SPACE_FILE_METADATA_PATH } from "../shared/file-metadata"
 import { SpaceMetadataConnectionPort } from "./space-metadata-connection"
+import {
+  createShadowRuntimeClient,
+  nativeColumnStatistics,
+  openRustRuntimeService,
+  resolveEidosLiteRuntimeBackend,
+} from "./rust-runtime-adapter"
 
 const MAX_CSV_ROWS = 2_000_000
 const MAX_CSV_COLUMNS = 500
@@ -735,7 +741,8 @@ async function bindRuntime(
   connection: NodeSqliteConnectionPort,
   service: Awaited<ReturnType<typeof Runtime.open>>["service"],
   hostBridge: RuntimeHostBridge,
-  filePath: string
+  filePath: string,
+  statistics?: ReturnType<typeof nativeColumnStatistics>
 ): Promise<EidosLiteFileRuntime> {
   const source = new EidosRuntimeEditorDataSource(
     service,
@@ -822,7 +829,11 @@ async function bindRuntime(
               try {
                 await service.close(context("eidos-lite-runtime-close"))
               } finally {
-                connection.close()
+                try {
+                  statistics?.close()
+                } finally {
+                  connection.close()
+                }
               }
             }
           }
@@ -1129,10 +1140,14 @@ export async function createEidosLiteFileRuntime(
     })
   )
   let opened: EidosLiteFileRuntime | null = null
+  const statistics =
+    resolveEidosLiteRuntimeBackend() === "rust"
+      ? nativeColumnStatistics(filePath)
+      : undefined
   try {
     const binding = await Runtime.create(
       connection,
-      environment(),
+      { ...environment(), storedColumnAggregate: statistics?.aggregate },
       { title },
       factoryContext
     )
@@ -1140,7 +1155,8 @@ export async function createEidosLiteFileRuntime(
       connection,
       binding.service,
       binding.hostBridge,
-      filePath
+      filePath,
+      statistics
     )
     opened.initialSnapshot = await createEidosFileTableWithContent(
       opened.source,
@@ -1156,6 +1172,19 @@ export async function createEidosLiteFileRuntime(
     }
     throw error
   }
+}
+
+function hasDeclaredVTabFeatures(database: DatabaseSync): boolean {
+  const hasFeatures = database
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eidos__features'"
+    )
+    .get()
+  if (!hasFeatures) return false
+  const row = database
+    .prepare("SELECT 1 FROM eidos__features WHERE name LIKE 'vtab:%' LIMIT 1")
+    .get()
+  return Boolean(row)
 }
 
 export function loadDeclaredVTabExtensions(database: DatabaseSync): void {
@@ -1219,25 +1248,40 @@ export async function openEidosLiteFileRuntime(
   const spaceCatalog =
     filePath.split(path.sep).slice(-2).join("/") === SPACE_FILE_METADATA_PATH
   let connection: NodeSqliteConnectionPort | undefined
+  let statistics: ReturnType<typeof nativeColumnStatistics> | undefined
   try {
     connection = spaceCatalog
       ? new SpaceMetadataConnectionPort(database, readOnly)
       : new NodeSqliteConnectionPort(database, { readOnly })
     loadDeclaredVTabExtensions(database)
     if (spaceCatalog && !readOnly) ensureFsMetaDirectoryField(connection)
+    const backend = resolveEidosLiteRuntimeBackend()
+    const canUseRustBackend =
+      !spaceCatalog && !hasDeclaredVTabFeatures(database)
+    if (canUseRustBackend && backend === "rust")
+      statistics = nativeColumnStatistics(filePath)
     const binding = await Runtime.open(
       connection,
-      environment(),
+      { ...environment(), storedColumnAggregate: statistics?.aggregate },
       readOnly ? "read" : "readwrite",
       factoryContext
     )
+    const activeService =
+      canUseRustBackend && backend === "shadow"
+        ? createShadowRuntimeClient(
+            binding.service,
+            openRustRuntimeService(filePath, true)
+          )
+        : binding.service
     return await bindRuntime(
       connection,
-      binding.service,
+      activeService,
       binding.hostBridge,
-      filePath
+      filePath,
+      statistics
     )
   } catch (error) {
+    statistics?.close()
     if (connection) connection.close()
     else if (database.isOpen) database.close()
     throw error

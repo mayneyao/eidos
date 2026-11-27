@@ -13,6 +13,7 @@ dist-sqlite-ext
 dist-cli
 dist-*
 apps/eidos-lite-desktop/resources/publish-engine/
+apps/eidos-lite-desktop/resources/file-runtime/
 apps/eidos-lite-desktop/resources/vtab/
 apps/eidos-lite-desktop/resources/plugin-sandbox/
 apps/eidos-lite-desktop/resources/graft-e2ee/

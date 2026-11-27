@@ -17,6 +17,7 @@ import {
   Laptop,
   Copy,
   ExternalLink,
+  FlaskConical,
   FolderOpen,
   FileText,
   Info,
@@ -103,6 +104,7 @@ const PAGE_ICONS = {
   files: FileText,
   shortcuts: Keyboard,
   updates: RefreshCw,
+  experimental: FlaskConical,
   about: Info,
 }
 
@@ -1567,6 +1569,37 @@ export function SettingsPage() {
               />
             </section>
 
+            <section
+              aria-labelledby="settings-experimental"
+              hidden={activePage !== "experimental"}
+            >
+              <h2 id="settings-experimental">{t("Experimental")}</h2>
+              <div className="settings-group">
+                <div
+                  className="settings-row"
+                  {...settingTarget(SETTINGS.runtimeBackend.id)}
+                >
+                  <div className="settings-row-copy">
+                    <strong>{t(SETTINGS.runtimeBackend.title)}</strong>
+                    <small>{t(SETTINGS.runtimeBackend.summary)}</small>
+                  </div>
+                  <select
+                    className="settings-inline-picker"
+                    aria-label={t(SETTINGS.runtimeBackend.title)}
+                    value={preferences.runtimeBackend ?? "rust"}
+                    onChange={(event) =>
+                      void updatePreferences({
+                        runtimeBackend:
+                          event.target.value === "js" ? "js" : "rust",
+                      })
+                    }
+                  >
+                    <option value="rust">{t("Rust (default)")}</option>
+                    <option value="js">JavaScript</option>
+                  </select>
+                </div>
+              </div>
+            </section>
             <section
               aria-labelledby="settings-updates"
               hidden={activePage !== "updates"}

@@ -1501,10 +1501,8 @@ export class EidosFileRuntime {
     return this.info()
   }
 
-  private tableRow(tableId: string): TableRow {
-    const row = this.allSchema().tables.get(
-      assertEidosFileUuid(tableId, "Table ID")
-    )
+  private tableRow(tableId: string, schema = this.allSchema()): TableRow {
+    const row = schema.tables.get(assertEidosFileUuid(tableId, "Table ID"))
     if (!row) {
       throw new EidosFileError(
         "table-not-found",
@@ -1957,8 +1955,9 @@ export class EidosFileRuntime {
   }
 
   listFields(tableId: string): EidosFileFieldInfo[] {
-    this.tableRow(tableId)
-    return this.allSchema().fieldsByTable.get(tableId) ?? []
+    const schema = this.allSchema()
+    this.tableRow(tableId, schema)
+    return schema.fieldsByTable.get(tableId) ?? []
   }
 
   private fieldByKey(tableId: string, key: string): EidosFileFieldInfo {
@@ -3688,9 +3687,20 @@ export class EidosFileRuntime {
     return row
   }
 
-  private mapView(row: ViewRow): EidosFileViewInfo {
+  /** @internal Look up one View for a Runtime request. */
+  findView(viewId: string): EidosFileViewInfo | undefined {
+    const row = this.connection.get<ViewRow>(
+      `SELECT * FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE id = ?`,
+      [viewId]
+    )
+    return row && this.mapView(row)
+  }
+
+  private mapView(
+    row: ViewRow,
+    fields = this.listFields(uuid(row.table_id))
+  ): EidosFileViewInfo {
     const tableId = uuid(row.table_id)
-    const fields = this.listFields(tableId)
     const query = jsonObject(row.query_json)
     if (hasEidosFileCalendarQuery(query))
       requireCalendarQueryFeature(this.connection)
@@ -3756,14 +3766,14 @@ export class EidosFileRuntime {
   }
 
   listViews(tableId: string): EidosFileViewInfo[] {
-    this.tableRow(tableId)
+    const fields = this.listFields(tableId)
     return this.connection
       .query<ViewRow>(
         `SELECT * FROM ${EIDOS_FILE_VIEWS_TABLE}
           WHERE table_id = ? ORDER BY position, id`,
         [tableId]
       )
-      .map((row) => this.mapView(row))
+      .map((row) => this.mapView(row, fields))
   }
 
   createView(
@@ -3897,7 +3907,8 @@ export class EidosFileRuntime {
     changes: UpdateEidosFileViewInput
   ): EidosFileViewInfo {
     const currentRow = this.viewRow(viewId)
-    const current = this.mapView(currentRow)
+    const fields = this.listFields(uuid(currentRow.table_id))
+    const current = this.mapView(currentRow, fields)
     if (changes.upgradeDateQuery || changes.restoreDateQuery) {
       if (
         Object.keys(changes).some(
@@ -4020,7 +4031,6 @@ export class EidosFileRuntime {
         "unsupported-feature",
         "Unsupported View query must be upgraded explicitly before editing"
       )
-    const fields = this.listFields(current.tableId)
     const name = assertEidosFileDisplayName(
       changes.name ?? current.name,
       "View name"
@@ -4029,13 +4039,18 @@ export class EidosFileRuntime {
       character.toLowerCase()
     )
     if (
-      this.listViews(current.tableId).some(
-        (view) =>
-          view.id !== viewId &&
-          view.name.replace(/[A-Z]/g, (character) =>
-            character.toLowerCase()
-          ) === foldedName
-      )
+      this.connection
+        .query<{ id: string; name: string }>(
+          `SELECT id, name FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE table_id = ?`,
+          [current.tableId]
+        )
+        .some(
+          (view) =>
+            view.id !== viewId &&
+            view.name.replace(/[A-Z]/g, (character) =>
+              character.toLowerCase()
+            ) === foldedName
+        )
     ) {
       throw new EidosFileError(
         "constraint-conflict",
@@ -4141,7 +4156,7 @@ export class EidosFileRuntime {
           viewId,
         ]
       )
-      const view = this.mapView(this.viewRow(viewId))
+      const view = this.mapView(this.viewRow(viewId), fields)
       this.optimizeViewQueries()
       return view
     })
@@ -6637,7 +6652,10 @@ export class EidosFileRuntime {
     }
   }
 
-  private restoreRowDeletionUndoState(state: RowDeletionUndoState): Array<{
+  private restoreRowDeletionUndoState(
+    state: RowDeletionUndoState,
+    expectedRevision?: number | bigint
+  ): Array<{
     tableId: string
     rowId: string
   }> {
@@ -6750,7 +6768,7 @@ export class EidosFileRuntime {
           rowId: entry.rowId,
         })),
       ]
-    })
+    }, expectedRevision)
   }
 
   deleteRowsReversible(
@@ -6797,7 +6815,10 @@ export class EidosFileRuntime {
     }
   }
 
-  revertRowMutation(undoToken: string): {
+  revertRowMutation(
+    undoToken: string,
+    expectedRevision?: number | bigint
+  ): {
     revision: number | bigint
     affected: Array<{ tableId: string; rowId: string }>
     rowCount: number
@@ -6818,7 +6839,10 @@ export class EidosFileRuntime {
         kind: "repeat-delete",
         state: entry.state,
       })
-      const affected = this.restoreRowDeletionUndoState(entry.state)
+      const affected = this.restoreRowDeletionUndoState(
+        entry.state,
+        expectedRevision
+      )
       return {
         revision: this.info().revision ?? 0,
         affected,
@@ -6830,7 +6854,7 @@ export class EidosFileRuntime {
     const result = this.deleteRowsReversible(
       entry.state.tableId,
       entry.state.rowIds,
-      undefined,
+      expectedRevision,
       undoToken
     )
     return {
@@ -6993,14 +7017,26 @@ export class EidosFileRuntime {
 
   optimizeViewQueries(): void {
     const indexedFields = new Set<string>()
-    for (const table of this.listTables()) {
+    const calendars = this.connection.query<
+      Pick<ViewRow, "table_id" | "layout_json">
+    >(
+      `SELECT table_id, layout_json FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE type = 'calendar' ORDER BY table_id`
+    )
+    const byTable = new Map<string, string[]>()
+    for (const row of calendars) {
+      const dateField = jsonObject(row.layout_json).dateField
+      if (typeof dateField !== "string") continue
+      const tableId = uuid(row.table_id)
+      const keys = byTable.get(tableId)
+      if (keys) keys.push(dateField)
+      else byTable.set(tableId, [dateField])
+    }
+    for (const [tableId, keys] of byTable) {
       // Virtual tables own their query planning and cannot accept SQLite indexes.
-      if (this.isVirtualTable(table.id)) continue
-      const fields = this.listFields(table.id)
-      for (const view of this.listViews(table.id)) {
-        if (view.type !== "calendar") continue
-        const dateField = view.properties?.dateField
-        if (typeof dateField !== "string") continue
+      if (this.isVirtualTable(tableId)) continue
+      const table = this.tableRow(tableId)
+      const fields = this.listFields(tableId)
+      for (const dateField of keys) {
         const field = fields.find(
           (candidate) =>
             candidate.id === dateField ||
@@ -7022,7 +7058,7 @@ export class EidosFileRuntime {
         const indexName = `idx_eidos_calendar_${field.id.replace(/-/g, "")}`
         this.connection.exec(
           `CREATE INDEX IF NOT EXISTS ${quoteIdentifier(indexName)}
-             ON ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+             ON ${quoteIdentifier(table.physical_name)}
                 (${quoteIdentifier(field.physicalName)} COLLATE BINARY)`
         )
       }

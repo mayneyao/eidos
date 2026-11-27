@@ -363,6 +363,17 @@ pub fn mutate_rows_in_transaction(
     conn: &Transaction<'_>,
     mutation: &RowMutation,
 ) -> Result<RowMutationResult> {
+    mutate_rows_recording_detach(conn, mutation, None)
+}
+
+/// Applies rows inside a caller-owned write transaction. Reversible deletes
+/// can retain precisely the surviving relation cells rewritten by this call.
+pub fn mutate_rows_recording_detach(
+    conn: &Connection,
+    mutation: &RowMutation,
+    detached: Option<&mut Vec<relation::DetachedCell>>,
+) -> Result<RowMutationResult> {
+    assert!(!conn.is_autocommit());
     if mutation.changes.is_empty() {
         return Err(EidosError::InvalidRequest(
             "RowMutation.changes must be non-empty".into(),
@@ -604,7 +615,9 @@ pub fn mutate_rows_in_transaction(
     if !deletes.is_empty() {
         delete_set.insert(ctx.table.id.clone(), deletes.clone());
     }
-    for (table_id, row_id) in relation::preflight_delete_policy(conn, &delete_set, &instant)? {
+    for (table_id, row_id) in
+        relation::delete_policy_with_capture(conn, &delete_set, &instant, detached)?
+    {
         affected.insert(AffectedRow { table_id, row_id });
     }
 

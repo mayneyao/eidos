@@ -244,6 +244,25 @@ pub fn preflight_delete_policy(
     delete_set: &BTreeMap<String, Vec<String>>,
     operation_instant: &str,
 ) -> Result<Vec<(String, String)>> {
+    delete_policy_with_capture(conn, delete_set, operation_instant, None)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DetachedCell {
+    pub table_id: String,
+    pub table: String,
+    pub column: String,
+    pub row_id: String,
+    pub before: String,
+    pub after: String,
+}
+
+pub(crate) fn delete_policy_with_capture(
+    conn: &Connection,
+    delete_set: &BTreeMap<String, Vec<String>>,
+    operation_instant: &str,
+    mut captured: Option<&mut Vec<DetachedCell>>,
+) -> Result<Vec<(String, String)>> {
     let tables = load_tables(conn)?;
     let fields = load_fields(conn)?;
     let relations = load_relation_fields(conn)?;
@@ -349,6 +368,16 @@ pub fn preflight_delete_policy(
                         ),
                         rusqlite::params![canonical, operation_instant, row_id],
                     )?;
+                    if let Some(cells) = captured.as_deref_mut() {
+                        cells.push(DetachedCell {
+                            table_id: field.table_id.clone(),
+                            table: source_table.physical_name.clone(),
+                            row_id: row_id.clone(),
+                            column: column.to_owned(),
+                            before: array_text,
+                            after: canonical,
+                        });
+                    }
                     detached.push((field.table_id.clone(), row_id));
                 }
                 OnDeletePolicy::Preserve => unreachable!("filtered above"),

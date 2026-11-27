@@ -910,11 +910,14 @@ fn delete_field(
     Ok(())
 }
 
-fn apply_inner(
+/// Apply one leaf of an enclosing schema mutation. The caller owns the
+/// transaction, final foreign-key check and single revision increment.
+pub fn apply_schema_leaf(
     conn: &Connection,
     change: &SchemaLeafChange,
     instant: &str,
 ) -> Result<(bool, Vec<CreatedSchemaObject>)> {
+    debug_assert!(!conn.is_autocommit());
     match change {
         SchemaLeafChange::CreateTable {
             client_key,
@@ -994,7 +997,7 @@ fn apply_inner(
     }
 }
 
-fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
+pub fn ensure_foreign_keys(conn: &Connection) -> Result<()> {
     let mut statement = conn.prepare("PRAGMA foreign_key_check")?;
     if statement.query([])?.next()?.is_some() {
         return Err(EidosError::InvalidSchema(
@@ -1028,7 +1031,7 @@ pub fn apply_schema_change_in_transaction(
 ) -> Result<SchemaChangeResult> {
     let (current_revision, _) = check_revision(tx, expected_revision)?;
     let instant = now_instant();
-    let (changed, created_objects) = apply_inner(tx, change, &instant)?;
+    let (changed, created_objects) = apply_schema_leaf(tx, change, &instant)?;
     let revision = if changed {
         ensure_foreign_keys(tx)?;
         ddl::increment_revision(tx, &instant)?
@@ -1079,7 +1082,7 @@ pub fn apply_initial_table(
     }
 
     let instant = now_instant();
-    let (changed, created_objects) = apply_inner(&tx, change, &instant)?;
+    let (changed, created_objects) = apply_schema_leaf(&tx, change, &instant)?;
     let table_id = created_objects
         .iter()
         .find(|object| object.object == CreatedObjectKind::Table)

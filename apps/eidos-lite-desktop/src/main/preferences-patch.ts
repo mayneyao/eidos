@@ -18,6 +18,14 @@ export function eidosLitePreferencesPatch(
   }
   const candidate = value as Record<string, unknown>
   const patch: Partial<EidosLitePreferences> = {}
+  if ("runtimeBackend" in candidate) {
+    if (
+      candidate.runtimeBackend !== "rust" &&
+      candidate.runtimeBackend !== "js"
+    )
+      throw new Error("Invalid runtime backend")
+    patch.runtimeBackend = candidate.runtimeBackend
+  }
   if ("menuOrders" in candidate) {
     if (!isEidosLiteMenuOrders(candidate.menuOrders))
       throw new Error("Invalid menu order preferences")

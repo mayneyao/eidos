@@ -49,6 +49,11 @@ test("Lite packaging keeps the supported Chromium language families", async (t) 
 
 const inheritedResources = [
   {
+    from: "resources/file-runtime",
+    to: "file-runtime",
+    filter: ["eidos-file-runtime.node"],
+  },
+  {
     from: "resources/plugin-sandbox",
     to: "plugin-sandbox",
     filter: ["plugin-sandbox", "plugin-sandbox.exe"],

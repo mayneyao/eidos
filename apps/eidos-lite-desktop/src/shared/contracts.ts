@@ -912,6 +912,7 @@ export type EidosLiteRecordOpenMode = "panel" | "page"
 export type EidosLiteTimeZone = string
 
 export interface EidosLitePreferences {
+  runtimeBackend?: "rust" | "js"
   /** Personal action ordering; never stored in an Eidos File or Space. */
   menuOrders?: EidosLiteMenuOrders
   uiZoom: number
