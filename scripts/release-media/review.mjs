@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
-import { captureFiles } from "./upload.mjs"
+import { captureFiles, isBenchmarkChart } from "./upload.mjs"
 
 const args = process.argv.slice(2)
 const directory = args.includes("--dir")
@@ -16,7 +16,7 @@ const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
 if (
   !manifest.assertions?.length ||
   manifest.assertions.some((a) => a.passed !== true) ||
-  manifest.dataOrigin !== "synthetic" ||
+  (manifest.dataOrigin !== "synthetic" && !isBenchmarkChart(manifest)) ||
   manifest.fixtureUnchanged !== true
 )
   throw new Error(

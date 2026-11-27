@@ -1,1 +1,63 @@
-[]
+[
+  {
+    "schemaVersion": 1,
+    "releaseTag": "lite-v0.40.0",
+    "capturedAppVersion": "0.40.0",
+    "sourceCommit": "62b7db1eb1af2f033e7018c15e973af4a04bd109",
+    "scenarioId": "runtime-performance",
+    "media": {
+      "type": "image",
+      "src": "https://media.eidos.space/releases/lite/0.40.0/runtime-performance/72df0a9da2afbe789d922a350c670f59f11b849bca09385402ab2dc1d57d29af/screenshot.webp",
+      "width": 2170,
+      "height": 1452,
+      "feature": {
+        "en": "Native Rust runtime",
+        "zh": "原生 Rust 运行时",
+        "ja": "ネイティブ Rust ランタイム",
+        "ko": "네이티브 Rust 런타임"
+      },
+      "alt": {
+        "en": "JavaScript and Rust runtime performance in Eidos Lite 0.40",
+        "zh": "Eidos Lite 0.40 中 JavaScript 与 Rust 的性能对比",
+        "ja": "Eidos Lite 0.40 の JavaScript と Rust の性能比較",
+        "ko": "Eidos Lite 0.40의 JavaScript와 Rust 성능 비교"
+      },
+      "caption": {
+        "en": "Median latency in milliseconds on Apple M2. Lower is better.",
+        "zh": "Apple M2 上的中位耗时，单位为毫秒，越低越好。",
+        "ja": "Apple M2 での処理時間の中央値（ミリ秒）。値が小さいほど高速です。",
+        "ko": "Apple M2에서 측정한 지연 시간 중앙값(밀리초). 낮을수록 빠릅니다."
+      }
+    },
+    "files": [
+      {
+        "file": "screenshot.webp",
+        "type": "image/webp",
+        "sha256": "3d2a2d28a1c32892acdda7df0a0aad298fa0bf33cac63fa8f5d84006e6097744",
+        "key": "releases/lite/0.40.0/runtime-performance/72df0a9da2afbe789d922a350c670f59f11b849bca09385402ab2dc1d57d29af/screenshot.webp",
+        "url": "https://media.eidos.space/releases/lite/0.40.0/runtime-performance/72df0a9da2afbe789d922a350c670f59f11b849bca09385402ab2dc1d57d29af/screenshot.webp",
+        "size": 39510
+      }
+    ],
+    "uploaded": true,
+    "checks": {
+      "files": [
+        {
+          "url": "https://media.eidos.space/releases/lite/0.40.0/runtime-performance/72df0a9da2afbe789d922a350c670f59f11b849bca09385402ab2dc1d57d29af/screenshot.webp",
+          "status": 200,
+          "contentType": "image/webp",
+          "cacheControl": "public, max-age=31536000, immutable",
+          "cors": "*",
+          "sha256": "3d2a2d28a1c32892acdda7df0a0aad298fa0bf33cac63fa8f5d84006e6097744"
+        }
+      ]
+    },
+    "verifiedAt": "2026-11-27T04:50:12.385Z",
+    "afterSection": {
+      "en": "Native Rust runtime",
+      "zh": "原生 Rust 运行时",
+      "ja": "ネイティブ Rust ランタイム",
+      "ko": "네이티브 Rust 런타임"
+    }
+  }
+]

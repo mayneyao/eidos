@@ -52,10 +52,18 @@ export async function inspectExistingObject(
     )
   return true
 }
+// A benchmark chart contains aggregate measurements only. Desktop captures
+// still require the synthetic-data fixture and the native capture profile.
+export function isBenchmarkChart(source) {
+  return (
+    source.mediaType === "image" && source.dataOrigin === "benchmark-timings"
+  )
+}
+
 export function validateSourceManifest(source) {
   if (
     source.schemaVersion !== 1 ||
-    source.dataOrigin !== "synthetic" ||
+    (source.dataOrigin !== "synthetic" && !isBenchmarkChart(source)) ||
     source.fixtureUnchanged !== true
   )
     throw new Error("Only a verified synthetic-data capture may be published")
@@ -185,8 +193,9 @@ export async function publish(directory, options = {}) {
     (isImage
       ? stream.codec_name !== "webp" ||
         stream.nb_read_frames !== "1" ||
-        stream.width !== CAPTURE_PROFILE.width ||
-        stream.height !== CAPTURE_PROFILE.height
+        (!isBenchmarkChart(source) &&
+          (stream.width !== CAPTURE_PROFILE.width ||
+            stream.height !== CAPTURE_PROFILE.height))
       : stream.codec_name !== "h264" ||
         probe.streams.some((s) => s.codec_type === "audio") ||
         !Number.isFinite(duration) ||
