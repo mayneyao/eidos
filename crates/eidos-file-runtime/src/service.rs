@@ -15,7 +15,7 @@ use eidos_file_core::model::{
 use eidos_file_core::naming::quote_identifier;
 use eidos_file_core::query::{RowQuery, SortDirection, compile_query};
 use eidos_file_core::rows::{
-    AffectedRow, CreatedRow, RowChange, RowMutation, ensure_revision, mutate_rows_recording_detach,
+    AffectedRow, CreatedRow, RowChange, RowMutation, ensure_revision, mutate_rows_at,
 };
 use eidos_file_core::schema_ops::{
     CreatedObjectKind, SchemaLeafChange, apply_schema_leaf, ensure_foreign_keys,
@@ -541,6 +541,7 @@ impl RustRuntimeService {
         Ok(NegotiateResponse {
             version: "1.0".into(),
             capabilities: json!({
+                "temporalDefaultsVersion": 1,
                 "readRows": true,
                 "schemaPaging": true,
                 "cursorPaging": true,
@@ -2479,15 +2480,67 @@ impl RustRuntimeService {
             None
         };
 
+        let instant = now_instant();
+        let mut changes = req.changes.clone();
+        if req.creation_context.is_some()
+            || changes
+                .iter()
+                .any(|c| matches!(c, RowChange::Create { .. }))
+        {
+            let calendar = req
+                .creation_context
+                .as_ref()
+                .map(|ctx| {
+                    if ctx.as_object().is_none_or(|o| o.len() != 2)
+                        || !ctx["timeZone"].is_string()
+                        || ctx["timeZoneData"].as_str() != Some(jiff_tzdb::VERSION)
+                    {
+                        return Err(RuntimeErrorPayload::new(
+                            "invalid-value",
+                            "Invalid creation calendar context",
+                        ));
+                    }
+                    serde_json::from_value::<crate::contract::CalendarContext>(ctx.clone())
+                        .map_err(|e| RuntimeErrorPayload::new("invalid-value", e.to_string()))
+                })
+                .transpose()?;
+            let (day, _) = resolve_today_date(calendar.as_ref(), Some(&instant))?;
+            let schema = self.ensure_schema()?;
+            for field in schema.fields.iter().filter(|f| f.table_id == req.table_id) {
+                let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                    .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+                if settings["defaultValue"] != "now" {
+                    continue;
+                }
+                let value = match field.field_type {
+                    FieldType::Date => &day,
+                    FieldType::Datetime => &instant,
+                    _ => {
+                        return Err(RuntimeErrorPayload::new(
+                            "corrupt-file",
+                            "Invalid temporal default",
+                        ));
+                    }
+                };
+                for change in &mut changes {
+                    if let RowChange::Create { values, .. } = change {
+                        values
+                            .entry(field.id.clone())
+                            .or_insert_with(|| json!(value));
+                    }
+                }
+            }
+        }
         let core_req = RowMutation {
             table_id: req.table_id.clone(),
             expected_revision: Some(req.expected_revision.clone()),
-            changes: req.changes.clone(),
+            changes,
         };
-        let core_res = mutate_rows_recording_detach(
+        let core_res = mutate_rows_at(
             &self.conn,
             &core_req,
             undo_snapshot.as_mut().map(|s| &mut s.detached),
+            instant,
         )
         .map_err(RuntimeErrorPayload::from_core)?;
         self.invalidate_cache();
@@ -3894,6 +3947,32 @@ impl RustRuntimeService {
 
         self.invalidate_cache();
         let revision = if any_changed {
+            let fields = load_fields(&self.conn).map_err(RuntimeErrorPayload::from_core)?;
+            let mut has_defaults = false;
+            for field in fields {
+                let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                    .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+                if settings["defaultValue"].is_null() {
+                    continue;
+                }
+                if settings["defaultValue"] != "now"
+                    || !matches!(field.field_type, FieldType::Date | FieldType::Datetime)
+                    || field.system_role.is_some()
+                    || field.physical_name.is_none()
+                    || settings["isSystem"] == true
+                    || settings["readOnly"] == true
+                    || settings["writable"] == false
+                {
+                    return Err(RuntimeErrorPayload::new(
+                        "invalid-request",
+                        "Invalid temporal default",
+                    ));
+                }
+                has_defaults = true;
+            }
+            if has_defaults {
+                self.conn.execute("INSERT INTO eidos__features(name,version,required,config_json) VALUES('eidos:temporal-defaults','1',1,'{}') ON CONFLICT(name) DO NOTHING",[]).map_err(|e|RuntimeErrorPayload::new("adapter-error",e.to_string()))?;
+            }
             ensure_foreign_keys(&self.conn).map_err(RuntimeErrorPayload::from_core)?;
             ddl::increment_revision(&self.conn, &instant)
                 .map_err(RuntimeErrorPayload::from_core)?

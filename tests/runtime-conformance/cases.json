@@ -3,6 +3,68 @@
   "description": "Language-neutral Eidos Runtime 1.0 conformance suite executed identically against JS and Rust runtimes.",
   "cases": [
     {
+      "id": "temporal-defaults-on-create",
+      "steps": [
+        {
+          "op": "createTable",
+          "name": "Records",
+          "saveTableAs": "t",
+          "labelFieldClientKey": "label",
+          "fields": [
+            {
+              "clientKey": "label",
+              "kind": "text",
+              "name": "Name",
+              "position": "0"
+            },
+            {
+              "clientKey": "a",
+              "kind": "datetime",
+              "name": "a",
+              "position": "1",
+              "settings": { "defaultValue": "now" }
+            },
+            {
+              "clientKey": "b",
+              "kind": "datetime",
+              "name": "b",
+              "position": "2",
+              "settings": { "defaultValue": "now" }
+            }
+          ]
+        },
+        {
+          "op": "wire",
+          "method": "mutateRows",
+          "request": {
+            "tableId": "$tables.t",
+            "expectedRevision": "$revision",
+            "changes": [{ "kind": "create", "clientKey": "i", "values": {} }],
+            "returning": {
+              "fields": ["$fields.t.a", "$fields.t.b"],
+              "resolveRelations": []
+            }
+          },
+          "save": "insert",
+          "check": {
+            "returnedRows.rows.0.values.1": "$insert.returnedRows.rows.0.values.0"
+          }
+        },
+        {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.t",
+            "items": [
+              { "op": "count", "key": "assigned", "fieldId": "$fields.t.a" }
+            ]
+          },
+          "absent": ["referenceInstant"],
+          "check": { "results.0.value": "1" }
+        }
+      ]
+    },
+    {
       "id": "schema-batch-atomic",
       "steps": [
         {

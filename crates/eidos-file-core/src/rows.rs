@@ -373,6 +373,16 @@ pub fn mutate_rows_recording_detach(
     mutation: &RowMutation,
     detached: Option<&mut Vec<relation::DetachedCell>>,
 ) -> Result<RowMutationResult> {
+    mutate_rows_at(conn, mutation, detached, now_instant())
+}
+
+/// Bind all generated timestamps and logical defaults to the caller's mutation instant.
+pub fn mutate_rows_at(
+    conn: &Connection,
+    mutation: &RowMutation,
+    detached: Option<&mut Vec<relation::DetachedCell>>,
+    instant: String,
+) -> Result<RowMutationResult> {
     assert!(!conn.is_autocommit());
     if mutation.changes.is_empty() {
         return Err(EidosError::InvalidRequest(
@@ -380,8 +390,6 @@ pub fn mutate_rows_recording_detach(
         ));
     }
     let (file_id, current_revision) = check_revision(conn, mutation.expected_revision.as_deref())?;
-    let instant = now_instant();
-
     let tables = load_tables(conn)?;
     let fields = load_fields(conn)?;
     let relations = load_relation_fields(conn)?;
