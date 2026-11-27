@@ -301,6 +301,7 @@ function session(id: string) {
   const snapshot = { id, name: id } as SpaceSnapshot
   return {
     canonical: { id, name: id, root: id },
+    runtimePool: { warmForFirstOpen: vi.fn() },
     snapshot: vi.fn(async () => snapshot),
     close: vi.fn(async () => {}),
     closeEidosFile: vi.fn(async () => {}),
@@ -537,6 +538,7 @@ it("loads the renderer in parallel with restoration and reuses the initial snaps
   const last = session("last")
   mocks.create.mockResolvedValueOnce(last)
   await setup.controller.openDefaultWindow()
+  expect(last.runtimePool.warmForFirstOpen).toHaveBeenCalledOnce()
   expect(setup.controller.sessionFor(setup.owner)).toBe(last)
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(false, "space")
   expect(setup.recents).toHaveBeenCalledExactlyOnceWith(1)

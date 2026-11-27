@@ -147,6 +147,43 @@ export class RuntimePool {
     }
   }
 
+  private warmChild: UtilityProcess | null = null
+  private warmTimer?: NodeJS.Timeout
+
+  warmForFirstOpen(): void {
+    if (
+      process.env.EIDOS_LITE_RUNTIME_BACKEND !== "rust" ||
+      this.warmChild ||
+      this.entriesBySession.size
+    )
+      return
+    try {
+      const child = utilityProcess.fork(
+        this.workerPath,
+        ["--warm-file-runtime"],
+        {
+          serviceName: "Eidos File Runtime",
+          stdio: "pipe",
+        }
+      )
+      this.warmChild = child
+      child.once("exit", () => {
+        if (this.warmChild === child) this.takeWarmChild()
+      })
+      this.warmTimer = setTimeout(() => this.takeWarmChild()?.kill(), 30_000)
+      this.warmTimer.unref()
+    } catch (error) {
+      console.warn("Could not warm the file runtime", error)
+    }
+  }
+
+  private takeWarmChild(): UtilityProcess | null {
+    clearTimeout(this.warmTimer)
+    const child = this.warmChild
+    this.warmChild = null
+    return child
+  }
+
   async open(relativePath: string): Promise<OpenEidosFileResult> {
     const invalidations = await this.reconcilePaths()
     this.pendingInvalidations.push(
@@ -355,6 +392,7 @@ export class RuntimePool {
   }
 
   async closeHandles(): Promise<void> {
+    this.takeWarmChild()?.kill()
     this.suspendedSessionIds.clear()
     for (const entry of this.entriesBySession.values()) {
       if (entry.child) this.suspendedSessionIds.add(entry.sessionId)
@@ -1115,10 +1153,12 @@ export class RuntimePool {
 
   private spawnChild(entry: RuntimeEntry): UtilityProcess {
     if (entry.child) throw new Error("Eidos File runtime is already open")
-    const child = utilityProcess.fork(this.workerPath, [], {
-      serviceName: `Eidos File · ${path.basename(entry.filePath)}`,
-      stdio: "pipe",
-    })
+    const child =
+      this.takeWarmChild() ??
+      utilityProcess.fork(this.workerPath, [], {
+        serviceName: `Eidos File · ${path.basename(entry.filePath)}`,
+        stdio: "pipe",
+      })
     entry.child = child
     entry.crashed = false
     child.on("message", (message) => this.receive(entry, message))

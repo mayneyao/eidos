@@ -1,4 +1,5 @@
 import path from "node:path"
+import { warmRustRuntime } from "./rust-runtime-adapter"
 import { DatabaseSync } from "node:sqlite"
 import { runtimeReadTrace } from "./read-trace"
 import {
@@ -606,3 +607,12 @@ parentPort.on("message", (event) => {
       }
     )
 })
+
+if (process.argv.includes("--warm-file-runtime")) {
+  try {
+    warmRustRuntime()
+  } catch (error) {
+    // Opening the file retries the load and reports errors through normal IPC.
+    console.warn("Could not preload the Rust file runtime", error)
+  }
+}

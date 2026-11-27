@@ -1996,6 +1996,7 @@ export class WindowController {
     }
     let snapshot: SpaceSnapshot
     try {
+      session.runtimePool.warmForFirstOpen()
       snapshot = await session.snapshot()
       assertAdmission?.()
     } catch (error) {

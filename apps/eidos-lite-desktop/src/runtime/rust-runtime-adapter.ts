@@ -119,6 +119,10 @@ function loadAddon(): NativeEidosRuntimeModule {
   )
 }
 
+export function warmRustRuntime(): void {
+  loadAddon()
+}
+
 function decodeRustError(error: unknown): Error {
   const message =
     error instanceof Error
