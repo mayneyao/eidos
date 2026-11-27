@@ -1918,6 +1918,61 @@
           }
         },
         {
+          "op": "createField",
+          "table": "projects",
+          "field": {
+            "clientKey": "twice",
+            "name": "Twice",
+            "position": "7",
+            "kind": "formula",
+            "definition": {
+              "sourceText": "\"TotalPoints\" * 2",
+              "resultType": "integer"
+            }
+          }
+        },
+        {
+          "op": "createField",
+          "table": "ptasks",
+          "field": {
+            "clientKey": "doublePoints",
+            "name": "Double points",
+            "kind": "lookup",
+            "position": "5",
+            "definition": {
+              "relationFieldKey": "project",
+              "targetTableKey": "projects",
+              "targetFieldKey": "twice",
+              "aggregate": "first",
+              "distinctValues": false
+            }
+          }
+        },
+        {
+          "op": "wire",
+          "method": "queryRows",
+          "request": {
+            "tableId": "$tables.ptasks",
+            "query": {
+              "sort": [
+                {
+                  "fieldId": "$fields.ptasks.doublePoints",
+                  "direction": "asc"
+                }
+              ]
+            },
+            "projection": {
+              "fields": ["$fields.ptasks.doublePoints"],
+              "resolveRelations": []
+            },
+            "limit": 3
+          },
+          "check": {
+            "rows.0.values": ["10"],
+            "rows.2.values": ["70"]
+          }
+        },
+        {
           "op": "previewFormula",
           "table": "projects",
           "sourceText": "\"TotalPoints\" * 2",

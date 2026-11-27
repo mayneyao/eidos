@@ -173,6 +173,7 @@ pub fn populate_virtual_columns(
     today_date: Option<&str>,
 ) -> RuntimeResult<()> {
     populate_virtual_columns_inner(
+        None,
         conn,
         rows,
         source_table,
@@ -188,7 +189,8 @@ pub fn populate_virtual_columns(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn populate_virtual_columns_inner(
+pub(crate) fn populate_virtual_columns_inner(
+    schema: Option<&crate::service::CachedSchema>,
     conn: &Connection,
     rows: &mut [ProjectedRow],
     source_table: &TableMeta,
@@ -318,6 +320,7 @@ fn populate_virtual_columns_inner(
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(err)?;
             populate_virtual_columns_inner(
+                schema,
                 conn,
                 &mut nested,
                 target_table,
@@ -336,6 +339,7 @@ fn populate_virtual_columns_inner(
                 .collect()
         } else {
             fetch_target_field_values(
+                schema,
                 conn,
                 target_table,
                 target_field,
@@ -427,7 +431,9 @@ fn read_forward_relation_ids(
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn fetch_target_field_values(
+    schema: Option<&crate::service::CachedSchema>,
     conn: &Connection,
     target_table: &TableMeta,
     target_field: &FieldMeta,
@@ -455,13 +461,23 @@ fn fetch_target_field_values(
             .filter(|f| f.table_id == target_table.id)
             .cloned()
             .collect();
-        let compiled = compile_formula_expression(
-            &def.source_text,
-            &target_fields,
-            formulas,
-            Some(&target_field.id),
-            None,
-        )
+        let compiled = if let Some(schema) = schema {
+            schema.formula(
+                &def.source_text,
+                &target_fields,
+                Some(&target_field.id),
+                None,
+                0,
+            )
+        } else {
+            compile_formula_expression(
+                &def.source_text,
+                &target_fields,
+                formulas,
+                Some(&target_field.id),
+                None,
+            )
+        }
         .map_err(|d| RuntimeErrorPayload::new(d.code, d.message.unwrap_or_default()))?;
         uses_today = compiled.uses_today;
         format!("({})", compiled.sql)

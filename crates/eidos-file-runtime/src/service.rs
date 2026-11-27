@@ -50,7 +50,7 @@ use crate::conversion::{ConversionPreflight, apply_field_conversion, preflight_f
 use crate::csv_io::{escape_csv_cell, logical_value_to_csv, parse_csv};
 use crate::cursor::{BoundaryValue, CursorKey, PageCursor, SortKey, seek};
 use crate::formula::{FORMULA_CALENDAR_CTE, coerce_formula_sql_value, compile_formula_expression};
-use crate::lookup::{lookup_value_type_json, populate_virtual_columns};
+use crate::lookup::{lookup_value_type_json, populate_virtual_columns_inner};
 use crate::undo::{DeletedRowSnapshot, RowDeletionUndoState, UndoEntry, UndoStore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,7 +202,7 @@ impl CachedSchema {
     }
 
     #[allow(clippy::result_large_err)]
-    fn formula(
+    pub(crate) fn formula(
         &self,
         source: &str,
         fields: &[FieldMeta],
@@ -1530,7 +1530,8 @@ impl RustRuntimeService {
             for column in columns.iter().filter(|c| c.value_status.is_some()) {
                 lookups.remove(&column.field_id);
             }
-            populate_virtual_columns(
+            populate_virtual_columns_inner(
+                self.schema_cache.as_ref(),
                 &self.conn,
                 &mut rows,
                 &table,
@@ -1541,6 +1542,7 @@ impl RustRuntimeService {
                 &lookups,
                 &formulas,
                 Some(&today_str),
+                0,
             )?;
         }
 
@@ -1948,7 +1950,8 @@ impl RustRuntimeService {
             for column in columns.iter().filter(|c| c.value_status.is_some()) {
                 lookups.remove(&column.field_id);
             }
-            populate_virtual_columns(
+            populate_virtual_columns_inner(
+                self.schema_cache.as_ref(),
                 &self.conn,
                 &mut rows,
                 &table,
@@ -1959,6 +1962,7 @@ impl RustRuntimeService {
                 &lookups,
                 &formulas,
                 Some(&today_str),
+                0,
             )?;
         }
         if !req.projection.resolve_relations.is_empty() && !rows.is_empty() {
