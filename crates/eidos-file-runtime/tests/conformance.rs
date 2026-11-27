@@ -1079,19 +1079,18 @@ fn language_neutral_runtime_conformance() {
                         "diags: {}",
                         res["diagnostics"]
                     );
-                    let actual: Vec<f64> = res["rows"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|r| r["value"].as_f64().unwrap())
-                        .collect();
-                    let expected: Vec<f64> = step["expectValues"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_f64().unwrap())
-                        .collect();
-                    assert_eq!(actual, expected);
+                    if let Some(expected) = step["expectValues"].as_array() {
+                        let rows = res["rows"].as_array().unwrap();
+                        assert_eq!(rows.len(), expected.len());
+                        for (row, expected) in rows.iter().zip(expected) {
+                            let actual = row.get("value").expect("preview row missing value");
+                            if expected.is_number() {
+                                assert_eq!(actual.as_f64(), expected.as_f64());
+                            } else {
+                                assert_eq!(actual, expected);
+                            }
+                        }
+                    }
                 }
                 "convertField" => {
                     let t_key = step["table"].as_str().unwrap();

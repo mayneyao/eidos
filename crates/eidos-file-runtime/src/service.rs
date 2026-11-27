@@ -453,6 +453,8 @@ impl RustRuntimeService {
         let conn = Connection::open_with_flags(path, flags)
             .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
         ddl::configure_connection(&conn).map_err(RuntimeErrorPayload::from_core)?;
+        crate::calendar::register_external_instants(&conn)?;
+        crate::formula::register_arithmetic(&conn)?;
         if read_only {
             conn.execute_batch("PRAGMA query_only = ON; PRAGMA temp_store = MEMORY;")
                 .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
@@ -495,6 +497,8 @@ impl RustRuntimeService {
         }
         drop(src);
         ddl::configure_connection(&dst).map_err(RuntimeErrorPayload::from_core)?;
+        crate::calendar::register_external_instants(&dst)?;
+        crate::formula::register_arithmetic(&dst)?;
         let _ = load_file_meta(&dst).map_err(RuntimeErrorPayload::from_core)?;
 
         let limits = RuntimeLimits::default();

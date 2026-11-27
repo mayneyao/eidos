@@ -440,6 +440,71 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   )
 
+  it.each(["js", "rust"])(
+    "compares external datetimes across offsets and fractional precision in %s",
+    async (backend) => {
+      const copy = path.join(tempDir, `external-time-${backend}.eidos`)
+      await fs.copyFile(filePath, copy)
+      const { DatabaseSync } = await import("node:sqlite")
+      const db = new DatabaseSync(copy)
+      const dateField = db
+        .prepare(
+          "SELECT id FROM eidos__fields WHERE table_id=? AND system_role='created-time'"
+        )
+        .get(tableId)!
+      try {
+        const { physical_name } = db
+          .prepare("SELECT physical_name FROM eidos__tables WHERE id=?")
+          .get(tableId)!
+        const physical = '"' + String(physical_name).replaceAll('"', '""') + '"'
+        db.exec("PRAGMA ignore_check_constraints=ON")
+        db.prepare(
+          "UPDATE eidos__tables SET settings_json=json_set(settings_json,'$.tableType','virtual') WHERE id=?"
+        ).run(tableId)
+        db.exec(
+          `UPDATE ${physical} SET _created_at=CASE Score WHEN 90 THEN '2023-11-15T06:13:20.124000000+08:00' WHEN 45 THEN '2023-11-14T22:13:20.1240000000001Z' ELSE '2023-11-14T22:13:20.1239999Z' END`
+        )
+      } finally {
+        db.close()
+      }
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+      try {
+        const session = await openEidosLiteFileRuntime(copy, { readOnly: true })
+        try {
+          for (const [op, expected] of [
+            ["eq", "Alpha"],
+            ["gt", "Beta"],
+            ["lt", "Gamma"],
+          ] as const) {
+            const result = await session.source.runtime.queryRows(
+              {
+                tableId,
+                query: {
+                  filter: {
+                    op,
+                    fieldId: String(dateField.id),
+                    value: "2023-11-14T22:13:20.124Z",
+                  },
+                },
+                projection: { fields: [nameFieldId], resolveRelations: [] },
+                limit: 10,
+              },
+              { requestId: "source-time" }
+            )
+            expect(result.rows.map((row) => row.values)).toEqual([[expected]])
+          }
+        } finally {
+          await session.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
   it("interrupts a running SQLite read on cancellation or deadline and keeps the session usable", async () => {
     const copy = path.join(tempDir, "interruptible.eidos")
     await fs.copyFile(filePath, copy)

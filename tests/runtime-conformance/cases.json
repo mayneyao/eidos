@@ -1383,6 +1383,38 @@
         {
           "op": "previewFormula",
           "table": "metrics",
+          "sourceText": "1 / 2",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [0.5, 0.5, 0.5]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "9223372036854775807 + 1",
+          "declaredResultType": "integer",
+          "expectValid": true,
+          "expectValues": [null, null, null]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "1e308 * 1e308",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [null, null, null]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
+          "sourceText": "CAST(3 AS REAL) / 2",
+          "declaredResultType": "number",
+          "expectValid": true,
+          "expectValues": [1.5, 1.5, 1.5]
+        },
+        {
+          "op": "previewFormula",
+          "table": "metrics",
           "sourceText": "\"Base\" * 2 + 5",
           "declaredResultType": "number",
           "expectValid": true,

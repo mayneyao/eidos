@@ -369,6 +369,61 @@ fn bounds_to_filter(field: &FieldMeta, bounds: &CalendarBounds) -> RuntimeResult
     })
 }
 
+/// Sort against canonical API millisecond instants without rounding external
+/// timestamps. Values within a millisecond sort after its exact UTC spelling.
+fn external_instant_key(raw: &str) -> Option<String> {
+    let whole = raw.get(..19)?;
+    if !matches!(whole.as_bytes().get(10), Some(b'T' | b't')) || whole.get(17..19)? >= "60" {
+        return None;
+    }
+    let tail = raw.get(19..)?;
+    let (fraction, zone) = if let Some(rest) = tail.strip_prefix('.') {
+        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+        if digits == 0 {
+            return None;
+        }
+        rest.split_at(digits)
+    } else {
+        ("", tail)
+    };
+    let instant = chrono::DateTime::parse_from_rfc3339(&format!("{whole}{zone}")).ok()?;
+    let mut key = instant.to_utc().format("%Y-%m-%dT%H:%M:%S.").to_string();
+    let millis = &fraction[..fraction.len().min(3)];
+    key.push_str(millis);
+    for _ in millis.len()..3 {
+        key.push('0');
+    }
+    key.push('Z');
+    if !eidos_file_core::time::is_valid_instant(&key) {
+        return None;
+    }
+    key.push_str(fraction.get(3..).unwrap_or("").trim_end_matches('0'));
+    Some(key)
+}
+
+pub(crate) fn register_external_instants(conn: &rusqlite::Connection) -> RuntimeResult<()> {
+    use rusqlite::functions::FunctionFlags;
+    conn.create_scalar_function(
+        "eidos_external_instant",
+        1,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_DETERMINISTIC
+            | FunctionFlags::SQLITE_INNOCUOUS,
+        |ctx| {
+            ctx.get::<Option<String>>(0)?
+                .map(|s| {
+                    external_instant_key(&s).ok_or_else(|| {
+                        rusqlite::Error::UserFunctionError(
+                            "Invalid external RFC 3339 timestamp".into(),
+                        )
+                    })
+                })
+                .transpose()
+        },
+    )
+    .map_err(|error| RuntimeErrorPayload::new("adapter-error", error.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

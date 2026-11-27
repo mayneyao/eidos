@@ -156,7 +156,8 @@ impl Expression {
     }
 }
 
-struct Parser {
+struct Parser<'a> {
+    bindings: Option<&'a std::collections::HashMap<String, String>>,
     tokens: std::iter::Peekable<std::vec::IntoIter<Token>>,
 }
 
@@ -164,7 +165,7 @@ fn invalid() -> EidosError {
     EidosError::InvalidSchema("Malformed Formula expression".into())
 }
 
-impl Parser {
+impl Parser<'_> {
     fn consume(&mut self, text: &str) -> bool {
         self.tokens.next_if(|token| matches!(token, Token::Symbol(t) | Token::Ident(t) if t.eq_ignore_ascii_case(text))).is_some()
     }
@@ -185,7 +186,13 @@ impl Parser {
                 expr
             }
             Token::StringLit(raw) => Expression::new(raw, 9),
-            Token::QuotedIdent(name) => Expression::new(quote_identifier(&name)?, 9),
+            Token::QuotedIdent(name) => Expression::new(
+                match self.bindings {
+                    Some(bindings) => bindings.get(&name).cloned().ok_or_else(invalid)?,
+                    None => quote_identifier(&name)?,
+                },
+                9,
+            ),
             Token::Symbol(symbol) if symbol == "(" => {
                 let inner = self.expression(1, depth + 1)?;
                 self.require(")")?;
@@ -197,6 +204,14 @@ impl Parser {
                 match name.as_str() {
                     "TRUE" | "FALSE" | "NULL" => Expression::new(name, 9),
                     "NOT" => self.unary("NOT", 3, depth)?,
+                    "TODAY" if self.bindings.is_some() => {
+                        self.require("(")?;
+                        self.require(")")?;
+                        Expression::new(
+                            r#"(SELECT "today" FROM "__eidos_formula_calendar")"#.into(),
+                            9,
+                        )
+                    }
                     "CAST" => {
                         self.require("(")?;
                         let operand = self.expression(1, depth + 1)?;
@@ -204,6 +219,12 @@ impl Parser {
                         let Some(Token::Ident(kind)) = self.tokens.next() else {
                             return Err(invalid());
                         };
+                        if !matches!(
+                            kind.to_ascii_uppercase().as_str(),
+                            "TEXT" | "INTEGER" | "REAL"
+                        ) {
+                            return Err(invalid());
+                        }
                         self.require(")")?;
                         Expression::new(
                             format!("CAST({} AS {})", operand.sql, kind.to_ascii_uppercase()),
@@ -287,6 +308,19 @@ impl Parser {
                 "<>" => "!=",
                 other => other,
             };
+            if self.bindings.is_some() {
+                let sql = if matches!(op, "+" | "-" | "*" | "/" | "%") {
+                    format!(
+                        "eidos_formula_arithmetic('{op}', {}, {})",
+                        left.sql, right.sql
+                    )
+                } else {
+                    format!("(({}) {op} ({}))", left.sql, right.sql)
+                };
+                left = Expression::new(sql, precedence);
+                left.binary = true;
+                continue;
+            }
             left = Expression::new(
                 format!(
                     "{} {op} {}",
@@ -305,6 +339,8 @@ impl Parser {
         let wrap = operand.precedence < precedence || operand.unary;
         let sql = if op == "-" && operand.minimum_magnitude {
             "-9223372036854775808".into()
+        } else if self.bindings.is_some() && op == "-" {
+            format!("eidos_formula_arithmetic('-', 0, {})", operand.sql)
         } else {
             format!(
                 "{op}{}{}",
@@ -339,6 +375,22 @@ fn number_literal(raw: &str) -> Result<String> {
     Ok(text)
 }
 
+/// Emit parenthesized SQL using resolved, trusted field expressions.
+pub fn compile_bound_source(
+    tokens: Vec<Token>,
+    bindings: &std::collections::HashMap<String, String>,
+) -> Result<String> {
+    let mut parser = Parser {
+        tokens: tokens.into_iter().peekable(),
+        bindings: Some(bindings),
+    };
+    let expression = parser.expression(1, 0)?;
+    if parser.tokens.next().is_some() {
+        return Err(invalid());
+    }
+    Ok(expression.sql)
+}
+
 pub fn rename_reference(source: &str, old: &str, new: &str) -> Result<Option<String>> {
     if old == new {
         return Ok(None);
@@ -357,6 +409,7 @@ pub fn rename_reference(source: &str, old: &str, new: &str) -> Result<Option<Str
         return Ok(None);
     }
     let mut parser = Parser {
+        bindings: None,
         tokens: tokens.into_iter().peekable(),
     };
     let expression = parser.expression(1, 0)?;

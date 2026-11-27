@@ -8,11 +8,61 @@
 use std::collections::{HashMap, HashSet};
 
 use eidos_file_core::model::{FieldMeta, FieldType, FormulaFieldMeta};
-use eidos_file_core::naming::{quote_identifier, sqlite_nocase};
+use eidos_file_core::naming::quote_identifier;
 
 use crate::contract::{RuntimeDiagnostic, RuntimeErrorPayload, RuntimeResult};
 
 pub const FORMULA_CALENDAR_CTE: &str = r#""__eidos_formula_calendar"("today") AS (VALUES (?))"#;
+
+pub(crate) fn register_arithmetic(conn: &rusqlite::Connection) -> RuntimeResult<()> {
+    use rusqlite::{functions::FunctionFlags, types::Value};
+    conn.create_scalar_function(
+        "eidos_formula_arithmetic",
+        3,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_INNOCUOUS
+            | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let op = ctx.get::<String>(0)?;
+            let left = ctx.get::<Value>(1)?;
+            let right = ctx.get::<Value>(2)?;
+            if let (Value::Integer(a), Value::Integer(b)) = (&left, &right)
+                && op != "/"
+            {
+                let result = match op.as_str() {
+                    "+" => a.checked_add(*b),
+                    "-" => a.checked_sub(*b),
+                    "*" => a.checked_mul(*b),
+                    "%" if *b == -1 => Some(0),
+                    "%" => a.checked_rem(*b),
+                    _ => None,
+                };
+                return Ok(result.map_or(Value::Null, Value::Integer));
+            }
+            let number = |v| match v {
+                Value::Real(n) => Some(n),
+                Value::Integer(n) => Some(n as f64),
+                _ => None,
+            };
+            let (Some(a), Some(b)) = (number(left), number(right)) else {
+                return Ok(Value::Null);
+            };
+            let value = match op.as_str() {
+                "+" => a + b,
+                "-" => a - b,
+                "*" => a * b,
+                "/" => a / b,
+                _ => return Ok(Value::Null),
+            };
+            Ok(if value.is_finite() {
+                Value::Real(if value == 0.0 { 0.0 } else { value })
+            } else {
+                Value::Null
+            })
+        },
+    )
+    .map_err(|error| RuntimeErrorPayload::new("adapter-error", error.to_string()))
+}
 
 const ALLOWED_FUNCTIONS: &[&str] = &[
     "abs",
@@ -223,7 +273,7 @@ fn compile_recursive(
         });
     }
 
-    let mut sql_parts = Vec::with_capacity(tokens.len());
+    let mut bindings = HashMap::new();
     let mut deps = Vec::new();
     let mut dep_seen = HashSet::new();
     let mut uses_today = false;
@@ -232,20 +282,20 @@ fn compile_recursive(
     while idx < tokens.len() {
         match &tokens[idx] {
             Token::QuotedIdent(name) => {
-                let folded = sqlite_nocase(name);
-                let field = fields
-                    .iter()
-                    .find(|f| sqlite_nocase(&f.name) == folded)
-                    .ok_or_else(|| RuntimeDiagnostic {
-                        code: "formula-name-invalid".into(),
-                        severity: "error".into(),
-                        message: Some(format!("Unknown field reference: \"{name}\"")),
-                        path: None,
-                        table_id: None,
-                        field_id: None,
-                        row_id: None,
-                        view_id: None,
-                    })?;
+                let field =
+                    fields
+                        .iter()
+                        .find(|f| f.name == *name)
+                        .ok_or_else(|| RuntimeDiagnostic {
+                            code: "formula-name-invalid".into(),
+                            severity: "error".into(),
+                            message: Some(format!("Unknown field reference: \"{name}\"")),
+                            path: None,
+                            table_id: None,
+                            field_id: None,
+                            row_id: None,
+                            view_id: None,
+                        })?;
 
                 if dep_seen.insert(field.id.clone()) {
                     deps.push(field.id.clone());
@@ -290,7 +340,7 @@ fn compile_recursive(
                     if sub.uses_today {
                         uses_today = true;
                     }
-                    sql_parts.push(format!("({})", sub.sql));
+                    bindings.insert(name.clone(), format!("({})", sub.sql));
                 } else if let Some(phys) = &field.physical_name {
                     let quoted = quote_identifier(phys).map_err(|e| RuntimeDiagnostic {
                         code: "formula-parse-invalid".into(),
@@ -303,9 +353,9 @@ fn compile_recursive(
                         view_id: None,
                     })?;
                     if let Some(alias) = table_alias {
-                        sql_parts.push(format!("{alias}.{quoted}"));
+                        bindings.insert(name.clone(), format!("{alias}.{quoted}"));
                     } else {
-                        sql_parts.push(quoted);
+                        bindings.insert(name.clone(), quoted);
                     }
                 } else {
                     return Err(RuntimeDiagnostic {
@@ -328,7 +378,7 @@ fn compile_recursive(
                 let next_is_lparen =
                     matches!(tokens.get(idx + 1), Some(Token::Symbol(s)) if s == "(");
                 if next_is_lparen {
-                    if !ALLOWED_FUNCTIONS.contains(&lower.as_str()) {
+                    if lower != "cast" && !ALLOWED_FUNCTIONS.contains(&lower.as_str()) {
                         return Err(RuntimeDiagnostic {
                             code: "formula-parse-invalid".into(),
                             severity: "error".into(),
@@ -355,15 +405,10 @@ fn compile_recursive(
                             });
                         }
                         uses_today = true;
-                        sql_parts
-                            .push(r#"(SELECT "today" FROM "__eidos_formula_calendar")"#.into());
                         idx += 3;
                         continue;
                     }
-                    sql_parts.push(ident.clone());
-                } else if ALLOWED_KEYWORDS.contains(&lower.as_str()) {
-                    sql_parts.push(ident.to_ascii_uppercase());
-                } else {
+                } else if !ALLOWED_KEYWORDS.contains(&lower.as_str()) {
                     return Err(RuntimeDiagnostic {
                         code: "formula-name-invalid".into(),
                         severity: "error".into(),
@@ -378,15 +423,24 @@ fn compile_recursive(
                     });
                 }
             }
-            Token::Number(n) => sql_parts.push(n.clone()),
-            Token::StringLit(s) => sql_parts.push(s.clone()),
-            Token::Symbol(sym) => sql_parts.push(sym.clone()),
+            _ => {}
         }
         idx += 1;
     }
 
     Ok(CompiledFormula {
-        sql: sql_parts.join(" "),
+        sql: eidos_file_core::formula_source::compile_bound_source(tokens, &bindings).map_err(
+            |e| RuntimeDiagnostic {
+                code: "formula-parse-invalid".into(),
+                severity: "error".into(),
+                message: Some(e.to_string()),
+                path: None,
+                table_id: None,
+                field_id: None,
+                row_id: None,
+                view_id: None,
+            },
+        )?,
         dependency_field_ids: deps,
         uses_today,
     })

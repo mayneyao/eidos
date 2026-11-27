@@ -103,8 +103,14 @@ pub(crate) fn compile_predicates(
     let mut typed = fields.to_vec();
     let mut expressions = HashMap::new();
     let mut list_elements = HashMap::new();
+    let settings: JsonValue = serde_json::from_str(&table.settings_json).unwrap_or_default();
+    let external = settings["tableType"] == "virtual" || settings["vtabModule"].is_string();
     for field in &mut typed {
-        if !matches!(field.field_type, FieldType::Lookup | FieldType::Formula) {
+        let external_datetime = external
+            && schema.logical_type(field)? == FieldType::Datetime
+            && eidos_file_core::schema_ops::view_query_uses_field(&filter, &field.id);
+        if !external_datetime && !matches!(field.field_type, FieldType::Lookup | FieldType::Formula)
+        {
             continue;
         };
         let referenced = eidos_file_core::schema_ops::view_query_uses_field(&filter, &field.id)
@@ -116,9 +122,14 @@ pub(crate) fn compile_predicates(
             if let Some(element) = schema.list_element(field) {
                 list_elements.insert(field.id.clone(), element);
             }
+            let expr = schema.value_expression(table, field, fields, uses_today)?;
             expressions.insert(
                 field.id.clone(),
-                schema.value_expression(table, field, fields, uses_today)?,
+                if external_datetime {
+                    format!("eidos_external_instant({expr})")
+                } else {
+                    expr
+                },
             );
             field.field_type = schema.logical_type(field)?;
         }
