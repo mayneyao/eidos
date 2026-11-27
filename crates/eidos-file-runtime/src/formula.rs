@@ -196,7 +196,7 @@ fn tokenize(source: &str) -> Result<Vec<Token>, String> {
     Ok(out)
 }
 
-pub(crate) fn has_unknown_function(source: &str) -> bool {
+fn has_unknown_function(source: &str) -> bool {
     tokenize(source).is_ok_and(|tokens| {
         tokens.windows(2).any(|pair| {
             let [Token::Ident(name), Token::Symbol(open)] = pair else {
@@ -208,6 +208,54 @@ pub(crate) fn has_unknown_function(source: &str) -> bool {
                 && !ALLOWED_KEYWORDS.contains(&name.as_str())
         })
     })
+}
+
+pub(crate) fn unsupported_fields(
+    fields: &[FieldMeta],
+    formulas: &HashMap<String, FormulaFieldMeta>,
+    lookups: &HashMap<String, eidos_file_core::model::LookupFieldMeta>,
+) -> HashSet<String> {
+    let mut blocked: HashSet<_> = formulas
+        .values()
+        .filter(|def| has_unknown_function(&def.source_text))
+        .map(|def| def.field_id.clone())
+        .collect();
+    if blocked.is_empty() {
+        return blocked;
+    }
+    let names: HashMap<_, _> = fields
+        .iter()
+        .map(|f| ((f.table_id.as_str(), f.name.as_str()), f.id.as_str()))
+        .collect();
+    let mut dependents = HashMap::<&str, Vec<&str>>::new();
+    for field in fields {
+        if let Some(formula) = formulas.get(&field.id)
+            && let Ok(tokens) = tokenize(&formula.source_text)
+        {
+            for token in tokens {
+                if let Token::QuotedIdent(name) = token
+                    && let Some(id) = names.get(&(field.table_id.as_str(), name.as_str()))
+                {
+                    dependents.entry(id).or_default().push(&field.id);
+                }
+            }
+        }
+    }
+    for lookup in lookups.values() {
+        dependents
+            .entry(&lookup.target_field_id)
+            .or_default()
+            .push(&lookup.field_id);
+    }
+    let mut queue: Vec<_> = blocked.iter().cloned().collect();
+    while let Some(id) = queue.pop() {
+        for dependent in dependents.get(id.as_str()).into_iter().flatten() {
+            if blocked.insert((*dependent).to_owned()) {
+                queue.push((*dependent).to_owned());
+            }
+        }
+    }
+    blocked
 }
 
 #[allow(clippy::result_large_err)]

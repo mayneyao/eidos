@@ -71,7 +71,7 @@ struct CachedSchemaPlan {
 }
 
 struct CachedSchema {
-    has_unknown_functions: bool,
+    unsupported_fields: HashSet<String>,
     revision: i64,
     data_version: i64,
     meta: FileMeta,
@@ -454,7 +454,7 @@ impl RustRuntimeService {
                 "Runtime is opened read-only",
             ));
         }
-        if self.ensure_schema()?.has_unknown_functions {
+        if !self.ensure_schema()?.unsupported_fields.is_empty() {
             return Err(RuntimeErrorPayload::new(
                 "unsupported",
                 "This file requires a newer Eidos version and is available read-only",
@@ -505,9 +505,9 @@ impl RustRuntimeService {
                 .query_row("SELECT COUNT(*) FROM eidos__features", [], |r| r.get(0))
                 .unwrap_or(0);
             self.schema_cache = Some(CachedSchema {
-                has_unknown_functions: formulas
-                    .values()
-                    .any(|def| crate::formula::has_unknown_function(&def.source_text)),
+                unsupported_fields: crate::formula::unsupported_fields(
+                    &fields, &formulas, &lookups,
+                ),
                 revision: current_rev,
                 data_version,
                 meta,
@@ -612,6 +612,7 @@ impl RustRuntimeService {
         &mut self,
         req: &GetSchemaPageRequest,
     ) -> RuntimeResult<SchemaPage> {
+        let read_only = self.read_only;
         let schema = self.ensure_schema()?;
         let rev_str = schema.meta.revision.to_string();
         if req.revision != rev_str {
@@ -645,7 +646,8 @@ impl RustRuntimeService {
                 && settings["isSystem"] != true
                 && settings["readOnly"] != true
                 && settings["writable"] != false
-                && !schema.has_unknown_functions
+                && !read_only
+                && schema.unsupported_fields.is_empty()
                 && !matches!(f.field_type, FieldType::Formula | FieldType::Lookup)
                 && schema
                     .relations
@@ -675,6 +677,9 @@ impl RustRuntimeService {
             obj.insert("position".into(), json!(f.position.to_string()));
             obj.insert("settings".into(), settings);
             obj.insert("writable".into(), json!(writable));
+            if schema.unsupported_fields.contains(&f.id) {
+                obj.insert("valueStatus".into(), json!("unsupported-formula"));
+            }
 
             if let Some(rel) = schema.relations.get(&f.id) {
                 let def = match rel.direction {
@@ -719,20 +724,28 @@ impl RustRuntimeService {
                 serde_json::from_str(&v.query_json).unwrap_or_else(|_| json!({}));
             let layout: JsonValue =
                 serde_json::from_str(&v.layout_json).unwrap_or_else(|_| json!({}));
-            all_objects.push(json!({
+            let unsupported_formula = schema
+                .unsupported_fields
+                .iter()
+                .any(|id| view_query_uses_field(&query, id));
+            let mut view = json!({
                 "object": "view",
                 "id": v.id,
                 "tableId": v.table_id,
                 "name": v.name,
                 "type": v.view_type,
-                "queryStatus": if (req.calendar_query_version != Some(2) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-period"))
+                "queryStatus": if unsupported_formula || (req.calendar_query_version != Some(2) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-period"))
                     || (req.calendar_window_version != Some(1) && eidos_file_core::validate::has_calendar_filter(&query, "calendar-window"))
                     || eidos_file_core::validate::has_calendar_filter(&query, "calendar-day")
                     || eidos_file_core::validate::has_calendar_filter(&query, "relative-date") { "unsupported" } else { "supported" },
                 "query": query,
                 "layout": layout,
                 "position": v.position.to_string(),
-            }));
+            });
+            if unsupported_formula {
+                view["queryUnavailableReason"] = json!("unsupported-formula");
+            }
+            all_objects.push(view);
         }
 
         // Load features
@@ -809,6 +822,7 @@ impl RustRuntimeService {
     }
 
     fn build_projection(
+        &self,
         table_fields: &[FieldMeta],
         all_fields: &[FieldMeta],
         formulas: &HashMap<String, FormulaFieldMeta>,
@@ -850,14 +864,25 @@ impl RustRuntimeService {
                 }
                 _ => "stored",
             };
-            let writable = source == "stored" && field.system_role.is_none();
+            let settings: JsonValue = serde_json::from_str(&field.settings_json)
+                .map_err(|e| RuntimeErrorPayload::new("corrupt-file", e.to_string()))?;
+            let blocked = self.schema_cache.as_ref().map(|s| &s.unsupported_fields);
+            let writable = !self.read_only
+                && blocked.is_none_or(HashSet::is_empty)
+                && source == "stored"
+                && field.system_role.is_none()
+                && settings["readOnly"] != true
+                && settings["isSystem"] != true
+                && settings["writable"] != false;
             cols.push(ColumnDescriptor {
                 field_id: field.id.clone(),
                 name: field.name.clone(),
                 value_type: value_type_json(field, all_fields, formulas, lookups),
                 source: source.into(),
                 writable,
-                value_status: None,
+                value_status: blocked
+                    .is_some_and(|ids| ids.contains(fid))
+                    .then(|| "unsupported-formula".into()),
             });
             selected.push(field.clone());
             hash_input.push_str(&field.id);
@@ -997,7 +1022,7 @@ impl RustRuntimeService {
             )
         };
 
-        let (columns, selected_fields, projection_hash) = Self::build_projection(
+        let (columns, selected_fields, projection_hash) = self.build_projection(
             &table_fields,
             &all_fields,
             &formulas,
@@ -1032,8 +1057,10 @@ impl RustRuntimeService {
         let mut select_exprs = Vec::with_capacity(selected_fields.len() + 1);
         select_exprs.push("\"_id\"".to_string());
 
-        for f in &selected_fields {
-            if f.field_type == FieldType::Formula {
+        for (f, column) in selected_fields.iter().zip(&columns) {
+            if column.value_status.is_some() {
+                select_exprs.push("NULL".into());
+            } else if f.field_type == FieldType::Formula {
                 let def = formulas.get(&f.id).ok_or_else(|| {
                     RuntimeErrorPayload::new("corrupt-file", format!("Missing formula {}", f.id))
                 })?;
@@ -1198,6 +1225,10 @@ impl RustRuntimeService {
 
         // Populate virtual inverse-relation and lookup columns in batch before relation label resolution
         if !rows.is_empty() {
+            let mut lookups = lookups.clone();
+            for column in columns.iter().filter(|c| c.value_status.is_some()) {
+                lookups.remove(&column.field_id);
+            }
             populate_virtual_columns(
                 &self.conn,
                 &mut rows,
@@ -1494,7 +1525,7 @@ impl RustRuntimeService {
                 schema.fields.clone(),
             )
         };
-        let (columns, selected_fields, projection_hash) = Self::build_projection(
+        let (columns, selected_fields, projection_hash) = self.build_projection(
             &table_fields,
             &all_fields,
             &formulas,
@@ -1519,8 +1550,10 @@ impl RustRuntimeService {
         let mut uses_today = false;
         let mut select_exprs = Vec::with_capacity(selected_fields.len() + 1);
         select_exprs.push("\"_id\"".to_string());
-        for f in &selected_fields {
-            if f.field_type == FieldType::Formula {
+        for (f, column) in selected_fields.iter().zip(&columns) {
+            if column.value_status.is_some() {
+                select_exprs.push("NULL".into());
+            } else if f.field_type == FieldType::Formula {
                 let def = formulas.get(&f.id).ok_or_else(|| {
                     RuntimeErrorPayload::new("corrupt-file", format!("Missing formula {}", f.id))
                 })?;
@@ -1609,6 +1642,10 @@ impl RustRuntimeService {
             }
         }
         if !rows.is_empty() {
+            let mut lookups = lookups.clone();
+            for column in columns.iter().filter(|c| c.value_status.is_some()) {
+                lookups.remove(&column.field_id);
+            }
             populate_virtual_columns(
                 &self.conn,
                 &mut rows,
@@ -1946,7 +1983,7 @@ impl RustRuntimeService {
             )
         };
 
-        let (columns, _selected_fields, projection_hash) = Self::build_projection(
+        let (columns, _selected_fields, projection_hash) = self.build_projection(
             &table_fields,
             &all_fields,
             &formulas,

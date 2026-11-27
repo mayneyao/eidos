@@ -279,6 +279,112 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   )
 
+  it.each(["js", "rust"])(
+    "preserves files containing a newer formula function in %s",
+    async (backend) => {
+      const copy = path.join(tempDir, `future-${backend}.eidos`)
+      await fs.copyFile(filePath, copy)
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      const ctx = { requestId: "future-function" }
+      try {
+        process.env.EIDOS_LITE_RUNTIME_BACKEND = "js"
+        const fixture = await openEidosLiteFileRuntime(copy)
+        let formulaId: string
+        try {
+          const service = fixture.source.runtime
+          const { revision } = await service.getSnapshot({}, ctx)
+          const plan = await service.preflightSchema(
+            {
+              expectedRevision: revision,
+              change: {
+                kind: "create-field",
+                tableId,
+                field: {
+                  kind: "formula",
+                  clientKey: "future",
+                  name: "Future",
+                  position: "3",
+                  definition: {
+                    sourceText: '"Score" + 1',
+                    resultType: "number",
+                  },
+                },
+              },
+            },
+            ctx
+          )
+          const created = await service.mutateSchema(
+            {
+              expectedRevision: revision,
+              planToken: plan.planToken,
+              actionsHash: plan.actionsHash,
+            },
+            ctx
+          )
+          formulaId = created.createdObjects.find(
+            (o) =>
+              o.object === "field" &&
+              "clientKey" in o &&
+              o.clientKey === "future"
+          )!.id
+        } finally {
+          await fixture.close()
+        }
+        const { DatabaseSync } = await import("node:sqlite")
+        const db = new DatabaseSync(copy)
+        try {
+          db.prepare(
+            "UPDATE eidos__formula_fields SET source_text='FUTURE_NUMBER()' WHERE field_id=?"
+          ).run(formulaId)
+          db.exec("UPDATE eidos__meta SET revision=revision+1")
+        } finally {
+          db.close()
+        }
+        process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+        const reader = await openEidosLiteFileRuntime(copy)
+        try {
+          const service = reader.source.runtime
+          const { revision } = await service.getSnapshot({}, ctx)
+          const page = await service.queryRows(
+            {
+              tableId,
+              query: {},
+              projection: {
+                fields: [scoreFieldId, formulaId],
+                resolveRelations: [],
+              },
+              limit: 5,
+            },
+            ctx
+          )
+          expect(page.rows).toHaveLength(3)
+          expect(page.rows.every((row) => row.values[1] === null)).toBe(true)
+          expect(page.columns.map((c) => [c.writable, c.valueStatus])).toEqual([
+            [false, undefined],
+            [false, "unsupported-formula"],
+          ])
+          await expect(
+            service.mutateRows(
+              {
+                tableId,
+                expectedRevision: revision,
+                changes: [{ kind: "create", clientKey: "blocked", values: {} }],
+              },
+              ctx
+            )
+          ).rejects.toMatchObject({ code: "unsupported" })
+          expect((await service.getSnapshot({}, ctx)).revision).toBe(revision)
+        } finally {
+          await reader.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
   it("interrupts a running SQLite read on cancellation or deadline and keeps the session usable", async () => {
     const copy = path.join(tempDir, "interruptible.eidos")
     await fs.copyFile(filePath, copy)
