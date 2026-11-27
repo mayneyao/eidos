@@ -211,7 +211,10 @@ async function runCase(testCase, tempDir) {
           const result = await call()
           if (step.save) state[step.save] = result
           for (const key of step.absent ?? []) {
-            assert.ok(!Object.hasOwn(result, key), `${step.method} returned ${key}`)
+            assert.ok(
+              !Object.hasOwn(result, key),
+              `${step.method} returned ${key}`
+            )
           }
           for (const [path, expected] of Object.entries(step.check ?? {})) {
             assert.deepEqual(
@@ -349,7 +352,16 @@ async function runCase(testCase, tempDir) {
       } else if (step.op === "insertRows") {
         const tableId = state.tables[step.table]
         const fMap = state.fields[step.table]
-        const changes = step.rows.map((r) => ({
+        const rows = step.sequence
+          ? Array.from({ length: step.sequence.count }, (_, i) => {
+              const value = String(step.sequence.start + i)
+              return {
+                clientKey: value,
+                values: { [step.sequence.field]: value },
+              }
+            })
+          : step.rows
+        const changes = rows.map((r) => ({
           kind: "create",
           clientKey: r.clientKey,
           values: Object.fromEntries(

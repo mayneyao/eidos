@@ -365,9 +365,18 @@ fn language_neutral_runtime_conformance() {
                     let t_key = step["table"].as_str().unwrap();
                     let table_id = &tables[t_key];
                     let f_map = &fields[t_key];
-                    let changes: Vec<Value> = step["rows"]
-                        .as_array()
-                        .unwrap()
+                    let generated;
+                    let input = if let Some(seq) = step.get("sequence") {
+                        let start = seq["start"].as_u64().unwrap();
+                        let field = seq["field"].as_str().unwrap();
+                        generated = (start..start + seq["count"].as_u64().unwrap())
+                            .map(|i| json!({"clientKey": i.to_string(), "values": { (field): i.to_string() }}))
+                            .collect::<Vec<_>>();
+                        &generated
+                    } else {
+                        step["rows"].as_array().unwrap()
+                    };
+                    let changes: Vec<Value> = input
                         .iter()
                         .map(|r| {
                             let mut mapped = serde_json::Map::new();

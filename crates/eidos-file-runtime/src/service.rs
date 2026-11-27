@@ -24,7 +24,9 @@ use eidos_file_core::time::now_instant;
 use eidos_file_core::validate::{Severity, validate as core_validate};
 use eidos_file_core::view_ops::{ViewMutationRequest, ViewMutationResult, mutate_views};
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{Connection, OpenFlags, TransactionBehavior, params, params_from_iter};
+use rusqlite::{
+    Connection, OpenFlags, OptionalExtension, TransactionBehavior, params, params_from_iter,
+};
 use serde_json::{Map, Value as JsonValue, json};
 use sha2::{Digest, Sha256};
 
@@ -89,6 +91,40 @@ pub struct RustRuntimeService {
     plan_seq: u64,
     plans: HashMap<String, CachedSchemaPlan>,
     schema_cache: Option<CachedSchema>,
+}
+
+fn row_sort_keys(
+    query: &RowQuery,
+    table_fields: &[FieldMeta],
+    formulas: &HashMap<String, FormulaFieldMeta>,
+    uses_today: &mut bool,
+) -> RuntimeResult<Vec<SortKey>> {
+    let field_by_id: HashMap<&str, &FieldMeta> =
+        table_fields.iter().map(|f| (f.id.as_str(), f)).collect();
+    let mut keys = Vec::new();
+    if let Some(sorts) = &query.sort {
+        for s in sorts {
+            let field = *field_by_id.get(s.field_id.as_str()).ok_or_else(|| {
+                RuntimeErrorPayload::new(
+                    "invalid-query",
+                    format!("Unknown sort field {}", s.field_id),
+                )
+            })?;
+            let expr = field_sql_expr(field, table_fields, formulas, uses_today)?;
+            keys.push(SortKey {
+                expr,
+                descending: s.direction == SortDirection::Desc,
+                nulls_first: s.nulls == Some(eidos_file_core::query::NullsOrder::First),
+            });
+        }
+    }
+    keys.push(SortKey {
+        expr: "\"_id\"".into(),
+        descending: false,
+        nulls_first: false,
+    });
+
+    Ok(keys)
 }
 
 fn field_depends_on_today(
@@ -941,30 +977,7 @@ impl RustRuntimeService {
         let compiled_where = compile_query(&table, &table_fields, &stored_only_query)
             .map_err(RuntimeErrorPayload::from_core)?;
 
-        let field_by_id: HashMap<&str, &FieldMeta> =
-            table_fields.iter().map(|f| (f.id.as_str(), f)).collect();
-        let mut keys = Vec::new();
-        if let Some(sorts) = &effective_query.sort {
-            for s in sorts {
-                let field = *field_by_id.get(s.field_id.as_str()).ok_or_else(|| {
-                    RuntimeErrorPayload::new(
-                        "invalid-query",
-                        format!("Unknown sort field {}", s.field_id),
-                    )
-                })?;
-                let expr = field_sql_expr(field, &table_fields, &formulas, &mut uses_today)?;
-                keys.push(SortKey {
-                    expr,
-                    descending: s.direction == SortDirection::Desc,
-                    nulls_first: s.nulls == Some(eidos_file_core::query::NullsOrder::First),
-                });
-            }
-        }
-        keys.push(SortKey {
-            expr: "\"_id\"".into(),
-            descending: false,
-            nulls_first: false,
-        });
+        let keys = row_sort_keys(&effective_query, &table_fields, &formulas, &mut uses_today)?;
         let order_terms: Vec<_> = keys.iter().map(|key| key.order(backward)).collect();
         select_exprs.extend(keys.iter().map(|key| key.expr.clone()));
         let limit = req.limit.clamp(1, self.limits.page_size_max);
@@ -1503,59 +1516,131 @@ impl RustRuntimeService {
         })
     }
 
+    fn navigate<T>(
+        &mut self,
+        req: &GetRecordNeighborsRequest,
+        lookup: impl FnOnce(
+            &Connection,
+            &[SortKey],
+            &[BoundaryValue],
+            &str,
+            &str,
+            &[SqlValue],
+        ) -> RuntimeResult<T>,
+    ) -> RuntimeResult<Option<T>> {
+        if self.conn.is_autocommit() {
+            return self.transaction("BEGIN", |service| service.navigate(req, lookup));
+        }
+        let (today, instant) =
+            resolve_today_date(req.calendar.as_ref(), req.reference_instant.as_deref())?;
+        let schema = self.ensure_schema()?;
+        let table = schema
+            .tables
+            .iter()
+            .find(|table| table.id == req.table_id)
+            .ok_or_else(|| {
+                RuntimeErrorPayload::new("not-found", format!("Table {}", req.table_id))
+            })?;
+        let fields: Vec<_> = schema
+            .fields
+            .iter()
+            .filter(|field| field.table_id == table.id)
+            .cloned()
+            .collect();
+        let mut query =
+            rewrite_calendar_query(&req.query, &fields, req.calendar.as_ref(), &instant)?;
+        let mut uses_today = false;
+        let keys = row_sort_keys(&query, &fields, &schema.formulas, &mut uses_today)?;
+        query.sort = None;
+        let compiled =
+            compile_query(table, &fields, &query).map_err(RuntimeErrorPayload::from_core)?;
+        let physical =
+            quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
+        let mut params = Vec::new();
+        let cte = if uses_today {
+            params.push(SqlValue::Text(today));
+            format!("WITH {FORMULA_CALENDAR_CTE} ")
+        } else {
+            String::new()
+        };
+        params.extend(compiled.params);
+        let condition = if compiled.where_sql.is_empty() {
+            "WHERE".to_string()
+        } else {
+            format!("{} AND", compiled.where_sql)
+        };
+        let from = format!("FROM {physical} {condition}");
+        let columns = keys
+            .iter()
+            .map(|key| key.expr.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        params.push(SqlValue::Text(req.row_id.clone()));
+        let boundary = self
+            .conn
+            .query_row(
+                &format!("{cte}SELECT {columns} {from} _id = ?"),
+                params_from_iter(&params),
+                |row| {
+                    (0..keys.len())
+                        .map(|i| row.get::<_, SqlValue>(i).map(BoundaryValue::from))
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                },
+            )
+            .optional()
+            .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))?;
+        params.pop();
+        boundary
+            .map(|values| lookup(&self.conn, &keys, &values, &cte, &from, &params))
+            .transpose()
+    }
+
     pub fn get_record_neighbors(
         &mut self,
         req: &GetRecordNeighborsRequest,
     ) -> RuntimeResult<RecordNeighbors> {
-        let page = self.query_rows(&QueryRowsRequest {
-            calendar: req.calendar.clone(),
-            reference_instant: req.reference_instant.clone(),
-            table_id: req.table_id.clone(),
-            query: req.query.clone(),
-            projection: ProjectionSpec::default(),
-            limit: self.limits.page_size_max,
-            offset: None,
-            cursor: None,
-            direction: None,
-        })?;
-        for (i, r) in page.rows.iter().enumerate() {
-            if r.id == req.row_id {
-                let prev = if i > 0 {
-                    Some(page.rows[i - 1].id.clone())
-                } else {
-                    None
+        Ok(self
+            .navigate(req, |conn, keys, boundary, cte, from, params| {
+                let neighbor = |backward| {
+                    let mut params = params.to_vec();
+                    let predicate = seek(keys, boundary, backward, &mut params)?;
+                    let order = keys
+                        .iter()
+                        .map(|key| key.order(backward))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    conn.query_row(
+                        &format!("{cte}SELECT _id {from} {predicate} ORDER BY {order} LIMIT 1"),
+                        params_from_iter(params),
+                        |row| row.get(0),
+                    )
+                    .optional()
+                    .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))
                 };
-                let next = page.rows.get(i + 1).map(|n| n.id.clone());
-                return Ok(RecordNeighbors::Found {
+                Ok(RecordNeighbors::Found {
                     found: true,
-                    previous_id: prev,
-                    next_id: next,
-                });
-            }
-        }
-        Ok(RecordNeighbors::NotFound { found: false })
+                    previous_id: neighbor(true)?,
+                    next_id: neighbor(false)?,
+                })
+            })?
+            .unwrap_or(RecordNeighbors::NotFound { found: false }))
     }
 
     pub fn get_row_index(
         &mut self,
         req: &GetRecordNeighborsRequest,
     ) -> RuntimeResult<Option<String>> {
-        let page = self.query_rows(&QueryRowsRequest {
-            calendar: req.calendar.clone(),
-            reference_instant: req.reference_instant.clone(),
-            table_id: req.table_id.clone(),
-            query: req.query.clone(),
-            projection: ProjectionSpec::default(),
-            limit: self.limits.page_size_max,
-            offset: None,
-            cursor: None,
-            direction: None,
-        })?;
-        Ok(page
-            .rows
-            .iter()
-            .position(|r| r.id == req.row_id)
-            .map(|i| i.to_string()))
+        self.navigate(req, |conn, keys, boundary, cte, from, params| {
+            let mut params = params.to_vec();
+            let predicate = seek(keys, boundary, true, &mut params)?;
+            conn.query_row(
+                &format!("{cte}SELECT count(*) {from} {predicate}"),
+                params_from_iter(params),
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count.to_string())
+            .map_err(|e| RuntimeErrorPayload::new("adapter-error", e.to_string()))
+        })
     }
 
     pub fn aggregate(&mut self, req: &AggregateRequest) -> RuntimeResult<AggregateResponse> {
