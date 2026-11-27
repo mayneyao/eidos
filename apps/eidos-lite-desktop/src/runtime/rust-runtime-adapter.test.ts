@@ -124,6 +124,61 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   })
 
+  it.each(["project-tracker", "content-calendar"])(
+    "opens the installed-upgrade fixture %s identically with both runtimes",
+    async (name) => {
+      const fixture = new URL(
+        `../../../eidos-file-web/fixtures/${name}.eidos`,
+        import.meta.url
+      )
+      const copy = path.join(tempDir, name + ".eidos")
+      await fs.copyFile(fixture, copy)
+      const original = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      const inspect = async (backend: "js" | "rust") => {
+        process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+        const opened = await openEidosLiteFileRuntime(copy)
+        try {
+          const { tables } = opened.initialSnapshot
+          const ctx = { requestId: "upgrade-schema" }
+          const runtime = opened.source.runtime
+          const { revision } = await runtime.getSnapshot({}, ctx)
+          const { objects } = await runtime.getSchemaPage(
+            { revision, limit: 100 },
+            ctx
+          )
+          const fields = objects.flatMap((item) =>
+            item.object === "field"
+              ? [
+                  {
+                    id: item.id,
+                    valueType: item.valueType,
+                  },
+                ]
+              : []
+          )
+          expect(
+            tables.some((table) =>
+              table.views.some(
+                (view) => (view.filter?.children.length ?? 0) > 0
+              )
+            )
+          ).toBe(true)
+          return { tables, fields }
+        } finally {
+          await opened.close()
+        }
+      }
+      try {
+        const javascript = await inspect("js")
+        expect(await inspect("rust")).toEqual(javascript)
+      } finally {
+        if (original === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = original
+      }
+    }
+  )
+
   it.each(["js", "rust"])(
     "cancels a queued read and releases its ID in %s",
     async (backend) => {
