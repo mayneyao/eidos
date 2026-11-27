@@ -1233,6 +1233,22 @@
           "toNullable": true,
           "expectClassification": "lossless-rewrite",
           "expectValuesAfter": [12.5, 25, null]
+        },
+        {
+          "op": "wire",
+          "method": "preflightSchema",
+          "request": {
+            "expectedRevision": "$revision",
+            "change": {
+              "kind": "delete-field",
+              "fieldId": "$fields.metrics.base"
+            }
+          },
+          "check": {
+            "classification": "forbidden",
+            "warnings.0.code": "formula-type-invalid",
+            "warnings.0.tableId": "$tables.metrics"
+          }
         }
       ]
     },

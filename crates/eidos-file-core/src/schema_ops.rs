@@ -977,6 +977,24 @@ fn label_field_allowed(field: &FieldMeta) -> bool {
         )
 }
 
+pub fn view_query_uses_field(node: &JsonValue, id: &str) -> bool {
+    match node {
+        JsonValue::Object(obj) => {
+            ["field", "fieldId"]
+                .iter()
+                .any(|k| obj.get(*k).and_then(JsonValue::as_str) == Some(id))
+                || ["sort", "filter", "args", "arg", "children"]
+                    .iter()
+                    .any(|k| {
+                        obj.get(*k)
+                            .is_some_and(|child| view_query_uses_field(child, id))
+                    })
+        }
+        JsonValue::Array(nodes) => nodes.iter().any(|child| view_query_uses_field(child, id)),
+        _ => false,
+    }
+}
+
 fn delete_field(
     conn: &Connection,
     field_id: &str,
@@ -997,7 +1015,10 @@ fn delete_field(
             )
         })?;
         let replacement = field_by_id(conn, replacement_id)?;
-        if replacement.table_id != field.table_id || !label_field_allowed(&replacement) {
+        if replacement.id == field.id
+            || replacement.table_id != field.table_id
+            || !label_field_allowed(&replacement)
+        {
             return Err(EidosError::InvalidRequest(
                 "replacement label field must be a compatible field in the same table".into(),
             ));
@@ -1019,13 +1040,54 @@ fn delete_field(
             "field is referenced by a {dependency} definition"
         )));
     }
-    if load_views(conn)?.iter().any(|view| {
-        view.table_id == field.table_id
-            && (view.query_json.contains(field_id) || view.layout_json.contains(field_id))
-    }) {
-        return Err(EidosError::Forbidden(
-            "field is referenced by a saved View; update or delete the View first".into(),
-        ));
+    for view in load_views(conn)?
+        .iter()
+        .filter(|v| v.table_id == field.table_id)
+    {
+        let parse = |raw: &str| {
+            serde_json::from_str::<JsonValue>(raw)
+                .map_err(|e| EidosError::InvalidSchema(e.to_string()))
+        };
+        if view_query_uses_field(&parse(&view.query_json)?, field_id) {
+            return Err(EidosError::Forbidden(
+                "field is referenced by a saved View query".into(),
+            ));
+        }
+        let mut layout = parse(&view.layout_json)?;
+        for key in ["cardFields", "fieldOrder", "hiddenFields"] {
+            if let Some(values) = layout.get_mut(key).and_then(JsonValue::as_array_mut) {
+                values.retain(|v| v.as_str() != Some(field_id));
+            }
+        }
+        for key in ["coverField", "groupField", "dateField"] {
+            if layout[key].as_str() == Some(field_id) {
+                layout[key] = JsonValue::Null;
+            }
+        }
+        if let Some(widths) = layout
+            .get_mut("fieldWidths")
+            .and_then(JsonValue::as_object_mut)
+        {
+            widths.remove(field_id);
+        }
+        let next = jcs::to_jcs(&layout)?;
+        if next != view.layout_json {
+            conn.execute(
+                "UPDATE eidos__views SET layout_json=?,updated_at=? WHERE id=?",
+                rusqlite::params![next, instant, view.id],
+            )?;
+        }
+    }
+    let mut settings: JsonValue = serde_json::from_str(&table.settings_json)
+        .map_err(|e| EidosError::InvalidSchema(e.to_string()))?;
+    if settings["contentFieldId"].as_str() == Some(field_id) {
+        if let Some(object) = settings.as_object_mut() {
+            object.remove("contentFieldId");
+        }
+        conn.execute(
+            "UPDATE eidos__tables SET settings_json=?,updated_at=? WHERE id=?",
+            rusqlite::params![jcs::to_jcs(&settings)?, instant, table.id],
+        )?;
     }
     if field.field_type == FieldType::Relation {
         for statement in relation::relation_drop_triggers_sql(field_id)? {

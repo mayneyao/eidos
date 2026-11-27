@@ -95,6 +95,41 @@ describe("Eidos Lite dual Runtime (JS vs Rust N-API)", () => {
     }
   })
 
+  it.each(["js", "rust"])(
+    "cancels a queued read and releases its ID in %s",
+    async (backend) => {
+      const previous = process.env.EIDOS_LITE_RUNTIME_BACKEND
+      process.env.EIDOS_LITE_RUNTIME_BACKEND = backend
+      try {
+        const session = await openEidosLiteFileRuntime(filePath, {
+          readOnly: true,
+        })
+        try {
+          const runtime = session.source.runtime
+          const request = {
+            tableId,
+            items: [{ key: "n", op: "count-all" as const }],
+          }
+          const ctx = { requestId: "cancel-before-dispatch" }
+          const rejected = expect(
+            runtime.aggregate(request, ctx)
+          ).rejects.toMatchObject({ code: "cancelled" })
+          await runtime.cancel(ctx)
+          await rejected
+          expect(
+            (await runtime.aggregate(request, ctx)).results[0]
+          ).toMatchObject({ value: "3" })
+        } finally {
+          await session.close()
+        }
+      } finally {
+        if (previous === undefined)
+          delete process.env.EIDOS_LITE_RUNTIME_BACKEND
+        else process.env.EIDOS_LITE_RUNTIME_BACKEND = previous
+      }
+    }
+  )
+
   it("preserves record navigation beyond the first page and destructive schema checks in both modes", async () => {
     const testFile = path.join(tempDir, "compat.eidos")
     await fs.copyFile(filePath, testFile)

@@ -19,6 +19,7 @@ use eidos_file_core::rows::{
 };
 use eidos_file_core::schema_ops::{
     CreatedObjectKind, SchemaLeafChange, apply_schema_leaf, ensure_foreign_keys,
+    view_query_uses_field,
 };
 use eidos_file_core::time::now_instant;
 use eidos_file_core::validate::{Severity, validate as core_validate};
@@ -127,24 +128,6 @@ fn row_sort_keys(
     });
 
     Ok(keys)
-}
-
-fn view_query_uses_field(node: &JsonValue, id: &str) -> bool {
-    match node {
-        JsonValue::Object(obj) => {
-            ["field", "fieldId"]
-                .iter()
-                .any(|k| obj.get(*k).and_then(JsonValue::as_str) == Some(id))
-                || ["sort", "filter", "args", "arg", "children"]
-                    .iter()
-                    .any(|k| {
-                        obj.get(*k)
-                            .is_some_and(|child| view_query_uses_field(child, id))
-                    })
-        }
-        JsonValue::Array(nodes) => nodes.iter().any(|child| view_query_uses_field(child, id)),
-        _ => false,
-    }
 }
 
 fn view_layout_uses_field(layout: &JsonValue, id: &str) -> bool {
@@ -3061,6 +3044,62 @@ impl RustRuntimeService {
         let mut warnings: Vec<RuntimeDiagnostic> = Vec::new();
         let mut value_changes: Vec<crate::contract::SchemaValueChange> = Vec::new();
         let mut conversions: HashMap<String, ConversionPreflight> = HashMap::new();
+
+        if leaves.iter().any(|leaf| leaf["kind"] == "delete-field") {
+            let schema = self.ensure_schema()?;
+            let mut fields = schema.fields.clone();
+            let mut formulas = schema.formulas.clone();
+            for leaf in &leaves {
+                match leaf["kind"].as_str() {
+                    Some("delete-field") => {
+                        fields.retain(|f| Some(f.id.as_str()) != leaf["fieldId"].as_str())
+                    }
+                    Some("delete-table") => {
+                        fields.retain(|f| Some(f.table_id.as_str()) != leaf["tableId"].as_str())
+                    }
+                    Some("set-formula") => {
+                        if let Some(def) =
+                            leaf["fieldId"].as_str().and_then(|id| formulas.get_mut(id))
+                            && let Some(source) = leaf["definition"]["sourceText"].as_str()
+                        {
+                            def.source_text = source.to_owned();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for table in &schema.tables {
+                let scope: Vec<_> = fields
+                    .iter()
+                    .filter(|f| f.table_id == table.id)
+                    .cloned()
+                    .collect();
+                for field in &scope {
+                    if let Some(def) = formulas.get(&field.id)
+                        && let Err(reason) = compile_formula_expression(
+                            &def.source_text,
+                            &scope,
+                            &formulas,
+                            Some(&field.id),
+                            None,
+                        )
+                    {
+                        classification = "forbidden".into();
+                        warnings.push(RuntimeDiagnostic {
+                            code: "formula-type-invalid".into(),
+                            severity: "error".into(),
+                            message: reason.message,
+                            table_id: Some(table.id.clone()),
+                            field_id: None,
+                            view_id: None,
+                            row_id: None,
+                            path: None,
+                        });
+                        break;
+                    }
+                }
+            }
+        }
 
         for leaf in &leaves {
             let lkind = leaf.get("kind").and_then(JsonValue::as_str).unwrap_or("");

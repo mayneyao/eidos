@@ -3,7 +3,10 @@ import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import type { RuntimeClient } from "@eidos.space/eidos-file"
+import {
+  EIDOS_RUNTIME_LIMITS,
+  type RuntimeClient,
+} from "@eidos.space/eidos-file"
 
 export type EidosLiteRuntimeBackend = "js" | "rust" | "shadow"
 
@@ -142,25 +145,61 @@ function decodeRustError(error: unknown): Error {
 function wrapNativeHandle(
   handle: NativeEidosRuntimeInstance
 ): RustRuntimeClient {
-  const pending = new Set<string>()
+  const pending = new Map<string, () => void>()
   const invoke = async <T>(
     method: string,
     request: unknown,
     ctx?: Parameters<RuntimeClient["getSnapshot"]>[1]
   ): Promise<T> => {
     const id = ctx?.requestId
+    if (
+      ctx &&
+      (typeof id !== "string" ||
+        !id ||
+        id.includes("\0") ||
+        Buffer.byteLength(id) > 128)
+    )
+      throw Object.assign(new Error("Invalid requestId"), {
+        code: "invalid-request",
+        path: "/requestId",
+      })
+    const timeout =
+      ctx?.deadlineMilliseconds ?? EIDOS_RUNTIME_LIMITS.foregroundTimeMsMax
+    if (!Number.isSafeInteger(timeout) || timeout < 1)
+      throw Object.assign(new Error("Invalid deadlineMilliseconds"), {
+        code: "invalid-request",
+      })
     if (id !== undefined && pending.has(id))
       throw Object.assign(new Error("requestId is already unresolved"), {
         code: "invalid-request",
       })
-    if (id !== undefined) pending.add(id)
+    const deadline =
+      performance.now() +
+      Math.min(timeout, EIDOS_RUNTIME_LIMITS.foregroundTimeMsMax)
+    let cancelled = ctx?.signal?.aborted ?? false
+    const cancel = () => {
+      cancelled = true
+    }
+    const unsubscribe = ctx?.signal?.onAbort(cancel)
+    if (id !== undefined) pending.set(id, cancel)
     try {
       await Promise.resolve()
+      if (cancelled)
+        throw Object.assign(new Error("Request was cancelled"), {
+          code: "cancelled",
+          retryable: true,
+        })
+      if (performance.now() > deadline)
+        throw Object.assign(new Error("Request deadline exceeded"), {
+          code: "deadline-exceeded",
+          retryable: true,
+        })
       const raw = handle.call(method, JSON.stringify(request ?? {}))
       return JSON.parse(raw) as T
     } catch (error) {
       throw decodeRustError(error)
     } finally {
+      unsubscribe?.()
       if (id !== undefined) pending.delete(id)
     }
   }
@@ -178,18 +217,22 @@ function wrapNativeHandle(
     groupRows: (req, ctx) => invoke("groupRows", req, ctx),
     queryGroupRows: (req, ctx) => invoke("queryGroupRows", req, ctx),
     previewFormula: (req, ctx) => invoke("previewFormula", req, ctx),
-    importCsv: ({ csv, ...request }) =>
-      invoke("importCsv", {
-        ...request,
-        csvUtf8: new TextDecoder("utf-8", { fatal: true }).decode(csv),
-      }),
-    exportCsv: async (req) => {
+    importCsv: ({ csv, ...request }, ctx) =>
+      invoke(
+        "importCsv",
+        {
+          ...request,
+          csvUtf8: new TextDecoder("utf-8", { fatal: true }).decode(csv),
+        },
+        ctx
+      ),
+    exportCsv: async (req, ctx) => {
       const result = await invoke<{
         fileId: string
         tableId: string
         revision: string
         csv: string
-      }>("exportCsv", req)
+      }>("exportCsv", req, ctx)
       return { ...result, csv: new TextEncoder().encode(result.csv) }
     },
     mutateRows: (req, ctx) => invoke("mutateRows", req, ctx),
@@ -202,7 +245,9 @@ function wrapNativeHandle(
       invoke("getSchemaPlanDependencies", req, ctx),
     mutateSchema: (req, ctx) => invoke("mutateSchema", req, ctx),
     validate: (req, ctx) => invoke("validate", req, ctx),
-    cancel: (req) => invoke("cancel", req),
+    cancel: async ({ requestId }) => {
+      pending.get(requestId)?.()
+    },
     close: async () => {
       try {
         handle.close()
