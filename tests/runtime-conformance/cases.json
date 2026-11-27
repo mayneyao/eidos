@@ -1422,6 +1422,30 @@
           "check": { "rows.0.values": [65.0] }
         },
         {
+          "op": "wire",
+          "method": "aggregate",
+          "request": {
+            "tableId": "$tables.metrics",
+            "query": {
+              "filter": {
+                "op": "gt",
+                "fieldId": "$fields.metrics.weighted",
+                "value": 40
+              }
+            },
+            "items": [
+              {
+                "key": "n",
+                "op": "count-all"
+              }
+            ]
+          },
+          "absent": ["referenceInstant"],
+          "check": {
+            "results.0.value": "2"
+          }
+        },
+        {
           "op": "convertField",
           "table": "metrics",
           "field": "raw_num",

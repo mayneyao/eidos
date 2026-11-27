@@ -82,6 +82,47 @@ pub fn field_sql_expr(
     quote_identifier(phys).map_err(RuntimeErrorPayload::from_core)
 }
 
+pub(crate) fn compile_predicates(
+    table: &TableMeta,
+    fields: &[FieldMeta],
+    formulas: &HashMap<String, FormulaFieldMeta>,
+    query: &RowQuery,
+    uses_today: &mut bool,
+) -> RuntimeResult<eidos_file_core::query::CompiledQuery> {
+    let predicate = RowQuery {
+        filter: query.filter.clone(),
+        search: query.search.clone(),
+        sort: None,
+    };
+    if formulas.is_empty() || (predicate.filter.is_none() && predicate.search.is_none()) {
+        return compile_query(table, fields, &predicate).map_err(RuntimeErrorPayload::from_core);
+    }
+    let filter = serde_json::to_value(&predicate.filter)
+        .map_err(|e| RuntimeErrorPayload::new("invalid-query", e.to_string()))?;
+    let mut typed = fields.to_vec();
+    let mut expressions = HashMap::new();
+    for field in &mut typed {
+        let Some(def) = formulas.get(&field.id) else {
+            continue;
+        };
+        let referenced = eidos_file_core::schema_ops::view_query_uses_field(&filter, &field.id)
+            || predicate
+                .search
+                .as_ref()
+                .is_some_and(|s| s.fields.contains(&field.id));
+        if referenced {
+            expressions.insert(
+                field.id.clone(),
+                field_sql_expr(field, fields, formulas, uses_today)?,
+            );
+            field.field_type = FieldType::from_spec_str(def.result_type.as_str())
+                .map_err(RuntimeErrorPayload::from_core)?;
+        }
+    }
+    eidos_file_core::query::compile_derived_predicates(&typed, &predicate, &expressions)
+        .map_err(RuntimeErrorPayload::from_core)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn execute_aggregate(
     conn: &Connection,
@@ -99,8 +140,9 @@ pub fn execute_aggregate(
     let table_sql =
         quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
 
+    let mut uses_today = false;
     let (where_clause, base_params) = if let Some(q) = query {
-        let compiled = compile_query(table, fields, q).map_err(RuntimeErrorPayload::from_core)?;
+        let compiled = compile_predicates(table, fields, formula_defs, q, &mut uses_today)?;
         (compiled.where_sql, compiled.params)
     } else {
         (String::new(), Vec::new())
@@ -159,7 +201,6 @@ pub fn execute_aggregate(
     }
 
     let mut slots: Vec<ScalarSlot<'_>> = Vec::with_capacity(items.len());
-    let mut uses_today = false;
 
     for item in items {
         match item {

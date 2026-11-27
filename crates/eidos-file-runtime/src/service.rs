@@ -13,7 +13,7 @@ use eidos_file_core::model::{
     load_formula_fields, load_lookup_fields, load_relation_fields, load_tables, load_views,
 };
 use eidos_file_core::naming::quote_identifier;
-use eidos_file_core::query::{RowQuery, SortDirection, compile_query};
+use eidos_file_core::query::{RowQuery, SortDirection};
 use eidos_file_core::rows::{
     AffectedRow, CreatedRow, RowChange, RowMutation, ensure_revision, mutate_rows_at,
 };
@@ -31,7 +31,7 @@ use rusqlite::{
 use serde_json::{Map, Value as JsonValue, json};
 use sha2::{Digest, Sha256};
 
-use crate::aggregate::{execute_aggregate, field_sql_expr};
+use crate::aggregate::{compile_predicates, execute_aggregate, field_sql_expr};
 use crate::calendar::{resolve_today_date, rewrite_calendar_query};
 use crate::contract::{
     AggregateRequest, AggregateResponse, ColumnDescriptor, CreatedCsvRow, CsvExportRequest,
@@ -1056,11 +1056,13 @@ impl RustRuntimeService {
             }
         }
 
-        // Compile WHERE from core (supports stored fields) + custom ORDER BY supporting formula fields
-        let mut stored_only_query = effective_query.clone();
-        stored_only_query.sort = None;
-        let compiled_where = compile_query(&table, &table_fields, &stored_only_query)
-            .map_err(RuntimeErrorPayload::from_core)?;
+        let compiled_where = compile_predicates(
+            &table,
+            &table_fields,
+            &formulas,
+            &effective_query,
+            &mut uses_today,
+        )?;
 
         let keys = row_sort_keys(&effective_query, &table_fields, &formulas, &mut uses_today)?;
         let order_terms: Vec<_> = keys.iter().map(|key| key.order(backward)).collect();
@@ -1682,7 +1684,7 @@ impl RustRuntimeService {
         let keys = row_sort_keys(&query, &fields, &schema.formulas, &mut uses_today)?;
         query.sort = None;
         let compiled =
-            compile_query(table, &fields, &query).map_err(RuntimeErrorPayload::from_core)?;
+            compile_predicates(table, &fields, &schema.formulas, &query, &mut uses_today)?;
         let physical =
             quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
         let mut params = Vec::new();
@@ -1995,10 +1997,13 @@ impl RustRuntimeService {
             &ref_instant,
         )?;
 
-        let mut base_query = effective_query.clone();
-        base_query.sort = None;
-        let compiled_where = compile_query(&table, &table_fields, &base_query)
-            .map_err(RuntimeErrorPayload::from_core)?;
+        let compiled_where = compile_predicates(
+            &table,
+            &table_fields,
+            &formulas,
+            &effective_query,
+            &mut uses_today,
+        )?;
         let table_sql =
             quote_identifier(&table.physical_name).map_err(RuntimeErrorPayload::from_core)?;
         let mut where_sql = if compiled_where.where_sql.is_empty() {

@@ -370,6 +370,7 @@ struct RelationSearchTarget {
 }
 
 struct Compiler<'a> {
+    expressions: Option<&'a HashMap<String, String>>,
     fields: &'a [FieldMeta],
     params: Vec<SqlValue>,
     relations: Option<&'a HashMap<String, RelationSearchTarget>>,
@@ -384,6 +385,13 @@ enum LikeKind {
 }
 
 impl Compiler<'_> {
+    fn column(&self, field: &FieldMeta) -> Result<String> {
+        if let Some(sql) = self.expressions.and_then(|m| m.get(&field.id)) {
+            return Ok(sql.clone());
+        }
+        quote_identifier(stored_column(field)?)
+    }
+
     fn compile_filter(&mut self, node: &FilterNode, depth: usize) -> Result<String> {
         self.nodes += 1;
         if depth > MAX_FILTER_DEPTH || self.nodes > MAX_FILTER_NODES {
@@ -425,17 +433,11 @@ impl Compiler<'_> {
             }
             FilterNode::IsNull { field_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                Ok(format!(
-                    "{} IS NULL",
-                    quote_identifier(stored_column(field)?)?
-                ))
+                Ok(format!("{} IS NULL", self.column(field)?))
             }
             FilterNode::IsNotNull { field_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                Ok(format!(
-                    "{} IS NOT NULL",
-                    quote_identifier(stored_column(field)?)?
-                ))
+                Ok(format!("{} IS NOT NULL", self.column(field)?))
             }
             // SQLite IS / IS NOT are the portable null-safe equality operators.
             // Query operands remain non-null, so `ne` includes a null Field.
@@ -459,7 +461,7 @@ impl Compiler<'_> {
                 upper,
             } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 require_ordered(field)?;
                 let lower = coerce_operand(field, lower)?;
                 let upper = coerce_operand(field, upper)?;
@@ -471,7 +473,7 @@ impl Compiler<'_> {
             // a null Field is FALSE.
             FilterNode::In { field_id, values } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 if values.is_empty() {
                     return Ok("0".into());
                 }
@@ -500,7 +502,7 @@ impl Compiler<'_> {
             }
             FilterNode::RelationHas { field_id, row_id } => {
                 let field = resolve_field(self.fields, field_id)?;
-                let column = quote_identifier(stored_column(field)?)?;
+                let column = self.column(field)?;
                 if field.field_type != FieldType::Relation {
                     return Err(invalid_query(format!(
                         "field {:?} ({}): relation-has applies to forward relation fields only",
@@ -529,7 +531,7 @@ impl Compiler<'_> {
         ordered: bool,
     ) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if ordered {
             require_ordered(field)?;
         }
@@ -547,7 +549,7 @@ impl Compiler<'_> {
 
     fn compile_like(&mut self, field_id: &str, value: &str, kind: LikeKind) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if !matches!(
             field.field_type,
             FieldType::Text | FieldType::Url | FieldType::Select
@@ -580,7 +582,7 @@ impl Compiler<'_> {
         all: bool,
     ) -> Result<String> {
         let field = resolve_field(self.fields, field_id)?;
-        let column = quote_identifier(stored_column(field)?)?;
+        let column = self.column(field)?;
         if !matches!(
             field.field_type,
             FieldType::MultiSelect | FieldType::Relation | FieldType::File
@@ -620,7 +622,7 @@ impl Compiler<'_> {
         let mut clauses = Vec::with_capacity(search.fields.len());
         for reference in &search.fields {
             let field = resolve_field(self.fields, reference)?;
-            let column = quote_identifier(stored_column(field)?)?;
+            let column = self.column(field)?;
             let clause = match field.field_type {
                 // One edge hop: match the target table's current Record
                 // Label via the cold-join shape (§7.1).
@@ -768,8 +770,10 @@ fn compile(
     fields: &[FieldMeta],
     query: &RowQuery,
     relations: Option<&HashMap<String, RelationSearchTarget>>,
+    expressions: Option<&HashMap<String, String>>,
 ) -> Result<CompiledQuery> {
     let mut compiler = Compiler {
+        expressions,
         fields,
         params: Vec::new(),
         relations,
@@ -812,7 +816,16 @@ pub fn compile_query(
     query: &RowQuery,
 ) -> Result<CompiledQuery> {
     let _ = table;
-    compile(fields, query, None)
+    compile(fields, query, None, None)
+}
+
+/// Compile predicates using expressions produced by the native Formula compiler.
+pub fn compile_derived_predicates(
+    fields: &[FieldMeta],
+    query: &RowQuery,
+    expressions: &HashMap<String, String>,
+) -> Result<CompiledQuery> {
+    compile(fields, query, None, Some(expressions))
 }
 
 /// Loads the target table's physical name, row-id column, and label column
@@ -965,7 +978,7 @@ pub fn read_rows(
     options: &ReadRowsOptions,
 ) -> Result<RowPage> {
     let relations = load_relation_search_targets(conn, fields, query)?;
-    let compiled = compile(fields, query, Some(&relations))?;
+    let compiled = compile(fields, query, Some(&relations), None)?;
 
     let row_id_field = fields
         .iter()
