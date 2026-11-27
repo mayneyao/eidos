@@ -131,7 +131,7 @@ jobs:
         run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:vtab
 
       - name: Prepare native file runtime
-        run: pnpm --filter @eidos.space/eidos-lite-desktop prepare:file-runtime
+        run: pnpm --filter "@eidos.space/eidos-lite-desktop" prepare:file-runtime
 
       - name: Verify clone validation is read-only
         env:
