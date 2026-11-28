@@ -1,22 +1,11 @@
-# Eidos iOS 0.5.0
+# Eidos iOS 0.6.1
 
-Build 9 requires iOS 17 or later. Use a copy of your Space when testing.
+Build 11 requires iOS 17 or later.
 
-## What's new
+## Local network sync
 
-- Use `TODAY()` in a Formula field to calculate with today's local date.
-- Use Eidos in Brazilian Portuguese, Japanese, or Korean.
-- Open images in Markdown notes that use `../` to reach an attachment in
-  the same Space.
+When an iPhone or iPad syncs a Space again, it can reuse the verified desktop connection and skip fetching history that already matches. During active transfers, the Sync screen shows the transfer speed beside the byte counts.
 
-## What to test
+## TestFlight checks
 
-Update from the available TestFlight build and check that your local Spaces
-remain available. Add a Formula field with `TODAY()`. Save, close and reopen
-the file offline, and verify the date. Use a test repository to sync the file
-between updated clients and finish a merge after changes on both devices.
-
-Update the apps that edit or sync the same Space before adding the formula.
-An older editor may open the file read-only or be unable to finish a sync merge.
-
-This TestFlight build is not intended for distribution in France.
+Pair with Eidos Lite on the same network and download a disposable Space. Sync a second time, edit a record on the desktop, and sync again. Reopen the record on iOS to check the change, then edit a file on iOS and verify it on the desktop.
