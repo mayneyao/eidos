@@ -1,25 +1,11 @@
-# Eidos Android 0.11.0
+# Eidos Android 0.11.1
 
-## Find plugins for Android
+## Faster repeat sync on the local network
 
-Discover checks published versions against the mobile host before offering
-them for installation. Search and the installed-plugin details use the same
-verified release information.
+Android reuses a recently verified desktop connection when you sync again. If the desktop address stops responding, Android looks it up again. A clean Space that matches the desktop can finish its sync check without fetching the same history again.
 
-You can edit and save Canvas documents on Android. During installation,
-choose Canvas as the default editor for `.canvas` in the current Space.
-Use **Open with** to restore the built-in opener at any time.
+During an active transfer, the progress view shows the current transfer speed alongside the byte counts.
 
-## Finish creating a Formula field
+## Install
 
-Edit and preview the expression on its own page. **Back** or **Done** returns
-to the same new field form with your draft, so you can review and create it.
-
-## Install and testing scope
-
-Download `eidos-android-0.11.0.apk` and verify it against `SHA256SUMS`.
-Install it over 0.10.0 to retain local data. The APK supports ARM64 and x86-64
-and requires Android 9 or later.
-
-Emulator checks cover Discover and installation review, Canvas editing and
-reopening, and Formula creation from the table and view settings.
+Download `eidos-android-0.11.1.apk` and check it against `SHA256SUMS`. Install it over 0.11.0 to keep your local Spaces.

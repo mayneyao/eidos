@@ -1269,7 +1269,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 [[package]]
 name = "fjall"
 version = "3.1.6"
-source = "git+https://github.com/eidos-space/graft?rev=3bf2647d1901d932a574e3e7b9518bacb54dae8c#3bf2647d1901d932a574e3e7b9518bacb54dae8c"
+source = "git+https://github.com/eidos-space/graft?rev=6c53e90eee6d12391dd7cd12d1707ad114350fdc#6c53e90eee6d12391dd7cd12d1707ad114350fdc"
 dependencies = [
  "byteorder-lite",
  "byteview",
@@ -1534,7 +1534,7 @@ dependencies = [
 [[package]]
 name = "graft"
 version = "0.16.1"
-source = "git+https://github.com/eidos-space/graft?rev=3bf2647d1901d932a574e3e7b9518bacb54dae8c#3bf2647d1901d932a574e3e7b9518bacb54dae8c"
+source = "git+https://github.com/eidos-space/graft?rev=6c53e90eee6d12391dd7cd12d1707ad114350fdc#6c53e90eee6d12391dd7cd12d1707ad114350fdc"
 dependencies = [
  "argon2",
  "assert_matches",
@@ -1584,8 +1584,8 @@ dependencies = [
 
 [[package]]
 name = "graft-sdk"
-version = "0.3.38"
-source = "git+https://github.com/eidos-space/graft?rev=3bf2647d1901d932a574e3e7b9518bacb54dae8c#3bf2647d1901d932a574e3e7b9518bacb54dae8c"
+version = "0.3.41"
+source = "git+https://github.com/eidos-space/graft?rev=6c53e90eee6d12391dd7cd12d1707ad114350fdc#6c53e90eee6d12391dd7cd12d1707ad114350fdc"
 dependencies = [
  "blake3",
  "graft",
@@ -1601,7 +1601,7 @@ dependencies = [
 [[package]]
 name = "graft-sqlite"
 version = "0.16.1"
-source = "git+https://github.com/eidos-space/graft?rev=3bf2647d1901d932a574e3e7b9518bacb54dae8c#3bf2647d1901d932a574e3e7b9518bacb54dae8c"
+source = "git+https://github.com/eidos-space/graft?rev=6c53e90eee6d12391dd7cd12d1707ad114350fdc#6c53e90eee6d12391dd7cd12d1707ad114350fdc"
 dependencies = [
  "blake3",
  "bytes",

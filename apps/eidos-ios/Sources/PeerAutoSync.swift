@@ -68,7 +68,7 @@ enum PeerAutoSync {
         return try body()
     }
     /// Called from the foreground; never takes focus or presents progress/errors.
-    static func request() {
+    static func request(priorityRoot: URL? = nil) {
         let operation = UUID().uuidString
         guard let lease = gate.acquire(operation) else { return }
         guard eidos_ios_cancellation(operation, 0) else { gate.release(operation); return }
@@ -82,7 +82,7 @@ enum PeerAutoSync {
                 Runtime.cancellation = nil; timeout.cancel()
                 _ = eidos_ios_cancellation(operation, 2); SyncHTTP.end(operation); gate.release(operation)
             }
-            perform(operation, lease: lease)
+            perform(operation, lease: lease, priorityRoot: priorityRoot)
         }
     }
     /// Existing BGProcessingTask supplies cancellation and the serialized IO queue.
@@ -91,14 +91,23 @@ enum PeerAutoSync {
         defer { gate.release(operation) }
         perform(operation, lease: lease)
     }
-    private static func perform(_ operation: String, lease: Int) {
+    private static func perform(_ operation: String, lease: Int, priorityRoot: URL? = nil) {
         guard let catalog = try? SpaceCatalog() else { return }
         // Rotate the first candidate so one unavailable/large Space cannot
-        // monopolize every bounded foreground or OS background opportunity.
+        // monopolize every bounded foreground or OS background opportunity,
+        // while keeping the currently active foreground Space first.
         let spaces = catalog.spaces
         let start = UserDefaults.standard.integer(forKey: "peer-auto-cursor") % max(1, spaces.count)
         UserDefaults.standard.set((start + 1) % max(1, spaces.count), forKey: "peer-auto-cursor")
-        for entry in Array(spaces.dropFirst(start)) + Array(spaces.prefix(start)) {
+        var ordered = Array(spaces.dropFirst(start)) + Array(spaces.prefix(start))
+        if let priorityRoot {
+            let targetPath = priorityRoot.standardizedFileURL.path
+            if let index = ordered.firstIndex(where: { catalog.root($0).standardizedFileURL.path == targetPath }) {
+                let active = ordered.remove(at: index)
+                ordered.insert(active, at: 0)
+            }
+        }
+        for entry in ordered {
             guard gate.allowed(operation, lease), (try? SyncHTTP.checkCancellation(operation)) != nil else { break }
             var updated = false
             defer {

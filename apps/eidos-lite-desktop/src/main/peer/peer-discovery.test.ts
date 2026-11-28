@@ -37,3 +37,40 @@ it("discovers the device and Space through LAN DNS-SD without publishing credent
     advertisement.close()
   }
 }, 15000)
+
+it("advertises optional revision hint in TXT when updated", async () => {
+  const fingerprint = randomBytes(32).toString("hex")
+  const advertisement = new PeerAdvertisement(45679, fingerprint, "rev-space")
+  const client = new Bonjour()
+  const browser = client.find({ type: "eidos-peer" })
+  try {
+    advertisement.updateRevision("abcd1234ef56")
+    const found = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("No LAN advertisement received")),
+        10000
+      )
+      browser.on("up", (service) => {
+        if (service.txt?.fingerprint !== fingerprint) return
+        clearTimeout(timer)
+        try {
+          expect(service.txt).toEqual({
+            v: "1",
+            fingerprint,
+            space: "rev-space",
+            rev: "abcd1234",
+          })
+          resolve()
+        } catch (error) {
+          reject(error)
+        }
+      })
+    })
+    advertisement.start()
+    await found
+  } finally {
+    browser.stop()
+    client.destroy()
+    advertisement.close()
+  }
+}, 15000)

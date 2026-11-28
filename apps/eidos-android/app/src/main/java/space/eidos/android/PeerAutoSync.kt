@@ -30,7 +30,7 @@ internal object PeerAutoSync {
             OneTimeWorkRequestBuilder<PeerAutoSyncWorker>().setConstraints(constraints).build())
     }
 
-    suspend fun pull(context: Context): Set<String> = withContext(Dispatchers.IO) {
+    suspend fun pull(context: Context, prioritySpaceId: String? = null): Set<String> = withContext(Dispatchers.IO) {
         if (!running.tryLock()) return@withContext emptySet()
         try {
             val changed = mutableSetOf<String>()
@@ -40,7 +40,13 @@ internal object PeerAutoSync {
             val prefs = context.getSharedPreferences("peer-auto-sync", Context.MODE_PRIVATE)
             val start = if (spaces.isEmpty()) 0 else prefs.getInt("cursor", 0).mod(spaces.size)
             if (spaces.isNotEmpty()) prefs.edit().putInt("cursor", (start + 1).mod(spaces.size)).apply()
-            for (local in spaces.drop(start) + spaces.take(start)) {
+            val rotated = spaces.drop(start) + spaces.take(start)
+            val ordered =
+                if (prioritySpaceId != null) {
+                    val active = rotated.filter { it.id == prioritySpaceId }
+                    if (active.isEmpty()) rotated else active + rotated.filter { it.id != prioritySpaceId }
+                } else rotated
+            for (local in ordered) {
                 val lease = BackgroundSyncGate.lanLease() ?: break
                 try {
                     withTimeout(30_000) {

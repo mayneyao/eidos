@@ -269,7 +269,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             while (true) {
                 try {
                     PeerAutoSync.schedule(getApplication())
-                    PeerAutoSync.pull(getApplication())
+                    PeerAutoSync.pull(getApplication(), repository.spaceId)
                 } catch (error: CancellationException) { throw error }
                 catch (_: Exception) { /* Scheduling must not interrupt local use. */ }
                 kotlinx.coroutines.delay(60_000)
@@ -487,7 +487,7 @@ class EidosModel(application: Application, repository: SpaceRepository) :
                                                 "device-${device.fingerprint}",
                                             )
                                         )
-                                    val verified = PeerConnection.reconnectWithSpaces(getApplication(), saved)
+                                    val verified = PeerConnection.reconnectWithSpaces(getApplication(), saved, useCache = false)
                                     val spaces = verified.spaces
                                     available = spaces
                                     PeerAvailability(true, spaces.map { it.id }.toSet())
@@ -608,14 +608,36 @@ class EidosModel(application: Application, repository: SpaceRepository) :
             }
     }
 
+    @Volatile private var lastRateBytes = 0L
+    @Volatile private var lastRateAt = 0L
+    @Volatile private var smoothedRate = 0L
+
     private fun reportPeerTransfer(received: Long, sent: Long) {
+        val now = android.os.SystemClock.elapsedRealtime()
         mutable.update { state ->
             state.copy(
                 peerProgress =
                     state.peerProgress?.let {
+                        val nextRx = maxOf(it.received, received)
+                        val nextTx = maxOf(it.sent, sent)
+                        val total = nextRx + nextTx
+                        if (lastRateAt == 0L || total < lastRateBytes) {
+                            lastRateAt = now
+                            lastRateBytes = total
+                            smoothedRate = 0L
+                        } else {
+                            val dt = now - lastRateAt
+                            if (dt >= 250L) {
+                                val inst = ((total - lastRateBytes) * 1000L) / dt
+                                smoothedRate = if (smoothedRate > 0L) (smoothedRate * 6 + inst * 4) / 10 else inst
+                                lastRateBytes = total
+                                lastRateAt = now
+                            }
+                        }
                         it.copy(
-                            received = maxOf(it.received, received),
-                            sent = maxOf(it.sent, sent),
+                            received = nextRx,
+                            sent = nextTx,
+                            transferRateBytesPerSec = smoothedRate,
                         )
                     }
             )
@@ -710,28 +732,43 @@ class EidosModel(application: Application, repository: SpaceRepository) :
 
     private suspend fun syncCurrentPeer() {
         check(mutable.value.webFile == null && mutable.value.pluginFile == null) { tr("请先完成编辑") }
-        val connection =
+        val saved = PeerConnection.load(getApplication(), repository.spaceId)
+            ?: error(tr("此 Space 尚未配对电脑"))
+        val remoteSpace =
+            checkNotNull(
+                catalog.peerRemoteSpace(saved.fingerprint, repository.spaceId)
+            ) {
+                tr("请从已配对设备中重新选择此 Space")
+            }
+        val usedCache = PeerEndpointCache.hasFresh(saved.fingerprint)
+        val initialConnection =
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                PeerConnection.load(getApplication(), repository.spaceId)?.let { saved ->
-                    val remoteSpace =
-                        checkNotNull(
-                            catalog.peerRemoteSpace(saved.fingerprint, repository.spaceId)
-                        ) {
-                            tr("请从已配对设备中重新选择此 Space")
-                        }
-                    PeerConnection.reconnect(getApplication(), saved, remoteSpace).also {
-                        it.save(getApplication(), repository.spaceId)
-                        it.saveDevice(getApplication())
-                    }
+                PeerConnection.reconnect(getApplication(), saved, remoteSpace).also {
+                    it.save(getApplication(), repository.spaceId)
+                    it.saveDevice(getApplication())
                 }
             }
-        checkNotNull(connection) { tr("此 Space 尚未配对电脑") }
-        repository.syncPeer(
-            connection,
-            ::reportPeerTransfer,
-            ::reportGraftTransfer,
-            ::reportPeerStage,
-        )
+        val (connection, _) =
+            withCachedPeerEndpointRetry(
+                usedCache = usedCache,
+                initial = initialConnection,
+                invalidate = { PeerEndpointCache.invalidate(saved.fingerprint) },
+                reconnect = {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        PeerConnection.reconnect(getApplication(), saved, remoteSpace, useCache = false).also {
+                            it.save(getApplication(), repository.spaceId)
+                            it.saveDevice(getApplication())
+                        }
+                    }
+                },
+            ) { target ->
+                repository.syncPeer(
+                    target,
+                    ::reportPeerTransfer,
+                    ::reportGraftTransfer,
+                    ::reportPeerStage,
+                )
+            }
         reportPeerStage(tr("正在刷新本地文件列表"))
         refreshFiles(includeGraft = false)
         mutable.update { it.copy(peerMessage = tr("已与 {0} 同步", connection.name)) }

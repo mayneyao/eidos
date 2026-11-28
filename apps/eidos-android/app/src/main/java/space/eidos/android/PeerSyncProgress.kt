@@ -26,6 +26,7 @@ data class PeerSyncProgress(
     val uploadBytes: Long = 0,
     val uploadTotal: Long? = null,
     val uploadPlanned: Boolean = false,
+    val transferRateBytesPerSec: Long = 0,
     val warning: String? = null,
 )
 
@@ -49,19 +50,23 @@ internal fun PeerSyncProgress.transferFraction(): Float? {
 internal fun PeerTransferStatus(progress: PeerSyncProgress) {
     val context = LocalContext.current
     val fraction = progress.transferFraction()
+    val speedSuffix =
+        if (progress.transferRateBytesPerSec >= 1024)
+            " · ${Formatter.formatShortFileSize(context, progress.transferRateBytesPerSec)}/s"
+        else ""
     if (fraction != null) {
         val downloading = progress.stage != "发送本机版本"
         val bytes = if (downloading) progress.downloadBytes else progress.uploadBytes
         val total = if (downloading) progress.downloadTotal!! else progress.uploadTotal!!
         LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-        Text("${tr(if (downloading) "下载" else "上传")} ${(fraction * 100).toInt()}% · ${Formatter.formatShortFileSize(context, bytes)} / ${Formatter.formatShortFileSize(context, total)}",
+        Text("${tr(if (downloading) "下载" else "上传")} ${(fraction * 100).toInt()}% · ${Formatter.formatShortFileSize(context, bytes)} / ${Formatter.formatShortFileSize(context, total)}$speedSuffix",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         LinearProgressIndicator(Modifier.fillMaxWidth())
         if (progress.stage == "获取清单")
             Text(tr("正在计算本次下载总量"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (progress.received > 0 || progress.sent > 0)
-            Text(tr("已接收 {0} · 已发送 {1}", Formatter.formatShortFileSize(context, progress.received), Formatter.formatShortFileSize(context, progress.sent)),
+            Text(tr("已接收 {0} · 已发送 {1}", Formatter.formatShortFileSize(context, progress.received), Formatter.formatShortFileSize(context, progress.sent)) + speedSuffix,
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -93,8 +98,12 @@ internal fun PeerSyncProgressView(progress: PeerSyncProgress) {
                 }
             }
             Text(tr("已用时 {0}分 {1}秒", seconds / 60, seconds % 60))
+            val speedText =
+                if (progress.finishedAt == null && progress.transferRateBytesPerSec >= 1024)
+                    " · ${Formatter.formatShortFileSize(context, progress.transferRateBytesPerSec)}/s"
+                else ""
             Text(
-                tr("已接收 {0} · 已发送 {1}", Formatter.formatShortFileSize(context, progress.received), Formatter.formatShortFileSize(context, progress.sent))
+                tr("已接收 {0} · 已发送 {1}", Formatter.formatShortFileSize(context, progress.received), Formatter.formatShortFileSize(context, progress.sent)) + speedText
             )
             Text(
                 progress.error

@@ -50,6 +50,14 @@ impl GraftHost {
         if matches!(method, "peerAutoCheck" | "peerAutoApply") && !root.join(".graft").exists() {
             return Ok(json!({"outcome": "skipped", "reason": "uninitialized"}));
         }
+        if method == "peerSyncCheck" && !root.join(".graft").exists() {
+            return Ok(json!({
+                "initialized": false,
+                "hasHead": false,
+                "clean": true,
+                "needsPublish": false
+            }));
+        }
         if method == "status" && !root.join(".graft").exists() {
             return Ok(json!({"initialized": false}));
         }
@@ -103,6 +111,48 @@ impl GraftHost {
                     return Ok(json!({"outcome": "skipped", "reason": "local_changes"}));
                 }
                 Ok(json!({"outcome": "ready", "expectedHead": status["current_head"]}))
+            }
+            "peerSyncCheck" => {
+                let status = session.status()?;
+                let head = status["current_head"].as_str().map(str::to_owned);
+                let merge_none =
+                    matches!(session.get_merge_status()?, graft_sdk::MergeStatus::None);
+                let clean = status["current_branch"] == "main"
+                    && status["dirty"] != true
+                    && status["has_unstaged_changes"] != true
+                    && status["has_staged_changes"] != true
+                    && status["has_conflicts"] != true
+                    && status["work_in_progress"] != true
+                    && status["path_diagnostics"]
+                        .as_array()
+                        .is_none_or(Vec::is_empty)
+                    && merge_none;
+                let needs_publish = match head.as_deref() {
+                    Some(current_head) if clean => !matches!(
+                        session.plan_merge(&PlanMergeOptions {
+                            revision: "eidos-peer/main".into(),
+                            expected_head: Some(current_head.into()),
+                        }),
+                        Ok(plan) if plan.target == current_head
+                    ),
+                    Some(_) => true,
+                    None => !clean,
+                };
+                let peer_head =
+                    std::fs::read_to_string(root.join(".graft/refs/remotes/eidos-peer/main"))
+                        .ok()
+                        .map(|raw| raw.trim().to_owned())
+                        .filter(|value| {
+                            value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
+                        });
+                Ok(json!({
+                    "initialized": true,
+                    "hasHead": head.is_some(),
+                    "currentHead": head,
+                    "peerHead": peer_head,
+                    "clean": clean,
+                    "needsPublish": needs_publish,
+                }))
             }
             "peerAutoApply" => {
                 // The platform holds its file/Runtime IO boundary across check,
@@ -322,11 +372,40 @@ impl GraftHost {
                     matches!(session.get_merge_status()?, graft_sdk::MergeStatus::None),
                     "Complete or abort the active merge before saving a version"
                 );
+                let local = session.status_incremental()?.status;
                 ensure!(
-                    session.status()?["has_conflicts"] != true,
+                    !local.has_conflicts,
                     "Resolve existing Graft conflicts before saving a version"
                 );
                 let checked_ms = started.elapsed().as_millis();
+                if !local.dirty
+                    && !local.has_unstaged_changes
+                    && !local.has_staged_changes
+                    && !local.work_in_progress
+                    && local.path_diagnostics.is_empty()
+                {
+                    #[cfg(test)]
+                    run_before_checkpoint_full_status_hook();
+                    let status = session.status()?;
+                    if status["current_head"].as_str().is_some()
+                        && status["dirty"] != true
+                        && status["has_unstaged_changes"] != true
+                        && status["has_staged_changes"] != true
+                        && status["has_conflicts"] != true
+                        && status["work_in_progress"] != true
+                        && status["path_diagnostics"]
+                            .as_array()
+                            .is_none_or(Vec::is_empty)
+                    {
+                        return Ok(json!({"initialized": true, "status": status, "timing_ms": {
+                            "check": checked_ms,
+                            "stage": 0,
+                            "inspect": 0,
+                            "commit": 0,
+                            "refresh": started.elapsed().as_millis() - checked_ms
+                        }}));
+                    }
+                }
                 session.add_all()?;
                 let staged_ms = started.elapsed().as_millis();
                 let status = session.status()?;
@@ -604,6 +683,27 @@ mod tests {
             false
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static BEFORE_CHECKPOINT_FULL_STATUS_HOOK: std::cell::RefCell<Option<Box<dyn FnOnce()>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn set_before_checkpoint_full_status_hook(hook: impl FnOnce() + 'static) {
+    BEFORE_CHECKPOINT_FULL_STATUS_HOOK.with(|cell| {
+        *cell.borrow_mut() = Some(Box::new(hook));
+    });
+}
+
+#[cfg(test)]
+fn run_before_checkpoint_full_status_hook() {
+    let hook = BEFORE_CHECKPOINT_FULL_STATUS_HOOK.with(|cell| cell.borrow_mut().take());
+    if let Some(hook) = hook {
+        hook();
     }
 }
 

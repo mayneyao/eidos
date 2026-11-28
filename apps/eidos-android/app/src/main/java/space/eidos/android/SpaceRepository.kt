@@ -10,6 +10,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -606,12 +607,15 @@ class SpaceRepository(
                     val remote = connection.call("/updates", timeoutMillis = 10_000)
                     if (remote.optInt("protocol") != 1 || remote.optString("space") != remoteSpace || remote.isNull("head"))
                         return@cancellable "skipped"
+                    val expectedHead = checked.getString("expectedHead")
+                    val targetHead = remote.getString("head")
+                    if (targetHead == expectedHead) return@cancellable "unchanged"
                     NativeGraft.call(root.path, "peerFetch", cancellationId = id)
                     currentCoroutineContext().ensureActive()
                     if (!safe()) return@cancellable "skipped"
                     NativeGraft.call(root.path, "peerAutoApply", JSONObject()
-                        .put("expectedHead", checked.getString("expectedHead"))
-                        .put("expectedTarget", remote.getString("head")), id).getString("outcome")
+                        .put("expectedHead", expectedHead)
+                        .put("expectedTarget", targetHead), id).getString("outcome")
                 }
             }
         }
@@ -629,6 +633,10 @@ class SpaceRepository(
                 connection.tunnel(transfer).use { tunnel ->
                     NativeGraft.cancellable(onTransfer = graftTransfer) { cancellationId ->
                         var hasHead = false
+                        var needsPublish = false
+                        var localClean = false
+                        var localHead = ""
+                        var peerHead = ""
                         val configured = root.resolve(".graft").exists()
                         // Hydrating an existing snapshot may read remote segments. Its
                         // persisted loopback address belongs to the previous tunnel.
@@ -641,15 +649,18 @@ class SpaceRepository(
                             cancellationId,
                         )
                         if (configured) {
-                            val status =
+                            val check =
                                 NativeGraft.call(
-                                        root.path,
-                                        "status",
-                                        cancellationId = cancellationId,
-                                    )
-                                    .getJSONObject("status")
-                            if (!status.isNull("current_head")) {
-                                hasHead = true
+                                    root.path,
+                                    "peerSyncCheck",
+                                    cancellationId = cancellationId,
+                                )
+                            hasHead = check.optBoolean("hasHead", false)
+                            needsPublish = check.optBoolean("needsPublish", hasHead)
+                            localClean = check.optBoolean("clean", false)
+                            localHead = check.optString("currentHead", "")
+                            peerHead = check.optString("peerHead", "")
+                            if (needsPublish) {
                                 progress(tr("保存本地版本"))
                                 NativeGraft.call(
                                     root.path,
@@ -658,30 +669,57 @@ class SpaceRepository(
                                 )
                             }
                         }
-                        if (hasHead) {
-                            progress("发送本机版本")
-                            NativeGraft.call(
-                                root.path,
-                                "peerPublish",
-                                JSONObject()
-                                    .put(
-                                        "url",
-                                        tunnel.remoteUrl.replace("/peer/space", "/peer/incoming"),
+                        if (needsPublish) {
+                            if (peerHead.length == 64) {
+                                runCatching {
+                                    connection.call(
+                                        "/incoming/seed",
+                                        JSONObject().put("baseHead", peerHead),
+                                        timeoutMillis = 10_000,
                                     )
-                                    .put("token", connection.token),
-                                cancellationId,
-                            )
+                                }
+                            }
+                            progress("发送本机版本")
+                            try {
+                                NativeGraft.call(
+                                    root.path,
+                                    "peerPublish",
+                                    JSONObject()
+                                        .put(
+                                            "url",
+                                            tunnel.remoteUrl.replace("/peer/space", "/peer/incoming"),
+                                        )
+                                        .put("token", connection.token),
+                                    cancellationId,
+                                )
+                            } catch (error: Exception) {
+                                if (error !is CancellationException && tunnel.hadRemoteConnectFailure) {
+                                    throw PeerEndpointUnreachableException(error)
+                                }
+                                throw error
+                            }
                         }
                         currentCoroutineContext().ensureActive()
                         progress(tr("电脑正在合并版本"))
                         val prepared =
-                            connection.call("/sync", JSONObject().put("incoming", hasHead))
+                            connection.call("/sync", JSONObject().put("incoming", needsPublish))
                         check(prepared.optInt("protocol") == 2) { tr("请更新电脑端后再同步。本机文件已保留。") }
                         check(prepared.optString("state") == "ready") {
                             tr("双方版本已保留。请到电脑的「同步」处理冲突，完成后回到手机点击「同步」。")
                         }
+                        val remoteHead = prepared.optString("head", "")
+                        if (!needsPublish && localClean && localHead.isNotEmpty() && remoteHead == localHead) {
+                            return@cancellable
+                        }
                         progress("获取清单")
-                        NativeGraft.call(root.path, "peerFetch", cancellationId = cancellationId)
+                        try {
+                            NativeGraft.call(root.path, "peerFetch", cancellationId = cancellationId)
+                        } catch (error: Exception) {
+                            if (error !is CancellationException && tunnel.hadRemoteConnectFailure) {
+                                throw PeerEndpointUnreachableException(error)
+                            }
+                            throw error
+                        }
                         currentCoroutineContext().ensureActive()
                         progress("写入文件")
                         val outcome =
