@@ -117,7 +117,7 @@ struct SpaceView: View {
                 guard scenePhase == .active else { return }
                 BackgroundSync.schedule()
                 while !Task.isCancelled {
-                    PeerAutoSync.request()
+                    PeerAutoSync.request(priorityRoot: space?.root)
                     do { try await Task.sleep(for: .seconds(60)) } catch { break }
                 }
             }

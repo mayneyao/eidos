@@ -202,6 +202,46 @@ it("shows active LAN transfer bytes without requiring device details", async () 
   }
 })
 
+it("polls active LAN transfers at 250ms and renders smoothed transfer rate", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.useFakeTimers()
+  let received = 1024 * 1024
+  const peerSync = vi.fn(async () => ({
+    running: true,
+    serviceRunning: true,
+    devices: [{ id: "phone", name: "Phone" }],
+    transfers: [
+      {
+        id: "phone",
+        name: "Phone",
+        stage: "receiving",
+        receivedBytes: received,
+        sentBytes: 0,
+        activeRequests: 1,
+        updatedAt: Date.now(),
+      },
+    ],
+  }))
+  Object.defineProperty(window, "eidosLite", {
+    configurable: true,
+    value: { peerSync },
+  })
+  const host = document.createElement("div")
+  const root = createRoot(host)
+  try {
+    await act(async () => root.render(<PeerSyncPanel standalone />))
+    received += 2 * 1024 * 1024
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(peerSync).toHaveBeenCalledTimes(4)
+    expect(host.querySelector("summary")?.textContent).toContain("/s")
+  } finally {
+    await act(async () => root.unmount())
+    vi.useRealTimers()
+  }
+})
+
 it("offers pairing and current-Space sharing in the sidebar", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const peerSync = vi.fn(async () => ({

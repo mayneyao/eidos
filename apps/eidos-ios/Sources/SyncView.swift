@@ -87,6 +87,9 @@ struct SyncView: View {
     @State private var operationSpace: String?
     @State private var received: Int64 = 0
     @State private var sent: Int64 = 0
+    @State private var transferRate: Double = 0
+    @State private var lastRateBytes: Int64 = 0
+    @State private var lastRateTime = Date.distantPast
     @State private var transfer: PeerTransferProgress?
     var body: some View {
         NavigationStack {
@@ -267,13 +270,15 @@ struct SyncView: View {
             if busy {
                 if let value = transfer?.transfer(for: message), let fraction = value.fraction, let total = value.total {
                     ProgressView(value: fraction)
-                    Text("\(tr(message == "发送本机版本" ? "上传" : "下载")) \(Int(fraction * 100))% · \(ByteCountFormatter.string(fromByteCount: value.transferred, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))")
+                    let speedSuffix = transferRate >= 1024 ? " · \(ByteCountFormatter.string(fromByteCount: Int64(transferRate), countStyle: .file))/s" : ""
+                    Text("\(tr(message == "发送本机版本" ? "上传" : "下载")) \(Int(fraction * 100))% · \(ByteCountFormatter.string(fromByteCount: value.transferred, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))\(speedSuffix)")
                         .monospacedDigit().foregroundStyle(.secondary)
                 } else {
                     ProgressView().frame(maxWidth: .infinity, alignment: .leading)
                     if message == "获取清单" { Text(tr("正在计算本次下载总量")).foregroundStyle(.secondary) }
                     if received > 0 || sent > 0 {
-                        Text(tr("已接收 {0} · 已发送 {1}", ByteCountFormatter.string(fromByteCount: received, countStyle: .file), ByteCountFormatter.string(fromByteCount: sent, countStyle: .file)))
+                        let speedSuffix = transferRate >= 1024 ? " · \(ByteCountFormatter.string(fromByteCount: Int64(transferRate), countStyle: .file))/s" : ""
+                        Text(tr("已接收 {0} · 已发送 {1}", ByteCountFormatter.string(fromByteCount: received, countStyle: .file), ByteCountFormatter.string(fromByteCount: sent, countStyle: .file)) + speedSuffix)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -393,17 +398,44 @@ struct SyncView: View {
     private func run(success: String = tr("已同步，可离线使用"), initialMessage: String = tr("正在连接…"), synced: Bool = false, target: LocalSpace? = nil, cancellation: SyncCancellation = SyncCancellation(), _ action: @escaping (@escaping (String) -> Void) throws -> Void) {
         guard !busy else { return }; busy = true; error = nil; message = initialMessage
         let targetSpace = target ?? space
-        operation = cancellation; received = 0; sent = 0; transfer = nil
+        operation = cancellation; received = 0; sent = 0; transferRate = 0; lastRateBytes = 0; lastRateTime = Date(); transfer = nil
         SyncHTTP.begin(cancellation.id)
         _ = eidos_ios_cancellation(cancellation.id, 0)
+        var bgTask: UIBackgroundTaskIdentifier = .invalid
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "EidosPeerSync") {
+            cancellation.cancel()
+            if bgTask != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTask)
+                bgTask = .invalid
+            }
+        }
         LocalSpace.io.async {
             Runtime.cancellation = cancellation.id
-            Runtime.peerTransfer = { rx, tx in DispatchQueue.main.async { received = max(received, rx); sent = max(sent, tx) } }
-            defer { Runtime.cancellation = nil; Runtime.peerTransfer = nil; SyncHTTP.end(cancellation.id); _ = eidos_ios_cancellation(cancellation.id, 2) }
+            Runtime.peerTransfer = { rx, tx in DispatchQueue.main.async {
+                received = max(received, rx); sent = max(sent, tx)
+                let total = received + sent
+                let now = Date()
+                let dt = now.timeIntervalSince(lastRateTime)
+                if dt >= 0.25 {
+                    let inst = Double(max(0, total - lastRateBytes)) / dt
+                    transferRate = transferRate > 0 ? transferRate * 0.6 + inst * 0.4 : inst
+                    lastRateBytes = total
+                    lastRateTime = now
+                }
+            } }
+            defer {
+                Runtime.cancellation = nil; Runtime.peerTransfer = nil; SyncHTTP.end(cancellation.id); _ = eidos_ios_cancellation(cancellation.id, 2)
+                DispatchQueue.main.async {
+                    if bgTask != .invalid {
+                        UIApplication.shared.endBackgroundTask(bgTask)
+                        bgTask = .invalid
+                    }
+                }
+            }
             var failure: Error?
             do {
                 guard !cancellation.cancelled else { throw LocalError.message(tr("已停止")) }
-                try action { value in DispatchQueue.main.async { message = value; transfer = nil } }
+                try action { value in DispatchQueue.main.async { message = value } }
             }
             catch { failure = error }
             let next = try? MergeReview.load(targetSpace)

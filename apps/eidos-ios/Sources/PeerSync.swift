@@ -91,12 +91,20 @@ enum DeviceSecrets {
     }
 }
 
+struct PeerEndpointUnreachableError: Error {
+    let underlying: Error
+}
+
 /// A loopback-only byte tunnel keeps credentials and Graft traffic inside pinned TLS.
 /// Neither Bonjour metadata nor an IP address grants trust.
 final class PeerTunnel {
-    private let queue = DispatchQueue(label: "space.eidos.ios.peer")
+    private let acceptQueue = DispatchQueue(label: "space.eidos.ios.peer.accept", qos: .userInitiated)
+    private let stateLock = NSLock()
+    private let slots = DispatchSemaphore(value: 12)
     private let listener: NWListener
     private var connections: [UUID: (NWConnection, NWConnection)] = [:]
+    private var isClosed = false
+    private var remoteConnectFailed = false
     private var port: UInt16 = 0
     private let onTransfer: (Int64, Int64) -> Void
     private var received: Int64 = 0
@@ -104,6 +112,11 @@ final class PeerTunnel {
     private var reported = Date.distantPast
     var remoteURL: String { "graft+http://127.0.0.1:\(port)/peer/space" }
     var baseURL: String { "http://127.0.0.1:\(port)" }
+    var hadRemoteConnectFailure: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return remoteConnectFailed
+    }
 
     static func address(_ text: String) throws -> (String, UInt16) {
         guard let url = URLComponents(string: text), url.scheme == "https", let host = url.host,
@@ -126,7 +139,9 @@ final class PeerTunnel {
     init(url: String, fingerprint: String, onTransfer: @escaping (Int64, Int64) -> Void = { _, _ in }) throws {
         self.onTransfer = onTransfer
         let (host, remotePort) = try Self.endpoint(url)
-        let parameters = NWParameters.tcp
+        let localTcp = NWProtocolTCP.Options()
+        localTcp.noDelay = true
+        let parameters = NWParameters(tls: nil, tcp: localTcp)
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         listener = try NWListener(using: parameters)
         let ready = DispatchSemaphore(value: 0)
@@ -140,7 +155,16 @@ final class PeerTunnel {
         }
         listener.newConnectionHandler = { [weak self] local in
             guard let self else { local.cancel(); return }
-            guard self.connections.count < 8 else { local.cancel(); return }
+            self.slots.wait()
+            self.stateLock.lock()
+            let stopped = self.isClosed
+            self.stateLock.unlock()
+            if stopped {
+                local.cancel()
+                self.slots.signal()
+                return
+            }
+            let connQueue = DispatchQueue(label: "space.eidos.ios.peer.conn", qos: .userInitiated)
             let tls = NWProtocolTLS.Options()
             sec_protocol_options_set_min_tls_protocol_version(tls.securityProtocolOptions, .TLSv12)
             sec_protocol_options_set_verify_block(tls.securityProtocolOptions, { _, trust, complete in
@@ -152,35 +176,107 @@ final class PeerTunnel {
                 SecTrustSetAnchorCertificates(value, [certificate] as CFArray)
                 SecTrustSetAnchorCertificatesOnly(value, true)
                 complete(SecTrustEvaluateWithError(value, nil))
-            }, self.queue)
-            let remote = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: remotePort)!, using: NWParameters(tls: tls, tcp: NWProtocolTCP.Options()))
-            let id = UUID(); self.connections[id] = (local, remote)
-            let close = { [weak self] in self?.connections.removeValue(forKey: id); local.cancel(); remote.cancel() }
-            local.stateUpdateHandler = { if case .failed = $0 { close() } }
-            remote.stateUpdateHandler = { state in
-                if case .failed = state { close() }
-                if case .ready = state { self.pipe(local, remote, sending: true, close: close); self.pipe(remote, local, sending: false, close: close) }
+            }, connQueue)
+            let remoteTcp = NWProtocolTCP.Options()
+            remoteTcp.noDelay = true
+            remoteTcp.enableKeepalive = true
+            remoteTcp.keepaliveIdle = 30
+            let remote = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: remotePort)!, using: NWParameters(tls: tls, tcp: remoteTcp))
+            let id = UUID()
+            self.stateLock.lock()
+            if self.isClosed {
+                self.stateLock.unlock()
+                local.cancel()
+                remote.cancel()
+                self.slots.signal()
+                return
             }
-            local.start(queue: self.queue); remote.start(queue: self.queue)
-            self.queue.asyncAfter(deadline: .now() + 180) { if self.connections[id] != nil { close() } }
+            self.connections[id] = (local, remote)
+            self.stateLock.unlock()
+
+            let closeLock = NSLock()
+            var released = false
+            let closeConn = { [weak self] in
+                closeLock.lock()
+                let shouldRelease = !released
+                released = true
+                closeLock.unlock()
+                guard shouldRelease else { return }
+                local.cancel()
+                remote.cancel()
+                if let self {
+                    self.stateLock.lock()
+                    self.connections.removeValue(forKey: id)
+                    self.stateLock.unlock()
+                    self.slots.signal()
+                }
+            }
+            local.stateUpdateHandler = { state in
+                if case .failed = state { closeConn() }
+                else if case .cancelled = state { closeConn() }
+            }
+            var remoteReady = false
+            remote.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .failed:
+                    if !remoteReady, let self {
+                        self.stateLock.lock()
+                        if !self.isClosed { self.remoteConnectFailed = true }
+                        self.stateLock.unlock()
+                    }
+                    closeConn()
+                case .cancelled:
+                    closeConn()
+                case .ready:
+                    remoteReady = true
+                    self?.pipe(local, remote, sending: true, close: closeConn)
+                    self?.pipe(remote, local, sending: false, close: closeConn)
+                default: break
+                }
+            }
+            local.start(queue: connQueue)
+            remote.start(queue: connQueue)
         }
-        listener.start(queue: queue)
+        listener.start(queue: acceptQueue)
         guard ready.wait(timeout: .now() + 10) == .success, port != 0 else { listener.cancel(); throw failure ?? LocalError.message(tr("无法建立设备连接")) }
     }
     private func pipe(_ source: NWConnection, _ destination: NWConnection, sending: Bool, close: @escaping () -> Void) {
-        source.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, ended, error in
+        source.receive(minimumIncompleteLength: 1, maximumLength: 262144) { [weak self] data, _, ended, error in
             if error != nil { close(); return }
             if let self, let data {
+                var snapshot: (Int64, Int64)?
+                self.stateLock.lock()
                 if sending { self.sent += Int64(data.count) } else { self.received += Int64(data.count) }
-                if Date().timeIntervalSince(self.reported) >= 0.25 { self.reported = Date(); self.onTransfer(self.received, self.sent) }
+                let now = Date()
+                if now.timeIntervalSince(self.reported) >= 0.25 {
+                    self.reported = now
+                    snapshot = (self.received, self.sent)
+                }
+                self.stateLock.unlock()
+                if let snapshot { self.onTransfer(snapshot.0, snapshot.1) }
             }
             destination.send(content: data, isComplete: ended, completion: .contentProcessed { error in
                 if error != nil || ended { close() } else { self?.pipe(source, destination, sending: sending, close: close) }
             })
         }
     }
-    func close() { queue.sync { onTransfer(received, sent); listener.cancel(); connections.values.forEach { $0.0.cancel(); $0.1.cancel() }; connections.removeAll() } }
-    deinit { listener.cancel() }
+    func close() {
+        stateLock.lock()
+        if isClosed {
+            stateLock.unlock()
+            return
+        }
+        isClosed = true
+        let active = connections
+        connections.removeAll()
+        let rx = received
+        let tx = sent
+        stateLock.unlock()
+        onTransfer(rx, tx)
+        listener.cancel()
+        active.values.forEach { $0.0.cancel(); $0.1.cancel() }
+    }
+    deinit { close() }
 
     func call(_ route: String, token: String, body: [String: Any] = [:], timeout: TimeInterval = 120, cancellation: String? = Runtime.cancellation) throws -> [String: Any] {
         var request = URLRequest(url: URL(string: baseURL + route)!)
@@ -240,6 +336,40 @@ final class SyncHTTP: NSObject, URLSessionTaskDelegate {
     }
 }
 
+enum PeerEndpointCache {
+    private struct Entry {
+        let profile: PeerProfile
+        let spaces: [PeerProfile]
+        let verifiedAt: Date
+    }
+    private static let lock = NSLock()
+    private static var entries: [String: Entry] = [:]
+    private static let ttl: TimeInterval = 15
+
+    static func record(_ profile: PeerProfile, spaces: [PeerProfile]) {
+        lock.lock()
+        entries[profile.fingerprint] = Entry(profile: profile, spaces: spaces, verifiedAt: Date())
+        lock.unlock()
+    }
+
+    static func invalidate(_ fingerprint: String) {
+        lock.lock()
+        entries.removeValue(forKey: fingerprint)
+        lock.unlock()
+    }
+
+    static func cached(fingerprint: String, space: String?) -> (profile: PeerProfile, spaces: [PeerProfile])? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = entries[fingerprint], Date().timeIntervalSince(entry.verifiedAt) < ttl else {
+            return nil
+        }
+        guard let space else { return (entry.profile, entry.spaces) }
+        guard let match = entry.spaces.first(where: { $0.space == space }) else { return nil }
+        return (match, entry.spaces)
+    }
+}
+
 enum PeerSync {
     static func saveDevice(_ profile: PeerProfile) throws {
         try DeviceSecrets.save("peer-device:" + profile.fingerprint, data: JSONEncoder().encode(profile))
@@ -267,8 +397,8 @@ enum PeerSync {
         try DeviceSecrets.remove("peer-device:" + fingerprint)
         UserDefaults.standard.set((UserDefaults.standard.stringArray(forKey: "peer-devices") ?? []).filter { $0 != fingerprint }, forKey: "peer-devices")
     }
-    static func availableSpaces(_ device: PeerProfile, cancellation: String? = Runtime.cancellation, saveEndpoint: Bool = true) throws -> [PeerProfile] {
-        let verified = try reconnectWithSpaces(device, requireSpace: false, cancellation: cancellation)
+    static func availableSpaces(_ device: PeerProfile, cancellation: String? = Runtime.cancellation, saveEndpoint: Bool = true, useCache: Bool = false) throws -> [PeerProfile] {
+        let verified = try reconnectWithSpaces(device, requireSpace: false, cancellation: cancellation, useCache: useCache)
         try SyncHTTP.checkCancellation(cancellation)
         if saveEndpoint { try saveDevice(verified.profile) }
         return verified.spaces
@@ -356,6 +486,7 @@ enum PeerSync {
         guard checked["outcome"] as? String == "ready", let expected = checked["expectedHead"] as? String else { return "skipped" }
         let remote = try tunnel.call("/updates", token: profile.token, timeout: 10)
         guard remote["protocol"] as? Int == 1, remote["space"] as? String == profile.space, let target = remote["head"] as? String else { return "skipped" }
+        if target == expected { return "unchanged" }
         _ = try Runtime.call(space.root, "graft:peerFetch")
         try SyncHTTP.checkCancellation(Runtime.cancellation)
         return try PeerAutoSync.withCheckout {
@@ -364,10 +495,35 @@ enum PeerSync {
             return result["outcome"] as? String ?? "skipped"
         }
     }
+    private static func isRetryableEndpointError(_ error: Error) -> Bool {
+        if error is PeerEndpointUnreachableError { return true }
+        if let urlError = error as? URLError {
+            return urlError.code != .cancelled
+        }
+        return false
+    }
     static func sync(_ space: LocalSpace, profile: PeerProfile, progress: (String) -> Void) throws {
         guard try MergeReview.load(space) == nil else { throw LocalError.message(tr("请先完成或中止当前合并")) }
-        progress(tr("正在查找已配对电脑"))
-        let profile = try reconnect(profile)
+        let cached = PeerEndpointCache.cached(fingerprint: profile.fingerprint, space: profile.space)?.profile
+        do {
+            let activeProfile: PeerProfile
+            if let cached {
+                activeProfile = cached
+            } else {
+                progress(tr("正在查找已配对电脑"))
+                activeProfile = try reconnect(profile)
+            }
+            try syncWithConnectedProfile(space, profile: activeProfile, progress: progress)
+        } catch {
+            guard cached != nil, isRetryableEndpointError(error) else { throw error }
+            try SyncHTTP.checkCancellation(Runtime.cancellation)
+            PeerEndpointCache.invalidate(profile.fingerprint)
+            progress(tr("正在查找已配对电脑"))
+            let fresh = try reconnect(profile, useCache: false)
+            try syncWithConnectedProfile(space, profile: fresh, progress: progress)
+        }
+    }
+    private static func syncWithConnectedProfile(_ space: LocalSpace, profile: PeerProfile, progress: (String) -> Void) throws {
         try DeviceSecrets.save(key(space), data: JSONEncoder().encode(profile))
         try saveDevice(profile)
         let tunnel = try PeerTunnel(url: profile.url, fingerprint: profile.fingerprint, onTransfer: Runtime.peerTransfer ?? { _, _ in })
@@ -375,27 +531,58 @@ enum PeerSync {
         // Saved remotes point at the previous tunnel's ephemeral loopback port.
         // Checkpoint and publish can hydrate history, so update it before either.
         _ = try Runtime.call(space.root, "graft:peerConfigure", ["url": tunnel.remoteURL, "token": profile.token])
-        let status = try Runtime.call(space.root, "graft:status") as? [String: Any] ?? [:]
-        let hasHead = (status["status"] as? [String: Any])?["current_head"] is String
-        if hasHead {
+        let check = try Runtime.call(space.root, "graft:peerSyncCheck") as? [String: Any] ?? [:]
+        let hasHead = check["hasHead"] as? Bool ?? false
+        let needsPublish = check["needsPublish"] as? Bool ?? hasHead
+        let localClean = check["clean"] as? Bool ?? false
+        let localHead = check["currentHead"] as? String
+        let peerHead = check["peerHead"] as? String
+        if needsPublish {
             progress(tr("保存本机版本")); _ = try Runtime.call(space.root, "graft:checkpoint")
+            if let peerHead, peerHead.count == 64 {
+                _ = try? tunnel.call("/incoming/seed", token: profile.token, body: ["baseHead": peerHead], timeout: 10)
+            }
             progress("发送本机版本")
-            _ = try Runtime.call(space.root, "graft:peerPublish", ["url": tunnel.remoteURL.replacingOccurrences(of: "/peer/space", with: "/peer/incoming"), "token": profile.token])
+            do {
+                _ = try Runtime.call(space.root, "graft:peerPublish", ["url": tunnel.remoteURL.replacingOccurrences(of: "/peer/space", with: "/peer/incoming"), "token": profile.token])
+            } catch {
+                if tunnel.hadRemoteConnectFailure { throw PeerEndpointUnreachableError(underlying: error) }
+                throw error
+            }
         }
         progress(tr("电脑正在合并版本"))
-        let prepared = try tunnel.call("/sync", token: profile.token, body: ["incoming": hasHead])
+        let prepared: [String: Any]
+        do {
+            prepared = try tunnel.call("/sync", token: profile.token, body: ["incoming": needsPublish])
+        } catch {
+            if tunnel.hadRemoteConnectFailure, !(error is URLError && (error as! URLError).code == .cancelled) {
+                throw PeerEndpointUnreachableError(underlying: error)
+            }
+            throw error
+        }
         guard prepared["protocol"] as? Int == 2 else { throw LocalError.message(tr("请更新电脑端后再同步。本机文件已保留。")) }
         guard prepared["state"] as? String == "ready" else { throw LocalError.message(tr("双方版本已保留。请到电脑的「同步」处理冲突，完成后回到手机点击「同步」。")) }
+        if !needsPublish && localClean, let localHead, !localHead.isEmpty, let remoteHead = prepared["head"] as? String, remoteHead == localHead {
+            return
+        }
         progress("获取清单")
-        _ = try Runtime.call(space.root, "graft:peerFetch")
+        do {
+            _ = try Runtime.call(space.root, "graft:peerFetch")
+        } catch {
+            if tunnel.hadRemoteConnectFailure { throw PeerEndpointUnreachableError(underlying: error) }
+            throw error
+        }
         progress("写入文件")
         let result = try Runtime.call(space.root, "graft:peerFastForward") as? [String: Any] ?? [:]
         guard result["outcome"] as? String != "needs_merge" else { throw LocalError.message(tr("电脑版本有新变化，本机文件已保留。请重新同步；如仍有冲突，请到电脑处理。")) }
     }
-    static func reconnect(_ profile: PeerProfile, requireSpace: Bool = true) throws -> PeerProfile {
-        try reconnectWithSpaces(profile, requireSpace: requireSpace, cancellation: Runtime.cancellation).profile
+    static func reconnect(_ profile: PeerProfile, requireSpace: Bool = true, useCache: Bool = true) throws -> PeerProfile {
+        try reconnectWithSpaces(profile, requireSpace: requireSpace, cancellation: Runtime.cancellation, useCache: useCache).profile
     }
-    private static func reconnectWithSpaces(_ profile: PeerProfile, requireSpace: Bool, cancellation: String?) throws -> (profile: PeerProfile, spaces: [PeerProfile]) {
+    private static func reconnectWithSpaces(_ profile: PeerProfile, requireSpace: Bool, cancellation: String?, useCache: Bool = true) throws -> (profile: PeerProfile, spaces: [PeerProfile]) {
+        if useCache, let hit = PeerEndpointCache.cached(fingerprint: profile.fingerprint, space: requireSpace ? profile.space : nil) {
+            return hit
+        }
         func verify(_ url: String, cancellation: String) throws -> (profile: PeerProfile, spaces: [PeerProfile])? {
             try SyncHTTP.checkCancellation(cancellation)
             do {
@@ -404,6 +591,7 @@ enum PeerSync {
                 let result = try tunnel.call("/spaces", token: profile.token, timeout: 2, cancellation: cancellation)
                 let connected = PeerProfile(url: url, fingerprint: profile.fingerprint, token: profile.token, name: profile.name, space: profile.space, spaceName: profile.spaceName)
                 let spaces = try spaceProfiles(result, connected: connected)
+                PeerEndpointCache.record(connected, spaces: spaces)
                 if !requireSpace {
                     return (connected, spaces)
                 }

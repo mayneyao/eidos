@@ -15,6 +15,29 @@ import javax.net.ssl.*
 import org.json.JSONObject
 import kotlinx.coroutines.*
 
+internal class PeerEndpointUnreachableException(cause: Throwable) :
+    java.io.IOException(cause.message, cause)
+
+internal fun isRetryablePeerEndpointError(error: Throwable): Boolean =
+    error !is CancellationException && error is java.io.IOException
+
+internal suspend fun <T> withCachedPeerEndpointRetry(
+    usedCache: Boolean,
+    initial: PeerConnection,
+    invalidate: () -> Unit,
+    reconnect: suspend () -> PeerConnection,
+    block: suspend (PeerConnection) -> T,
+): Pair<PeerConnection, T> {
+    try {
+        return initial to block(initial)
+    } catch (error: Exception) {
+        if (!usedCache || !isRetryablePeerEndpointError(error)) throw error
+        invalidate()
+        val refreshed = reconnect()
+        return refreshed to block(refreshed)
+    }
+}
+
 internal data class PeerInvitation(
     val url: String,
     val fingerprint: String,
@@ -81,6 +104,56 @@ data class PeerSpace(val id: String, val name: String, val url: String, val fing
 
 internal data class VerifiedPeer(val connection: PeerConnection, val spaces: List<PeerSpace>)
 
+internal object PeerEndpointCache {
+    private data class Entry(
+        val url: String,
+        val fingerprint: String,
+        val token: String,
+        val name: String,
+        val spaces: List<PeerSpace>,
+        val verifiedAt: Long,
+    )
+
+    private const val TTL_MS = 15_000L
+    private val entries = ConcurrentHashMap<String, Entry>()
+
+    fun record(fingerprint: String, verified: VerifiedPeer) {
+        entries[fingerprint] = Entry(
+            verified.connection.url,
+            verified.connection.fingerprint,
+            verified.connection.token,
+            verified.connection.name,
+            verified.spaces,
+            android.os.SystemClock.elapsedRealtime(),
+        )
+    }
+
+    fun invalidate(fingerprint: String) {
+        entries.remove(fingerprint)
+    }
+
+    fun hasFresh(fingerprint: String): Boolean {
+        val entry = entries[fingerprint] ?: return false
+        return android.os.SystemClock.elapsedRealtime() - entry.verifiedAt < TTL_MS
+    }
+
+    fun cached(fingerprint: String, remoteSpace: String?): VerifiedPeer? {
+        val entry = entries[fingerprint] ?: return null
+        if (android.os.SystemClock.elapsedRealtime() - entry.verifiedAt >= TTL_MS) return null
+        if (remoteSpace == null) {
+            return VerifiedPeer(
+                PeerConnection.pooled(entry.url, entry.fingerprint, entry.token, entry.name),
+                entry.spaces,
+            )
+        }
+        val match = entry.spaces.firstOrNull { it.id == remoteSpace } ?: return null
+        return VerifiedPeer(
+            PeerConnection.pooled(match.url, entry.fingerprint, entry.token, entry.name),
+            entry.spaces,
+        )
+    }
+}
+
 internal class PeerConnection(
     val url: String,
     val fingerprint: String,
@@ -88,11 +161,32 @@ internal class PeerConnection(
     val name: String,
 ) {
     private val requests = ConcurrentHashMap.newKeySet<HttpsURLConnection>()
+
+    internal fun registerRequest(connection: HttpsURLConnection) {
+        requests.add(connection)
+    }
+
+    internal fun unregisterRequest(connection: HttpsURLConnection) {
+        requests.remove(connection)
+    }
+
     internal suspend fun <T> cancellable(action: suspend () -> T): T = coroutineScope {
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
         val watcher = launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
-            try { awaitCancellation() } finally { requests.forEach { it.disconnect() } }
+            try {
+                awaitCancellation()
+            } finally {
+                if (!finished.get()) {
+                    requests.forEach { it.disconnect() }
+                }
+            }
         }
-        try { action() } finally { withContext(NonCancellable) { watcher.cancelAndJoin() } }
+        try {
+            action()
+        } finally {
+            finished.set(true)
+            withContext(NonCancellable) { watcher.cancelAndJoin() }
+        }
     }
     private val uri = URI(url)
     private val address: InetAddress =
@@ -102,55 +196,13 @@ internal class PeerConnection(
             }
             InetAddress.getByName(uri.host)
         }
-    private val tls =
-        SSLContext.getInstance("TLS").apply {
-            init(
-                null,
-                arrayOf<TrustManager>(
-                    object : X509TrustManager {
-                        override fun getAcceptedIssuers() = emptyArray<X509Certificate>()
-
-                        override fun checkClientTrusted(
-                            chain: Array<X509Certificate>,
-                            authType: String,
-                        ) {
-                            throw java.security.cert.CertificateException(
-                                "Client certificates are unsupported"
-                            )
-                        }
-
-                        override fun checkServerTrusted(
-                            chain: Array<X509Certificate>,
-                            authType: String,
-                        ) {
-                            val certificate =
-                                chain.firstOrNull()
-                                    ?: throw java.security.cert.CertificateException(
-                                        "Missing device certificate"
-                                    )
-                            certificate.checkValidity()
-                            val actual =
-                                MessageDigest.getInstance("SHA-256")
-                                    .digest(certificate.encoded)
-                                    .joinToString("") { "%02x".format(it) }
-                            if (actual != fingerprint)
-                                throw java.security.cert.CertificateException(tr("设备身份已改变，请重新配对"))
-                        }
-                    }
-                ),
-                SecureRandom(),
-            )
-        }
 
     // Android's HTTP pool keys HTTPS connections by factory/verifier identity.
-    // Recreating either per request forces another TCP and TLS handshake.
-    private val socketFactory = tls.socketFactory
-    private val hostnameVerifier = HostnameVerifier { _, session ->
-        val certificate = session.peerCertificates.first() as X509Certificate
-        MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") {
-            "%02x".format(it)
-        } == fingerprint
-    }
+    // Sharing TLS objects per device fingerprint reuses TCP/TLS sessions without
+    // sharing per-operation request cancellation state across concurrent callers.
+    private val pinnedTls = pinnedTls(fingerprint)
+    internal val socketFactory: SSLSocketFactory = pinnedTls.socketFactory
+    internal val hostnameVerifier: HostnameVerifier = pinnedTls.hostnameVerifier
 
     /** Verify pinned TLS without submitting a ticket or consuming a pairing invitation. */
     private fun probe() {
@@ -224,6 +276,10 @@ internal class PeerConnection(
         private val received = java.util.concurrent.atomic.AtomicLong()
         private val sent = java.util.concurrent.atomic.AtomicLong()
         private val reportedAt = java.util.concurrent.atomic.AtomicLong()
+        private val remoteConnectFailed = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        val hadRemoteConnectFailure: Boolean
+            get() = remoteConnectFailed.get()
 
         private fun transfer(
             input: java.io.InputStream,
@@ -284,18 +340,27 @@ internal class PeerConnection(
                                 // neither leg should wait for Nagle/delayed ACKs.
                                 local.tcpNoDelay = true
                                 val started = android.os.SystemClock.elapsedRealtime()
-                                remote = socketFactory.createSocket() as SSLSocket
-                                remote.tcpNoDelay = true
-                                sockets.add(remote)
-                                remote.connect(java.net.InetSocketAddress(address, uri.port), 10_000)
-                                if (BuildConfig.DEBUG)
-                                    android.util.Log.d(
-                                        "PeerTiming",
-                                        "tunnel connected ${android.os.SystemClock.elapsedRealtime() - started}ms",
-                                    )
-                                remote.soTimeout = 120_000
-                                local.soTimeout = 120_000
-                                remote.startHandshake()
+                                var upstreamConnected = false
+                                try {
+                                    remote = socketFactory.createSocket() as SSLSocket
+                                    remote.tcpNoDelay = true
+                                    sockets.add(remote)
+                                    remote.connect(java.net.InetSocketAddress(address, uri.port), 10_000)
+                                    if (BuildConfig.DEBUG)
+                                        android.util.Log.d(
+                                            "PeerTiming",
+                                            "tunnel connected ${android.os.SystemClock.elapsedRealtime() - started}ms",
+                                        )
+                                    remote.soTimeout = 120_000
+                                    local.soTimeout = 120_000
+                                    remote.startHandshake()
+                                    upstreamConnected = true
+                                } catch (error: java.io.IOException) {
+                                    if (!listener.isClosed && !upstreamConnected) {
+                                        remoteConnectFailed.set(true)
+                                    }
+                                    throw error
+                                }
                                 if (BuildConfig.DEBUG)
                                     android.util.Log.d(
                                         "PeerTiming",
@@ -395,6 +460,70 @@ internal class PeerConnection(
     }
 
     companion object {
+        internal data class PinnedTls(
+            val socketFactory: SSLSocketFactory,
+            val hostnameVerifier: HostnameVerifier,
+        )
+
+        private val tlsPool = ConcurrentHashMap<String, PinnedTls>()
+
+        private fun createPinnedTls(fingerprint: String): PinnedTls {
+            val tls =
+                SSLContext.getInstance("TLS").apply {
+                    init(
+                        null,
+                        arrayOf<TrustManager>(
+                            object : X509TrustManager {
+                                override fun getAcceptedIssuers() = emptyArray<X509Certificate>()
+
+                                override fun checkClientTrusted(
+                                    chain: Array<X509Certificate>,
+                                    authType: String,
+                                ) {
+                                    throw java.security.cert.CertificateException(
+                                        "Client certificates are unsupported"
+                                    )
+                                }
+
+                                override fun checkServerTrusted(
+                                    chain: Array<X509Certificate>,
+                                    authType: String,
+                                ) {
+                                    val certificate =
+                                        chain.firstOrNull()
+                                            ?: throw java.security.cert.CertificateException(
+                                                "Missing device certificate"
+                                            )
+                                    certificate.checkValidity()
+                                    val actual =
+                                        MessageDigest.getInstance("SHA-256")
+                                            .digest(certificate.encoded)
+                                            .joinToString("") { "%02x".format(it) }
+                                    if (actual != fingerprint)
+                                        throw java.security.cert.CertificateException(
+                                            tr("设备身份已改变，请重新配对")
+                                        )
+                                }
+                            }
+                        ),
+                        SecureRandom(),
+                    )
+                }
+            val hostnameVerifier = HostnameVerifier { _, session ->
+                val certificate = session.peerCertificates.first() as X509Certificate
+                MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") {
+                    "%02x".format(it)
+                } == fingerprint
+            }
+            return PinnedTls(tls.socketFactory, hostnameVerifier)
+        }
+
+        internal fun pinnedTls(fingerprint: String): PinnedTls =
+            tlsPool.computeIfAbsent(fingerprint) { createPinnedTls(fingerprint) }
+
+        fun pooled(url: String, fingerprint: String, token: String, name: String): PeerConnection =
+            PeerConnection(url, fingerprint, token, name)
+
         suspend fun forInvitation(context: Context, invitation: PeerInvitation): PeerConnection {
             suspend fun verify(url: String): PeerConnection? = withContext(Dispatchers.IO) {
                 try {
@@ -421,26 +550,33 @@ internal class PeerConnection(
             context: Context,
             saved: PeerConnection,
             remoteSpace: String? = null,
-        ): PeerConnection = reconnectWithSpaces(context, saved, remoteSpace).connection
+            useCache: Boolean = true,
+        ): PeerConnection = reconnectWithSpaces(context, saved, remoteSpace, useCache).connection
 
         suspend fun reconnectWithSpaces(
             context: Context,
             saved: PeerConnection,
             remoteSpace: String? = null,
+            useCache: Boolean = true,
         ): VerifiedPeer {
+            if (useCache) {
+                PeerEndpointCache.cached(saved.fingerprint, remoteSpace)?.let { return it }
+            }
             suspend fun verify(url: String): VerifiedPeer? =
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val candidate =
-                            PeerConnection(url, saved.fingerprint, saved.token, saved.name)
+                            pooled(url, saved.fingerprint, saved.token, saved.name)
                         val spaces = candidate.cancellable { candidate.spaces(timeoutMillis = 2000) }
-                        if (remoteSpace == null) VerifiedPeer(candidate, spaces)
+                        val connected = VerifiedPeer(candidate, spaces)
+                        PeerEndpointCache.record(saved.fingerprint, connected)
+                        if (remoteSpace == null) connected
                         else
                             spaces
                                 .firstOrNull { it.id == remoteSpace }
                                 ?.let {
                                     val connection = if (it.url == candidate.url) candidate else
-                                        PeerConnection(
+                                        pooled(
                                             it.url,
                                             saved.fingerprint,
                                             saved.token,
@@ -470,6 +606,8 @@ internal class PeerConnection(
             }
 
         fun forgetDevice(context: Context, fingerprint: String) {
+            PeerEndpointCache.invalidate(fingerprint)
+            tlsPool.remove(fingerprint)
             SyncProfileStore(context, "peer-device-$fingerprint").clear()
             SpaceCatalog(context).spaces().forEach { space ->
                 val store = SyncProfileStore(context, "peer-${space.id}")

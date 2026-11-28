@@ -34,39 +34,76 @@ function transferSize(bytes: number, locale: string) {
 function usePeerStatus(global: boolean, enabled = true) {
   const revision = useRef(0)
   const acting = useRef(false)
+  const rateSamples = useRef(
+    new Map<string, { bytes: number; at: number; rate: number }>()
+  )
   const [status, setStatus] = useState<Status>({ running: false, devices: [] })
+  const [rates, setRates] = useState<Record<string, number>>({})
   const [code, setCode] = useState<{ value: string; qr: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [pollError, setPollError] = useState("")
+  const updateRates = (next: Status) => {
+    const now = Date.now()
+    const nextRates: Record<string, number> = {}
+    for (const transfer of next.transfers ?? []) {
+      const total = transfer.receivedBytes + transfer.sentBytes
+      const prev = rateSamples.current.get(transfer.id)
+      let rate = 0
+      if (transfer.activeRequests > 0 && prev && now > prev.at) {
+        const delta = Math.max(0, total - prev.bytes)
+        const inst = (delta * 1000) / (now - prev.at)
+        rate = prev.rate > 0 ? prev.rate * 0.6 + inst * 0.4 : inst
+      }
+      rateSamples.current.set(transfer.id, { bytes: total, at: now, rate })
+      if (transfer.activeRequests > 0 && rate >= 1024) {
+        nextRates[transfer.id] = rate
+      }
+    }
+    setRates(nextRates)
+  }
   useEffect(() => {
     if (!enabled || typeof window.eidosLite.peerSync !== "function") return
     let active = true
     let pending = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const schedule = (delayMs: number) => {
+      if (!active) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => void poll(), delayMs)
+    }
     const poll = async () => {
-      if (pending || acting.current) return
+      if (pending || acting.current) {
+        schedule(500)
+        return
+      }
       pending = true
       const requested = revision.current
+      let nextDelay = 2000
       try {
         const next = await window.eidosLite.peerSync(
           global ? "devices-status" : "status"
         )
         if (active && requested === revision.current) {
           setStatus(next)
+          updateRates(next)
           setPollError("")
+          if (next.transfers?.some((item) => item.activeRequests > 0)) {
+            nextDelay = 250
+          }
         }
       } catch (error) {
         if (active && requested === revision.current)
           setPollError(error instanceof Error ? error.message : String(error))
       } finally {
         pending = false
+        schedule(nextDelay)
       }
     }
     void poll()
-    const timer = setInterval(() => void poll(), 2000)
     return () => {
       active = false
-      clearInterval(timer)
+      if (timer) clearTimeout(timer)
     }
   }, [global, enabled])
   const run = async (action: Action, id?: string) => {
@@ -78,6 +115,7 @@ function usePeerStatus(global: boolean, enabled = true) {
     try {
       const next = await window.eidosLite.peerSync(action, id)
       setStatus(next)
+      updateRates(next)
       setPollError("")
       if (next.invitation && next.qr)
         setCode({ value: next.invitation, qr: next.qr })
@@ -99,7 +137,7 @@ function usePeerStatus(global: boolean, enabled = true) {
       setBusy(false)
     }
   }
-  return { status, code, busy, error: error || pollError, run }
+  return { status, rates, code, busy, error: error || pollError, run }
 }
 
 export function PeerSyncPanel({
@@ -238,6 +276,7 @@ function StandalonePeerSyncPanel() {
             const transfer = status.transfers?.find(
               (item) => item.id === device.id
             )
+            const rate = space.rates[device.id]
             return (
               <details key={device.id}>
                 <summary>
@@ -258,7 +297,7 @@ function StandalonePeerSyncPanel() {
                                       ? transfer!.sentBytes
                                       : transfer!.receivedBytes,
                                     locale
-                                  )}`
+                                  )}${rate ? ` (${transferSize(Math.round(rate), locale)}/s)` : ""}`
                             }`}
                       </small>
                     ) : null}

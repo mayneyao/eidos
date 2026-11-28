@@ -72,6 +72,7 @@ export class PeerService {
     {
       ready: Promise<{ private: string; cert: string }>
       devices: Device[]
+      tokenHashes: Map<string, Device>
       write: Promise<void>
       services: Set<PeerService>
     }
@@ -79,6 +80,7 @@ export class PeerService {
   private host!: {
     ready: Promise<{ private: string; cert: string }>
     devices: Device[]
+    tokenHashes: Map<string, Device>
     write: Promise<void>
     services: Set<PeerService>
   }
@@ -96,12 +98,35 @@ export class PeerService {
   private readonly transfers = new Map<string, number>()
   private readonly transferDetails = new PeerTransferTracker()
   private seeded = false
+  private exportedHead: string | null = null
   private remote = ""
+  private readonly remoteHandler = createGraftRemoteHandler<{
+    backend: PeerObjectStore
+    local: boolean
+  }>({
+    authorize: ({ action, adapterContext }) => {
+      if (
+        action === "write" &&
+        !adapterContext.local &&
+        adapterContext.backend === this.store
+      )
+        throw new GraftProtocolError(
+          403,
+          "reviewed_history_read_only",
+          "Reviewed history is read-only; publish to the device incoming remote"
+        )
+    },
+    backend: ({ adapterContext }) => adapterContext.backend,
+    limits: { maxRequestBytes: 256 * 1024 * 1024 },
+  })
   // Versioned export cache repairs older caches seeded with unrelated tracking refs.
   private get exportDirectory() {
     return path.join(this.directory, "export-v2")
   }
   private activeSync: Promise<void> | null = null
+  private activePreExport: Promise<void> | null = null
+  private preExportTimer?: ReturnType<typeof setTimeout>
+  private unsubscribeSession?: () => void
   private readonly requests = new Set<Promise<void>>()
   private stopping = false
   private readonly directory: string
@@ -154,6 +179,7 @@ export class PeerService {
       () => false
     )
     this.store = new PeerObjectStore(this.exportDirectory)
+    this.exportedHead = this.readExportedMainHead()
     try {
       const status = await this.startServers(identity)
       await this.session?.refreshPeerSources(
@@ -162,6 +188,19 @@ export class PeerService {
         this.remote,
         this.host.devices.map((device) => device.id)
       )
+      if (this.session) {
+        this.unsubscribeSession = this.session.onChanged((snapshot) => {
+          if (
+            !this.stopping &&
+            snapshot.graft.initialized &&
+            snapshot.graft.currentHead &&
+            snapshot.graft.currentHead !== this.exportedHead
+          ) {
+            this.schedulePreExport(150)
+          }
+        })
+        this.schedulePreExport(50)
+      }
       return pair ? this.invite() : status
     } catch (error) {
       await this.close()
@@ -174,6 +213,7 @@ export class PeerService {
       const state = {
         ready: Promise.resolve({ private: "", cert: "" }),
         devices: [] as Device[],
+        tokenHashes: new Map<string, Device>(),
         write: Promise.resolve(),
         services: new Set<PeerService>(),
       }
@@ -185,6 +225,8 @@ export class PeerService {
               "utf8"
             )
           )
+          for (const device of state.devices)
+            state.tokenHashes.set(device.tokenHash, device)
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
         }
@@ -242,6 +284,8 @@ export class PeerService {
       this.requests.add(task)
     }
     this.loopback = http.createServer(handle)
+    this.loopback.keepAliveTimeout = 30_000
+    this.loopback.on("connection", (socket) => socket.setNoDelay(true))
     await new Promise<void>((resolve, reject) => {
       this.loopback!.once("error", reject)
       this.loopback!.listen(0, "127.0.0.1", resolve)
@@ -251,6 +295,8 @@ export class PeerService {
       { key: identity.private, cert: identity.cert, minVersion: "TLSv1.2" },
       handle
     )
+    this.tls.keepAliveTimeout = 30_000
+    this.tls.on("secureConnection", (socket) => socket.setNoDelay(true))
     const portFile = path.join(this.directory, "port")
     const port = await fs.readFile(portFile, "utf8").then(
       (value) => Number(value),
@@ -279,6 +325,7 @@ export class PeerService {
       this.fingerprint,
       this.session?.canonical.id ?? "device"
     )
+    if (this.exportedHead) this.advertisement.updateRevision(this.exportedHead)
     this.advertisement.start()
     return this.status()
   }
@@ -385,11 +432,13 @@ export class PeerService {
     invitation.token = secret()
     invitation.deviceId = randomUUID()
     this.pairingChanged(null)
-    this.host.devices.push({
+    const added = {
       id: invitation.deviceId,
       name: invitation.name,
       tokenHash: digest(invitation.token),
-    })
+    }
+    this.host.devices.push(added)
+    this.host.tokenHashes.set(added.tokenHash, added)
     await this.saveDevices()
     return this.status()
   }
@@ -403,6 +452,9 @@ export class PeerService {
   async revoke(id: string) {
     await this.initializeHost()
     this.host.devices = this.host.devices.filter((device) => device.id !== id)
+    this.host.tokenHashes.clear()
+    for (const device of this.host.devices)
+      this.host.tokenHashes.set(device.tokenHash, device)
     for (const service of this.host.services)
       if (service.invitation?.deviceId === id) service.invitation = undefined
     await this.saveDevices()
@@ -430,15 +482,71 @@ export class PeerService {
     }
     return store
   }
+  private readExportedMainHead(): string | null {
+    const value = this.store?.readText("refs/heads/main")?.trim() ?? ""
+    return /^[a-f0-9]{64}$/.test(value) ? value : null
+  }
+  private refreshExportedHead(reportedHead?: string | null): string | null {
+    const actual = this.store
+      ? this.readExportedMainHead()
+      : reportedHead && /^[a-f0-9]{64}$/.test(reportedHead)
+        ? reportedHead
+        : null
+    this.exportedHead = actual
+    this.advertisement?.updateRevision(actual)
+    return actual
+  }
+  private schedulePreExport(delayMs = 150) {
+    if (this.stopping || !this.session || this.session.isClosed) return
+    if (this.preExportTimer) clearTimeout(this.preExportTimer)
+    this.preExportTimer = setTimeout(() => {
+      this.preExportTimer = undefined
+      if (
+        this.stopping ||
+        !this.session ||
+        this.session.isClosed ||
+        this.activeSync ||
+        this.activePreExport
+      )
+        return
+      const session = this.session
+      const currentExported = this.readExportedMainHead()
+      const task = session
+        .exportPeerHead(
+          this.localUrl,
+          this.localToken,
+          this.remote,
+          currentExported
+        )
+        .then((head) => {
+          if (!this.stopping) {
+            this.refreshExportedHead(head)
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (this.activePreExport === task) this.activePreExport = null
+        })
+      this.activePreExport = task
+    }, delayMs)
+    this.preExportTimer.unref()
+  }
   private synchronize(deviceId?: string) {
     // Do not coalesce requests from different devices: each incoming head
     // must be fetched and reviewed. SpaceSession serializes repository work.
     const session = this.session
     if (!session) throw new Error("Device gateway has no Space")
+    if (this.preExportTimer) {
+      clearTimeout(this.preExportTimer)
+      this.preExportTimer = undefined
+    }
     const task = (this.activeSync ?? Promise.resolve())
       .catch(() => {})
-      .then(() =>
-        session.syncPeerRemote(
+      .then(() => this.activePreExport?.catch(() => {}))
+      .then(() => {
+        const currentExported = this.readExportedMainHead()
+        this.exportedHead = currentExported
+        return session.syncPeerRemote(
           this.localUrl,
           this.localToken,
           deviceId ? true : this.seeded,
@@ -446,14 +554,16 @@ export class PeerService {
             ? this.localUrl.replace("/peer/space", `/incoming/${deviceId}`)
             : undefined,
           this.remote,
-          deviceId ? `${this.remote}-${deviceId}` : this.remote
+          deviceId ? `${this.remote}-${deviceId}` : this.remote,
+          currentExported
         )
-      )
-      .then(async () => {
+      })
+      .then(async (head) => {
         await fs.writeFile(path.join(this.exportDirectory, "seeded"), "1", {
           mode: 0o600,
         })
         this.seeded = true
+        this.refreshExportedHead(head)
       })
     const active = task.finally(() => {
       if (this.activeSync === active) this.activeSync = null
@@ -465,23 +575,22 @@ export class PeerService {
     incoming: http.IncomingMessage,
     response: http.ServerResponse
   ) {
-    // Compatibility for the currently published Graft SDK, whose repository
-    // executor can leave pooled connections idle between synchronous calls.
-    // Remove this relay policy when adopting Graft's continuously driven IO pool.
     const url = new URL(incoming.url ?? "/", "https://peer.invalid")
-    // Keep artifact pooling so small files do not each require a TLS handshake.
+    // Release HEAD metadata probe sockets promptly while pooling GET/read-bundle
+    // and artifact reads across the tunnel so multi-file sync reuses TLS sessions.
     if (
-      ((incoming.method === "GET" || incoming.method === "HEAD") &&
-        !url.pathname.includes("/raw/store/files/")) ||
-      url.pathname.endsWith("/read-bundle")
+      incoming.method === "HEAD" &&
+      !url.pathname.includes("/raw/store/files/")
     )
       response.setHeader("Connection", "close")
     const bearer = incoming.headers.authorization?.replace(/^Bearer /, "") ?? ""
     const local =
       incoming.socket.localAddress === "127.0.0.1" && bearer === this.localToken
-    const device = this.host.devices.find(
-      (device) => device.tokenHash === digest(bearer)
-    )
+    const bearerHash = bearer ? digest(bearer) : ""
+    const device = bearerHash
+      ? (this.host.tokenHashes.get(bearerHash) ??
+        this.host.devices.find((entry) => entry.tokenHash === bearerHash))
+      : undefined
     const authorized = local || Boolean(device)
     const json = (status: number, value: unknown) => {
       response.writeHead(status, {
@@ -649,7 +758,11 @@ export class PeerService {
           state: "completed",
           updatedAt: Date.now(),
         }
-        return json(200, { state: "ready", protocol: 2 })
+        return json(200, {
+          state: "ready",
+          protocol: 2,
+          ...(this.exportedHead ? { head: this.exportedHead } : {}),
+        })
       } catch (error) {
         transfer?.fail(
           error instanceof Error
@@ -686,18 +799,56 @@ export class PeerService {
       if (!device || !this.session || this.session.isClosed)
         return json(409, { error: "Space is closed or device is not paired" })
       try {
+        const currentExported = this.readExportedMainHead()
         const head = await this.session.exportPeerHead(
           this.localUrl,
           this.localToken,
-          this.remote
+          this.remote,
+          currentExported
         )
+        const exported = this.refreshExportedHead(head)
         return json(200, {
           protocol: 1,
           space: this.session.canonical.id,
-          head,
+          head: head ? exported : null,
         })
       } catch {
         return json(409, { error: "Committed device history is unavailable" })
+      }
+    }
+    if (url.pathname === "/incoming/seed" && incoming.method === "POST") {
+      // Seed an empty per-device incoming branch ref with a reviewed desktop
+      // base commit so the device's first incremental push avoids re-uploading
+      // the full repository history. Never overwrites an existing incoming ref.
+      if (!device || !this.session || this.session.isClosed)
+        return json(409, { error: "Space is closed or device is not paired" })
+      try {
+        let body = ""
+        for await (const chunk of incoming) {
+          body += chunk
+          if (body.length > 4096)
+            return json(413, { error: "Request too large" })
+        }
+        const baseHead = body
+          ? (JSON.parse(body) as { baseHead?: unknown }).baseHead
+          : undefined
+        if (typeof baseHead !== "string" || !/^[a-f0-9]{64}$/.test(baseHead))
+          return json(400, { error: "Invalid base head" })
+        const store = this.incomingStore(device.id)
+        if (store.head("refs/heads/main")) {
+          return json(200, { seeded: false })
+        }
+        const exportedHead = this.readExportedMainHead()
+        const reviewed =
+          this.seeded && Boolean(exportedHead) && baseHead === exportedHead
+        if (!reviewed) return json(200, { seeded: false })
+        const seeded = await store.putIfAbsent(
+          "refs/heads/main",
+          new TextEncoder().encode(`${baseHead}\n`)
+        )
+        return json(200, { seeded })
+      } catch {
+        return json(400, { error: "Invalid incoming seed request" })
       }
     }
     if (!this.session)
@@ -714,18 +865,6 @@ export class PeerService {
       backend = this.incomingStore(parts[1])
     } else if (parts[0] !== "peer" || parts[1] !== "space")
       return json(404, { error: "Not found" })
-    const handler = createGraftRemoteHandler({
-      authorize: ({ action }) => {
-        if (action === "write" && !local && backend === this.store)
-          throw new GraftProtocolError(
-            403,
-            "reviewed_history_read_only",
-            "Reviewed history is read-only; publish to the device incoming remote"
-          )
-      },
-      backend: () => backend,
-      limits: { maxRequestBytes: 256 * 1024 * 1024 },
-    })
     const request = new Request(url, {
       method: incoming.method,
       headers: incoming.headers as Record<string, string>,
@@ -743,7 +882,7 @@ export class PeerService {
           }
         : {}),
     } as RequestInit)
-    const result = await handler({
+    const result = await this.remoteHandler({
       request,
       route: {
         namespace: "peer",
@@ -751,7 +890,7 @@ export class PeerService {
         operation: parts[2],
         objectPath: parts.slice(3).join("/") || undefined,
       },
-      adapterContext: undefined,
+      adapterContext: { backend, local },
     })
     // A rejected streaming upload can leave unread bytes in the request. Do
     // not let its client reuse that connection for the verification GET.
@@ -777,12 +916,19 @@ export class PeerService {
   }
   async close() {
     this.stopping = true
+    if (this.preExportTimer) {
+      clearTimeout(this.preExportTimer)
+      this.preExportTimer = undefined
+    }
+    this.unsubscribeSession?.()
+    this.unsubscribeSession = undefined
     this.advertisement?.close()
     this.advertisement = undefined
     this.host?.services.delete(this)
     this.invitation = undefined
     this.pairingChanged(null)
     // Let accepted repository operations finish before closing their object store.
+    await this.activePreExport?.catch(() => {})
     await this.activeSync?.catch(() => {})
     for (const server of [this.tls, this.loopback])
       if (server) {

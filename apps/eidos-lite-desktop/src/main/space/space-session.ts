@@ -3624,11 +3624,39 @@ export class SpaceSession {
     )
   }
 
-  /** Export only the existing committed head to this gateway's private cache. */
+  /** Return whether commitId is a reviewed ancestor of the desktop main HEAD. */
+  async isReviewedCommit(commitId: string): Promise<boolean> {
+    if (!this.versioningEnabled) return false
+    return this.gate.withRepositoryOperation(
+      "Checking device base commit",
+      async (signal) => {
+        try {
+          const state = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+          if (state.currentBranch !== "main") return false
+          const plan = await this.graft.planMerge(
+            this.canonical.root,
+            commitId,
+            null,
+            { signal }
+          )
+          return plan.kind === "up_to_date"
+        } catch {
+          return false
+        }
+      },
+      { preemptible: true }
+    )
+  }
+
+  /** Export only the existing committed main branch head to this gateway's private cache. */
   async exportPeerHead(
     url: string,
     token: string,
-    remote: string
+    remote: string,
+    lastExportedHead?: string | null
   ): Promise<string | null> {
     if (!this.versioningEnabled) return null
     return this.withSyncTask(() =>
@@ -3646,19 +3674,22 @@ export class SpaceSession {
             state.hasConflicts
           )
             return null
+          if (lastExportedHead && state.currentHead === lastExportedHead) {
+            return state.currentHead
+          }
           await this.graft.configurePeer(
             this.canonical.root,
             url,
             token,
             remote
           )
-          await this.graft.transferPeer(
+          const pushed = await this.graft.transferPeer(
             this.canonical.root,
             "push",
             signal,
             remote
           )
-          return state.currentHead
+          return extractPushedBranchHead(pushed, "main") ?? state.currentHead
         },
         { preemptible: true }
       )
@@ -3671,10 +3702,85 @@ export class SpaceSession {
     seeded: boolean,
     incomingUrl?: string,
     remote = "eidos-peer",
-    incomingRemote = remote
-  ): Promise<void> {
+    incomingRemote = remote,
+    lastExportedHead?: string | null
+  ): Promise<string | null> {
     return this.withSyncTask(async () => {
       await this.enableVersioning()
+      if (!incomingUrl) {
+        let head: string | null = null
+        let committedDirty = false
+        await this.gate.withRepositoryOperation(
+          "Preparing device sync",
+          async (signal) => {
+            const state = await this.graft.status(
+              this.canonical.root,
+              this.graftStatusOptions(signal)
+            )
+            if (state.hasConflicts)
+              throw new Error("Resolve the current merge before device sync")
+            const onMain = state.currentBranch === "main"
+            if (
+              !state.dirty &&
+              onMain &&
+              state.currentHead &&
+              lastExportedHead &&
+              state.currentHead === lastExportedHead
+            ) {
+              head = state.currentHead
+              return
+            }
+            head = onMain ? (state.currentHead ?? null) : null
+            if (state.dirty && onMain) {
+              await this.graft.stageAll(
+                this.canonical.root,
+                this.graftStatusOptions(signal)
+              )
+              const committed = await this.graft.commit(
+                this.canonical.root,
+                "Device sync checkpoint",
+                { signal }
+              )
+              head = committed.id
+              committedDirty = true
+            }
+            if (
+              onMain &&
+              head &&
+              lastExportedHead &&
+              head === lastExportedHead
+            ) {
+              return
+            }
+            await this.graft.configurePeer(
+              this.canonical.root,
+              url,
+              token,
+              remote
+            )
+            const pushed = await this.graft.transferPeer(
+              this.canonical.root,
+              "push",
+              signal,
+              remote
+            )
+            head = extractPushedBranchHead(pushed, "main") ?? head
+            if (!head && onMain) {
+              const refreshed = await this.graft.status(
+                this.canonical.root,
+                this.graftStatusOptions(signal)
+              )
+              if (refreshed.currentBranch === "main") {
+                head = refreshed.currentHead ?? null
+              }
+            }
+          }
+        )
+        if (committedDirty) {
+          void this.freshSnapshotAndEmit(true).catch(() => {})
+        }
+        return head
+      }
       await this.gate.withRepositoryOperation(
         "Preparing device sync",
         async (signal) => {
@@ -3684,6 +3790,10 @@ export class SpaceSession {
           )
           if (state.hasConflicts)
             throw new Error("Resolve the current merge before device sync")
+          if (state.currentBranch !== "main")
+            throw new Error(
+              "Switch this Space back to the main branch before accepting device changes"
+            )
           if (state.dirty) {
             await this.graft.stageAll(
               this.canonical.root,
@@ -3696,16 +3806,16 @@ export class SpaceSession {
           }
           await this.graft.configurePeer(
             this.canonical.root,
-            incomingUrl ?? url,
+            incomingUrl,
             token,
-            incomingUrl ? incomingRemote : remote
+            incomingRemote
           )
           if (seeded)
             await this.graft.transferPeer(
               this.canonical.root,
               "fetch",
               signal,
-              incomingUrl ? incomingRemote : remote
+              incomingRemote
             )
         }
       )
@@ -3718,10 +3828,14 @@ export class SpaceSession {
                 this.canonical.root,
                 this.graftStatusOptions(signal)
               )
+              if (current.currentBranch !== "main")
+                throw new Error(
+                  "Switch this Space back to the main branch before accepting device changes"
+                )
               this.assertGraftPathsSafeForMerge(current)
               const initialPlan = await this.graft.planMerge(
                 this.canonical.root,
-                `${incomingUrl ? incomingRemote : remote}/main`,
+                `${incomingRemote}/main`,
                 current.currentHead ?? null,
                 { signal }
               )
@@ -3729,29 +3843,41 @@ export class SpaceSession {
               await this.ensureEidosMergePolicy(signal)
               return this.graft.planMerge(
                 this.canonical.root,
-                `${incomingUrl ? incomingRemote : remote}/main`,
+                `${incomingRemote}/main`,
                 current.currentHead ?? null,
                 { signal }
               )
             }
           )
         if (plan.kind === "fast_forward" || plan.kind === "three_way") {
-          const merge = await this.applySyncMerge(
-            `${incomingUrl ? incomingRemote : remote}/main`,
-            {
-              expectedHead: plan.expectedHead,
-              planToken: plan.planToken,
-            }
-          )
+          const merge = await this.applySyncMerge(`${incomingRemote}/main`, {
+            expectedHead: plan.expectedHead,
+            planToken: plan.planToken,
+          })
           if (merge.state === "merging")
             throw new Error(
               "Some changes could not be merged automatically. Both versions are retained; review the conflicting files in Sync settings."
             )
         }
       }
+      let exportedHead: string | null = null
       await this.gate.withRepositoryOperation(
         "Sending device updates",
         async (signal) => {
+          const postMergeState = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions(signal)
+          )
+          const onMain = postMergeState.currentBranch === "main"
+          if (
+            onMain &&
+            postMergeState.currentHead &&
+            lastExportedHead &&
+            postMergeState.currentHead === lastExportedHead
+          ) {
+            exportedHead = postMergeState.currentHead
+            return
+          }
           // Incoming phone history has its own durable Remote. Only reviewed
           // desktop history is published to the Remote downloaded by phones.
           await this.graft.configurePeer(
@@ -3760,15 +3886,19 @@ export class SpaceSession {
             token,
             remote
           )
-          await this.graft.transferPeer(
+          const pushed = await this.graft.transferPeer(
             this.canonical.root,
             "push",
             signal,
             remote
           )
+          exportedHead =
+            extractPushedBranchHead(pushed, "main") ??
+            (onMain ? (postMergeState.currentHead ?? null) : null)
         }
       )
       await this.freshSnapshotAndEmit(true)
+      return exportedHead
     })
   }
 
@@ -7399,4 +7529,29 @@ export class SpaceSession {
       await this.requireMissingPath(target)
     }
   }
+}
+
+function extractPushedBranchHead(
+  result: unknown,
+  branch = "main"
+): string | null {
+  if (!result || typeof result !== "object") return null
+  const branches = (result as { branches?: unknown }).branches
+  if (!Array.isArray(branches)) return null
+  for (const entry of branches) {
+    if (!entry || typeof entry !== "object") continue
+    const record = entry as {
+      remote_branch?: unknown
+      local_branch?: unknown
+      head?: unknown
+    }
+    if (
+      (record.remote_branch === branch || record.local_branch === branch) &&
+      typeof record.head === "string" &&
+      /^[a-f0-9]{64}$/.test(record.head)
+    ) {
+      return record.head
+    }
+  }
+  return null
 }
