@@ -439,7 +439,7 @@
       "packages/eidos-file-ui/vite-source-aliases.ts": "ac2bc0047458593a39b4b079b5c94f510004c3a665ab50e105e67357d3d45ee3",
       "packages/eidos-file-ui/package.json": "c038e87aa97a60ebb5a0378c103ed1a4760bbdbe3ef57da0ac9101aeca9ae1ec",
       "packages/eidos-file/package.json": "57f3865e820bdfa0dd6db3fbf085798a06a96aefae165494ffaa5f4bd9a4358c",
-      "pnpm-lock.yaml": "6b6b090895c0706cdbb79be61c01fc376a6eb96c5fbfbd27a9d1465d854f5138",
+      "pnpm-lock.yaml": "76d6cfc15ff838b8673402724a91b668be5216bc41d063d675003514415b6f67",
       "packages/eidos-file-serve/src/app.tsx": "a613124bea61c2284533b11e706c3eb329123b82ea3a8e1018471ece8fcb2093",
       "packages/eidos-file-serve/src/assets.test.tsx": "16aeadd0a9fe1bcd41cf3dfb178a410bb5696ceb22a2e7ce0016af4776e4b2bd",
       "packages/eidos-file-serve/src/assets.tsx": "16ce0b4bd00ee417068d95557dca63a24c347f65174e37b121e12e4fd360c8ce",
