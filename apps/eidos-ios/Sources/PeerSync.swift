@@ -206,9 +206,9 @@ final class PeerTunnel {
                 remote.cancel()
                 if let self {
                     self.stateLock.lock()
-                    self.connections.removeValue(forKey: id)
+                    let removed = self.connections.removeValue(forKey: id)
                     self.stateLock.unlock()
-                    self.slots.signal()
+                    if removed != nil { self.slots.signal() }
                 }
             }
             local.stateUpdateHandler = { state in
@@ -274,7 +274,13 @@ final class PeerTunnel {
         stateLock.unlock()
         onTransfer(rx, tx)
         listener.cancel()
-        active.values.forEach { $0.0.cancel(); $0.1.cancel() }
+        // Removing an entry transfers its slot to this close path. Cancellation callbacks
+        // may arrive after deinit, so return each slot before releasing the semaphore.
+        for (local, remote) in active.values {
+            local.cancel()
+            remote.cancel()
+            slots.signal()
+        }
     }
     deinit { close() }
 
